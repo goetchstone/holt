@@ -40,7 +40,7 @@ function getKey(): Buffer {
 // base64( iv[12] | authTag[16] | ciphertext )
 export function encryptSecret(plaintext: string): string {
   const iv = randomBytes(IV_BYTES);
-  const cipher = createCipheriv(ALGORITHM, getKey(), iv);
+  const cipher = createCipheriv(ALGORITHM, getKey(), iv, { authTagLength: TAG_BYTES });
   const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return Buffer.concat([iv, tag, encrypted]).toString("base64");
@@ -48,10 +48,17 @@ export function encryptSecret(plaintext: string): string {
 
 export function decryptSecret(payload: string): string {
   const buf = Buffer.from(payload, "base64");
+  // Reject anything too short to even hold the IV + full GCM tag: a truncated
+  // payload would otherwise yield a short tag and weaken the integrity check.
+  if (buf.length < IV_BYTES + TAG_BYTES) {
+    throw new Error("Malformed ciphertext: shorter than IV + auth tag");
+  }
   const iv = buf.subarray(0, IV_BYTES);
   const tag = buf.subarray(IV_BYTES, IV_BYTES + TAG_BYTES);
   const encrypted = buf.subarray(IV_BYTES + TAG_BYTES);
-  const decipher = createDecipheriv(ALGORITHM, getKey(), iv);
+  // Pin the GCM tag to the full 16 bytes; the implicit default would accept a
+  // shorter tag, which is exploitable for forgeries.
+  const decipher = createDecipheriv(ALGORITHM, getKey(), iv, { authTagLength: TAG_BYTES });
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
 }

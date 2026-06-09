@@ -21,7 +21,7 @@
 // Pure source-text test (B-grade per the test grading rubric in the
 // SOR plan Phase 0.6). No DB / no network. Cheap to run.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const REPO_ROOT = join(__dirname, "..", "..");
@@ -85,7 +85,12 @@ function roadmapMajorWatchlist(): Set<string> {
   return watch;
 }
 
-describe("dependabot ignore-list ↔ ROADMAP major watchlist", () => {
+// ROADMAP.md is a gitignored internal planning doc -- absent in CI and the
+// public repo. This drift check is meaningful only where the watchlist exists
+// (local dev), so skip the suite when the file isn't present rather than ENOENT.
+const describeIfRoadmap = existsSync(ROADMAP_PATH) ? describe : describe.skip;
+
+describeIfRoadmap("dependabot ignore-list ↔ ROADMAP major watchlist", () => {
   it("every package in ROADMAP Major Upgrade Watchlist is held back in dependabot.yml", () => {
     const watchlist = roadmapMajorWatchlist();
     const dependabot = dependabotHeldBackMajors();

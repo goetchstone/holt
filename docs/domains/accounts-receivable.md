@@ -43,11 +43,13 @@ model PaymentApplication {
 ```
 
 Derived, never stored-and-trusted-alone:
+
 - `Invoice.openBalance = invoice.total - SUM(applications.amountApplied) (- credits/refunds applied)`
 - `Payment.unappliedAmount = payment.amount - SUM(applications.amountApplied)` → this is **on-account credit**.
 - A payment may split across many invoices; an invoice may take many applications.
 
 Both styles fall out of the same model:
+
 - **Open-item:** create `PaymentApplication` rows → per-invoice open balance,
   per-invoice aging, statements, partial payments. (services / B2B terms.)
 - **Balance-forward:** take the payment, create no applications → it's on-account,
@@ -104,6 +106,7 @@ would adopt Holt over a tool that fudges them.
    (credit / re-invoice / write-off).
 
 ### Model additions these force
+
 - **Customer Deposits (liability)** — deposit at order time; applied to invoices
   on delivery. Distinct GL liability account; NOT negative AR. (operationally:
   a Payment flagged as deposit/unearned, tied to the order, applied on delivery.)
@@ -113,6 +116,7 @@ would adopt Holt over a tool that fudges them.
   (adjacent to the existing Return/refund path).
 
 ### Build slices (worst-first)
+
 1. Open-item `PaymentApplication` + per-invoice open balance & aging (#3, most of #4).
 2. Customer Deposits as a liability + apply-on-delivery (#1 properly).
 3. Progress / partial-delivery invoicing (#2).
