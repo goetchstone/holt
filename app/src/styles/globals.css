@@ -34,6 +34,15 @@
   --color-sh-brand-gray: rgb(var(--brand-accent-gray));
   --color-sh-brand-blue: rgb(var(--brand-accent-blue));
 
+  /* Akritos tool palette — the dark theme for the (Akritos-gated) public DMARC
+     tools ported from akritos.com. Scoped to those pages; not part of the
+     white-label brand tokens above. */
+  --color-midnight: #1c1f2e;
+  --color-conviction: #c8a96e;
+  --color-bone: #e8e4dc;
+  --color-slate-brand: #4a5068;
+  --color-alert: #e24b4a;
+
   --font-serif: "minion-pro", ui-serif, Georgia, serif;
   --font-serif-display: "minion-pro-display", ui-serif, Georgia, serif;
   --font-serif-condensed: "minion-pro-condensed", ui-serif, Georgia, serif;
