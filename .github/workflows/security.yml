@@ -34,15 +34,10 @@ on:
   # Actions minute spend. PRs are still gated by Semgrep; the weekly
   # schedule still catches newly-disclosed CVEs in unchanged code.
   # Manual `workflow_dispatch` retained for on-demand sweeps.
+  # Runs on every PR to main (no path filter) so Semgrep + OSV can be REQUIRED
+  # status checks without a path-filtered PR leaving them perpetually "waiting".
   pull_request:
     branches: [main]
-    paths:
-      - "app/src/**"
-      - "scripts/**"
-      - "app/package-lock.json"
-      - "app/Dockerfile"
-      - "osv-scanner.toml"
-      - ".github/workflows/security.yml"
   schedule:
     # Monday 06:00 UTC weekly sweep. Catches newly-disclosed CVEs in
     # unchanged code/deps/image even when no PR touches them.
