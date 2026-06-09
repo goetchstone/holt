@@ -11,8 +11,11 @@
 //   audience. The runner's interaction with Mailchimp's API is a
 //   separate concern from the SQL behavior we want to verify here.
 
-// Match the unit test: API key must be set before module load.
+// Match the unit test: API key + audience must be set before module load.
+// Both are set here (not relied on from the ambient env) so the suite is
+// hermetic -- it failed in CI where MAILCHIMP_AUDIENCE_ID isn't present.
 process.env.MAILCHIMP_API_KEY = "fake-us18";
+process.env.MAILCHIMP_AUDIENCE_ID = "fake-audience";
 
 import axios from "axios";
 import { prisma } from "@/lib/prisma";
@@ -28,6 +31,7 @@ beforeEach(async () => {
   await resetTestDb();
   jest.clearAllMocks();
   process.env.MAILCHIMP_API_KEY = "fake-us18";
+  process.env.MAILCHIMP_AUDIENCE_ID = "fake-audience";
   // Default: succeed unless a test overrides.
   mockedAxios.put.mockResolvedValue({ status: 200, data: {} } as never);
   mockedAxios.isAxiosError = ((e: unknown) =>

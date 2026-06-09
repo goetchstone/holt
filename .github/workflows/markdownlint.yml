@@ -42,7 +42,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
 
       # markdownlint-cli2 reads `.markdownlint.json` + `.markdownlintignore`
       # at repo root automatically. The negation glob `!**/node_modules/**`
