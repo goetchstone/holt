@@ -16,18 +16,12 @@
 name: CI
 
 on:
+  # Runs on every PR to main (no path filter) so it can be a REQUIRED status
+  # check without footgunning path-filtered PRs -- a required check that's
+  # skipped by a filter never reports and blocks the merge forever. Actions are
+  # free on this public repo, so always-run is the right trade.
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "CLAUDE.md"
-      - "ROADMAP.md"
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".gitignore"
-      - ".markdownlintignore"
-      - ".markdownlint.json"
-      - "env.example"
   workflow_dispatch:
 
 # Workflow-level least-privilege per CodeQL `actions/missing-workflow-permissions`.

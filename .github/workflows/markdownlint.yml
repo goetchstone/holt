@@ -17,13 +17,10 @@ on:
   # 2026-05-13: dropped `push: branches: [main]` trigger to halve
   # Actions minute spend. The PR gate already validated the same
   # markdown; re-running on the squash commit is paranoia tax.
+  # Runs on every PR to main (no path filter) so it can be a REQUIRED status
+  # check; a path-filtered required check blocks PRs that don't touch its paths.
   pull_request:
     branches: [main]
-    paths:
-      - "**.md"
-      - ".markdownlint.json"
-      - ".markdownlintignore"
-      - ".github/workflows/markdownlint.yml"
   schedule:
     # Monday 06:30 UTC, after Security weekly sweep
     - cron: "30 6 * * 1"
