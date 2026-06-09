@@ -121,7 +121,7 @@
     "follow-redirects": "^1.16.0",
     "semver": "7.6.3",
     "dompurify": "^3.4.1",
-    "hono": "^4.12.16",
+    "hono": "^4.12.21",
     "fast-uri": "^3.1.1",
     "@hono/node-server": "^1.19.13",
     "nodemailer": "^8.0.10"
