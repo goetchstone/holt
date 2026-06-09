@@ -43,6 +43,7 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@radix-ui/react-slot": "^1.2.4",
+    "@rgrove/parse-xml": "^4.2.0",
     "@tanstack/react-query": "^5.100.9",
     "@trpc/client": "^11.17.0",
     "@trpc/react-query": "^11.17.0",

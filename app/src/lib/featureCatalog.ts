@@ -104,6 +104,13 @@ export const FEATURES: FeatureDef[] = [
     description: "Let visitors comment on blog posts, held for moderation (requires Blog).",
     defaultEnabled: false,
   },
+  {
+    key: "dmarcTools",
+    name: "Email Auth Tools (DMARC)",
+    description:
+      "Public DMARC / SPF / DKIM domain checker + aggregate-report analyzer. Lead-gen consult tooling; off by default.",
+    defaultEnabled: false,
+  },
 ];
 
 const FEATURE_KEYS = new Set(FEATURES.map((f) => f.key));
