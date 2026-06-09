@@ -1,0 +1,117 @@
+# .github/dependabot.yml
+#
+# Weekly Dependabot version-update PRs. Supports CLAUDE.md rule 5
+# (LTS-only, bump patch+minor proactively the same session they're
+# noticed). Without this, "noticed" was vibes-based — now it's a
+# weekly Monday PR sweep that surfaces drift automatically.
+#
+# Three ecosystems:
+# 1. npm (the only app dep tree, in `app/`)
+# 2. github-actions (the workflow YAMLs at .github/workflows/)
+# 3. docker (the base image in app/Dockerfile)
+#
+# Group strategy: bundle minor + patch updates of the same ecosystem
+# into ONE PR so the noise is manageable. Major bumps stay as their
+# own PR per ecosystem because rule 5 requires deliberate review of
+# each major's breaking surface (see ROADMAP.md "Major Upgrade Watchlist").
+#
+# Each PR runs through the same gates as any human-authored PR:
+# - Server-side branch protection (CI / Semgrep / OSV must pass)
+# - Pre-PR hook would fire if Claude was opening (Dependabot opens its
+#   own PRs from a service account; gate is the CI checks instead)
+
+version: 2
+updates:
+  # ── Application dependencies ─────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    groups:
+      patch-and-minor:
+        update-types:
+          - "patch"
+          - "minor"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+    # Held-back majors (per ROADMAP.md "Major Upgrade Watchlist") —
+    # these need their own planned-session PRs, not Dependabot drift.
+    # NOTE: this list MUST stay in sync with ROADMAP.md. The tripwire
+    # test at __tests__/dependabotMajorWatchlist.test.ts enforces it.
+    ignore:
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "jest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/jest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "date-fns"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "stripe"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lucide-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pdfjs-dist"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "fuse.js"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pdf-parse"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "googleapis"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "next-auth"
+        update-types: ["version-update:semver-major"]
+
+  # ── GitHub Actions workflow files ────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "ci"
+
+  # ── Dockerfile base image ────────────────────────────────────────
+  - package-ecosystem: "docker"
+    directory: "/app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(docker)"
+    labels:
+      - "dependencies"
+      - "docker"
+    # Held-back majors. Node base image is the runtime — major bumps
+    # to non-LTS releases (e.g. node:25 = Current, not LTS) violate
+    # CLAUDE.md rule 5 "LTS only is the default state for every runtime
+    # and dependency." Caught 2026-04-29 when an earlier version of
+    # this file shipped without this hold and Dependabot opened a
+    # node:24 → node:25 PR that auto-merged before review.
+    # See post-failure log entry "2026-04-29: Node 25 (Current, not
+    # LTS) silently merged via Dependabot."
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]

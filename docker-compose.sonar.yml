@@ -1,0 +1,56 @@
+# docker-compose.sonar.yml
+#
+# Local-only SonarQube Community Edition for code-quality analysis.
+# Runs alongside the main stack without interfering with prod services.
+#
+# Usage:
+#   docker compose -f docker-compose.sonar.yml up -d
+#   open http://localhost:9000          (admin / admin, change on first login)
+#   docker compose -f docker-compose.sonar.yml down
+#
+# First run takes ~2 min to bootstrap. Data persists in the sonar-data
+# and sonar-db-data volumes so issues/history survive restarts.
+
+services:
+  sonarqube:
+    image: sonarqube:community
+    container_name: sonarqube
+    depends_on:
+      - sonar-db
+    ports:
+      - "9000:9000"
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+      # Sonar's own heap. Compute Engine needs more on big projects;
+      # raises the default 512m to 2g for the analysis worker.
+      SONAR_WEB_JAVAOPTS: -Xmx1024m -Xms512m
+      SONAR_CE_JAVAOPTS: -Xmx2048m -Xms1024m
+    volumes:
+      - sonar-data:/opt/sonarqube/data
+      - sonar-extensions:/opt/sonarqube/extensions
+      - sonar-logs:/opt/sonarqube/logs
+    # SonarQube needs an elevated mmap count. Docker Desktop handles this
+    # automatically on macOS/Windows; on Linux hosts you may need:
+    #   sudo sysctl -w vm.max_map_count=524288
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  sonar-db:
+    image: postgres:17-alpine
+    container_name: sonar-db
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+    volumes:
+      - sonar-db-data:/var/lib/postgresql/data
+
+volumes:
+  sonar-data:
+  sonar-extensions:
+  sonar-logs:
+  sonar-db-data:

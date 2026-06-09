@@ -1,0 +1,4762 @@
+// app/prisma/schema.prisma
+//
+// Holt -- Retail Business Management Platform
+// Database schema for product catalog, pricing engine, inventory,
+// purchasing, sales, and integrations.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// CORE CATALOG & PRODUCT STRUCTURE
+// ---------------------------------------------------------------------------
+
+model Vendor {
+  id              Int                @id @default(autoincrement())
+  name            String             @unique
+  code            String?            @unique // Short vendor code (e.g., "WH", "AL", "HK")
+  pricingModel    VendorPricingModel @default(FLAT)
+  defaultMarkup   Decimal? // Default retail markup multiplier (e.g., 2.5)
+  defaultDiscount Decimal? // Dealer discount off retail (e.g., 0.40 for 40% off)
+  costMultiplier  Decimal?           @map("cost_multiplier") // Cost = retail * multiplier (e.g., 0.44)
+  mapEnforced     Boolean            @default(false)
+  website         String?
+  accountNumber   String?
+  paymentTerms    String? // e.g., "Net 30"
+  freightTerms    String? // e.g., "FOB Factory"
+  minimumOrder    Decimal?
+  address         String?
+  city            String?
+  state           String?
+  zip             String?
+  phone           String?
+  email           String?
+  notes           String?
+
+  contacts        VendorContact[]
+  products        Product[]
+  vendorStyles    VendorStyle[]
+  priceDimensions VendorPriceDimension[]
+  optionGroups    VendorOptionGroup[]
+  programs        VendorProgram[]
+  purchaseOrders  PurchaseOrder[]
+  priceLists      PriceList[]
+  fabrics         FabricCatalog[]
+  seComponents    SEComponent[]
+  serviceCases    ServiceCase[]
+
+  allowTradeDiscount Boolean @default(true)
+
+  consignmentItems         ConsignmentItem[]
+  consignmentReceipts      ConsignmentReceipt[]
+  consignmentPayments      ConsignmentPaymentBatch[]
+  consignmentVendorReturns ConsignmentVendorReturn[]
+
+  buyerDraftItems          BuyerDraftItem[]
+  buyerDraftPurchaseOrders BuyerDraftPurchaseOrder[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+// Categorizes how a vendor prices their products so the pricing engine
+// knows which calculation path to follow.
+enum VendorPricingModel {
+  FLAT // Hooker, Currey, INET, Jellycat, Matouk, SMEG, etc.
+  GRADE_BASED // Wesley Hall, HF Custom, Lee, MT Company, CR Laine
+  FRAME_PLUS_CUSHION // Jensen, Kingsley Bate, American Leather
+  SPECIES_MATRIX // Simply Amish
+  MULTI_AXIS // Zimmerman Chair (species x finish x upholstery)
+  AREA_BASED // Fibreworks (per sq ft / sq yd)
+  SIZE_BASED // Downright, Pom Pom, Redford House
+}
+
+model VendorContact {
+  id        Int     @id @default(autoincrement())
+  vendorId  Int
+  name      String
+  email     String?
+  phone     String?
+  role      String?
+  isPrimary Boolean @default(false)
+  vendor    Vendor  @relation(fields: [vendorId], references: [id])
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+// ---------------------------------------------------------------------------
+// VENDOR STYLE — Configurable catalog templates
+//
+// Represents a vendor's catalog entry for a configurable item. A VendorStyle
+// is NOT a physical product — it's a template from the vendor's price list.
+// It becomes a Product when configured and ordered (e.g., "Wesley Hall 1060"
+// is a style; "WH-1060-G20" is the product materialized from that style in
+// Grade 20).
+//
+// Flat-priced vendors (Hooker, etc.) use Product directly — no VendorStyle.
+//
+// The import pipeline creates VendorStyles from vendor price lists. For 2D
+// vendors (style × grade), the import can optionally auto-materialize
+// Products for each style+grade combination. Existing Products (e.g., from
+// the POS) can be linked to VendorStyles via vendorStyleId for automatic
+// pricing updates when a new price list is imported.
+// ---------------------------------------------------------------------------
+
+model VendorStyle {
+  id           Int         @id @default(autoincrement())
+  styleNumber  String // Vendor's style/item number (e.g., "1060", "82020", "CS-AUSTIN")
+  name         String
+  description  String?
+  vendorId     Int
+  vendor       Vendor      @relation(fields: [vendorId], references: [id])
+  departmentId Int?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  categoryId   Int?
+  category     Category?   @relation(fields: [categoryId], references: [id])
+  typeId       Int?
+  type         Type?       @relation(fields: [typeId], references: [id])
+  collectionId Int?
+  collection   Collection? @relation(fields: [collectionId], references: [id])
+
+  // Base pricing (COM/starting price — lowest tier or starting cost)
+  baseCost   Decimal?
+  baseRetail Decimal?
+  mapPrice   Decimal?
+
+  // Grade-based: how many yards/sq ft of material are needed
+  comYardage        Decimal? // Plain yardage (54" plain fabric)
+  comYardagePattern Decimal? // Pattern yardage (larger repeat fabrics)
+  comYardageRepeat  Decimal? // Repeat yardage (railroaded/directional fabrics)
+  gradeRiser        Decimal? // Dollar amount per grade step beyond published grades
+
+  // Standard construction details (parsed from price list)
+  standardSeat    String? // e.g., "Spring Down", "Comfort Down BDB"
+  standardBack    String? // e.g., "Spring Down", "Tight Back"
+  standardPillows String? // e.g., "(2) 22\" Throw Pillows"
+  finish          String? // Standard finish (e.g., "Recessed Espresso Leg", "Specify")
+
+  // Frame+Cushion: the frame component price
+  framePrice Decimal?
+  cushionRef String? // Reference to cushion model (e.g., "CUS89")
+
+  // Area-based: price per unit of area
+  pricePerSqFt Decimal?
+  pricePerSqYd Decimal?
+
+  // Physical attributes (base dimensions — may vary by configuration)
+  length     Float?
+  width      Float?
+  depth      Float?
+  height     Float?
+  seatHeight Float?
+  armHeight  Float?
+  seatDepth  Float?
+  weight     Float?
+
+  // Product image (line drawing extracted from price list PDF)
+  imageUrl String?
+
+  // Status
+  isActive       Boolean @default(true)
+  isDiscontinued Boolean @default(false)
+
+  // Pricing relations
+  gradePrices     StyleGradePrice[]
+  speciesPrices   StyleSpeciesPrice[]
+  axisPrices      StyleAxisPrice[]
+  optionOverrides StyleOptionOverride[]
+
+  // Products materialized from this style
+  configuredProducts Product[]
+
+  // Order references (trace back from order to the template)
+  orderLineItems     OrderLineItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  proposalLineItems  ProposalLineItem[]  @relation("ProposalVendorStyle")
+  buyerDraftItems    BuyerDraftItem[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([styleNumber, vendorId])
+  @@index([vendorId, isActive])
+}
+
+// ---------------------------------------------------------------------------
+// PRODUCT — Physical items in inventory
+//
+// Products come from the POS imports (flat items) or are created when
+// a VendorStyle is configured and ordered. Products are NOT unique by
+// (productNumber, vendorId) — the same part number from the same vendor
+// can appear multiple times. the POS records deduplicate by externalId.
+// ---------------------------------------------------------------------------
+
+model Product {
+  id            Int         @id @default(autoincrement())
+  externalId    Int?        @unique
+  productNumber String
+  name          String
+  description   String?
+  vendorId      Int
+  vendor        Vendor      @relation(fields: [vendorId], references: [id])
+  departmentId  Int
+  department    Department  @relation(fields: [departmentId], references: [id])
+  categoryId    Int
+  category      Category    @relation(fields: [categoryId], references: [id])
+  typeId        Int?
+  type          Type?       @relation(fields: [typeId], references: [id])
+  collectionId  Int?
+  collection    Collection? @relation(fields: [collectionId], references: [id])
+
+  // Provenance: which VendorStyle was this configured from? (null = flat-priced stock)
+  vendorStyleId Int?
+  vendorStyle   VendorStyle? @relation(fields: [vendorStyleId], references: [id])
+
+  // Configuration snapshot (JSON of selected grade/species/size/options at creation time)
+  configSnapshot String?
+
+  // Base pricing for flat-priced products (also serves as COM/starting price for grade-based)
+  baseCost   Decimal?
+  baseRetail Decimal?
+  mapPrice   Decimal?
+
+  // Physical attributes
+  length     Float?
+  width      Float?
+  depth      Float?
+  height     Float?
+  seatHeight Float?
+  armHeight  Float?
+  seatDepth  Float?
+  weight     Float?
+  cubicFeet  Float?
+
+  // Product image (line drawing extracted from price list PDF)
+  imageUrl String?
+
+  // Shipping
+  freightClass String?
+  shipsVia     String?
+  cartonQty    Int?
+
+  // Status
+  isActive       Boolean @default(true)
+  isDiscontinued Boolean @default(false)
+  season         String?
+
+  // Grade-based products: how many yards/sq ft of material are needed
+  comYardage        Decimal? // Plain yardage (54" plain fabric)
+  comYardagePattern Decimal? // Pattern yardage (larger repeat fabrics)
+  comYardageRepeat  Decimal? // Repeat yardage (railroaded/directional fabrics)
+  gradeRiser        Decimal? // Dollar amount per grade step beyond published grades
+
+  // Standard construction details (parsed from price list)
+  standardSeat    String? // e.g., "Spring Down", "Comfort Down BDB"
+  standardBack    String? // e.g., "Spring Down", "Tight Back"
+  standardPillows String? // e.g., "(2) 22\" Throw Pillows"
+
+  // Frame+Cushion products: the frame component price
+  framePrice Decimal?
+  cushionRef String? // Reference to cushion model (e.g., "CUS89")
+
+  // Area-based products: price per unit of area
+  pricePerSqFt Decimal?
+  pricePerSqYd Decimal?
+
+  upcs            Upc[]
+  variants        ProductVariant[]
+  gradePrices     ProductGradePrice[]
+  speciesPrices   ProductSpeciesPrice[]
+  axisPrices      ProductAxisPrice[]
+  optionOverrides ProductOptionOverride[]
+
+  reconciliations             Reconciliation[]
+  inventoryCounts             PhysicalInventoryCount[]
+  orderLineItems              OrderLineItem[]
+  purchaseOrderItems          PurchaseOrderItem[]
+  inventoryTransfers          InventoryTransfer[]
+  inventoryPositions          InventoryPosition[]
+  reconciledUnidentifiedScans UnidentifiedScan[]
+  returns                     Return[]
+
+  serviceType          ServiceAppointmentType?
+  consignmentItems     ConsignmentItem[]
+  pickListItems        PickListItem[]
+  inventoryFreezeItems InventoryFreezeItem[]
+  proposalLineItems    ProposalLineItem[]
+
+  fulfilledBuyerDrafts BuyerDraftItem[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+// Vendor collections group styles/products (e.g., "CORAL" for Jensen, "Curata" for Hooker)
+model Collection {
+  id           Int           @id @default(autoincrement())
+  vendorId     Int
+  name         String
+  products     Product[]
+  vendorStyles VendorStyle[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([vendorId, name])
+}
+
+// For flat-priced vendors where each size/color/finish is a distinct purchasable SKU
+model ProductVariant {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  sku       String?
+  upc       String?
+  size      String?
+  color     String?
+  finish    String?
+  material  String?
+
+  cost      Decimal?
+  wholesale Decimal?
+  retail    Decimal?
+  mapPrice  Decimal?
+
+  width  Decimal?
+  length Decimal?
+  height Decimal?
+  weight Decimal?
+
+  isActive Boolean @default(true)
+
+  product            Product             @relation(fields: [productId], references: [id])
+  purchaseOrderItems PurchaseOrderItem[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+// ---------------------------------------------------------------------------
+// PRICING ENGINE -- Flexible multi-dimensional pricing
+// ---------------------------------------------------------------------------
+
+// Tracks price list versions so we can keep history when vendors update prices
+model PriceList {
+  id            Int       @id @default(autoincrement())
+  vendorId      Int
+  vendor        Vendor    @relation(fields: [vendorId], references: [id])
+  name          String // e.g., "October 2025 Wholesale"
+  effectiveDate DateTime
+  expiresDate   DateTime?
+  priceType     PriceType
+  isActive      Boolean   @default(true)
+  sourceFile    String? // Original file name for reference
+  notes         String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([vendorId, name])
+  @@index([vendorId, isActive])
+}
+
+enum PriceType {
+  COST // Dealer cost / wholesale
+  WHOLESALE // Wholesale
+  RETAIL // Suggested retail
+  MSRP // Manufacturer suggested retail
+  MAP // Minimum advertised price
+  STOCKING // Stocking dealer price
+}
+
+// ---------------------------------------------------------------------------
+// GRADE-BASED PRICING (Wesley Hall, HF Custom, Lee, MT Company, CR Laine, etc.)
+//
+// Each vendor defines their own set of price dimensions (grades). A dimension
+// is a named pricing axis like "Fabric Grade" or "Leather Grade". Each
+// dimension has tiers (the individual grade levels like "14", "15", ..., "35").
+// ---------------------------------------------------------------------------
+
+// A pricing axis defined by a vendor (e.g., "Fabric Grade", "Leather Grade",
+// "Wood Species", "Finish Category", "Cushion Grade")
+model VendorPriceDimension {
+  id            Int           @id @default(autoincrement())
+  vendorId      Int
+  vendor        Vendor        @relation(fields: [vendorId], references: [id])
+  name          String // e.g., "Fabric Grade", "Wood Species", "Finish Tier"
+  dimensionType DimensionType
+
+  tiers PriceDimensionTier[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([vendorId, name])
+}
+
+enum DimensionType {
+  FABRIC_GRADE // Fabric grade levels (14, 15, ..., 35 or A, B, C)
+  LEATHER_GRADE // Leather grade levels (C, D, F, G, H, J)
+  WOOD_SPECIES // Oak, Maple, Cherry, Walnut, etc.
+  FINISH_TIER // Renew/Heritage, Renaissance, Weathered
+  CUSHION_GRADE // Frame+cushion grade (A, B, C, D or C, D, E, U)
+  SIZE // Twin, Full, Queen, King, etc.
+  MATERIAL_TIER // COM, Fabric, Faux Leather
+  CUSTOM // Vendor-specific dimension that does not fit other types
+}
+
+// An individual tier within a pricing dimension
+// e.g., For "Fabric Grade" dimension: "COM", "14", "15", ..., "35"
+// e.g., For "Wood Species" dimension: "Oak", "Maple", "Cherry", "Walnut"
+model PriceDimensionTier {
+  id          Int                  @id @default(autoincrement())
+  dimensionId Int
+  dimension   VendorPriceDimension @relation(fields: [dimensionId], references: [id])
+  name        String // Display name: "Grade 14", "Oak", "COM"
+  code        String // Short code: "14", "OAK", "COM"
+  sortOrder   Int                  @default(0)
+
+  // For fabric/leather grades: price per yard or per sq ft at this tier level
+  unitPrice Decimal? // e.g., Grade 14 fabric = $22/yard
+
+  // Product pricing relations (for materialized products)
+  gradePrices   ProductGradePrice[]
+  speciesPrices ProductSpeciesPrice[]
+  axisPrices    ProductAxisPrice[]
+
+  // Style pricing relations (for catalog templates)
+  styleGradePrices   StyleGradePrice[]
+  styleSpeciesPrices StyleSpeciesPrice[]
+  styleAxisPrices    StyleAxisPrice[]
+
+  fabrics FabricCatalog[]
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([dimensionId, code])
+}
+
+// ---------------------------------------------------------------------------
+// FABRIC & MATERIAL CATALOG
+//
+// Maps individual fabric names/codes to a vendor's grade tier. This lets the
+// configurator answer "I want Crypton Tweed in color Indigo" → Grade 20 →
+// the price for the selected product in Grade 20.
+// ---------------------------------------------------------------------------
+
+model FabricCatalog {
+  id       Int                @id @default(autoincrement())
+  vendorId Int
+  vendor   Vendor             @relation(fields: [vendorId], references: [id])
+  tierId   Int
+  tier     PriceDimensionTier @relation(fields: [tierId], references: [id])
+
+  fabricName    String // Collection/pattern name: "Crypton Tweed", "Artisan Weave"
+  fabricCode    String? // Vendor's fabric SKU/code: "0858-53", "AW-IND"
+  colorName     String  @default("") // Color / colorway: "Indigo", "Pewter", "Natural"
+  colorCode     String? // Vendor's color code: "53", "IND"
+  patternRepeat String? // Pattern repeat info: "13.5\"H x 14\"V"
+  width         String? // Fabric width: "54\"", "118\""
+  content       String? // Fiber content: "100% Polyester", "72% Poly / 28% Cotton"
+  collection    String? // Marketing collection: "Performance", "Luxe", "Essentials"
+  usage         String? // Intended usage: "Upholstery", "Drapery", "Multi-Purpose"
+
+  isActive       Boolean @default(true)
+  isDiscontinued Boolean @default(false)
+  notes          String?
+  imageUrl       String? // Swatch image URL (future use)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([vendorId, fabricName, colorName])
+  @@index([vendorId, tierId])
+  @@index([vendorId, fabricName])
+  @@index([vendorId, isActive])
+}
+
+// ---------------------------------------------------------------------------
+// PRODUCT PRICING — Links Product to dimension tiers with costs
+//
+// These are for materialized products (flat-priced or configured items that
+// have been ordered). When a Product is created from a VendorStyle, these
+// pricing rows can be copied from the Style* equivalents.
+// ---------------------------------------------------------------------------
+
+// The core grade-based pricing row: what does product X cost at grade Y?
+// Used for: Wesley Hall, HF Custom, Lee, MT Company, CR Laine, Foundations
+// One row per product per grade tier.
+model ProductGradePrice {
+  id        Int                @id @default(autoincrement())
+  productId Int
+  product   Product            @relation(fields: [productId], references: [id])
+  tierId    Int
+  tier      PriceDimensionTier @relation(fields: [tierId], references: [id])
+
+  cost      Decimal? // Dealer cost at this grade
+  wholesale Decimal? // Wholesale at this grade
+  retail    Decimal? // Retail at this grade
+  msrp      Decimal? // MSRP at this grade
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([productId, tierId])
+  @@index([productId])
+}
+
+// Wood species-based pricing: what does product X cost in species Y?
+// Used for: Simply Amish (separate from grade because products can have
+// both a species price AND an upholstery grade on top)
+model ProductSpeciesPrice {
+  id        Int                @id @default(autoincrement())
+  productId Int
+  product   Product            @relation(fields: [productId], references: [id])
+  tierId    Int
+  tier      PriceDimensionTier @relation(fields: [tierId], references: [id])
+
+  cost      Decimal?
+  wholesale Decimal?
+  retail    Decimal?
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([productId, tierId])
+  @@index([productId])
+}
+
+// Multi-axis pricing: product X at the intersection of dimension tiers Y + Z + ...
+// Used for: Zimmerman Chair (species x finish x upholstery level)
+// Stores up to 3 tier references per price point.
+model ProductAxisPrice {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+
+  tier1Id Int
+  tier1   PriceDimensionTier @relation(fields: [tier1Id], references: [id])
+  tier2Id Int?
+  tier3Id Int?
+
+  cost      Decimal?
+  wholesale Decimal?
+  retail    Decimal?
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([productId, tier1Id, tier2Id, tier3Id])
+  @@index([productId])
+}
+
+// ---------------------------------------------------------------------------
+// STYLE PRICING — Links VendorStyle to dimension tiers with costs
+//
+// These are the catalog/template prices from vendor price lists. The import
+// pipeline populates these. When a Product is materialized from a VendorStyle,
+// the relevant pricing data is copied to the Product* equivalents above.
+// ---------------------------------------------------------------------------
+
+// Grade-based pricing: what does style X cost at grade Y?
+// Used for: Wesley Hall, HF Custom, Lee, MT Company, CR Laine, Foundations
+// One row per style per grade tier.
+model StyleGradePrice {
+  id            Int                @id @default(autoincrement())
+  vendorStyleId Int
+  vendorStyle   VendorStyle        @relation(fields: [vendorStyleId], references: [id], onDelete: Cascade)
+  tierId        Int
+  tier          PriceDimensionTier @relation(fields: [tierId], references: [id])
+
+  cost      Decimal? // Dealer cost at this grade
+  wholesale Decimal? // Wholesale at this grade
+  retail    Decimal? // Retail at this grade
+  msrp      Decimal? // MSRP at this grade
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([vendorStyleId, tierId])
+  @@index([vendorStyleId])
+}
+
+// Wood species-based pricing: what does style X cost in species Y?
+// Used for: Simply Amish, Gat Creek line items
+model StyleSpeciesPrice {
+  id            Int                @id @default(autoincrement())
+  vendorStyleId Int
+  vendorStyle   VendorStyle        @relation(fields: [vendorStyleId], references: [id], onDelete: Cascade)
+  tierId        Int
+  tier          PriceDimensionTier @relation(fields: [tierId], references: [id])
+
+  cost      Decimal?
+  wholesale Decimal?
+  retail    Decimal?
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([vendorStyleId, tierId])
+  @@index([vendorStyleId])
+}
+
+// Multi-axis pricing: style X at the intersection of dimension tiers Y + Z + ...
+// Used for: Gat Creek Custom Shop (species x width x length), Zimmerman Chair
+// Stores up to 3 tier references per price point.
+model StyleAxisPrice {
+  id            Int         @id @default(autoincrement())
+  vendorStyleId Int
+  vendorStyle   VendorStyle @relation(fields: [vendorStyleId], references: [id], onDelete: Cascade)
+
+  tier1Id Int
+  tier1   PriceDimensionTier @relation(fields: [tier1Id], references: [id])
+  tier2Id Int?
+  tier3Id Int?
+
+  cost      Decimal?
+  wholesale Decimal?
+  retail    Decimal?
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([vendorStyleId, tier1Id, tier2Id, tier3Id])
+  @@index([vendorStyleId])
+}
+
+// ---------------------------------------------------------------------------
+// OPTIONS & SURCHARGES
+//
+// Handles all the add-on pricing: cushion upgrades, finishes, trim, welt,
+// arm caps, spring-down, power recline, skirts, borders, monogramming, etc.
+// ---------------------------------------------------------------------------
+
+// A category of options a vendor offers (e.g., "Cushion Type", "Nail Trim",
+// "Decorative Finish", "Rug Border")
+model VendorOptionGroup {
+  id          Int     @id @default(autoincrement())
+  vendorId    Int
+  vendor      Vendor  @relation(fields: [vendorId], references: [id])
+  name        String // e.g., "Cushion Upgrade", "Trim", "Finish"
+  description String?
+
+  options VendorOption[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([vendorId, name])
+}
+
+// A specific option within a group (e.g., "Spring-Down Luxe" within "Cushion Upgrade")
+model VendorOption {
+  id                Int               @id @default(autoincrement())
+  groupId           Int
+  group             VendorOptionGroup @relation(fields: [groupId], references: [id])
+  name              String // e.g., "SM-Spring Down Luxe"
+  code              String? // Short code for order entry
+  surchargeType     SurchargeType     @default(FLAT)
+  defaultSurcharge  Decimal           @default(0) // Default surcharge if not overridden per product/style
+  sortOrder         Int               @default(0)
+  requiresTextInput Boolean           @default(false) // Show text input when selected (trim details, etc.)
+  textInputLabel    String? // Placeholder/label for the text input
+
+  overrides      ProductOptionOverride[]
+  styleOverrides StyleOptionOverride[]
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([groupId, name])
+}
+
+enum SurchargeType {
+  FLAT // Fixed dollar amount (e.g., $66 for contrast welt)
+  PERCENTAGE // Percentage of base price (e.g., 10% for wire brush finish)
+  PER_UNIT // Per yard, per sq ft, etc. (e.g., $11.50/sq ft for custom rug)
+}
+
+// Per-product override of option pricing. When a product has a different surcharge
+// than the vendor default, or when an option is N/A for a specific product.
+// e.g., Wesley Hall style 1060 charges $165 for Spring-Down Luxe, but style 1034
+// does not offer it at all.
+model ProductOptionOverride {
+  id        Int          @id @default(autoincrement())
+  productId Int
+  product   Product      @relation(fields: [productId], references: [id])
+  optionId  Int
+  option    VendorOption @relation(fields: [optionId], references: [id])
+
+  surcharge   Decimal? // Override surcharge amount (null = use default)
+  isAvailable Boolean  @default(true) // false = this option is N/A for this product
+  isStandard  Boolean  @default(false) // true = included at no extra charge
+  notes       String? // e.g., "Small nails only, around top & on base"
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([productId, optionId])
+  @@index([productId])
+}
+
+// Per-style override of option pricing. Same structure as ProductOptionOverride
+// but references VendorStyle instead of Product. Used by the configurator to
+// show available options and surcharges for a catalog template.
+model StyleOptionOverride {
+  id            Int          @id @default(autoincrement())
+  vendorStyleId Int
+  vendorStyle   VendorStyle  @relation(fields: [vendorStyleId], references: [id], onDelete: Cascade)
+  optionId      Int
+  option        VendorOption @relation(fields: [optionId], references: [id])
+
+  surcharge   Decimal? // Override surcharge amount (null = use default)
+  isAvailable Boolean  @default(true) // false = this option is N/A for this style
+  isStandard  Boolean  @default(false) // true = included at no extra charge
+  notes       String? // e.g., "Small nails only, around top & on base"
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([vendorStyleId, optionId])
+  @@index([vendorStyleId])
+}
+
+// ---------------------------------------------------------------------------
+// VENDOR PROGRAMS
+//
+// Some vendors offer named programs with different pricing rules:
+// American Leather Preferred, CR Laine Simplicity, Pom Pom Elite tiers, etc.
+// ---------------------------------------------------------------------------
+
+model VendorProgram {
+  id             Int            @id @default(autoincrement())
+  vendorId       Int
+  vendor         Vendor         @relation(fields: [vendorId], references: [id])
+  name           String // e.g., "Simplicity", "Preferred Program", "Elite Gold"
+  description    String?
+  discountType   SurchargeType? // How the program modifies pricing
+  discountValue  Decimal? // e.g., 0.05 for 5% discount
+  minOrderValue  Decimal? // Minimum order to qualify
+  minAnnualValue Decimal? // Minimum annual spend to qualify
+  isActive       Boolean        @default(true)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([vendorId, name])
+}
+
+// ---------------------------------------------------------------------------
+// TAXONOMY (Department > Category > Type)
+// ---------------------------------------------------------------------------
+
+model Department {
+  id              Int              @id @default(autoincrement())
+  name            String           @unique
+  categories      Category[]
+  products        Product[]
+  vendorStyles    VendorStyle[]
+  buyerDraftItems BuyerDraftItem[]
+
+  productPairingsFrom ProductPairing[] @relation("ProductPairingFrom")
+  productPairingsTo   ProductPairing[] @relation("ProductPairingTo")
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Category {
+  id              Int              @id @default(autoincrement())
+  name            String
+  departmentId    Int
+  department      Department       @relation(fields: [departmentId], references: [id])
+  types           Type[]
+  labelTemplateId Int?
+  labelTemplate   LabelTemplate?   @relation(fields: [labelTemplateId], references: [id])
+  trackInventory  Boolean          @default(true)
+  accountGroupId  Int?
+  accountGroup    AccountGroup?    @relation(fields: [accountGroupId], references: [id])
+  products        Product[]
+  vendorStyles    VendorStyle[]
+  buyerDraftItems BuyerDraftItem[]
+
+  productPairingsFrom ProductPairing[] @relation("ProductPairingFromCat")
+  productPairingsTo   ProductPairing[] @relation("ProductPairingToCat")
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([name, departmentId], name: "name_departmentId")
+}
+
+model Type {
+  id              Int              @id @default(autoincrement())
+  name            String
+  categoryId      Int
+  category        Category         @relation(fields: [categoryId], references: [id])
+  products        Product[]
+  vendorStyles    VendorStyle[]
+  buyerDraftItems BuyerDraftItem[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([name, categoryId], name: "name_categoryId")
+}
+
+// ---------------------------------------------------------------------------
+// LABELING & PRINTING
+// ---------------------------------------------------------------------------
+
+model LabelTemplate {
+  id          Int        @id @default(autoincrement())
+  name        String
+  context     String
+  tagSize     String
+  zplTemplate String
+  categories  Category[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Printer {
+  id             Int      @id @default(autoincrement())
+  name           String
+  ipAddress      String
+  port           Int      @default(9100)
+  location       String?
+  tagType        String
+  store          String?
+  supportedSizes String[]
+  currentSize    String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model Upc {
+  id        Int     @id @default(autoincrement())
+  upc       String  @unique
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  sortOrder Int     @default(0)
+  source    String  @default("SYSTEM") // SYSTEM (generated), MANUFACTURER (vendor UPC/EAN), IMPORT (legacy)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+// ---------------------------------------------------------------------------
+// AUTHENTICATION & USER MANAGEMENT
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+
+  unidentifiedScans  UnidentifiedScan[]
+  inventoryCounts    PhysicalInventoryCount[]
+  reconciliations    Reconciliation[]
+  receivingRecords   ReceivingRecord[]
+  inventoryTransfers InventoryTransfer[]
+  staffMember        StaffMember?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// CUSTOMER & MAILCHIMP
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id        Int     @id @default(autoincrement())
+  firstName String?
+  lastName  String?
+  email     String? @unique
+  phone     String?
+
+  taxExempt            Boolean          @default(false)
+  taxExemptReasonId    Int?
+  taxExemptReason      TaxExemptReason? @relation(fields: [taxExemptReasonId], references: [id])
+  defaultTaxDistrictId Int?
+  defaultTaxDistrict   TaxDistrict?     @relation(fields: [defaultTaxDistrictId], references: [id])
+
+  creditBalance      Decimal    @default(0)
+  // Stored running AR balance, atomically maintained by `lib/customerLedger.ts`.
+  // Phase 0.5 introduces this column populated by a one-time backfill (0.5.3)
+  // from the Payment + SalesOrder + OrderLineItem chain. Going forward every
+  // SALE / PAYMENT / REFUND atomically appends a CustomerLedgerEntry AND
+  // bumps this running total inside the same `prisma.$transaction()`. Daily
+  // reconciliation cron (0.5.5) re-derives the balance from source-of-truth
+  // and alerts on drift > $0.01. NULL during backfill, then non-null forever.
+  openArBalance      Decimal?   @default(0)
+  isTradeAccount     Boolean    @default(false)
+  tradeCompanyName   String?
+  tradeTierId        Int?
+  tradeTier          TradeTier? @relation(fields: [tradeTierId], references: [id])
+  taxExemptNumber    String?
+  customerLevel      Int?
+  peakCustomerLevel  Int?
+  customerGroup      String?
+  lifetimeSpend      Decimal?   @default(0)
+  lifetimeOrderCount Int?       @default(0)
+  firstOrderDate     DateTime?
+  lastOrderDate      DateTime?
+  departmentCount    Int?       @default(0)
+
+  // Set by lib/mailchimpAudienceSync.ts after a successful upsert into the
+  // configured Mailchimp audience. Cron at scripts/auto-mailchimp-customer-sync.sh
+  // ignores customers where this is non-null. Backfill cutoff lives in the
+  // runner (AUDIENCE_BACKFILL_CUTOFF) so old customers are not retroactively
+  // emailed a confirmation.
+  mailchimpSyncedAt DateTime?
+
+  addresses         CustomerAddress[]
+  externalIds       CustomerExternalId[]
+  salesOrders       SalesOrder[]
+  primaryDesignerId Int?
+  primaryDesigner   StaffMember?         @relation("PrimaryDesigner", fields: [primaryDesignerId], references: [id])
+
+  mailchimpActivities MailchimpActivity[]
+  campaignTargets     CampaignTarget[]
+  creditTransactions  CustomerCreditTransaction[]
+  ledgerEntries       CustomerLedgerEntry[]
+  payments            Payment[]                   @relation("CustomerPayments")
+  invoices            Invoice[]                   @relation("CustomerInvoices")
+  serviceCases        ServiceCase[]
+  interactions        CustomerInteraction[]
+  returns             Return[]
+  serviceAppointments ServiceAppointment[]
+  leads               Lead[]
+  windfallEnrichment  WindfallEnrichment?
+  proposals           Proposal[]
+  tickets             Ticket[]
+  timeEntries         TimeEntry[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model CustomerAddress {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  label      String?
+  address1   String
+  address2   String?
+  city       String
+  state      String
+  zip        String
+  notes      String?
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  deliveryOrders      SalesOrder[]         @relation("DeliveryAddress")
+  returnPickups       Return[]
+  serviceAppointments ServiceAppointment[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model CustomerExternalId {
+  id         Int      @id @default(autoincrement())
+  externalId String   @unique
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  created   DateTime @default(now())
+  createdBy String?
+}
+
+// Windfall wealth enrichment data, refreshed weekly via CSV import.
+// 1:1 with Customer, keyed on customerId. Upserted on each import.
+model WindfallEnrichment {
+  id         Int      @id @default(autoincrement())
+  customerId Int      @unique
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  windfallId      String?  @unique
+  matchConfidence Decimal?
+
+  // Wealth
+  netWorth               Int?
+  netWorthLow            Int?
+  netWorthHigh           Int?
+  wealthTier             String?
+  netWorthLastCalculated DateTime?
+
+  // Life event signals
+  recentMover         Boolean @default(false)
+  recentlyDivorced    Boolean @default(false)
+  recentDeathInFamily Boolean @default(false)
+  moneyInMotion       Boolean @default(false)
+  liquidityTrigger    Boolean @default(false)
+  recentMortgage      Boolean @default(false)
+
+  // Asset signals
+  boatOwner           Boolean @default(false)
+  planeOwner          Boolean @default(false)
+  multiPropertyOwner  Boolean @default(false)
+  rentalPropertyOwner Boolean @default(false)
+  smallBusinessOwner  Boolean @default(false)
+  cryptoInterest      Boolean @default(false)
+
+  // Philanthropy signals
+  philanthropicGiver    Boolean @default(false)
+  topPhilanthropicDonor Boolean @default(false)
+  nonprofitBoardMember  Boolean @default(false)
+  donorAdvisedFunds     Boolean @default(false)
+  nteeCodes             String?
+  regionalFocus         String?
+  foundationAssociation Boolean @default(false)
+  foundationOfficer     Boolean @default(false)
+
+  // Political signals
+  politicalDonor    Boolean @default(false)
+  topPoliticalDonor Boolean @default(false)
+  politicalParty    String?
+
+  // Financial signals
+  hasHouseholdDebt   Boolean  @default(false)
+  primaryPropertyLtv Decimal?
+  trustAssociation   Boolean  @default(false)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([wealthTier])
+}
+
+model MailchimpActivity {
+  id         Int      @id @default(autoincrement())
+  customerId Int?
+  email      String
+  campaignId String
+  action     String
+  timestamp  DateTime
+  // DB-insert time (as opposed to `timestamp`, which is when Mailchimp
+  // recorded the open/click). Needed by the lead-ingestion job so it
+  // can process activity newly inserted since the previous run, even
+  // when the underlying Mailchimp event is older (e.g. historical
+  // backfills). Indexed for the `created > sinceTimestamp` query.
+  created    DateTime @default(now())
+
+  customer Customer?         @relation(fields: [customerId], references: [id])
+  campaign MailchimpCampaign @relation(fields: [campaignId], references: [id])
+
+  @@unique([email, campaignId, action, timestamp])
+  @@index([created])
+}
+
+model MailchimpCampaign {
+  id                   String                  @id
+  name                 String?
+  subject              String?
+  sentAt               DateTime?
+  // When we last asked Mailchimp for this campaign's email-activity
+  // (opens/clicks). The incremental activity backfill reads this to skip
+  // campaigns it has already tried, even if Mailchimp returned zero
+  // activity rows. Without this the backfill loops forever on empty
+  // campaigns (bug seen 2026-04-24 -- stuck at "751 remaining" because
+  // every chunk re-processed the same empty campaigns).
+  activityLastSyncedAt DateTime?
+  activities           MailchimpActivity[]
+  stats                MailchimpCampaignStats?
+}
+
+model MailchimpCampaignStats {
+  id           Int               @id @default(autoincrement())
+  campaignId   String            @unique
+  emailsSent   Int
+  opens        Int
+  uniqueOpens  Int
+  clicks       Int
+  uniqueClicks Int
+  bounces      Int
+  unsubscribed Int
+  lastUpdated  DateTime
+  campaign     MailchimpCampaign @relation(fields: [campaignId], references: [id])
+}
+
+// Campaign send log for the /reports/opportunities hub. One row per
+// (tile, customer, send event). Used by the hub to:
+//   1. Show "last sent N days ago" on each tile
+//   2. Dedup the drill list -- customers sent this tile within the last
+//      30 days are hidden by default so managers don't re-email them
+// No historical backfill: we start logging the day Ship 2 deploys.
+model CampaignTarget {
+  id         Int      @id @default(autoincrement())
+  tileId     String
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+  sentAt     DateTime @default(now())
+  sentBy     String? // session email of the user who clicked "Mark as sent"
+  notes      String?
+
+  @@index([tileId, sentAt(sort: Desc)])
+  @@index([customerId, tileId, sentAt(sort: Desc)])
+}
+
+// Configurable "bought X, should buy Y" rules that power the Missing
+// Pieces tile on the Opportunities hub (Ship 3). Each row defines one
+// pairing: a customer who bought a product in `from` but never one in
+// `to` within the window is flagged as a cross-sell opportunity.
+// Hardcoding pairings would rot with the merchandise mix, so an admin
+// page at /admin/setup/product-pairings edits this table directly.
+model ProductPairing {
+  id               Int        @id @default(autoincrement())
+  name             String
+  description      String?
+  fromDepartmentId Int
+  fromDepartment   Department @relation("ProductPairingFrom", fields: [fromDepartmentId], references: [id])
+  fromCategoryId   Int?
+  fromCategory     Category?  @relation("ProductPairingFromCat", fields: [fromCategoryId], references: [id])
+  toDepartmentId   Int
+  toDepartment     Department @relation("ProductPairingTo", fields: [toDepartmentId], references: [id])
+  toCategoryId     Int?
+  toCategory       Category?  @relation("ProductPairingToCat", fields: [toCategoryId], references: [id])
+  windowDays       Int        @default(60)
+  isActive         Boolean    @default(true)
+  sortOrder        Int        @default(0)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([isActive, sortOrder])
+}
+
+// Daily / periodic run log for the automated Mailchimp sync + lead
+// housekeeping jobs. One row per orchestrator run. Powers the admin
+// "last run" banner and the run-history pagination.
+model MailchimpSyncLog {
+  id                 Int       @id @default(autoincrement())
+  runId              String
+  kind               String // "mailchimp-sync" | "lead-housekeeping"
+  status             String // "SUCCESS" | "PARTIAL" | "FAILED"
+  campaignsUpserted  Int       @default(0)
+  metricsUpdated     Int       @default(0)
+  activitiesInserted Int       @default(0)
+  leadsCreated       Int       @default(0)
+  leadsUpdated       Int       @default(0)
+  leadsArchived      Int       @default(0)
+  errors             String[]  @default([])
+  startedAt          DateTime
+  finishedAt         DateTime?
+  created            DateTime  @default(now())
+
+  @@index([kind, created])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// INVENTORY MANAGEMENT
+// ---------------------------------------------------------------------------
+
+model MonthlySalesPercentage {
+  id         Int    @id @default(autoincrement())
+  year       Int
+  month      String
+  percentage Float
+
+  @@unique([year, month], name: "year_month")
+}
+
+model SalesGoals {
+  id         Int      @id @default(autoincrement())
+  year       Int
+  goalType   String
+  entityName String
+  annualGoal Float
+  date       DateTime @default(now())
+
+  @@unique([year, goalType, entityName])
+}
+
+model PhysicalInventoryCount {
+  id            Int      @id @default(autoincrement())
+  productId     Int
+  product       Product  @relation(fields: [productId], references: [id])
+  stockLocation String
+  quantity      Int
+  countedAt     DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@index([countedAt, stockLocation, userId])
+}
+
+model InventorySnapshot {
+  id            Int      @id @default(autoincrement())
+  externalId    Int
+  stockLocation String
+  quantity      Float
+  snapshotDate  DateTime @default(now())
+
+  @@unique([externalId, stockLocation, snapshotDate])
+}
+
+model Reconciliation {
+  id                 Int      @id @default(autoincrement())
+  productId          Int
+  product            Product  @relation(fields: [productId], references: [id])
+  location           String
+  initialExpected    Int
+  initialCounted     Int
+  initialVariance    Int
+  actionTaken        String
+  finalCount         Int
+  finalVariance      Int
+  reconciledAt       DateTime @default(now())
+  reconciledByUserId String
+  reconciledBy       User     @relation(fields: [reconciledByUserId], references: [id])
+
+  @@unique([productId, location])
+}
+
+model UnidentifiedScan {
+  id                   Int      @id @default(autoincrement())
+  imageUrl             String
+  location             String
+  notes                String?
+  countedAt            DateTime @default(now())
+  reconciliationStatus String   @default("PENDING")
+
+  countedByUserId String?
+  countedBy       User?   @relation(fields: [countedByUserId], references: [id])
+
+  reconciledProductId Int?
+  reconciledProduct   Product?  @relation(fields: [reconciledProductId], references: [id])
+  reconciledAt        DateTime?
+
+  @@index([location, reconciliationStatus])
+}
+
+// ---------------------------------------------------------------------------
+// INVENTORY MOVEMENT (TRANSFERS)
+// ---------------------------------------------------------------------------
+
+enum InventoryTransferStatus {
+  DRAFT
+  IN_TRANSIT
+  RECEIVED
+  CANCELLED
+}
+
+enum LocationType {
+  STORE
+  WAREHOUSE
+  OFFSITE
+}
+
+enum DeliveryMethod {
+  TAKEN
+  DELIVERY
+  PICKUP
+}
+
+model StoreLocation {
+  id        Int          @id @default(autoincrement())
+  name      String       @unique
+  code      String       @unique
+  type      LocationType
+  address   String?
+  city      String?
+  state     String?
+  zip       String?
+  isActive  Boolean      @default(true)
+  sortOrder Int          @default(0)
+
+  // Maps to the POS's stock location strings for linking imported data
+  externalLocationName String? @unique
+
+  defaultReceivingStockLocationId Int?
+  defaultReceivingStockLocation   StockLocation? @relation("DefaultReceivingLocation", fields: [defaultReceivingStockLocationId], references: [id])
+
+  stockLocations      StockLocation[]
+  registers           Register[]
+  inventoryPositions  InventoryPosition[]
+  transfersFrom       InventoryTransfer[]  @relation("TransferFrom")
+  transfersTo         InventoryTransfer[]  @relation("TransferTo")
+  receivingRecords    ReceivingRecord[]
+  pickupOrders        SalesOrder[]         @relation("PickupLocation")
+  activeStaff         StaffMember[]        @relation("ActiveStaff")
+  returnsReceived     Return[]             @relation("ReturnReceivedAt")
+  returnsRestocked    Return[]             @relation("ReturnRestockedAt")
+  serviceAppointments ServiceAppointment[] @relation("AppointmentStore")
+
+  // Reverse relations for legacy string-to-FK bridge
+  orders                   SalesOrder[]              @relation("OrderStore")
+  payments                 Payment[]                 @relation("PaymentStore")
+  shifts                   StaffShift[]              @relation("ShiftStore")
+  boardEntries             UpBoardEntry[]            @relation("BoardStore")
+  journalEntries           JournalEntry[]            @relation("JournalStore")
+  serviceCases             ServiceCase[]             @relation("CaseStore")
+  interactions             CustomerInteraction[]     @relation("InteractionStore")
+  consignmentItems         ConsignmentItem[]         @relation("ConsignmentLocation")
+  pickItemsFromStore       PickListItem[]            @relation("PickFromStore")
+  inventoryFreezeItems     InventoryFreezeItem[]
+  buyerDraftPurchaseOrders BuyerDraftPurchaseOrder[]
+  trafficSnapshots         TrafficSnapshot[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model StockLocation {
+  id              Int           @id @default(autoincrement())
+  storeLocationId Int
+  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id])
+  code            String
+  name            String
+  description     String?
+  building        String?
+  floor           Int?
+  area            Int?
+  locationType    String        @default("STOCK") // FLOOR or STOCK
+  squareFootage   Int?
+  locationAliases String[] // the POS location names that map to this USL
+  isActive        Boolean       @default(true)
+  sortOrder       Int           @default(0)
+
+  inventoryPositions InventoryPosition[]
+  transfersFrom      InventoryTransfer[] @relation("StockTransferFrom")
+  transfersTo        InventoryTransfer[] @relation("StockTransferTo")
+  receivingRecords   ReceivingRecord[]
+  defaultForStores   StoreLocation[]     @relation("DefaultReceivingLocation")
+  pickItemsFrom      PickListItem[]      @relation("PickFrom")
+  pickItemsTo        PickListItem[]      @relation("PickTo")
+  buyerDraftItems    BuyerDraftItem[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([storeLocationId, code])
+}
+
+model InventoryPosition {
+  id              Int            @id @default(autoincrement())
+  productId       Int
+  product         Product        @relation(fields: [productId], references: [id])
+  storeLocationId Int
+  storeLocation   StoreLocation  @relation(fields: [storeLocationId], references: [id])
+  stockLocationId Int?
+  stockLocation   StockLocation? @relation(fields: [stockLocationId], references: [id])
+  quantity        Int            @default(1)
+  salesOrderId    Int?
+  salesOrder      SalesOrder?    @relation(fields: [salesOrderId], references: [id])
+  notes           String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([productId, storeLocationId, stockLocationId, salesOrderId])
+}
+
+model DeliveryZone {
+  id           Int                  @id @default(autoincrement())
+  name         String               @unique
+  description  String?
+  baseFee      Decimal              @default(0)
+  perPieceFee  Decimal?
+  isThirdParty Boolean              @default(false)
+  carrierName  String?
+  isActive     Boolean              @default(true)
+  sortOrder    Int                  @default(0)
+  zipCodes     DeliveryZoneZip[]
+  appointments ServiceAppointment[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model DeliveryZoneZip {
+  id             Int          @id @default(autoincrement())
+  deliveryZoneId Int
+  deliveryZone   DeliveryZone @relation(fields: [deliveryZoneId], references: [id])
+  zipCode        String
+
+  @@unique([deliveryZoneId, zipCode])
+}
+
+model InventoryTransfer {
+  id                  Int                     @id @default(autoincrement())
+  productId           Int
+  product             Product                 @relation(fields: [productId], references: [id])
+  quantity            Int
+  fromLocation        String
+  toLocation          String
+  fromLocationId      Int?
+  fromStoreLocation   StoreLocation?          @relation("TransferFrom", fields: [fromLocationId], references: [id])
+  fromStockLocationId Int?
+  fromStockLocation   StockLocation?          @relation("StockTransferFrom", fields: [fromStockLocationId], references: [id])
+  toLocationId        Int?
+  toStoreLocation     StoreLocation?          @relation("TransferTo", fields: [toLocationId], references: [id])
+  toStockLocationId   Int?
+  toStockLocation     StockLocation?          @relation("StockTransferTo", fields: [toStockLocationId], references: [id])
+  notes               String?
+  requestedByUserId   String
+  status              InventoryTransferStatus @default(DRAFT)
+  requestedByUser     User                    @relation(fields: [requestedByUserId], references: [id])
+  shippedAt           DateTime?
+  receivedAt          DateTime?
+  receivedByUserId    String?
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@index([fromLocation, toLocation])
+  @@index([fromLocationId, toLocationId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// PURCHASING & RECEIVING
+// ---------------------------------------------------------------------------
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SUBMITTED
+  CONFIRMED
+  RECEIVED_PARTIAL
+  RECEIVED_FULL
+  SHORT_CLOSED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id                Int                 @id @default(autoincrement())
+  poNumber          String              @unique
+  vendorId          Int
+  vendor            Vendor              @relation(fields: [vendorId], references: [id])
+  salesOrderId      Int?
+  salesOrder        SalesOrder?         @relation(fields: [salesOrderId], references: [id])
+  orderDate         DateTime            @default(now())
+  expectedDelivery  DateTime?
+  estimatedShipDate DateTime?
+  status            PurchaseOrderStatus @default(DRAFT)
+  vendorAckNumber   String?
+  vendorAckDate     DateTime?
+  notes             String?
+
+  // Vendor return support (negative PO)
+  isReturn        Boolean @default(false)
+  returnId        Int?
+  customerReturn  Return? @relation(fields: [returnId], references: [id])
+  vendorReference String? // Vendor's RMA/credit memo number
+
+  lineItems               PurchaseOrderItem[]
+  receivingRecords        ReceivingRecord[]
+  linkedTasks             ServiceTask[]            @relation("TaskLinkedPO")
+  // Imported customer-service cases that reference this PO. Mirrors
+  // linkedTasks above — cases via ServiceCase.purchaseOrderId, tasks
+  // via ServiceTask.linkedPurchaseOrderId.
+  serviceCases            ServiceCase[]            @relation("ServiceCasePO")
+  consignmentPaymentBatch ConsignmentPaymentBatch?
+  // Buyer-draft link back-relation (Slice 6.14, 2026-05-22). At most one
+  // BuyerDraftPoRealPoLink per real PO (enforced by `@unique` on
+  // `realPoId` of the join table). Replaces the prior 1:1 shape from
+  // Slice 6.13 — see `BuyerDraftPoRealPoLink` for the M:N rationale.
+  buyerDraftLink          BuyerDraftPoRealPoLink?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model PurchaseOrderItem {
+  id              Int     @id @default(autoincrement())
+  purchaseOrderId Int
+  productId       Int?
+  orderLineItemId Int?
+  orderedQuantity Decimal @default(0)
+  unitCost        Decimal @default(0)
+
+  externalPorNo String? @unique
+  partNo        String?
+  productName   String?
+
+  // For apparel: link to the specific size/color variant
+  productVariantId Int?
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id])
+
+  // Reference to the VendorStyle used to configure this item (if applicable)
+  vendorStyleId Int?
+  vendorStyle   VendorStyle? @relation(fields: [vendorStyleId], references: [id])
+
+  // For configurable products: capture the selected options at time of order
+  selectedGrade   String? // e.g., "Grade 20" or "Maple"
+  selectedFinish  String? // e.g., "Renaissance"
+  selectedOptions String? // JSON string of selected option codes and surcharges
+
+  purchaseOrder    PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id])
+  product          Product?          @relation(fields: [productId], references: [id])
+  orderLineItem    OrderLineItem?    @relation(fields: [orderLineItemId], references: [id])
+  receivingRecords ReceivingRecord[]
+
+  @@index([orderLineItemId])
+}
+
+model ReceivingRecord {
+  id                  Int      @id @default(autoincrement())
+  purchaseOrderItemId Int
+  purchaseOrderId     Int
+  quantityReceived    Decimal  @default(0)
+  receivedDate        DateTime @default(now())
+  receiverUserId      String
+  destinationLocation String?
+
+  destinationLocationId      Int?
+  destinationStoreLocation   StoreLocation? @relation(fields: [destinationLocationId], references: [id])
+  destinationStockLocationId Int?
+  destinationStockLocation   StockLocation? @relation(fields: [destinationStockLocationId], references: [id])
+
+  condition   String? // OK, Damaged, Wrong Item, Short
+  tagsPrinted Boolean @default(false)
+
+  externalGipNo String?
+  externalPorNo String?
+  lineCost      Decimal?
+  invoiceNumber String?
+
+  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
+  purchaseOrder     PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id])
+  receiverUser      User              @relation(fields: [receiverUserId], references: [id])
+
+  @@unique([externalGipNo, externalPorNo])
+  @@index([receivedDate])
+  @@index([purchaseOrderItemId])
+}
+
+// ---------------------------------------------------------------------------
+// BUYER DRAFTS — pre-Product / pre-PurchaseOrder workbench
+// ---------------------------------------------------------------------------
+//
+// The buyer's existing workflow uses an Excel workbook ("Furniture Spring 2026
+// OTB.xlsx") with one sheet per vendor. Items live there in a half-finished
+// state — fabric/grade/dimensions still being negotiated, part numbers
+// proposed, costs penciled in. They don't belong in the live Product catalog
+// because they may change before the actual order is placed with the vendor.
+//
+// `BuyerDraftItem` + `BuyerDraftPurchaseOrder` give that workbook a real home
+// in the system. The lifecycle has two terminuses, depending on whether
+// the POS is still the system of record:
+//
+//   Pre-SOR (today):   Draft → Items CSV export → the POS imports the items
+//                      and creates products → next Stock-by-Item / Inbound
+//                      report flows back through OUR import pipeline →
+//                      real `Product` + `PurchaseOrder` created → draft
+//                      marked FULFILLED by part-number match.
+//
+//   Post-SOR (later):  Draft → "Promote to live" → directly creates real
+//                      `Product` + `PurchaseOrder` rows → draft FULFILLED.
+//                      No export round-trip needed.
+//
+// Same draft model serves both. Inputs vary: manual entry (furniture),
+// HD proposal PDF parser (window treatments), barcode scanning (apparel).
+// All three converge on the same draft tables and the same export shape.
+
+enum BuyerDraftItemStatus {
+  DRAFT // editable, not yet ready for export
+  READY // marked for inclusion in next export batch
+  EXPORTED // CSV downloaded; awaiting the POS import
+  FULFILLED // matched to a real Product after the POS imported back
+  CANCELLED // dropped from the buy
+}
+
+enum BuyerDraftPoStatus {
+  DRAFT
+  READY
+  EXPORTED
+  FULFILLED
+  CANCELLED
+}
+
+enum BuyerDraftSource {
+  MANUAL // typed by buyer
+  HD_PROPOSAL // imported from Hunter Douglas Direct Connect proposal
+  APPAREL_SCAN // barcode-scanned apparel item
+  CONFIGURATOR // built via vendor style configurator
+  HISTORICAL_PO_IMPORT // bulk-imported from an existing real PurchaseOrder (Slice 6.13, 2026-05-22) — used so historical buys can be reconstructed in BuyerDraftBuy form and the Slice 6 performance report can run against them
+}
+
+// Description-template selector for `BuyerDraftItem`. Drives which fields
+// the wizard exposes and which labels the assembled description string
+// uses. Added 2026-05-09 per buyer feedback after seeing the slice 4-lite
+// description preview — the buyer's mental model splits cleanly between
+// upholstered furniture and case goods (tables / dressers / beds).
+enum BuyerDraftItemType {
+  UPHOLSTERY // sofa / chair / ottoman — has Fabric / Cushions / Cleaning Code
+  CASE_GOODS // table / dresser / bed / cabinet — has Wood Species / Hardware
+  OTHER // accessories, rugs, lighting, lamps — generic free-form
+}
+
+model BuyerDraftPurchaseOrder {
+  id Int @id @default(autoincrement())
+
+  vendorId   Int?
+  vendor     Vendor? @relation(fields: [vendorId], references: [id])
+  vendorName String // free-text fallback when vendorId is null (new vendors mid-negotiation)
+
+  // Buyer-assigned PO reference (becomes Reference Number in PO export).
+  // Empty until the buyer assigns a PON — then unique per vendor.
+  referenceNumber String?
+
+  // Stored as DateTime since 2026-05-13 (first-of-month). Was a String
+  // column (YYYY-MM / MM-YYYY) — promoted to DateTime so the format-
+  // confusion bug class can't recur. Migration
+  // `20260513b_expected_ship_month_to_datetime` converted existing
+  // canonical-YYYY-MM strings via `TO_TIMESTAMP(value||'-01','YYYY-MM-DD')`.
+  // API body coercion (`coerceShipMonthInput` in buyerDraftRequestBody.ts)
+  // accepts ISO strings, YYYY-MM, MM-YYYY, Date — all coerce to
+  // first-of-month UTC. Display formats to "Month YYYY".
+  expectedShipMonth    DateTime?
+  expectedDeliveryDate DateTime?
+
+  // Home store the items will land at (drives location code on PO export when
+  // the per-line stock location is unset).
+  storeLocationId Int?
+  storeLocation   StoreLocation? @relation(fields: [storeLocationId], references: [id])
+
+  // Buy parent (added 2026-05-09). Multiple POs roll up into one Buy
+  // ("Spring 2026", "Holiday 2025", etc.) so the buyer can plan and track
+  // a cohesive multi-vendor purchase against a budget. Optional — POs
+  // can also live unassigned.
+  buyId Int?
+  buy   BuyerDraftBuy? @relation(fields: [buyId], references: [id])
+
+  notes String?
+
+  status        BuyerDraftPoStatus @default(DRAFT)
+  exportedAt    DateTime?
+  exportBatchId String? // groups PO + its items into the same export download
+
+  items BuyerDraftItem[]
+
+  // Real-PO links (Slice 6.14, 2026-05-22). Many-to-one to
+  // `BuyerDraftPoRealPoLink`: one draft PO can be backed by N real
+  // PurchaseOrders. Replaces the earlier single-FK shape from Slice 6.13
+  // (`importedFromPurchaseOrderId`) — that was 1:1 and couldn't model
+  // partial-receive splits where the POS creates a NEW PON for the
+  // remainder. The `@unique` constraint moved to `realPoId` on the join
+  // table so a given real PO still attaches to at most one buy.
+  realPoLinks BuyerDraftPoRealPoLink[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([vendorId, status])
+  @@index([status])
+  @@index([buyId])
+}
+
+// Slice 6.14 (2026-05-22) — Many-to-one join from real PurchaseOrder
+// to BuyerDraftPurchaseOrder.
+//
+// Why a join table instead of two FKs:
+//   * One real PO attaches to at most ONE draft PO (enforced by
+//     `realPoId @unique`). Each real PO belongs to exactly one buy.
+//   * One draft PO can be linked to N real POs (no unique constraint
+//     on `draftPoId`). Covers:
+//       - Forward-flow: draft PO matches a single real PON delivered
+//         by the POS's import (Slice 6.14 auto-link, the common case).
+//       - Historical-import: operator picks specific real PONs from the
+//         catalog and attaches them to a draft PO (Slice 6.13, also 1:1
+//         in practice but reuses the same join mechanism).
+//       - Partial-receive: original PON + remainder PON both attach to
+//         the same draft PO so the buyer sees the full picture (future
+//         work — Slice 6.15).
+//
+// `linkSource` distinguishes how the link was made so audits can tell
+// auto-linked vs manually-attached vs historical-bulk-imported.
+model BuyerDraftPoRealPoLink {
+  id Int @id @default(autoincrement())
+
+  draftPoId Int
+  draftPo   BuyerDraftPurchaseOrder @relation(fields: [draftPoId], references: [id], onDelete: Cascade)
+
+  realPoId Int           @unique
+  realPo   PurchaseOrder @relation(fields: [realPoId], references: [id], onDelete: Cascade)
+
+  linkSource BuyerDraftPoLinkSource @default(AUTO)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([draftPoId])
+}
+
+// How a draft-PO-to-real-PO link was created. Drives audit + future
+// "auto-linked - please confirm" UI affordances.
+enum BuyerDraftPoLinkSource {
+  AUTO // matched + linked by runPurchaseOrdersImport's auto-link sweep (Slice 6.14)
+  MANUAL // operator clicked "Link to existing draft PO" or used the API endpoint
+  HISTORICAL_IMPORT // bulk-imported from a real PO via the Slice 6.13 modal
+}
+
+// Buy parent — groups POs for a buying season / event so the buyer can
+// plan and review a cohesive multi-vendor purchase against a budget.
+//
+// Lifecycle: PLANNING (drafting items + POs) → OPEN (buy is live, may
+// still add items) → EXPORTED (CSV's gone to the POS) → CLOSED (Buy is
+// historical / archived for record-keeping).
+//
+// Origin: 2026-05-09 buyer ask: *"perhaps we need a parent table 'buys'
+// for this so we can plan and see what we did historically?"*
+model BuyerDraftBuy {
+  id Int @id @default(autoincrement())
+
+  name   String // "Spring 2026", "Holiday 2025", "Q3 2026 Stocking Refresh"
+  season String? // "Spring", "Summer", "Fall", "Winter", "Holiday"
+  year   Int? // 2026 — useful for sorting / filtering historical buys
+
+  // Total budget for the buy, in dollars. The UI shows running spend
+  // (sum of qty × cost across all items in this buy's POs) against this.
+  budget Decimal?
+
+  status   BuyerDraftBuyStatus @default(PLANNING)
+  kickoff  DateTime?
+  closedAt DateTime?
+
+  notes String?
+
+  pos BuyerDraftPurchaseOrder[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([status])
+  @@index([year, season])
+}
+
+enum BuyerDraftBuyStatus {
+  PLANNING // drafting items + POs, nothing exported yet
+  OPEN // buy is live — POs may still be added or modified
+  EXPORTED // every PO under this buy has been exported to the POS
+  CLOSED // archived for historical record
+}
+
+model BuyerDraftItem {
+  id Int @id @default(autoincrement())
+
+  // ── Vendor / identification ──────────────────────────────────────────
+  vendorId   Int?
+  vendor     Vendor? @relation(fields: [vendorId], references: [id])
+  vendorName String // fallback when vendorId is null
+
+  partNumber  String // proposed part number (vendor's Item#)
+  productName String
+
+  // ── Pricing ──────────────────────────────────────────────────────────
+  cost   Decimal // unit wholesale cost
+  msrp   Decimal? // manufacturer's suggested retail (RRP / "was" price)
+  retail Decimal // selling price ("Selling Price / as shown" in the POS)
+
+  // ── Description (configurator-style options string) ──────────────────
+  // Concatenated options: "Fabric: Calvin Sky, Grade 16, Cushion: Mayfair,
+  // Dimensions: 30W x 39.5D x 34H". Built by the configurator hook for
+  // grade-priced vendors; free-text for everything else.
+  description String?
+
+  // ── Configurator linkage (optional) ──────────────────────────────────
+  vendorStyleId Int?
+  vendorStyle   VendorStyle? @relation(fields: [vendorStyleId], references: [id])
+  // Captured option selections so the buyer can re-open the configurator
+  // and tweak. JSON shape mirrors what the configurator produces.
+  configuration Json?
+
+  // ── Configurator-style structured fields ─────────────────────────────
+  // Two distinct templates (per buyer feedback 2026-05-09):
+  //   UPHOLSTERY: Fabric / Grade / Finish / Cushions / Cleaning Code +
+  //               Dimensions + Toss Pillows + Options
+  //   CASE_GOODS: Wood Species / Finish / Hardware / Hardware Finish +
+  //               Dimensions
+  // `itemType` selects the template; `assembleDescription` uses it to
+  // emit the right header + field labels. Fields not relevant to the
+  // chosen template stay null.
+  //
+  // We reuse `grade` for Wood Species (case goods) AND Grade
+  // (upholstery) since both encode a tier-or-name; the label changes
+  // in the UI based on itemType. fabric / cushions / cleaningCode /
+  // tossPillows are upholstery-only; hardware / hardwareFinish are
+  // case-goods-only.
+  itemType       BuyerDraftItemType @default(OTHER)
+  grade          String? // upholstery: "13" / "C"; case goods: wood species
+  fabric         String? // upholstery
+  finish         String? // both
+  cushions       String? // upholstery: cushion fill / construction
+  cleaningCode   String? // upholstery: "S", "W", "SW", "X"
+  tossPillows    String? // upholstery: "(2) 22\" knife edge in Calvin Sky"
+  hardware       String? // case goods: pull / knob style
+  hardwareFinish String? // case goods: hardware finish color
+  options        String? // both: trim / nailhead / build-your-own
+
+  // ── Taxonomy ─────────────────────────────────────────────────────────
+  departmentId Int?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  categoryId   Int?
+  category     Category?   @relation(fields: [categoryId], references: [id])
+  typeId       Int?
+  type         Type?       @relation(fields: [typeId], references: [id])
+
+  // ── Dimensions (inches) ──────────────────────────────────────────────
+  productWidth  Decimal?
+  productLength Decimal? // depth
+  productHeight Decimal?
+
+  // ── Stocking program ─────────────────────────────────────────────────
+  stockProgram Boolean @default(false) // membership flag
+  stockFamily  String? // the POS "Stock Family" label (e.g., "Bevel Arm Stocking")
+
+  // ── Floor plan / vignette ─────────────────────────────────────────────
+  // Free-text label so the buyer can group items by display vignette
+  // ("Vignette 1", "Living Room", "Front Window"). Multiple items can
+  // share a vignette; multiple vignettes can live in the same StockLocation.
+  // Drives the "Floor Plan" sheet in the buyer's workbook export.
+  vignette String?
+
+  // ── PO grouping ──────────────────────────────────────────────────────
+  draftPoId Int?
+  draftPo   BuyerDraftPurchaseOrder? @relation(fields: [draftPoId], references: [id])
+  qty       Int                      @default(1)
+
+  // ── Where it lands ───────────────────────────────────────────────────
+  stockLocationId Int?
+  stockLocation   StockLocation? @relation(fields: [stockLocationId], references: [id])
+
+  // ── Apparel-specific ─────────────────────────────────────────────────
+  // Vendor-supplied UPC / EAN scanned at receiving. NULL for furniture
+  // (the POS auto-creates a barcode); populated for apparel where the
+  // vendor's barcode is the canonical identifier.
+  barcode String?
+
+  // ── Lifecycle ────────────────────────────────────────────────────────
+  status             BuyerDraftItemStatus @default(DRAFT)
+  source             BuyerDraftSource     @default(MANUAL)
+  exportedAt         DateTime?
+  exportBatchId      String?
+  fulfilledAt        DateTime?
+  // When auto-linked to a real Product after the POS imports the item back.
+  fulfilledProductId Int?
+  fulfilledProduct   Product?             @relation(fields: [fulfilledProductId], references: [id])
+
+  notes String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([vendorId, status])
+  @@index([draftPoId])
+  @@index([partNumber])
+  @@index([barcode])
+  @@index([fulfilledProductId])
+}
+
+// ---------------------------------------------------------------------------
+// CHART OF ACCOUNTS
+// ---------------------------------------------------------------------------
+
+model GLAccount {
+  id          Int     @id @default(autoincrement())
+  code        String  @unique // e.g., "1000", "4010", "5000"
+  name        String // e.g., "Cash", "Sales Revenue", "COGS"
+  accountType String // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  isActive    Boolean @default(true)
+
+  accountGroupCogs      AccountGroup[]     @relation("CogsMappings")
+  accountGroupInventory AccountGroup[]     @relation("InventoryMappings")
+  accountGroupSales     AccountGroup[]     @relation("SalesMappings")
+  accountGroupReturns   AccountGroup[]     @relation("ReturnsMappings")
+  accountGroupTransfers AccountGroup[]     @relation("TransfersMappings")
+  accountGroupShrinkage AccountGroup[]     @relation("ShrinkageMappings")
+  taxDistricts          TaxDistrict[]
+  systemMappings        SystemGLMapping[]  @relation("SystemMappings")
+  journalLines          JournalEntryLine[] @relation("JournalLines")
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model AccountGroup {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique // e.g., "Furniture", "Services"
+  description String?
+
+  cogsAccountId      Int?
+  cogsAccount        GLAccount? @relation("CogsMappings", fields: [cogsAccountId], references: [id])
+  inventoryAccountId Int?
+  inventoryAccount   GLAccount? @relation("InventoryMappings", fields: [inventoryAccountId], references: [id])
+  salesAccountId     Int?
+  salesAccount       GLAccount? @relation("SalesMappings", fields: [salesAccountId], references: [id])
+  returnsAccountId   Int?
+  returnsAccount     GLAccount? @relation("ReturnsMappings", fields: [returnsAccountId], references: [id])
+  transfersAccountId Int?
+  transfersAccount   GLAccount? @relation("TransfersMappings", fields: [transfersAccountId], references: [id])
+  shrinkageAccountId Int?
+  shrinkageAccount   GLAccount? @relation("ShrinkageMappings", fields: [shrinkageAccountId], references: [id])
+
+  categories Category[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model SystemGLMapping {
+  id          Int        @id @default(autoincrement())
+  section     String // POS_PAYMENTS, POS_TRANSACTIONS, AR_TRANSACTIONS, INVENTORY_TRANSACTIONS
+  label       String // "Cash", "Visa", "Sales", "Freight", etc.
+  glAccountId Int?
+  glAccount   GLAccount? @relation("SystemMappings", fields: [glAccountId], references: [id])
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([section, label])
+}
+
+// ---------------------------------------------------------------------------
+// JOURNAL ENTRIES (QuickBooks export)
+// ---------------------------------------------------------------------------
+
+enum JournalType {
+  SALES
+  PURCHASING
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  EXPORTED
+}
+
+model DailyReconciliationLog {
+  id   Int      @id @default(autoincrement())
+  date DateTime @db.Date
+
+  // Source-side totals (computed from OrderLineItem + Payment)
+  sourceRevenue Decimal @default(0)
+  sourceTax     Decimal @default(0)
+  sourceCost    Decimal @default(0)
+  sourceCash    Decimal @default(0)
+
+  // Journal-side totals (computed from JournalEntryLine)
+  journalRevenue Decimal @default(0)
+  journalTax     Decimal @default(0)
+  journalCost    Decimal @default(0)
+  journalCash    Decimal @default(0)
+
+  // Drift = source - journal, per category
+  driftRevenue Decimal @default(0)
+  driftTax     Decimal @default(0)
+  driftCost    Decimal @default(0)
+  driftCash    Decimal @default(0)
+
+  balanced       Boolean
+  warnings       String[] @default([])
+  journalEntryId Int?
+
+  durationMs Int?
+  created    DateTime @default(now())
+  createdBy  String?
+
+  @@index([date])
+  @@index([created])
+  @@index([balanced])
+}
+
+model JournalEntry {
+  id              Int            @id @default(autoincrement())
+  journalNumber   String         @unique
+  journalDate     DateTime
+  journalType     JournalType    @default(SALES)
+  status          JournalStatus  @default(DRAFT)
+  storeLocation   String?
+  storeLocationId Int?
+  store           StoreLocation? @relation("JournalStore", fields: [storeLocationId], references: [id])
+  totalDebits     Decimal
+  totalCredits    Decimal
+  notes           String?
+
+  lines JournalEntryLine[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([journalDate])
+  @@index([status])
+}
+
+model JournalEntryLine {
+  id             Int          @id @default(autoincrement())
+  journalEntryId Int
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  glAccountId    Int
+  glAccount      GLAccount    @relation("JournalLines", fields: [glAccountId], references: [id])
+  memo           String
+  debit          Decimal      @default(0)
+  credit         Decimal      @default(0)
+  sortOrder      Int          @default(0)
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@index([journalEntryId])
+}
+
+// ---------------------------------------------------------------------------
+// TAX MODEL
+// ---------------------------------------------------------------------------
+
+model TaxDistrict {
+  id          Int        @id @default(autoincrement())
+  shortName   String     @unique // e.g., "CT", "NY-NASSAU"
+  state       String // e.g., "CT", "NY"
+  authority   String? // governing authority name
+  name        String // e.g., "Connecticut State Sales Tax"
+  reference   String? // external reference code
+  glAccountId Int?
+  glAccount   GLAccount? @relation(fields: [glAccountId], references: [id])
+  isActive    Boolean    @default(true)
+
+  zipCodes    TaxDistrictZipCode[]
+  rules       TaxRule[]
+  customers   Customer[]
+  salesOrders SalesOrder[]
+  lineItems   OrderLineItem[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model TaxDistrictZipCode {
+  id         Int         @id @default(autoincrement())
+  districtId Int
+  district   TaxDistrict @relation(fields: [districtId], references: [id])
+  zipCode    String // 5-digit ZIP
+  name       String? // area description
+
+  @@unique([districtId, zipCode])
+  @@index([zipCode])
+}
+
+model TaxExemptReason {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique // e.g., "Resale", "Out of State", "Non-Profit"
+  description String?
+
+  customers   Customer[]
+  salesOrders SalesOrder[]
+}
+
+model TaxGroup {
+  id             Int     @id @default(autoincrement())
+  name           String  @unique // e.g., "Standard Retail", "Services"
+  taxBasis       String  @default("NET") // NET or GROSS
+  freightTaxable Boolean @default(false)
+  miscTaxable    Boolean @default(false)
+
+  rules TaxRule[]
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+}
+
+model TaxRule {
+  id                      Int         @id @default(autoincrement())
+  districtId              Int
+  district                TaxDistrict @relation(fields: [districtId], references: [id])
+  groupId                 Int
+  group                   TaxGroup    @relation(fields: [groupId], references: [id])
+  taxRate                 Decimal // e.g., 0.0635 for 6.35%
+  triggerPrice            Decimal? // min item price to trigger this rule
+  startPrice              Decimal? // start of taxable price range
+  stopPrice               Decimal? // cap for taxable price range
+  taxIncludedInSalesPrice Boolean     @default(false)
+  ruleToAddBeforeCalcId   Int? // self-reference for chained rules
+  ruleToAddBeforeCalc     TaxRule?    @relation("TaxRuleChain", fields: [ruleToAddBeforeCalcId], references: [id])
+  chainedRules            TaxRule[]   @relation("TaxRuleChain")
+  triggerStop             Decimal?
+  sortOrder               Int         @default(0)
+  isActive                Boolean     @default(true)
+
+  @@unique([districtId, groupId, sortOrder])
+}
+
+// ---------------------------------------------------------------------------
+// SALES & AR MANAGEMENT
+// ---------------------------------------------------------------------------
+
+enum SalesOrderStatus {
+  QUOTE
+  ORDER
+  FULFILLED
+  CANCELLED
+  RETURNED
+}
+
+enum LineItemStatus {
+  ACTIVE
+  CANCELLED
+  BACKORDERED
+  REPLACED
+}
+
+enum DispatchStatus {
+  PO_PLACED
+  RECEIVED_IN_WAREHOUSE
+  READY_FOR_PICKUP
+  SCHEDULED_DELIVERY
+  FULFILLED
+  CANCELLED
+}
+
+model SalesOrder {
+  id         Int              @id @default(autoincrement())
+  orderno    String           @unique
+  orderDate  DateTime?
+  status     SalesOrderStatus @default(QUOTE)
+  customerId Int?
+  customer   Customer?        @relation(fields: [customerId], references: [id])
+
+  salesperson     String?
+  salesPersonId   Int?
+  salesPerson     StaffMember?   @relation("OrderSalesPerson", fields: [salesPersonId], references: [id])
+  splitWithId     Int?
+  splitWith       StaffMember?   @relation("SplitSales", fields: [splitWithId], references: [id])
+  storeLocation   String?
+  storeLocationId Int?
+  store           StoreLocation? @relation("OrderStore", fields: [storeLocationId], references: [id])
+  totalTax        Decimal?
+  totalPaid       Decimal?
+
+  taxDistrictId     Int?
+  taxDistrict       TaxDistrict?     @relation(fields: [taxDistrictId], references: [id])
+  taxExemptReasonId Int?
+  taxExemptReason   TaxExemptReason? @relation(fields: [taxExemptReasonId], references: [id])
+
+  orderNotes      String?
+  dispatchStatus  DispatchStatus? @default(PO_PLACED)
+  externalCustomerCode String?
+  quoteCode       String?
+  quoteDate       DateTime?
+
+  deliveryMethod        DeliveryMethod?
+  deliveryAddressId     Int?
+  deliveryAddress       CustomerAddress? @relation("DeliveryAddress", fields: [deliveryAddressId], references: [id])
+  pickupLocationId      Int?
+  pickupLocation        StoreLocation?   @relation("PickupLocation", fields: [pickupLocationId], references: [id])
+  scheduledDeliveryDate DateTime?
+  deliveryNotes         String?
+
+  lineItems           OrderLineItem[]
+  invoices            Invoice[]
+  payments            Payment[]
+  purchaseOrders      PurchaseOrder[]
+  inventoryPositions  InventoryPosition[]
+  creditTransactions  CustomerCreditTransaction[]
+  ledgerEntries       CustomerLedgerEntry[]
+  serviceCases        ServiceCase[]
+  interactions        CustomerInteraction[]
+  changeLogs          OrderChangeLog[]
+  returns             Return[]
+  exchangeReturns     Return[]                    @relation("ExchangeOrder")
+  serviceAppointments ServiceAppointment[]
+  pickLists           PickList[]
+  consignmentItems    ConsignmentItem[]
+  leads               Lead[]
+  linkedTasks         ServiceTask[]               @relation("TaskLinkedOrder")
+  proposal            Proposal?
+
+  // Pipeline archiving — set when a quote is marked lost/closed; clearable to restore
+  pipelineArchivedAt DateTime?
+  pipelineNote       String?
+
+  // When a quote is archived as a duplicate or outdated version, link to the
+  // quote that replaces it. The replacement stays in the pipeline; the archived
+  // quote is excluded from conversion-rate denominators and pipeline counts.
+  archiveReason     String? // "Updated Quote" | "Duplicate" | "Customer Passed" | "Stale" | "Other"
+  replacedByOrderId Int?
+  replacedByOrder   SalesOrder?  @relation("OrderReplacement", fields: [replacedByOrderId], references: [id], onDelete: SetNull)
+  replacementFor    SalesOrder[] @relation("OrderReplacement")
+
+  // When TRUE, runSalesImport's same-day-rewrite cleanup heuristic is
+  // skipped for this base order. Used when the rewrite is a price-tweak
+  // (customer kept all base items; rewrite only contains the line whose
+  // price changed) — the heuristic can't distinguish that case from a
+  // genuine drop (the drop-case shape) and would over-cancel base lines.
+  // Operator sets this manually when they've verified the order is
+  // correct as-is. Added after an OS sales-gap incident.
+  // See `lib/sameDayRewriteCleanup.ts` doc-comment for the full pattern.
+  skipSameDayRewriteCleanup Boolean @default(false)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([quoteCode])
+  @@index([replacedByOrderId])
+  @@index([status, orderDate])
+}
+
+model OrderLineItem {
+  id              Int        @id @default(autoincrement())
+  salesOrderId    Int
+  salesOrder      SalesOrder @relation(fields: [salesOrderId], references: [id])
+  lineNumber      Int? // sequential within order, for idempotent re-import
+  partNo          String?
+  barcode         String?
+  vatRate         Decimal?
+  vatAmount       Decimal?
+  porNumber       String?
+  productName     String?
+  orderedQuantity Decimal
+  netPrice        Decimal
+  cost            Decimal
+  productId       Int?
+  product         Product?   @relation(fields: [productId], references: [id])
+
+  taxDistrictId Int?
+  taxDistrict   TaxDistrict? @relation(fields: [taxDistrictId], references: [id])
+
+  // Reference to the VendorStyle used to configure this item (if applicable)
+  vendorStyleId Int?
+  vendorStyle   VendorStyle? @relation(fields: [vendorStyleId], references: [id])
+
+  // Source and fulfillment tracking per line item
+  source       String? // FLOOR or ORDER
+  fulfillment  String? // TAKE, PICKUP, or DELIVERY
+  fulfilledQty Decimal? @default(0) // how many have been delivered/picked up/taken
+
+  // For configurable products: what was selected at time of sale
+  selectedGrade   String?
+  selectedFinish  String?
+  selectedOptions String? // JSON string of selected options with prices
+
+  // Line item lifecycle
+  lineItemStatus       LineItemStatus @default(ACTIVE)
+  cancelReason         String?
+  replacedByLineItemId Int?           @unique
+  replacedByLineItem   OrderLineItem? @relation("ReplacedBy", fields: [replacedByLineItemId], references: [id])
+  replacesLineItem     OrderLineItem? @relation("ReplacedBy")
+
+  purchaseOrderItems  PurchaseOrderItem[]
+  invoiceLineItems    InvoiceLineItem[]
+  returns             Return[]
+  serviceAppointments ServiceAppointment[]
+  pickListItems       PickListItem[]
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@unique([salesOrderId, lineNumber])
+  @@index([productId])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
+}
+
+model Invoice {
+  id            Int                   @id @default(autoincrement())
+  invoiceNo     String                @unique
+  invoiceDate   DateTime
+  taxAmount     Decimal
+  salesOrderId  Int?
+  salesOrder    SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  lineItems     InvoiceLineItem[]
+  ledgerEntries CustomerLedgerEntry[]
+
+  // Product-grade AR fields (open-item). customerId/total are nullable for
+  // legacy SalesOrder-coupled invoices; the new invoicing flow sets them. AR is
+  // recognized when status = ISSUED. See docs/domains/accounts-receivable.md.
+  customerId   Int?
+  customer     Customer?            @relation("CustomerInvoices", fields: [customerId], references: [id])
+  total        Decimal?
+  dueDate      DateTime?
+  status       InvoiceStatus        @default(DRAFT)
+  applications PaymentApplication[]
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@index([customerId, status])
+}
+
+// Open-item AR: allocates a Payment to a specific Invoice. A payment may split
+// across invoices; an invoice may take many applications. The unapplied portion
+// of a payment is on-account credit. See docs/domains/accounts-receivable.md.
+model PaymentApplication {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  paymentId Int
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId Int
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  amountApplied Decimal
+
+  created   DateTime  @default(now())
+  createdBy String?
+
+  @@index([invoiceId])
+  @@index([paymentId])
+  @@index([organizationId])
+}
+
+model InvoiceLineItem {
+  id                Int           @id @default(autoincrement())
+  invoiceId         Int
+  invoice           Invoice       @relation(fields: [invoiceId], references: [id])
+  orderLineItemId   Int
+  orderLineItem     OrderLineItem @relation(fields: [orderLineItemId], references: [id])
+  deliveredQuantity Decimal
+
+  @@unique([invoiceId, orderLineItemId], name: "invoiceId_orderLineItemId")
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  REFUNDED
+  VOIDED
+  FAILED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  CHECK
+  GIFT_CARD
+  STORE_CREDIT
+  WIRE
+  ACH
+  FINANCE
+  OTHER
+}
+
+model Payment {
+  id              Int            @id @default(autoincrement())
+  salesOrderId    Int?
+  salesOrder      SalesOrder?    @relation(fields: [salesOrderId], references: [id])
+  paymentDate     DateTime
+  paymentType     String
+  paymentAmount   Decimal
+  paymentCode     String?        @unique
+  applications    PaymentApplication[]
+  storeLocation   String?
+  storeLocationId Int?
+  store           StoreLocation? @relation("PaymentStore", fields: [storeLocationId], references: [id])
+
+  // Structured payment tracking (nullable for backward compat with imports)
+  status PaymentStatus?
+  method PaymentMethod?
+
+  // Register and till tracking
+  registerId    Int?
+  register      Register?    @relation(fields: [registerId], references: [id])
+  tillId        Int?
+  till          Till?        @relation(fields: [tillId], references: [id])
+  staffMemberId Int?
+  staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
+  customerId    Int?
+  customer      Customer?    @relation("CustomerPayments", fields: [customerId], references: [id])
+
+  // Payment processor details
+  processorType  String?
+  processorTxnId String?
+  processorData  Json?
+
+  // Card details (last 4 only, safe to store)
+  cardLast4 String?
+  cardBrand String?
+
+  // Check details
+  checkNumber String?
+
+  // Gift card link
+  giftCardId Int?
+  giftCard   GiftCard? @relation(fields: [giftCardId], references: [id])
+
+  // Refund tracking
+  isRefund          Boolean   @default(false)
+  originalPaymentId Int?
+  originalPayment   Payment?  @relation("PaymentRefunds", fields: [originalPaymentId], references: [id])
+  refundedPayments  Payment[] @relation("PaymentRefunds")
+  refundReason      String?
+
+  creditTransactions CustomerCreditTransaction[]
+  ledgerEntries      CustomerLedgerEntry[]
+  returnRefunds      Return[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([salesOrderId])
+  @@index([paymentDate])
+  @@index([tillId])
+}
+
+// ---------------------------------------------------------------------------
+// NAV PERMISSIONS
+// ---------------------------------------------------------------------------
+
+model NavPermission {
+  id      Int       @id @default(autoincrement())
+  navItem String
+  role    StaffRole
+
+  @@unique([navItem, role])
+}
+
+// ---------------------------------------------------------------------------
+// STAFF & UP-BOARD
+// ---------------------------------------------------------------------------
+
+enum StaffRole {
+  SUPER_ADMIN
+  ADMIN
+  DESIGNER
+  REGISTER
+  MANAGER
+  WAREHOUSE
+  INSTALLER
+  MARKETING
+}
+
+enum ServiceAppointmentType {
+  MEASURE
+  INSTALL
+  DELIVERY
+  HOUSE_CALL
+}
+
+enum ServiceAppointmentStatus {
+  PENDING
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InteractionOutcome {
+  BROWSING // Customer looked around, no quote
+  QUOTE_STARTED // Quote created during interaction
+  SALE_COMPLETED // Converted to sale during interaction
+  APPOINTMENT_SET // Scheduled a follow-up, house call, or measure
+  SERVICE_CASE // Created a service case
+  RETURNED // Customer returned an item
+}
+
+enum UpBoardStatus {
+  UP // Next in line to take a customer
+  WITH_CUSTOMER // Currently helping a customer
+  ON_BREAK // Temporarily unavailable
+  AVAILABLE // In rotation but not next
+}
+
+model StaffMember {
+  id                    Int            @id @default(autoincrement())
+  userId                String?        @unique
+  user                  User?          @relation(fields: [userId], references: [id])
+  displayName           String // Name shown on up-board
+  // Alternate names this person is known by in the POS's `salesperson`
+  // field. Reports OR-match on (displayName + every alias) so Sandy can
+  // be linked to "Sandra Matheny" without renaming the up-board record.
+  // Populated via admin UI or one-off SQL when a mismatch is discovered.
+  // Origin: Issue #274, ROADMAP Short-Term #12.
+  aliases               String[]       @default([])
+  email                 String?        @unique // For matching to User on first login
+  // Local-account password (scrypt hash, see lib/auth/password.ts). Null for
+  // OAuth-only staff. Only consulted when AUTH_LOCAL_ENABLED turns on the
+  // credentials sign-in method.
+  passwordHash          String?
+  role                  StaffRole      @default(DESIGNER)
+  defaultStore          String? // Legacy: the POS store name
+  activeStoreLocationId Int?
+  activeStoreLocation   StoreLocation? @relation("ActiveStaff", fields: [activeStoreLocationId], references: [id])
+  isActive              Boolean        @default(true)
+  // Appears on designer-based sales + commission reports. Independent
+  // of `role` so a selling MANAGER can be included and an ex-designer
+  // excluded. Backfilled true for existing role=DESIGNER staff.
+  // Origin: owner direction 2026-05-29.
+  isDesigner            Boolean        @default(false)
+
+  shifts               StaffShift[]
+  upBoardEntries       UpBoardEntry[]
+  payments             Payment[]
+  tillsOpened          Till[]                @relation("TillOpener")
+  tillsClosed          Till[]                @relation("TillCloser")
+  interactions         CustomerInteraction[]
+  assignedCases        ServiceCase[]         @relation("CaseAssignee")
+  salesPersonCases     ServiceCase[]         @relation("OriginalSalesperson")
+  caseNotes            ServiceCaseNote[]
+  assignedTasks        ServiceTask[]         @relation("TaskAssignee")
+  returnsReceived      Return[]              @relation("ReturnReceivedBy")
+  returnsInspected     Return[]              @relation("ReturnInspectedBy")
+  designerAppointments ServiceAppointment[]  @relation("DesignerAppointments")
+  driverRuns           DeliveryRun[]         @relation("DriverRuns")
+  assignedPickLists    PickList[]            @relation("PickListAssignee")
+  salesOrders          SalesOrder[]          @relation("OrderSalesPerson")
+  splitSales           SalesOrder[]          @relation("SplitSales")
+  installer            Installer?
+  primaryCustomers     Customer[]            @relation("PrimaryDesigner")
+  assignedLeads        Lead[]                @relation("LeadAssignments")
+  salesGoals           SalesGoal[]
+  proposals            Proposal[]            @relation("ProposalSalesPerson")
+  commissionPayouts    CommissionPayout[]
+  payPeriodConfirmations PayPeriodConfirmation[] @relation("PayPeriodConfirmations")
+  payPeriodIssues        PayPeriodIssue[]        @relation("PayPeriodIssues")
+  assignedTickets        Ticket[]                @relation("TicketAssignee")
+  authoredTicketMessages TicketMessage[]         @relation("TicketMessageAuthor")
+  timeEntries            TimeEntry[]
+  availabilityWindows    AvailabilityWindow[]
+  calendarBlocks         CalendarBlock[]
+  bookings               Booking[]
+
+  // Login activity tracking. Set by the NextAuth jwt callback:
+  // lastLoginAt fires on the first-sign-in pass (account + user
+  // present); lastSeenAt is bumped on each authenticated request,
+  // throttled by a JWT-side timestamp so we don't write per-request.
+  // Surfaces "who's been using the system / when last" via /admin/login-activity.
+  lastLoginAt DateTime?
+  lastSeenAt  DateTime?
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+}
+
+// Yearly sales goal per salesperson. The yearlyGoal is distributed across
+// months using the monthlyWeights JSON array (12 decimals summing to 1.0).
+// When monthlyWeights is null, a standard seasonal pattern is used.
+// Bonus is calculated as bonusRate (e.g. 0.06 = 6%) of sales over the
+// monthly goal.
+model SalesGoal {
+  id             Int         @id @default(autoincrement())
+  staffMemberId  Int
+  staffMember    StaffMember @relation(fields: [staffMemberId], references: [id])
+  fiscalYear     Int
+  yearlyGoal     Decimal
+  bonusRate      Decimal     @default(0.06) // 6% of overage
+  monthlyWeights Json? // Optional: array of 12 decimals
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([staffMemberId, fiscalYear])
+  @@index([fiscalYear])
+}
+
+model StaffShift {
+  id              Int            @id @default(autoincrement())
+  staffMemberId   Int
+  staffMember     StaffMember    @relation(fields: [staffMemberId], references: [id])
+  storeLocation   String // Which store they clocked into
+  storeLocationId Int?
+  store           StoreLocation? @relation("ShiftStore", fields: [storeLocationId], references: [id])
+  clockIn         DateTime       @default(now())
+  clockOut        DateTime? // null = still on shift
+
+  @@index([storeLocation, clockIn])
+  @@index([staffMemberId, clockIn])
+  @@index([storeLocationId])
+}
+
+model UpBoardEntry {
+  id              Int            @id @default(autoincrement())
+  staffMemberId   Int
+  staffMember     StaffMember    @relation(fields: [staffMemberId], references: [id])
+  storeLocation   String // Board this entry belongs to
+  storeLocationId Int?
+  store           StoreLocation? @relation("BoardStore", fields: [storeLocationId], references: [id])
+  position        Int // Order in rotation (1 = next up)
+  status          UpBoardStatus  @default(AVAILABLE)
+  statusSince     DateTime       @default(now()) // When status last changed
+  customerNote    String? // Optional: who they're helping
+
+  @@unique([storeLocation, position]) // No two people at same position
+  @@unique([staffMemberId, storeLocation]) // One entry per person per board
+  @@index([storeLocation, status])
+}
+
+// ─── Signature Elements ──────────────────────────────────────────
+// Component catalog for Wesley Hall's build-your-own furniture system.
+// Each record represents one selectable option (a base style, arm type,
+// back type, depth variant, etc.) used by the SE configurator.
+
+model SEComponent {
+  id            Int     @id @default(autoincrement())
+  vendorId      Int
+  vendor        Vendor  @relation(fields: [vendorId], references: [id])
+  componentType String // DEPTH, BASE, ARM, PIECE_TYPE, BACK_TYPE, CUSHION_CONFIG, CUSHION_FILL
+  code          String // "21", "6", "A", "85", "B", etc.
+  name          String // "Standard Depth", "Block Leg", "English Arm", etc.
+  imageUrl      String?
+  sortOrder     Int     @default(0)
+  isDefault     Boolean @default(false)
+
+  notAvailableInLeather  Boolean @default(false)
+  notAvailableOnSleepers Boolean @default(false)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([vendorId, componentType, code])
+  @@index([vendorId, componentType])
+}
+
+// ---------------------------------------------------------------------------
+// GIFT CARDS
+// ---------------------------------------------------------------------------
+
+enum GiftCardStatus {
+  ACTIVE
+  REDEEMED
+  VOIDED
+}
+
+enum GiftCardTransactionType {
+  ISSUANCE
+  REDEMPTION
+  RELOAD
+  ADJUSTMENT
+  VOID
+  IMPORT
+}
+
+model GiftCard {
+  id             Int            @id @default(autoincrement())
+  barcode        String         @unique
+  externalCode   String?        @unique
+  initialAmount  Decimal
+  currentBalance Decimal
+  status         GiftCardStatus @default(ACTIVE)
+  activatedAt    DateTime?
+  notes          String?
+
+  transactions GiftCardTransaction[]
+  payments     Payment[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([status])
+}
+
+model GiftCardTransaction {
+  id              Int                     @id @default(autoincrement())
+  giftCardId      Int
+  giftCard        GiftCard                @relation(fields: [giftCardId], references: [id])
+  transactionType GiftCardTransactionType
+  amount          Decimal
+  balanceBefore   Decimal
+  balanceAfter    Decimal
+  reference       String?
+  notes           String?
+
+  created   DateTime @default(now())
+  createdBy String?
+
+  @@index([giftCardId])
+  @@index([created])
+}
+
+model GiftCardPreset {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  amount    Decimal?
+  label     String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+// ---------------------------------------------------------------------------
+// REGISTERS & TILLS
+// ---------------------------------------------------------------------------
+
+enum TillStatus {
+  OPEN
+  CLOSED
+  RECONCILED
+}
+
+model Register {
+  id              Int           @id @default(autoincrement())
+  name            String
+  storeLocationId Int
+  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id])
+  isActive        Boolean       @default(true)
+  sortOrder       Int           @default(0)
+
+  tills    Till[]
+  payments Payment[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([storeLocationId, name])
+}
+
+model Till {
+  id           Int          @id @default(autoincrement())
+  registerId   Int
+  register     Register     @relation(fields: [registerId], references: [id])
+  status       TillStatus   @default(OPEN)
+  openedAt     DateTime     @default(now())
+  closedAt     DateTime?
+  openedById   Int
+  openedBy     StaffMember  @relation("TillOpener", fields: [openedById], references: [id])
+  closedById   Int?
+  closedBy     StaffMember? @relation("TillCloser", fields: [closedById], references: [id])
+  openingCash  Decimal      @default(0)
+  expectedCash Decimal?
+  actualCash   Decimal?
+  variance     Decimal?
+  notes        String?
+
+  payments Payment[]
+  counts   TillCount[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([registerId, status])
+  @@index([openedAt])
+}
+
+model TillCount {
+  id           Int     @id @default(autoincrement())
+  tillId       Int
+  till         Till    @relation(fields: [tillId], references: [id])
+  denomination String
+  quantity     Int
+  amount       Decimal
+  isOpening    Boolean @default(false)
+
+  @@unique([tillId, denomination, isOpening])
+}
+
+// ---------------------------------------------------------------------------
+// CUSTOMER CREDIT
+// ---------------------------------------------------------------------------
+
+enum CreditTransactionType {
+  REFUND_CREDIT
+  USAGE
+  ADJUSTMENT
+}
+
+model CustomerCreditTransaction {
+  id            Int                   @id @default(autoincrement())
+  customerId    Int
+  customer      Customer              @relation(fields: [customerId], references: [id])
+  type          CreditTransactionType
+  amount        Decimal
+  balanceBefore Decimal
+  balanceAfter  Decimal
+  paymentId     Int?
+  payment       Payment?              @relation(fields: [paymentId], references: [id])
+  salesOrderId  Int?
+  salesOrder    SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  reference     String?
+  notes         String?
+
+  created   DateTime @default(now())
+  createdBy String?
+
+  @@index([customerId])
+  @@index([created])
+}
+
+// AR ledger (Phase 0.5). One row per money-affecting event per customer.
+//
+// Mirrors CustomerCreditTransaction's shape — same balanceBefore /
+// balanceAfter snapshot pattern, same atomic-write contract: every
+// `appendEntry()` writes the entry AND bumps `Customer.openArBalance` in
+// the same `prisma.$transaction()`. Reconstructible from source data, but
+// once written it's the system-of-record for AR (faster than re-reducing
+// all payments + line items per page-load, and survives the POS import
+// timing gaps that historically caused customer-page balance jitter).
+//
+// Sign convention (matches CustomerCreditTransaction):
+//   amount > 0 increases balance owed (SALE, ADJUSTMENT_DEBIT)
+//   amount < 0 decreases balance owed (PAYMENT, REFUND_ISSUED, ADJUSTMENT_CREDIT)
+//   DEPOSIT_RECEIVED is amount > 0 (a deposit creates an offsetting debit
+//   to the customer that nets when invoicing happens — same shape as a
+//   sale for the running-balance math)
+//   DEPOSIT_APPLIED is amount < 0 (consumes the deposit when invoiced)
+//
+// Source-of-truth references (salesOrderId / paymentId / invoiceId) are
+// nullable because some entries (manual ADJUSTMENT) have no source row.
+// Reports use these to drill back to the originating event.
+model CustomerLedgerEntry {
+  id            Int                     @id @default(autoincrement())
+  customerId    Int
+  customer      Customer                @relation(fields: [customerId], references: [id])
+  type          CustomerLedgerEntryType
+  amount        Decimal
+  balanceBefore Decimal
+  balanceAfter  Decimal
+
+  salesOrderId Int?
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  paymentId    Int?
+  payment      Payment?    @relation(fields: [paymentId], references: [id])
+  invoiceId    Int?
+  invoice      Invoice?    @relation(fields: [invoiceId], references: [id])
+
+  reference String?
+  notes     String?
+
+  created   DateTime @default(now())
+  createdBy String?
+
+  @@index([customerId, created])
+  @@index([created])
+  @@index([salesOrderId])
+  @@index([paymentId])
+}
+
+enum CustomerLedgerEntryType {
+  SALE
+  PAYMENT
+  REFUND_ISSUED
+  DEPOSIT_RECEIVED
+  DEPOSIT_APPLIED
+  ADJUSTMENT_DEBIT
+  ADJUSTMENT_CREDIT
+}
+
+// ---------------------------------------------------------------------------
+// CUSTOMER SERVICE
+// ---------------------------------------------------------------------------
+
+enum ServiceTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model ServiceCaseType {
+  id        Int     @id @default(autoincrement())
+  name      String  @unique
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  cases ServiceCase[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model ServiceCaseStatus {
+  id        Int     @id @default(autoincrement())
+  name      String  @unique
+  isClosed  Boolean @default(false)
+  color     String?
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  cases ServiceCase[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model ServiceCasePriority {
+  id        Int     @id @default(autoincrement())
+  name      String  @unique
+  level     Int     @default(0)
+  color     String?
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  cases ServiceCase[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model ServiceCase {
+  id               Int                 @id @default(autoincrement())
+  caseNumber       String              @unique
+  typeId           Int
+  type             ServiceCaseType     @relation(fields: [typeId], references: [id])
+  statusId         Int
+  status           ServiceCaseStatus   @relation(fields: [statusId], references: [id])
+  priorityId       Int
+  priority         ServiceCasePriority @relation(fields: [priorityId], references: [id])
+  summary          String
+  customerId       Int?
+  customer         Customer?           @relation(fields: [customerId], references: [id])
+  salesOrderId     Int?
+  salesOrder       SalesOrder?         @relation(fields: [salesOrderId], references: [id])
+  // Optional direct link to a PurchaseOrder. Service rows imported
+  // from the Customer Service Sheet often have BOTH a sales-order
+  // number and a PO number (the upstream PO that
+  // sourced the replaced/repaired item). Mirrors ServiceTask's
+  // linkedPurchaseOrderId pattern.
+  purchaseOrderId  Int?
+  purchaseOrder    PurchaseOrder?      @relation("ServiceCasePO", fields: [purchaseOrderId], references: [id])
+  vendorId         Int?
+  vendor           Vendor?             @relation(fields: [vendorId], references: [id])
+  salesPersonId    Int?
+  salesPerson      StaffMember?        @relation("OriginalSalesperson", fields: [salesPersonId], references: [id])
+  assignedToId     Int?
+  assignedTo       StaffMember?        @relation("CaseAssignee", fields: [assignedToId], references: [id])
+  storeLocation    String?
+  storeLocationId  Int?
+  store            StoreLocation?      @relation("CaseStore", fields: [storeLocationId], references: [id])
+  preferredContact String?
+  itemDescription  String?
+  partNo           String?
+  resolvedAt       DateTime?
+  resolutionNotes  String?
+
+  // Sync provenance for cases imported from an external system (e.g.
+  // the Customer Service Sheet xlsx, eventually a Google Form intake).
+  // externalSourceId is the idempotency key — re-imports of the same
+  // row update the existing case in place rather than creating duplicates.
+  // externalSourceLastSeen is bumped on every successful re-sync so
+  // operators can spot cases that disappear from the source.
+  externalSource         String? // "cs-sheet" | "google-form" | etc.
+  externalSourceId       String? @unique
+  externalSourceLastSeen DateTime?
+
+  notes  ServiceCaseNote[]
+  tasks  ServiceTask[]
+  emails ServiceEmail[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([statusId])
+  @@index([assignedToId])
+  @@index([customerId])
+  @@index([salesOrderId])
+  @@index([purchaseOrderId])
+  @@index([externalSource])
+}
+
+model ServiceCaseNote {
+  id         Int          @id @default(autoincrement())
+  caseId     Int
+  case       ServiceCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId   Int?
+  author     StaffMember? @relation(fields: [authorId], references: [id])
+  // Snapshot of the original author's display name. Used when we
+  // can't resolve authorId to a current StaffMember (former staff,
+  // external collaborator on a threaded comment, etc.) so the note
+  // still attributes correctly in the UI.
+  authorDisplayName String?
+  note       String
+  isInternal Boolean      @default(true)
+
+  // Per-note idempotency for sheet/form re-imports. For threaded
+  // comments this is `cs-sheet-note:{commentGuid}` — the GUID Excel
+  // assigns to each threaded comment is globally unique and never
+  // reused, so once a comment is imported its note row is immutable
+  // (insert-only; never overwritten on subsequent syncs).
+  externalSource   String?
+  externalSourceId String? @unique
+
+  created   DateTime @default(now())
+  createdBy String?
+
+  @@index([caseId, created])
+}
+
+model ServiceTask {
+  id           Int               @id @default(autoincrement())
+  caseId       Int
+  case         ServiceCase       @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  status       ServiceTaskStatus @default(PENDING)
+  assignedToId Int?
+  assignedTo   StaffMember?      @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  waitingOn    String?
+  dueDate      DateTime?
+  completedAt  DateTime?
+
+  linkedOrderId         Int?
+  linkedOrder           SalesOrder?    @relation("TaskLinkedOrder", fields: [linkedOrderId], references: [id])
+  linkedPurchaseOrderId Int?
+  linkedPurchaseOrder   PurchaseOrder? @relation("TaskLinkedPO", fields: [linkedPurchaseOrderId], references: [id])
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([caseId])
+  @@index([assignedToId])
+  @@index([status])
+}
+
+model EmailTemplate {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  subject  String
+  body     String
+  category String
+  isActive Boolean @default(true)
+
+  emails ServiceEmail[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model ServiceEmail {
+  id         Int            @id @default(autoincrement())
+  caseId     Int
+  case       ServiceCase    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  templateId Int?
+  template   EmailTemplate? @relation(fields: [templateId], references: [id])
+  toAddress  String
+  subject    String
+  body       String
+  sentAt     DateTime       @default(now())
+  sentBy     String?
+  status     String         @default("SENT")
+
+  @@index([caseId])
+}
+
+// ---------------------------------------------------------------------------
+// CUSTOMER INTERACTIONS (CRM)
+// ---------------------------------------------------------------------------
+// Every customer touchpoint: walk-in, phone call, appointment. Created
+// automatically when a designer takes a customer from the up-board, or
+// manually for phone/email interactions. Can grow into a quote or order.
+
+model CustomerInteraction {
+  id              Int                 @id @default(autoincrement())
+  staffMemberId   Int
+  staffMember     StaffMember         @relation(fields: [staffMemberId], references: [id])
+  customerId      Int?
+  customer        Customer?           @relation(fields: [customerId], references: [id])
+  salesOrderId    Int?
+  salesOrder      SalesOrder?         @relation(fields: [salesOrderId], references: [id])
+  storeLocation   String
+  storeLocationId Int?
+  store           StoreLocation?      @relation("InteractionStore", fields: [storeLocationId], references: [id])
+  source          String              @default("WALK_IN") // WALK_IN, PHONE, EMAIL, APPOINTMENT
+  outcome         InteractionOutcome?
+  notes           String?
+  startedAt       DateTime            @default(now())
+  endedAt         DateTime?
+  isActive        Boolean             @default(true) // false = interaction closed
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([staffMemberId, isActive])
+  @@index([customerId])
+  @@index([storeLocation, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// ORDER CHANGE LOG (audit trail for sales order lifecycle)
+// ---------------------------------------------------------------------------
+
+model OrderChangeLog {
+  id            Int        @id @default(autoincrement())
+  salesOrderId  Int
+  salesOrder    SalesOrder @relation(fields: [salesOrderId], references: [id])
+  lineItemId    Int?
+  changeType    String // STATUS_CHANGE, LINE_ADDED, LINE_CANCELLED, LINE_REPLACED, PRICE_CHANGE, NOTE_ADDED, RETURN_*
+  previousValue String?
+  newValue      String?
+  reason        String?
+  changedBy     String?
+  created       DateTime   @default(now())
+
+  @@index([salesOrderId])
+}
+
+// ---------------------------------------------------------------------------
+// RETURNS
+// ---------------------------------------------------------------------------
+
+enum ReturnStatus {
+  INITIATED
+  PICKUP_SCHEDULED
+  PICKUP_COMPLETED
+  RECEIVED
+  INSPECTED
+  RESTOCKED
+  WRITTEN_OFF
+  CLOSED
+  CANCELLED
+}
+
+enum ReturnReason {
+  DEFECTIVE
+  DAMAGED_IN_DELIVERY
+  WRONG_ITEM
+  CUSTOMER_CHANGED_MIND
+  NOT_AS_DESCRIBED
+  DUPLICATE_ORDER
+  OTHER
+}
+
+enum InspectionCondition {
+  LIKE_NEW
+  MINOR_DAMAGE
+  MAJOR_DAMAGE
+  UNSALVAGEABLE
+}
+
+model Return {
+  id           Int          @id @default(autoincrement())
+  returnNumber String       @unique
+  status       ReturnStatus @default(INITIATED)
+  reason       ReturnReason
+  reasonNotes  String?
+
+  // Original sale
+  salesOrderId Int
+  salesOrder   SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  lineItemId   Int?
+  lineItem     OrderLineItem? @relation(fields: [lineItemId], references: [id])
+
+  // Customer
+  customerId Int?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  // Product snapshot
+  productId   Int?
+  product     Product? @relation(fields: [productId], references: [id])
+  productName String?
+  partNo      String?
+  quantity    Int      @default(1)
+
+  // Pickup scheduling
+  pickupRequired  Boolean          @default(false)
+  pickupAddressId Int?
+  pickupAddress   CustomerAddress? @relation(fields: [pickupAddressId], references: [id])
+  pickupDate      DateTime?
+  pickupTimeSlot  String?
+  pickupNotes     String?
+
+  // Receiving
+  receivedAt         DateTime?
+  receivedById       Int?
+  receivedBy         StaffMember?   @relation("ReturnReceivedBy", fields: [receivedById], references: [id])
+  receivedLocationId Int?
+  receivedLocation   StoreLocation? @relation("ReturnReceivedAt", fields: [receivedLocationId], references: [id])
+
+  // Inspection
+  inspectedAt         DateTime?
+  inspectedById       Int?
+  inspectedBy         StaffMember?         @relation("ReturnInspectedBy", fields: [inspectedById], references: [id])
+  inspectionCondition InspectionCondition?
+  inspectionNotes     String?
+
+  // Disposition
+  restockedAt         DateTime?
+  restockedLocationId Int?
+  restockedLocation   StoreLocation? @relation("ReturnRestockedAt", fields: [restockedLocationId], references: [id])
+  writeOffReason      String?
+
+  // Refund (uses existing payment system)
+  refundPaymentId Int?
+  refundPayment   Payment? @relation(fields: [refundPaymentId], references: [id])
+  refundAmount    Decimal?
+
+  // Exchange (linked replacement order)
+  exchangeOrderId Int?
+  exchangeOrder   SalesOrder? @relation("ExchangeOrder", fields: [exchangeOrderId], references: [id])
+
+  // Vendor return POs created from this return
+  vendorReturnPOs PurchaseOrder[]
+
+  // Customer portal
+  portalToken       String?   @unique
+  portalRequestedAt DateTime?
+  customerNotes     String?
+
+  // Shipping
+  returnShippingMethod String?
+  returnTrackingNumber String?
+
+  // Audit
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([status])
+  @@index([salesOrderId])
+  @@index([customerId])
+  @@index([pickupDate])
+}
+
+// ─── Service Dispatch ──────────────────────────────────────────────
+
+model Installer {
+  id       Int     @id @default(autoincrement())
+  name     String
+  phone    String?
+  email    String?
+  company  String? // null = in-house, populated = third-party contractor
+  isActive Boolean @default(true)
+  notes    String?
+
+  staffMemberId Int?         @unique
+  staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
+
+  appointments ServiceAppointment[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model ServiceAppointment {
+  id                Int                      @id @default(autoincrement())
+  appointmentNumber String                   @unique
+  type              ServiceAppointmentType
+  status            ServiceAppointmentStatus @default(PENDING)
+
+  salesOrderId Int
+  salesOrder   SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  lineItemId   Int?
+  lineItem     OrderLineItem? @relation(fields: [lineItemId], references: [id])
+  customerId   Int?
+  customer     Customer?      @relation(fields: [customerId], references: [id])
+
+  addressId          Int?
+  address            CustomerAddress? @relation(fields: [addressId], references: [id])
+  storeLocationId    Int?
+  storeLocation      StoreLocation?   @relation("AppointmentStore", fields: [storeLocationId], references: [id])
+  accessInstructions String?
+
+  scheduledDate     DateTime?
+  scheduledTime     String?
+  estimatedDuration Int?
+
+  installerId Int?
+  installer   Installer?   @relation(fields: [installerId], references: [id])
+  designerId  Int?
+  designer    StaffMember? @relation("DesignerAppointments", fields: [designerId], references: [id])
+
+  department        String?
+  urgency           String?
+  contactPreference String?
+  scopeOfWork       String?
+  notes             String?
+
+  completedAt     DateTime?
+  completionNotes String?
+
+  deliveryZoneId Int?
+  deliveryZone   DeliveryZone? @relation(fields: [deliveryZoneId], references: [id])
+
+  deliveryStop DeliveryStop?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([status])
+  @@index([type])
+  @@index([scheduledDate])
+  @@index([salesOrderId])
+}
+
+// ---------------------------------------------------------------------------
+// DELIVERY MANAGEMENT
+// ---------------------------------------------------------------------------
+
+enum VehicleType {
+  BOX_TRUCK
+  VAN
+  RENTAL
+}
+
+enum DeliveryRunStatus {
+  PLANNING
+  LOADED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum DeliveryStopStatus {
+  PENDING
+  EN_ROUTE
+  ARRIVED
+  COMPLETED
+  FAILED
+}
+
+enum PickListStatus {
+  CREATED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Vehicle {
+  id           Int         @id @default(autoincrement())
+  name         String      @unique
+  type         VehicleType @default(BOX_TRUCK)
+  licensePlate String?
+  isActive     Boolean     @default(true)
+  capacity     Int         @default(6)
+  notes        String?
+
+  deliveryRuns DeliveryRun[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model DeliveryRun {
+  id        Int               @id @default(autoincrement())
+  runNumber String            @unique
+  runDate   DateTime
+  vehicleId Int
+  vehicle   Vehicle           @relation(fields: [vehicleId], references: [id])
+  driverId  Int?
+  driver    StaffMember?      @relation("DriverRuns", fields: [driverId], references: [id])
+  status    DeliveryRunStatus @default(PLANNING)
+
+  departedAt  DateTime?
+  completedAt DateTime?
+  notes       String?
+
+  stops     DeliveryStop[]
+  pickLists PickList[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([runDate])
+  @@index([status])
+  @@index([vehicleId])
+}
+
+model DeliveryStop {
+  id                   Int                @id @default(autoincrement())
+  deliveryRunId        Int
+  deliveryRun          DeliveryRun        @relation(fields: [deliveryRunId], references: [id], onDelete: Cascade)
+  serviceAppointmentId Int                @unique
+  serviceAppointment   ServiceAppointment @relation(fields: [serviceAppointmentId], references: [id])
+  stopOrder            Int
+  status               DeliveryStopStatus @default(PENDING)
+
+  estimatedArrival DateTime?
+  actualArrival    DateTime?
+  completedAt      DateTime?
+  signatureData    String?
+  photoPath        String?
+  recipientName    String?
+  notes            String?
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@index([deliveryRunId])
+}
+
+model PickList {
+  id             Int            @id @default(autoincrement())
+  pickListNumber String         @unique
+  deliveryRunId  Int?
+  deliveryRun    DeliveryRun?   @relation(fields: [deliveryRunId], references: [id])
+  salesOrderId   Int?
+  salesOrder     SalesOrder?    @relation(fields: [salesOrderId], references: [id])
+  status         PickListStatus @default(CREATED)
+  assignedToId   Int?
+  assignedTo     StaffMember?   @relation("PickListAssignee", fields: [assignedToId], references: [id])
+  notes          String?
+
+  items PickListItem[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([deliveryRunId])
+  @@index([salesOrderId])
+  @@index([status])
+}
+
+model PickListItem {
+  id                  Int            @id @default(autoincrement())
+  pickListId          Int
+  pickList            PickList       @relation(fields: [pickListId], references: [id], onDelete: Cascade)
+  orderLineItemId     Int?
+  orderLineItem       OrderLineItem? @relation(fields: [orderLineItemId], references: [id])
+  productId           Int
+  product             Product        @relation(fields: [productId], references: [id])
+  quantity            Int            @default(1)
+  fromStockLocationId Int?
+  fromStockLocation   StockLocation? @relation("PickFrom", fields: [fromStockLocationId], references: [id])
+  fromStoreLocationId Int?
+  fromStoreLocation   StoreLocation? @relation("PickFromStore", fields: [fromStoreLocationId], references: [id])
+  toStockLocationId   Int?
+  toStockLocation     StockLocation? @relation("PickTo", fields: [toStockLocationId], references: [id])
+  picked              Boolean        @default(false)
+  pickedAt            DateTime?
+  pickedByUserId      String?
+  notes               String?
+
+  @@index([pickListId])
+}
+
+// ---------------------------------------------------------------------------
+// CONSIGNMENT TRACKING
+// ---------------------------------------------------------------------------
+
+enum ConsignmentItemStatus {
+  ON_FLOOR
+  ON_APPROVAL
+  SOLD
+  RETURNED_VENDOR
+  MISSING
+  PAID
+}
+
+model ConsignmentReceipt {
+  id          Int      @id @default(autoincrement())
+  vendorId    Int
+  vendor      Vendor   @relation(fields: [vendorId], references: [id])
+  receiptDate DateTime @default(now())
+  manifestRef String?
+  notes       String?
+  itemCount   Int      @default(0)
+
+  items ConsignmentItem[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model ConsignmentItem {
+  id        Int      @id @default(autoincrement())
+  vendorId  Int
+  vendor    Vendor   @relation(fields: [vendorId], references: [id])
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  barcode        String  @unique
+  rugNumber      String?
+  customerNumber String?
+  baleNumber     String?
+
+  quality String?
+  size    String?
+
+  cost         Decimal
+  anchorPrice  Decimal?
+  retailPrice  Decimal?
+  sellingPrice Decimal?
+  wasPrice     Decimal?
+
+  status ConsignmentItemStatus @default(ON_FLOOR)
+  year   Int?
+
+  consignmentReceiptId Int?
+  consignmentReceipt   ConsignmentReceipt? @relation(fields: [consignmentReceiptId], references: [id])
+  receivedDate         DateTime?
+
+  salesOrderId      Int?
+  salesOrder        SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  saleDate          DateTime?
+  saleTransactionId String?
+  saleCustomerName  String?
+
+  onApprovalDate     DateTime?
+  onApprovalCustomer String?
+  onApprovalNotes    String?
+
+  returnedDate DateTime?
+  returnReason String?
+
+  consignmentPaymentBatchId Int?
+  consignmentPaymentBatch   ConsignmentPaymentBatch? @relation("PaymentBatchItems", fields: [consignmentPaymentBatchId], references: [id])
+  paidDate                  DateTime?
+
+  // Credit tracking: set when a PAID item is returned by a customer.
+  // Applied as a negative line on the next payment batch/PO.
+  creditOwed    Boolean                  @default(false)
+  creditBatchId Int?
+  creditBatch   ConsignmentPaymentBatch? @relation("CreditBatchItems", fields: [creditBatchId], references: [id])
+
+  // Vendor return: which pending return this item is staged for, if any.
+  vendorReturnId Int?
+  vendorReturn   ConsignmentVendorReturn? @relation(fields: [vendorReturnId], references: [id])
+
+  storeLocationId Int?
+  storeLocation   StoreLocation? @relation("ConsignmentLocation", fields: [storeLocationId], references: [id])
+
+  fmRecordId String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([vendorId, status])
+  @@index([status])
+  @@index([saleTransactionId])
+  @@index([consignmentPaymentBatchId])
+  @@index([creditOwed])
+}
+
+model ConsignmentPaymentBatch {
+  id          Int      @id @default(autoincrement())
+  vendorId    Int
+  vendor      Vendor   @relation(fields: [vendorId], references: [id])
+  batchDate   DateTime @default(now())
+  periodStart DateTime
+  periodEnd   DateTime
+  checkNumber String?
+  totalAmount Decimal
+  itemCount   Int      @default(0)
+  notes       String?
+  isPaid      Boolean  @default(false)
+
+  purchaseOrderId Int?           @unique
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+
+  items       ConsignmentItem[] @relation("PaymentBatchItems")
+  creditItems ConsignmentItem[] @relation("CreditBatchItems")
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([vendorId, batchDate])
+}
+
+model ConsignmentSale {
+  id               Int       @id @default(autoincrement())
+  transactionId    String    @unique
+  customerLastName String?
+  saleDate         DateTime?
+  totalCost        Decimal?
+  fmSaleId         String?
+
+  lines ConsignmentSaleLine[]
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+}
+
+model ConsignmentSaleLine {
+  id                Int             @id @default(autoincrement())
+  consignmentSaleId Int
+  consignmentSale   ConsignmentSale @relation(fields: [consignmentSaleId], references: [id])
+  rugBarcode        String
+  cost              Decimal?
+  transactionId     String?
+
+  created DateTime @default(now())
+
+  @@index([rugBarcode])
+  @@index([consignmentSaleId])
+}
+
+// ---------------------------------------------------------------------------
+// CONSIGNMENT VENDOR RETURNS
+// ---------------------------------------------------------------------------
+
+enum ConsignmentVendorReturnStatus {
+  PENDING
+  CONFIRMED
+}
+
+// A pending shipment of rugs back to the consignment vendor.
+// Built by scanning rugs on the return scanner; confirmed after vendor verifies.
+model ConsignmentVendorReturn {
+  id            Int                           @id @default(autoincrement())
+  vendorId      Int
+  vendor        Vendor                        @relation(fields: [vendorId], references: [id])
+  status        ConsignmentVendorReturnStatus @default(PENDING)
+  returnDate    DateTime                      @default(now())
+  confirmedDate DateTime?
+  notes         String?
+
+  items ConsignmentItem[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([vendorId, status])
+}
+
+// ---------------------------------------------------------------------------
+// LEADS
+// ---------------------------------------------------------------------------
+
+model Lead {
+  id     Int        @id @default(autoincrement())
+  source LeadSource
+  status LeadStatus @default(NEW)
+
+  // Who is this lead
+  customerId Int?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  email      String?
+  firstName  String?
+  lastName   String?
+  phone      String?
+
+  // What triggered this lead
+  sourceDetail String?
+  campaignId   String?
+
+  // Assignment
+  assignedToId Int?
+  assignedTo   StaffMember? @relation("LeadAssignments", fields: [assignedToId], references: [id])
+  assignedAt   DateTime?
+
+  // Outcome
+  salesOrderId Int?
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  notes        String?
+
+  // Lifecycle / housekeeping. lastActionAt bumps on any meaningful change
+  // (status change, note, assignment, new Mailchimp engagement) so the
+  // nightly aging job can decide when to auto-archive or flag as stale.
+  lastActionAt DateTime? @default(now())
+  pinned       Boolean   @default(false)
+  archivedBy   String? // "auto" | email of the manager who archived it
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([status])
+  @@index([assignedToId])
+  @@index([customerId])
+  @@index([campaignId])
+  @@index([lastActionAt])
+}
+
+enum LeadSource {
+  MAILCHIMP_CLICK
+  MAILCHIMP_OPEN
+  WALK_IN
+  PHONE
+  REFERRAL
+  WEBSITE
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  ASSIGNED
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+// ---------------------------------------------------------------------------
+// TRADE PROGRAM
+// ---------------------------------------------------------------------------
+
+model TradeTier {
+  id              Int     @id @default(autoincrement())
+  name            String  @unique
+  discountPercent Decimal
+  sortOrder       Int     @default(0)
+  isActive        Boolean @default(true)
+
+  customers Customer[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+// Designer commission tier rates. Marginal structure: each tier's
+// rate applies to the slice of YTD sales that falls within
+// [minYtdSales, maxYtdSalesExclusive). When `maxYtdSalesExclusive`
+// is NULL the tier is the top bracket. SUPER_ADMIN-editable via the
+// commission-tiers report page. Owner-confidential; not shown to
+// staff. Origin: owner direction 2026-05-19.
+model CommissionTier {
+  id                   Int      @id @default(autoincrement())
+  label                String   @unique
+  minYtdSales          Decimal
+  maxYtdSalesExclusive Decimal?
+  rate                 Decimal
+  sortOrder            Int      @default(0)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+// ---------------------------------------------------------------------------
+// COMMISSION PAYOUTS — one row per salesperson per pay period
+// ---------------------------------------------------------------------------
+// Records what was actually paid (or queued to be paid) on a specific pay
+// cycle, frozen so retroactive changes to SalesOrder data don't rewrite
+// history. `tierBreakdown` + `tierDefinitionSnapshot` are JSON so the math
+// stays inspectable years later even if CommissionTier rows are edited.
+// SUPER_ADMIN-only at the API + UI layer. Origin: owner direction 2026-05-27.
+
+model CommissionPayout {
+  id              Int         @id @default(autoincrement())
+  staffMemberId   Int
+  staffMember     StaffMember @relation(fields: [staffMemberId], references: [id])
+
+  // Custom pay-period range — owner picks each cycle (not necessarily
+  // calendar-month aligned). Both ends are inclusive DATEs.
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  // Sales context, frozen at generation time. `ytdSalesAtStart` is YTD
+  // through the day BEFORE periodStart (the "pre-period" baseline);
+  // `ytdSalesAtEnd` is YTD through periodEnd (inclusive). The slice
+  // (ytdEnd - ytdStart) is what gets commissioned at marginal rates.
+  periodSalesAmount Decimal
+  ytdSalesAtStart   Decimal
+  ytdSalesAtEnd     Decimal
+
+  // Marginal-tier breakdown — array of {tierLabel, rate, sliceAmount,
+  // sliceCommission}. One period can span N tiers (e.g. crossing $750k
+  // mid-period earns part at 3% + part at 4%).
+  tierBreakdown   Json
+
+  // The bottom line.
+  commissionAmount Decimal
+
+  // Snapshot of the CommissionTier rows used at generation time. So if
+  // the tiers are later edited (e.g. raising the top rate), historical
+  // payouts continue to render their original math.
+  tierDefinitionSnapshot Json
+
+  // Lock state. lockedAt=null means Draft; non-null means committed.
+  // During rollout SUPER_ADMIN can clear lockedAt → null again
+  // (recorded as a CommissionPayoutEdit audit row); eventually we'll
+  // remove that path.
+  lockedAt  DateTime?
+  lockedBy  String?
+
+  // Optional payment metadata.
+  paidOn DateTime?
+  notes  String?
+
+  edits CommissionPayoutEdit[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  // One payout per salesperson per exact period range — a re-run for
+  // the same (start, end) updates in place rather than duplicating.
+  @@unique([staffMemberId, periodStart, periodEnd])
+  @@index([periodEnd])
+  @@index([lockedAt])
+}
+
+// Field-level audit log for CommissionPayout. Every EDIT to a locked
+// payout (whether a number change, a notes update, or an Unlock action)
+// writes a row here. SUPER_ADMIN must supply a reason to commit the
+// edit; that reason lives in `reason`.
+
+model CommissionPayoutEdit {
+  id        Int              @id @default(autoincrement())
+  payoutId  Int
+  payout    CommissionPayout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+
+  // The name of the column that changed. "lockedAt" specifically for
+  // unlock/lock transitions. JSON for old + new value lets us preserve
+  // any field type (number, date, json).
+  fieldChanged String
+  oldValue     Json
+  newValue     Json
+
+  // SUPER_ADMIN-supplied audit comment — required for every edit on a
+  // locked payout. Free text.
+  reason String
+
+  editedAt DateTime @default(now())
+  editedBy String
+
+  @@index([payoutId])
+  @@index([editedAt])
+}
+
+// Designer sign-off on a bi-weekly pay period. An ACTIVE confirmation
+// (reopenedAt IS NULL) freezes that designer's salesperson attribution
+// for orders dated inside [periodStart, periodEnd] — the daily import
+// and the in-ERP reassignment endpoints all refuse to change it. A
+// manager / SUPER_ADMIN can reopen with an audit reason to allow a
+// correction; re-confirming clears the reopen fields. See
+// docs/domains/commission.md "Pay-period confirmation + attribution
+// lock". Origin: owner direction 2026-05-29.
+model PayPeriodConfirmation {
+  id            Int         @id @default(autoincrement())
+  staffMemberId Int
+  staffMember   StaffMember @relation("PayPeriodConfirmations", fields: [staffMemberId], references: [id])
+
+  // Inclusive bi-weekly window endpoints (lib/payPeriod.ts).
+  periodStart DateTime
+  periodEnd   DateTime
+
+  confirmedAt DateTime @default(now())
+  confirmedBy String
+
+  // Set when a manager reopens. reopenedAt IS NULL ⇒ the confirmation
+  // is ACTIVE (locking). Re-confirm clears these back to null.
+  reopenedAt   DateTime?
+  reopenedBy   String?
+  reopenReason String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([staffMemberId, periodStart, periodEnd])
+  @@index([periodStart, periodEnd])
+}
+
+// A designer flags that their pay-period numbers look wrong instead of
+// confirming. This does NOT lock the period (a confirmation does) — it
+// raises a flag on the manager review grid so the numbers get fixed
+// (rewrite / reassignment) before anyone confirms. Kept separate from
+// PayPeriodConfirmation so the attribution-lock logic stays untouched.
+// resolvedAt IS NULL ⇒ the issue is OPEN (pending manager review).
+model PayPeriodIssue {
+  id            Int         @id @default(autoincrement())
+  staffMemberId Int
+  staffMember   StaffMember @relation("PayPeriodIssues", fields: [staffMemberId], references: [id])
+
+  // Inclusive bi-weekly window endpoints (lib/payPeriod.ts).
+  periodStart DateTime
+  periodEnd   DateTime
+
+  note       String // what the designer says is wrong
+  reportedBy String
+  reportedAt DateTime @default(now())
+
+  // Set when a manager resolves the flag. NULL ⇒ still open.
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  resolutionNote String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([staffMemberId, periodStart, periodEnd])
+  @@index([resolvedAt])
+}
+
+// ---------------------------------------------------------------------------
+// INVENTORY FREEZE — Point-in-time inventory snapshots
+// ---------------------------------------------------------------------------
+
+model InventoryFreeze {
+  id          Int                   @id @default(autoincrement())
+  freezeDate  DateTime
+  description String?
+  status      InventoryFreezeStatus @default(IN_PROGRESS)
+  totalItems  Int                   @default(0)
+  totalUnits  Int                   @default(0)
+
+  items InventoryFreezeItem[]
+
+  created   DateTime @default(now())
+  createdBy String?
+}
+
+model InventoryFreezeItem {
+  id              Int             @id @default(autoincrement())
+  freezeId        Int
+  freeze          InventoryFreeze @relation(fields: [freezeId], references: [id], onDelete: Cascade)
+  productId       Int
+  product         Product         @relation(fields: [productId], references: [id])
+  storeLocationId Int?
+  storeLocation   StoreLocation?  @relation(fields: [storeLocationId], references: [id])
+  quantity        Int
+
+  @@index([freezeId])
+  @@index([productId])
+}
+
+enum InventoryFreezeStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model AutoImportLog {
+  id            Int      @id @default(autoincrement())
+  runId         String
+  emailId       String
+  emailSubject  String?
+  filename      String
+  importType    String
+  status        String
+  recordCount   Int      @default(0)
+  resultSummary Json?
+  errorMessage  String?
+  created       DateTime @default(now())
+
+  @@index([runId])
+  @@index([created])
+  @@index([status])
+}
+
+// --- B2B Proposals ---
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model Proposal {
+  id             Int            @id @default(autoincrement())
+  proposalNumber String         @unique
+  status         ProposalStatus @default(DRAFT)
+  customerId     Int?
+  customer       Customer?      @relation(fields: [customerId], references: [id])
+
+  projectName String?
+  companyName String?
+
+  coverLetter   String?
+  terms         String?
+  internalNotes String?
+
+  salesPersonId Int?
+  salesPerson   StaffMember? @relation("ProposalSalesPerson", fields: [salesPersonId], references: [id])
+
+  salesOrderId Int?        @unique
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  sentAt       DateTime?
+  acceptedAt   DateTime?
+  expiresAt    DateTime?
+
+  lineItems ProposalLineItem[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model ProposalLineItem {
+  id         Int      @id @default(autoincrement())
+  proposalId Int
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  sortOrder  Int      @default(0)
+
+  type          String       @default("CUSTOM")
+  productId     Int?
+  product       Product?     @relation(fields: [productId], references: [id])
+  vendorStyleId Int?
+  vendorStyle   VendorStyle? @relation("ProposalVendorStyle", fields: [vendorStyleId], references: [id])
+
+  itemName        String
+  itemDescription String?
+  vendorName      String?
+  partNumber      String?
+
+  cost        Decimal
+  retailPrice Decimal
+  quantity    Int     @default(1)
+
+  selectedGrade   String?
+  selectedFinish  String?
+  selectedOptions String?
+
+  itemNotes    String?
+  showInOutput Boolean @default(true)
+
+  images ProposalItemImage[]
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+}
+
+model ProposalItemImage {
+  id         Int              @id @default(autoincrement())
+  lineItemId Int
+  lineItem   ProposalLineItem @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  imageUrl   String
+  caption    String?
+  sortOrder  Int              @default(0)
+  isPrimary  Boolean          @default(false)
+
+  created DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// TRAFFIC — persisted door-counter rows from Axper
+// ---------------------------------------------------------------------------
+// One row per 15-minute interval per store per day. Axper exposes
+// `entries` / `exits` per interval; we store both (entries == visitors,
+// exits == people leaving). Reports roll up via SQL aggregates. A daily
+// cron pulls yesterday's data and backfills any gaps in the last 30
+// days. Today's data is still pulled live from Axper because the cron
+// only runs after midnight ET. Origin: owner direction 2026-05-28.
+
+model TrafficSnapshot {
+  id Int @id @default(autoincrement())
+
+  // Full timestamp of the 15-min interval START, expressed in the
+  // store's local clock (the organization's configured timezone).
+  // Stored as a `DateTime` so reports can `WHERE intervalStart BETWEEN ..`
+  // and `GROUP BY DATE_TRUNC('day', intervalStart)` efficiently.
+  intervalStart DateTime
+
+  // Raw Axper `store_name` — the source system's own label for the
+  // store (e.g. "Downtown", "Main St"). Kept on every row so we can audit
+  // back to the source and so rows still upsert correctly if a new
+  // Axper store appears before we map it. Mapping to StoreLocation
+  // lives in `lib/storeColors.ts:AXPER_TO_STORE_LOCATION`.
+  axperStoreName String
+
+  // Optional FK — resolved at import time via the mapping above.
+  // Null when a new Axper store appears before its StoreLocation
+  // exists. Surfaced on the admin page so the operator can add the
+  // mapping + re-run the import.
+  storeLocationId Int?
+  storeLocation   StoreLocation? @relation(fields: [storeLocationId], references: [id])
+
+  // Per Axper's `entries` field — how many people CAME IN during this
+  // interval. The primary signal for conversion math.
+  visitors Int
+
+  // Per Axper's `exits` field. Most installations track both; some
+  // only track entries. Nullable for resilience.
+  exits Int?
+
+  created DateTime @default(now())
+
+  // One row per (interval × store). Lets the import upsert idempotently
+  // when re-running for the same day.
+  @@unique([intervalStart, axperStoreName])
+  @@index([intervalStart])
+  @@index([storeLocationId, intervalStart])
+}
+
+// ---------------------------------------------------------------------------
+// TRAFFIC IMPORT LOG — one row per cron / manual import invocation
+// ---------------------------------------------------------------------------
+// Used by the admin "Last sync" header on the Axper-traffic import page
+// the same way `MailchimpSyncLog` powers the Mailchimp sync admin page.
+// Keeps a permanent audit of how many intervals landed each run.
+
+model TrafficSyncLog {
+  id            Int       @id @default(autoincrement())
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+  kind          String // "axper-traffic-sync" | "axper-traffic-sync:backfill"
+  dayFrom       DateTime // first day requested
+  dayTo         DateTime // last day requested
+  rowsFetched   Int       @default(0)
+  rowsInserted  Int       @default(0)
+  rowsUpdated   Int       @default(0)
+  daysScanned   Int       @default(0)
+  daysBackfilled Int      @default(0)
+  errors        String[]  @default([])
+  triggeredBy   String? // "cron" | actor email | "admin-ui"
+
+  @@index([startedAt])
+  @@index([kind, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// ORGANIZATION, SETTINGS & INTEGRATION CREDENTIALS
+// ---------------------------------------------------------------------------
+// Productization foundation. Organization is the tenant boundary: self-hosted
+// deployments run a single seeded org (slug "default"); the multi-tenant SaaS
+// build issues one row per customer. Tenant-scoped models gain an
+// organizationId FK as they are migrated to full isolation.
+
+model Organization {
+  id   Int    @id @default(autoincrement())
+  name String
+  slug String @unique
+
+  settings    AppSettings?
+  credentials IntegrationCredential[]
+
+  pages       Page[]
+  posts       Post[]
+  menus       Menu[]
+  mediaAssets MediaAsset[]
+  bookings    Booking[]
+  tickets     Ticket[]
+  timeEntries TimeEntry[]
+
+  services            Service[]
+  availabilityWindows AvailabilityWindow[]
+  calendarBlocks      CalendarBlock[]
+  emailQueue          EmailQueue[]
+  blogComments        BlogComment[]
+  paymentApplications PaymentApplication[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+// Per-organization branding, locale, and feature configuration (1:1 with
+// Organization). `theme` holds brand color tokens (keys mirror the tailwind
+// palette) so the UI can be re-skinned from settings without code changes.
+// `features` gates premium modules for tiered plans.
+model AppSettings {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  appName      String  @default("Holt")
+  companyName  String?
+  tagline      String?
+  logoUrl      String?
+  loginLogoUrl String?
+  faviconUrl   String?
+  supportEmail String?
+
+  theme Json? // { navy, linen, gold, gray, black, stripe, brandGray, brandBlue }
+
+  currency String @default("USD")
+  locale   String @default("en-US")
+  timezone String @default("America/New_York")
+
+  features Json? // { "warehousing": true, "dispatch": false, ... }
+
+  bookingConfig Json? // { windowDays, startHour, endHour, slotMinutes }
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+// Encrypted, org-scoped third-party credentials (Mailchimp, Google, Stripe,
+// FileMaker, etc.). One row per (org, provider, field). `ciphertext` is an
+// AES-256-GCM payload from lib/secretCrypto.ts -- plaintext is NEVER persisted
+// or returned to clients. `lastFour` exists only for masked display.
+model IntegrationCredential {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  provider   String
+  field      String
+  ciphertext String
+  lastFour   String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([organizationId, provider, field])
+  @@index([organizationId, provider])
+}
+
+// ---------------------------------------------------------------------------
+// CMS -- content managed in-app and rendered on the public (site) surface.
+// Block content is stored as a typed JSON array; the shared contract and zod
+// validation live in lib/cms/blocks.ts (CLAUDE.md rule 7). Null blocks/items
+// are treated as an empty array by the parsers, so no DB default is needed.
+// ---------------------------------------------------------------------------
+
+enum CmsStatus {
+  DRAFT
+  PUBLISHED
+}
+
+// A managed marketing page. One page per org is flagged isHome and served at
+// "/"; the rest resolve by slug. slug is unique within an organization.
+model Page {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  slug   String
+  title  String
+  status CmsStatus @default(DRAFT)
+  isHome Boolean   @default(false)
+
+  blocks Json? // ordered ContentBlock[] -- see lib/cms/blocks.ts
+
+  seoTitle       String?
+  seoDescription String?
+
+  publishedAt DateTime?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+}
+
+// A blog post. Same block model as Page plus dated/listing metadata.
+model Post {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  slug    String
+  title   String
+  excerpt String?
+  status  CmsStatus @default(DRAFT)
+
+  blocks Json? // ordered ContentBlock[] -- see lib/cms/blocks.ts
+
+  coverImageUrl String?
+  author        String?
+  category      String?
+  tags          String[] @default([])
+
+  comments BlogComment[]
+
+  seoTitle       String?
+  seoDescription String?
+
+  publishedAt DateTime?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status, publishedAt])
+}
+
+// A navigation menu (location = "header" | "footer"). items is an ordered
+// MenuItem[] ({ label, href, children? }) -- see lib/cms/menu.ts.
+model Menu {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  location String
+  items    Json? // ordered MenuItem[] -- see lib/cms/menu.ts
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([organizationId, location])
+}
+
+// An uploaded media asset (images for blocks, covers, etc.). Files are written
+// by the secureUpload pipeline; this row is the catalog entry.
+model MediaAsset {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  url      String
+  filename String
+  mimeType String
+  bytes    Int?
+  width    Int?
+  height   Int?
+  alt      String?
+
+  created   DateTime @default(now())
+  createdBy String?
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Booking -- public, no-login consultation booking. Customers pick a slot on
+// the public (site) /book page and we hold it as a Booking row. The .ics
+// export + iCal feed (lib/booking/ics.ts) let any standard calendar consume
+// these without per-provider OAuth.
+// ---------------------------------------------------------------------------
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model Booking {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  customerName  String
+  customerEmail String
+  customerPhone String?
+  serviceType   String? // free-text label; preserved for the no-catalog flow
+
+  // Optional links once a Service catalog + staff scheduling are configured.
+  serviceId     Int?
+  service       Service?     @relation(fields: [serviceId], references: [id])
+  staffMemberId Int?
+  staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
+
+  startsAt DateTime
+  endsAt   DateTime
+
+  notes  String?
+  status BookingStatus @default(PENDING)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([organizationId, startsAt])
+}
+
+// ---------------------------------------------------------------------------
+// Helpdesk -- support tickets with a threaded message log. A ticket can be
+// raised by a known Customer or by an anonymous public submitter (name +
+// email). Each ticket carries a stable publicToken so the submitter can check
+// status + reply without logging in. Internal messages (isInternal) are staff-
+// only notes and never surface on the public token view.
+// ---------------------------------------------------------------------------
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Ticket {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  ticketNumber String @unique
+  // Stable random token for the no-login status view (lib/tickets/token.ts).
+  publicToken String @unique
+
+  // Origin: a known customer, or an anonymous public submitter.
+  customerId     Int?
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  submitterName  String?
+  submitterEmail String?
+
+  subject  String
+  status   TicketStatus   @default(OPEN)
+  priority TicketPriority @default(MEDIUM)
+
+  assignedToId Int?
+  assignedTo   StaffMember? @relation("TicketAssignee", fields: [assignedToId], references: [id])
+
+  resolvedAt DateTime?
+
+  messages TicketMessage[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([organizationId, status])
+  @@index([assignedToId])
+  @@index([customerId])
+}
+
+model TicketMessage {
+  id       Int    @id @default(autoincrement())
+  ticketId Int
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  // Author: a staff member (back-office reply / internal note) or the
+  // customer/public submitter (authorName captures the public name).
+  authorStaffId Int?
+  authorStaff   StaffMember? @relation("TicketMessageAuthor", fields: [authorStaffId], references: [id])
+  authorName    String?
+
+  body String
+  // Internal notes are staff-only and excluded from the public token view.
+  isInternal Boolean @default(false)
+
+  created DateTime @default(now())
+
+  @@index([ticketId, created])
+}
+
+// ---------------------------------------------------------------------------
+// Time tracking -- staff log billable/non-billable minutes against an optional
+// customer. `billedAt` marks an entry as invoiced (a decoupled lifecycle stamp
+// rather than a hard FK to the legacy Invoice model -- see
+// docs/domains/time-tracking.md). Minutes are stored as an integer; the lib
+// parses "1h30m" / "1.5h" / "90" input into minutes.
+// ---------------------------------------------------------------------------
+
+model TimeEntry {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  staffMemberId Int
+  staffMember   StaffMember @relation(fields: [staffMemberId], references: [id])
+
+  customerId Int?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  description String
+  minutes     Int
+  date        DateTime @db.Date
+  isBillable  Boolean  @default(true)
+  billedAt    DateTime?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([organizationId, date])
+  @@index([staffMemberId, date])
+  @@index([customerId])
+}
+
+// ---------------------------------------------------------------------------
+// Scheduling -- a bookable Service catalog with weekly AvailabilityWindows and
+// one-off CalendarBlocks (time off / closures). Drives the public /book slot
+// picker: slots = the matching windows, stepped by the service duration, minus
+// existing bookings and blocks. When no Service + windows are configured the
+// booking flow falls back to the flat AppSettings.bookingConfig business hours,
+// so existing deployments keep working with zero config.
+// ---------------------------------------------------------------------------
+
+model Service {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name            String
+  slug            String
+  description     String?
+  durationMinutes Int          @default(30)
+  bufferMinutes   Int          @default(0)
+  price           Decimal?     @db.Decimal(10, 2)
+  isPublic        Boolean      @default(true)
+  isActive        Boolean      @default(true)
+  sortOrder       Int          @default(0)
+
+  windows  AvailabilityWindow[]
+  bookings Booking[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, isActive])
+}
+
+model AvailabilityWindow {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // serviceId null = applies to every service; staffMemberId null = whole
+  // business (org-wide hours). MVP UI manages org-wide windows; the columns
+  // support per-service / per-staff refinement later.
+  serviceId     Int?
+  service       Service?     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  staffMemberId Int?
+  staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
+
+  dayOfWeek Int // 0 = Sunday .. 6 = Saturday
+  startTime String // "HH:MM" 24h, local to the org timezone
+  endTime   String // "HH:MM"
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([organizationId, dayOfWeek])
+  @@index([serviceId])
+}
+
+model CalendarBlock {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // staffMemberId null = a business-wide closure (blocks all bookings).
+  staffMemberId Int?
+  staffMember   StaffMember? @relation(fields: [staffMemberId], references: [id])
+
+  startsAt DateTime
+  endsAt   DateTime
+  reason   String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([organizationId, startsAt])
+}
+
+// ---------------------------------------------------------------------------
+// Email queue -- durable transactional email (booking confirmations, ticket
+// updates). A handler enqueues a row with the rendered subject + html; the
+// sender (lib/email/queue.ts) delivers it via nodemailer using SMTP creds from
+// the IntegrationCredential store or env. Sending no-ops when SMTP is
+// unconfigured, so a fresh deployment runs fine with email off.
+// ---------------------------------------------------------------------------
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model EmailQueue {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  toAddress   String
+  subject     String
+  html        String
+  templateKey String? // categorization, e.g. "booking-confirmation"
+
+  status      EmailStatus @default(PENDING)
+  attempts    Int         @default(0)
+  lastError   String?
+  scheduledAt DateTime    @default(now())
+  sentAt      DateTime?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+
+  @@index([organizationId, status])
+  @@index([status, scheduledAt])
+}
+
+// ---------------------------------------------------------------------------
+// Blog comments -- public, moderated. A visitor submits a comment on a Post; it
+// lands PENDING and only renders on the public site once a staffer APPROVES it.
+// IP + user-agent are captured for spam triage. Gated by the `blogComments`
+// feature flag (off by default).
+// ---------------------------------------------------------------------------
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SPAM
+}
+
+model BlogComment {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  postId Int
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  authorName  String
+  authorEmail String
+  content     String
+
+  status    CommentStatus @default(PENDING)
+  ipAddress String?
+  userAgent String?
+
+  approvedAt DateTime?
+  approvedBy String?
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@index([postId, status])
+  @@index([organizationId, status])
+}

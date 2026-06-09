@@ -1,0 +1,68 @@
+# Node
+node_modules/
+*.log
+
+# Next.js
+.next/
+out/
+
+# OS + Editor
+.DS_Store
+.env
+.env.*
+!.env.*.example
+!app/.env.*.example
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Database backups
+backups/
+
+# Runtime upload data (served via API, not public/)
+app/data/
+
+# Service account keys (never commit credentials)
+config/*.json
+
+# Claude Code -- keep enforcement infra tracked, ignore session state.
+# Skills (checklist content), hooks (the scripts settings.json wires up),
+# and settings.json (which wires the hooks) MUST travel with the repo so
+# every Claude session inherits the same pilot's-checklist enforcement.
+# settings.local.json is per-user and stays ignored.
+.claude/*
+!.claude/skills/
+!.claude/hooks/
+!.claude/settings.json
+
+# Test coverage output -- nyc-merge produces multiple intermediate dirs
+# during `npm run test:coverage` which all need to be ignored alongside
+# the final `coverage/` output (Phase 0.6.5, 2026-05-01).
+app/coverage/
+app/coverage-unit/
+app/coverage-int-*/
+app/.nyc_output/
+/docker-compose.override.yml
+
+# Per-deployment (tenant) content + migration seeds. The white-box product ships
+# generic example content (scripts/seed-cms.mjs); a specific deployment's real
+# site content lives in its database, not in the product repo. The akritos.com
+# migration seed + captured content are deployment data, kept out of the
+# white-box so improvements stay code-only and flow to every tenant.
+app/scripts/seed-akritos.mjs
+app/scripts/akritos-content/
+app/public/akritos-logo.svg
+
+# Internal strategy / planning / posture docs — private, NOT in the public
+# white-box repo (business strategy, client names, candid assessments).
+/ROADMAP.md
+/STATUS.md
+/MIGRATION-PLAN.md
+/CLIENT-MIGRATION-PLAN.md
+/MONEY-MODEL.md
+docs/PRODUCT-ROADMAP.md
+docs/QUALITY.md
+
+# AI-assist tooling + internal engineering docs — local only, not the public face
+.claude/
+/CLAUDE.md

@@ -1,0 +1,53 @@
+# markdownlint.yml -- Lint repo markdown for the rules we enforce
+# (correctness + auto-fix-friendly formatting). Stylistic preferences
+# (line length, inline HTML, table pipe spacing, multi-h1, etc) are
+# disabled in `.markdownlint.json` -- see comment in that file for
+# rationale and the incremental-tightening plan.
+#
+# Runs on every push / PR / Monday weekly sweep. Fails fast and
+# inline-annotates the offending line so PR reviewers see issues
+# without downloading artifacts.
+#
+# Excludes: node_modules (third-party READMEs we don't control),
+# .next, coverage outputs, .git internals, and worktree scratch.
+
+name: Markdown lint
+
+on:
+  # 2026-05-13: dropped `push: branches: [main]` trigger to halve
+  # Actions minute spend. The PR gate already validated the same
+  # markdown; re-running on the squash commit is paranoia tax.
+  pull_request:
+    branches: [main]
+    paths:
+      - "**.md"
+      - ".markdownlint.json"
+      - ".markdownlintignore"
+      - ".github/workflows/markdownlint.yml"
+  schedule:
+    # Monday 06:30 UTC, after Security weekly sweep
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  markdownlint:
+    name: Markdown lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # markdownlint-cli2 reads `.markdownlint.json` + `.markdownlintignore`
+      # at repo root automatically. The negation glob `!**/node_modules/**`
+      # is required because the ignore file alone doesn't always exclude
+      # nested node_modules under app/.
+      - name: Run markdownlint-cli2
+        run: |
+          npx --yes markdownlint-cli2 "**/*.md" "!**/node_modules/**"

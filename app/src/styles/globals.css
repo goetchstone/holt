@@ -1,0 +1,121 @@
+/* app/src/styles/globals.css */
+
+@import "tailwindcss";
+
+/* Default brand palette as RGB channels. AppSettings.theme overrides these at
+   runtime via an injected :root block (see _document.tsx + lib/appSettings.ts),
+   so the whole UI re-skins live. Channels are space-separated so the sh-*
+   tokens below wrap them in rgb(); Tailwind 4 applies opacity modifiers
+   (e.g. bg-sh-blue/50) via color-mix. DO NOT add `/ <alpha-value>` here --
+   that is Tailwind 3 syntax; Tailwind 4 leaves it un-substituted, producing
+   an invalid color that silently drops the background (the 2026-06-04
+   white-on-white sidebar bug). */
+:root {
+  --brand-navy: 0 38 62;
+  --brand-linen: 247 245 241;
+  --brand-gold: 167 138 90;
+  --brand-gray: 109 109 109;
+  --brand-black: 13 13 13;
+  --brand-stripe: 245 245 245;
+  --brand-accent-gray: 178 180 187;
+  --brand-accent-blue: 105 130 158;
+}
+
+/* Tailwind 4 theme: brand colors resolve from the --brand-* channels above so
+   the runtime re-skin still works; fonts mirror the old tailwind.config.js. */
+@theme {
+  --color-sh-blue: rgb(var(--brand-navy));
+  --color-sh-navy: rgb(var(--brand-navy));
+  --color-sh-linen: rgb(var(--brand-linen));
+  --color-sh-gold: rgb(var(--brand-gold));
+  --color-sh-gray: rgb(var(--brand-gray));
+  --color-sh-black: rgb(var(--brand-black));
+  --color-sh-stripe: rgb(var(--brand-stripe));
+  --color-sh-brand-gray: rgb(var(--brand-accent-gray));
+  --color-sh-brand-blue: rgb(var(--brand-accent-blue));
+
+  --font-serif: "minion-pro", ui-serif, Georgia, serif;
+  --font-serif-display: "minion-pro-display", ui-serif, Georgia, serif;
+  --font-serif-condensed: "minion-pro-condensed", ui-serif, Georgia, serif;
+  --font-serif-black: "minion-std-black", ui-serif, Georgia, serif;
+  --font-sans: "myriad-pro", system-ui, ui-sans-serif, sans-serif;
+
+  /* shadcn/ui base tokens, mapped to the Holt brand so primitives inherit
+     the look (background=linen, foreground/primary=navy, etc). Plain rgb()
+     here (no <alpha-value>) — shadcn components apply their own opacity. */
+  --color-background: rgb(var(--brand-linen));
+  --color-foreground: rgb(var(--brand-black));
+  --color-card: 255 255 255;
+  --color-card-foreground: rgb(var(--brand-black));
+  --color-popover: 255 255 255;
+  --color-popover-foreground: rgb(var(--brand-black));
+  --color-primary: rgb(var(--brand-navy));
+  --color-primary-foreground: 255 255 255;
+  --color-secondary: rgb(var(--brand-stripe));
+  --color-secondary-foreground: rgb(var(--brand-navy));
+  --color-muted: rgb(var(--brand-stripe));
+  --color-muted-foreground: rgb(var(--brand-gray));
+  --color-accent: rgb(var(--brand-gold));
+  --color-accent-foreground: 255 255 255;
+  --color-destructive: 220 38 38;
+  --color-destructive-foreground: 255 255 255;
+  --color-border: rgb(var(--brand-accent-gray));
+  --color-input: rgb(var(--brand-accent-gray));
+  --color-ring: rgb(var(--brand-navy));
+  --radius: 0.5rem;
+}
+
+body {
+  font-family: "minion-pro", serif;
+}
+
+/* Hide spin button arrows for number input fields */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Hide scrollbar for horizontal-scroll nav on small screens */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Print: landscape, hide nav/chrome, scale content to fit */
+@media print {
+  @page {
+    size: 11in 8.5in;
+    margin: 0.4in;
+  }
+  body.printing-report nav,
+  body.printing-report header,
+  body.printing-report .print\:hidden {
+    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  body.printing-report main {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    /* Scale content to fit landscape page; browsers that ignore @page size
+       will still get a reasonable fit on the printed paper */
+    zoom: 0.72;
+  }
+  body.printing-report {
+    font-size: 9pt;
+  }
+  body.printing-report table {
+    font-size: 8pt;
+    width: 100%;
+    table-layout: fixed;
+  }
+}

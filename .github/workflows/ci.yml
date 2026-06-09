@@ -1,0 +1,107 @@
+# ci.yml -- Runs lint, typecheck, format check, and tests on PRs to main.
+#
+# Path filter (added 2026-05-09): docs-only PRs skip the full test suite.
+# Markdown lint and ROADMAP/CLAUDE updates don't need lint+typecheck+test
+# to run -- they have their own gate (markdownlint.yml). Saves ~5 min of
+# CI minutes per docs-only commit.
+#
+# 2026-05-13: dropped `push: branches: [main]` trigger. The PR run
+# already validated the same code; re-running on the squash commit is
+# paranoia tax. Manual `workflow_dispatch` retained so an admin can
+# trigger a main re-run from the GitHub UI if needed.
+#
+# When in doubt about whether a path should trigger CI, add it here.
+# False negatives (CI doesn't run when it should) silently break things;
+# false positives (CI runs unnecessarily) just cost minutes.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "CLAUDE.md"
+      - "ROADMAP.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".gitignore"
+      - ".markdownlintignore"
+      - ".markdownlint.json"
+      - "env.example"
+  workflow_dispatch:
+
+# Workflow-level least-privilege per CodeQL `actions/missing-workflow-permissions`.
+# The `validate` job only needs to read source to lint/typecheck/test — no
+# token-scoped writes (no comments, no commits, no releases).
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Lint, Typecheck, Format, Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
+
+    # Postgres service container — real DB for the integration test
+    # project (Phase 0.6.1, 2026-04-30). Same major version as prod
+    # (postgres:17.9-alpine) so migration / driver behavior matches.
+    services:
+      postgres:
+        image: postgres:17.9-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+      - name: Validate (lint + typecheck + format)
+        run: npm run validate
+
+      - name: Strict typecheck (pricing + core libs)
+        run: npm run typecheck:strict
+
+      - name: Run combined coverage gate (unit + integration, merged)
+        # `test:coverage` (Phase 0.6.5) runs unit tests + every
+        # integration test file separately, then merges the JSON
+        # coverage from each via `nyc merge` and enforces thresholds
+        # against the merged data via `nyc check-coverage`.
+        # Integration tests need Postgres — provided by the service
+        # container above.
+        run: npm run test:coverage
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: app/coverage/
+          retention-days: 14

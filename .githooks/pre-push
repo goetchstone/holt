@@ -1,0 +1,107 @@
+#!/bin/sh
+# .githooks/pre-push
+#
+# Two gates before a push is allowed:
+#   1. Refuse direct pushes to main (forces branch + PR workflow).
+#   2. Run validate + unit tests so CI doesn't waste a run on broken code.
+#
+# Bypass for genuine emergencies: git push --no-verify
+# Every --no-verify push must be documented in the commit message AND
+# followed by a PR that fixes the underlying reason it was needed.
+#
+# Memory-safe: caps Node at 4GB to prevent OOM on 16GB machines.
+
+set -e
+
+remote="$1"
+protected_branch="main"
+
+# Read the refs being pushed from stdin. Format per ref:
+#   <local_ref> <local_sha> <remote_ref> <remote_sha>
+#
+# Track whether ANY ref is a non-deletion push. If every ref is a deletion
+# (local_sha all zeros), there is no code state to validate -- the user is
+# only cleaning up branches and validate + tests would be wasted work.
+# Pre-2026-04-29 the script skipped the protected-branch check on
+# deletions but still fell through to validate, which meant `git push
+# --delete <branch> ...` ran the full test suite once per delete (~30s
+# each x N branches). Failure log entry "2026-04-29: pre-push hook ran
+# validate on branch deletions."
+nondeletion_count=0
+deletion_count=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_sha" in
+    0000000000000000000000000000000000000000)
+      deletion_count=$((deletion_count + 1))
+      continue
+      ;;
+  esac
+  nondeletion_count=$((nondeletion_count + 1))
+
+  case "$remote_ref" in
+    refs/heads/"$protected_branch")
+      echo "pre-push: refusing direct push to '$protected_branch'."
+      echo ""
+      echo "  Workflow: branch → push → open PR → CI green → merge."
+      echo ""
+      echo "  Create a branch and push that instead:"
+      echo "    git checkout -b feature/your-change"
+      echo "    git push -u origin feature/your-change"
+      echo "    gh pr create --fill"
+      echo ""
+      echo "  Emergency bypass: git push --no-verify (document why in the commit)"
+      exit 1
+      ;;
+  esac
+done
+
+# All-deletion early exit: nothing to validate, just allow the push.
+if [ "$nondeletion_count" = "0" ]; then
+  if [ "$deletion_count" -gt 0 ]; then
+    echo "pre-push: $deletion_count branch deletion(s) — skipping validate (no code state to test)."
+  fi
+  exit 0
+fi
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+export NODE_OPTIONS="--max-old-space-size=4096"
+
+# Figure out what changed vs the remote branch so we can decide whether
+# the security scans are worth running. On a brand-new branch we fall
+# back to diffing against origin/main.
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo "origin/main")
+CHANGED=$(git diff --name-only "$UPSTREAM"...HEAD 2>/dev/null || git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+
+needs_deps_scan=0
+needs_semgrep_scan=0
+
+if echo "$CHANGED" | grep -qE '(^|/)package(-lock)?\.json$'; then
+  needs_deps_scan=1
+fi
+
+if echo "$CHANGED" | grep -qE '\.(ts|tsx|js|jsx)$'; then
+  # Only re-scan if the change touched auth / api routes / lib security
+  # surface. Front-end-only changes don't warrant a Semgrep run here
+  # (CI covers them).
+  if echo "$CHANGED" | grep -qE 'src/(pages/api/|lib/auth/|lib/prisma\.ts|lib/rateLimit|lib/githubApp|lib/gmailClient|lib/stripe)'; then
+    needs_semgrep_scan=1
+  fi
+fi
+
+cd app
+
+echo "pre-push: running validate + tests..."
+npm run validate
+npx jest --selectProjects unit --maxWorkers=1
+
+if [ "$needs_deps_scan" = "1" ]; then
+  echo "pre-push: package-lock changed — running osv-scanner..."
+  npm run security:deps
+fi
+
+if [ "$needs_semgrep_scan" = "1" ]; then
+  echo "pre-push: security-sensitive code changed — running semgrep..."
+  npm run security:semgrep
+fi
+
+echo "pre-push: all checks passed."

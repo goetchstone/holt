@@ -1,0 +1,401 @@
+# security.yml -- Static analysis + dependency + container CVE scans.
+#
+# Runs on every PR (only the cheap checks):
+#   1. semgrep        -- static analysis on app/src + scripts (~2 min, always).
+#
+# Runs path-conditionally on PR:
+#   2. osv-scanner    -- only when app/package-lock.json changes.
+#
+# Runs weekly on main (Monday 06:00 UTC):
+#   3. trivy          -- Docker image OS-level CVEs. Was running on every
+#                        PR; the 2026-05-09 audit found this was the
+#                        single largest minute-burner (~5 min/PR for low
+#                        added value when neither Dockerfile nor
+#                        lockfile changed).
+#   4. osv-scanner    -- catches newly-disclosed CVEs in unchanged deps.
+#
+# CodeQL is intentionally NOT in this file. The repo has GitHub-managed
+# default-setup CodeQL running on its own schedule (separate Actions
+# pool, free for default-setup). That's the canonical source of truth
+# for the Security tab. The previous manual CodeQL job here was a pure
+# duplicate -- removed 2026-05-09 to cut ~5 min/PR. If you ever need to
+# customize CodeQL queries, re-add as a scheduled-only job, not per-PR.
+#
+# Cloud surfaces:
+#   - Inline PR diff annotations (workflow commands)
+#   - Workflow run summary tables
+#   - SARIF + text artifacts uploaded per run
+# No GitHub Advanced Security or Semgrep Cloud needed.
+
+name: Security
+
+on:
+  # 2026-05-13: dropped `push: branches: [main]` trigger to halve
+  # Actions minute spend. PRs are still gated by Semgrep; the weekly
+  # schedule still catches newly-disclosed CVEs in unchanged code.
+  # Manual `workflow_dispatch` retained for on-demand sweeps.
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/src/**"
+      - "scripts/**"
+      - "app/package-lock.json"
+      - "app/Dockerfile"
+      - "osv-scanner.toml"
+      - ".github/workflows/security.yml"
+  schedule:
+    # Monday 06:00 UTC weekly sweep. Catches newly-disclosed CVEs in
+    # unchanged code/deps/image even when no PR touches them.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write # needed to post inline annotations on PRs
+
+jobs:
+  semgrep:
+    name: Semgrep static analysis
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v6
+
+      # Registry rule packs tuned for this stack. p/typescript + p/react
+      # cover the UI; p/nextjs flags Next.js-specific API auth gaps;
+      # p/nodejs covers server patterns; p/owasp-top-ten is the
+      # catch-all security baseline; p/secrets catches committed keys.
+      - name: Run Semgrep (fail on ERROR severity only)
+        run: |
+          set +e
+          # Single scan that produces JSON, SARIF, and text together so we
+          # can derive PR annotations from the JSON without re-scanning.
+          semgrep scan \
+            --config p/typescript \
+            --config p/react \
+            --config p/nextjs \
+            --config p/nodejs \
+            --config p/owasp-top-ten \
+            --config p/secrets \
+            --severity ERROR \
+            --error \
+            --json --output=semgrep.json \
+            app/src scripts
+          RC=$?
+          # Convert to SARIF and human-readable text from the same scan
+          # (cheap re-parses, no second analysis).
+          semgrep scan \
+            --config p/typescript \
+            --config p/react \
+            --config p/nextjs \
+            --config p/nodejs \
+            --config p/owasp-top-ten \
+            --config p/secrets \
+            --severity ERROR \
+            --sarif --output=semgrep.sarif \
+            app/src scripts > /dev/null 2>&1 || true
+          semgrep scan \
+            --config p/typescript \
+            --config p/react \
+            --config p/nextjs \
+            --config p/nodejs \
+            --config p/owasp-top-ten \
+            --config p/secrets \
+            --severity ERROR \
+            --text --output=semgrep.txt \
+            app/src scripts > /dev/null 2>&1 || true
+          if [ "$RC" != "0" ]; then
+            echo "SEMGREP_FAILED=1" >> $GITHUB_ENV
+          fi
+          exit 0
+
+      # Emit GitHub workflow command annotations from the JSON. Each
+      # finding becomes a `::error file=...,line=...,col=...::<message>`
+      # line, which GitHub renders as inline annotations on the PR diff
+      # AND in the workflow run summary. No Cloud needed.
+      - name: Annotate PR diff with findings
+        if: always()
+        run: |
+          if [ ! -f semgrep.json ]; then
+            echo "No semgrep.json produced; skipping annotations."
+            exit 0
+          fi
+          python3 - <<'PY'
+          import json, os, sys
+          with open("semgrep.json") as f:
+              data = json.load(f)
+          results = data.get("results", [])
+          if not results:
+              print("Semgrep: no findings.")
+              sys.exit(0)
+          print(f"::group::Semgrep findings ({len(results)})")
+          for r in results:
+              path = r.get("path", "")
+              start = r.get("start", {})
+              line = start.get("line", 1)
+              col = start.get("col", 1)
+              rule = r.get("check_id", "semgrep").split(".")[-1]
+              # GitHub clamps the message to a single line; collapse newlines.
+              msg = r.get("extra", {}).get("message", "").replace("\n", " ").strip()
+              # Severity: WARNING for INFO/WARNING, ERROR for ERROR. The
+              # workflow already filtered to --severity ERROR so always emit ::error::.
+              print(f"::error file={path},line={line},col={col},title=Semgrep {rule}::{msg}")
+          print("::endgroup::")
+          # Also write a markdown summary block visible at the top of the
+          # workflow run page.
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a") as out:
+                  out.write(f"## Semgrep findings: {len(results)} ERROR-severity\n\n")
+                  out.write("| Severity | Rule | File | Line | Message |\n")
+                  out.write("|---|---|---|---|---|\n")
+                  for r in results[:50]:
+                      path = r.get("path", "")
+                      line = r.get("start", {}).get("line", 1)
+                      rule = r.get("check_id", "").split(".")[-1]
+                      msg = r.get("extra", {}).get("message", "").replace("|", "\\|").replace("\n", " ").strip()[:120]
+                      out.write(f"| ERROR | `{rule}` | `{path}` | {line} | {msg} |\n")
+                  if len(results) > 50:
+                      out.write(f"\n_… and {len(results) - 50} more (download the `semgrep-findings` artifact for the full list)._\n")
+          PY
+
+      - name: Upload findings as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: semgrep-findings
+          path: |
+            semgrep.json
+            semgrep.sarif
+            semgrep.txt
+
+      - name: Fail job if ERROR-severity findings
+        if: env.SEMGREP_FAILED == '1'
+        run: |
+          echo "Semgrep found ERROR-severity issues. See annotations on the PR diff,"
+          echo "the run summary at the top of this page, or download the"
+          echo "'semgrep-findings' artifact for the full SARIF + text report."
+          exit 1
+
+  # OSV scans npm dependencies against the OSV.dev CVE database. Runs
+  # only when the lockfile or the OSV config changes (path filter at
+  # workflow level), AND on the weekly schedule (catches newly-disclosed
+  # CVEs in unchanged deps).
+  osv-scanner:
+    name: Dependency CVE scan
+    runs-on: ubuntu-latest
+    # Only execute when we actually want to scan: lockfile changed OR
+    # weekly sweep OR manual trigger. The workflow-level paths filter
+    # already stops most non-relevant PR runs from triggering this job;
+    # this `if` is the belt to that suspenders.
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[run-osv]') ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'push'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install osv-scanner
+        run: |
+          curl -sSL -o /usr/local/bin/osv-scanner \
+            https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
+          chmod +x /usr/local/bin/osv-scanner
+          osv-scanner --version
+
+      - name: Run osv-scanner
+        id: scan
+        run: |
+          set +e
+          osv-scanner \
+            --config=osv-scanner.toml \
+            --lockfile=app/package-lock.json \
+            --format=json \
+            --output=osv.json
+          RC=$?
+          osv-scanner \
+            --config=osv-scanner.toml \
+            --lockfile=app/package-lock.json \
+            --format=sarif \
+            --output=osv.sarif > /dev/null 2>&1 || true
+          osv-scanner \
+            --config=osv-scanner.toml \
+            --lockfile=app/package-lock.json \
+            --format=table \
+            > osv.txt 2>&1 || true
+          echo "rc=$RC" >> $GITHUB_OUTPUT
+          exit 0
+
+      - name: Summarize CVE findings
+        if: always()
+        run: |
+          if [ ! -f osv.json ]; then
+            echo "No osv.json produced; skipping summary."
+            exit 0
+          fi
+          python3 - <<'PY'
+          import json, os, sys
+          try:
+              with open("osv.json") as f:
+                  data = json.load(f)
+          except Exception:
+              print("Could not parse osv.json")
+              sys.exit(0)
+          results = data.get("results", [])
+          findings = []
+          for project in results:
+              for pkg in project.get("packages", []):
+                  pkg_info = pkg.get("package", {})
+                  for vuln in pkg.get("vulnerabilities", []):
+                      findings.append({
+                          "name": pkg_info.get("name", "?"),
+                          "version": pkg_info.get("version", "?"),
+                          "id": vuln.get("id", "?"),
+                          "summary": vuln.get("summary", "")[:120].replace("\n", " "),
+                      })
+          if not findings:
+              print("osv-scanner: no CVEs.")
+              sys.exit(0)
+          print(f"::error title=Dependency CVEs::osv-scanner found {len(findings)} CVEs across pinned dependencies.")
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a") as out:
+                  out.write(f"## Dependency CVEs: {len(findings)}\n\n")
+                  out.write("| Package | Version | CVE | Summary |\n")
+                  out.write("|---|---|---|---|\n")
+                  for f in findings[:50]:
+                      out.write(f"| `{f['name']}` | `{f['version']}` | `{f['id']}` | {f['summary'].replace('|', '\\|')} |\n")
+                  if len(findings) > 50:
+                      out.write(f"\n_… and {len(findings) - 50} more (download the `osv-findings` artifact for the full list)._\n")
+          PY
+
+      - name: Upload findings as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: osv-findings
+          path: |
+            osv.json
+            osv.sarif
+            osv.txt
+
+      - name: Fail job if CVEs found
+        if: steps.scan.outputs.rc != '0'
+        run: |
+          echo "osv-scanner found vulnerabilities. See run summary at top of this page,"
+          echo "or download the 'osv-findings' artifact for the full table."
+          cat osv.txt
+          exit 1
+
+  # Trivy scans the production Docker image for OS-level CVEs (Alpine
+  # packages, libssl, libxml2, glibc). Heavy: ~5 min including image
+  # build. Runs ONLY on schedule + manual trigger -- previously fired
+  # on every PR (the 2026-05-09 audit found this was the single largest
+  # minute-burner with low added value when neither Dockerfile nor
+  # lockfile changed).
+  trivy:
+    name: Docker image CVE scan (weekly)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build production image
+        run: |
+          docker build -f app/Dockerfile -t furniture-configurator:ci-scan ./app
+          docker images furniture-configurator:ci-scan
+
+      - name: Run Trivy
+        id: scan
+        run: |
+          set +e
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/repo" \
+            aquasec/trivy:latest image \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --format json \
+              --output /repo/trivy.json \
+              furniture-configurator:ci-scan
+          RC=$?
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/repo" \
+            aquasec/trivy:latest image \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --format table \
+              --output /repo/trivy.txt \
+              furniture-configurator:ci-scan > /dev/null 2>&1 || true
+          echo "rc=$RC" >> $GITHUB_OUTPUT
+          exit 0
+
+      - name: Summarize Trivy findings
+        if: always()
+        run: |
+          if [ ! -f trivy.json ]; then
+            echo "No trivy.json produced; skipping summary."
+            exit 0
+          fi
+          python3 - <<'PY'
+          import json, os, sys
+          try:
+              with open("trivy.json") as f:
+                  data = json.load(f)
+          except Exception:
+              print("Could not parse trivy.json")
+              sys.exit(0)
+          findings = []
+          for result in data.get("Results", []):
+              target = result.get("Target", "?")
+              for vuln in result.get("Vulnerabilities", []) or []:
+                  findings.append({
+                      "target": target,
+                      "id": vuln.get("VulnerabilityID", "?"),
+                      "pkg": vuln.get("PkgName", "?"),
+                      "installed": vuln.get("InstalledVersion", "?"),
+                      "fixed": vuln.get("FixedVersion", "—"),
+                      "severity": vuln.get("Severity", "?"),
+                      "title": (vuln.get("Title") or vuln.get("Description") or "")[:120].replace("\n", " "),
+                  })
+          if not findings:
+              print("Trivy: no HIGH/CRITICAL fixable CVEs in the production image.")
+              sys.exit(0)
+          print(f"::warning title=Docker image CVEs::Trivy found {len(findings)} HIGH/CRITICAL fixable CVEs in the production image.")
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a") as out:
+                  out.write(f"## Docker image CVEs (Trivy): {len(findings)}\n\n")
+                  out.write("| Severity | CVE | Package | Installed | Fixed In | Title |\n")
+                  out.write("|---|---|---|---|---|---|\n")
+                  for f in findings[:50]:
+                      title = f["title"].replace("|", "\\|")
+                      out.write(f"| {f['severity']} | `{f['id']}` | `{f['pkg']}` | `{f['installed']}` | `{f['fixed']}` | {title} |\n")
+                  if len(findings) > 50:
+                      out.write(f"\n_… and {len(findings) - 50} more (download `trivy-findings` artifact for the full list)._\n")
+          PY
+
+      - name: Upload findings as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-findings
+          path: |
+            trivy.json
+            trivy.txt
+
+      - name: Fail job if HIGH/CRITICAL CVEs found
+        if: steps.scan.outputs.rc != '0'
+        run: |
+          echo "Trivy found HIGH/CRITICAL fixable CVEs in the production image."
+          echo "See run summary at top of this page or download 'trivy-findings'."
+          cat trivy.txt 2>/dev/null || true
+          exit 1

@@ -1,0 +1,177 @@
+# docker-compose.yml
+#
+# Holt -- Business Management System
+#
+# Usage:
+#   Production (default):      docker compose up -d --build
+#   Development (hot-reload):  docker compose --profile dev up
+#   Staging:                   docker compose --profile staging up -d --build
+#   Database only:             docker compose up db
+
+services:
+
+  # --------------------------------------------------------------------------
+  # PostgreSQL database (always available, no profile needed)
+  # --------------------------------------------------------------------------
+  db:
+    image: postgres:17.9-alpine
+    pull_policy: always
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # Next.js application -- Development mode (hot-reload)
+  # Run with: docker compose --profile dev up
+  # --------------------------------------------------------------------------
+  app-dev:
+    image: node:24-alpine
+    pull_policy: always
+    profiles: ["dev"]
+    working_dir: /app
+    volumes:
+      - ./app:/app
+      - app_node_modules:/app/node_modules
+      - uploads:/app/data/uploads
+    command: >
+      sh -c "apk add --no-cache poppler-utils postgresql-client &&
+             npm install &&
+             npx prisma generate &&
+             npx next dev"
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Next.js application -- Production mode (built image)
+  # Starts by default with: docker compose up
+  # --------------------------------------------------------------------------
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      args:
+        GIT_COMMIT: "${GIT_COMMIT:-unknown}"
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+      - app/.env.local
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - uploads:/app/data/uploads
+      - ./config/service-account.json:/app/config/service-account.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Nginx reverse proxy (production)
+  # Starts by default with: docker compose up
+  # --------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.27-alpine
+    pull_policy: always
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+
+  # --------------------------------------------------------------------------
+  # Staging database (separate volume from production)
+  # Run with: docker compose --profile staging up -d --build
+  # --------------------------------------------------------------------------
+  db-staging:
+    image: postgres:17.9-alpine
+    pull_policy: always
+    profiles: ["staging"]
+    restart: unless-stopped
+    env_file:
+      - .env.staging
+    environment:
+      POSTGRES_USER: ${STAGING_POSTGRES_USER:-dbuser_fbc_staging}
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:-staging}
+      POSTGRES_DB: ${STAGING_POSTGRES_DB:-fbc_staging_db}
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata-staging:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STAGING_POSTGRES_USER:-dbuser_fbc_staging} -d ${STAGING_POSTGRES_DB:-fbc_staging_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # Next.js application -- Staging mode (built image, separate DB)
+  # --------------------------------------------------------------------------
+  app-staging:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      args:
+        GIT_COMMIT: "${GIT_COMMIT:-unknown}"
+    profiles: ["staging"]
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env.staging
+      - app/.env.staging.local
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${STAGING_POSTGRES_USER:-dbuser_fbc_staging}:${STAGING_POSTGRES_PASSWORD:-staging}@db-staging:5432/${STAGING_POSTGRES_DB:-fbc_staging_db}
+    volumes:
+      - uploads-staging:/app/data/uploads
+      - ./config/service-account.json:/app/config/service-account.json:ro
+    depends_on:
+      db-staging:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Nginx reverse proxy (staging)
+  # --------------------------------------------------------------------------
+  nginx-staging:
+    image: nginx:1.27-alpine
+    pull_policy: always
+    profiles: ["staging"]
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx/nginx-staging.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app-staging
+
+volumes:
+  pgdata:
+  pgdata-staging:
+  app_node_modules:
+  uploads:
+  uploads-staging:

@@ -1,0 +1,111 @@
+# Deployments (white-label model)
+
+How one product codebase serves many branded instances — and specifically how
+**Akritos** runs on Holt without forking the code.
+
+## The model
+
+- **Product = code.** This repo (Holt) is the white-box. It ships generic
+  example content (`app/scripts/seed-cms.mjs`) and a generic default theme
+  (`DEFAULT_THEME` in `lib/appSettings.ts`). No tenant's brand or content is in
+  the product.
+- **A deployment = data.** Everything that makes an instance "Acme" instead of
+  "Holt" lives in its **database + env**, never in product code:
+  - `AppSettings` row — `appName`, `logoUrl`/`loginLogoUrl`/`faviconUrl`,
+    `tagline`, `theme` (the brand palette), `currency`/`locale`/`timezone`,
+    `features` (which modules are on).
+  - CMS `Page`/`Post`/`Menu` rows — the public site.
+  - `IntegrationCredential` rows — encrypted per-tenant API keys.
+  - Env secrets — `DATABASE_URL`, `NEXTAUTH_SECRET`, `APP_ENCRYPTION_KEY`,
+    `NEXTAUTH_URL` (the tenant's domain), optional `BOOKING_FEED_TOKEN`. Secrets
+    are **injected per deploy, never in the data backup** — `APP_ENCRYPTION_KEY`
+    is the one sacred key (it decrypts `IntegrationCredential`); preserve it in
+    your secret store and re-inject on every deploy. Full model: `docs/SECRETS.md`.
+- **Improvements are code, so they flow to every deployment for free.** There is
+  no per-tenant fork to merge back. A deployment only adds its own data layer.
+
+## Creating a tenant deployment (generic)
+
+1. Run Holt's code (Docker image or `next start`) pointed at the tenant's DB.
+2. `npm run create-admin <email> <password>` to bootstrap the first SUPER_ADMIN.
+3. In **Admin → Settings**: set name, upload logo/favicon, set the theme palette,
+   toggle modules (`features`). All of this is editable in-app afterward.
+4. In **Admin → CMS**: build the public pages/posts/menus (or import them).
+5. Set `NEXTAUTH_URL` to the tenant domain so sitemap/canonical/OG use it; point
+   DNS at the deployment.
+
+That's the entire white-label surface — no code changes.
+
+## The Akritos port
+
+Akritos runs its own site + back-office on Holt. Its deployment layer is the
+**akritos kit** (kept out of the white-box, gitignored under
+`app/scripts/akritos-content/` + `app/scripts/seed-akritos.mjs` +
+`public/akritos-logo.svg`):
+
+- **Brand:** logo `/akritos-logo.svg`; theme = midnight `#1C1F2E`, conviction
+  `#C8A96E`, parchment `#F5F4F0`, slate `#4A5068`, bone `#E8E4DC`.
+- **Site:** all 27 akritos.com URLs (15 pages + 10 posts + `/blog` + `/book`)
+  recreated as CMS content at the same slugs, captured faithfully from the
+  source.
+- **Apply it:** with `DATABASE_URL` loaded, `node scripts/seed-akritos.mjs`
+  (idempotent — sets branding + theme + menus + pages + posts).
+
+To revert any instance to the generic white-box demo: `npm run seed:cms`.
+
+## Rebasing the `simplerms` repo onto Holt (owner-driven cutover)
+
+Goal: `simplerms` becomes "Holt for Akritos" — Holt's code + the akritos
+kit — while this repo stays the separate white-box product. This touches git and
+live data, so the owner drives it.
+
+1. **Point simplerms at Holt's code.** Add Holt as an upstream remote and
+   replace simplerms's app with Holt's tree (or make simplerms a fresh repo
+   seeded from Holt's code). Keep the akritos kit (above) in simplerms as its
+   deployment layer. Future updates = pull from Holt upstream.
+2. **Migrate data.** simplerms's current Prisma schema differs from Holt's.
+   Export the akritos business data (clients, invoices, inventory, tickets,
+   appointments) and import it through Holt's import paths / a one-time
+   migration. The marketing site is already covered by the akritos kit.
+3. **Stand it up.** Set env (`NEXTAUTH_URL=https://akritos.com`,
+   `BOOKING_FEED_TOKEN`, secrets), run migrations, `create-admin`, then
+   `seed-akritos.mjs`.
+4. **Cut over.** Verify the 27 URLs + booking against the live site, then point
+   akritos.com DNS at the new deployment and submit the sitemap. Same URLs +
+   content ⇒ SEO authority carries over.
+
+## Keeping in sync
+
+Holt is the single source of truth for code. The Akritos deployment carries
+only its data layer. When Holt ships a feature or fix, the Akritos deployment
+gets it by pulling Holt — nothing to re-implement, nothing to merge back.
+
+## Local demo container rebuild (gotcha)
+
+The local Akritos demo runs the prod image (`holt-app-1`) against the
+host's dev DB (`holt-dev-db`, port 5435).
+
+**Always bring it up with `scripts/dev-app-up.sh`** (`--build` to rebuild the
+image first). Never hand-run `docker compose up app` — that path skips the two
+things below and serves 500s. (See `.claude/skills/post-failure/SKILL.md`,
+2026-06-05.)
+
+```
+scripts/dev-app-up.sh           # recreate the app container
+scripts/dev-app-up.sh --build   # rebuild image, then recreate
+```
+
+The script encapsulates the two things that bite a naive `docker compose up`:
+
+- **Uses `host.docker.internal:5435`, not `localhost:5435`.** Inside the
+  container `localhost` is the container itself, so a `localhost`-based
+  `DATABASE_URL` gives `ECONNREFUSED` on every query (and a blank-but-200
+  build, since the `(site)` pages are `force-dynamic`). The script rewrites the
+  host automatically.
+- **Passes `--no-deps`.** The compose `app` service `depends_on: db`, and that
+  `db` maps host `5433`, which collides with the other local project's Postgres.
+  `--no-deps` recreates only `app` and leaves the already-running dev DB alone.
+
+The script also prunes build cache (a full cache once filled Docker's disk and
+crashed the dev DB) and polls `/` for a 200 before returning, so a failed
+bring-up surfaces immediately instead of as a silent 500.

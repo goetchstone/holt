@@ -1,0 +1,38 @@
+name: Data Issue
+description: Wrong data, missing records, import problem
+title: "[Data] "
+labels: ["data"]
+body:
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      description: What kind of data issue?
+      options:
+        - Wrong price or cost
+        - Missing product or vendor
+        - Duplicate record
+        - Import failed or incorrect
+        - Inventory count wrong
+        - Customer data incorrect
+        - Order data incorrect
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What is wrong?
+      description: Be specific -- include product numbers, order numbers, customer names, etc.
+      placeholder: |
+        Product ABC123 shows price $500 but should be $450.
+        Order SH-260320-001 is missing line item for ...
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Paste a screenshot showing the incorrect data
+    validations:
+      required: false
