@@ -2,34 +2,24 @@
 # scripts/auto-daily-reconciliation.sh
 #
 # Trigger the daily JE-vs-source reconciliation check. Reconciles the
-# previous day (in America/New_York) by default — pass --date YYYY-MM-DD
-# or --start/--end YYYY-MM-DD to override.
+# previous day (in the configured timezone) by default — pass a JSON body
+# as the first argument (e.g. '{"date":"2026-06-09"}') to override.
 #
-# Configure in Synology Task Scheduler as a recurring task. Recommended:
-# daily at 02:00 ET (after the POS import cycle has typically
-# finished landing yesterday's data, and before anyone is up to look at
-# yesterday's JE).
+# Configure in cron / Synology Task Scheduler as a recurring task. Recommended:
+# daily at 02:00 local (after the import cycle has typically finished landing
+# yesterday's data, and before anyone is up to look at yesterday's JE).
 #
-# Required: AUTO_IMPORT_API_KEY must match the value in app/.env.local
-# (same key used by auto-import.sh — they share the Bearer)
+# Required env: AUTO_IMPORT_API_KEY must match the value in app/.env.local.
+# Optional env: APP_BASE_URL, OPS_ALERT_WEBHOOK (see scripts/_cron-run.sh) —
+# a failed reconcile (books don't tie out) now fires an ops alert.
 #
-# Logs to logs/auto-daily-reconciliation.log on the NAS. Operator can
-# also view per-run results at /admin/automations/daily-reconciliation
-# in the web UI.
+# Logs to logs/auto-daily-reconciliation.log. Operator can also view per-run
+# results at /admin/automations/daily-reconciliation in the web UI.
 
-AUTO_IMPORT_API_KEY="${AUTO_IMPORT_API_KEY:-}"
+DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+. "$DIR/_cron-run.sh"
 
-if [ -z "$AUTO_IMPORT_API_KEY" ]; then
-  echo "ERROR: AUTO_IMPORT_API_KEY is not set"
-  exit 1
-fi
-
-# Default body is empty — endpoint reconciles yesterday (ET).
-# To reconcile a range, pass JSON via stdin or use the admin UI.
+# Default body is empty object — endpoint reconciles yesterday.
 BODY="${1:-{}}"
 
-curl -sf -X POST \
-  -H "Authorization: Bearer ${AUTO_IMPORT_API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d "${BODY}" \
-  http://localhost:3000/api/automations/daily-reconciliation
+run_cron "daily-reconciliation" "/api/automations/daily-reconciliation" "$BODY"

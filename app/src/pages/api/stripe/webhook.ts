@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { completePayment, onPaymentReceived } from "@/lib/paymentService";
 import { applyInvoiceStripePayment } from "@/lib/billing/invoiceService";
 import { logError } from "@/lib/logger";
+import { reportOpsAlert } from "@/lib/opsAlert";
 import type Stripe from "stripe";
 
 export const config = { api: { bodyParser: false } };
@@ -94,25 +95,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      // Flip to COMPLETED and post the AR-ledger entry atomically — the charge is
-      // only now confirmed. Idempotent if the webhook re-fires. (#137)
-      await completePayment(pendingPayment.id, extraData);
+      // The charge is confirmed; now post it to the books. If any step throws,
+      // the money has moved at Stripe but our ledger is out of sync — the most
+      // important failure to surface. Alert, then 500 so Stripe retries; every
+      // step below is idempotent, so a retry re-runs cleanly once fixed.
+      try {
+        // Flip to COMPLETED and post the AR-ledger entry atomically — the charge
+        // is only now confirmed. Idempotent if the webhook re-fires. (#137)
+        await completePayment(pendingPayment.id, extraData);
 
-      // Promote QUOTE → ORDER and create draft POs
-      if (pendingPayment.salesOrderId) {
-        await onPaymentReceived(pendingPayment.salesOrderId);
-      }
+        // Promote QUOTE → ORDER and create draft POs
+        if (pendingPayment.salesOrderId) {
+          await onPaymentReceived(pendingPayment.salesOrderId);
+        }
 
-      // Authored-invoice payment: apply to the invoice + post the AR_PAYMENT
-      // journal. Routing is structural (Payment.invoiceId, set at link
-      // creation); the metadata id is only a cross-check — a mismatch throws,
-      // Stripe retries, and completePayment above stays a no-op, so the
-      // application lands once the discrepancy is investigated.
-      if (pendingPayment.invoiceId !== null || invoiceId) {
-        await applyInvoiceStripePayment(
-          pendingPayment.id,
-          invoiceId ? Number(invoiceId) : undefined,
-        );
+        // Authored-invoice payment: apply to the invoice + post the AR_PAYMENT
+        // journal. Routing is structural (Payment.invoiceId, set at link
+        // creation); the metadata id is only a cross-check — a mismatch throws,
+        // Stripe retries, and completePayment above stays a no-op, so the
+        // application lands once the discrepancy is investigated.
+        if (pendingPayment.invoiceId !== null || invoiceId) {
+          await applyInvoiceStripePayment(
+            pendingPayment.id,
+            invoiceId ? Number(invoiceId) : undefined,
+          );
+        }
+      } catch (err) {
+        logError("Stripe webhook: failed to post confirmed payment to the ledger", err, {
+          paymentId: pendingPayment.id,
+          sessionId: session.id,
+        });
+        await reportOpsAlert({
+          title: "Stripe payment received but not posted to the ledger",
+          detail:
+            "A charge completed at Stripe but the AR/ledger post failed. The books are out of sync until this is resolved; Stripe will retry the webhook.",
+          context: {
+            paymentId: pendingPayment.id,
+            sessionId: session.id,
+            orderId: orderId ?? null,
+            invoiceId: invoiceId ?? pendingPayment.invoiceId ?? null,
+          },
+        });
+        return res.status(500).json({ error: "Failed to post payment to the ledger" });
       }
     }
   }
