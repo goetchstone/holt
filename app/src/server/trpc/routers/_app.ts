@@ -8,6 +8,7 @@ import { router, publicProcedure, protectedProcedure } from "../trpc";
 import { reportsRouter } from "./reports";
 import { billingRouter } from "./billing";
 import { legacyArchiveRouter } from "./legacyArchive";
+import { clientPortalRouter } from "./clientPortal";
 
 const healthRouter = router({
   // Liveness: confirms the tRPC HTTP route + transformer are working.
@@ -21,6 +22,7 @@ export const appRouter = router({
   reports: reportsRouter,
   billing: billingRouter,
   legacyArchive: legacyArchiveRouter,
+  clientPortal: clientPortalRouter,
 });
 
 export type AppRouter = typeof appRouter;

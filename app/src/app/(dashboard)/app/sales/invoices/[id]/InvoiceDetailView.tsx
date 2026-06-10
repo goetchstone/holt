@@ -42,6 +42,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
   const recordPayment = api.billing.recordPayment.useMutation();
   const sendEmail = api.billing.sendEmail.useMutation();
   const paymentLink = api.billing.paymentLink.useMutation();
+  const portalLink = api.clientPortal.generateLink.useMutation();
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [payAmount, setPayAmount] = useState("");
@@ -125,6 +126,20 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
       const result = await paymentLink.mutateAsync({ id: invoiceId });
       await navigator.clipboard.writeText(result.url);
       toast.success(`Payment link for ${money(result.amount)} copied to clipboard`);
+    } catch (err) {
+      toast.error(errMessage(err));
+    }
+  };
+
+  const onPortalLink = async () => {
+    if (!invoice?.customerId) {
+      toast.error("Invoice has no customer");
+      return;
+    }
+    try {
+      const result = await portalLink.mutateAsync({ customerId: invoice.customerId });
+      await navigator.clipboard.writeText(result.url);
+      toast.success("Client portal link copied to clipboard (valid 30 days)");
     } catch (err) {
       toast.error(errMessage(err));
     }
@@ -232,6 +247,14 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
               className="min-h-[44px] rounded-lg border border-gray-300 px-4 text-sm text-sh-black transition hover:bg-sh-linen disabled:opacity-50"
             >
               {paymentLink.isPending ? "Creating..." : "Copy Payment Link"}
+            </button>
+            <button
+              type="button"
+              onClick={onPortalLink}
+              disabled={busy || portalLink.isPending}
+              className="min-h-[44px] rounded-lg border border-gray-300 px-4 text-sm text-sh-black transition hover:bg-sh-linen disabled:opacity-50"
+            >
+              {portalLink.isPending ? "Creating..." : "Copy Portal Link"}
             </button>
             <button
               type="button"
