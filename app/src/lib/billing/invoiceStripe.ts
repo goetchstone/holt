@@ -92,6 +92,8 @@ export async function createInvoicePaymentLink(
       status: "PENDING",
       method: "CARD",
       customerId: invoice.customerId,
+      // Structural binding — the webhook routes on this, never on metadata.
+      invoiceId,
       processorType: "STRIPE",
       processorTxnId: session.id,
       createdBy: requestedBy ?? null,

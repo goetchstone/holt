@@ -25,6 +25,8 @@ import {
 import { createInvoicePaymentLink } from "@/lib/billing/invoiceStripe";
 import { sendInvoiceEmail } from "@/lib/billing/invoiceEmail";
 import { InvoiceValidationError } from "@/lib/billing/invoiceAuthoring";
+import { INVOICE_PAYMENT_METHODS } from "@/lib/billing/invoiceShared";
+import { parseLocalDate } from "@/lib/dateUtils";
 
 const BILLING_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
 
@@ -63,7 +65,7 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
 
 function parseDueDate(value: string | null | undefined): Date | null {
   if (!value) return null;
-  const d = new Date(`${value}T12:00:00`);
+  const d = parseLocalDate(value);
   if (Number.isNaN(d.getTime())) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid due date." });
   }
@@ -150,7 +152,7 @@ export const billingRouter = router({
       z.object({
         id: z.number().int().positive(),
         amount: z.number().positive(),
-        method: z.enum(["CASH", "CARD", "CHECK", "WIRE", "ACH", "OTHER"]),
+        method: z.enum(INVOICE_PAYMENT_METHODS),
         reference: z.string().max(100).nullish(),
       }),
     )

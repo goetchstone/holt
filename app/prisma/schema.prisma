@@ -2403,6 +2403,7 @@ model Invoice {
   issuedAt       DateTime?
   createdBy      String?
   updatedBy      String?
+  payments       Payment[]     @relation("InvoicePayments")
 
   created DateTime  @default(now())
   updated DateTime? @updatedAt
@@ -2516,6 +2517,12 @@ model Payment {
   // Check details
   checkNumber String?
 
+  // Authored-invoice link (invoice authoring, 2026-06-10). Structural binding
+  // for invoice payments — the Stripe webhook routes on THIS, never on
+  // session metadata alone. Mirrors salesOrderId for order payments.
+  invoiceId Int?
+  invoice   Invoice? @relation("InvoicePayments", fields: [invoiceId], references: [id])
+
   // Gift card link
   giftCardId Int?
   giftCard   GiftCard? @relation(fields: [giftCardId], references: [id])
@@ -2539,6 +2546,7 @@ model Payment {
   @@index([salesOrderId])
   @@index([paymentDate])
   @@index([tillId])
+  @@index([invoiceId])
 }
 
 // ---------------------------------------------------------------------------

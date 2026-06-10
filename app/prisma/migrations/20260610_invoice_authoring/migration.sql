@@ -27,6 +27,14 @@ ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_organizationId_fkey"
 
 CREATE INDEX "Invoice_organizationId_status_idx" ON "Invoice"("organizationId", "status");
 
+-- Structural binding for invoice payments: the Stripe webhook routes on this
+-- column, never on session metadata alone. Mirrors Payment.salesOrderId.
+ALTER TABLE "Payment" ADD COLUMN "invoiceId" INTEGER;
+ALTER TABLE "Payment" ADD CONSTRAINT "Payment_invoiceId_fkey"
+  FOREIGN KEY ("invoiceId") REFERENCES "Invoice"("id")
+  ON DELETE SET NULL ON UPDATE CASCADE;
+CREATE INDEX "Payment_invoiceId_idx" ON "Payment"("invoiceId");
+
 ALTER TABLE "InvoiceLineItem" ALTER COLUMN "orderLineItemId" DROP NOT NULL;
 ALTER TABLE "InvoiceLineItem" ALTER COLUMN "deliveredQuantity" SET DEFAULT 0;
 ALTER TABLE "InvoiceLineItem" ADD COLUMN "description" TEXT;

@@ -140,39 +140,50 @@ export async function runCustomerArDriftCheck(
   });
 
   // 2b) Authored standalone invoices (no SalesOrder behind them) recognize
-  //     AR through the invoice flow — fold their open balances into the
-  //     source side so billed customers tie out.
+  //     AR through the invoice flow — fold their balances into the source
+  //     side so billed customers tie out. Payments come via the structural
+  //     Payment.invoiceId binding at their FULL amounts (mirroring the
+  //     ledger), so an overpayment surplus still reconciles.
+  // All statuses on purpose: a stale-link payment can land on a VOID invoice
+  // (journal + ledger posted, nothing applied) — its payment must still count
+  // on the source side. computeStandaloneInvoiceSource filters the due side
+  // to ISSUED/PAID itself.
   const invoicesForCustomers = await prisma.invoice.findMany({
     where: {
       customerId: { in: candidateIds },
       organizationId: { not: null },
-      status: { in: ["ISSUED", "PAID"] },
     },
     select: {
       customerId: true,
       status: true,
       total: true,
-      applications: { select: { amountApplied: true } },
+      payments: { select: { paymentAmount: true, status: true, isRefund: true } },
     },
   });
   const invoiceBalanceMap = new Map<number, number>();
   {
     const grouped = new Map<
       number,
-      { status: string; total: number; appliedAmounts: number[] }[]
+      {
+        invoices: { status: string; total: number }[];
+        payments: { paymentAmount: number; status: string | null; isRefund: boolean }[];
+      }
     >();
     for (const inv of invoicesForCustomers) {
       if (inv.customerId === null || inv.total === null) continue;
-      const list = grouped.get(inv.customerId) ?? [];
-      list.push({
-        status: String(inv.status),
-        total: Number(inv.total),
-        appliedAmounts: inv.applications.map((a) => Number(a.amountApplied)),
-      });
-      grouped.set(inv.customerId, list);
+      const bucket = grouped.get(inv.customerId) ?? { invoices: [], payments: [] };
+      bucket.invoices.push({ status: String(inv.status), total: Number(inv.total) });
+      for (const pay of inv.payments) {
+        bucket.payments.push({
+          paymentAmount: Number(pay.paymentAmount),
+          status: pay.status ? String(pay.status) : null,
+          isRefund: pay.isRefund,
+        });
+      }
+      grouped.set(inv.customerId, bucket);
     }
-    for (const [customerId, invoices] of grouped) {
-      invoiceBalanceMap.set(customerId, computeStandaloneInvoiceSource(invoices));
+    for (const [customerId, b] of grouped) {
+      invoiceBalanceMap.set(customerId, computeStandaloneInvoiceSource(b.invoices, b.payments));
     }
   }
 

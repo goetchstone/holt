@@ -162,19 +162,47 @@ describe("buildInvoicePaymentJournalLines", () => {
 });
 
 describe("computeStandaloneInvoiceSource (drift-check source side)", () => {
-  it("sums ISSUED/PAID open balances and ignores DRAFT/VOID", () => {
-    const balance = computeStandaloneInvoiceSource([
-      { status: "ISSUED", total: 1000, appliedAmounts: [400] }, // 600 open
-      { status: "PAID", total: 500, appliedAmounts: [500] }, // 0
-      { status: "DRAFT", total: 999, appliedAmounts: [] }, // ignored
-      { status: "VOID", total: 999, appliedAmounts: [] }, // ignored
-      { status: "ISSUED", total: 250.25, appliedAmounts: [] }, // 250.25
-    ]);
+  it("sums ISSUED/PAID totals minus COMPLETED payment amounts; ignores DRAFT/VOID due", () => {
+    const balance = computeStandaloneInvoiceSource(
+      [
+        { status: "ISSUED", total: 1000 },
+        { status: "PAID", total: 500 },
+        { status: "DRAFT", total: 999 }, // ignored
+        { status: "VOID", total: 999 }, // ignored
+        { status: "ISSUED", total: 250.25 },
+      ],
+      [
+        { paymentAmount: 400, status: "COMPLETED", isRefund: false },
+        { paymentAmount: 500, status: "COMPLETED", isRefund: false },
+        { paymentAmount: 100, status: "PENDING", isRefund: false }, // no ledger entry yet
+        { paymentAmount: 50, status: "VOIDED", isRefund: false }, // excluded
+      ],
+    );
+    // 1750.25 due - 900 paid
     expect(balance).toBe(850.25);
   });
 
+  it("overpayment surplus stays on the source side as credit (mirrors the full ledger entry)", () => {
+    const balance = computeStandaloneInvoiceSource(
+      [{ status: "PAID", total: 800 }],
+      [{ paymentAmount: 1000, status: "COMPLETED", isRefund: false }],
+    );
+    expect(balance).toBe(-200);
+  });
+
+  it("refunds add back", () => {
+    const balance = computeStandaloneInvoiceSource(
+      [{ status: "ISSUED", total: 100 }],
+      [
+        { paymentAmount: 100, status: "COMPLETED", isRefund: false },
+        { paymentAmount: 40, status: "COMPLETED", isRefund: true },
+      ],
+    );
+    expect(balance).toBe(40);
+  });
+
   it("returns 0 for no invoices", () => {
-    expect(computeStandaloneInvoiceSource([])).toBe(0);
+    expect(computeStandaloneInvoiceSource([], [])).toBe(0);
   });
 });
 

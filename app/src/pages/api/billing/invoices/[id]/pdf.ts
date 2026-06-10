@@ -9,6 +9,7 @@ import { getAppSettings } from "@/lib/appSettings";
 import { isFeatureEnabled } from "@/lib/featureCatalog";
 import { getInvoiceDetail } from "@/lib/billing/invoiceService";
 import { generateInvoicePdf } from "@/lib/billing/invoicePdf";
+import { InvoiceValidationError } from "@/lib/billing/invoiceAuthoring";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -61,6 +62,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     res.setHeader("Content-Disposition", `attachment; filename="${invoice.invoiceNo}.pdf"`);
     return res.status(200).send(pdf);
   } catch (err) {
+    if (err instanceof InvoiceValidationError) {
+      return res.status(400).json({ error: err.message });
+    }
     logError("Invoice PDF generation failed", err);
     return res.status(500).json({ error: "Failed to generate invoice PDF" });
   }

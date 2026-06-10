@@ -15,6 +15,7 @@ import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { api } from "@/lib/trpc/client";
+import { INVOICE_PAYMENT_METHODS, type InvoicePaymentMethod } from "@/lib/billing/invoiceShared";
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-sh-stripe text-sh-gray",
@@ -22,8 +23,6 @@ const STATUS_BADGE: Record<string, string> = {
   PAID: "bg-green-100 text-green-800",
   VOID: "bg-red-100 text-red-800",
 };
-
-const PAYMENT_METHODS = ["CHECK", "CASH", "CARD", "WIRE", "ACH", "OTHER"] as const;
 
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Something went wrong";
@@ -46,7 +45,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState<(typeof PAYMENT_METHODS)[number]>("CHECK");
+  const [payMethod, setPayMethod] = useState<InvoicePaymentMethod>("CHECK");
   const [payReference, setPayReference] = useState("");
   const [includeLink, setIncludeLink] = useState(true);
 
@@ -275,10 +274,10 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
             <select
               id="payMethod"
               value={payMethod}
-              onChange={(e) => setPayMethod(e.target.value as (typeof PAYMENT_METHODS)[number])}
+              onChange={(e) => setPayMethod(e.target.value as InvoicePaymentMethod)}
               className="min-h-[44px] rounded border border-gray-300 px-3 text-sm"
             >
-              {PAYMENT_METHODS.map((m) => (
+              {INVOICE_PAYMENT_METHODS.map((m) => (
                 <option key={m} value={m}>
                   {m.charAt(0) + m.slice(1).toLowerCase()}
                 </option>

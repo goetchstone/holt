@@ -104,10 +104,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Authored-invoice payment: apply to the invoice + post the AR_PAYMENT
-      // journal. Idempotent; a thrown error here makes Stripe retry while
-      // completePayment above no-ops, so the application eventually lands.
-      if (invoiceId) {
-        await applyInvoiceStripePayment(pendingPayment.id, Number(invoiceId));
+      // journal. Routing is structural (Payment.invoiceId, set at link
+      // creation); the metadata id is only a cross-check — a mismatch throws,
+      // Stripe retries, and completePayment above stays a no-op, so the
+      // application lands once the discrepancy is investigated.
+      if (pendingPayment.invoiceId !== null || invoiceId) {
+        await applyInvoiceStripePayment(
+          pendingPayment.id,
+          invoiceId ? Number(invoiceId) : undefined,
+        );
       }
     }
   }

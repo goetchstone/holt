@@ -207,24 +207,32 @@ export function buildInvoicePaymentJournalLines(input: PaymentJournalInput): Jou
 
 /**
  * Source-side balance contribution of authored (standalone) invoices for the
- * AR drift check: total of every ISSUED/PAID invoice minus its applied
- * payments. Mirrors how the ledger sees the same events (SALE at issuance,
- * PAYMENT on completion — applications equal payment amounts by construction
- * in the invoice flow). DRAFT and VOID invoices contribute nothing.
+ * AR drift check: total of every ISSUED/PAID invoice minus the FULL amounts
+ * of the COMPLETED payments bound to those invoices (Payment.invoiceId).
+ * Mirrors how the ledger sees the same events — SALE (+total) at issuance,
+ * PAYMENT (-full amount) on completion — so an overpayment surplus (payment
+ * larger than the application) still ties out as on-account credit. DRAFT
+ * and VOID invoices contribute nothing; PENDING/VOIDED/FAILED payments are
+ * excluded (no ledger entry exists for them). Intermediate sums round per
+ * step, matching computeSourceBalance.
  */
 export function computeStandaloneInvoiceSource(
-  invoices: ReadonlyArray<{
-    status: string;
-    total: number;
-    appliedAmounts: ReadonlyArray<number>;
+  invoices: ReadonlyArray<{ status: string; total: number }>,
+  invoicePayments: ReadonlyArray<{
+    paymentAmount: number;
+    status: string | null;
+    isRefund: boolean;
   }>,
 ): number {
   let balance = 0;
   for (const inv of invoices) {
     if (inv.status !== "ISSUED" && inv.status !== "PAID") continue;
-    let applied = 0;
-    for (const a of inv.appliedAmounts) applied += a;
-    balance += inv.total - applied;
+    balance = round2(balance + inv.total);
+  }
+  for (const p of invoicePayments) {
+    if (p.status !== "COMPLETED") continue;
+    const amt = Math.abs(p.paymentAmount);
+    balance = round2(balance + (p.isRefund ? amt : -amt));
   }
   return round2(balance);
 }
