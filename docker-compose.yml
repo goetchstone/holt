@@ -91,6 +91,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Liveness probe: the container is unhealthy if /api/health stops
+    # answering (DB unreachable -> 503). start_period covers cold boot +
+    # Prisma client warm-up; bump to 60s on slow Synology storage.
+    healthcheck:
+      test:
+        ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    # Give in-flight requests (long imports) time to drain on restart/deploy.
+    stop_grace_period: 30s
 
   # --------------------------------------------------------------------------
   # Nginx reverse proxy (production)

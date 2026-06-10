@@ -6,9 +6,15 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { LAST_SEEN_THROTTLE_MS } from "@/lib/loginActivity";
 import { buildAuthProviders, buildAuthProvidersAsync } from "@/lib/auth/authProviders";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
+
+  // In production NextAuth issues __Secure- cookies over HTTPS automatically;
+  // set it explicitly so the intent is visible and a misread NODE_ENV can't
+  // silently downgrade to insecure cookies.
+  useSecureCookies: process.env.NODE_ENV === "production",
 
   // Providers are assembled from environment configuration (Google / Okta /
   // Azure AD) plus local email+password when AUTH_LOCAL_ENABLED is set. See
@@ -132,6 +138,14 @@ export const authOptions: NextAuthOptions = {
 // getServerSession callers keep importing the static `authOptions` above —
 // session validation uses the secret + callbacks, not the live provider list.
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Throttle ONLY the credentials-callback POST (the password sign-in attempt)
+  // — not session reads or OAuth flows. 10 attempts / 15 min per client IP
+  // blunts password brute-forcing on local accounts. The dedicated bucket
+  // keeps this counter separate from other rate-limited routes.
+  const route = Array.isArray(req.query.nextauth) ? req.query.nextauth.join("/") : "";
+  if (req.method === "POST" && route === "callback/credentials") {
+    if (!checkRateLimit(req, res, { windowMs: 15 * 60_000, maxRequests: 10 }, "login")) return;
+  }
   const providers = await buildAuthProvidersAsync();
   return NextAuth(req, res, { ...authOptions, providers });
 }
