@@ -119,6 +119,13 @@ export const FEATURES: FeatureDef[] = [
     defaultEnabled: false,
   },
   {
+    key: "clientPortal",
+    name: "Client Portal",
+    description:
+      "No-login client hub (tokenized link): upcoming appointments, invoices with online payment, and support ticket status.",
+    defaultEnabled: false,
+  },
+  {
     key: "dmarcTools",
     name: "Email Auth Tools (DMARC)",
     description:
