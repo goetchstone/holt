@@ -7,16 +7,21 @@
 //     half-migrated DB is reachable but NOT ready to serve — create-admin +
 //     settings must have run). `?ready=1` makes a missing row a 503 so the
 //     orchestrator won't route traffic to an unseeded instance.
+//   - billing: when the billing feature is on, are the AR/revenue GL accounts
+//     mapped (without them, issuing an invoice refuses). Informational only —
+//     never changes liveness/readiness status.
 // Never exposes secrets or row contents — strings/booleans only.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
+import { getBillingReadiness, type BillingReadiness } from "@/lib/billing/billingReadiness";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   let database = "ok";
   let settings = "ok";
+  let billing: BillingReadiness = { status: "disabled", missing: [] };
 
   try {
     await prisma.$queryRaw(Prisma.sql`SELECT 1`);
@@ -35,8 +40,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Table absent / migrations not applied yet.
       settings = "error";
     }
+    // Billing GL readiness — surfaced so a "billing on but not configured" gap
+    // is visible at deploy time, not when someone issues the first invoice.
+    billing = await getBillingReadiness(DEFAULT_ORG_ID);
   } else {
     settings = "unknown";
+    billing = { status: "error", missing: [] };
   }
 
   // Liveness = DB reachable. Readiness (?ready=1) also requires the
@@ -48,6 +57,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     status: healthy ? "ok" : "degraded",
     database,
     settings,
+    billing: billing.status,
+    ...(billing.missing.length > 0 ? { billingMissing: billing.missing } : {}),
     version: process.env.npm_package_version || "unknown",
     gitCommit: process.env.GIT_COMMIT || "unknown",
     nodeEnv: process.env.NODE_ENV || "unknown",
