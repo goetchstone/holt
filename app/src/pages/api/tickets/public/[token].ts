@@ -30,6 +30,10 @@ async function handleGet(token: string, res: NextApiResponse) {
         orderBy: { created: "asc" },
         select: { id: true, body: true, created: true, authorStaffId: true, authorName: true },
       },
+      attachments: {
+        orderBy: { created: "asc" },
+        select: { id: true, filename: true, url: true, uploadedBy: true, created: true },
+      },
     },
   });
   if (!ticket) return res.status(404).json({ error: "Ticket not found" });
@@ -52,6 +56,7 @@ async function handleGet(token: string, res: NextApiResponse) {
       submitterName: ticket.submitterName,
       created: ticket.created,
       messages,
+      attachments: ticket.attachments,
     },
   });
 }
