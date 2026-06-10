@@ -25,6 +25,13 @@ const ITEMS: CardGridItem[] = [
     description: "Set up a new customer project with Google Drive folders.",
     href: "/app/tools/create-project",
   },
+  {
+    title: "Legacy Archive",
+    description:
+      "Look up historical sales imported from a previous system by customer name, phone, address, or order number. Read-only archive.",
+    href: "/app/tools/legacy-archive",
+    feature: "legacyArchive",
+  },
 ];
 
 export default async function ToolsHubPage() {
