@@ -208,7 +208,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           partNo: partNo || "",
           orderedQuantity: item.quantity,
           netPrice: item.unitPrice * item.quantity,
-          cost: itemCost,
+          // itemCost is per-unit (configurator value or product baseCost);
+          // OrderLineItem.cost stores the LINE total, like netPrice.
+          cost: itemCost * item.quantity,
           barcode: "",
           vatRate: taxRate,
           vatAmount: Math.round(item.unitPrice * item.quantity * taxRate * 100) / 100,

@@ -36,6 +36,35 @@ How one product codebase serves many branded instances — and specifically how
 
 That's the entire white-label surface — no code changes.
 
+## Editions (one core, configurations — never forks)
+
+An **edition** is a named deployment recipe: a feature preset + seed data +
+(optionally) an adapter package. Editions live as configuration and seeds; the
+core repo stays a single product so improvements flow to every deployment.
+
+- **Core** — this repo as shipped. Generic seeds, default theme, all optional
+  modules off unless the catalog defaults them on.
+- **Akritos** (consultancy edition) — the maker's own deployment. Defined
+  entirely by the gitignored `app/scripts/seed-akritos.mjs` +
+  `app/scripts/akritos-content/`: consultancy feature preset (booking, helpdesk,
+  time tracking, CMS+blog, `dmarcTools`), dark `theme.mode`, the akritos.com
+  palette, and the full page/post content. **SEO guarantee:** `akritos-content/`
+  is the canonical source of the akritos.com pages and posts — slugs are
+  preserved from the live site so indexing carries over — and it must ride every
+  environment move (it is data, not code; verified intact after the 2026-06-10
+  environment rename).
+- **Saybrook** (retail edition) — a retail feature preset (POS, inventory,
+  warehousing, dispatch, purchasing, commissions) plus the **Ordorite adapter**:
+  a self-contained import package (report runners, status derivation, rewrite /
+  dedup quirk handling) that translates Ordorite's daily exports into Holt's
+  models. Ordorite-specific logic lives only in the adapter — never in core
+  reports or services. The adapter is the bridge that lets Holt run in parallel
+  with the legacy system (daily reconciliation compares totals) until it becomes
+  the system of record.
+
+Adding a future client = a new seed + feature preset, and an adapter only if
+they migrate from a system with quirky exports.
+
 ## The Akritos port
 
 Akritos runs its own site + back-office on Holt. Its deployment layer is the

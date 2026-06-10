@@ -96,7 +96,7 @@ export interface DesignerDashboardParams {
   asOf?: string;
 }
 
-interface CategoryMetrics {
+export interface CategoryMetrics {
   revenue: number;
   cost: number;
   count: number;
@@ -124,9 +124,10 @@ function getCategoryForDepartment(deptName: string | null): string {
   return "Home Shop";
 }
 
-// netPrice is already the extended line total (unit price * qty); cost is the
-// per-unit cost so it's multiplied by orderedQuantity. Split orders credit 50%.
-interface DashboardLineItem {
+// netPrice AND cost are both extended LINE totals (already multiplied by qty)
+// -- the same invariant journalEntry.ts, grossMargin.ts, and every other reader
+// relies on. Never multiply either by orderedQuantity. Split orders credit 50%.
+export interface DashboardLineItem {
   netPrice: unknown;
   cost: unknown;
   orderedQuantity: unknown;
@@ -156,7 +157,7 @@ function isInPeriod(orderDate: Date | null, period: PeriodRange): boolean {
 // Sales by Salesperson + Monthly Performance. Non-merchandise pass-through codes
 // (DELIVERY CHARGE / HD-FREIGHT / LABOR-HD) are already filtered at the line-item
 // where clause.
-function accumulateLineItem(
+export function accumulateLineItem(
   result: Record<string, CategoryMetrics>,
   li: DashboardLineItem,
   multiplier: number,
@@ -165,7 +166,9 @@ function accumulateLineItem(
   const category = getCategoryForDepartment(deptName);
 
   const revenue = Number(li.netPrice) * multiplier;
-  const cost = Number(li.cost) * Number(li.orderedQuantity) * multiplier;
+  // cost is the LINE total (sister invariant to netPrice) -- multiplying by
+  // orderedQuantity here double-counted COGS for every multi-qty line.
+  const cost = Number(li.cost) * multiplier;
 
   if (category !== "__excluded__" && result[category]) {
     result[category].revenue += revenue;
