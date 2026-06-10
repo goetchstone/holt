@@ -188,7 +188,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         lineItems: inv.lineItems.map((li) => ({
           id: li.id,
           deliveredQuantity: Number(li.deliveredQuantity),
-          orderLineItem: { partNo: li.orderLineItem.partNo },
+          orderLineItem: { partNo: li.orderLineItem?.partNo ?? "" },
         })),
       })),
       payments: order.payments.map((p) => ({

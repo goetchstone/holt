@@ -133,3 +133,53 @@ version. Owner decides how far per slice.
   `customerLedger`, real-DB integration tests proving each invariant.
 - `Decimal` end-to-end; never float arithmetic on money.
 - After any change touching money: re-assert the books reconcile.
+
+## Invoice authoring (shipped 2026-06-10 — Ledger Risk 3 closed)
+
+The composer flow (`/app/sales/invoices`, feature flag `billing`, MANAGER/
+ADMIN) creates standalone invoices: `Invoice.organizationId` set,
+`customerId` + `total` + freeform `InvoiceLineItem` rows (`orderLineItemId`
+NULL, `description`/`quantity`/`unitPrice`/`amount` set — `amount` is the
+LINE TOTAL like `OrderLineItem.netPrice`). Imported/legacy invoices keep
+`organizationId` NULL and are refused by every authoring mutation.
+
+Lifecycle (all in `lib/billing/invoiceService.ts`, pure math in
+`lib/billing/invoiceAuthoring.ts`):
+
+- **Issue** (DRAFT → ISSUED): one transaction posts the `AR_SALE` journal
+  `ARI-<invoiceNo>` (debit AR control, credit revenue + tax), appends a
+  `SALE` ledger entry (+total), stamps `issuedAt`. Refuses with an
+  instructive error when GL mappings are missing — configure
+  `AR_TRANSACTIONS` / "Accounts Receivable" + "Invoice Sales" (+ "Sales
+  Tax", falls back to `POS_TRANSACTIONS`/"Sales Tax") in Admin → Setup →
+  Accounting.
+- **Payment** (manual or Stripe): COMPLETED customer-linked `Payment` (no
+  sales order) + `PaymentApplication` for the same amount + `AR_PAYMENT`
+  journal `ARP-<invoiceNo>-<paymentId>` (debit cash-side GL from the
+  `POS_PAYMENTS` mapping for the method, credit AR control) + `PAYMENT`
+  ledger entry. PAID flips when the open balance reaches zero (half-cent
+  tolerance). Stripe path: `createInvoicePaymentLink` makes a checkout
+  session + PENDING payment; the webhook runs `completePayment` (ledger)
+  then `applyInvoiceStripePayment` (application + journal + PAID) —
+  idempotent via the unique journal number + existing-application check.
+- **Void**: only with zero applications. ISSUED voids post the reversing
+  journal `ARV-<invoiceNo>` + an `ADJUSTMENT_CREDIT` ledger entry.
+
+Double-posting guards: `generateSalesJournal` SKIPS payments with
+`salesOrderId NULL` + applications (the invoice flow posted their journal);
+tripwire in `__tests__/invoiceAuthoring.test.ts`. The AR drift check folds
+`computeStandaloneInvoiceSource` (ISSUED/PAID totals minus applications)
+into the source side so billed customers tie out —
+`customerArDriftRunner.ts` hydrates authored invoices per candidate.
+
+Surfaces: tRPC `billing.*` router (feature-gated, MANAGER/ADMIN), pages
+under `/app/sales/invoices` (list / composer / detail), PDF at
+`GET /api/billing/invoices/[id]/pdf`, email template `invoiceIssuedEmail`
+through the durable queue (optionally embedding a Stripe pay link).
+
+Real-DB proof: `__tests__/integration/invoiceLifecycle.integration.test.ts`
+(issue → balanced journal + ledger; partial + closing payments; drift
+tie-out; void reversal; missing-mapping guards).
+
+Still open (AR slices 2-4): customer deposits as liability, progress
+invoicing, credit memos / refunds of invoice payments.

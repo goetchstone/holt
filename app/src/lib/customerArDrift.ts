@@ -39,6 +39,13 @@ export interface CustomerArInput {
   storedBalance: number;
   /** All non-cancelled orders for this customer (with their line items + payments). */
   orders: ReadonlyArray<OrderForLedgerSource>;
+  /** Source-side contribution of authored standalone invoices (invoice
+   *  totals minus applied payments — `computeStandaloneInvoiceSource` in
+   *  lib/billing/invoiceAuthoring.ts). 0 / omitted when the customer has
+   *  none. Added 2026-06-10 with invoice authoring: issuance writes a SALE
+   *  ledger entry with no SalesOrder behind it, so the order-only source
+   *  would otherwise flag every billed customer as drifted. */
+  standaloneInvoiceBalance?: number;
 }
 
 export interface DriftRow {
@@ -83,7 +90,8 @@ export function compareCustomerArBalances(inputs: ReadonlyArray<CustomerArInput>
   const drifted: DriftRow[] = [];
 
   for (const c of inputs) {
-    const sourceBalance = computeSourceBalance(c.orders);
+    const sourceBalance =
+      Math.round((computeSourceBalance(c.orders) + (c.standaloneInvoiceBalance ?? 0)) * 100) / 100;
     const v = validateAgainstSource(c.storedBalance, sourceBalance);
     if (v.ok) {
       ok += 1;

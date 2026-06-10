@@ -18,6 +18,7 @@ import {
   type CustomerArInput,
 } from "@/lib/customerArDrift";
 import type { OrderForLedgerSource } from "@/lib/customerLedger";
+import { computeStandaloneInvoiceSource } from "@/lib/billing/invoiceAuthoring";
 
 export const DEFAULT_LOOKBACK_HOURS = 26; // 1am cron covers the prior day
 
@@ -138,6 +139,43 @@ export async function runCustomerArDriftCheck(
     },
   });
 
+  // 2b) Authored standalone invoices (no SalesOrder behind them) recognize
+  //     AR through the invoice flow — fold their open balances into the
+  //     source side so billed customers tie out.
+  const invoicesForCustomers = await prisma.invoice.findMany({
+    where: {
+      customerId: { in: candidateIds },
+      organizationId: { not: null },
+      status: { in: ["ISSUED", "PAID"] },
+    },
+    select: {
+      customerId: true,
+      status: true,
+      total: true,
+      applications: { select: { amountApplied: true } },
+    },
+  });
+  const invoiceBalanceMap = new Map<number, number>();
+  {
+    const grouped = new Map<
+      number,
+      { status: string; total: number; appliedAmounts: number[] }[]
+    >();
+    for (const inv of invoicesForCustomers) {
+      if (inv.customerId === null || inv.total === null) continue;
+      const list = grouped.get(inv.customerId) ?? [];
+      list.push({
+        status: String(inv.status),
+        total: Number(inv.total),
+        appliedAmounts: inv.applications.map((a) => Number(a.amountApplied)),
+      });
+      grouped.set(inv.customerId, list);
+    }
+    for (const [customerId, invoices] of grouped) {
+      invoiceBalanceMap.set(customerId, computeStandaloneInvoiceSource(invoices));
+    }
+  }
+
   // 3) Group orders by customerId.
   const ordersMap = new Map<number, OrderForLedgerSource[]>();
   for (const o of ordersForCustomers) {
@@ -164,6 +202,7 @@ export async function runCustomerArDriftCheck(
     label: buildCustomerLabel(c.firstName, c.lastName, c.id),
     storedBalance: Number(c.openArBalance ?? 0),
     orders: ordersMap.get(c.id) ?? [],
+    standaloneInvoiceBalance: invoiceBalanceMap.get(c.id) ?? 0,
   }));
 
   return {

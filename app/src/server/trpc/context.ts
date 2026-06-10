@@ -11,6 +11,8 @@ import { getToken } from "next-auth/jwt";
 
 export interface TrpcContext {
   userId: string | null;
+  /** Email from the JWT — used for createdBy/updatedBy audit fields. */
+  userEmail: string | null;
   /** Role carried on the JWT (may be stale vs DB; role procedures re-resolve). */
   tokenRole: string | null;
   impersonate: string | null;
@@ -37,6 +39,7 @@ export async function createContext({ req }: { req: Request }): Promise<TrpcCont
 
   return {
     userId: (token?.id as string | undefined) ?? null,
+    userEmail: (token?.email as string | undefined) ?? null,
     tokenRole: (token?.role as string | undefined) ?? null,
     impersonate: readImpersonateCookie(req),
     headers: req.headers,

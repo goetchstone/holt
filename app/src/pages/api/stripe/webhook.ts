@@ -5,6 +5,7 @@ import { getStripe } from "@/lib/stripe";
 import { resolveCredential } from "@/lib/integrationCredentials";
 import { prisma } from "@/lib/prisma";
 import { completePayment, onPaymentReceived } from "@/lib/paymentService";
+import { applyInvoiceStripePayment } from "@/lib/billing/invoiceService";
 import { logError } from "@/lib/logger";
 import type Stripe from "stripe";
 
@@ -55,9 +56,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const orderId = session.metadata?.orderId;
+    const invoiceId = session.metadata?.invoiceId;
 
-    if (!orderId) {
-      return res.status(200).json({ received: true, warning: "No orderId in metadata" });
+    if (!orderId && !invoiceId) {
+      return res.status(200).json({ received: true, warning: "No orderId/invoiceId in metadata" });
     }
 
     const pendingPayment = await prisma.payment.findFirst({
@@ -99,6 +101,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Promote QUOTE → ORDER and create draft POs
       if (pendingPayment.salesOrderId) {
         await onPaymentReceived(pendingPayment.salesOrderId);
+      }
+
+      // Authored-invoice payment: apply to the invoice + post the AR_PAYMENT
+      // journal. Idempotent; a thrown error here makes Stripe retry while
+      // completePayment above no-ops, so the application eventually lands.
+      if (invoiceId) {
+        await applyInvoiceStripePayment(pendingPayment.id, Number(invoiceId));
       }
     }
   }

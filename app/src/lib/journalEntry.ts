@@ -462,6 +462,7 @@ export async function generateSalesJournal(
   const payments = await prisma.payment.findMany({
     where: paymentWhere,
     include: {
+      applications: { select: { id: true } },
       salesOrder: {
         include: {
           invoices: { select: { id: true } },
@@ -509,6 +510,12 @@ export async function generateSalesJournal(
   for (const payment of payments) {
     const amount = toNum(payment.paymentAmount);
     if (amount === 0) continue;
+
+    // Authored-invoice payments (no sales order, applied to an invoice) post
+    // their own AR_PAYMENT journal at application time (lib/billing/
+    // invoiceService.ts) — including them here would credit the deposit GL
+    // instead of relieving AR, and double-count cash.
+    if (payment.salesOrderId === null && payment.applications.length > 0) continue;
 
     const typeKey = (payment.paymentType || "").toLowerCase().trim();
     const mapping = paymentGlMap.get(typeKey);

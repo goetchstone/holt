@@ -88,3 +88,51 @@ export function ticketReplyEmail(input: TicketReplyEmailInput): RenderedEmail {
     <p><a href="${escapeHtml(input.statusUrl)}" style="color:#1c1f2e">View &amp; reply</a></p>`;
   return { subject, html: layout(input.appName, "New reply", body) };
 }
+
+export interface InvoiceEmailInput {
+  appName: string;
+  customerName: string;
+  invoiceNo: string;
+  /** Pre-formatted money strings (the caller owns currency/locale). */
+  totalFormatted: string;
+  openBalanceFormatted: string;
+  dueDate?: Date | null;
+  /** Stripe checkout URL when a payment link was generated alongside. */
+  paymentUrl?: string | null;
+  lines: { description: string; quantity: number; amountFormatted: string }[];
+}
+
+export function invoiceIssuedEmail(input: InvoiceEmailInput): RenderedEmail {
+  const subject = `Invoice ${input.invoiceNo} from ${input.appName}`;
+  const due = input.dueDate
+    ? `<p>Due by <strong>${escapeHtml(
+        new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(input.dueDate),
+      )}</strong>.</p>`
+    : "";
+  const rows = input.lines
+    .map(
+      (l) => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #e8e4dc">${escapeHtml(l.description)}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e8e4dc;text-align:right">${l.quantity}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e8e4dc;text-align:right">${escapeHtml(l.amountFormatted)}</td>
+      </tr>`,
+    )
+    .join("");
+  const pay = input.paymentUrl
+    ? `<p style="margin:24px 0"><a href="${escapeHtml(input.paymentUrl)}" style="background:#1c1f2e;color:#f5f4f0;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Pay ${escapeHtml(input.openBalanceFormatted)} now</a></p>`
+    : "";
+  const body = `<p>Hi ${escapeHtml(input.customerName)},</p>
+    <p>Invoice <strong>${escapeHtml(input.invoiceNo)}</strong> for <strong>${escapeHtml(input.totalFormatted)}</strong> is ready.</p>
+    ${due}
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0">
+      <thead><tr>
+        <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #1c1f2e">Description</th>
+        <th style="padding:6px 8px;text-align:right;border-bottom:2px solid #1c1f2e">Qty</th>
+        <th style="padding:6px 8px;text-align:right;border-bottom:2px solid #1c1f2e">Amount</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${pay}
+    <p>Reply to this email with any questions.</p>`;
+  return { subject, html: layout(input.appName, `Invoice ${input.invoiceNo}`, body) };
+}
