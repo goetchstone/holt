@@ -43,6 +43,15 @@ interface TicketDetail {
   assignedTo: { id: number; displayName: string } | null;
   customer: { id: number; firstName: string | null; lastName: string | null } | null;
   messages: TicketMessage[];
+  attachments: TicketAttachment[];
+}
+
+interface TicketAttachment {
+  id: number;
+  filename: string;
+  url: string;
+  uploadedBy: string | null;
+  created: string;
 }
 
 interface StaffOption {
@@ -66,6 +75,7 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
 
   const [reply, setReply] = useState("");
   const [internal, setInternal] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,6 +135,25 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
       toast.error(getErrorMessage(err, "Could not update ticket"));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function uploadAttachment(file: File) {
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch(`/api/tickets/${ticketId}/attachments`, { method: "POST", body });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Upload failed");
+        return;
+      }
+      await load();
+    } catch {
+      toast.error("Upload failed");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -244,6 +273,45 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
         {ticket.messages.map((m) => (
           <MessageBubble key={m.id} message={m} />
         ))}
+      </section>
+
+      <section className="mt-6 rounded-md border border-black/10 p-4">
+        <h2 className="mb-2 text-sm font-semibold text-sh-navy">Attachments</h2>
+        {ticket.attachments.length === 0 && (
+          <p className="text-sm text-sh-gray">No files attached.</p>
+        )}
+        <ul className="space-y-1">
+          {ticket.attachments.map((a) => (
+            <li key={a.id} className="text-sm">
+              <a
+                href={a.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sh-navy hover:underline"
+              >
+                {a.filename}
+              </a>
+              <span className="text-sh-gray">
+                {" "}
+                · {a.uploadedBy ?? "unknown"} · {dateTimeFmt.format(new Date(a.created))}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <label className="mt-3 inline-flex min-h-[44px] cursor-pointer items-center rounded-md border border-black/15 px-4 text-sm text-sh-navy transition hover:bg-black/5">
+          {uploading ? "Uploading…" : "Attach a file"}
+          <input
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,.heic,.pdf"
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) uploadAttachment(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
       </section>
 
       <section className="mt-6 rounded-md border border-black/10 p-4">

@@ -102,3 +102,15 @@ Nav: `Helpdesk` in `lib/auth/navPermissions.ts` (`NAV_ITEMS`,
 The upstream RMS also modelled `File` attachments on tickets/messages. Not ported in
 this slice — Holt's upload path (`lib/secureUpload.ts`) can be wired to
 `TicketMessage` later if needed. Tracked as a follow-up, not a gap.
+
+## Ticket attachments (2026-06-10)
+
+`TicketAttachment` (migration `20260610d`): files hang off the TICKET (not a
+message), uploaded from the staff detail page or the public status page —
+the `publicToken` is the public authorization, same capability as replies
+(rate-limited 5/min). Uploads go through `createSecureForm("TICKET_ATTACHMENT")`
+(images + PDF only, 10MB, random names under `data/uploads/attachments/`,
+no SVG) and serve via `/api/uploads/[...path]`. Both GET projections include
+the list; the public side shows filename + uploader name only. Note: served
+URLs are unauthenticated capability-by-random-name, consistent with every
+other upload in the repo — don't attach secrets.

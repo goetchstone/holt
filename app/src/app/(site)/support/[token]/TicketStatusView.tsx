@@ -20,12 +20,21 @@ interface PublicMessage {
   fromStaff: boolean;
 }
 
+interface PublicAttachment {
+  id: number;
+  filename: string;
+  url: string;
+  uploadedBy: string | null;
+  created: string;
+}
+
 interface PublicTicket {
   ticketNumber: string;
   subject: string;
   status: TicketStatusValue;
   created: string;
   messages: PublicMessage[];
+  attachments: PublicAttachment[];
 }
 
 const dateTimeFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -36,6 +45,7 @@ export function TicketStatusView({ token }: Readonly<{ token: string }>) {
   const [notFound, setNotFound] = useState(false);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,6 +89,25 @@ export function TicketStatusView({ token }: Readonly<{ token: string }>) {
     }
   }
 
+  async function uploadAttachment(file: File) {
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch(`/api/tickets/public/${token}/attachment`, {
+        method: "POST",
+        body,
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Upload failed");
+      toast.success("File attached");
+      await load();
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Upload failed"));
+    } finally {
+      setUploading(false);
+    }
+  }
+
   if (loading) return <p className="text-sh-gray">Loading…</p>;
   if (notFound)
     return (
@@ -118,6 +147,43 @@ export function TicketStatusView({ token }: Readonly<{ token: string }>) {
             <p className="whitespace-pre-wrap text-sh-black">{m.body}</p>
           </div>
         ))}
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-sm font-medium text-sh-black">Attachments</h2>
+        {ticket.attachments.length === 0 ? (
+          <p className="mt-1 text-sm text-sh-gray">No files attached yet.</p>
+        ) : (
+          <ul className="mt-1 space-y-1">
+            {ticket.attachments.map((a) => (
+              <li key={a.id} className="text-sm">
+                <a
+                  href={a.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sh-navy hover:underline"
+                >
+                  {a.filename}
+                </a>
+                <span className="text-sh-gray"> · {a.uploadedBy ?? ""}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <label className="mt-2 inline-flex min-h-[44px] cursor-pointer items-center rounded-md border border-black/15 px-4 text-sm text-sh-navy transition hover:bg-black/5">
+          {uploading ? "Uploading…" : "Attach a file (image or PDF, max 10MB)"}
+          <input
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,.heic,.pdf"
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) uploadAttachment(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
       </section>
 
       <section className="mt-6">

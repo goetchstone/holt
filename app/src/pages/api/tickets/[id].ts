@@ -31,6 +31,7 @@ export default requireAuthWithRole(
             orderBy: { created: "asc" },
             include: { authorStaff: { select: { id: true, displayName: true } } },
           },
+          attachments: { orderBy: { created: "asc" } },
         },
       });
       if (!ticket) return res.status(404).json({ error: "Ticket not found" });
