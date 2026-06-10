@@ -266,7 +266,12 @@ export function InvoicePrintView({ id }: { id: string }) {
           </thead>
           <tbody>
             {order.lineItems.map((li, i) => {
-              const unitPrice = li.orderedQuantity > 0 ? li.netPrice / li.orderedQuantity : 0;
+              // Round the derived unit price to cents — netPrice is the LINE
+              // total, and a 3-way split would otherwise print 83.33333.
+              const unitPrice =
+                li.orderedQuantity > 0
+                  ? Math.round((li.netPrice / li.orderedQuantity) * 100) / 100
+                  : 0;
               return (
                 <tr key={i}>
                   <td>
