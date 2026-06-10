@@ -239,6 +239,7 @@ ALL = visible to every signed-in user (Designer, Manager, Admin, Marketing). Des
 | Detailed Sales | `/reports/detailed-sales` | MANAGER, ADMIN | session-only | Filterable in-depth table by store + date range + dept; drill-down to item + line. CSV export, store filter, department filter. |
 | Gross Margin | `/app/reports/gross-margin` | MANAGER, ADMIN | MANAGER+ADMIN | Revenue, cost, margin $, and margin % for a date range, grouped by department or vendor. Cancelled lines excluded; rows at 90%+ margin are flagged as probable missing product cost, not real profit. Engine: `lib/reports/grossMargin.ts` (DB GROUP BY). |
 | Inventory Health | `/app/reports/inventory-health` | MANAGER, ADMIN | MANAGER+ADMIN | On-hand valuation (units × cost) by department/vendor plus dead-stock aging (on-hand with no recent sales) — where working capital is tied up. Engine: `lib/reports/inventoryHealth.ts`. See `docs/domains/inventory.md`. |
+| PO Sell-Thru | `/app/reports/po-sell-thru` | MANAGER, ADMIN | MANAGER+ADMIN | Pick POs by number → per-frame sell-through, margin, and realized retail since each line's receive date. Engine: `lib/reports/poSellThru.ts` + pure windowing in `lib/reports/poSellThrough.ts`; frame math reuses `lib/buyPerformance.ts`. |
 | Comparative Sales | `/reports/comparative-sales` | MANAGER, ADMIN | session-only | Two date periods by store with $ + % variance. Optional dept filter. **Axper foot traffic per period** (visitors + traffic variance; conversion % = orders ÷ visitors shown only with no dept filter). MS-A + MS-B summed into Main Showroom via `getStoreLocationName`. Persisted-traffic only — no live pull. |
 | Weekly Summary | `/reports/weekly-summary` | MANAGER, ADMIN | session-only | Week-over-week: defaults to the last complete Sunday-aligned week, compares to the same week last year (−364 days, weekday-aligned so holidays line up). Columns: This Week / Last Year / vs LY $ / vs LY %; the Company pivot adds Visitors + **Conversion %** (this + last year). Labelled "vs LY" (not "YoY", which read like a year's worth of data). **Conversion % = sales transactions (ORDER/FULFILLED) ÷ door visitors, whole-store — NOT affected by the department filter** (door traffic isn't dept-specific); `transactionsByStore` in `weekly.ts`. Goal/variance columns dropped from this report 2026-05-29 (kept in the legacy `/reports/dashboard`). Department filter is a `MultiSelectDropdown`. Calls `/api/dashboard/weekly?wow=1`; date math `lib/weekOverWeek.ts`, rows `lib/weeklySummaryRows.ts`, traffic `lib/storeTraffic.ts`. |
 | Mailchimp Campaign Impact | `/reports/mailchimp` | ADMIN, MARKETING | session-only | Every campaign ranked by attributed revenue (purchases within 30 days of open or click), broken down by department. |
@@ -305,6 +306,33 @@ Two pivot modes (Department / Vendor). Pivot helper in `lib/buyersRollup.ts`. Ea
 ### Pipeline Opportunity
 
 Open quotes (status QUOTE) by salesperson. Conversion = `convertedCount / (convertedCount + quoteCount)` where converted are non-QUOTE statuses originating from a quote. Manager notes attach via `MANAGER_NOTE` interactions. Reassign-inactive moves stale quotes to a different salesperson.
+
+### PO Sell-Thru
+
+Manager picks real POs by number (comma-separated, up to 50) and gets a per-frame
+table of ordered vs received vs sold. The defining behavior is **per-line
+receive-date windowing**: each PO line's sell-through clock starts at that
+line's earliest `ReceivingRecord.receivedDate` and runs to today — a frame with
+no receipts shows no sales by design. Pure windowing math in
+`lib/reports/poSellThrough.ts` (pre-windows sales, then hands them to
+`computePerformance` from `lib/buyPerformance.ts` so the frame rollup /
+stock-vs-special split / margin engine is reused untouched). Data assembly in
+`lib/reports/poSellThru.ts`:
+
+- Sales filter: `lineItemStatus != CANCELLED` + `SALES_REVENUE_STATUSES`
+  (RETURNED included so rewrite chains net out).
+- Stock vs special: products literally on the selected POs are stock; other
+  frame-mate variants (customer-spec orders) count as special and don't drive
+  the status badge.
+- Consignment vendors are excluded **by relation** (`vendor:
+  { consignmentReceipts: { none: {} } }`), never by vendor name — keep it
+  white-label.
+- Realized retail = soldRevenue / (baseRetail × qty) over priced units only;
+  rows with missing line cost fall back to an assumed 50% margin and the UI
+  marks them "(est)".
+
+Tests: `__tests__/poSellThrough.test.ts` (windowing + realized retail +
+input parsing).
 
 ### Balance Due Aging
 
