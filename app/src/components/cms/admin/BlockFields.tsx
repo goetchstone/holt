@@ -102,14 +102,29 @@ export function BlockFields({
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           <TextField
+            label="Eyebrow (small gold caps, optional)"
+            value={block.eyebrow}
+            onChange={(v) => onPatch({ eyebrow: v })}
+          />
+          <TextField
             label="Heading"
             value={block.heading}
             onChange={(v) => onPatch({ heading: v })}
           />
           <TextField
+            label="Heading accent line (gold, optional)"
+            value={block.headingAccent}
+            onChange={(v) => onPatch({ headingAccent: v })}
+          />
+          <TextField
             label="Subheading"
             value={block.subheading}
             onChange={(v) => onPatch({ subheading: v })}
+          />
+          <ImageUploadField
+            label="Brand mark URL (small, above heading)"
+            value={block.markUrl}
+            onChange={(v) => onPatch({ markUrl: v })}
           />
           <ImageUploadField
             label="Background image URL"
@@ -224,6 +239,17 @@ export function BlockFields({
       return (
         <div className="flex flex-col gap-2">
           <BackgroundField value={block.background} onChange={(v) => onPatch({ background: v })} />
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-sh-gray">Layout</span>
+            <select
+              value={block.variant}
+              onChange={(e) => onPatch({ variant: e.target.value as "stats" | "checklist" })}
+              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+            >
+              <option value="stats">Stats (big numbers grid)</option>
+              <option value="checklist">Checklist (inline trust strip)</option>
+            </select>
+          </label>
           {block.items.map((item, i) => (
             <div key={i} className="flex items-end gap-2">
               <div className="grid flex-1 gap-2 sm:grid-cols-2">
@@ -294,7 +320,15 @@ export function BlockFields({
       );
     case "richText":
       return (
-        <TextArea label="HTML" value={block.html} rows={8} onChange={(v) => onPatch({ html: v })} />
+        <div className="flex flex-col gap-3">
+          <BackgroundField value={block.background} onChange={(v) => onPatch({ background: v })} />
+          <TextArea
+            label="HTML"
+            value={block.html}
+            rows={8}
+            onChange={(v) => onPatch({ html: v })}
+          />
+        </div>
       );
     case "image":
       return (

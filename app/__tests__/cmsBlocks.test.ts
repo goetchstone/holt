@@ -36,7 +36,7 @@ describe("parseBlocks", () => {
 
   it("preserves authored values and order", () => {
     const input: ContentBlock[] = [
-      { id: "1", type: "richText", html: "<p>hi</p>" },
+      { id: "1", type: "richText", html: "<p>hi</p>", background: "default" },
       { id: "2", type: "image", url: "/a.png", alt: "a", caption: "" },
     ];
     const out = parseBlocks(input);

@@ -40,8 +40,17 @@ const id = z.string().min(1);
 export const heroBlockSchema = z.object({
   id,
   type: z.literal("hero"),
+  // Small letterspaced gold caps line above the heading ("FREE TOOL", a brand
+  // descriptor). Empty = not rendered.
+  eyebrow: z.string().default(""),
   heading: z.string().default(""),
+  // Optional second headline line rendered in the gold accent color
+  // ("Technology partners." / "Not vendors."). Empty = single-line heading.
+  headingAccent: z.string().default(""),
   subheading: z.string().default(""),
+  // Small brand mark centered above the eyebrow (URL). Distinct from imageUrl,
+  // which is the full-bleed background image.
+  markUrl: z.string().default(""),
   imageUrl: z.string().default(""),
   ctaLabel: z.string().default(""),
   ctaHref: z.string().default(""),
@@ -55,6 +64,9 @@ export const richTextBlockSchema = z.object({
   id,
   type: z.literal("richText"),
   html: z.string().default(""),
+  // Same band treatment as the other section blocks; "dark" inverts the prose
+  // colors so text stays readable on dark sites.
+  background: z.enum(SECTION_BACKGROUNDS).default("default"),
 });
 
 export const imageBlockSchema = z.object({
@@ -118,6 +130,9 @@ export const statsBlockSchema = z.object({
   id,
   type: z.literal("stats"),
   items: z.array(statItemSchema).default([]),
+  // "stats" = big serif numbers grid; "checklist" = single inline row of
+  // check-marked claims (the akritos.com trust strip).
+  variant: z.enum(["stats", "checklist"]).default("stats"),
   // Default "dark" preserves the prior navy stat band.
   background: z.enum(SECTION_BACKGROUNDS).default("dark"),
 });
