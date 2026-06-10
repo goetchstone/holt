@@ -54,6 +54,13 @@ const ITEMS: CardGridItem[] = [
     roles: ["MANAGER", "ADMIN"],
   },
   {
+    title: "PO Sell-Thru",
+    description:
+      "Pick purchase orders by number and see how much of what they delivered has sold — sell-through, margin, and realized retail per frame, windowed from each line's receive date.",
+    href: "/app/reports/po-sell-thru",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
     title: "Top & Bottom Sellers",
     description:
       "Best and worst products by revenue, units, or margin for a date range. Filter by department to focus on merchandise; the margin view surfaces anything sold below cost.",

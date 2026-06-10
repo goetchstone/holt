@@ -13,6 +13,7 @@ import { getOpenOrdersReport } from "@/lib/reports/openOrders";
 import { getFactSalesDay } from "@/lib/reports/factSalesDay";
 import { getGrossMargin } from "@/lib/reports/grossMargin";
 import { getInventoryHealth } from "@/lib/reports/inventoryHealth";
+import { getPoSellThru } from "@/lib/reports/poSellThru";
 import { getTopSellers } from "@/lib/reports/topSellers";
 import { getReturnsAnalysis } from "@/lib/reports/returnsAnalysis";
 import { getSalesDaily } from "@/lib/reports/salesDaily";
@@ -340,6 +341,12 @@ export const reportsRouter = router({
   inventoryHealth: roleProcedure(MANAGER_ADMIN)
     .input(inventoryHealthInput)
     .query(({ input }) => getInventoryHealth(prisma, input ?? {})),
+  // PO sell-through: pick real POs by number, see how much of what they
+  // delivered has sold since each line's receive date. Exposes cost/margin,
+  // so management-level (MANAGER_ADMIN).
+  poSellThru: roleProcedure(MANAGER_ADMIN)
+    .input(z.object({ poNumbers: z.array(z.string().min(1)).min(1).max(50) }))
+    .query(({ input }) => getPoSellThru(prisma, input)),
   // Top & bottom sellers by units/revenue/margin. Exposes cost/margin, so
   // management-level (MANAGER_ADMIN).
   topSellers: roleProcedure(MANAGER_ADMIN)
