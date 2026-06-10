@@ -164,6 +164,28 @@ The 2022-05-01 sales-day journal for the business (1 day, all stores):
 
 Balances. Each department gets its own line (8 visible in this sample; more if more departments moved that day).
 
+## AR journals (invoice authoring, 2026-06-10)
+
+Two journal types beyond the daily `SALES` journal, both auto-POSTED inside
+the invoice transaction (balanced asserted before write; DB constraint
+backs it up):
+
+- `AR_SALE` — `ARI-<invoiceNo>` at issuance: debit AR control, credit
+  revenue, credit tax. `ARV-<invoiceNo>` is the mirrored reversal on void.
+- `AR_PAYMENT` — `ARP-<invoiceNo>-<paymentId>` per applied payment: debit
+  the `POS_PAYMENTS` GL for the method, credit AR control.
+
+GL resolution: `AR_TRANSACTIONS` / "Accounts Receivable" + "Invoice Sales"
+(required to issue; missing mappings refuse with an instructive error) and
+"Sales Tax" (falls back to `POS_TRANSACTIONS`/"Sales Tax").
+
+`generateSalesJournal` SKIPS payments with `salesOrderId NULL` that carry
+`PaymentApplication` rows — those are invoice payments whose GL impact the
+invoice flow already posted; including them would credit the deposit GL
+instead of relieving AR and double-count cash. Tripwire:
+`__tests__/invoiceAuthoring.test.ts`. Full flow:
+`docs/domains/accounts-receivable.md` "Invoice authoring".
+
 ## Sort order convention
 
 Journal lines are stored with a `sortOrder` so the export prints in a consistent order:

@@ -18,6 +18,7 @@ import {
   type CustomerArInput,
 } from "@/lib/customerArDrift";
 import type { OrderForLedgerSource } from "@/lib/customerLedger";
+import { computeStandaloneInvoiceSource } from "@/lib/billing/invoiceAuthoring";
 
 export const DEFAULT_LOOKBACK_HOURS = 26; // 1am cron covers the prior day
 
@@ -138,6 +139,54 @@ export async function runCustomerArDriftCheck(
     },
   });
 
+  // 2b) Authored standalone invoices (no SalesOrder behind them) recognize
+  //     AR through the invoice flow — fold their balances into the source
+  //     side so billed customers tie out. Payments come via the structural
+  //     Payment.invoiceId binding at their FULL amounts (mirroring the
+  //     ledger), so an overpayment surplus still reconciles.
+  // All statuses on purpose: a stale-link payment can land on a VOID invoice
+  // (journal + ledger posted, nothing applied) — its payment must still count
+  // on the source side. computeStandaloneInvoiceSource filters the due side
+  // to ISSUED/PAID itself.
+  const invoicesForCustomers = await prisma.invoice.findMany({
+    where: {
+      customerId: { in: candidateIds },
+      organizationId: { not: null },
+    },
+    select: {
+      customerId: true,
+      status: true,
+      total: true,
+      payments: { select: { paymentAmount: true, status: true, isRefund: true } },
+    },
+  });
+  const invoiceBalanceMap = new Map<number, number>();
+  {
+    const grouped = new Map<
+      number,
+      {
+        invoices: { status: string; total: number }[];
+        payments: { paymentAmount: number; status: string | null; isRefund: boolean }[];
+      }
+    >();
+    for (const inv of invoicesForCustomers) {
+      if (inv.customerId === null || inv.total === null) continue;
+      const bucket = grouped.get(inv.customerId) ?? { invoices: [], payments: [] };
+      bucket.invoices.push({ status: String(inv.status), total: Number(inv.total) });
+      for (const pay of inv.payments) {
+        bucket.payments.push({
+          paymentAmount: Number(pay.paymentAmount),
+          status: pay.status ? String(pay.status) : null,
+          isRefund: pay.isRefund,
+        });
+      }
+      grouped.set(inv.customerId, bucket);
+    }
+    for (const [customerId, b] of grouped) {
+      invoiceBalanceMap.set(customerId, computeStandaloneInvoiceSource(b.invoices, b.payments));
+    }
+  }
+
   // 3) Group orders by customerId.
   const ordersMap = new Map<number, OrderForLedgerSource[]>();
   for (const o of ordersForCustomers) {
@@ -164,6 +213,7 @@ export async function runCustomerArDriftCheck(
     label: buildCustomerLabel(c.firstName, c.lastName, c.id),
     storedBalance: Number(c.openArBalance ?? 0),
     orders: ordersMap.get(c.id) ?? [],
+    standaloneInvoiceBalance: invoiceBalanceMap.get(c.id) ?? 0,
   }));
 
   return {

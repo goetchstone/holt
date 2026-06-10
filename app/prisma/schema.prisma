@@ -2029,6 +2029,8 @@ model SystemGLMapping {
 enum JournalType {
   SALES
   PURCHASING
+  AR_SALE
+  AR_PAYMENT
 }
 
 enum JournalStatus {
@@ -2392,10 +2394,22 @@ model Invoice {
   status       InvoiceStatus        @default(DRAFT)
   applications PaymentApplication[]
 
+  // Authoring fields (invoice composer, 2026-06-10). organizationId is set on
+  // every authored invoice; legacy imported invoices leave it NULL. issuedAt is
+  // the moment AR was recognized (status -> ISSUED + SALE ledger entry + JE).
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  notes          String?
+  issuedAt       DateTime?
+  createdBy      String?
+  updatedBy      String?
+  payments       Payment[]     @relation("InvoicePayments")
+
   created DateTime  @default(now())
   updated DateTime? @updatedAt
 
   @@index([customerId, status])
+  @@index([organizationId, status])
 }
 
 // Open-item AR: allocates a Payment to a specific Invoice. A payment may split
@@ -2421,13 +2435,25 @@ model PaymentApplication {
   @@index([organizationId])
 }
 
+// Two line shapes share this model: legacy delivery lines reference an
+// OrderLineItem (orderLineItemId set, freeform fields NULL); authored lines
+// are freeform (orderLineItemId NULL, description/quantity/unitPrice/amount
+// set). `amount` is the LINE TOTAL (quantity x unitPrice), mirroring the
+// OrderLineItem.netPrice convention. Postgres allows many NULL
+// orderLineItemId rows under the unique constraint, so freeform lines coexist.
 model InvoiceLineItem {
-  id                Int           @id @default(autoincrement())
+  id                Int            @id @default(autoincrement())
   invoiceId         Int
-  invoice           Invoice       @relation(fields: [invoiceId], references: [id])
-  orderLineItemId   Int
-  orderLineItem     OrderLineItem @relation(fields: [orderLineItemId], references: [id])
-  deliveredQuantity Decimal
+  invoice           Invoice        @relation(fields: [invoiceId], references: [id])
+  orderLineItemId   Int?
+  orderLineItem     OrderLineItem? @relation(fields: [orderLineItemId], references: [id])
+  deliveredQuantity Decimal        @default(0)
+
+  description String?
+  quantity    Decimal?
+  unitPrice   Decimal?
+  amount      Decimal?
+  sortOrder   Int     @default(0)
 
   @@unique([invoiceId, orderLineItemId], name: "invoiceId_orderLineItemId")
 }
@@ -2491,6 +2517,12 @@ model Payment {
   // Check details
   checkNumber String?
 
+  // Authored-invoice link (invoice authoring, 2026-06-10). Structural binding
+  // for invoice payments — the Stripe webhook routes on THIS, never on
+  // session metadata alone. Mirrors salesOrderId for order payments.
+  invoiceId Int?
+  invoice   Invoice? @relation("InvoicePayments", fields: [invoiceId], references: [id])
+
   // Gift card link
   giftCardId Int?
   giftCard   GiftCard? @relation(fields: [giftCardId], references: [id])
@@ -2514,6 +2546,7 @@ model Payment {
   @@index([salesOrderId])
   @@index([paymentDate])
   @@index([tillId])
+  @@index([invoiceId])
 }
 
 // ---------------------------------------------------------------------------
@@ -4267,6 +4300,7 @@ model Organization {
   emailQueue          EmailQueue[]
   blogComments        BlogComment[]
   paymentApplications PaymentApplication[]
+  invoices            Invoice[]
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt

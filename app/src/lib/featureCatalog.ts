@@ -105,6 +105,13 @@ export const FEATURES: FeatureDef[] = [
     defaultEnabled: false,
   },
   {
+    key: "billing",
+    name: "Billing & Invoices",
+    description:
+      "Author invoices, issue them to AR (GL + customer ledger), email with a Stripe pay link, and record payments. Requires AR GL mappings in Accounting setup.",
+    defaultEnabled: false,
+  },
+  {
     key: "dmarcTools",
     name: "Email Auth Tools (DMARC)",
     description:

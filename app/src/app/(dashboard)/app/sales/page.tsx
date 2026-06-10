@@ -29,6 +29,14 @@ const ITEMS: CardGridItem[] = [
     feature: "pos",
   },
   {
+    title: "Invoices",
+    description:
+      "Bill a customer directly — draft, issue to the books, email with a Stripe pay link, and record payments.",
+    href: "/app/sales/invoices",
+    roles: ["MANAGER", "ADMIN"],
+    feature: "billing",
+  },
+  {
     title: "Quotes",
     description: "View and manage open quotes.",
     href: "/app/sales/orders?status=QUOTE",
