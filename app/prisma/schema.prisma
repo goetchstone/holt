@@ -4794,3 +4794,73 @@ model BlogComment {
   @@index([postId, status])
   @@index([organizationId, status])
 }
+
+// ---------------------------------------------------------------------------
+// Legacy Archive (feature flag `legacyArchive`, 2026-06-10) — read-only
+// snapshot of a client's PREVIOUS system's sales history, loaded once at
+// onboarding so staff can answer "what did this customer buy before the
+// cutover?" Deliberately isolated: no FK to live tables, never written by
+// imports, never included in reports. Contact fields are per-order snapshots
+// (no dependency on the live Customer table). The column-mapping that fills
+// these tables lives in a per-deployment import config, not in code — see
+// scripts/import-legacy-archive.mjs and docs/domains/legacy-archive.md.
+
+model LegacyOrder {
+  id               Int       @id @default(autoincrement())
+  orderNumber      String    @unique // idempotency key from the source system
+  salesOrderNumber String?
+  saleDate         DateTime?
+  customerCode     String?
+  customerName     String?
+  companyName      String?
+  email            String?
+  phone            String?
+  phone2           String?
+  address          String?
+  city             String?
+  state            String?
+  zip              String?
+  grandTotal       Decimal?
+  taxTotal         Decimal?
+
+  lines LegacyOrderLine[]
+
+  created DateTime @default(now())
+
+  @@index([saleDate])
+  @@index([customerCode])
+}
+
+model LegacyOrderLine {
+  id            Int         @id @default(autoincrement())
+  legacyOrderId Int
+  legacyOrder   LegacyOrder @relation(fields: [legacyOrderId], references: [id], onDelete: Cascade)
+  lineNumber    Int?
+  sku           String?
+  description   String?
+  lineTotal     Decimal?
+  vendor        String?
+  vendorSku     String?
+  manufacturer  String?
+  // Free-form passthrough columns for source fields with no generic home.
+  misc1         String?
+  misc2         String?
+  misc3         String?
+  misc4         String?
+  misc5         String?
+
+  @@index([legacyOrderId])
+}
+
+model LegacyImportLog {
+  id          Int       @id @default(autoincrement())
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  sourceFile  String?
+  ordersLoaded Int      @default(0)
+  linesLoaded  Int      @default(0)
+  errors      String[]
+  triggeredBy String?
+
+  @@index([startedAt])
+}

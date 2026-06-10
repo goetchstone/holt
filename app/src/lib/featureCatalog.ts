@@ -112,6 +112,13 @@ export const FEATURES: FeatureDef[] = [
     defaultEnabled: false,
   },
   {
+    key: "legacyArchive",
+    name: "Legacy Archive",
+    description:
+      "Read-only lookup of sales history imported from a previous system (one-time load at onboarding). Isolated from live data and reports.",
+    defaultEnabled: false,
+  },
+  {
     key: "dmarcTools",
     name: "Email Auth Tools (DMARC)",
     description:
