@@ -138,3 +138,53 @@ The script encapsulates the two things that bite a naive `docker compose up`:
 The script also prunes build cache (a full cache once filled Docker's disk and
 crashed the dev DB) and polls `/` for a 200 before returning, so a failed
 bring-up surfaces immediately instead of as a silent 500.
+
+## VPS deploy kit (the Akritos cutover, step by step)
+
+Everything below is local-preparable; only the final DNS step touches the
+live site. Prereqs from the owner: SSH access to the akritos.com VPS, a
+fresh dump of the production simplerms database, and the production
+secrets (entered in Settings → Integrations after first boot, never in
+files).
+
+1. **Dry-run the data migration locally.** Restore the simplerms dump into
+   a scratch DB, then:
+
+   ```
+   SOURCE_DATABASE_URL=postgres://.../simplerms_copy \
+   DATABASE_URL=postgres://.../holt_staging \
+   node scripts/migrate-simplerms.mjs --dry-run
+   ```
+
+   Review the per-entity counts + `scripts/migration-exceptions.json`
+   (Client.company, notes, files — everything with no Holt home is listed,
+   nothing silently disappears). Re-run without `--dry-run`; the script is
+   idempotent (natural keys: invoice number, ticket number, service slug,
+   customer email), and it backfills the AR subledger so the drift check
+   ties out from day one. Then run the drift check to prove it.
+
+2. **Verify SEO parity** against the staging instance with the akritos seed
+   + migrated data loaded:
+
+   ```
+   node scripts/sitemap-diff.mjs https://akritos.com http://localhost:3000
+   ```
+
+   Exit 0 = every live URL exists and resolves on Holt. Anything missing
+   blocks the cutover.
+
+3. **Stand up the VPS.** Docker + the production compose (`docker-compose.yml`
+   `app` + `db` + nginx profile). Env per `env.example`:
+   `NEXTAUTH_URL=https://akritos.com`, fresh `NEXTAUTH_SECRET`,
+   `APP_ENCRYPTION_KEY` (sacred — store it in the secret manager),
+   `AUTH_LOCAL_ENABLED=1` until OAuth is configured. Apply migrations,
+   `npm run create-admin`, run `seed-akritos.mjs`, then the data migration
+   from step 1 against the real dump taken during the cutover window.
+
+4. **Cut over.** Freeze writes on the old simplerms instance, take the
+   final dump, re-run the (idempotent) migration, point DNS at the VPS,
+   submit the sitemap in Search Console. Roll back = point DNS back; the
+   old instance was never modified.
+
+5. **Decommission later, not same-day.** Keep simplerms read-only for two
+   weeks as the reference for any data question, then archive its volume.
