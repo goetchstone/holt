@@ -191,6 +191,7 @@ const ALL_TABLES = [
   "TaxGroup",
   "TaxRule",
   "Ticket",
+  "TicketAttachment",
   "TicketMessage",
   "Till",
   "TillCount",

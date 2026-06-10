@@ -4568,7 +4568,8 @@ model Ticket {
 
   resolvedAt DateTime?
 
-  messages TicketMessage[]
+  messages    TicketMessage[]
+  attachments TicketAttachment[]
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
@@ -4882,4 +4883,26 @@ model PasswordResetToken {
   created DateTime @default(now())
 
   @@index([staffMemberId])
+}
+
+// Helpdesk ticket file attachments (screenshots, PDFs). Uploaded by staff
+// from the ticket detail or by the customer from the public status page
+// (token-authed). Files live under data/uploads/attachments with random
+// names and are served by /api/uploads/[...path]; deleting the ticket
+// cascades the rows (files are cleaned by ops, not in-request).
+model TicketAttachment {
+  id       Int    @id @default(autoincrement())
+  ticketId Int
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  filename String
+  url      String
+  mimeType String
+  bytes    Int?
+  // Staff display name or the public submitter name — display only.
+  uploadedBy String?
+
+  created DateTime @default(now())
+
+  @@index([ticketId])
 }
