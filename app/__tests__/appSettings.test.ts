@@ -36,6 +36,16 @@ describe("resolveAppSettings", () => {
     expect(r.features).toEqual({});
     expect(r.currency).toBe("USD");
     expect(r.bookingConfig).toEqual(BOOKING_DEFAULTS);
+    expect(r.themeMode).toBe("light");
+  });
+
+  it("resolves themeMode from theme.mode, defaulting light on anything else", () => {
+    expect(resolveAppSettings(row({ theme: { mode: "dark" } })).themeMode).toBe("dark");
+    expect(resolveAppSettings(row({ theme: { mode: "light" } })).themeMode).toBe("light");
+    // unknown / missing / non-string never produce dark
+    expect(resolveAppSettings(row({ theme: { mode: "neon" } })).themeMode).toBe("light");
+    expect(resolveAppSettings(row({ theme: {} })).themeMode).toBe("light");
+    expect(resolveAppSettings(row({ theme: null })).themeMode).toBe("light");
   });
 
   it("resolves bookingConfig from the row, falling back to defaults", () => {

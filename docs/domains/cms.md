@@ -65,10 +65,29 @@ per-block config set in the editor, not code:
   (back-compat, covered in `cmsBlocks.test.ts`).
 - `eyebrow` (features/quote/cta): a small gold uppercase label above the heading.
 
-`hero` is always full-bleed navy; `richText` is always light prose (no
-`background` field yet — a richText section variant is the next increment if a
-tenant wants dark long-form bands). Alternate `background` across consecutive
-sections to get the dark/light marketing rhythm.
+`hero` is always full-bleed navy and additionally carries `eyebrow` (gold caps
+line), `headingAccent` (second headline line in gold), and `markUrl` (small
+centered brand mark above the eyebrow) — all optional, empty = not rendered.
+Its primary CTA renders with a trailing arrow. `richText` now carries the same
+`background` field as the other section blocks (default `default` = white band);
+`dark` wraps the prose in the navy band with inverted prose colors so long-form
+text stays readable on dark sites. `stats` has a `variant`: `stats` (big serif
+numbers grid, the default) or `checklist` (one inline row of check-marked
+claims — a trust strip). Alternate `background` across consecutive sections to
+get the dark/light marketing rhythm.
+
+### Site chrome theme mode (`AppSettings.theme.mode`)
+
+The public-site chrome (layout body, `SiteHeader`, `SiteFooter`) follows
+`settings.themeMode`: `light` (default — white header bar, filled "Sign in"
+button, linen footer) or `dark` (navy chrome on the brand tokens: logo +
+letterspaced wordmark, outline "Staff login" button, navy footer — the full-dark
+akritos.com look). Stored as `mode` inside the `AppSettings.theme` JSON (no
+migration); `resolveAppSettings` surfaces it as `themeMode`, and the settings
+API's `parseTheme` carries it through explicitly (that function rebuilds the
+theme object from a whitelist, so an unhandled key would be dropped on every
+save — covered by `appSettings.test.ts`). Toggle lives in Admin → Settings →
+Theme colors → "Public site chrome". The back-office is unaffected.
 
 ## Editor (ADMIN-only, `/app/admin/cms`)
 

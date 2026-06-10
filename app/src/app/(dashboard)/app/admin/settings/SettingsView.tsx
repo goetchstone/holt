@@ -128,13 +128,32 @@ function BrandingSection({
 function ThemeSection({
   settings,
   onChange,
+  onModeChange,
 }: Readonly<{
   settings: ResolvedAppSettings;
   onChange: (key: string, value: string) => void;
+  onModeChange: (mode: "light" | "dark") => void;
 }>) {
   return (
     <section className="space-y-4">
       <h2 className="font-serif text-lg text-sh-blue">Theme colors</h2>
+      <div className="max-w-xs">
+        <label htmlFor="theme-mode" className="mb-1 block text-sm text-sh-gray">
+          Public site chrome
+        </label>
+        <select
+          id="theme-mode"
+          value={settings.themeMode}
+          onChange={(e) => onModeChange(e.target.value as "light" | "dark")}
+          className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+        >
+          <option value="light">Light (white header, linen footer)</option>
+          <option value="dark">Dark (full-dark site on brand colors)</option>
+        </select>
+        <p className="mt-1 text-xs text-sh-gray">
+          Affects the public marketing site only — the back-office stays unchanged.
+        </p>
+      </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
         {THEME_FIELDS.map((t) => {
           const themeKey = t.key as keyof typeof settings.theme;
@@ -438,7 +457,7 @@ export function SettingsView() {
           currency: settings.currency,
           locale: settings.locale,
           timezone: settings.timezone,
-          theme: settings.theme,
+          theme: { ...settings.theme, mode: settings.themeMode },
           features,
           bookingConfig: settings.bookingConfig,
         }),
@@ -538,7 +557,11 @@ export function SettingsView() {
       </div>
 
       <BrandingSection settings={settings} onChange={setText} />
-      <ThemeSection settings={settings} onChange={setThemeColor} />
+      <ThemeSection
+        settings={settings}
+        onChange={setThemeColor}
+        onModeChange={(mode) => setSettings((prev) => (prev ? { ...prev, themeMode: mode } : prev))}
+      />
       <LocalizationSection settings={settings} onChange={setText} />
       <BookingSection config={settings.bookingConfig} onChange={setBookingConfig} />
       <ModulesSection

@@ -33,6 +33,11 @@ export const DEFAULT_THEME = {
 export type ThemeKey = keyof typeof DEFAULT_THEME;
 export type Theme = Record<ThemeKey, string>;
 
+// Site chrome mode. Stored inside the AppSettings.theme JSON as `mode` (no
+// migration needed); "dark" renders the public-site header/footer/body on the
+// navy/stripe tokens instead of white/linen. The back-office is unaffected.
+export type ThemeMode = "light" | "dark";
+
 // Theme key -> the CSS custom properties it drives. navy feeds both the
 // primary and the navy alias token.
 const THEME_CSS_VARS: Record<ThemeKey, string[]> = {
@@ -56,6 +61,7 @@ export interface ResolvedAppSettings {
   faviconUrl: string | null;
   supportEmail: string | null;
   theme: Theme;
+  themeMode: ThemeMode;
   currency: string;
   locale: string;
   timezone: string;
@@ -73,6 +79,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   faviconUrl: null,
   supportEmail: null,
   theme: { ...DEFAULT_THEME },
+  themeMode: "light",
   currency: "USD",
   locale: "en-US",
   timezone: "America/New_York",
@@ -115,11 +122,13 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
   }
 
   const theme = { ...DEFAULT_THEME } as Theme;
+  let themeMode: ThemeMode = "light";
   if (isRecord(row.theme)) {
     for (const key of Object.keys(DEFAULT_THEME) as ThemeKey[]) {
       const value = row.theme[key];
       if (typeof value === "string" && value.trim()) theme[key] = value.trim();
     }
+    if (row.theme.mode === "dark") themeMode = "dark";
   }
 
   const features: Record<string, boolean> = {};
@@ -137,6 +146,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     faviconUrl: row.faviconUrl ?? null,
     supportEmail: row.supportEmail ?? null,
     theme,
+    themeMode,
     currency: row.currency?.trim() || DEFAULT_APP_SETTINGS.currency,
     locale: row.locale?.trim() || DEFAULT_APP_SETTINGS.locale,
     timezone: row.timezone?.trim() || DEFAULT_APP_SETTINGS.timezone,

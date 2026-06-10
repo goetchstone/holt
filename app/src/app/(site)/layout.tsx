@@ -23,11 +23,28 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
     getMenu("footer"),
   ]);
 
+  // themeMode drives the public-site chrome only: "dark" puts the body, header,
+  // and footer on the navy/stripe brand tokens (full-dark sites like akritos.com);
+  // "light" is the white/linen default. The back-office is unaffected either way.
+  const dark = settings.themeMode === "dark";
+
   return (
-    <div className="flex min-h-screen flex-col bg-white text-sh-black">
-      <SiteHeader appName={settings.appName} logoUrl={settings.logoUrl} items={headerMenu} />
+    <div
+      className={`flex min-h-screen flex-col ${dark ? "bg-sh-navy text-sh-stripe" : "bg-white text-sh-black"}`}
+    >
+      <SiteHeader
+        appName={settings.appName}
+        logoUrl={settings.logoUrl}
+        items={headerMenu}
+        variant={settings.themeMode}
+      />
       <main className="flex-1">{children}</main>
-      <SiteFooter appName={settings.appName} items={footerMenu} year={new Date().getFullYear()} />
+      <SiteFooter
+        appName={settings.appName}
+        items={footerMenu}
+        year={new Date().getFullYear()}
+        variant={settings.themeMode}
+      />
     </div>
   );
 }

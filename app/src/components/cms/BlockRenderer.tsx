@@ -11,6 +11,7 @@
 // per-block config, set in the admin editor and seeded per tenant.
 
 import Link from "next/link";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 import type { ContentBlock } from "@/lib/cms/blocks";
 import { sanitizeCmsHtml } from "@/lib/cms/sanitize";
 
@@ -71,9 +72,21 @@ function HeroBlockView({ block }: { block: Extract<ContentBlock, { type: "hero" 
       <div
         className={`relative mx-auto flex w-full max-w-[1200px] flex-col ${ALIGN_CLASS[block.align]}`}
       >
+        {block.markUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- CMS brand mark is an arbitrary URL
+          <img src={block.markUrl} alt="" aria-hidden className="mb-6 h-12 w-auto" />
+        ) : null}
+        {block.eyebrow ? (
+          <p className="mb-3 text-xs font-medium uppercase tracking-[0.15em] text-sh-gold">
+            {block.eyebrow}
+          </p>
+        ) : null}
         {block.heading ? (
           <h1 className="font-serif text-4xl leading-tight sm:text-5xl lg:text-[56px]">
             {block.heading}
+            {block.headingAccent ? (
+              <span className="block text-sh-gold">{block.headingAccent}</span>
+            ) : null}
           </h1>
         ) : null}
         {block.subheading ? (
@@ -84,9 +97,9 @@ function HeroBlockView({ block }: { block: Extract<ContentBlock, { type: "hero" 
             {block.ctaLabel && block.ctaHref ? (
               <Link
                 href={block.ctaHref}
-                className="inline-block rounded-[2px] bg-sh-gold px-6 py-3 text-sm font-medium text-sh-navy transition hover:opacity-90"
+                className="inline-flex items-center gap-2 rounded-[2px] bg-sh-gold px-6 py-3 text-sm font-medium text-sh-navy transition hover:opacity-90"
               >
-                {block.ctaLabel}
+                {block.ctaLabel} <ArrowRight className="h-4 w-4" />
               </Link>
             ) : null}
             {block.ctaLabel2 && block.ctaHref2 ? (
@@ -190,6 +203,25 @@ function FeaturesBlockView({ block }: { block: Extract<ContentBlock, { type: "fe
 function StatsBlockView({ block }: { block: Extract<ContentBlock, { type: "stats" }> }) {
   if (block.items.length === 0) return null;
   const t = SECTION_THEME[block.background];
+
+  // Checklist variant: one inline row of check-marked claims (a trust strip),
+  // instead of the big-numbers grid.
+  if (block.variant === "checklist") {
+    return (
+      <section className={`px-6 py-8 ${t.section}`}>
+        <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-center gap-x-8 gap-y-3">
+          {block.items.map((item, i) => (
+            <span key={i} className={`inline-flex items-center gap-2 text-sm ${t.body}`}>
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-sh-gold" strokeWidth={1.5} />
+              {item.value}
+              {item.label ? <span className="opacity-60">— {item.label}</span> : null}
+            </span>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={`px-6 ${SECTION_PAD} ${t.section}`}>
       <div className="mx-auto grid w-full max-w-[1200px] grid-cols-2 gap-8 text-center sm:grid-cols-4">
@@ -236,11 +268,16 @@ function renderBlock(block: ContentBlock) {
       return <QuoteBlockView key={block.id} block={block} />;
     case "richText":
       return (
-        <div
-          key={block.id}
-          className="prose mx-auto max-w-screen-md px-6 py-12 text-sh-black"
-          dangerouslySetInnerHTML={{ __html: sanitizeCmsHtml(block.html) }}
-        />
+        <section key={block.id} className={SECTION_THEME[block.background].section}>
+          <div
+            className={`prose mx-auto max-w-screen-md px-6 py-12 ${
+              block.background === "dark"
+                ? "prose-invert text-sh-stripe/70 prose-a:text-sh-gold"
+                : "text-sh-black"
+            }`}
+            dangerouslySetInnerHTML={{ __html: sanitizeCmsHtml(block.html) }}
+          />
+        </section>
       );
     case "image":
       return <ImageBlockView key={block.id} block={block} />;

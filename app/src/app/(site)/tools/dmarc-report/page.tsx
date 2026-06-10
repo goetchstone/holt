@@ -54,7 +54,7 @@ export default async function DmarcReportPage() {
   return (
     <div className="flex flex-col bg-midnight">
       {/* Hero + tool */}
-      <section className="px-6 pb-12 pt-16">
+      <section className="px-6 pb-12 pt-24">
         <div className="mx-auto max-w-[860px]">
           <p className="mb-3 text-xs font-medium uppercase tracking-[0.15em] text-conviction">
             Free Tool

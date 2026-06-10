@@ -122,6 +122,15 @@ function parseTheme(body: Body, data: SettingsData): ParseError {
     }
     theme[key] = value.trim();
   }
+  // `mode` rides inside the theme JSON (light | dark site chrome). It must be
+  // carried through here explicitly -- this function rebuilds the object from
+  // a whitelist, so an unhandled key would be silently dropped on every save.
+  if (incoming.mode !== undefined) {
+    if (incoming.mode !== "light" && incoming.mode !== "dark") {
+      return { error: 'theme.mode must be "light" or "dark"' };
+    }
+    theme.mode = incoming.mode;
+  }
   data.theme = theme;
   return null;
 }
