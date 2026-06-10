@@ -22,6 +22,7 @@ export const BLOCK_TYPES = [
   "image",
   "gallery",
   "cta",
+  "leadMagnet",
   "embed",
 ] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
@@ -146,6 +147,21 @@ export const quoteBlockSchema = z.object({
   background: z.enum(SECTION_BACKGROUNDS).default("default"),
 });
 
+export const leadMagnetBlockSchema = z.object({
+  id,
+  type: z.literal("leadMagnet"),
+  heading: z.string().default(""),
+  body: z.string().default(""),
+  buttonLabel: z.string().default("Get the guide"),
+  emailPlaceholder: z.string().default("you@company.com"),
+  // Where the visitor lands after signing up (the gated resource).
+  resourceUrl: z.string().default(""),
+  // Lands in Lead.sourceDetail as `lead-magnet:<sourceTag>` so campaigns
+  // are distinguishable in the leads list.
+  sourceTag: z.string().default("general"),
+  background: z.enum(SECTION_BACKGROUNDS).default("muted"),
+});
+
 export const contentBlockSchema = z.discriminatedUnion("type", [
   heroBlockSchema,
   featuresBlockSchema,
@@ -155,6 +171,7 @@ export const contentBlockSchema = z.discriminatedUnion("type", [
   imageBlockSchema,
   galleryBlockSchema,
   ctaBlockSchema,
+  leadMagnetBlockSchema,
   embedBlockSchema,
 ]);
 
@@ -168,6 +185,7 @@ export type EmbedBlock = z.infer<typeof embedBlockSchema>;
 export type FeaturesBlock = z.infer<typeof featuresBlockSchema>;
 export type StatsBlock = z.infer<typeof statsBlockSchema>;
 export type QuoteBlock = z.infer<typeof quoteBlockSchema>;
+export type LeadMagnetBlock = z.infer<typeof leadMagnetBlockSchema>;
 
 export const blocksSchema = z.array(contentBlockSchema);
 
@@ -181,6 +199,7 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
   image: "Image",
   gallery: "Gallery",
   cta: "Call to action",
+  leadMagnet: "Lead magnet (email capture)",
   embed: "Embed",
 };
 
@@ -221,6 +240,8 @@ export function createBlock(type: BlockType, blockId: string): ContentBlock {
       return galleryBlockSchema.parse({ id: blockId, type });
     case "cta":
       return ctaBlockSchema.parse({ id: blockId, type });
+    case "leadMagnet":
+      return leadMagnetBlockSchema.parse({ id: blockId, type });
     case "embed":
       return embedBlockSchema.parse({ id: blockId, type });
   }

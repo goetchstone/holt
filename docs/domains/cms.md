@@ -148,3 +148,16 @@ Gated by the **`blogComments`** feature flag (off by default; akritos enables it
 - [ ] With it on: a submitted comment is PENDING (not shown) until approved.
 - [ ] Approving makes it appear publicly; REJECTED/SPAM never show.
 - [ ] Comment body with `<script>` renders as inert text (React-escaped).
+
+## Lead-magnet block (2026-06-10)
+
+`leadMagnet` content block: server-rendered band + a client email-capture
+form (`components/cms/LeadMagnetForm.tsx`) that POSTs to the public
+rate-limited `/api/lead-magnet` (6/min, hidden `website` honeypot — bots
+fill it, the server accepts silently and drops the row). Intake
+(`lib/leadMagnet.ts`) creates a `WEBSITE` Lead with
+`sourceDetail = lead-magnet:<sanitized tag>` or bumps an existing ACTIVE
+lead for the email instead of duplicating; the endpoint always answers
+`{ ok: true }` so it can't probe which emails exist. After signup the form
+reveals the block's `resourceUrl` (the gated download). Editor fields in
+BlockFields; block contract pinned in `__tests__/leadMagnet.test.ts`.
