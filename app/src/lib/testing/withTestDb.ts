@@ -134,6 +134,7 @@ const ALL_TABLES = [
   "OrderLineItem",
   "Organization",
   "Page",
+  "PasswordResetToken",
   "Payment",
   "PaymentApplication",
   "PayPeriodConfirmation",

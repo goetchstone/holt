@@ -157,3 +157,27 @@ Behavior is identical to the prior monolith. If you're working on auth-related c
 
 ---
 Last verified: 2026-05-20
+
+## Password reset + my-account (2026-06-10)
+
+Self-service for the local (credentials) sign-in method — every surface 404s
+when `AUTH_LOCAL_ENABLED` is off:
+
+- **Forgot password**: `/auth/forgot-password` (link on the login form) →
+  `POST /api/auth/forgot-password` (rate-limited 5/15min). ALWAYS answers
+  `{ ok: true }` — no account enumeration; the reset email only goes out for
+  an active staff email. Token model `PasswordResetToken` (migration
+  `20260610c`): only the SHA-256 of the raw token is stored, 1-hour expiry,
+  single-use, and a new request voids prior open tokens.
+  `lib/auth/passwordReset.ts`; email template `passwordResetEmail` through
+  the durable queue.
+- **Reset page**: `/auth/reset-password?token=...` →
+  `POST /api/auth/reset-password` — consume + set the new scrypt hash
+  atomically; the error never distinguishes missing/expired/used.
+- **My Account**: `/app/account` (any signed-in user) — identity summary +
+  change password via tRPC `account.changePassword` (proof of the current
+  password required when one exists; an OAuth-only account may set its
+  first). Acts only on the caller's own staff record.
+
+Real-DB proof: `__tests__/integration/passwordReset.integration.test.ts`
+(enumeration safety, single-use, expiry, supersession, hash verifies).
