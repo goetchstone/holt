@@ -14,6 +14,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import type { ContentBlock } from "@/lib/cms/blocks";
 import { sanitizeCmsHtml } from "@/lib/cms/sanitize";
+import { LeadMagnetForm } from "@/components/cms/LeadMagnetForm";
 
 const ALIGN_CLASS = {
   left: "text-left items-start",
@@ -170,6 +171,27 @@ function CtaBlockView({ block }: { block: Extract<ContentBlock, { type: "cta" }>
   );
 }
 
+function LeadMagnetBlockView({ block }: { block: Extract<ContentBlock, { type: "leadMagnet" }> }) {
+  const t = SECTION_THEME[block.background];
+  return (
+    <section className={`px-6 text-center ${SECTION_PAD} ${t.section}`}>
+      <div className="mx-auto max-w-screen-md">
+        {block.heading ? (
+          <h2 className={`font-serif text-[28px] ${t.heading}`}>{block.heading}</h2>
+        ) : null}
+        {block.body ? <p className={`mt-3 ${t.body}`}>{block.body}</p> : null}
+        <LeadMagnetForm
+          buttonLabel={block.buttonLabel}
+          emailPlaceholder={block.emailPlaceholder}
+          resourceUrl={block.resourceUrl}
+          sourceTag={block.sourceTag}
+          dark={block.background === "dark"}
+        />
+      </div>
+    </section>
+  );
+}
+
 function FeaturesBlockView({ block }: { block: Extract<ContentBlock, { type: "features" }> }) {
   if (block.items.length === 0 && !block.heading) return null;
   const t = SECTION_THEME[block.background];
@@ -285,6 +307,8 @@ function renderBlock(block: ContentBlock) {
       return <GalleryBlockView key={block.id} block={block} />;
     case "cta":
       return <CtaBlockView key={block.id} block={block} />;
+    case "leadMagnet":
+      return <LeadMagnetBlockView key={block.id} block={block} />;
     case "embed":
       return (
         <div
