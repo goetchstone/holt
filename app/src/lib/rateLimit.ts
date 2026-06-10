@@ -50,6 +50,48 @@ function getClientKey(req: NextApiRequest): string {
   return hops.length > 0 ? hops[hops.length - 1] : socketIp;
 }
 
+/**
+ * One-shot rate-limit check usable inside a handler that can't be wrapped
+ * (e.g. the NextAuth catch-all, where only the credentials-callback POST
+ * should be throttled, not every session read). Returns true when ALLOWED;
+ * on the limit it writes the 429 + Retry-After and returns false, so the
+ * caller just does `if (!checkRateLimit(...)) return;`. `bucket` namespaces
+ * the counter so unrelated callers on the same IP don't share a window.
+ */
+export function checkRateLimit(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  config: RateLimitConfig,
+  bucket = "default",
+): boolean {
+  const now = Date.now();
+  const key = `${bucket}:${getClientKey(req)}`;
+  const cutoff = now - config.windowMs;
+
+  pruneExpired(config.windowMs);
+
+  let entry = store.get(key);
+  if (!entry) {
+    entry = { timestamps: [] };
+    store.set(key, entry);
+  }
+  entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
+
+  if (entry.timestamps.length >= config.maxRequests) {
+    const retryAfter = Math.ceil((entry.timestamps[0] + config.windowMs - now) / 1000);
+    res.setHeader("Retry-After", retryAfter.toString());
+    res.setHeader("X-RateLimit-Limit", config.maxRequests.toString());
+    res.setHeader("X-RateLimit-Remaining", "0");
+    res.status(429).json({ error: "Too many requests", code: "RATE_LIMIT_EXCEEDED", retryAfter });
+    return false;
+  }
+
+  entry.timestamps.push(now);
+  res.setHeader("X-RateLimit-Limit", config.maxRequests.toString());
+  res.setHeader("X-RateLimit-Remaining", (config.maxRequests - entry.timestamps.length).toString());
+  return true;
+}
+
 // Returns a handler wrapper that enforces rate limits per client IP.
 // Usage: export default rateLimit({ windowMs: 60000, maxRequests: 10 })(handler)
 export function rateLimit(config: RateLimitConfig) {
@@ -57,41 +99,7 @@ export function rateLimit(config: RateLimitConfig) {
     handler: (req: NextApiRequest, res: NextApiResponse) => Promise<void | NextApiResponse>,
   ) {
     return async (req: NextApiRequest, res: NextApiResponse) => {
-      const now = Date.now();
-      const key = getClientKey(req);
-      const cutoff = now - config.windowMs;
-
-      pruneExpired(config.windowMs);
-
-      let entry = store.get(key);
-      if (!entry) {
-        entry = { timestamps: [] };
-        store.set(key, entry);
-      }
-
-      // Drop timestamps outside the window
-      entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
-
-      if (entry.timestamps.length >= config.maxRequests) {
-        const retryAfter = Math.ceil((entry.timestamps[0] + config.windowMs - now) / 1000);
-        res.setHeader("Retry-After", retryAfter.toString());
-        res.setHeader("X-RateLimit-Limit", config.maxRequests.toString());
-        res.setHeader("X-RateLimit-Remaining", "0");
-        return res.status(429).json({
-          error: "Too many requests",
-          code: "RATE_LIMIT_EXCEEDED",
-          retryAfter,
-        });
-      }
-
-      entry.timestamps.push(now);
-
-      res.setHeader("X-RateLimit-Limit", config.maxRequests.toString());
-      res.setHeader(
-        "X-RateLimit-Remaining",
-        (config.maxRequests - entry.timestamps.length).toString(),
-      );
-
+      if (!checkRateLimit(req, res, config)) return;
       return handler(req, res);
     };
   };
