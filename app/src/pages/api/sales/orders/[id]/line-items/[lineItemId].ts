@@ -245,6 +245,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             updates.vatAmount =
               Math.round(Number(updates.netPrice) * Number(lineItem.vatRate || 0) * 100) / 100;
           }
+          // cost is a LINE total (same invariant as netPrice) — scale it with
+          // the quantity so COGS postings and margin reports stay correct.
+          if (quantity !== undefined) {
+            const originalUnitCost =
+              Number(lineItem.cost || 0) / Number(lineItem.orderedQuantity || 1);
+            updates.cost = Math.round(finalQty * originalUnitCost * 100) / 100;
+          }
         }
 
         if (changes.length === 0) {

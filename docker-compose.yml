@@ -8,6 +8,10 @@
 #   Staging:                   docker compose --profile staging up -d --build
 #   Database only:             docker compose up db
 
+# Project name pinned so containers/volumes stay "holt-*" regardless of the
+# directory the repo is cloned into.
+name: holt
+
 services:
 
   # --------------------------------------------------------------------------

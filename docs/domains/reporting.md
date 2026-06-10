@@ -54,6 +54,17 @@ Wrong: `SUM(netPrice * orderedQuantity) + SUM(vatAmount)` — the 2026-04-17 bug
 
 To get unit price, divide: `netPrice / orderedQuantity`.
 
+**`OrderLineItem.cost` follows the SAME invariant: it is the LINE cost (already
+multiplied by quantity), never the unit cost.** All readers sum it raw —
+`journalEntry.ts` (COGS/Inventory postings), `dailyReconciliation.ts`,
+`grossMargin.ts`, `topSellers.ts`, `buyersReport.ts`, `salesBySalespersonReport.ts`.
+Write paths must multiply per-unit sources by quantity before storing
+(`create-from-cart.ts`, `line-items.ts` add — both resolve a per-unit
+`baseCost`), and the qty-edit endpoint scales `cost` proportionally with the new
+quantity. Bug history (2026-06-10): the POS wrote unit cost while every reader
+assumed line cost, and the designer dashboard compensated by multiplying ×qty —
+both wrong, fixed together; tripwire `__tests__/designerDashboardCost.test.ts`.
+
 Files that enforce this (audit regularly):
 
 - `pages/api/dashboard/sales-summary.ts`
