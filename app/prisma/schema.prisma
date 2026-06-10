@@ -2624,6 +2624,7 @@ model StaffMember {
   // OAuth-only staff. Only consulted when AUTH_LOCAL_ENABLED turns on the
   // credentials sign-in method.
   passwordHash          String?
+  passwordResetTokens   PasswordResetToken[]
   role                  StaffRole      @default(DESIGNER)
   defaultStore          String? // Legacy: the POS store name
   activeStoreLocationId Int?
@@ -4863,4 +4864,22 @@ model LegacyImportLog {
   triggeredBy String?
 
   @@index([startedAt])
+}
+
+// Single-use password-reset tokens for local-account staff (feature: the
+// credentials sign-in method, AUTH_LOCAL_ENABLED). Only a SHA-256 hash of the
+// raw token is stored — a DB leak cannot be replayed as reset links. Tokens
+// expire after an hour and are consumed exactly once; requesting a new one
+// voids any still-open ones for the same staff member.
+model PasswordResetToken {
+  id            Int         @id @default(autoincrement())
+  staffMemberId Int
+  staffMember   StaffMember @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+  tokenHash     String      @unique
+  expiresAt     DateTime
+  usedAt        DateTime?
+
+  created DateTime @default(now())
+
+  @@index([staffMemberId])
 }

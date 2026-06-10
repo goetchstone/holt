@@ -136,3 +136,18 @@ export function invoiceIssuedEmail(input: InvoiceEmailInput): RenderedEmail {
     <p>Reply to this email with any questions.</p>`;
   return { subject, html: layout(input.appName, `Invoice ${input.invoiceNo}`, body) };
 }
+
+export interface PasswordResetEmailInput {
+  appName: string;
+  displayName: string;
+  resetUrl: string;
+}
+
+export function passwordResetEmail(input: PasswordResetEmailInput): RenderedEmail {
+  const subject = `Reset your ${input.appName} password`;
+  const body = `<p>Hi ${escapeHtml(input.displayName)},</p>
+    <p>Someone (hopefully you) asked to reset your ${escapeHtml(input.appName)} password.</p>
+    <p style="margin:24px 0"><a href="${escapeHtml(input.resetUrl)}" style="background:#1c1f2e;color:#f5f4f0;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Choose a new password</a></p>
+    <p>The link works once and expires in 1 hour. If you didn't ask for this, ignore this email — your password is unchanged.</p>`;
+  return { subject, html: layout(input.appName, "Password reset", body) };
+}

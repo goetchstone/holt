@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { GetServerSideProps } from "next";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { BrandLogo } from "@/components/branding/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { getPublicBranding } from "@/lib/appSettings";
@@ -135,6 +136,14 @@ export default function Login({ methods }: LoginProps) {
             <Button type="submit" fullWidth disabled={submitting}>
               {submitting ? "Signing in..." : "Sign in"}
             </Button>
+            <p className="text-center text-sm">
+              <Link
+                href="/auth/forgot-password"
+                className="text-sh-gray hover:text-sh-navy hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </p>
           </form>
         )}
       </div>
