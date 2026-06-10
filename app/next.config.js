@@ -17,6 +17,14 @@ module.exports = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // HSTS: force HTTPS for a year incl. subdomains. Browsers ignore it
+          // over plain HTTP, so it's harmless before TLS is in place and
+          // activates the moment the deployment is fronted by HTTPS. Do NOT
+          // add `preload` until the domain is committed to HTTPS-forever.
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
