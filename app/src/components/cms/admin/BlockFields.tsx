@@ -424,6 +424,45 @@ export function BlockFields({
           />
         </div>
       );
+    case "leadMagnet":
+      return (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <TextField
+            label="Heading"
+            value={block.heading}
+            onChange={(v) => onPatch({ heading: v })}
+          />
+          <BackgroundField value={block.background} onChange={(v) => onPatch({ background: v })} />
+          <div className="sm:col-span-2">
+            <TextArea
+              label="Body"
+              value={block.body}
+              rows={2}
+              onChange={(v) => onPatch({ body: v })}
+            />
+          </div>
+          <TextField
+            label="Button label"
+            value={block.buttonLabel}
+            onChange={(v) => onPatch({ buttonLabel: v })}
+          />
+          <TextField
+            label="Email placeholder"
+            value={block.emailPlaceholder}
+            onChange={(v) => onPatch({ emailPlaceholder: v })}
+          />
+          <TextField
+            label="Resource link (shown after signup)"
+            value={block.resourceUrl}
+            onChange={(v) => onPatch({ resourceUrl: v })}
+          />
+          <TextField
+            label="Source tag (lands on the lead as lead-magnet:<tag>)"
+            value={block.sourceTag}
+            onChange={(v) => onPatch({ sourceTag: v })}
+          />
+        </div>
+      );
     case "embed":
       return (
         <TextArea
