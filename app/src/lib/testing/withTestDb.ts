@@ -80,6 +80,8 @@ const ALL_TABLES = [
   "Collection",
   "CommissionPayout",
   "CommissionPayoutEdit",
+  "CommissionPlan",
+  "CommissionPlanTier",
   "CommissionTier",
   "ConsignmentItem",
   "ConsignmentPaymentBatch",

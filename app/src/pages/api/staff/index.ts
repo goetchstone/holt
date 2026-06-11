@@ -15,7 +15,10 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   const staff = await prisma.staffMember.findMany({
     where,
     orderBy: { displayName: "asc" },
-    include: { user: { select: { email: true, name: true, image: true } } },
+    include: {
+      user: { select: { email: true, name: true, image: true } },
+      commissionPlan: { select: { id: true, name: true } },
+    },
   });
   return res.json(staff);
 }

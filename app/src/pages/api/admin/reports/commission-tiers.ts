@@ -1,6 +1,6 @@
 // /app/src/pages/api/admin/reports/commission-tiers.ts
 //
-// Commission tier report — SUPER_ADMIN ONLY.
+// Commission tier report (live calculator) — SUPER_ADMIN ONLY.
 //
 // Marginal-tier model (owner direction 2026-05-19):
 //   Caller supplies a date range. For each designer we compute:
@@ -11,11 +11,12 @@
 //   Commission for the window = marginal slice between ytdAtStart
 //   and ytdAtEnd, with each subslice paid at its tier's rate.
 //
-// Tiers are loaded from the DB (`CommissionTier` table) so SUPER_ADMIN
-// can edit them via the page UI. Falls back to the hardcoded DEFAULT
-// set if the table is empty (dev / first-boot case).
-//
-// Origin: owner direction 2026-05-19.
+// Tiers resolve PER DESIGNER through lib/commissionPlans.ts (assigned plan ->
+// default plan -> legacy CommissionTier table -> built-in defaults), the same
+// resolution the payout generator uses, so the live view and locked payouts
+// can never price a designer differently. Each row reports which plan priced
+// it; the top-level `tiers` is the default-resolution set (what an unassigned
+// designer gets).
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
@@ -23,15 +24,16 @@ import { prisma } from "@/lib/prisma";
 import {
   calculateMarginalCommission,
   resolveTier,
-  DEFAULT_COMMISSION_TIERS,
   type CommissionTier,
 } from "@/lib/commissionTiers";
 import { sumDesignerSales } from "@/lib/commissionSales";
+import { resolvePlanTiersForStaff, loadLegacyOrDefaultTiers } from "@/lib/commissionPlans";
 import { logError } from "@/lib/logger";
 
 interface CommissionRow {
   staffId: number;
   displayName: string;
+  planName: string;
   ytdAtStart: number;
   windowSales: number;
   ytdAtEnd: number;
@@ -49,30 +51,12 @@ interface Response {
   startDate: string;
   endDate: string;
   asOf: string;
+  /** Default-resolution tier set (what an unassigned designer gets). */
   tiers: CommissionTier[];
   rows: CommissionRow[];
   totals: {
     totalWindowSales: number;
     totalCommission: number;
-  };
-}
-
-interface TierRow {
-  id: number;
-  label: string;
-  minYtdSales: { toString: () => string };
-  maxYtdSalesExclusive: { toString: () => string } | null;
-  rate: { toString: () => string };
-  sortOrder: number;
-}
-
-function dbTierToHelper(row: TierRow): CommissionTier {
-  return {
-    label: row.label,
-    minYtdSales: Number(row.minYtdSales),
-    maxYtdSalesExclusive:
-      row.maxYtdSalesExclusive === null ? null : Number(row.maxYtdSalesExclusive),
-    rate: Number(row.rate),
   };
 }
 
@@ -99,15 +83,6 @@ export default requireAuthWithRole(
       const endExclusive = new Date(endDate);
       endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
 
-      // Load configurable tiers from DB; fall back to defaults if empty.
-      const dbTiers = await prisma.commissionTier.findMany({
-        orderBy: { sortOrder: "asc" },
-      });
-      const tiers: CommissionTier[] =
-        dbTiers.length > 0
-          ? dbTiers.map((t) => dbTierToHelper(t as unknown as TierRow))
-          : [...DEFAULT_COMMISSION_TIERS];
-
       // Pull designers (incl. aliases for SalesOrder match).
       const staff = await prisma.staffMember.findMany({
         where: { role: { in: ["DESIGNER", "MANAGER"] }, isActive: true },
@@ -115,8 +90,15 @@ export default requireAuthWithRole(
         orderBy: { displayName: "asc" },
       });
 
+      const [planTiers, defaultResolution] = await Promise.all([
+        resolvePlanTiersForStaff(staff.map((s) => s.id)),
+        loadLegacyOrDefaultTiers(),
+      ]);
+
       const rows: CommissionRow[] = [];
       for (const s of staff) {
+        const resolved = planTiers.get(s.id);
+        if (!resolved) continue;
         const matchNames = [s.displayName, ...(s.aliases ?? [])];
 
         // Two sums: year-start → window-start (= ytdAtStart) and
@@ -128,8 +110,8 @@ export default requireAuthWithRole(
         ]);
 
         const windowSales = Math.max(0, ytdAtEnd - ytdAtStart);
-        const result = calculateMarginalCommission(ytdAtStart, ytdAtEnd, tiers);
-        const currentTier = resolveTier(ytdAtEnd, tiers);
+        const result = calculateMarginalCommission(ytdAtStart, ytdAtEnd, resolved.tiers);
+        const currentTier = resolveTier(ytdAtEnd, resolved.tiers);
 
         // Skip designers with $0 in the window. Reduces noise on the
         // table without losing info (totals row would be unaffected).
@@ -138,6 +120,7 @@ export default requireAuthWithRole(
         rows.push({
           staffId: s.id,
           displayName: s.displayName,
+          planName: resolved.planName,
           ytdAtStart,
           windowSales,
           ytdAtEnd,
@@ -158,7 +141,7 @@ export default requireAuthWithRole(
         startDate: startDate.toISOString().slice(0, 10),
         endDate: endDate.toISOString().slice(0, 10),
         asOf: new Date().toISOString(),
-        tiers,
+        tiers: [...defaultResolution.tiers],
         rows,
         totals,
       });
@@ -178,6 +161,5 @@ function parseIsoDate(value: string | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// sumDesignerSales moved to lib/commissionSales.ts so the new
-// payout-generation flow (api/admin/reports/commission-payouts/*)
-// can call the same function.
+// sumDesignerSales moved to lib/commissionSales.ts so the payout-generation
+// flow (api/admin/reports/commission-payouts/*) can call the same function.
