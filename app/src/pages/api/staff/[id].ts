@@ -9,6 +9,23 @@ import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { getErrorCode } from "@/lib/errorCode";
 
+// Validate a commissionPlanId patch value: null clears the assignment, a
+// number must reference an existing CommissionPlan. Returns ok:false on
+// anything else (wrong type, unknown id).
+async function resolveCommissionPlanPatch(
+  commissionPlanId: unknown,
+): Promise<{ ok: true; value: number | null } | { ok: false }> {
+  if (commissionPlanId === null) return { ok: true, value: null };
+  if (typeof commissionPlanId === "number" && Number.isInteger(commissionPlanId)) {
+    const plan = await prisma.commissionPlan.findUnique({
+      where: { id: commissionPlanId },
+      select: { id: true },
+    });
+    if (plan) return { ok: true, value: commissionPlanId };
+  }
+  return { ok: false };
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: "Unauthorized" });
@@ -26,7 +43,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "PATCH") {
-    const { displayName, email, role, defaultStore, isActive, isDesigner } = req.body;
+    const { displayName, email, role, defaultStore, isActive, isDesigner, commissionPlanId } =
+      req.body;
 
     // Role change restrictions
     if (role !== undefined) {
@@ -65,6 +83,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (defaultStore !== undefined) data.defaultStore = defaultStore || null;
     if (isActive !== undefined) data.isActive = isActive;
     if (isDesigner !== undefined) data.isDesigner = isDesigner;
+    if (commissionPlanId !== undefined) {
+      const planPatch = await resolveCommissionPlanPatch(commissionPlanId);
+      if (!planPatch.ok) return res.status(400).json({ error: "Unknown commission plan" });
+      data.commissionPlanId = planPatch.value;
+    }
 
     // Auto-link: if email is set/changed, look for a matching User account
     if (email) {

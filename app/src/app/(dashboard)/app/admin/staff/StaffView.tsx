@@ -27,6 +27,13 @@ interface StaffMember {
   isDesigner: boolean;
   userId: string | null;
   user: { email: string; name: string | null; image: string | null } | null;
+  commissionPlanId: number | null;
+  commissionPlan: { id: number; name: string } | null;
+}
+
+interface CommissionPlanOption {
+  id: number;
+  name: string;
 }
 
 interface FormData {
@@ -35,6 +42,7 @@ interface FormData {
   role: string;
   defaultStore: string;
   isDesigner: boolean;
+  commissionPlanId: number | null;
 }
 
 interface StoreGroup {
@@ -48,6 +56,7 @@ const emptyForm: FormData = {
   role: "DESIGNER",
   defaultStore: "",
   isDesigner: true,
+  commissionPlanId: null,
 };
 
 function titleCaseRole(role: string): string {
@@ -107,6 +116,14 @@ function StaffRow({
             title="Appears on designer-based sales + commission reports"
           >
             • designer
+          </span>
+        )}
+        {member.commissionPlan && (
+          <span
+            className="ml-1.5 text-[10px] font-sans uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-sh-gold/15 text-sh-gold"
+            title="Assigned commission plan"
+          >
+            {member.commissionPlan.name}
           </span>
         )}
       </td>
@@ -306,6 +323,7 @@ function StaffFormModal({
   form,
   isAdmin,
   storeNames,
+  commissionPlans,
   saving,
   onChange,
   onClose,
@@ -315,6 +333,7 @@ function StaffFormModal({
   form: FormData;
   isAdmin: boolean;
   storeNames: string[];
+  commissionPlans: CommissionPlanOption[] | null;
   saving: boolean;
   onChange: (next: FormData) => void;
   onClose: () => void;
@@ -432,6 +451,39 @@ function StaffFormModal({
             />
             <span>Show on designer-based sales &amp; commission reports</span>
           </label>
+
+          {/* Hidden when the plans fetch was denied (non-SUPER_ADMIN viewer). */}
+          {commissionPlans !== null && (
+            <div>
+              <label
+                htmlFor="staff-commission-plan"
+                className="block text-sm font-semibold text-sh-blue mb-1"
+              >
+                Commission plan
+              </label>
+              <select
+                id="staff-commission-plan"
+                value={form.commissionPlanId === null ? "" : String(form.commissionPlanId)}
+                onChange={(e) =>
+                  onChange({
+                    ...form,
+                    commissionPlanId: e.target.value === "" ? null : Number(e.target.value),
+                  })
+                }
+                className="w-full border border-sh-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm bg-white appearance-none"
+              >
+                <option value="">Default</option>
+                {commissionPlans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-sh-gray mt-1">
+                &ldquo;Default&rdquo; follows the default plan (or the standard tiers)
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
@@ -551,6 +603,33 @@ export function StaffView() {
   const [pwValue, setPwValue] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
 
+  // Commission plans for the assignment dropdown. The endpoint is
+  // SUPER_ADMIN-only while this page also renders for MANAGER/ADMIN, so a
+  // 401/403 (or any failure) keeps this null and the dropdown stays hidden.
+  const [commissionPlans, setCommissionPlans] = useState<CommissionPlanOption[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPlans = async () => {
+      try {
+        const res = await fetch("/api/admin/reports/commission-tiers/tiers");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data.plans)) {
+          setCommissionPlans(
+            data.plans.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })),
+          );
+        }
+      } catch {
+        // Deliberately silent: lacking plan access just hides the dropdown.
+      }
+    };
+    loadPlans();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const fetchStaff = useCallback(async () => {
     try {
       const res = await fetch("/api/staff?all=true");
@@ -594,6 +673,7 @@ export function StaffView() {
       role: member.role,
       defaultStore: member.defaultStore || "",
       isDesigner: member.isDesigner,
+      commissionPlanId: member.commissionPlanId ?? null,
     });
     setShowForm(true);
   };
@@ -616,6 +696,7 @@ export function StaffView() {
           role: form.role,
           defaultStore: form.defaultStore || null,
           isDesigner: form.isDesigner,
+          commissionPlanId: form.commissionPlanId,
         }),
       });
       if (!res.ok) {
@@ -792,6 +873,7 @@ export function StaffView() {
           form={form}
           isAdmin={isAdmin}
           storeNames={storeNames}
+          commissionPlans={commissionPlans}
           saving={saving}
           onChange={setForm}
           onClose={() => setShowForm(false)}

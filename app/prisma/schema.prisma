@@ -2640,6 +2640,11 @@ model StaffMember {
   // Origin: owner direction 2026-05-29.
   isDesigner            Boolean        @default(false)
 
+  // Per-salesperson commission structure. NULL = the default plan (or the
+  // legacy tier table / built-in defaults — see lib/commissionPlans.ts).
+  commissionPlanId Int?
+  commissionPlan   CommissionPlan? @relation(fields: [commissionPlanId], references: [id])
+
   shifts               StaffShift[]
   upBoardEntries       UpBoardEntry[]
   payments             Payment[]
@@ -3895,6 +3900,44 @@ model CommissionTier {
   updatedBy String?
 }
 
+// Per-salesperson commission structures. A plan is a named set of marginal
+// YTD tiers in the exact CommissionTier row shape, so an existing tier set
+// converts to one plan and calculateMarginalCommission works unchanged.
+// Resolution chain (lib/commissionPlans.ts): staff member's assigned plan ->
+// the isDefault plan -> the legacy CommissionTier table -> the built-in
+// defaults. The legacy table stays as the restore landing target (a prior
+// system's tier rows land there and keep computing identically until plans
+// are created); no code writes it anymore.
+model CommissionPlan {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+  isDefault   Boolean @default(false)
+  isActive    Boolean @default(true)
+
+  tiers        CommissionPlanTier[]
+  staffMembers StaffMember[]
+  payouts      CommissionPayout[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model CommissionPlanTier {
+  id                   Int            @id @default(autoincrement())
+  planId               Int
+  plan                 CommissionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  label                String
+  minYtdSales          Decimal
+  maxYtdSalesExclusive Decimal?
+  rate                 Decimal
+  sortOrder            Int            @default(0)
+
+  @@unique([planId, sortOrder])
+}
+
 // ---------------------------------------------------------------------------
 // COMMISSION PAYOUTS — one row per salesperson per pay period
 // ---------------------------------------------------------------------------
@@ -3934,6 +3977,13 @@ model CommissionPayout {
   // the tiers are later edited (e.g. raising the top rate), historical
   // payouts continue to render their original math.
   tierDefinitionSnapshot Json
+
+  // Which plan produced this payout, frozen at generation time. The name is
+  // denormalized so history renders even if the plan row is later deleted
+  // (FK then nulls). NULL on rows generated before plans existed.
+  commissionPlanId   Int?
+  commissionPlan     CommissionPlan? @relation(fields: [commissionPlanId], references: [id])
+  commissionPlanName String?
 
   // Lock state. lockedAt=null means Draft; non-null means committed.
   // During rollout SUPER_ADMIN can clear lockedAt → null again

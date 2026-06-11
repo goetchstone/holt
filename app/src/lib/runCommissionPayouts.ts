@@ -18,48 +18,15 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_COMMISSION_TIERS, type CommissionTier } from "@/lib/commissionTiers";
 import { sumDesignerSales } from "@/lib/commissionSales";
 import { computePayoutForRange, type ComputedPayout } from "@/lib/commissionPayout";
 import { findOverlappingPayoutPeriods, describeOverlap } from "@/lib/commissionPeriodOverlap";
+import { resolvePlanTiersForStaff } from "@/lib/commissionPlans";
 
 interface ActiveDesigner {
   id: number;
   displayName: string;
   aliases: string[];
-}
-
-interface TierRow {
-  id: number;
-  label: string;
-  minYtdSales: { toString(): string };
-  maxYtdSalesExclusive: { toString(): string } | null;
-  rate: { toString(): string };
-  sortOrder: number;
-}
-
-function dbTierToHelper(row: TierRow): CommissionTier & { sortOrder: number } {
-  return {
-    label: row.label,
-    minYtdSales: Number(row.minYtdSales),
-    maxYtdSalesExclusive:
-      row.maxYtdSalesExclusive === null ? null : Number(row.maxYtdSalesExclusive),
-    rate: Number(row.rate),
-    sortOrder: row.sortOrder,
-  };
-}
-
-/**
- * Load CommissionTier rows from the DB or fall back to defaults. Same
- * pattern as the live commission-tiers report so live + locked use
- * identical tier definitions at compute time.
- */
-async function loadTiers(): Promise<ReadonlyArray<CommissionTier & { sortOrder: number }>> {
-  const dbTiers = await prisma.commissionTier.findMany({ orderBy: { sortOrder: "asc" } });
-  if (dbTiers.length > 0) {
-    return dbTiers.map((t) => dbTierToHelper(t as unknown as TierRow));
-  }
-  return DEFAULT_COMMISSION_TIERS.map((t, i) => ({ ...t, sortOrder: i }));
 }
 
 async function loadActiveDesigners(): Promise<ActiveDesigner[]> {
@@ -132,6 +99,11 @@ export async function computeDesignerYtdSums(
 
 export interface PreviewedPayout extends ComputedPayout {
   displayName: string;
+  // Which plan priced this draft (resolved per designer; null planId = the
+  // legacy tier table / built-in defaults). Frozen onto the payout row at
+  // commit so history records who was paid under which structure.
+  commissionPlanId: number | null;
+  commissionPlanName: string;
 }
 
 /**
@@ -143,8 +115,13 @@ export async function previewPayoutsForPeriod(
   periodStart: Date,
   periodEnd: Date,
 ): Promise<PreviewedPayout[]> {
-  const tiers = await loadTiers();
   const designers = await loadActiveDesigners();
+  // Per-designer tier resolution: assigned plan -> default plan -> legacy
+  // tier table -> built-in defaults. Chain continuity (ytdAtStart from the
+  // prior locked payout) is plan-independent — it carries sales DOLLARS, so a
+  // mid-year plan switch keeps the YTD position and simply prices subsequent
+  // slices through the new plan's brackets.
+  const planTiers = await resolvePlanTiersForStaff(designers.map((d) => d.id));
 
   // Make the period endpoint inclusive by extending to end-of-day.
   const periodEndExclusive = new Date(periodEnd);
@@ -152,6 +129,8 @@ export async function previewPayoutsForPeriod(
 
   const out: PreviewedPayout[] = [];
   for (const s of designers) {
+    const resolved = planTiers.get(s.id);
+    if (!resolved) continue;
     const { ytdAtStart, ytdAtEnd } = await computeDesignerYtdSums(
       s,
       periodStart,
@@ -163,9 +142,14 @@ export async function previewPayoutsForPeriod(
       periodEnd,
       ytdSalesAtStart: ytdAtStart,
       ytdSalesAtEnd: ytdAtEnd,
-      tiers,
+      tiers: resolved.tiers,
     });
-    out.push({ ...computed, displayName: s.displayName });
+    out.push({
+      ...computed,
+      displayName: s.displayName,
+      commissionPlanId: resolved.planId,
+      commissionPlanName: resolved.planName,
+    });
   }
 
   // Sort by commission desc (most-paid first), then alphabetical.
@@ -317,6 +301,8 @@ export async function commitPayoutsForPeriod(
         tierBreakdown: d.tierBreakdown as unknown as Prisma.InputJsonValue,
         commissionAmount: finalCommissionAmount,
         tierDefinitionSnapshot: d.tierDefinitionSnapshot as unknown as Prisma.InputJsonValue,
+        commissionPlanId: d.commissionPlanId,
+        commissionPlanName: d.commissionPlanName,
         notes: ov?.notes ?? null,
         paidOn: ov?.paidOn ?? null,
         ...lockedFields,

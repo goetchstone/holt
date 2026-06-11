@@ -1,21 +1,35 @@
-// /app/src/components/commission/LockedPayoutsTab.tsx
+// /app/src/components/commission/PayoutsTab.tsx
 //
-// "Locked Payouts" tab on the commission-tiers report page. Owner
-// direction 2026-05-27 — replace the hand-entered Google Sheet with
-// a frozen ledger of what was paid out each pay period.
+// Payouts workspace on the commission-tiers report page — a frozen ledger of
+// what was paid out each pay period.
 //
-// Flow:
-//   1. SUPER_ADMIN picks a date range, clicks "Generate Payouts".
-//   2. Preview modal shows computed rows. Operator can override
-//      commissionAmount + notes per row.
-//   3. "Save as Draft" or "Save & Lock" writes the rows. Draft can
-//      still be edited freely; locked rows require an audit reason
-//      for every edit (or unlock).
-//   4. Below the picker: list of all payouts (locked + drafts).
-//      Each row has an Edit button (opens audit-reason modal).
-//      Expanding a row shows the tier breakdown + audit history.
+// ONE component, TWO views. The page renders <PayoutsTab view="drafts"> and
+// <PayoutsTab view="locked"> as two separate tabs:
+//
+//   • view="drafts"  — the WORK surface. Generate a pay period → review →
+//     Confirm & Lock or Save as draft. Below: the editable DRAFT payouts
+//     (lockedAt == null). Confirm & Lock moves the row to the Locked tab
+//     (onAfterLock switches the page there so it doesn't just "vanish").
+//   • view="locked"  — the ARCHIVE. Read-only list of LOCKED payouts
+//     (lockedAt != null) + the DriftBanner (locked rows whose YTD shifted).
+//     Corrections still go through the edit drawer (audit reason required).
+//
+// Flow kept deliberately simple: one pay-period dropdown (raw dates behind a
+// "Custom range" toggle), one primary "Confirm & Lock" button, per-row
+// overrides hidden until "Adjust", inline Draft-vs-Locked help. Each payout
+// row expands to its tier breakdown + audit history; Edit opens the
+// audit-reason drawer. Every payout carries the commission plan it was
+// computed under (commissionPlanName — null on rows predating plans).
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  recentPayPeriods,
+  formatPeriodLabel,
+  formatPeriodDate,
+  type PayPeriod,
+} from "@/lib/payPeriod";
+import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { getErrorMessage } from "@/lib/toastError";
 
 interface BreakdownEntry {
   tierLabel: string;
@@ -34,6 +48,7 @@ interface PreviewedPayout {
   ytdSalesAtEnd: number;
   tierBreakdown: BreakdownEntry[];
   commissionAmount: number;
+  commissionPlanName: string;
 }
 
 /** Shape of one conflicting payout returned by the preview / 409 commit. */
@@ -67,6 +82,7 @@ interface StoredPayout {
   ytdSalesAtEnd: string | number;
   tierBreakdown: BreakdownEntry[];
   commissionAmount: string | number;
+  commissionPlanName: string | null;
   lockedAt: string | null;
   lockedBy: string | null;
   paidOn: string | null;
@@ -74,27 +90,73 @@ interface StoredPayout {
   edits?: StoredEdit[];
 }
 
-function formatCurrency(n: number | string): string {
-  const v = typeof n === "string" ? Number(n) : n;
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(v);
+/** Prisma Decimal fields arrive as strings over JSON — coerce for display. */
+function toNum(n: number | string): number {
+  return typeof n === "string" ? Number(n) : n;
 }
 
+// Period boundaries are UTC-midnight dates; render them in UTC so the local
+// timezone never shifts a boundary back a day.
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-US", { timeZone: "UTC" });
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+// Most recent bi-weekly pay period that has already ended — the one you'd
+// normally be paying out now. Falls back to the current (in-progress) period if
+// none have ended yet. Drives the default Generate range so the operator lands
+// on a set pay-period week instead of an arbitrary date span.
+function defaultPayoutPeriod(): PayPeriod {
+  const periods = recentPayPeriods(new Date(), 3);
+  return periods.find((p) => p.end.getTime() < Date.now()) ?? periods[0];
 }
 
-export function LockedPayoutsTab() {
-  const [startDate, setStartDate] = useState(todayIso());
-  const [endDate, setEndDate] = useState(todayIso());
+/**
+ * `view` selects which half of the payout workspace this instance is:
+ * "drafts" shows the generate/preview workflow + editable draft rows;
+ * "locked" shows the frozen archive + drift banner. `onAfterLock` lets the
+ * drafts view ask the page to switch to the Locked tab once a row locks, so a
+ * just-locked payout doesn't appear to vanish from the (drafts-only) list.
+ */
+export function PayoutsTab({
+  view,
+  onAfterLock,
+}: Readonly<{ view: "drafts" | "locked"; onAfterLock?: () => void }>) {
+  const [startDate, setStartDate] = useState(() => formatPeriodDate(defaultPayoutPeriod().start));
+  const [endDate, setEndDate] = useState(() => formatPeriodDate(defaultPayoutPeriod().end));
+  // The set bi-weekly pay periods, newest first. Selecting one fills the
+  // start/end pickers below; the pickers stay editable for an off-cycle range
+  // (e.g. a year-end true-up), in which case the selector shows "Custom range".
+  const payPeriods = useMemo(() => recentPayPeriods(new Date(), 12), []);
+  const selectedPeriodKey =
+    payPeriods.find(
+      (p) => formatPeriodDate(p.start) === startDate && formatPeriodDate(p.end) === endDate,
+    ) !== undefined
+      ? startDate
+      : "custom";
+  function selectPeriod(startIso: string) {
+    const p = payPeriods.find((pp) => formatPeriodDate(pp.start) === startIso);
+    if (p) {
+      setStartDate(formatPeriodDate(p.start));
+      setEndDate(formatPeriodDate(p.end));
+    }
+  }
+  // The two free date pickers are an off-cycle escape hatch (year-end
+  // true-ups), hidden by default so the common case is one dropdown.
+  const [showCustomRange, setShowCustomRange] = useState(false);
+  function toggleCustomRange() {
+    setShowCustomRange((prev) => {
+      const next = !prev;
+      // Leaving custom mode on an off-cycle span snaps back to a set period
+      // so the dropdown isn't stranded on "Custom range".
+      if (!next && selectedPeriodKey === "custom") {
+        const d = defaultPayoutPeriod();
+        setStartDate(formatPeriodDate(d.start));
+        setEndDate(formatPeriodDate(d.end));
+      }
+      return next;
+    });
+  }
   const [previewing, setPreviewing] = useState(false);
   const [previewRows, setPreviewRows] = useState<PreviewedPayout[]>([]);
   const [overlappingPayouts, setOverlappingPayouts] = useState<OverlapRow[]>([]);
@@ -108,6 +170,12 @@ export function LockedPayoutsTab() {
   const [loadingList, setLoadingList] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editingPayout, setEditingPayout] = useState<StoredPayout | null>(null);
+
+  // One fetch returns locked + drafts; each view shows only its half.
+  const visiblePayouts = useMemo(
+    () => payouts.filter((p) => (view === "locked" ? p.lockedAt !== null : p.lockedAt === null)),
+    [payouts, view],
+  );
 
   const loadPayouts = useCallback(() => {
     setLoadingList(true);
@@ -160,8 +228,8 @@ export function LockedPayoutsTab() {
       }
       setPreviewRows(data.payouts ?? []);
       setOverlappingPayouts(data.overlappingPayouts ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to preview");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to preview payouts"));
       setPreviewing(false);
     }
   }
@@ -200,8 +268,11 @@ export function LockedPayoutsTab() {
       setOverlappingPayouts([]);
       setOverrides({});
       loadPayouts();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to commit");
+      // A locked row leaves the drafts list — hand off to the Locked tab so it
+      // doesn't appear to vanish. Drafts stay put on this (drafts) view.
+      if (lockNow) onAfterLock?.();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to commit payouts"));
     } finally {
       setCommitting(false);
     }
@@ -217,76 +288,120 @@ export function LockedPayoutsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Generate banner */}
-      <section className="rounded border border-sh-stripe bg-white p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label htmlFor="payout-start" className="block text-xs font-medium text-sh-navy">
-              Period Start
-            </label>
-            <input
-              id="payout-start"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="payout-end" className="block text-xs font-medium text-sh-navy">
-              Period End
-            </label>
-            <input
-              id="payout-end"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={handlePreview}
-            className="rounded bg-sh-navy px-4 py-2 text-sm font-medium text-white hover:bg-sh-blue"
-          >
-            Generate payouts for this period
-          </button>
-        </div>
-        {error && !previewing && <p className="mt-2 text-sm text-red-600">{error}</p>}
-      </section>
+      {view === "drafts" && (
+        <>
+          {/* Generate banner */}
+          <section className="rounded border border-sh-stripe bg-white p-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label htmlFor="payout-period" className="block text-xs font-medium text-sh-navy">
+                  Pay period
+                </label>
+                <select
+                  id="payout-period"
+                  value={selectedPeriodKey}
+                  onChange={(e) => selectPeriod(e.target.value)}
+                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {selectedPeriodKey === "custom" && <option value="custom">Custom range</option>}
+                  {payPeriods.map((p) => (
+                    <option key={p.index} value={formatPeriodDate(p.start)}>
+                      {formatPeriodLabel(p)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {showCustomRange && (
+                <>
+                  <div>
+                    <label
+                      htmlFor="payout-start"
+                      className="block text-xs font-medium text-sh-navy"
+                    >
+                      Period Start
+                    </label>
+                    <input
+                      id="payout-start"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="payout-end" className="block text-xs font-medium text-sh-navy">
+                      Period End
+                    </label>
+                    <input
+                      id="payout-end"
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={handlePreview}
+                className="rounded bg-sh-navy px-4 py-2 text-sm font-medium text-white hover:bg-sh-blue"
+              >
+                Generate payouts
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <button
+                type="button"
+                onClick={toggleCustomRange}
+                className="text-xs text-sh-gold hover:underline"
+              >
+                {showCustomRange ? "Use a set pay period" : "Custom range…"}
+              </button>
+              <span className="text-xs text-sh-gray">
+                Draft = edit anytime. Locked = set in stone (edits need a reason).
+              </span>
+            </div>
+            {error && !previewing && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          </section>
 
-      {/* Preview modal */}
-      {previewing && (
-        <PreviewPanel
-          rows={previewRows}
-          overrides={overrides}
-          onOverride={(staffMemberId, patch) =>
-            setOverrides((prev) => ({
-              ...prev,
-              [staffMemberId]: { ...prev[staffMemberId], ...patch },
-            }))
-          }
-          onSaveDraft={() => handleCommit(false)}
-          onSaveLock={() => handleCommit(true)}
-          onCancel={closePreview}
-          committing={committing}
-          startDate={startDate}
-          endDate={endDate}
-          error={error}
-          overlappingPayouts={overlappingPayouts}
-        />
+          {/* Preview modal */}
+          {previewing && (
+            <PreviewPanel
+              rows={previewRows}
+              overrides={overrides}
+              onOverride={(staffMemberId, patch) =>
+                setOverrides((prev) => ({
+                  ...prev,
+                  [staffMemberId]: { ...prev[staffMemberId], ...patch },
+                }))
+              }
+              onSaveDraft={() => handleCommit(false)}
+              onSaveLock={() => handleCommit(true)}
+              onCancel={closePreview}
+              committing={committing}
+              startDate={startDate}
+              endDate={endDate}
+              error={error}
+              overlappingPayouts={overlappingPayouts}
+            />
+          )}
+        </>
       )}
 
-      {/* Drift surface — late returns/rewrites/cancellations that landed
-          AFTER a row locked. Quiet when clean; loud when not. */}
-      <DriftBanner onEditPayout={(id) => loadPayoutAndOpenEditor(id)} />
+      {/* Drift surface — locked rows whose underlying YTD shifted AFTER they
+          locked. Quiet when clean; loud when not. Locked view only. */}
+      {view === "locked" && <DriftBanner onEditPayout={(id) => loadPayoutAndOpenEditor(id)} />}
 
-      {/* Existing payouts */}
+      {/* This view's payouts — drafts (editable) or the locked archive. */}
       <section>
-        <h2 className="mb-2 text-lg font-semibold text-sh-navy">Payout History</h2>
+        <h2 className="mb-2 text-lg font-semibold text-sh-navy">
+          {view === "locked" ? "Locked Payouts" : "Draft Payouts"}
+        </h2>
         <PayoutHistory
+          view={view}
           loadingList={loadingList}
-          payouts={payouts}
+          payouts={visiblePayouts}
           expandedId={expandedId}
           onToggle={(id) => setExpandedId(expandedId === id ? null : id)}
           onEdit={(p) => setEditingPayout(p)}
@@ -314,12 +429,14 @@ export function LockedPayoutsTab() {
  * keep the parent component focused on state coordination.
  */
 function PayoutHistory({
+  view,
   loadingList,
   payouts,
   expandedId,
   onToggle,
   onEdit,
 }: Readonly<{
+  view: "drafts" | "locked";
   loadingList: boolean;
   payouts: StoredPayout[];
   expandedId: number | null;
@@ -328,8 +445,16 @@ function PayoutHistory({
 }>) {
   if (loadingList) return <p className="text-sm text-sh-gray">Loading…</p>;
   if (payouts.length === 0) {
-    return <p className="text-sm text-sh-gray">No payouts recorded yet.</p>;
+    return (
+      <p className="text-sm text-sh-gray">
+        {view === "locked"
+          ? "No locked payouts yet. Lock a draft to file it here."
+          : "No draft payouts. Generate a pay period above to start one."}
+      </p>
+    );
   }
+  // The tab name already says Draft vs Locked, so the per-row Status badge is
+  // dropped here (it only made sense in the old combined table).
   return (
     <div className="overflow-x-auto rounded border border-sh-stripe bg-white">
       <table className="min-w-full text-left text-sm">
@@ -340,7 +465,6 @@ function PayoutHistory({
             <th className="p-3 font-medium text-right">Period Sales</th>
             <th className="p-3 font-medium text-right">YTD End</th>
             <th className="p-3 font-medium text-right">Commission</th>
-            <th className="p-3 font-medium">Status</th>
             <th className="p-3 font-medium">Paid On</th>
             <th className="p-3"></th>
           </tr>
@@ -361,8 +485,10 @@ function PayoutHistory({
   );
 }
 
+// ---------------------------------------------------------------------------
 // Sub-components — kept in this file for proximity to their parent. Each is
 // trimmed of business logic; the parent owns state.
+// ---------------------------------------------------------------------------
 
 interface PreviewPanelProps {
   rows: PreviewedPayout[];
@@ -420,11 +546,25 @@ function PreviewPanel({
   error,
   overlappingPayouts,
 }: Readonly<PreviewPanelProps>) {
+  const money = useMoneyFormatter();
   const totalCommission = rows.reduce(
     (sum, r) => sum + (overrides[r.staffMemberId]?.commissionAmount ?? r.commissionAmount),
     0,
   );
   const hasOverlap = overlappingPayouts.length > 0;
+
+  // Overrides are the exception, not the rule — the computed numbers are
+  // right almost every time. Hide the inputs until the operator clicks
+  // "Adjust" on a row, so the default preview is a clean read-only table.
+  const [editingRows, setEditingRows] = useState<ReadonlySet<number>>(() => new Set());
+  function toggleRow(id: number) {
+    setEditingRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <section className="rounded border border-sh-gold/40 bg-amber-50 p-4">
@@ -441,94 +581,138 @@ function PreviewPanel({
               <thead className="bg-sh-linen text-sh-black">
                 <tr>
                   <th className="p-2 font-medium">Salesperson</th>
+                  <th className="p-2 font-medium">Plan</th>
                   <th className="p-2 font-medium text-right">Period Sales</th>
                   <th className="p-2 font-medium text-right">YTD End</th>
-                  <th className="p-2 font-medium text-right">Computed Comm.</th>
-                  <th className="p-2 font-medium text-right">Override</th>
-                  <th className="p-2 font-medium">Notes</th>
+                  <th className="p-2 font-medium text-right">Commission</th>
+                  <th className="p-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => {
                   const ov = overrides[r.staffMemberId] ?? {};
+                  const isAdjusted = ov.commissionAmount !== undefined || (ov.notes ?? "") !== "";
+                  const isEditing = editingRows.has(r.staffMemberId) || isAdjusted;
+                  const effective = ov.commissionAmount ?? r.commissionAmount;
                   return (
-                    <tr key={r.staffMemberId} className="border-t border-sh-stripe">
-                      <td className="p-2">{r.displayName}</td>
-                      <td className="p-2 text-right tabular-nums">
-                        {formatCurrency(r.periodSalesAmount)}
-                      </td>
-                      <td className="p-2 text-right tabular-nums">
-                        {formatCurrency(r.ytdSalesAtEnd)}
-                      </td>
-                      <td className="p-2 text-right tabular-nums">
-                        {formatCurrency(r.commissionAmount)}
-                      </td>
-                      <td className="p-2 text-right">
-                        <input
-                          type="number"
-                          step={0.01}
-                          value={ov.commissionAmount ?? ""}
-                          placeholder={r.commissionAmount.toFixed(2)}
-                          onChange={(e) =>
-                            onOverride(r.staffMemberId, {
-                              commissionAmount:
-                                e.target.value === "" ? undefined : Number(e.target.value),
-                            })
-                          }
-                          className="w-28 rounded border border-gray-300 px-2 py-1 text-right text-xs"
-                        />
-                      </td>
-                      <td className="p-2">
-                        <input
-                          type="text"
-                          value={ov.notes ?? ""}
-                          placeholder="optional"
-                          onChange={(e) => onOverride(r.staffMemberId, { notes: e.target.value })}
-                          className="w-48 rounded border border-gray-300 px-2 py-1 text-xs"
-                        />
-                      </td>
-                    </tr>
+                    <Fragment key={r.staffMemberId}>
+                      <tr className="border-t border-sh-stripe">
+                        <td className="p-2">{r.displayName}</td>
+                        <td className="p-2 text-sh-gray">{r.commissionPlanName}</td>
+                        <td className="p-2 text-right tabular-nums">
+                          {money(r.periodSalesAmount)}
+                        </td>
+                        <td className="p-2 text-right tabular-nums">{money(r.ytdSalesAtEnd)}</td>
+                        <td className="p-2 text-right tabular-nums">
+                          {money(effective)}
+                          {ov.commissionAmount !== undefined && (
+                            <span className="ml-1 text-xs font-medium text-sh-gold">adj.</span>
+                          )}
+                        </td>
+                        <td className="p-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => toggleRow(r.staffMemberId)}
+                            className="text-xs text-sh-gold hover:underline"
+                          >
+                            {isEditing ? "Done" : "Adjust"}
+                          </button>
+                        </td>
+                      </tr>
+                      {isEditing && (
+                        <tr className="border-t border-sh-stripe bg-white">
+                          <td colSpan={6} className="px-2 pb-3">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                              <span className="flex items-center gap-2">
+                                <label
+                                  htmlFor={`ov-amt-${r.staffMemberId}`}
+                                  className="text-xs text-sh-gray"
+                                >
+                                  Override amount
+                                </label>
+                                <input
+                                  id={`ov-amt-${r.staffMemberId}`}
+                                  type="number"
+                                  step={0.01}
+                                  value={ov.commissionAmount ?? ""}
+                                  placeholder={r.commissionAmount.toFixed(2)}
+                                  onChange={(e) =>
+                                    onOverride(r.staffMemberId, {
+                                      commissionAmount:
+                                        e.target.value === "" ? undefined : Number(e.target.value),
+                                    })
+                                  }
+                                  className="w-28 rounded border border-gray-300 px-2 py-1 text-right text-xs"
+                                />
+                              </span>
+                              <span className="flex flex-1 items-center gap-2">
+                                <label
+                                  htmlFor={`ov-note-${r.staffMemberId}`}
+                                  className="text-xs text-sh-gray"
+                                >
+                                  Notes
+                                </label>
+                                <input
+                                  id={`ov-note-${r.staffMemberId}`}
+                                  type="text"
+                                  value={ov.notes ?? ""}
+                                  placeholder="optional"
+                                  onChange={(e) =>
+                                    onOverride(r.staffMemberId, { notes: e.target.value })
+                                  }
+                                  className="min-w-[12rem] flex-1 rounded border border-gray-300 px-2 py-1 text-xs"
+                                />
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
               <tfoot className="border-t border-sh-stripe bg-sh-stripe font-medium">
                 <tr>
                   <td className="p-2">Total ({rows.length} salespeople)</td>
-                  <td colSpan={2}></td>
-                  <td colSpan={3} className="p-2 text-right tabular-nums">
-                    {formatCurrency(totalCommission)}
+                  <td colSpan={3}></td>
+                  <td colSpan={2} className="p-2 text-right tabular-nums">
+                    {money(totalCommission)}
                   </td>
                 </tr>
               </tfoot>
             </table>
           </div>
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-          <div className="mt-3 flex gap-2">
+          <p className="mt-3 text-xs text-sh-gray">
+            Confirm &amp; Lock sets this pay period in stone — later edits need an audit reason. Not
+            ready? Save it as a draft and keep editing.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-4">
             <button
               type="button"
-              onClick={onCancel}
-              disabled={committing}
-              className="rounded border border-gray-300 px-4 py-2 text-sm text-sh-gray hover:bg-gray-50"
+              onClick={onSaveLock}
+              disabled={committing || hasOverlap}
+              title={hasOverlap ? "Resolve the overlapping payout(s) above first." : undefined}
+              className="rounded bg-sh-navy px-5 py-2 text-sm font-medium text-white hover:bg-sh-blue disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Cancel
+              {committing ? "Saving…" : "Confirm & Lock"}
             </button>
             <button
               type="button"
               onClick={onSaveDraft}
               disabled={committing || hasOverlap}
               title={hasOverlap ? "Resolve the overlapping payout(s) above first." : undefined}
-              className="rounded border border-sh-navy px-4 py-2 text-sm text-sh-navy hover:bg-sh-linen disabled:cursor-not-allowed disabled:opacity-50"
+              className="text-sm text-sh-gray underline hover:text-sh-navy disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {committing ? "Saving…" : "Save as Draft"}
+              {committing ? "Saving…" : "Save as draft instead"}
             </button>
             <button
               type="button"
-              onClick={onSaveLock}
-              disabled={committing || hasOverlap}
-              title={hasOverlap ? "Resolve the overlapping payout(s) above first." : undefined}
-              className="rounded bg-sh-navy px-4 py-2 text-sm font-medium text-white hover:bg-sh-blue disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={onCancel}
+              disabled={committing}
+              className="ml-auto text-sm text-sh-gray hover:underline disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {committing ? "Saving…" : "Save & Lock"}
+              Cancel
             </button>
           </div>
         </>
@@ -545,7 +729,7 @@ interface PayoutRowProps {
 }
 
 function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) {
-  const isLocked = !!p.lockedAt;
+  const money = useMoneyFormatter();
   return (
     <>
       <tr className="border-t border-sh-stripe hover:bg-sh-linen">
@@ -553,17 +737,10 @@ function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) 
         <td className="p-3 whitespace-nowrap text-sh-gray">
           {formatDate(p.periodStart)} – {formatDate(p.periodEnd)}
         </td>
-        <td className="p-3 text-right tabular-nums">{formatCurrency(p.periodSalesAmount)}</td>
-        <td className="p-3 text-right tabular-nums">{formatCurrency(p.ytdSalesAtEnd)}</td>
+        <td className="p-3 text-right tabular-nums">{money(toNum(p.periodSalesAmount))}</td>
+        <td className="p-3 text-right tabular-nums">{money(toNum(p.ytdSalesAtEnd))}</td>
         <td className="p-3 text-right tabular-nums font-medium">
-          {formatCurrency(p.commissionAmount)}
-        </td>
-        <td className="p-3">
-          {isLocked ? (
-            <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">Locked</span>
-          ) : (
-            <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Draft</span>
-          )}
+          {money(toNum(p.commissionAmount))}
         </td>
         <td className="p-3 whitespace-nowrap text-sh-gray">{formatDate(p.paidOn)}</td>
         <td className="p-3 whitespace-nowrap">
@@ -581,12 +758,16 @@ function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) 
       </tr>
       {expanded && (
         <tr className="border-t border-sh-stripe bg-sh-linen/30">
-          <td colSpan={8} className="p-4">
+          <td colSpan={7} className="p-4">
             <div className="grid gap-4 lg:grid-cols-2">
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase text-sh-gray">
                   Tier Breakdown
                 </h4>
+                <p className="mb-2 text-xs text-sh-gray">
+                  Plan:{" "}
+                  <span className="font-medium text-sh-navy">{p.commissionPlanName ?? "—"}</span>
+                </p>
                 <table className="min-w-full text-xs">
                   <thead>
                     <tr className="text-sh-gray">
@@ -601,12 +782,8 @@ function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) 
                       <tr key={`${b.tierLabel}-${i}`}>
                         <td className="py-1">{b.tierLabel}</td>
                         <td className="py-1 text-right">{(b.rate * 100).toFixed(1)}%</td>
-                        <td className="py-1 text-right tabular-nums">
-                          {formatCurrency(b.sliceAmount)}
-                        </td>
-                        <td className="py-1 text-right tabular-nums">
-                          {formatCurrency(b.sliceCommission)}
-                        </td>
+                        <td className="py-1 text-right tabular-nums">{money(b.sliceAmount)}</td>
+                        <td className="py-1 text-right tabular-nums">{money(b.sliceCommission)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -630,11 +807,7 @@ function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) 
                         <div className="text-sh-navy font-medium">
                           {e.fieldChanged} · {e.editedBy}
                         </div>
-                        <div className="text-sh-gray">
-                          {new Date(e.editedAt).toLocaleString("en-US", {
-                            timeZone: "America/New_York",
-                          })}
-                        </div>
+                        <div className="text-sh-gray">{new Date(e.editedAt).toLocaleString()}</div>
                         <div className="mt-1">
                           <span className="text-red-700">{JSON.stringify(e.oldValue)}</span>
                           {" → "}
@@ -696,8 +869,8 @@ function EditPayoutModal({ payout, onClose, onSaved }: Readonly<EditPayoutModalP
         return;
       }
       onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to save"));
     } finally {
       setSaving(false);
     }
@@ -725,8 +898,8 @@ function EditPayoutModal({ payout, onClose, onSaved }: Readonly<EditPayoutModalP
         return;
       }
       onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update lock");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to update lock"));
     } finally {
       setSaving(false);
     }
@@ -832,9 +1005,11 @@ function EditPayoutModal({ payout, onClose, onSaved }: Readonly<EditPayoutModalP
   );
 }
 
+// ---------------------------------------------------------------------------
 // Drift banner — surfaces locked payouts whose underlying YTD data has
 // shifted (returns / rewrites / cancellations / reassignments landing
 // after the lock). Quiet box when clean; loud red list when not.
+// ---------------------------------------------------------------------------
 
 interface DriftRow {
   payoutId: number;
@@ -851,6 +1026,7 @@ interface DriftRow {
 }
 
 function DriftBanner({ onEditPayout }: Readonly<{ onEditPayout: (payoutId: number) => void }>) {
+  const money = useMoneyFormatter();
   const [rows, setRows] = useState<DriftRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -880,7 +1056,7 @@ function DriftBanner({ onEditPayout }: Readonly<{ onEditPayout: (payoutId: numbe
     <section className="rounded border-2 border-red-300 bg-red-50 p-4">
       <h2 className="mb-2 text-base font-semibold text-red-800">Payout Drift ({rows.length})</h2>
       <p className="mb-3 text-xs text-red-900">
-        These locked payouts had returns, rewrites, cancellations, or designer reassignments land
+        These locked payouts had returns, rewrites, cancellations, or salesperson reassignments land
         AFTER they locked. The commission already paid no longer matches the underlying YTD. Edit
         each row (with an audit reason) to claw back, or accept the variance — the next pay
         period&apos;s YTD-at-start uses the frozen YTD-at-end from these rows, so the chain stays
@@ -906,17 +1082,15 @@ function DriftBanner({ onEditPayout }: Readonly<{ onEditPayout: (payoutId: numbe
                 <td className="p-2 text-xs">
                   {formatDate(r.periodStart)} – {formatDate(r.periodEnd)}
                 </td>
-                <td className="p-2 text-right tabular-nums">{formatCurrency(r.lockedYtdAtEnd)}</td>
-                <td className="p-2 text-right tabular-nums">{formatCurrency(r.liveYtdAtEnd)}</td>
+                <td className="p-2 text-right tabular-nums">{money(r.lockedYtdAtEnd)}</td>
+                <td className="p-2 text-right tabular-nums">{money(r.liveYtdAtEnd)}</td>
                 <td
                   className={`p-2 text-right tabular-nums font-medium ${r.drift < 0 ? "text-red-700" : "text-amber-700"}`}
                 >
                   {r.drift > 0 ? "+" : ""}
-                  {formatCurrency(r.drift)}
+                  {money(r.drift)}
                 </td>
-                <td className="p-2 text-right tabular-nums">
-                  {formatCurrency(r.lockedCommissionAmount)}
-                </td>
+                <td className="p-2 text-right tabular-nums">{money(r.lockedCommissionAmount)}</td>
                 <td className="p-2">
                   <button
                     type="button"

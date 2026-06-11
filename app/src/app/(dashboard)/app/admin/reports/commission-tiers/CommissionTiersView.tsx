@@ -2,17 +2,26 @@
 
 // /app/src/app/(dashboard)/app/admin/reports/commission-tiers/CommissionTiersView.tsx
 //
-// Commission tier report body. App Router port of the legacy
-// admin/reports/commission-tiers page (minus MainLayout chrome, supplied by the
-// (dashboard) layout). Date-range window, marginal-tier math, inline tier
-// editor, and the Locked Payouts tab. Talks to the shared
-// /api/admin/reports/commission-tiers REST endpoints.
+// Commission report body (SUPER_ADMIN only — page gate in page.tsx). Three
+// tabs:
+//   • Draft Payouts (DEFAULT) — the work surface: pick a SET bi-weekly pay
+//     period, Generate → Confirm & Lock (files it under Locked Payouts) or
+//     Save as draft (stays editable here). This is where payouts get made.
+//   • Locked Payouts — the frozen archive of what's been paid, read-only except
+//     for edit-with-audit corrections. Also surfaces the drift banner.
+//   • Live Calculator — secondary what-if: marginal-tier commission for any
+//     custom date window (defaults YTD), per-plan attribution, and the
+//     commission-plans manager (create / edit tiers / set default / delete).
+//     Does NOT pay anyone.
+// Both Draft + Locked render the SAME <PayoutsTab view=…> component. Talks to
+// the shared /api/admin/reports/commission-tiers REST endpoints.
 
 import { useCallback, useEffect, useState } from "react";
-import { LockedPayoutsTab } from "@/components/commission/LockedPayoutsTab";
+import { PayoutsTab } from "@/components/commission/PayoutsTab";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { getErrorMessage } from "@/lib/toastError";
 
-type Tab = "preview" | "payouts";
+type Tab = "drafts" | "locked" | "calculator";
 
 interface Breakdown {
   tierLabel: string;
@@ -30,39 +39,56 @@ interface CommissionRow {
   currentTierLabel: string;
   commission: number;
   breakdown: Breakdown[];
-}
-
-interface Tier {
-  label: string;
-  minYtdSales: number;
-  maxYtdSalesExclusive: number | null;
-  rate: number;
-}
-
-/**
- * Draft variant of `Tier` for the inline editor. The `_draftId` is a synthetic
- * stable identifier used as the React `key` on each editor row -- using the
- * array index there would make rows lose focus when a middle row is removed
- * (S6479). The id is stripped from the payload before saving since the API + DB
- * model have no such column.
- */
-interface DraftTier extends Tier {
-  _draftId: string;
-}
-
-let draftIdSeq = 0;
-function nextDraftId(): string {
-  draftIdSeq += 1;
-  return `draft-${draftIdSeq}`;
+  /** Name of the commission plan this row's tiers resolved from. */
+  planName: string;
 }
 
 interface ReportData {
   startDate: string;
   endDate: string;
   asOf: string;
-  tiers: Tier[];
   rows: CommissionRow[];
   totals: { totalWindowSales: number; totalCommission: number };
+}
+
+/** One tier row inside a plan, as returned by the tiers endpoint. */
+interface PlanTierRow {
+  label: string;
+  minYtdSales: number;
+  maxYtdSalesExclusive: number | null;
+  rate: number;
+  sortOrder: number;
+}
+
+interface Plan {
+  id: number;
+  name: string;
+  description: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  assignedCount: number;
+  tiers: PlanTierRow[];
+}
+
+/**
+ * Draft variant of a tier for the inline editor. The `_draftId` is a synthetic
+ * stable identifier used as the React `key` on each editor row -- using the
+ * array index there would make rows lose focus when a middle row is removed
+ * (S6479). The id is stripped from the payload before saving since the API + DB
+ * model have no such column.
+ */
+interface DraftTier {
+  _draftId: string;
+  label: string;
+  minYtdSales: number;
+  maxYtdSalesExclusive: number | null;
+  rate: number;
+}
+
+let draftIdSeq = 0;
+function nextDraftId(): string {
+  draftIdSeq += 1;
+  return `draft-${draftIdSeq}`;
 }
 
 function formatPct(rate: number): string {
@@ -82,11 +108,11 @@ export function CommissionTiersView() {
   const [startDate, setStartDate] = useState<string>(yearStartIso());
   const [endDate, setEndDate] = useState<string>(todayIso());
   const [loading, setLoading] = useState(true);
-  const [editingTiers, setEditingTiers] = useState(false);
-  const [tierDraft, setTierDraft] = useState<DraftTier[]>([]);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("preview");
+  // Default to the Drafts workspace (generate a past period → review →
+  // confirm/lock). Locked Payouts is the frozen archive; Live Calculator is the
+  // secondary "what-if any date range" tool.
+  const [activeTab, setActiveTab] = useState<Tab>("drafts");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -101,78 +127,6 @@ export function CommissionTiersView() {
     load();
   }, [load]);
 
-  const beginEditTiers = useCallback(() => {
-    setTierDraft(data?.tiers.map((t) => ({ ...t, _draftId: nextDraftId() })) ?? []);
-    setSaveError(null);
-    setEditingTiers(true);
-  }, [data]);
-
-  const cancelEditTiers = useCallback(() => {
-    setEditingTiers(false);
-    setTierDraft([]);
-    setSaveError(null);
-  }, []);
-
-  const saveTiers = useCallback(async () => {
-    setSaveError(null);
-    try {
-      const res = await fetch("/api/admin/reports/commission-tiers/tiers", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        // Strip the synthetic _draftId -- API + DB model don't carry it.
-        body: JSON.stringify({
-          tiers: tierDraft.map((t, i) => ({
-            label: t.label,
-            minYtdSales: t.minYtdSales,
-            maxYtdSalesExclusive: t.maxYtdSalesExclusive,
-            rate: t.rate,
-            sortOrder: i,
-          })),
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "Unknown error" }));
-        setSaveError(body.error || `HTTP ${res.status}`);
-        return;
-      }
-      setEditingTiers(false);
-      load();
-    } catch (err: unknown) {
-      setSaveError(err instanceof Error ? err.message : String(err));
-    }
-  }, [tierDraft, load]);
-
-  const updateDraftTier = useCallback((i: number, patch: Partial<Tier>) => {
-    setTierDraft((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
-  }, []);
-
-  const addTier = useCallback(() => {
-    setTierDraft((prev) => {
-      const last = prev.at(-1);
-      const newMin = last?.maxYtdSalesExclusive ?? 0;
-      // Close out the previous "open-ended" tier with an upper bound.
-      const updated = prev.map((t, i) =>
-        i === prev.length - 1 && t.maxYtdSalesExclusive === null
-          ? { ...t, maxYtdSalesExclusive: newMin + 500_000 }
-          : t,
-      );
-      return [
-        ...updated,
-        {
-          _draftId: nextDraftId(),
-          label: "New Tier",
-          minYtdSales: newMin,
-          maxYtdSalesExclusive: null,
-          rate: 0.05,
-        },
-      ];
-    });
-  }, []);
-
-  const removeTier = useCallback((i: number) => {
-    setTierDraft((prev) => prev.filter((_, idx) => idx !== i));
-  }, []);
-
   return (
     <div>
       <div className="mb-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -180,37 +134,68 @@ export function CommissionTiersView() {
         to staff. Direct-URL access only -- not linked from any hub page.
       </div>
 
-      <div className="mb-4 flex gap-1 border-b border-sh-stripe">
-        <TabButton active={activeTab === "preview"} onClick={() => setActiveTab("preview")}>
-          Live Preview
+      {/* Tabs — Drafts is the work surface (default); Locked Payouts is the
+          frozen archive; Live Calculator is the secondary what-if. */}
+      <div className="mb-1 flex gap-1 border-b border-sh-stripe">
+        <TabButton active={activeTab === "drafts"} onClick={() => setActiveTab("drafts")}>
+          Draft Payouts
         </TabButton>
-        <TabButton active={activeTab === "payouts"} onClick={() => setActiveTab("payouts")}>
+        <TabButton active={activeTab === "locked"} onClick={() => setActiveTab("locked")}>
           Locked Payouts
+        </TabButton>
+        <TabButton active={activeTab === "calculator"} onClick={() => setActiveTab("calculator")}>
+          Live Calculator
         </TabButton>
       </div>
 
-      {activeTab === "payouts" ? (
-        <LockedPayoutsTab />
-      ) : (
-        <LivePreviewSection
-          data={data}
-          loading={loading}
-          startDate={startDate}
-          endDate={endDate}
-          setStartDate={setStartDate}
-          setEndDate={setEndDate}
-          editingTiers={editingTiers}
-          tierDraft={tierDraft}
-          saveError={saveError}
-          expandedRow={expandedRow}
-          setExpandedRow={setExpandedRow}
-          beginEditTiers={beginEditTiers}
-          cancelEditTiers={cancelEditTiers}
-          saveTiers={saveTiers}
-          updateDraftTier={updateDraftTier}
-          addTier={addTier}
-          removeTier={removeTier}
-        />
+      {activeTab === "drafts" && (
+        <p className="mb-4 text-xs text-sh-gray">
+          Pick a pay period → <strong>Generate</strong> → review →{" "}
+          <strong>Confirm &amp; Lock</strong> (files it under <strong>Locked Payouts</strong>) or{" "}
+          <strong>Save as draft</strong> to keep editing here. Drafts can be changed anytime; a
+          locked payout is set in stone.
+        </p>
+      )}
+      {activeTab === "locked" && (
+        <p className="mb-4 text-xs text-sh-gray">
+          The frozen record of what was paid each pay period. Read-only — to correct a locked
+          payout, open it and <strong>Edit</strong> (an audit reason is required for every change).
+        </p>
+      )}
+      {activeTab === "calculator" && (
+        <p className="mb-4 text-xs text-sh-gray">
+          What-if calculator for any date range — current marginal-tier commission as the data
+          stands now. It does not pay anyone; use <strong>Draft Payouts</strong> to confirm + lock.
+        </p>
+      )}
+
+      {activeTab === "drafts" && (
+        <PayoutsTab view="drafts" onAfterLock={() => setActiveTab("locked")} />
+      )}
+      {activeTab === "locked" && <PayoutsTab view="locked" />}
+      {activeTab === "calculator" && (
+        <>
+          <DateRangeControls
+            startDate={startDate}
+            endDate={endDate}
+            setStartDate={setStartDate}
+            setEndDate={setEndDate}
+          />
+
+          <PlansManager onPlansChanged={load} />
+
+          {data && !loading && (
+            <>
+              <TotalsCards totals={data.totals} />
+              <DesignerTable
+                rows={data.rows}
+                expandedRow={expandedRow}
+                setExpandedRow={setExpandedRow}
+              />
+            </>
+          )}
+          {loading && <div className="text-sh-gray">Loading...</div>}
+        </>
       )}
     </div>
   );
@@ -237,188 +222,406 @@ function TabButton({ active, onClick, children }: Readonly<TabButtonProps>) {
   );
 }
 
-interface LivePreviewSectionProps {
-  data: ReportData | null;
-  loading: boolean;
-  startDate: string;
-  endDate: string;
-  setStartDate: (s: string) => void;
-  setEndDate: (s: string) => void;
-  editingTiers: boolean;
-  tierDraft: DraftTier[];
-  saveError: string | null;
-  expandedRow: number | null;
-  setExpandedRow: (n: number | null) => void;
-  beginEditTiers: () => void;
-  cancelEditTiers: () => void;
-  saveTiers: () => void;
-  updateDraftTier: (i: number, patch: Partial<Tier>) => void;
-  addTier: () => void;
-  removeTier: (i: number) => void;
+// ---------------------------------------------------------------------------
+// Plans manager — list plans, edit a plan's tier rows inline, create / set
+// default / delete. Self-contained: owns its own fetch + state; the parent
+// passes onPlansChanged so the calculator below recomputes after a save.
+// ---------------------------------------------------------------------------
+
+/** Why the Delete button is disabled for this plan, or null when allowed. */
+function deleteBlockedReason(plan: Plan): string | null {
+  if (plan.isDefault) {
+    return "The default plan cannot be deleted — make another plan the default first.";
+  }
+  if (plan.assignedCount > 0) {
+    return `${plan.assignedCount} staff member${plan.assignedCount === 1 ? " is" : "s are"} assigned to this plan — reassign them first.`;
+  }
+  return null;
 }
 
-function LivePreviewSection(props: Readonly<LivePreviewSectionProps>) {
-  const {
-    data,
-    loading,
-    startDate,
-    endDate,
-    setStartDate,
-    setEndDate,
-    editingTiers,
-    tierDraft,
-    saveError,
-    expandedRow,
-    setExpandedRow,
-    beginEditTiers,
-    cancelEditTiers,
-    saveTiers,
-    updateDraftTier,
-    addTier,
-    removeTier,
-  } = props;
+function PlansManager({ onPlansChanged }: Readonly<{ onPlansChanged: () => void }>) {
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Inline tier editor for ONE plan at a time.
+  const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
+  const [tierDraft, setTierDraft] = useState<DraftTier[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Inline "new plan" mini-form.
+  const [showNewPlan, setShowNewPlan] = useState(false);
+  const [newPlanName, setNewPlanName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const loadPlans = useCallback(() => {
+    setLoadingPlans(true);
+    fetch("/api/admin/reports/commission-tiers/tiers")
+      .then((r) => r.json())
+      .then((d) => setPlans(d.plans ?? []))
+      .catch(() => setPlans([]))
+      .finally(() => setLoadingPlans(false));
+  }, []);
+
+  useEffect(() => {
+    loadPlans();
+  }, [loadPlans]);
+
+  function beginEditPlan(plan: Plan) {
+    setTierDraft(plan.tiers.map((t) => ({ ...t, _draftId: nextDraftId() })));
+    setEditingPlanId(plan.id);
+    setSaveError(null);
+  }
+
+  function cancelEditTiers() {
+    setEditingPlanId(null);
+    setTierDraft([]);
+    setSaveError(null);
+  }
+
+  async function saveTiers() {
+    if (editingPlanId === null) return;
+    setSaveError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/reports/commission-tiers/tiers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        // Strip the synthetic _draftId -- API + DB model don't carry it.
+        body: JSON.stringify({
+          planId: editingPlanId,
+          tiers: tierDraft.map((t, i) => ({
+            label: t.label,
+            minYtdSales: t.minYtdSales,
+            maxYtdSalesExclusive: t.maxYtdSalesExclusive,
+            rate: t.rate,
+            sortOrder: i,
+          })),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Unknown error" }));
+        setSaveError(body.error || `HTTP ${res.status}`);
+        return;
+      }
+      cancelEditTiers();
+      loadPlans();
+      onPlansChanged();
+    } catch (err: unknown) {
+      setSaveError(getErrorMessage(err, "Failed to save tiers"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createPlan() {
+    const name = newPlanName.trim();
+    if (!name) {
+      setActionError("Plan name is required.");
+      return;
+    }
+    setActionError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/reports/commission-tiers/tiers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Unknown error" }));
+        setActionError(body.error || `HTTP ${res.status}`);
+        return;
+      }
+      setShowNewPlan(false);
+      setNewPlanName("");
+      loadPlans();
+      onPlansChanged();
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err, "Failed to create plan"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function makeDefault(planId: number) {
+    setActionError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/reports/commission-tiers/tiers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId, action: "setDefault" }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Unknown error" }));
+        setActionError(body.error || `HTTP ${res.status}`);
+        return;
+      }
+      loadPlans();
+      onPlansChanged();
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err, "Failed to set default plan"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deletePlan(plan: Plan) {
+    if (!window.confirm(`Delete plan "${plan.name}"? This cannot be undone.`)) return;
+    setActionError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/reports/commission-tiers/tiers", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId: plan.id }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Unknown error" }));
+        setActionError(body.error || `HTTP ${res.status}`);
+        return;
+      }
+      if (editingPlanId === plan.id) cancelEditTiers();
+      loadPlans();
+      onPlansChanged();
+    } catch (err: unknown) {
+      setActionError(getErrorMessage(err, "Failed to delete plan"));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <>
-      <DateRangeControls
-        startDate={startDate}
-        endDate={endDate}
-        setStartDate={setStartDate}
-        setEndDate={setEndDate}
-      />
+    <section className="mb-6">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-sh-navy">Commission Plans</h2>
+        {showNewPlan ? (
+          <div className="flex items-center gap-2">
+            <label htmlFor="new-plan-name" className="sr-only">
+              New plan name
+            </label>
+            <input
+              id="new-plan-name"
+              type="text"
+              value={newPlanName}
+              onChange={(e) => setNewPlanName(e.target.value)}
+              placeholder="Plan name"
+              className="rounded border border-gray-300 px-3 py-1 text-sm"
+            />
+            <button
+              type="button"
+              onClick={createPlan}
+              disabled={busy}
+              className="rounded bg-sh-navy px-3 py-1 text-sm text-white hover:bg-sh-blue disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Create
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowNewPlan(false);
+                setNewPlanName("");
+                setActionError(null);
+              }}
+              disabled={busy}
+              className="rounded border border-gray-300 px-3 py-1 text-sm text-sh-gray hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowNewPlan(true)}
+            className="rounded border border-sh-navy px-3 py-1 text-sm text-sh-navy hover:bg-sh-linen"
+          >
+            + New Plan
+          </button>
+        )}
+      </div>
 
-      <section className="mb-6">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-sh-navy">Tier Structure</h2>
-          <TierEditorControls
-            editingTiers={editingTiers}
-            beginEditTiers={beginEditTiers}
-            cancelEditTiers={cancelEditTiers}
-            saveTiers={saveTiers}
-          />
+      {actionError && (
+        <div className="mb-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-900">
+          {actionError}
         </div>
+      )}
 
-        {editingTiers ? (
-          <TierEditor
+      {loadingPlans && <p className="text-sm text-sh-gray">Loading plans…</p>}
+      {!loadingPlans && plans.length === 0 && (
+        <p className="rounded border border-gray-200 bg-white p-3 text-sm text-sh-gray">
+          No plans yet — payouts fall back to the standard tier set. Create a plan to manage tiers
+          here (the first plan becomes the default automatically).
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {plans.map((plan) => (
+          <PlanCard
+            key={plan.id}
+            plan={plan}
+            editing={editingPlanId === plan.id}
             tierDraft={tierDraft}
             saveError={saveError}
-            updateDraftTier={updateDraftTier}
-            addTier={addTier}
-            removeTier={removeTier}
+            busy={busy}
+            onBeginEdit={() => beginEditPlan(plan)}
+            onCancelEdit={cancelEditTiers}
+            onSaveTiers={saveTiers}
+            onUpdateDraftTier={(i, patch) =>
+              setTierDraft((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
+            }
+            onAddTier={() =>
+              setTierDraft((prev) => {
+                const last = prev.at(-1);
+                const newMin = last?.maxYtdSalesExclusive ?? 0;
+                // Close out the previous "open-ended" tier with an upper bound.
+                const updated = prev.map((t, i) =>
+                  i === prev.length - 1 && t.maxYtdSalesExclusive === null
+                    ? { ...t, maxYtdSalesExclusive: newMin + 500_000 }
+                    : t,
+                );
+                return [
+                  ...updated,
+                  {
+                    _draftId: nextDraftId(),
+                    label: "New Tier",
+                    minYtdSales: newMin,
+                    maxYtdSalesExclusive: null,
+                    rate: 0.05,
+                  },
+                ];
+              })
+            }
+            onRemoveTier={(i) => setTierDraft((prev) => prev.filter((_, idx) => idx !== i))}
+            onMakeDefault={() => makeDefault(plan.id)}
+            onDelete={() => deletePlan(plan)}
           />
-        ) : (
-          <TierCards tiers={data?.tiers ?? []} />
-        )}
-
-        <p className="mt-2 text-xs text-sh-gray">
-          Marginal: each tier&apos;s rate applies only to the slice of YTD sales inside that
-          tier&apos;s bracket. Tiers are not retroactive -- once a designer crosses a threshold,
-          subsequent sales earn the higher rate going forward.
-        </p>
-      </section>
-
-      {data && !loading && (
-        <>
-          <TotalsCards totals={data.totals} />
-          <DesignerTable
-            rows={data.rows}
-            expandedRow={expandedRow}
-            setExpandedRow={setExpandedRow}
-          />
-        </>
-      )}
-      {loading && <div className="text-sh-gray">Loading...</div>}
-    </>
-  );
-}
-
-interface DateRangeControlsProps {
-  startDate: string;
-  endDate: string;
-  setStartDate: (s: string) => void;
-  setEndDate: (s: string) => void;
-}
-
-function DateRangeControls({
-  startDate,
-  endDate,
-  setStartDate,
-  setEndDate,
-}: Readonly<DateRangeControlsProps>) {
-  return (
-    <section className="mb-6 flex flex-wrap items-end gap-4 print:hidden">
-      <div>
-        <label htmlFor="start-date" className="block text-xs font-medium text-sh-navy">
-          Window Start
-        </label>
-        <input
-          id="start-date"
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
-        />
+        ))}
       </div>
-      <div>
-        <label htmlFor="end-date" className="block text-xs font-medium text-sh-navy">
-          Window End
-        </label>
-        <input
-          id="end-date"
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
-        />
-      </div>
-      <p className="ml-auto max-w-xs text-xs text-sh-gray">
-        Commission earned on sales within the window, marginal across tiers. YTD-at-start is looked
-        up from Jan 1 of the start year.
+
+      <p className="mt-2 text-xs text-sh-gray">
+        Marginal: each tier&apos;s rate applies only to the slice of YTD sales inside that
+        tier&apos;s bracket. Tiers are not retroactive -- once a salesperson crosses a threshold,
+        subsequent sales earn the higher rate going forward. Staff without an assigned plan use the
+        default plan.
       </p>
     </section>
   );
 }
 
-interface TierEditorControlsProps {
-  editingTiers: boolean;
-  beginEditTiers: () => void;
-  cancelEditTiers: () => void;
-  saveTiers: () => void;
+interface PlanCardProps {
+  plan: Plan;
+  editing: boolean;
+  tierDraft: DraftTier[];
+  saveError: string | null;
+  busy: boolean;
+  onBeginEdit: () => void;
+  onCancelEdit: () => void;
+  onSaveTiers: () => void;
+  onUpdateDraftTier: (i: number, patch: Partial<DraftTier>) => void;
+  onAddTier: () => void;
+  onRemoveTier: (i: number) => void;
+  onMakeDefault: () => void;
+  onDelete: () => void;
 }
 
-function TierEditorControls({
-  editingTiers,
-  beginEditTiers,
-  cancelEditTiers,
-  saveTiers,
-}: Readonly<TierEditorControlsProps>) {
-  if (!editingTiers) {
-    return (
-      <button
-        type="button"
-        onClick={beginEditTiers}
-        className="rounded border border-sh-navy px-3 py-1 text-sm text-sh-navy hover:bg-sh-linen"
-      >
-        Edit Tiers
-      </button>
-    );
-  }
+function PlanCard({
+  plan,
+  editing,
+  tierDraft,
+  saveError,
+  busy,
+  onBeginEdit,
+  onCancelEdit,
+  onSaveTiers,
+  onUpdateDraftTier,
+  onAddTier,
+  onRemoveTier,
+  onMakeDefault,
+  onDelete,
+}: Readonly<PlanCardProps>) {
+  const blocked = deleteBlockedReason(plan);
   return (
-    <div className="flex gap-2">
-      <button
-        type="button"
-        onClick={cancelEditTiers}
-        className="rounded border border-gray-300 px-3 py-1 text-sm text-sh-gray hover:bg-gray-50"
-      >
-        Cancel
-      </button>
-      <button
-        type="button"
-        onClick={saveTiers}
-        className="rounded bg-sh-navy px-3 py-1 text-sm text-white hover:bg-sh-blue"
-      >
-        Save Tiers
-      </button>
+    <div className="rounded border border-gray-200 bg-white p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-sh-navy">{plan.name}</span>
+          {plan.isDefault && (
+            <span className="rounded bg-sh-navy px-2 py-0.5 text-xs text-white">Default</span>
+          )}
+          {!plan.isActive && (
+            <span className="rounded bg-gray-200 px-2 py-0.5 text-xs text-sh-gray">Inactive</span>
+          )}
+          <span className="text-xs text-sh-gray">
+            {plan.assignedCount} assigned · {plan.tiers.length} tier
+            {plan.tiers.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="flex gap-2">
+          {editing ? (
+            <>
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                disabled={busy}
+                className="rounded border border-gray-300 px-3 py-1 text-sm text-sh-gray hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onSaveTiers}
+                disabled={busy}
+                className="rounded bg-sh-navy px-3 py-1 text-sm text-white hover:bg-sh-blue disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Save Tiers
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onBeginEdit}
+                className="rounded border border-sh-navy px-3 py-1 text-sm text-sh-navy hover:bg-sh-linen"
+              >
+                Edit Tiers
+              </button>
+              {!plan.isDefault && (
+                <button
+                  type="button"
+                  onClick={onMakeDefault}
+                  disabled={busy}
+                  className="rounded border border-sh-gold px-3 py-1 text-sm text-sh-gold hover:bg-sh-linen disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Make Default
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={busy || blocked !== null}
+                title={blocked ?? undefined}
+                className="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Delete
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      {plan.description && <p className="mb-2 text-xs text-sh-gray">{plan.description}</p>}
+
+      {editing ? (
+        <TierEditor
+          tierDraft={tierDraft}
+          saveError={saveError}
+          updateDraftTier={onUpdateDraftTier}
+          addTier={onAddTier}
+          removeTier={onRemoveTier}
+        />
+      ) : (
+        <TierCards tiers={plan.tiers} />
+      )}
     </div>
   );
 }
@@ -426,7 +629,7 @@ function TierEditorControls({
 interface TierEditorProps {
   tierDraft: DraftTier[];
   saveError: string | null;
-  updateDraftTier: (i: number, patch: Partial<Tier>) => void;
+  updateDraftTier: (i: number, patch: Partial<DraftTier>) => void;
   addTier: () => void;
   removeTier: (i: number) => void;
 }
@@ -530,7 +733,7 @@ function TierEditor({
   );
 }
 
-function TierCards({ tiers }: Readonly<{ tiers: Tier[] }>) {
+function TierCards({ tiers }: Readonly<{ tiers: PlanTierRow[] }>) {
   const money = useMoneyFormatter();
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
@@ -545,6 +748,57 @@ function TierCards({ tiers }: Readonly<{ tiers: Tier[] }>) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Live calculator — date window, totals, per-salesperson marginal commission.
+// ---------------------------------------------------------------------------
+
+interface DateRangeControlsProps {
+  startDate: string;
+  endDate: string;
+  setStartDate: (s: string) => void;
+  setEndDate: (s: string) => void;
+}
+
+function DateRangeControls({
+  startDate,
+  endDate,
+  setStartDate,
+  setEndDate,
+}: Readonly<DateRangeControlsProps>) {
+  return (
+    <section className="mb-6 flex flex-wrap items-end gap-4 print:hidden">
+      <div>
+        <label htmlFor="start-date" className="block text-xs font-medium text-sh-navy">
+          Window Start
+        </label>
+        <input
+          id="start-date"
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
+        />
+      </div>
+      <div>
+        <label htmlFor="end-date" className="block text-xs font-medium text-sh-navy">
+          Window End
+        </label>
+        <input
+          id="end-date"
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
+        />
+      </div>
+      <p className="ml-auto max-w-xs text-xs text-sh-gray">
+        Commission earned on sales within the window, marginal across tiers. YTD-at-start is looked
+        up from Jan 1 of the start year.
+      </p>
+    </section>
   );
 }
 
@@ -587,6 +841,7 @@ function DesignerTable({ rows, expandedRow, setExpandedRow }: Readonly<DesignerT
           <thead className="bg-sh-stripe text-sh-navy">
             <tr>
               <th className="px-3 py-2 text-left font-semibold">Designer</th>
+              <th className="px-3 py-2 text-left font-semibold">Plan</th>
               <th className="px-3 py-2 text-right font-semibold">YTD at Start</th>
               <th className="px-3 py-2 text-right font-semibold">Window Sales</th>
               <th className="px-3 py-2 text-right font-semibold">YTD at End</th>
@@ -606,7 +861,7 @@ function DesignerTable({ rows, expandedRow, setExpandedRow }: Readonly<DesignerT
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-sh-gray">
+                <td colSpan={8} className="px-3 py-6 text-center text-sh-gray">
                   No designer had sales in this window.
                 </td>
               </tr>
@@ -630,6 +885,7 @@ function DesignerRow({ row, expanded, onToggle }: Readonly<DesignerRowProps>) {
     <>
       <tr className="border-t border-gray-100">
         <td className="px-3 py-2">{row.displayName}</td>
+        <td className="px-3 py-2 text-sh-gray">{row.planName}</td>
         <td className="px-3 py-2 text-right text-sh-gray">
           {money(row.ytdAtStart, { whole: true })}
         </td>
@@ -647,7 +903,7 @@ function DesignerRow({ row, expanded, onToggle }: Readonly<DesignerRowProps>) {
       </tr>
       {expanded && row.breakdown.length > 0 && (
         <tr className="bg-sh-linen">
-          <td colSpan={7} className="px-6 py-2">
+          <td colSpan={8} className="px-6 py-2">
             <BreakdownTable breakdown={row.breakdown} />
           </td>
         </tr>

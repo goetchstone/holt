@@ -10,6 +10,60 @@ probably do better … date, daterange, sales amount, ytd, comm tier,
 comm rate, comm, salesperson … lock it in so that won't let you undo
 once locked in … SUPER_ADMIN can edit with an audit comment."*
 
+## Commission plans (per-salesperson structures, 2026-06-11)
+
+Owner: *"we need to be able to set different commission structures and assign
+them to different sales people."* A **CommissionPlan** is a named set of
+marginal YTD tiers in the exact `CommissionTier` row shape
+(`label, minYtdSales, maxYtdSalesExclusive|null, rate, sortOrder`), validated
+by the same bracket rules (contiguous, ascending, only the last tier
+unbounded). `StaffMember.commissionPlanId` assigns one; NULL means default.
+
+**Tier resolution chain** (`lib/commissionPlans.ts:resolvePlanTiersForStaff`),
+used identically by payout generation AND the live calculator so the two can
+never price a designer differently:
+
+1. the staff member's assigned plan (if it has tier rows)
+2. the `isDefault` plan
+3. the **legacy `CommissionTier` table** — a restored legacy dataset lands its
+   tier rows here and computes IDENTICALLY until plans are created (this is
+   the compatibility guarantee; pinned by the parity test in
+   `commissionPlans.integration.test.ts`)
+4. `DEFAULT_COMMISSION_TIERS` (fresh dev DB / first boot)
+
+Steps 3+4 are byte-for-byte the old `loadTiers()` behavior. The migration
+(`20260611_commission_plans`) also converts an existing `CommissionTier` set
+into a default **Standard** plan, idempotently — safe to re-run after a
+restore. No code writes `CommissionTier` anymore; the plans endpoint replaced
+the whole-set tier editor.
+
+**Snapshot**: every payout row now freezes `commissionPlanId` +
+`commissionPlanName` alongside `tierDefinitionSnapshot`, so history records
+who was paid under which structure even if the plan is later deleted (FK
+nulls; the denormalized name keeps rendering). Rows generated before plans
+existed have NULL — render "—".
+
+**Mid-year plan switch semantics** (deliberate, pinned by test): chain
+continuity carries YTD **dollars** — the next period's `ytdSalesAtStart`
+still reads the prior LOCKED payout's frozen `ytdSalesAtEnd` regardless of
+plan. A switch therefore never re-prices locked history; the new plan's
+brackets simply price all subsequent slices from the carried YTD position.
+A high-YTD designer moved to a flat plan gets the flat rate immediately;
+moved to a bracketed plan, they enter at whatever bracket their carried YTD
+falls in.
+
+**Eligibility is unchanged** by plans: payout generation still selects
+`role IN [DESIGNER, MANAGER] AND isActive`; the team/HR read views still
+filter `isDesigner`. Plan assignment only changes the *rate structure*,
+never *who gets generated*.
+
+**Admin surfaces**: plans CRUD + per-plan tier editor live on the
+commission-tiers page (Live Calculator tab); assignment is a dropdown on
+Admin → Staff (the staff PATCH carries `commissionPlanId`). Plans endpoint:
+`/api/admin/reports/commission-tiers/tiers` (GET list / POST create / PUT
+replace-tiers / PATCH rename-or-setDefault / DELETE — refuses for the default
+plan or while staff are assigned).
+
 ## What this domain owns
 
 Two surfaces, both at `/admin/reports/commission-tiers`:
