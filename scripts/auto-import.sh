@@ -1,19 +1,18 @@
 #!/bin/sh
 # scripts/auto-import.sh
 #
-# Trigger automated the POS report import from Gmail.
-# Configure this in Synology Task Scheduler as a recurring task
-# (e.g., every 30 minutes during business hours, weekdays only).
+# Trigger the legacy-POS auto-import (Gmail -> CSV reports -> import runners).
+# Configure in cron / Synology Task Scheduler as a recurring task — daily at
+# 06:10 local is the proven cadence (the legacy POS emails prior-day batch
+# reports overnight; several import quirks assume a full day's sales+returns
+# arrive in one batch, so run once per day, never split a day's files).
 #
-# Required: AUTO_IMPORT_API_KEY must match the value in app/.env.local
+# Requires the `legacyPosImport` feature flag ON for this deployment.
+# Required env: AUTO_IMPORT_API_KEY (matches app/.env.local).
+# Optional env: APP_BASE_URL, OPS_ALERT_WEBHOOK (see scripts/_cron-run.sh) —
+# a failed run now fires an ops alert.
 
-AUTO_IMPORT_API_KEY="${AUTO_IMPORT_API_KEY:-}"
+DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+. "$DIR/_cron-run.sh"
 
-if [ -z "$AUTO_IMPORT_API_KEY" ]; then
-  echo "ERROR: AUTO_IMPORT_API_KEY is not set"
-  exit 1
-fi
-
-curl -sf -X POST \
-  -H "Authorization: Bearer ${AUTO_IMPORT_API_KEY}" \
-  http://localhost:3000/api/automations/gmail-import
+run_cron "legacy-pos-import" "/api/automations/gmail-import"

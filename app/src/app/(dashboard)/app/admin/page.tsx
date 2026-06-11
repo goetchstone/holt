@@ -101,6 +101,13 @@ const ITEMS: CardGridItem[] = [
     href: "/app/admin/automations/mailchimp-sync",
   },
   {
+    title: "Legacy POS Auto-Import",
+    description:
+      "Run the daily legacy-POS report import (sales, payments, invoices, POs, stock) and see per-file history.",
+    href: "/app/admin/automations/pos-import",
+    feature: "legacyPosImport",
+  },
+  {
     title: "Customer AR Drift Check",
     description:
       "Cross-check stored Customer.openArBalance against the live source recompute. Flags any drift.",

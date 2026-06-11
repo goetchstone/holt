@@ -112,6 +112,13 @@ export const FEATURES: FeatureDef[] = [
     defaultEnabled: false,
   },
   {
+    key: "legacyPosImport",
+    name: "Legacy POS auto-import",
+    description:
+      "Automated daily ingestion of the legacy POS's emailed CSV reports (sales, quotes, payments, invoices, POs, stock, customers, products) via the edition's import adapter. Runs in parallel with the legacy system until cutover.",
+    defaultEnabled: false,
+  },
+  {
     key: "legacyArchive",
     name: "Legacy Archive",
     description:

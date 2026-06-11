@@ -1531,6 +1531,10 @@ model PurchaseOrder {
   vendorAckNumber   String?
   vendorAckDate     DateTime?
   notes             String?
+  // Stamped by the legacy-POS inbound-items import (a full snapshot of open
+  // POs): a PO absent from the latest export was received/cancelled upstream,
+  // so inbound dashboards filter to MAX(lastSeenInInboundExport).
+  lastSeenInInboundExport DateTime?
 
   // Vendor return support (negative PO)
   isReturn        Boolean @default(false)
