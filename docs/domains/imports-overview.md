@@ -2,20 +2,35 @@
 
 Everything that flows data INTO our DB from the POS (or any other source). Read this first; the per-import domain runbooks have the details for each path.
 
+> **Where the code lives (2026-06-10):** the entire legacy-POS pipeline is the
+> **Ordorite adapter** — a self-contained edition module under
+> `app/src/lib/adapters/ordorite/` (gmailClient, reportRouter, shared helpers,
+> all 13 runners, sameDayRewriteCleanup, emptyReport, orchestrator), gated by
+> the `legacyPosImport` feature flag (default OFF; the Saybrook edition turns it
+> on). Source-agnostic pieces stay in core: `lib/importHelpers.ts` (coercion +
+> `findOrCreateCustomer` on `CustomerExternalId`), `lib/storeLocationResolver.ts`,
+> `lib/orderLineItemLinker.ts`, `lib/salesPersonFkBackfill.ts`, pay-period lock
+> libs, consignment sync. Gmail credentials resolve DB-first
+> (Settings → Integrations → Gmail: paste the service-account JSON + delegate
+> email) with `GMAIL_SERVICE_ACCOUNT_PATH` / `GMAIL_DELEGATE_EMAIL` env fallback.
+> Holt-vs-FC field renames (`ordorite*` → `external*`) are mapped in
+> `CLIENT-MIGRATION-PLAN.md`; order-number grammar (SBOM/SBOA/rewrite suffixes)
+> is unchanged — it is data, not branding.
+
 This doc exists because 2026-05-20 was the day we discovered we had **3 import-related bugs latent at once** (BOM-strip never tripped on the manual customers path until that day, quote-runner never read Cuscode, temp-items runner hardcoded CONFIRMED) plus 2 the POS-side renames AND a 387-row barcode-duplicate data-quality issue — too many moving pieces to keep in scattered runbooks. This is the single-source map.
 
 ## The two ingestion paths
 
 | Path | Cadence | Trigger | Surface |
 |---|---|---|---|
-| **Gmail → automated daily orchestrator** | Daily 06:10 ET via Synology cron | `scripts/auto-import.sh` → `POST /api/automations/gmail-import` (Bearer auth) | 13 routes in `lib/gmailReportRouter.ts` |
+| **Gmail → automated daily orchestrator** | Daily 06:10 ET via Synology cron | `scripts/auto-import.sh` → `POST /api/automations/gmail-import` (Bearer auth) | 13 routes in `lib/adapters/ordorite/reportRouter.ts` |
 | **Manual products import** | Ad-hoc, owner-triggered | `/admin/import/POS-products` UI upload | `runthe POSProductsImport` |
 
 Plus a few one-off / legacy paths (FileMaker `lib/fmApiClient.ts`, Windfall weekly CSV via `/admin/import/windfall`, HD Proposal PDF) — covered in `integrations.md`.
 
 ## The 14 daily-import routes
 
-Configured in `lib/gmailReportRouter.ts`. Each filename regex maps to one runner.
+Configured in `lib/adapters/ordorite/reportRouter.ts`. Each filename regex maps to one runner.
 
 | the POS filename pattern (regex) | Route → runner | Domain runbook |
 |---|---|---|
@@ -47,11 +62,11 @@ The owner renamed two reports on the POS's side to scope them to prior-day-only 
 | `Company_Customers.csv` | `Company_Prior_Day_Customers.csv` | Scope to prior-day-only data (not the entire historical customer master) |
 | `Prior_Day_Temp_Items.csv` | `Prior_Day_Temp_Purchase_Orders.csv` | Clearer semantic name on the POS's side |
 
-Both renames are documented in `docs/domains/import-pipeline.md` and pinned by tests in `__tests__/gmailReportRouter.test.ts` (legacy regression + post-rename coverage both present).
+Both renames are documented in `docs/domains/import-pipeline.md` and pinned by tests in `__tests__/ordoriteReportRouter.test.ts` (legacy regression + post-rename coverage both present).
 
 ## Products import (catalog refresh)
 
-**Two entry points, ONE runner.** Both call `runProductsImport` in `lib/importRunners.ts`.
+**Two entry points, ONE runner.** Both call `runProductsImport` in `lib/adapters/ordorite/runners.ts`.
 
 ### Daily auto-import — `SH_Item_Export.csv` (2026-05-26+)
 
@@ -187,7 +202,7 @@ The 2026-05-21 placeholder-merge migration (`20260521_merge_POS_placeholders`) i
 
 | File | Tests | Type |
 |---|---|---|
-| `__tests__/gmailReportRouter.test.ts` | 22 | Unit — exact-name + post-rename + skip-pattern routing |
+| `__tests__/ordoriteReportRouter.test.ts` | 22 | Unit — exact-name + post-rename + skip-pattern routing |
 | `__tests__/importHelpers.test.ts` | 79 | Unit — derivePOStatus, splitCustomerName, isReturnOrder, etc. |
 | `__tests__/importRunners.regression.test.ts` | 21 | Source-text tripwires for every prod failure that's hit a runner |
 | `__tests__/integration/runSalesImport.integration.test.ts` | 5+ | Real-DB |

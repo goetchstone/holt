@@ -114,7 +114,7 @@ the POS shows: rewrite only, $3,189 + $117 = **$3,306**.
 
 The $1,109 delta = lounges + extra delivery (base lines 4 & 5). the POS never returned them.
 
-**Fix** (`lib/sameDayRewriteCleanup.ts` + post-import sweep in `runSalesImport`):
+**Fix** (`lib/adapters/ordorite/sameDayRewriteCleanup.ts` + post-import sweep in `runSalesImport`):
 
 After every sales import, find every rewrite whose `orderDate` matches its base's `orderDate`. For each such pair, **also look up the same-day return-prefixed accounting return** (prefix-swap: the sale prefix→the return prefix, the sale prefix→the return prefix, the sale prefix→the return prefix). Apply the combined heuristic below to decide which base lines to cancel.
 
@@ -237,9 +237,9 @@ The sweep runs OUTSIDE the per-batch transaction — idempotent, and a single fa
 
 ## Key Files
 
-- `lib/gmailClient.ts` -- Gmail API client
-- `lib/gmailReportRouter.ts` -- filename-to-runner dispatch
-- `lib/importRunners.ts` -- all runner functions (~2000 lines)
+- `lib/adapters/ordorite/gmailClient.ts` -- Gmail API client
+- `lib/adapters/ordorite/reportRouter.ts` -- filename-to-runner dispatch
+- `lib/adapters/ordorite/runners.ts` -- all runner functions (~2000 lines)
 - `lib/importHelpers.ts` -- pure utility functions (safeString, safeFloat, deriveSalesOrderStatus, etc.)
 - `pages/api/automations/gmail-import.ts` -- pipeline orchestrator
 - `scripts/auto-import.sh` -- cron script for Synology Task Scheduler

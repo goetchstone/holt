@@ -239,6 +239,15 @@ export async function resetTestDb(): Promise<void> {
   // unquoted identifiers to lowercase) match the Prisma-generated tables.
   const quoted = ALL_TABLES.map((t) => `"${t}"`).join(", ");
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${quoted} RESTART IDENTITY CASCADE;`);
+
+  // Module-level caches hand out ids of rows the TRUNCATE just deleted.
+  // Imported lazily so the unit project (no DB) never pulls the adapter in.
+  const { clearAutoCreateCachesForTesting } = await import("@/lib/adapters/ordorite/shared");
+  const { clearImportRunnerCachesForTesting } = await import("@/lib/adapters/ordorite/runners");
+  const { clearLocationCache } = await import("@/lib/storeLocationResolver");
+  clearAutoCreateCachesForTesting();
+  clearImportRunnerCachesForTesting();
+  clearLocationCache();
 }
 
 /**

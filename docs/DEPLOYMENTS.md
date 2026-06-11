@@ -62,6 +62,22 @@ core repo stays a single product so improvements flow to every deployment.
   with the legacy system (daily reconciliation compares totals) until it becomes
   the system of record.
 
+  **The adapter shipped 2026-06-10** at `app/src/lib/adapters/ordorite/`
+  (gmailClient → reportRouter → 13 runners + every FC quirk: phantom Gift-Card
+  skip, orphan-cancel + rewrite-freeze + reactivation, same-day-rewrite
+  three-gate sweep, pay-period attribution-lock preserve, consignment lifecycle
+  sync, PO receipt recalc with 0-qty exclusion, product-link + salesperson-FK
+  self-heal). Enable it per deployment:
+  1. Flip the **`legacyPosImport`** feature flag ON (Settings → Modules, or the
+     edition seed).
+  2. Enter the Gmail **service-account JSON + delegate email** in
+     Settings → Integrations → Gmail (or mount the file and set
+     `GMAIL_SERVICE_ACCOUNT_PATH` + `GMAIL_DELEGATE_EMAIL`). The mailbox needs
+     the `Automations` label and domain-wide delegation with `gmail.modify`.
+  3. Schedule `scripts/auto-import.sh` daily ~06:10 (it sources
+     `_cron-run.sh`, so failures alert via `OPS_ALERT_WEBHOOK`).
+  4. Watch Admin → Legacy POS Auto-Import for per-file history + staleness.
+
 Adding a future client = a new seed + feature preset, and an adapter only if
 they migrate from a system with quirky exports.
 
