@@ -77,6 +77,12 @@ core repo stays a single product so improvements flow to every deployment.
   3. Schedule `scripts/auto-import.sh` daily ~06:10 (it sources
      `_cron-run.sh`, so failures alert via `OPS_ALERT_WEBHOOK`).
   4. Watch Admin → Legacy POS Auto-Import for per-file history + staleness.
+  5. **Parallel-run trust gate:** while both systems ingest the same daily
+     exports, run `scripts/parallel-run-compare.cjs` (read-only) with
+     `HOLT_DATABASE_URL` + `LEGACY_DATABASE_URL` — it compares per-day revenue
+     / tax / cash / order-count (and `--by-store`) using the canonical filters
+     and exits non-zero on any drift. Zero drift over a sustained window is
+     the cutover criterion.
 
 Adding a future client = a new seed + feature preset, and an adapter only if
 they migrate from a system with quirky exports.
