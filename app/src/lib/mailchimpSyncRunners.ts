@@ -128,8 +128,7 @@ function parseReport(report: Record<string, unknown>): ParsedReport {
   const safeInt = (val: unknown): number => (typeof val === "number" ? val : 0);
   const opens = report.opens as { opens_total?: number; unique_opens?: number } | undefined;
   const clicks = report.clicks as
-    | { clicks_total?: number; unique_subscriber_clicks?: number }
-    | undefined;
+    { clicks_total?: number; unique_subscriber_clicks?: number } | undefined;
   const bounces = report.bounces as { hard_bounces?: number; soft_bounces?: number } | undefined;
   return {
     emailsSent: safeInt(report.emails_sent),
