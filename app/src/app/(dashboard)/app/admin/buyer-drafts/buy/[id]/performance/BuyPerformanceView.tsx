@@ -105,10 +105,7 @@ interface PerformanceResponse {
     start: string | null;
     end: string;
     source:
-      | "actualReceivedDate"
-      | "expectedDeliveryDate"
-      | "expectedShipMonth"
-      | "fallback-full-history";
+      "actualReceivedDate" | "expectedDeliveryDate" | "expectedShipMonth" | "fallback-full-history";
     message: string;
   };
 }

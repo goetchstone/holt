@@ -144,9 +144,7 @@ export interface ReconDeposit {
   amount: Money;
 }
 export type ReconDiscrepancyKind =
-  | "INVOICE_OVERAPPLIED"
-  | "PAYMENT_OVERAPPLIED"
-  | "NEGATIVE_AMOUNT";
+  "INVOICE_OVERAPPLIED" | "PAYMENT_OVERAPPLIED" | "NEGATIVE_AMOUNT";
 export interface ReconDiscrepancy {
   kind: ReconDiscrepancyKind;
   ref: string;

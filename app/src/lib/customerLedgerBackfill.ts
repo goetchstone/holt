@@ -100,10 +100,7 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 export interface BackfillResult {
   customerId: number;
   status:
-    | "skipped-already-backfilled"
-    | "skipped-no-orders"
-    | "backfilled"
-    | "backfilled-with-drift";
+    "skipped-already-backfilled" | "skipped-no-orders" | "backfilled" | "backfilled-with-drift";
   entriesCreated: number;
   finalBalance: number;
   validation: LedgerValidation;

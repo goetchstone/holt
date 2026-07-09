@@ -96,12 +96,7 @@ export const UPLOAD_PRESETS: Record<string, UploadPreset> = {
 };
 
 export type UploadPresetName =
-  | "CSV_XLSX"
-  | "PDF"
-  | "IMAGE"
-  | "INVENTORY_SCAN"
-  | "TICKET_ATTACHMENT"
-  | "DELIVERY_PROOF";
+  "CSV_XLSX" | "PDF" | "IMAGE" | "INVENTORY_SCAN" | "TICKET_ATTACHMENT" | "DELIVERY_PROOF";
 
 interface CreateFormOptions {
   /** Optional override to place files in a preset's named sub-subdirectory

@@ -174,9 +174,10 @@ export function TrafficReportView() {
     const topStore = data.byStore[0] ?? null;
     const busiestHour = data.byHour
       .filter((h) => h.visitors > 0)
-      .reduce<
-        (typeof data.byHour)[number] | null
-      >((best, row) => (best === null || row.visitors > best.visitors ? row : best), null);
+      .reduce<(typeof data.byHour)[number] | null>(
+        (best, row) => (best === null || row.visitors > best.visitors ? row : best),
+        null,
+      );
     return { totalVisitors, avgPerDay, days, busiest, topStore, busiestHour };
   }, [data]);
 

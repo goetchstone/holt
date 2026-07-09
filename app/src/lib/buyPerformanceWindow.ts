@@ -34,10 +34,7 @@ export interface BuyPoForWindow {
 }
 
 export type SalesWindowSource =
-  | "actualReceivedDate"
-  | "expectedDeliveryDate"
-  | "expectedShipMonth"
-  | "fallback-full-history";
+  "actualReceivedDate" | "expectedDeliveryDate" | "expectedShipMonth" | "fallback-full-history";
 
 export interface SalesWindow {
   /** Inclusive lower bound on orderDate. null = no lower bound (full history). */
