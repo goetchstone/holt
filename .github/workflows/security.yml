@@ -55,7 +55,7 @@ jobs:
     container:
       image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Registry rule packs tuned for this stack. p/typescript + p/react
       # cover the UI; p/nextjs flags Next.js-specific API auth gaps;
@@ -194,7 +194,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install osv-scanner
         run: |
@@ -300,7 +300,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build production image
         run: |
