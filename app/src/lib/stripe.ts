@@ -22,7 +22,7 @@ export async function getStripe(): Promise<Stripe> {
     );
   }
   if (!_stripe || _stripe.key !== key) {
-    _stripe = { key, client: new Stripe(key, { apiVersion: "2026-04-22.dahlia" }) };
+    _stripe = { key, client: new Stripe(key, { apiVersion: "2026-06-24.dahlia" }) };
   }
   return _stripe.client;
 }
