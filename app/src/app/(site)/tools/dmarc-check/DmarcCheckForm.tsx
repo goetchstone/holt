@@ -10,12 +10,28 @@ import {
   XCircle,
   HelpCircle,
   Loader2,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface DkimResult {
   selector: string;
   found: boolean;
   record?: string;
+}
+
+interface SimpleRecordCheck {
+  found: boolean;
+  record: string | null;
+  detail: string;
+  status: "ok" | "warn" | "fail" | "missing";
+}
+
+interface SuggestedRecord {
+  name: string;
+  type: "TXT";
+  value: string;
+  why: string;
 }
 
 interface CheckResult {
@@ -34,16 +50,23 @@ interface CheckResult {
   dkim: {
     selectorsChecked: number;
     found: DkimResult[];
-    status: "ok" | "warn" | "missing";
+    status: "ok" | "missing";
   };
   dmarc: {
     found: boolean;
     record: string | null;
     policy: string | null;
+    subdomainPolicy: string | null;
+    pct: number;
+    enforcing: boolean;
     hasReporting: boolean;
     issues: string[];
     status: "ok" | "warn" | "fail" | "missing";
   };
+  mtaSts: SimpleRecordCheck;
+  tlsRpt: SimpleRecordCheck;
+  bimi: SimpleRecordCheck;
+  fixes: SuggestedRecord[];
   summary: { score: number; verdict: string };
 }
 
@@ -255,7 +278,16 @@ export function DmarcCheckForm() {
             title="DMARC (Domain-based Message Authentication, Reporting & Conformance)"
             status={result.dmarc.status}
             statusLabelOverride={
-              result.dmarc.found ? `Policy: ${result.dmarc.policy ?? "unset"}` : "Not found"
+              result.dmarc.found
+                ? [
+                    `Policy: ${result.dmarc.policy ?? "unset"}`,
+                    result.dmarc.pct < 100 ? `pct=${result.dmarc.pct}` : null,
+                    result.dmarc.subdomainPolicy ? `sp=${result.dmarc.subdomainPolicy}` : null,
+                    result.dmarc.enforcing ? "enforcing" : "not enforcing",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : "Not found"
             }
             description={
               result.dmarc.found
@@ -273,6 +305,60 @@ export function DmarcCheckForm() {
             )}
             {result.dmarc.issues.length > 0 && <IssueList items={result.dmarc.issues} />}
           </ResultSection>
+
+          {/* Optional hardening — shown for visibility, deliberately not
+              scored: a domain without BIMI isn't insecure, it's just not
+              decorated. */}
+          <div className="border border-bone/10 bg-midnight p-5" style={{ borderRadius: "2px" }}>
+            <h3 className="text-base font-medium text-bone">Additional hardening</h3>
+            <p className="mb-4 mt-1 text-sm text-bone/40">
+              Optional, and not part of the score — missing these doesn&apos;t make you spoofable.
+              They&apos;re the next things worth doing once SPF, DKIM and DMARC are clean.
+            </p>
+            <div className="space-y-4">
+              <HardeningRow label="MTA-STS" check={result.mtaSts} />
+              <HardeningRow label="TLS-RPT" check={result.tlsRpt} />
+              <HardeningRow label="BIMI" check={result.bimi} />
+            </div>
+          </div>
+
+          {/* Copy-paste fixes */}
+          {result.fixes.length > 0 && (
+            <div
+              className="border border-conviction/30 bg-midnight p-5"
+              style={{ borderRadius: "2px" }}
+            >
+              <h3 className="text-base font-medium text-bone">Records to add</h3>
+              <p className="mb-4 mt-1 text-sm text-bone/50">
+                Built for <span className="font-mono text-bone/70">{result.domain}</span> from the
+                findings above. Read each one before you publish it — especially SPF, which has to
+                list every service that sends mail as you.
+              </p>
+              <div className="space-y-4">
+                {result.fixes.map((fix) => (
+                  <div
+                    key={fix.name + fix.value}
+                    className="border border-bone/10 p-3"
+                    style={{ borderRadius: "2px" }}
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <span className="break-all font-mono text-xs text-conviction">
+                        {fix.type} {fix.name}
+                      </span>
+                      <CopyButton value={fix.value} />
+                    </div>
+                    <div
+                      className="break-all border border-bone/10 bg-slate-brand/20 p-2 font-mono text-xs text-bone/80"
+                      style={{ borderRadius: "2px" }}
+                    >
+                      {fix.value}
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-bone/50">{fix.why}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* CTA */}
           <div
@@ -357,5 +443,52 @@ function IssueList({ items }: { items: string[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function HardeningRow({ label, check }: { label: string; check: SimpleRecordCheck }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="mt-0.5 shrink-0">
+        <StatusIcon status={check.status} />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-bone">
+          {label}{" "}
+          <span className="font-normal text-bone/40">
+            · {check.found ? statusLabel(check.status) : "Not configured"}
+          </span>
+        </p>
+        <p className="mt-0.5 text-sm leading-relaxed text-bone/50">{check.detail}</p>
+      </div>
+    </div>
+  );
+}
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard access can be denied (permissions, insecure context). The
+      // record is on screen and selectable either way, so fail quietly.
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void copy()}
+      aria-label={`Copy record for ${value.slice(0, 24)}`}
+      className="inline-flex shrink-0 items-center gap-1.5 border border-bone/20 px-2 py-1 text-xs text-bone/70 transition-colors hover:border-conviction hover:text-conviction"
+      style={{ borderRadius: "2px" }}
+    >
+      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+      {copied ? "Copied" : "Copy"}
+    </button>
   );
 }

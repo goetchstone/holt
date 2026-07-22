@@ -16,6 +16,13 @@ const ITEMS: CardGridItem[] = [
     roles: ["ADMIN"],
   },
   {
+    title: "Home Accessory Order Import",
+    description:
+      "Parse a home accessory vendor order (K&K, Wendover, MarketTime, Zodax, and others) and create draft POs and items in Buyer Drafts.",
+    href: "/app/tools/home-accessory-order",
+    roles: ["ADMIN"],
+  },
+  {
     title: "Product Configurator",
     description: "Browse products, select grades and options, and view retail pricing.",
     href: "/app/tools/configurator",
@@ -31,6 +38,13 @@ const ITEMS: CardGridItem[] = [
       "Look up historical sales imported from a previous system by customer name, phone, address, or order number. Read-only archive.",
     href: "/app/tools/legacy-archive",
     feature: "legacyArchive",
+  },
+  {
+    title: "Apparel Order Import",
+    description:
+      "Parse a vendor apparel order (PDF or CSV) into a draft Purchase Order + items in Buyer Drafts. ADMIN only.",
+    href: "/app/tools/apparel-order",
+    roles: ["ADMIN"],
   },
 ];
 

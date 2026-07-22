@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID, getAppSettings } from "@/lib/appSettings";
 import { rateLimit } from "@/lib/rateLimit";
 import { parseBookingInput } from "@/lib/booking/requestBody";
+import { loadAvailableSlots, slotsIncludeStart } from "@/lib/booking/loadSlots";
 import { signBookingId } from "@/lib/booking/icsToken";
 import { enqueueAndSend } from "@/lib/email/queue";
 import { bookingConfirmationEmail } from "@/lib/email/templates";
@@ -67,6 +68,19 @@ const createBooking = limiter(async (req: NextApiRequest, res: NextApiResponse) 
         serviceType = service.name;
         endsAt = new Date(input.startsAt.getTime() + service.durationMinutes * 60_000);
       }
+    }
+
+    // Availability guard: the requested start must be one the picker actually
+    // offers right now. Regenerating the same slots the availability endpoint
+    // serves rejects past times, off-hours times, and times outside the
+    // configured windows in one check -- none of those appear in the slot list.
+    // parseBookingInput only validates shape (endsAt > startsAt), so without
+    // this a public POST could book any arbitrary time.
+    const slots = await loadAvailableSlots({ serviceId, now: new Date() });
+    if (!slotsIncludeStart(input.startsAt, slots)) {
+      return res
+        .status(422)
+        .json({ error: "That time isn't available. Please pick an open slot." });
     }
 
     // Race guard: reject if a non-cancelled booking already overlaps this slot.
