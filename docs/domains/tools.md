@@ -4,17 +4,48 @@ Power-user surfaces under `/tools/*` and `/admin/tools/*`. Mostly ADMIN-only or 
 
 ## Tool inventory
 
-| Tool | Path | Role gate | Purpose |
-|---|---|---|---|
-| Query Builder | `/tools/query-builder` | **ADMIN only** | Build allowlisted SQL queries via UI, export CSV |
-| Categorize Products | `/admin/tools/categorize-products` | ADMIN | Multi-select products → bulk-assign vendor/dept/category/type |
-| Merge Customers | `/admin/tools/merge-customers` | ADMIN | Manual merge of two customer rows (post-import cleanup) |
-| Customer Ledger Backfill | `/admin/tools/customer-ledger-backfill` | ADMIN | Phase 0.5 ledger backfill driver |
-| Configurator | `/tools/configurator` | DESIGNER+ | Retail-only product configurator (Wesley Hall SE, grade pricing) |
-| Create Project | `/tools/create-project` | DESIGNER+ | Generate a Google Drive project folder from a customer |
-| Import shortcuts | `/tools/import/*` | ADMIN | Manual triggers for individual the POS import runners |
+| Tool                        | Path                                    | Role gate      | Purpose                                                                                                   |
+| --------------------------- | --------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+| Query Builder               | `/tools/query-builder`                  | **ADMIN only** | Build allowlisted SQL queries via UI, export CSV                                                          |
+| Categorize Products         | `/admin/tools/categorize-products`      | ADMIN          | Multi-select products → bulk-assign vendor/dept/category/type                                             |
+| Merge Customers             | `/admin/tools/merge-customers`          | ADMIN          | Manual merge of two customer rows (post-import cleanup)                                                   |
+| Customer Ledger Backfill    | `/admin/tools/customer-ledger-backfill` | ADMIN          | Phase 0.5 ledger backfill driver                                                                         |
+| Configurator                | `/tools/configurator`                   | DESIGNER+      | Retail-only product configurator (Wesley Hall SE, grade pricing)                                         |
+| Create Project              | `/tools/create-project`                 | DESIGNER+      | Generate a Google Drive project folder from a customer                                                    |
+| Import shortcuts            | `/tools/import/*`                       | ADMIN          | Manual triggers for individual the POS import runners                                                     |
+| Apparel Order Import        | `/app/tools/apparel-order`              | **ADMIN only** | Parse a vendor apparel order (PDF/CSV) into a draft Purchase Order + items in Buyer Drafts                |
+| Home Accessory Order Import | `/app/tools/home-accessory-order`       | **ADMIN only** | Parse a home-accessory vendor order file and create Buyer Drafts PO(s) + items directly (no CSV download) |
 
 The designer-facing tools (Configurator, Create Project) are role-gated separately and are NOT the focus of this runbook — they're covered by their respective domain runbooks (`pricing-catalog.md` for Configurator, `staff-auth.md` for permissions).
+
+## Apparel Order Import — `lib/apparelOrderVendors.ts` + `lib/apparelOrderToBuyerDraft.ts`
+
+App Router tool (`app/(dashboard)/app/tools/apparel-order/`) that ports furniture-configurator's
+apparel-order tool to feed holt's own Buyer Drafts domain (`buyer-drafts.md`) instead of downloading
+Ordorite CSVs directly — holt is its own system of record, so the tool writes DB rows.
+
+**Flow**: pick a vendor format → upload a PDF (parsed server-side by the same vendor parsers
+`lib/pricing/{nuorderParser,nuorderPrintoutParser,zSupplyParser,frankEileenParser}.ts` use for
+pricing) or a CSV (parsed client-side with PapaParse) → review/edit the normalized rows (one row
+per size/part-number) → pick the destination PO's vendor/department/category/stock location/buy →
+"Create Draft PO + Items" creates one `BuyerDraftPurchaseOrder` + one `BuyerDraftItem` per row in a
+single transaction (`pages/api/tools/apparel-order/commit.ts`). From there the buyer curates and
+exports exactly like any other draft via the existing Buyer Drafts workbench.
+
+**No catalog matching**: FC's version ran a second pass matching parsed rows against existing
+Ordorite `Product` rows (NEW vs UPDATE, style/color candidate suggestions) because its output was a
+CSV headed straight into Ordorite. Holt's Buyer Drafts domain has no such step — every row becomes a
+brand-new DRAFT item regardless of whether a similar catalog Product exists; the buyer links to the
+real catalog afterward via the existing barcode-lookup or Vendor Style picker flows in the workbench.
+
+**Source stamp**: items are created with `source: APPAREL_SCAN` (BuyerDraftSource has no dedicated
+"parsed from a vendor order file" value — APPAREL_SCAN was already reserved for apparel-specific
+buyer-drafts and is the closest fit; see the reasoning in `lib/apparelOrderToBuyerDraft.ts`). No
+schema migration was added for this tool.
+
+**Vendor part-number prefix**: FC resolved two vendors' (Hunter Bell, PISTOLA) prefix from a
+`Vendor.partNumberPrefix` DB column holt doesn't have. Both prefixes (`HBEL`, `PST`) are hardcoded
+into the registry instead, straight from FC's own code comments.
 
 ## Query Builder — `lib/queryBuilderConfig.ts`
 
@@ -33,13 +64,13 @@ The big-ticket admin tool. Lets the owner build read-only SQL queries against a 
 
 ### Column types
 
-| Type | Behavior |
-|---|---|
-| `string` | LIKE filter, contains-text |
-| `number` | =, >, <, between |
+| Type      | Behavior                                             |
+| --------- | ---------------------------------------------------- |
+| `string`  | LIKE filter, contains-text                           |
+| `number`  | =, >, <, between                                     |
 | `decimal` | Same as number but rendered with currency formatting |
-| `date` | Date range picker |
-| `boolean` | Yes/no toggle |
+| `date`    | Date range picker                                    |
+| `boolean` | Yes/no toggle                                        |
 
 ### Output
 
@@ -102,6 +133,18 @@ Use when:
 - Debugging an import issue — manual trigger gives immediate feedback
 - Backfilling historical data from a one-off CSV file
 
+## Home Accessory Order Import (2026-07-22)
+
+Ported from furniture-configurator's `pages/tools/home-accessory-order.tsx` and adapted to write into holt's own Buyer Drafts pipeline instead of downloading Ordorite CSVs — holt is its own system of record (see `docs/domains/buyer-drafts.md`), unlike FC where Ordorite is the system of record.
+
+**Flow**: upload a home-accessory vendor order file (K&K Interiors, Wendover Art Group, MarketTime/Graf & Lantz, BrandWise/Zodax, Aesthetic Movement, SuperCatSolutions, Simblist Group CSV, or Beatriz Ball) → `POST /api/tools/home-accessory-order/preview` parses it (vendor parsers already live at `lib/pricing/*OrderParser.ts`) → the buyer reviews a one-card-per-item preview (classify department/category per item, optionally split a "Set of N" line into its priced pieces, optionally apply a markup to fill Selling + MSRP) → `POST /api/tools/home-accessory-order/commit` creates the rows.
+
+**Output mapping** (the adaptation): the composed rows group by their effective order reference — one `BuyerDraftPurchaseOrder` per distinct reference, so a vendor bundle carrying several orders (a K&K PDF can hold two) creates several draft POs in one commit ("multi-PO bundles"). Every composed row becomes exactly one `BuyerDraftItem` regardless of PO assignment; a row the buyer takes "off PO" (already ordered elsewhere) still gets created, just with `draftPoId: null`. Field mapping and the full rationale live in `lib/homeAccessoryBuyerDraftMapping.ts`. `BuyerDraftItem.source` is stamped `HOME_ACCESSORY_ORDER_IMPORT` (migration `20260722134701_home_accessory_order_source`, additive `ALTER TYPE ... ADD VALUE`).
+
+**Dropped relative to FC** (see `lib/homeAccessoryRows.ts` header comment): the Ordorite catalog-match / "adopt the catalog's existing split" flow has no holt analog — buyer drafts are pre-catalog negotiation records, not reconciled against `Product` rows at import time (a buyer who wants to link a draft to an existing catalog Product already has the barcode-lookup quick-add flow, `lib/buyerDraftFromProduct.ts`, for that). The Oversell field is also dropped — no `BuyerDraftItem` column for it.
+
+**Files**: `lib/homeAccessoryOrders.ts` (vendor registry + normalizers + split-cost math), `lib/homeAccessoryRows.ts` (row composition + split-set grouping), `lib/homeAccessoryBuyerDraftMapping.ts` (the buyer-drafts field mapping), `pages/api/tools/home-accessory-order/{preview,commit}.ts`, `app/(dashboard)/app/tools/home-accessory-order/{page.tsx,HomeAccessoryOrderView.tsx}`.
+
 ## Verification checklist (before touching tools code)
 
 - [ ] Query Builder: any new ENTITY added to the config has its columns AND joins explicitly allowlisted
@@ -111,12 +154,12 @@ Use when:
 
 ## Test coverage
 
-| Surface | Coverage |
-|---|---|
+| Surface                             | Coverage                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------- |
 | Query Builder allowlist enforcement | Unit tests TBD — **gap**, would assert the runtime query rejects unlisted columns |
-| Bulk categorize 500-cap | None |
-| Merge audit trail | None |
-| `csvExport.ts` | Unit tests for the formatter |
+| Bulk categorize 500-cap             | None                                                                              |
+| Merge audit trail                   | None                                                                              |
+| `csvExport.ts`                      | Unit tests for the formatter                                                      |
 
 ## Known gaps
 
@@ -125,4 +168,5 @@ Use when:
 - Categorize doesn't support multi-category (a product is single-dept-single-category by schema; some real items legitimately span categories)
 
 ---
+
 Last verified: 2026-05-20
