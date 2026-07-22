@@ -32,6 +32,13 @@ const ITEMS: CardGridItem[] = [
     href: "/app/tools/legacy-archive",
     feature: "legacyArchive",
   },
+  {
+    title: "Apparel Order Import",
+    description:
+      "Parse a vendor apparel order (PDF or CSV) into a draft Purchase Order + items in Buyer Drafts. ADMIN only.",
+    href: "/app/tools/apparel-order",
+    roles: ["ADMIN"],
+  },
 ];
 
 export default async function ToolsHubPage() {
