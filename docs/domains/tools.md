@@ -4,16 +4,17 @@ Power-user surfaces under `/tools/*` and `/admin/tools/*`. Mostly ADMIN-only or 
 
 ## Tool inventory
 
-| Tool                     | Path                                    | Role gate      | Purpose                                                                                    |
-| ------------------------ | --------------------------------------- | -------------- | ------------------------------------------------------------------------------------------ |
-| Query Builder            | `/tools/query-builder`                  | **ADMIN only** | Build allowlisted SQL queries via UI, export CSV                                           |
-| Categorize Products      | `/admin/tools/categorize-products`      | ADMIN          | Multi-select products → bulk-assign vendor/dept/category/type                              |
-| Merge Customers          | `/admin/tools/merge-customers`          | ADMIN          | Manual merge of two customer rows (post-import cleanup)                                    |
-| Customer Ledger Backfill | `/admin/tools/customer-ledger-backfill` | ADMIN          | Phase 0.5 ledger backfill driver                                                           |
-| Configurator             | `/tools/configurator`                   | DESIGNER+      | Retail-only product configurator (Wesley Hall SE, grade pricing)                           |
-| Create Project           | `/tools/create-project`                 | DESIGNER+      | Generate a Google Drive project folder from a customer                                     |
-| Import shortcuts         | `/tools/import/*`                       | ADMIN          | Manual triggers for individual the POS import runners                                      |
-| Apparel Order Import     | `/app/tools/apparel-order`              | **ADMIN only** | Parse a vendor apparel order (PDF/CSV) into a draft Purchase Order + items in Buyer Drafts |
+| Tool                        | Path                                    | Role gate      | Purpose                                                                                                   |
+| --------------------------- | --------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+| Query Builder               | `/tools/query-builder`                  | **ADMIN only** | Build allowlisted SQL queries via UI, export CSV                                                          |
+| Categorize Products         | `/admin/tools/categorize-products`      | ADMIN          | Multi-select products → bulk-assign vendor/dept/category/type                                             |
+| Merge Customers             | `/admin/tools/merge-customers`          | ADMIN          | Manual merge of two customer rows (post-import cleanup)                                                   |
+| Customer Ledger Backfill    | `/admin/tools/customer-ledger-backfill` | ADMIN          | Phase 0.5 ledger backfill driver                                                                         |
+| Configurator                | `/tools/configurator`                   | DESIGNER+      | Retail-only product configurator (Wesley Hall SE, grade pricing)                                         |
+| Create Project              | `/tools/create-project`                 | DESIGNER+      | Generate a Google Drive project folder from a customer                                                    |
+| Import shortcuts            | `/tools/import/*`                       | ADMIN          | Manual triggers for individual the POS import runners                                                     |
+| Apparel Order Import        | `/app/tools/apparel-order`              | **ADMIN only** | Parse a vendor apparel order (PDF/CSV) into a draft Purchase Order + items in Buyer Drafts                |
+| Home Accessory Order Import | `/app/tools/home-accessory-order`       | **ADMIN only** | Parse a home-accessory vendor order file and create Buyer Drafts PO(s) + items directly (no CSV download) |
 
 The designer-facing tools (Configurator, Create Project) are role-gated separately and are NOT the focus of this runbook — they're covered by their respective domain runbooks (`pricing-catalog.md` for Configurator, `staff-auth.md` for permissions).
 
@@ -131,6 +132,18 @@ Use when:
 - A specific report needs to re-run mid-day (e.g., a corrected CSV was re-emailed)
 - Debugging an import issue — manual trigger gives immediate feedback
 - Backfilling historical data from a one-off CSV file
+
+## Home Accessory Order Import (2026-07-22)
+
+Ported from furniture-configurator's `pages/tools/home-accessory-order.tsx` and adapted to write into holt's own Buyer Drafts pipeline instead of downloading Ordorite CSVs — holt is its own system of record (see `docs/domains/buyer-drafts.md`), unlike FC where Ordorite is the system of record.
+
+**Flow**: upload a home-accessory vendor order file (K&K Interiors, Wendover Art Group, MarketTime/Graf & Lantz, BrandWise/Zodax, Aesthetic Movement, SuperCatSolutions, Simblist Group CSV, or Beatriz Ball) → `POST /api/tools/home-accessory-order/preview` parses it (vendor parsers already live at `lib/pricing/*OrderParser.ts`) → the buyer reviews a one-card-per-item preview (classify department/category per item, optionally split a "Set of N" line into its priced pieces, optionally apply a markup to fill Selling + MSRP) → `POST /api/tools/home-accessory-order/commit` creates the rows.
+
+**Output mapping** (the adaptation): the composed rows group by their effective order reference — one `BuyerDraftPurchaseOrder` per distinct reference, so a vendor bundle carrying several orders (a K&K PDF can hold two) creates several draft POs in one commit ("multi-PO bundles"). Every composed row becomes exactly one `BuyerDraftItem` regardless of PO assignment; a row the buyer takes "off PO" (already ordered elsewhere) still gets created, just with `draftPoId: null`. Field mapping and the full rationale live in `lib/homeAccessoryBuyerDraftMapping.ts`. `BuyerDraftItem.source` is stamped `HOME_ACCESSORY_ORDER_IMPORT` (migration `20260722134701_home_accessory_order_source`, additive `ALTER TYPE ... ADD VALUE`).
+
+**Dropped relative to FC** (see `lib/homeAccessoryRows.ts` header comment): the Ordorite catalog-match / "adopt the catalog's existing split" flow has no holt analog — buyer drafts are pre-catalog negotiation records, not reconciled against `Product` rows at import time (a buyer who wants to link a draft to an existing catalog Product already has the barcode-lookup quick-add flow, `lib/buyerDraftFromProduct.ts`, for that). The Oversell field is also dropped — no `BuyerDraftItem` column for it.
+
+**Files**: `lib/homeAccessoryOrders.ts` (vendor registry + normalizers + split-cost math), `lib/homeAccessoryRows.ts` (row composition + split-set grouping), `lib/homeAccessoryBuyerDraftMapping.ts` (the buyer-drafts field mapping), `pages/api/tools/home-accessory-order/{preview,commit}.ts`, `app/(dashboard)/app/tools/home-accessory-order/{page.tsx,HomeAccessoryOrderView.tsx}`.
 
 ## Verification checklist (before touching tools code)
 
