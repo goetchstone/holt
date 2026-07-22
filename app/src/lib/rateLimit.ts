@@ -33,13 +33,26 @@ function pruneExpired(windowMs: number): void {
   }
 }
 
-// Resolve the client IP for rate limiting. X-Forwarded-For is attacker-controlled
-// (anyone hitting the app directly can spoof it), so we ignore it by default and
-// key on the real socket peer. A deployment that sits the app behind a single
-// trusted reverse proxy (e.g. nginx) sets TRUST_PROXY=true; then we use the LAST
-// hop — the IP the proxy itself appended — not the spoofable left-most entry.
+// Resolve the client IP for rate limiting. Behind the bundled nginx, every
+// request's socket peer is nginx's own container IP, so keying on the socket
+// alone collapses all external clients into one shared bucket. nginx sets
+// X-Real-IP to the real peer server-side on every request; unlike
+// X-Forwarded-For it is overwritten (not appended) by the proxy, so a client
+// hitting nginx cannot forge it. We therefore trust X-Real-IP when present.
+//
+// X-Forwarded-For stays attacker-controlled (anyone hitting the app directly
+// can spoof it), so it is only consulted for multi-hop topologies that set
+// TRUST_PROXY=true and don't provide X-Real-IP; there we take the LAST hop —
+// the IP the proxy itself appended — not the spoofable left-most entry. With
+// neither header we fall back to the raw socket peer.
 function getClientKey(req: NextApiRequest): string {
   const socketIp = req.socket?.remoteAddress ?? "unknown";
+
+  const realIp = req.headers["x-real-ip"];
+  if (typeof realIp === "string" && realIp.trim().length > 0) {
+    return realIp.trim();
+  }
+
   if (process.env.TRUST_PROXY !== "true") return socketIp;
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded !== "string" || forwarded.trim().length === 0) return socketIp;
