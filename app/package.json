@@ -121,10 +121,13 @@
     "cookie": "0.7.2",
     "follow-redirects": "^1.16.0",
     "semver": "7.6.3",
-    "dompurify": "^3.4.11",
-    "hono": "^4.12.21",
-    "fast-uri": "^3.1.1",
-    "@hono/node-server": "^1.19.13",
-    "nodemailer": "^9.0.3"
+    "dompurify": "^3.4.12",
+    "hono": "^4.12.27",
+    "fast-uri": "^3.1.4",
+    "@hono/node-server": "^2.0.5",
+    "nodemailer": "^9.0.3",
+    "sharp": "^0.35.0",
+    "brace-expansion@1": "1.1.16",
+    "brace-expansion@2": "^2.0.2"
   }
 }
