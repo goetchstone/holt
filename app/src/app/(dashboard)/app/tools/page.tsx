@@ -16,6 +16,13 @@ const ITEMS: CardGridItem[] = [
     roles: ["ADMIN"],
   },
   {
+    title: "Home Accessory Order Import",
+    description:
+      "Parse a home accessory vendor order (K&K, Wendover, MarketTime, Zodax, and others) and create draft POs and items in Buyer Drafts.",
+    href: "/app/tools/home-accessory-order",
+    roles: ["ADMIN"],
+  },
+  {
     title: "Product Configurator",
     description: "Browse products, select grades and options, and view retail pricing.",
     href: "/app/tools/configurator",

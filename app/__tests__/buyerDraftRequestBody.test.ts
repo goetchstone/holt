@@ -193,8 +193,14 @@ describe("enum constants", () => {
   it("VALID_PO_STATUSES covers all 5 BuyerDraftPoStatus values", () => {
     expect(VALID_PO_STATUSES).toEqual(["DRAFT", "READY", "EXPORTED", "FULFILLED", "CANCELLED"]);
   });
-  it("VALID_SOURCES covers all 4 BuyerDraftSource values", () => {
-    expect(VALID_SOURCES).toEqual(["MANUAL", "HD_PROPOSAL", "APPAREL_SCAN", "CONFIGURATOR"]);
+  it("VALID_SOURCES covers the client-postable BuyerDraftSource values (HISTORICAL_PO_IMPORT excluded — set via a direct Prisma create, not this endpoint)", () => {
+    expect(VALID_SOURCES).toEqual([
+      "MANUAL",
+      "HD_PROPOSAL",
+      "APPAREL_SCAN",
+      "CONFIGURATOR",
+      "HOME_ACCESSORY_ORDER_IMPORT",
+    ]);
   });
 });
 
