@@ -31,6 +31,20 @@ import {
   getSalesBySalespersonItems,
 } from "@/lib/reports/salesBySalespersonReport";
 import { getDetailedSales, getDetailedSalesItems } from "@/lib/reports/detailedSales";
+import {
+  computeSalesExplorerCells,
+  computeSalesExplorerStoreOrderCounts,
+  getSalesExplorerItems,
+} from "@/lib/reports/salesExplorerQuery";
+import {
+  buildSalesExplorerTree,
+  SALES_EXPLORER_PIVOTS,
+  resolveNodeFilters,
+  type SalesExplorerPivot,
+  type StorePeriodMeta,
+  type StoreTrafficRow,
+} from "@/lib/reports/salesExplorerPivot";
+import { visitorsByStoreLocation } from "@/lib/storeTraffic";
 import { getDesignerDashboard } from "@/lib/reports/designerDashboard";
 import { getServiceReport } from "@/lib/reports/serviceReport";
 import { getCustomersReport } from "@/lib/reports/customersReport";
@@ -211,6 +225,31 @@ const detailedSalesItemsInput = z
     endDate: z.string().nullish(),
   })
   .nullish();
+
+// Sales Explorer: two-period, four-dimension (store/dept/category/vendor)
+// pivot with product-level drilldown. Same MANAGER_ADMIN gate as Comparative
+// Sales / Gross Margin — exposes cost, so management-level only.
+const salesExplorerCellsInput = z.object({
+  p1Start: z.string(),
+  p1End: z.string(),
+  p2Start: z.string(),
+  p2End: z.string(),
+  pivot: z.enum(SALES_EXPLORER_PIVOTS).optional(),
+  stores: z.array(z.string()).optional(),
+  departments: z.array(z.string()).optional(),
+  categories: z.array(z.string()).optional(),
+  vendors: z.array(z.string()).optional(),
+});
+
+const salesExplorerItemsInput = z.object({
+  pivot: z.enum(SALES_EXPLORER_PIVOTS),
+  nodeId: z.string(),
+  period: z.union([z.literal(1), z.literal(2)]),
+  p1Start: z.string(),
+  p1End: z.string(),
+  p2Start: z.string(),
+  p2End: z.string(),
+});
 
 const MANAGER_ROLES = new Set(["MANAGER", "ADMIN", "SUPER_ADMIN"]);
 
@@ -433,6 +472,126 @@ export const reportsRouter = router({
   detailedSalesItems: protectedProcedure
     .input(detailedSalesItemsInput)
     .query(({ input }) => getDetailedSalesItems(prisma, input ?? {})),
+  // Sales Explorer: two-period comparative pivot by Store / Department /
+  // Category / Vendor with variance + margin at every node, plus a
+  // Store-Traffic panel (Axper door counts) when pivoting by Store.
+  // MANAGER_ADMIN — exposes cost, same gate as Comparative Sales / Gross
+  // Margin. See lib/reports/salesExplorerQuery.ts for the invariant-bearing
+  // aggregation and lib/reports/salesExplorerPivot.ts for the pure tree build.
+  salesExplorer: roleProcedure(MANAGER_ADMIN)
+    .input(salesExplorerCellsInput)
+    .query(async ({ input }) => {
+      const pivot: SalesExplorerPivot = input.pivot ?? "department";
+      const filters = {
+        stores: input.stores ?? [],
+        departments: input.departments ?? [],
+        categories: input.categories ?? [],
+        vendors: input.vendors ?? [],
+      };
+      const range1 = { startDate: input.p1Start, endDate: input.p1End };
+      const range2 = { startDate: input.p2Start, endDate: input.p2End };
+
+      // Traffic + order-count queries take Date bounds (exclusive upper),
+      // matching comparativeSales.ts.
+      const from1 = new Date(input.p1Start);
+      const to1 = new Date(input.p1End);
+      to1.setDate(to1.getDate() + 1);
+      const from2 = new Date(input.p2Start);
+      const to2 = new Date(input.p2End);
+      to2.setDate(to2.getDate() + 1);
+
+      const [cellsP1, cellsP2, oc1, oc2, vis1, vis2, deptOpts, catOpts, vendorOpts, storeOpts] =
+        await Promise.all([
+          computeSalesExplorerCells(prisma, range1, filters),
+          computeSalesExplorerCells(prisma, range2, filters),
+          computeSalesExplorerStoreOrderCounts(prisma, range1, filters),
+          computeSalesExplorerStoreOrderCounts(prisma, range2, filters),
+          visitorsByStoreLocation(from1, to1),
+          visitorsByStoreLocation(from2, to2),
+          prisma.department.findMany({ select: { name: true }, orderBy: { name: "asc" } }),
+          // Category.name is unique only per-department (schema.prisma:
+          // @@unique([name, departmentId])) — fetch all and dedupe in JS below
+          // since the Category pivot rolls a name up across every department
+          // it appears in by design.
+          prisma.category.findMany({ select: { name: true }, orderBy: { name: "asc" } }),
+          prisma.vendor.findMany({ select: { name: true }, orderBy: { name: "asc" } }),
+          prisma.salesOrder.findMany({
+            where: { storeLocation: { not: null } },
+            distinct: ["storeLocation"],
+            select: { storeLocation: true },
+            orderBy: { storeLocation: "asc" },
+          }),
+        ]);
+
+      const storeNames = new Set<string>([
+        ...Object.keys(oc1),
+        ...Object.keys(oc2),
+        ...Object.keys(vis1),
+        ...Object.keys(vis2),
+      ]);
+      storeNames.delete("Unknown");
+
+      const storeMeta: Record<string, StorePeriodMeta> = {};
+      const storeTraffic: StoreTrafficRow[] = [];
+      for (const store of [...storeNames].sort((a, b) => a.localeCompare(b))) {
+        const meta: StorePeriodMeta = {
+          orderCount1: oc1[store] ?? 0,
+          orderCount2: oc2[store] ?? 0,
+          visitors1: vis1[store] ?? 0,
+          visitors2: vis2[store] ?? 0,
+        };
+        storeMeta[store] = meta;
+        storeTraffic.push({
+          store,
+          visitors1: meta.visitors1,
+          visitors2: meta.visitors2,
+          orderCount1: meta.orderCount1,
+          orderCount2: meta.orderCount2,
+          conversion1: meta.visitors1 > 0 ? meta.orderCount1 / meta.visitors1 : null,
+          conversion2: meta.visitors2 > 0 ? meta.orderCount2 / meta.visitors2 : null,
+        });
+      }
+
+      const { tree, totals } = buildSalesExplorerTree(cellsP1, cellsP2, pivot, storeMeta);
+
+      // Conversion is store-wide traffic vs (possibly) filtered sales — only
+      // apples-to-apples in the Store pivot with no dept/category/vendor filter.
+      const filterNarrowed =
+        filters.departments.length > 0 ||
+        filters.categories.length > 0 ||
+        filters.vendors.length > 0;
+      const trafficDecoupled = pivot !== "store" || filterNarrowed;
+
+      return {
+        pivot,
+        period1Label: `${input.p1Start} to ${input.p1End}`,
+        period2Label: `${input.p2Start} to ${input.p2End}`,
+        tree,
+        totals,
+        storeTraffic,
+        trafficDecoupled,
+        options: {
+          stores: storeOpts.map((s) => s.storeLocation).filter((n): n is string => Boolean(n)),
+          departments: deptOpts.map((d) => d.name),
+          categories: [...new Set(catOpts.map((c) => c.name))].sort((a, b) => a.localeCompare(b)),
+          vendors: vendorOpts.map((v) => v.name),
+        },
+      };
+    }),
+  // Product-level drilldown for one Sales Explorer node in one period. The
+  // node's store/department/category/vendor filters are re-derived
+  // server-side from (pivot, nodeId) via the same pure resolveNodeFilters the
+  // client uses — the server never trusts a client-supplied filter object.
+  salesExplorerItems: roleProcedure(MANAGER_ADMIN)
+    .input(salesExplorerItemsInput)
+    .query(({ input }) => {
+      const filters = resolveNodeFilters(input.pivot, input.nodeId);
+      const { startDate, endDate } =
+        input.period === 1
+          ? { startDate: input.p1Start, endDate: input.p1End }
+          : { startDate: input.p2Start, endDate: input.p2End };
+      return getSalesExplorerItems(prisma, { ...filters, startDate, endDate });
+    }),
   // Same role model as monthlyPerformance/salespersonDetail: managers may request
   // any salesperson; everyone else is scoped to their own staff record (resolved
   // from the session, never the client input).
