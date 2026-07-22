@@ -31,7 +31,12 @@ import {
 } from "@/lib/adapters/ordorite/shared";
 import { buildLocationMap } from "@/lib/storeLocationResolver";
 import { syncConsignmentReturns } from "@/lib/paymentService";
-import { isMarjanRug, toMarjanBarcode, toMarjanCustomerNumber } from "@/lib/consignment";
+import {
+  isMarjanRug,
+  toMarjanBarcode,
+  toMarjanCustomerNumber,
+  findWashedRugCustomerNumbers,
+} from "@/lib/consignment";
 import { findDroppedBaseLineIds } from "@/lib/adapters/ordorite/sameDayRewriteCleanup";
 import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 import { getCellValue } from "@/lib/excelUtils";
@@ -605,35 +610,28 @@ export async function runSalesImport(
       }
     }
 
-    // Reconciliation: detect same-batch wash items (same rug on both a sale
-    // and a return in the same import batch). The sale processed after the
-    // return, leaving the item SOLD when it should be ON_FLOOR. Revert.
-    const returnedBarcodes = new Set(returnedLineItems.map((r) => r.productNumber));
-    const soldBarcodes = new Set<string>();
-    for (const { rugMatches } of soldRugOrders) {
-      for (const { barcode } of rugMatches) {
-        if (barcode) soldBarcodes.add(barcode);
-      }
-    }
-
-    for (const bc of soldBarcodes) {
-      if (!returnedBarcodes.has(bc)) continue;
-      // This barcode appeared on both a sale and a return in the same batch.
+    // Reconciliation: detect same-batch wash items (a rug whose returns fully
+    // offset its sales within this import batch). The sale processed after the
+    // return (syncConsignmentReturns runs first, before the rug is SOLD),
+    // leaving the item SOLD when it should be ON_FLOOR. findWashedRugCustomerNumbers
+    // matches on customerNumber (the sold side carries the physical rug barcode,
+    // the returned side the product-number-derived barcode — they never match
+    // directly) and only flags a rug net-returned in the batch, so a re-sold /
+    // rewritten rug (more sales than returns) stays SOLD. Revert the un-paid ones.
+    const washedCustomerNumbers = findWashedRugCustomerNumbers(
+      soldRugOrders.flatMap((o) => o.rugMatches),
+      returnedLineItems.map((r) => r.productNumber),
+    );
+    for (const customerNumber of washedCustomerNumbers) {
       const item = await prisma.consignmentItem.findFirst({
-        where: { barcode: bc },
-        select: { id: true, status: true, consignmentPaymentBatchId: true, paidDate: true },
+        where: { customerNumber },
+        select: { id: true, status: true, consignmentPaymentBatchId: true },
       });
-      if (!item) continue;
-
-      if (item.status === "SOLD" && !item.consignmentPaymentBatchId) {
+      if (item?.status === "SOLD" && !item.consignmentPaymentBatchId) {
         // Never paid — same-day sell+return wash. Revert to ON_FLOOR.
         await prisma.consignmentItem.update({
           where: { id: item.id },
-          data: {
-            status: "ON_FLOOR",
-            salesOrderId: null,
-            saleDate: null,
-          },
+          data: { status: "ON_FLOOR", salesOrderId: null, saleDate: null },
         });
       }
     }
