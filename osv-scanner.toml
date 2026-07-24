@@ -13,13 +13,18 @@
 # from npm in 2023; post-2023 patches are CDN-only). Verified by
 # diffing the CDN tarball contents against the npm artifact that osv
 # cites. Revisit on SheetJS version bump or if we migrate off xlsx.
+#
+# 2026-07-24 re-review (suppressions had expired, which correctly blocked
+# a push): re-confirmed package.json line 81 and the lockfile both still
+# resolve xlsx to https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz, so
+# the CDN-tarball rationale still holds. Extended to 2026-10-24.
 
 [[IgnoredVulns]]
 id = "GHSA-4r6h-8v6p-xvw6"
-ignoreUntil = 2026-07-24
+ignoreUntil = 2026-10-24
 reason = "Prototype pollution in SheetJS xlsx. We install from SheetJS CDN tarball which has the patch despite sharing the 0.20.3 version string. See package.json line for xlsx."
 
 [[IgnoredVulns]]
 id = "GHSA-5pgg-2g8v-p4x9"
-ignoreUntil = 2026-07-24
+ignoreUntil = 2026-10-24
 reason = "ReDoS in SheetJS xlsx. Same mitigation as GHSA-4r6h-8v6p-xvw6 — installed from SheetJS patched CDN tarball."
