@@ -82,6 +82,13 @@ const ITEMS: CardGridItem[] = [
     roles: ["MANAGER", "ADMIN"],
   },
   {
+    title: "Unclassified Returns",
+    description:
+      "Returns booked on the default restock assumption because no Return record classifies them — the accountant's worklist to review and correct any that were actually written off.",
+    href: "/app/reports/unclassified-returns",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
     title: "Open PO Gaps",
     description:
       "Purchase orders missing expected delivery dates or vendor acknowledgement numbers.",

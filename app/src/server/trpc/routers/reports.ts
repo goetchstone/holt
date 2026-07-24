@@ -16,6 +16,7 @@ import { getInventoryHealth } from "@/lib/reports/inventoryHealth";
 import { getPoSellThru } from "@/lib/reports/poSellThru";
 import { getTopSellers } from "@/lib/reports/topSellers";
 import { getReturnsAnalysis } from "@/lib/reports/returnsAnalysis";
+import { getUnclassifiedReturns } from "@/lib/reports/unclassifiedReturns";
 import { getSalesDaily } from "@/lib/reports/salesDaily";
 import { getBalanceAging } from "@/lib/reports/balanceAging";
 import { getStaleQuotes } from "@/lib/reports/staleQuotes";
@@ -143,6 +144,15 @@ const returnsInput = z.object({
   startDate: z.string(),
   endDate: z.string(),
   pivot: z.enum(["department", "vendor"]).optional(),
+});
+
+// Unclassified Returns (B3 exception report): required date range + optional
+// store filter. Dates required (like Gross Margin / Top Sellers) so the UI
+// commits a bounded window before running against 12K+ historical returns.
+const unclassifiedReturnsInput = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+  store: z.string().nullish(),
 });
 
 const taxSummaryInput = z
@@ -395,6 +405,13 @@ export const reportsRouter = router({
   returnsAnalysis: roleProcedure(MANAGER_ADMIN)
     .input(returnsInput)
     .query(({ input }) => getReturnsAnalysis(prisma, input)),
+  // Unclassified Returns (B3 exception report): return-shaped lines booked
+  // on the default-restock assumption because no Return record classifies
+  // them. Financial exception list — same gate as Gross Margin / Returns
+  // Analysis (MANAGER_ADMIN, which auto-grants SUPER_ADMIN).
+  unclassifiedReturns: roleProcedure(MANAGER_ADMIN)
+    .input(unclassifiedReturnsInput)
+    .query(({ input }) => getUnclassifiedReturns(prisma, input)),
   // Visible to any signed-in user (matches the legacy session-only gate).
   salesPerformance: protectedProcedure
     .input(salesPerformanceInput)

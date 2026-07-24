@@ -20,8 +20,12 @@ import {
   buildJournalLines,
   assertBalanced,
   BALANCE_TOLERANCE,
+  classifyReturnDisposition,
+  matchReturnForLine,
+  resolveReturnBookingPath,
   SalesPayment,
   SalesLineForJournal,
+  ReturnForJournal,
 } from "../src/lib/journalEntry";
 
 // Arbitrary GL account IDs for test fixtures
@@ -434,6 +438,390 @@ describe("buildJournalLines — returns are sales in reverse (B3)", () => {
       expect(line.debit > 0 || line.credit > 0).toBe(true);
       expect(line.debit > 0 && line.credit > 0).toBe(false);
     }
+  });
+});
+
+// ─── B3 classified returns: restock vs. writeoff branching ──────
+
+function makeReturn(overrides: Partial<ReturnForJournal> = {}): ReturnForJournal {
+  return {
+    id: 1,
+    lineItemId: null,
+    productId: null,
+    status: "INSPECTED",
+    inspectionCondition: null,
+    ...overrides,
+  };
+}
+
+describe("classifyReturnDisposition", () => {
+  it("returns null for no Return record", () => {
+    expect(classifyReturnDisposition(null)).toBeNull();
+    expect(classifyReturnDisposition(undefined)).toBeNull();
+  });
+
+  it("terminal RESTOCKED status wins regardless of inspection condition", () => {
+    expect(
+      classifyReturnDisposition(
+        makeReturn({ status: "RESTOCKED", inspectionCondition: "MAJOR_DAMAGE" }),
+      ),
+    ).toBe("RESTOCK");
+  });
+
+  it("terminal WRITTEN_OFF status wins regardless of inspection condition", () => {
+    expect(
+      classifyReturnDisposition(
+        makeReturn({ status: "WRITTEN_OFF", inspectionCondition: "LIKE_NEW" }),
+      ),
+    ).toBe("WRITEOFF");
+  });
+
+  it("LIKE_NEW and MINOR_DAMAGE map to RESTOCK", () => {
+    expect(
+      classifyReturnDisposition(
+        makeReturn({ status: "INSPECTED", inspectionCondition: "LIKE_NEW" }),
+      ),
+    ).toBe("RESTOCK");
+    expect(
+      classifyReturnDisposition(
+        makeReturn({ status: "INSPECTED", inspectionCondition: "MINOR_DAMAGE" }),
+      ),
+    ).toBe("RESTOCK");
+  });
+
+  it("MAJOR_DAMAGE and UNSALVAGEABLE map to WRITEOFF", () => {
+    expect(
+      classifyReturnDisposition(
+        makeReturn({ status: "INSPECTED", inspectionCondition: "MAJOR_DAMAGE" }),
+      ),
+    ).toBe("WRITEOFF");
+    expect(
+      classifyReturnDisposition(
+        makeReturn({ status: "INSPECTED", inspectionCondition: "UNSALVAGEABLE" }),
+      ),
+    ).toBe("WRITEOFF");
+  });
+
+  it("returns null when not yet classified (no terminal status, no inspection condition)", () => {
+    expect(
+      classifyReturnDisposition(makeReturn({ status: "INITIATED", inspectionCondition: null })),
+    ).toBeNull();
+    expect(
+      classifyReturnDisposition(makeReturn({ status: "RECEIVED", inspectionCondition: null })),
+    ).toBeNull();
+  });
+});
+
+describe("matchReturnForLine", () => {
+  it("returns null when there are no Return records", () => {
+    expect(matchReturnForLine({ id: 1, productId: 5 }, [])).toBeNull();
+    expect(matchReturnForLine({ id: 1, productId: 5 }, undefined)).toBeNull();
+  });
+
+  it("prefers an exact lineItemId FK match", () => {
+    const exact = makeReturn({ id: 1, lineItemId: 42, productId: 999 });
+    const other = makeReturn({ id: 2, lineItemId: null, productId: 5 });
+    expect(matchReturnForLine({ id: 42, productId: 5 }, [other, exact])).toBe(exact);
+  });
+
+  it("falls back to a unique same-order productId match", () => {
+    const match = makeReturn({ id: 1, lineItemId: null, productId: 5 });
+    expect(matchReturnForLine({ id: 42, productId: 5 }, [match])).toBe(match);
+  });
+
+  it("does NOT use productId match when it is ambiguous (multiple Returns share the product)", () => {
+    const a = makeReturn({ id: 1, lineItemId: null, productId: 5 });
+    const b = makeReturn({ id: 2, lineItemId: null, productId: 5 });
+    expect(matchReturnForLine({ id: 42, productId: 5 }, [a, b])).toBeNull();
+  });
+
+  it("falls back to the sole Return on the order when productId doesn't help", () => {
+    const sole = makeReturn({ id: 1, lineItemId: null, productId: null });
+    expect(matchReturnForLine({ id: 42, productId: null }, [sole])).toBe(sole);
+  });
+
+  it("returns null when multiple Returns exist and none disambiguate", () => {
+    const a = makeReturn({ id: 1, lineItemId: null, productId: null });
+    const b = makeReturn({ id: 2, lineItemId: null, productId: null });
+    expect(matchReturnForLine({ id: 42, productId: null }, [a, b])).toBeNull();
+  });
+});
+
+describe("resolveReturnBookingPath", () => {
+  it("returns UNCLASSIFIED_DEFAULT_RESTOCK when there is no Return record (the imported-POS-return case)", () => {
+    expect(resolveReturnBookingPath({ id: 1, productId: 5 }, [])).toBe(
+      "UNCLASSIFIED_DEFAULT_RESTOCK",
+    );
+    expect(resolveReturnBookingPath({ id: 1, productId: 5 }, undefined)).toBe(
+      "UNCLASSIFIED_DEFAULT_RESTOCK",
+    );
+  });
+
+  it("returns UNCLASSIFIED_DEFAULT_RESTOCK when a Return exists but isn't classified yet", () => {
+    const ret = makeReturn({ id: 1, productId: 5, status: "RECEIVED", inspectionCondition: null });
+    expect(resolveReturnBookingPath({ id: 1, productId: 5 }, [ret])).toBe(
+      "UNCLASSIFIED_DEFAULT_RESTOCK",
+    );
+  });
+
+  it("returns CLASSIFIED_RESTOCK for a matched Return classified as restock", () => {
+    const ret = makeReturn({ id: 1, productId: 5, status: "RESTOCKED" });
+    expect(resolveReturnBookingPath({ id: 1, productId: 5 }, [ret])).toBe("CLASSIFIED_RESTOCK");
+  });
+
+  it("returns CLASSIFIED_WRITEOFF for a matched Return classified as writeoff", () => {
+    const ret = makeReturn({ id: 1, productId: 5, status: "WRITTEN_OFF" });
+    expect(resolveReturnBookingPath({ id: 1, productId: 5 }, [ret])).toBe("CLASSIFIED_WRITEOFF");
+  });
+});
+
+describe("buildJournalLines — B3 classified return branching (restock vs. writeoff)", () => {
+  const GL_SHRINKAGE = 40;
+
+  it("CLASSIFIED_RESTOCK books identically to the unclassified default (inventory debit, no writeoff line)", () => {
+    const ret = makeReturn({ id: 1, productId: 77, status: "RESTOCKED" });
+    const payment: SalesPayment = {
+      amount: -531.75,
+      memo: "Cash",
+      glAccountId: GL.CASH,
+      glCode: "1-1006",
+      order: {
+        id: 5,
+        hasInvoices: true,
+        taxGlId: GL.TAX,
+        taxMemo: "CT",
+        lineItems: [
+          makeLine({
+            netPrice: -500,
+            cost: -200,
+            taxAmount: -31.75,
+            productId: 77,
+            accountGroup: {
+              name: "Furniture",
+              salesGlId: GL.REVENUE,
+              cogsGlId: GL.COGS,
+              inventoryGlId: GL.INVENTORY,
+              shrinkageGlId: GL_SHRINKAGE,
+            },
+          }),
+        ],
+        returns: [ret],
+      },
+    };
+
+    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+
+    expect(result.totalDebits).toBe(result.totalCredits);
+    expect(result.warnings).toEqual([]);
+
+    const invLine = result.lines.find((l) => l.glAccountId === GL.INVENTORY);
+    expect(invLine?.debit).toBe(200);
+    expect(invLine?.credit).toBe(0);
+    expect(result.lines.find((l) => l.glAccountId === GL_SHRINKAGE)).toBeUndefined();
+  });
+
+  it("CLASSIFIED_WRITEOFF debits the shrinkage GL instead of Inventory", () => {
+    const ret = makeReturn({ id: 1, productId: 77, status: "WRITTEN_OFF" });
+    const payment: SalesPayment = {
+      amount: -531.75,
+      memo: "Cash",
+      glAccountId: GL.CASH,
+      glCode: "1-1006",
+      order: {
+        id: 5,
+        hasInvoices: true,
+        taxGlId: GL.TAX,
+        taxMemo: "CT",
+        lineItems: [
+          makeLine({
+            netPrice: -500,
+            cost: -200,
+            taxAmount: -31.75,
+            productId: 77,
+            accountGroup: {
+              name: "Furniture",
+              salesGlId: GL.REVENUE,
+              cogsGlId: GL.COGS,
+              inventoryGlId: GL.INVENTORY,
+              shrinkageGlId: GL_SHRINKAGE,
+            },
+          }),
+        ],
+        returns: [ret],
+      },
+    };
+
+    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+
+    expect(result.totalDebits).toBe(result.totalCredits);
+    expect(result.warnings).toEqual([]);
+
+    // No inventory movement — the item never re-enters sellable stock.
+    expect(result.lines.find((l) => l.glAccountId === GL.INVENTORY)).toBeUndefined();
+
+    // Shrinkage/write-off GL debited for the same magnitude Inventory would
+    // have received on a restock.
+    const writeoffLine = result.lines.find((l) => l.glAccountId === GL_SHRINKAGE);
+    expect(writeoffLine?.debit).toBe(200);
+    expect(writeoffLine?.credit).toBe(0);
+    expect(writeoffLine?.memo).toBe("Furniture Write-off");
+
+    // COGS still reverses (credit) exactly as it would for a restock — only
+    // the inventory-vs-writeoff routing differs.
+    const cogsLine = result.lines.find((l) => l.glAccountId === GL.COGS);
+    expect(cogsLine?.debit).toBe(0);
+    expect(cogsLine?.credit).toBe(200);
+
+    // Sales / Tax / Cash reversal is unaffected by the restock/writeoff branch.
+    expect(result.lines.find((l) => l.glAccountId === GL.REVENUE)?.debit).toBe(500);
+    expect(result.lines.find((l) => l.glAccountId === GL.TAX)?.debit).toBe(31.75);
+    expect(result.lines.find((l) => l.glAccountId === GL.CASH)?.credit).toBe(531.75);
+  });
+
+  it("UNCLASSIFIED_DEFAULT_RESTOCK: no Return record at all (the imported-POS-return shape) still restocks inventory", () => {
+    const payment: SalesPayment = {
+      amount: -531.75,
+      memo: "Cash",
+      glAccountId: GL.CASH,
+      glCode: "1-1006",
+      order: {
+        id: 5,
+        hasInvoices: true,
+        taxGlId: GL.TAX,
+        taxMemo: "CT",
+        lineItems: [
+          makeLine({
+            netPrice: -500,
+            cost: -200,
+            taxAmount: -31.75,
+            productId: 77,
+            accountGroup: {
+              name: "Furniture",
+              salesGlId: GL.REVENUE,
+              cogsGlId: GL.COGS,
+              inventoryGlId: GL.INVENTORY,
+              shrinkageGlId: GL_SHRINKAGE,
+            },
+          }),
+        ],
+        // No `returns` array at all — mirrors every historical imported
+        // return (the Return table is never populated by import).
+      },
+    };
+
+    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+
+    expect(result.totalDebits).toBe(result.totalCredits);
+    expect(result.warnings).toEqual([]);
+    const invLine = result.lines.find((l) => l.glAccountId === GL.INVENTORY);
+    expect(invLine?.debit).toBe(200);
+    expect(result.lines.find((l) => l.glAccountId === GL_SHRINKAGE)).toBeUndefined();
+  });
+
+  it("falls back to restock with a warning when CLASSIFIED_WRITEOFF but no shrinkage GL is configured", () => {
+    const ret = makeReturn({ id: 1, productId: 77, status: "WRITTEN_OFF" });
+    const payment: SalesPayment = {
+      amount: -531.75,
+      memo: "Cash",
+      glAccountId: GL.CASH,
+      glCode: "1-1006",
+      order: {
+        id: 5,
+        hasInvoices: true,
+        taxGlId: GL.TAX,
+        taxMemo: "CT",
+        lineItems: [
+          makeLine({
+            netPrice: -500,
+            cost: -200,
+            taxAmount: -31.75,
+            productId: 77,
+            accountGroup: {
+              name: "Furniture",
+              salesGlId: GL.REVENUE,
+              cogsGlId: GL.COGS,
+              inventoryGlId: GL.INVENTORY,
+              // shrinkageGlId intentionally omitted
+            },
+          }),
+        ],
+        returns: [ret],
+      },
+    };
+
+    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+
+    expect(result.totalDebits).toBe(result.totalCredits);
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("classified WRITTEN_OFF"),
+        expect.stringContaining("no shrinkage/write-off GL configured"),
+      ]),
+    );
+    // Fell back to the restock booking.
+    const invLine = result.lines.find((l) => l.glAccountId === GL.INVENTORY);
+    expect(invLine?.debit).toBe(200);
+  });
+
+  it("multiple return lines on one order route independently by product match", () => {
+    // Two different products returned on the same order: one classified
+    // writeoff, one with no matching Return (default restock).
+    const writtenOff = makeReturn({ id: 1, productId: 77, status: "WRITTEN_OFF" });
+    const payment: SalesPayment = {
+      amount: -631.75,
+      memo: "Cash",
+      glAccountId: GL.CASH,
+      glCode: "1-1006",
+      order: {
+        id: 5,
+        hasInvoices: true,
+        taxGlId: GL.TAX,
+        taxMemo: "CT",
+        lineItems: [
+          makeLine({
+            id: 1,
+            netPrice: -500,
+            cost: -200,
+            taxAmount: -31.75,
+            productId: 77,
+            accountGroup: {
+              name: "Furniture",
+              salesGlId: GL.REVENUE,
+              cogsGlId: GL.COGS,
+              inventoryGlId: GL.INVENTORY,
+              shrinkageGlId: GL_SHRINKAGE,
+            },
+          }),
+          makeLine({
+            id: 2,
+            netPrice: -100,
+            cost: -40,
+            taxAmount: -6.35,
+            productId: 88, // no Return references product 88
+            accountGroup: {
+              name: "Furniture",
+              salesGlId: GL.REVENUE,
+              cogsGlId: GL.COGS,
+              inventoryGlId: GL.INVENTORY,
+              shrinkageGlId: GL_SHRINKAGE,
+            },
+          }),
+        ],
+        returns: [writtenOff],
+      },
+    };
+
+    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+
+    expect(result.totalDebits).toBe(result.totalCredits);
+
+    // Inventory: only the $40-cost unclassified line restocks.
+    const invLine = result.lines.find((l) => l.glAccountId === GL.INVENTORY);
+    expect(invLine?.debit).toBe(40);
+
+    // Shrinkage: only the $200-cost written-off line.
+    const writeoffLine = result.lines.find((l) => l.glAccountId === GL_SHRINKAGE);
+    expect(writeoffLine?.debit).toBe(200);
   });
 });
 
