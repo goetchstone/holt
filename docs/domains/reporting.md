@@ -254,6 +254,7 @@ ALL = visible to every signed-in user (Designer, Manager, Admin, Marketing). Des
 | Buyers Report | `/reports/buyers` | ADMIN | ADMIN | On hand, on order, sold for date range. Pivot by department or vendor. Merchant-decision view. MANAGER removed 2026-05-29 (owner direction). |
 | Stale Quote Cleanup | `/reports/stale-quotes` | ADMIN | ADMIN | Old quotes by age and value, for follow-up or closure. |
 | Balance Due Aging | `/reports/balance-aging` | ADMIN | ADMIN | Unpaid balances on ORDER-status orders by age bucket. Excludes QUOTE. |
+| Unclassified Returns | `/app/reports/unclassified-returns` | MANAGER, ADMIN | MANAGER+ADMIN (`roleProcedure(MANAGER_ADMIN)`) | B3 exception report: return-shaped lines booked on the default-restock assumption because no `Return` record classifies them (imported/historical returns, or a native `Return` not yet inspected). Date, order #, store, customer, amount, and why it's unclassified. Accountant's worklist to review before export. |
 | Open PO Gaps | `/reports/po-gaps` | ADMIN | ADMIN | POs missing expected delivery date or vendor acknowledgement number. |
 
 ### Internal endpoints (no card; called by other pages)
@@ -337,6 +338,22 @@ input parsing).
 ### Balance Due Aging
 
 Filters `status: { in: ["ORDER"] }` — FULFILLED orders are paid in full by definition; QUOTE not yet a sale; CANCELLED out. Buckets: 0–30 / 31–60 / 61–90 / 91+ days. Uses `computeBalance()` per order so the cancelled-line + netPrice rules are inherited automatically.
+
+### Unclassified Returns (B3 exception report)
+
+Engine: `lib/reports/unclassifiedReturns.ts` (`getUnclassifiedReturns` / pure `buildUnclassifiedReturnsRows`). Lists every return-shaped line that the journal-entry generator booked on the default-restock assumption — i.e. `resolveReturnBookingPath()` (see `lib/journalEntry.ts` and `docs/domains/accounting.md` "Restock vs. writeoff branching") resolved to `UNCLASSIFIED_DEFAULT_RESTOCK` for that line. Reuses the SAME matching/classification helpers the JE uses, so the report can never disagree with what actually posted.
+
+Scope: `SalesOrder.status = "RETURNED"` within the selected date range (equality on a non-nullable column — matches the convention in `lib/reports/returnsAnalysis.ts`, "a return = a line on a RETURNED SalesOrder"), each line filtered to `lineItemStatus: { not: "CANCELLED" } AND netPrice: { lt: 0 }` (return-shaped lines only).
+
+The three reporting invariants:
+
+- **Cancelled-line filter (rule 33)**: `lineItems: { where: { lineItemStatus: { not: "CANCELLED" }, netPrice: { lt: 0 } }, ... } }`. `lineItemStatus` is non-nullable in current data (migration `20260505_backfill_lineitem_status_nulls`), so a direct `not:` here is the established safe pattern (same as `lib/journalEntry.ts`'s own line-item query) — not the NULL-trap case.
+- **Positive allow-lists, never `not`/`notIn` on nullable columns**: the order-level scope uses `status: "RETURNED"` (positive equality on `SalesOrder.status`, which is non-nullable with a default), not a negated filter. No nullable column in this report is filtered with `not`/`notIn`.
+- **netPrice is the LINE TOTAL**: `amount` is `Math.abs(netPrice)` per line, never multiplied by `orderedQuantity`.
+
+Role gate: `roleProcedure(MANAGER_ADMIN)` (`["SUPER_ADMIN", "ADMIN", "MANAGER"]`) on the tRPC procedure, `requirePage(["MANAGER", "ADMIN"])` on the page — matches Gross Margin / Returns Analysis (SUPER_ADMIN auto-granted via `decideRoleAccess`).
+
+"Why unclassified" reasons (`explainUnclassified()`): "No Return record" (the imported/historical shape — the overwhelming majority of rows), "Return record(s) exist on this order but none link to this line — ambiguous match," or "Return record exists but hasn't been inspected/classified yet." All three book identically today (default restock); the report keeps the distinction visible for the accountant.
 
 ### Mailchimp Campaign Impact
 

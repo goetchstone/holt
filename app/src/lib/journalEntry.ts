@@ -47,6 +47,10 @@ export interface SalesOrderForJournal {
   taxGlId: number | null;
   taxMemo: string;
   lineItems: SalesLineForJournal[];
+  // ERP-native Return records tied to this order (B3 classified-return
+  // branching). Optional/undefined for callers that predate this field
+  // (existing unit-test fixtures) -- treated the same as an empty array.
+  returns?: ReturnForJournal[];
 }
 
 export interface SalesLineForJournal {
@@ -56,12 +60,142 @@ export interface SalesLineForJournal {
   cost: number;
   quantity: number;
   taxAmount: number;
+  // Used to correlate a return-shaped (negative) line to a Return record
+  // when there's no direct lineItemId FK (the common case for imported
+  // returns). Optional so pre-existing fixtures without a productId still
+  // type-check; matching degrades gracefully when absent (see
+  // matchReturnForLine).
+  productId?: number | null;
   accountGroup: {
     name: string;
     salesGlId: number | null;
     cogsGlId: number | null;
     inventoryGlId: number | null;
+    // Write-off / shrinkage GL for the department. Wired in for B3 classified
+    // WRITTEN_OFF returns -- previously modeled on AccountGroup but not
+    // consumed by the JE generator (see docs/domains/accounting.md gap list,
+    // "Shrinkage JE workflow"). Optional so existing fixtures without it
+    // still type-check.
+    shrinkageGlId?: number | null;
   } | null;
+}
+
+// ─── B3: classified vs. default-restock returns ─────────────────────────
+//
+// The ERP-native `Return` model (prisma model `Return`) captures a
+// restock-vs-writeoff decision via `inspectionCondition` / terminal
+// `status`. Historical imported POS returns have NO corresponding `Return`
+// row at all (docs/domains/returns.md "the dual reality") -- for those, and
+// for any Return that hasn't been classified yet, the owner-directed default
+// applies: assume restock. This section makes that default an explicit,
+// named, testable code path instead of an implicit fallthrough.
+
+/** Minimal shape of a `Return` row needed to classify its JE disposition. */
+export interface ReturnForJournal {
+  id: number;
+  lineItemId: number | null;
+  productId: number | null;
+  status: string; // Prisma `ReturnStatus`
+  inspectionCondition: string | null; // Prisma `InspectionCondition` | null
+}
+
+export type ReturnDisposition = "RESTOCK" | "WRITEOFF";
+
+/**
+ * Booking path for a return-shaped (negative-cost) line item. The two
+ * RESTOCK paths book identically in the JE (inventory comes back) -- they're
+ * kept as distinct names so callers (the JE builder AND the "Unclassified
+ * Returns" exception report) can tell "we know this is a restock" apart from
+ * "we're assuming restock because nobody classified it."
+ */
+export type ReturnBookingPath =
+  "CLASSIFIED_RESTOCK" | "CLASSIFIED_WRITEOFF" | "UNCLASSIFIED_DEFAULT_RESTOCK";
+
+/**
+ * Maps a matched Return record to a restock/writeoff disposition, or null
+ * when the record doesn't carry enough signal yet to decide (not yet
+ * inspected). Terminal status (RESTOCKED / WRITTEN_OFF) wins when present --
+ * a human already made the call. Otherwise falls back to the inspection-
+ * condition heuristic, mirroring `suggestDisposition` in
+ * `lib/returnService.ts` (LIKE_NEW / MINOR_DAMAGE -> restock; MAJOR_DAMAGE /
+ * UNSALVAGEABLE -> writeoff).
+ */
+export function classifyReturnDisposition(
+  ret: ReturnForJournal | null | undefined,
+): ReturnDisposition | null {
+  if (!ret) return null;
+  if (ret.status === "RESTOCKED") return "RESTOCK";
+  if (ret.status === "WRITTEN_OFF") return "WRITEOFF";
+  switch (ret.inspectionCondition) {
+    case "LIKE_NEW":
+    case "MINOR_DAMAGE":
+      return "RESTOCK";
+    case "MAJOR_DAMAGE":
+    case "UNSALVAGEABLE":
+      return "WRITEOFF";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Correlates a return-shaped line item to the Return record that covers it.
+ * There is no direct FK from a return-shaped OrderLineItem to a Return row
+ * (Return.lineItemId references the ORIGINAL sale's line item, not the
+ * negative return line -- see docs/domains/returns.md "the dual reality").
+ * So this tries progressively looser matches, in order of confidence:
+ *
+ *   1. Exact FK: a Return whose lineItemId is literally this line's id
+ *      (future-proofing -- covers a direct link if one is ever added).
+ *   2. Same product on the same order: unambiguous when exactly one Return
+ *      on the order names this product.
+ *   3. Sole Return on the order: nothing else to disambiguate with, and
+ *      there's only one candidate.
+ *
+ * Returns null (ambiguous or no candidate) when none of those hold --
+ * callers fall back to the unclassified default.
+ */
+export function matchReturnForLine(
+  line: { id: number; productId?: number | null },
+  returns: ReadonlyArray<ReturnForJournal> | null | undefined,
+): ReturnForJournal | null {
+  if (!returns || returns.length === 0) return null;
+
+  const exact = returns.find((r) => r.lineItemId === line.id);
+  if (exact) return exact;
+
+  if (line.productId != null) {
+    const byProduct = returns.filter((r) => r.productId === line.productId);
+    if (byProduct.length === 1) return byProduct[0];
+    // At least one Return on the order names a SPECIFIC (non-null) product
+    // and none of them is this line's product -- don't fall through to the
+    // "sole Return" heuristic below, which would mis-attribute a different
+    // product's classification onto this line.
+    if (returns.some((r) => r.productId != null)) return null;
+  }
+
+  if (returns.length === 1) return returns[0];
+
+  return null;
+}
+
+/**
+ * Resolves the full B3 booking-path decision for a return-shaped line item:
+ * match it to a Return record, then classify that record's disposition.
+ * Falls back to UNCLASSIFIED_DEFAULT_RESTOCK whenever there's no match or
+ * the matched Return isn't classified yet -- the owner-directed default
+ * (2026-04-28: "returns aren't shrinkage -- they're sales in reverse," all
+ * imported returns assumed restock unless proven otherwise).
+ */
+export function resolveReturnBookingPath(
+  line: { id: number; productId?: number | null },
+  returns: ReadonlyArray<ReturnForJournal> | null | undefined,
+): ReturnBookingPath {
+  const matched = matchReturnForLine(line, returns);
+  const disposition = classifyReturnDisposition(matched);
+  if (disposition === "RESTOCK") return "CLASSIFIED_RESTOCK";
+  if (disposition === "WRITEOFF") return "CLASSIFIED_WRITEOFF";
+  return "UNCLASSIFIED_DEFAULT_RESTOCK";
 }
 
 export interface BuildResult {
@@ -245,6 +379,10 @@ export function buildJournalLines(
   const cogsDebits = new Map<number, { memo: string; amount: number }>();
   const inventoryCredits = new Map<number, { memo: string; amount: number }>();
   const taxCredits = new Map<number, { memo: string; amount: number }>();
+  // B3 classified-writeoff line: debit magnitude only (never sign-flipped --
+  // this map only ever receives return-writeoff cost, there's no "sale" of a
+  // write-off to reverse). See resolveReturnBookingPath.
+  const writeoffDebits = new Map<number, { memo: string; amount: number }>();
 
   const processedOrders = new Set<number>();
 
@@ -290,7 +428,13 @@ export function buildJournalLines(
         continue;
       }
 
-      const { salesGlId, cogsGlId, inventoryGlId, name: groupName } = li.accountGroup;
+      const {
+        salesGlId,
+        cogsGlId,
+        inventoryGlId,
+        shrinkageGlId,
+        name: groupName,
+      } = li.accountGroup;
 
       // Revenue (credit) — netPrice is the LINE TOTAL, do not multiply by quantity
       if (salesGlId) {
@@ -302,7 +446,10 @@ export function buildJournalLines(
         warnings.push(`Account group "${groupName}" has no sales GL account`);
       }
 
-      // COGS (debit) — cost is the LINE COST (already multiplied by quantity)
+      // COGS (debit) — cost is the LINE COST (already multiplied by quantity).
+      // Unchanged by the B3 restock/writeoff branch below: a return always
+      // reverses the original COGS debit, regardless of what happens to the
+      // physical inventory.
       if (cogsGlId) {
         const lineCogs = round2(li.cost);
         const acc = cogsDebits.get(cogsGlId) || { memo: groupName, amount: 0 };
@@ -310,9 +457,47 @@ export function buildJournalLines(
         cogsDebits.set(cogsGlId, acc);
       }
 
-      // Inventory (credit -- reducing the asset) — cost is the LINE COST
-      if (inventoryGlId) {
-        const lineInv = round2(li.cost);
+      // Inventory (credit -- reducing the asset) — cost is the LINE COST.
+      //
+      // B3: a NEGATIVE line here is a return. Per docs/domains/returns.md
+      // ("Accounting view — returns are sales-in-reverse"), a return either
+      // restocks (debit Inventory, via the sign-flip below) or writes off
+      // (debit the department's Loss/Shrinkage GL instead, no inventory
+      // movement -- the item never re-enters sellable stock). Which branch
+      // applies is resolved by resolveReturnBookingPath: a classified
+      // ERP-native Return record (inspectionCondition / terminal status)
+      // wins; everything else -- including every imported POS return, which
+      // carries no Return record at all -- takes the named
+      // UNCLASSIFIED_DEFAULT_RESTOCK path (owner direction 2026-04-28).
+      const lineInv = round2(li.cost);
+      if (lineInv < 0) {
+        // Return-shaped line. Resolve restock vs. writeoff BEFORE touching
+        // either GL — writeoff routes to the shrinkage GL and deliberately
+        // does NOT require inventoryGlId (a write-off never moves inventory).
+        const path = resolveReturnBookingPath(
+          { id: li.id, productId: li.productId },
+          order.returns,
+        );
+        if (path === "CLASSIFIED_WRITEOFF" && shrinkageGlId) {
+          const acc = writeoffDebits.get(shrinkageGlId) || {
+            memo: `${groupName} Write-off`,
+            amount: 0,
+          };
+          acc.amount = round2(acc.amount + Math.abs(lineInv));
+          writeoffDebits.set(shrinkageGlId, acc);
+        } else {
+          if (path === "CLASSIFIED_WRITEOFF") {
+            warnings.push(
+              `Return on line "${li.description}" is classified WRITTEN_OFF but account group "${groupName}" has no shrinkage/write-off GL configured -- booked as restock instead`,
+            );
+          }
+          if (inventoryGlId) {
+            const acc = inventoryCredits.get(inventoryGlId) || { memo: groupName, amount: 0 };
+            acc.amount = round2(acc.amount + lineInv);
+            inventoryCredits.set(inventoryGlId, acc);
+          }
+        }
+      } else if (inventoryGlId) {
         const acc = inventoryCredits.get(inventoryGlId) || { memo: groupName, amount: 0 };
         acc.amount = round2(acc.amount + lineInv);
         inventoryCredits.set(inventoryGlId, acc);
@@ -351,6 +536,7 @@ export function buildJournalLines(
   emitInto(paymentDebits, "debit", 10); // cash/card receipts, GC redemptions
   emitInto(paymentCredits, "credit", 20); // deposits, on-account
   emitInto(inventoryCredits, "credit", 30); // by department
+  emitInto(writeoffDebits, "debit", 35); // B3 classified-writeoff returns, by department
   emitInto(taxCredits, "credit", 40); // by district
   emitInto(revenueCredits, "credit", 50); // by department
   emitInto(cogsDebits, "debit", 60); // by department
@@ -488,12 +674,31 @@ export async function generateSalesJournal(
                           salesAccount: { select: { id: true, code: true, name: true } },
                           cogsAccount: { select: { id: true, code: true, name: true } },
                           inventoryAccount: { select: { id: true, code: true, name: true } },
+                          // B3 classified-writeoff GL, department-scoped.
+                          // Previously modeled but not consumed by the JE
+                          // generator -- see docs/domains/accounting.md gap
+                          // list, "Shrinkage JE workflow."
+                          shrinkageAccount: { select: { id: true, code: true, name: true } },
                         },
                       },
                     },
                   },
                 },
               },
+            },
+          },
+          // B3: ERP-native Return records tied to this order, used to
+          // classify return-shaped lines as restock vs. writeoff instead of
+          // defaulting every return to restock. Empty for every imported
+          // historical return (the Return table is never populated by
+          // import -- docs/domains/returns.md "the dual reality").
+          returns: {
+            select: {
+              id: true,
+              lineItemId: true,
+              productId: true,
+              status: true,
+              inspectionCondition: true,
             },
           },
         },
@@ -543,14 +748,27 @@ export async function generateSalesJournal(
               cost: toNum(li.cost),
               quantity: toNum(li.orderedQuantity),
               taxAmount: toNum(li.vatAmount),
+              productId: li.productId ?? null,
               accountGroup: li.product?.category?.accountGroup
                 ? {
                     name: li.product.category.accountGroup.name,
                     salesGlId: li.product.category.accountGroup.salesAccount?.id || null,
                     cogsGlId: li.product.category.accountGroup.cogsAccount?.id || null,
                     inventoryGlId: li.product.category.accountGroup.inventoryAccount?.id || null,
+                    shrinkageGlId: li.product.category.accountGroup.shrinkageAccount?.id || null,
                   }
                 : null,
+            })),
+            // B3: hand the order's Return records through so
+            // buildJournalLines can classify each return-shaped line
+            // (resolveReturnBookingPath) instead of assuming restock for
+            // every one of them.
+            returns: payment.salesOrder.returns.map((r) => ({
+              id: r.id,
+              lineItemId: r.lineItemId,
+              productId: r.productId,
+              status: r.status,
+              inspectionCondition: r.inspectionCondition,
             })),
           }
         : null,
