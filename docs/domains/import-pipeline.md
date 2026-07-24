@@ -31,22 +31,22 @@ The pipeline runs daily at 6:10 AM via Synology Task Scheduler.
 
 ## Report-to-Runner Map
 
-| Filename Pattern | Import Type | Runner | Key Data |
-|---|---|---|---|
-| `Prior_Day_Sales_Data_Export` | sales | `runSalesImport` | Orders, line items, returns |
-| `Daily_Quote_Report` | quotes | `runQuotesImport` | Open quotes |
-| `Customer_Deposits_Export` | deposits | `runDepositsImport` | Customer deposits |
-| `SH_Stock_by_Item` | stock | `runStockByItemImport` | Inventory positions |
-| `Inbound_Items` | purchase-orders | `runPurchaseOrdersImport` | PO items with POR# |
-| `Prior_Day_POR_Export` | purchase-orders | `runPurchaseOrdersImport` | PO items with POR# |
-| `Prior_Day_Payments_Export` | payments | `runPaymentsImport` | Payment transactions |
-| `Prior_Day_Invoice_Export` | invoices | `runInvoicesImport` | Invoices (handles order rewrites) |
-| `Company_Customers` OR `Company_Prior_Day_Customers` | customers | `runCustomerImport` | Customer records |
-| `Prior_Day_Received_Items` | received-items | `runReceivedItemsImport` | Goods in, creates ReceivingRecords |
-| `Company_Inbound_Items` | inbound-items | `runInboundItemsImport` | Confirmed PO items with ESD |
-| `Prior_Day_Temp_Items` OR `Prior_Day_Temp_Purchase_Orders` | temp-items | `runTempItemsImport` | Draft PO items |
-| `SH_Purchase_Order_Line_Export` | po-lines | `runPOLineExportImport` | PO line details |
-| `SH_Item_Export` | products | `runProductsImport` | Daily product master (~100K rows, Active=yes only) |
+| Filename Pattern                                           | Import Type     | Runner                    | Key Data                                           |
+| ---------------------------------------------------------- | --------------- | ------------------------- | -------------------------------------------------- |
+| `Prior_Day_Sales_Data_Export`                              | sales           | `runSalesImport`          | Orders, line items, returns                        |
+| `Daily_Quote_Report`                                       | quotes          | `runQuotesImport`         | Open quotes                                        |
+| `Customer_Deposits_Export`                                 | deposits        | `runDepositsImport`       | Customer deposits                                  |
+| `SH_Stock_by_Item`                                         | stock           | `runStockByItemImport`    | Inventory positions                                |
+| `Inbound_Items`                                            | purchase-orders | `runPurchaseOrdersImport` | PO items with POR#                                 |
+| `Prior_Day_POR_Export`                                     | purchase-orders | `runPurchaseOrdersImport` | PO items with POR#                                 |
+| `Prior_Day_Payments_Export`                                | payments        | `runPaymentsImport`       | Payment transactions                               |
+| `Prior_Day_Invoice_Export`                                 | invoices        | `runInvoicesImport`       | Invoices (handles order rewrites)                  |
+| `Company_Customers` OR `Company_Prior_Day_Customers`       | customers       | `runCustomerImport`       | Customer records                                   |
+| `Prior_Day_Received_Items`                                 | received-items  | `runReceivedItemsImport`  | Goods in, creates ReceivingRecords                 |
+| `Company_Inbound_Items`                                    | inbound-items   | `runInboundItemsImport`   | Confirmed PO items with ESD                        |
+| `Prior_Day_Temp_Items` OR `Prior_Day_Temp_Purchase_Orders` | temp-items      | `runTempItemsImport`      | Draft PO items                                     |
+| `SH_Purchase_Order_Line_Export`                            | po-lines        | `runPOLineExportImport`   | PO line details                                    |
+| `SH_Item_Export`                                           | products        | `runProductsImport`       | Daily product master (~100K rows, Active=yes only) |
 
 **Route order matters.** `Company_Inbound_Items` must be matched before the generic `Inbound_Items` pattern in `gmailReportRouter.ts`.
 
@@ -67,7 +67,7 @@ the POS lets a store "rewrite" an existing order to correct line items, swap pro
 - Return: −$base_total on its own date (nets the base in same-period reports)
 - Rewrite: +$rewrite_total on its own date
 
-The one place this goes wrong is **payments**. the POS's payment CSV includes a row on the rewrite with `paymentType = "Gift Card"` for the exact amount of the base's original card deposit, and **no `Gift Card Barcode` / `Gift Card Code` fields**. That row is the POS's export of an *internal credit-note transfer* -- the base's deposit becoming a credit note on the return, then applied to the rewrite. We do not import credit notes as their own record; the transfer shows up only through the rewrite's "Gift Card" row.
+The one place this goes wrong is **payments**. the POS's payment CSV includes a row on the rewrite with `paymentType = "Gift Card"` for the exact amount of the base's original card deposit, and **no `Gift Card Barcode` / `Gift Card Code` fields**. That row is the POS's export of an _internal credit-note transfer_ -- the base's deposit becoming a credit note on the return, then applied to the rewrite. We do not import credit notes as their own record; the transfer shows up only through the rewrite's "Gift Card" row.
 
 **`runPaymentsImport` skips that phantom row.** Detection: `isRewriteOrder(orderno)` + `paymentType === "Gift Card"` + no gift-card barcode/code. Real POS gift-card redemptions always carry a barcode or code, so they are unaffected. The `phantomTransfersSkipped` counter on the result surfaces how many were skipped per import.
 
@@ -102,11 +102,11 @@ The "all three stay ACTIVE, daily sales reconcile naturally" rule is true for cr
 
 **Worked example** (SO-1726, Cheshire, Brian Tenerow, 2026-05-09):
 
-| Order | Lines | Net |
-|---|---|---|
-| `SO-1726` base | 5 (cushion×3, sofa×1, delivery, lounges×2, delivery×1) | $4,298 |
-| `SR-010045` return | 3 (cushion×-3, sofa×-1, delivery×-1) | -$3,189 |
-| `SO-1726 - A` rewrite | 3 (cushion×3, sofa×1, delivery×1) | $3,189 |
+| Order                 | Lines                                                  | Net     |
+| --------------------- | ------------------------------------------------------ | ------- |
+| `SO-1726` base        | 5 (cushion×3, sofa×1, delivery, lounges×2, delivery×1) | $4,298  |
+| `SR-010045` return    | 3 (cushion×-3, sofa×-1, delivery×-1)                   | -$3,189 |
+| `SO-1726 - A` rewrite | 3 (cushion×3, sofa×1, delivery×1)                      | $3,189  |
 
 Naive sum: `4298 + (-3189) + 3189 = 4298`. Cheshire 5/9 total: $4,298 (base) + $117 (three cash sales) = **$4,415**.
 
@@ -140,10 +140,10 @@ Post-import wiring (per rewrite imported):
 
 **Two canonical shapes the test set must keep green:**
 
-| Case | Pattern | Helper output |
-|---|---|---|
-| SO-1726 (drop) | Customer dropped 2 lounge chairs + extra delivery. No returns for them. Rewrite has 3 lines. | Lines 4, 5 cancelled (beyond footprint + no return + paired rewrite already consumed) |
-| SO-39618 (credit-cycle keep) | Customer kept 3 items via 3-way credit cycle + 2 unchanged base lines + 1 MRC sticky fee. | Only MRC cancelled (lines 1–2 in footprint, lines 3–5 consume returns) |
+| Case                         | Pattern                                                                                      | Helper output                                                                         |
+| ---------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| SO-1726 (drop)               | Customer dropped 2 lounge chairs + extra delivery. No returns for them. Rewrite has 3 lines. | Lines 4, 5 cancelled (beyond footprint + no return + paired rewrite already consumed) |
+| SO-39618 (credit-cycle keep) | Customer kept 3 items via 3-way credit cycle + 2 unchanged base lines + 1 MRC sticky fee.    | Only MRC cancelled (lines 1–2 in footprint, lines 3–5 consume returns)                |
 
 **Backfill**: migration `20260512_cancel_same_day_rewrite_dropped_lines` cancelled 71 historical lines across 191 same-day pairs. Daily reconciliation against the POS has matched on those historical days post-backfill, so those cancellations align with the POS's accounting view of the chain.
 
@@ -183,11 +183,21 @@ WHERE bli."salesOrderId" = :base_id
 
 **Cross-day rewrites are unaffected.** The base + rewrite must share `orderDate` to qualify; the existing return-nets-the-rewrite invariant still holds for cross-day chains.
 
+**Reactivation-guard gap — dropped lines missing `cancelReason` (found + fixed 2026-07-24).** Found while writing the real-DB integration test for this section (below) — no pre-existing post-failure-log entry, so it's recorded here directly rather than under a separate incident date.
+
+`cleanupOneRewriteChain` cancelled dropped base lines via a bare `updateMany({ data: { lineItemStatus: "CANCELLED" } })` — it never set `cancelReason`. The separate PR #201 reactivation guard (`runners.ts`, per-row reconcile loop) treats ANY `CANCELLED` line with a NULL `cancelReason` as "orphan-cancelled" (a line that fell off a shrunk CSV and should come back if the CSV grows again — see the section above) and reactivates it to `ACTIVE` the moment the CSV re-supplies that `lineNumber`. The guard has no way to tell a same-day-rewrite drop apart from a genuine orphan when both look identical in the DB: `CANCELLED` + `cancelReason IS NULL`.
+
+Consequence: `cancelSameDayRewriteDroppedLines` only re-examines orders whose orderno is a REWRITE _and is present in the current import batch_ (`importedOrdernos.filter(isRewriteOrder)`). Re-importing a base order WITHOUT its paired rewrite in the same batch — a manual single-day re-upload via `/admin/import/POS-automation.tsx`, or any path matching the "Rewrite-truncated CSVs" quirk below — silently reactivated the previously-dropped lines. No error, no counter change, no signal anywhere in the result. This directly re-introduces the double-count the cleanup exists to prevent, and corrupts the totals `scripts/parallel-run-compare.cjs` diffs against the POS — the same zero-drift comparison this whole subsystem's cutover criterion rests on.
+
+**Fix**: `cleanupOneRewriteChain` now stamps `cancelReason = SAME_DAY_REWRITE_DROP_CANCEL_REASON` (exported constant, `lib/adapters/ordorite/shared.ts`) on every line it drops, so the reactivation guard reads it exactly like a deliberate user-cancel and never flips it back. The orphan-cleanup site (this section, above) and the quotes-reconciliation orphan-cleanup (`runQuotesImport`) were audited in the same pass and deliberately left `cancelReason`-less — both are the genuine orphan case the reactivation guard is designed for, and stamping a reason there would permanently block a legitimate reactivation instead.
+
+**Historical data is NOT backfilled.** Every currently-CANCELLED line in production has `cancelReason = NULL` — including historical rewrite-drops from before this fix — so they remain exposed to this reactivation gap until the next time their chain goes through `cleanupOneRewriteChain` again (which re-cancels them correctly, now with the reason stamped). No blind migration was written: there is no reliable after-the-fact signal to distinguish a historical rewrite-drop from a genuine orphan-cancel among the NULL-reason `CANCELLED` rows, and wrongly stamping a genuine orphan would permanently prevent a legitimate future reactivation — a worse failure mode than the narrow window this fix closes going forward. If this exposure needs closing sooner than the next natural re-import, a manual audit query joining `CANCELLED` lines against their chain's rewrite/return siblings (same shape as the "Audit SQL pattern" above) could identify high-confidence candidates, but that is a future exercise, not shipped here.
+
 **Tripwires**:
 
 - `__tests__/sameDayRewriteCleanup.test.ts` — 13 A-grade tests pinning both canonical shapes plus paired consumption, return-only, rewrite-only, lineNumber footprint, null-partNo conservative path
 - `__tests__/importRunners.regression.test.ts` — `findDroppedBaseLineIds` must be imported into the runner; `cancelSameDayRewriteDroppedLines` must exist + be called; the base lookup must include both `orderno` AND `orderDate`
-- Follow-up (not yet shipped): real-DB integration test exercising `runSalesImport` against a fixture CSV of the base + rewrite + the return prefix triple, asserting the cancellations match the helper's output
+- `__tests__/integration/runSalesImport.integration.test.ts` (real-DB, shipped 2026-07-24) — exercises `runSalesImport` end-to-end against a fixture CSV of the base + rewrite + the return-prefix triple: grouping, upsert, orphan-freeze, and the post-import `cancelSameDayRewriteDroppedLines` sweep, cross-checked against `findDroppedBaseLineIds`'s own output. Includes the regression test for the reactivation-guard gap above: cancels the triple, then re-imports the base alone (no rewrite in the batch) and asserts the dropped lines stay `CANCELLED` with `cancelReason = SAME_DAY_REWRITE_DROP_CANCEL_REASON`.
 
 ## Quote line-item reconciliation
 
@@ -260,4 +270,5 @@ Covered: `safeString`, `safeFloat`, `safeDate`, `deriveSalesOrderStatus`, `isRet
 Gaps: `findProduct()` and its `autoCreate` behavior have no tests.
 
 ---
+
 Last verified: 2026-04-09 | Cron automation confirmed working, invoice rewrite matching added
