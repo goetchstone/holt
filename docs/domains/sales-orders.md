@@ -6,17 +6,17 @@ Sales orders are imported from the POS daily via `Prior_Day_Sales_Data_Export`. 
 
 The order number encodes the store and transaction type:
 
-| Prefix | Store | Suffix | Meaning |
-|--------|-------|--------|---------|
-| SB | Main Store | OM | Merchandise sale |
-| SB | Main Store | OA | Return/credit |
-| GT | Glastonbury | OM | Merchandise sale |
-| GT | Glastonbury | OA | Return/credit |
-| CH | Cheshire | OM | Merchandise sale |
-| CH | Cheshire | OA | Return/credit |
-| BB | Business to Business | OM | Merchandise sale |
-| WS | Web Sales | OM | Merchandise sale |
-| RS | Returns store | -- | Small set, 13 orders. RS-prefix detected as returns by `isReturnOrder()` |
+| Prefix | Store                | Suffix | Meaning                                                                  |
+| ------ | -------------------- | ------ | ------------------------------------------------------------------------ |
+| SB     | Main Store           | OM     | Merchandise sale                                                         |
+| SB     | Main Store           | OA     | Return/credit                                                            |
+| GT     | Glastonbury          | OM     | Merchandise sale                                                         |
+| GT     | Glastonbury          | OA     | Return/credit                                                            |
+| CH     | Cheshire             | OM     | Merchandise sale                                                         |
+| CH     | Cheshire             | OA     | Return/credit                                                            |
+| BB     | Business to Business | OM     | Merchandise sale                                                         |
+| WS     | Web Sales            | OM     | Merchandise sale                                                         |
+| RS     | Returns store        | --     | Small set, 13 orders. RS-prefix detected as returns by `isReturnOrder()` |
 
 **M = sale, A = return.** This is the primary return detection method.
 
@@ -60,6 +60,8 @@ When an order is reimported with fewer line items than a prior import, the sales
 
 **Reactivation** (PR #201, 2026-05-02): When a CSV provides a row at a `lineNumber` that already has an existing CANCELLED line with NULL `cancelReason` (= orphan-cancelled, not user-cancelled), the runner resets it to ACTIVE. This handles line-count oscillation across re-imports where a CSV temporarily shrinks then grows back to its real size.
 
+**Gap: same-day-rewrite drops also read as "orphan-cancelled" — found + fixed 2026-07-24.** The `!cancelReason` test above can't distinguish this section's genuine orphan-cancel from a deliberate same-day-rewrite-drop cancellation (`cleanupOneRewriteChain` in `docs/domains/import-pipeline.md` "Same-day rewrites"), because both used to write `lineItemStatus = CANCELLED` with no `cancelReason`. A base-only re-import (rewrite not in the same batch) silently reactivated dropped lines, reintroducing a double-count. Fixed by stamping `cancelReason = SAME_DAY_REWRITE_DROP_CANCEL_REASON` (`lib/adapters/ordorite/shared.ts`) on rewrite-drops so this reactivation guard treats them as deliberate, same as a user-cancel. This section's own orphan-cleanup (above) and the quote-runner's orphan-cleanup were audited and correctly left `cancelReason`-less — see `docs/domains/import-pipeline.md` "Same-day rewrites — the dropped-line edge case" for the full incident and the backfill decision (none — historical NULL-reason cancellations aren't blindly reclassified).
+
 **Rewrite-freeze exception** (PR #209, 2026-05-05; tightened 2026-05-07): Orphan-cleanup is **skipped entirely** for any order whose sibling rewrite (`<orderno> - A` / `- B` / `- C` / `- D`) already exists in the DB. After the POS splits an order into base + rewrite, the daily CSV permanently exports only the lines that "stayed" on the base — the items that "moved" now appear in the rewrite's CSV section. Without the freeze, every subsequent re-import would silently re-cancel the moved lines, dropping the base order's value from daily-by-store reports (the POS's own daily report still attributes the full pre-rewrite value to the original date because the rewrite chain is netted on the rewrite's date by the the return prefix accounting return). The check: `!isRewriteOrder(orderno) && (await tx.salesOrder.findFirst({ where: { orderno: { startsWith: \`${orderno} - \` } } })) !== null`. Per-line UPDATE still runs, so a manual re-import of a corrected CSV refreshes values; the reactivation guard from PR #201 still brings back any line the new CSV provides. See failure-log entries 2026-05-05 and 2026-05-07 (SO-39275 first and second hits — the second was caused by the QUOTE runner having its own un-frozen orphan-cleanup; both runners now have the freeze).
 
 **Quote runner — promoted-order guard** (post-failure log 2026-05-07): the Daily Quote Report from the POS includes EVERY order that ever had a quoteCode, including ones that have since been promoted to `status=ORDER`. Before 2026-05-07, `reconcileExistingQuoteOrder` reconciled line items for any order in the quote CSV regardless of status — and the quote CSV's `Sellingprice Exvat` column is a UNIT price (not a line total). This produced two bugs simultaneously: (1) multi-qty line totals on promoted orders got overwritten with unit prices, and (2) the quote runner's orphan-cleanup ran without the rewrite-freeze, re-cancelling lines on rewrite-base orders every auto-import. SO-39275's $7,819 OS gap recurred because of this. Fix: `runQuotesImport` now skips `reconcileExistingQuoteOrder` when `existing.status !== "QUOTE"`. The Sales runner is authoritative for promoted orders; the quote runner stays out. The freeze guard was also added to `reconcileExistingQuoteOrder` itself as defense in depth.
@@ -83,11 +85,11 @@ If `SalesOrder.salesPersonId` is set (manual correction from split import or rea
 
 **Our schema cannot represent splitting an individual line item between two salespeople.** Verified 2026-05-22 against `schema.prisma`:
 
-| Field | Lives on | Supports |
-|---|---|---|
-| `salesPersonId` + `salesperson` (string) | `SalesOrder` only | Single owner per order |
-| `splitWithId` | `SalesOrder` only | One additional person — order is 50/50 between the two |
-| `salesPersonId` on `OrderLineItem` | **DOES NOT EXIST** | — |
+| Field                                    | Lives on           | Supports                                               |
+| ---------------------------------------- | ------------------ | ------------------------------------------------------ |
+| `salesPersonId` + `salesperson` (string) | `SalesOrder` only  | Single owner per order                                 |
+| `splitWithId`                            | `SalesOrder` only  | One additional person — order is 50/50 between the two |
+| `salesPersonId` on `OrderLineItem`       | **DOES NOT EXIST** | —                                                      |
 
 Line items inherit the order's salesperson(s). A single order is owned by one person OR split 50/50 between two — that's the whole envelope, not per-line.
 
@@ -95,7 +97,7 @@ Line items inherit the order's salesperson(s). A single order is owned by one pe
 
 SO-39837: managers in the POS have started splitting **a single line item** within an order (e.g. "only the live edge table is split between David and Julia, the rest of the order is David's"). the POS allows this. Our schema does not.
 
-**No code or schema change for this** — owner direction 2026-05-22: *"we are not making changes for nonsense, they would need to write the one order into two different ones for us to split it in the ERP."* The split-per-line workflow on the POS's side is operational nonsense from the ERP's perspective, and the salespeople were directed to use the POS — so the workaround is on the operator/manager.
+**No code or schema change for this** — owner direction 2026-05-22: _"we are not making changes for nonsense, they would need to write the one order into two different ones for us to split it in the ERP."_ The split-per-line workflow on the POS's side is operational nonsense from the ERP's perspective, and the salespeople were directed to use the POS — so the workaround is on the operator/manager.
 
 ### Manual workaround for managers
 
@@ -203,4 +205,5 @@ Covered: `deriveSalesOrderStatus`, `isReturnOrder` (R/CR prefix), `isRefundPayme
 Gaps: `isReturnOrder` for return-prefixed patterns (RETURN_STORE_SUFFIX regex)
 
 ---
+
 Last verified: 2026-04-17
