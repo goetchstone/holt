@@ -98,6 +98,26 @@ describe("historicalPoImport handlers — source-text tripwires", () => {
     expect(HELPER_SRC).toMatch(/zero-quantity/);
     expect(HELPER_SRC).toMatch(/rawQty\s*<=\s*0/);
   });
+
+  // Slice 6.13.2 (2026-07-24) — forward-flow double-count guard.
+  it("import handler calls findForwardFlowOverlap before creating the draft graph", () => {
+    expect(HANDLER_SRC).toMatch(/findForwardFlowOverlap/);
+    expect(HELPER_SRC).toMatch(/export function findForwardFlowOverlap/);
+  });
+
+  it("import handler refuses with 409 when the overlap guard finds a collision", () => {
+    expect(HANDLER_SRC).toMatch(/overlap\.length > 0/);
+    expect(HANDLER_SRC).toMatch(/res\.status\(409\)\.json\(\{[\s\S]*overlappingProducts/);
+  });
+
+  it("import handler scopes the overlap check to items in the target buy", () => {
+    expect(HANDLER_SRC).toMatch(/draftPo:\s*\{\s*buyId\s*\}/);
+  });
+
+  it("the guard itself excludes HISTORICAL_PO_IMPORT and CANCELLED rows (sibling-PO chaining stays unblocked)", () => {
+    expect(HELPER_SRC).toMatch(/source === "HISTORICAL_PO_IMPORT"/);
+    expect(HELPER_SRC).toMatch(/status === "CANCELLED"/);
+  });
 });
 
 describe("historicalPoSiblings — source-text tripwires", () => {

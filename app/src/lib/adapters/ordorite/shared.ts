@@ -172,6 +172,26 @@ export function isRewriteOrder(orderno: string): boolean {
   return REWRITE_SUFFIX_RE.test(orderno);
 }
 
+// Sentinel `OrderLineItem.cancelReason` stamped by `cleanupOneRewriteChain`
+// (runners.ts) when it cancels a same-day-rewrite DROPPED base line. This
+// is a DELIBERATE cancellation -- the same-day-rewrite heuristic decided
+// the line was truly dropped, not an artifact of a shrunk CSV -- so it
+// must read the same as a user-initiated cancel to the PR #201
+// reactivation guard in `runners.ts` (`isOrphanCancelled = lineItemStatus
+// === "CANCELLED" && !cancelReason`). Before this constant existed, the
+// cleanup updateMany wrote `lineItemStatus: "CANCELLED"` with NO
+// cancelReason, which the reactivation guard could not distinguish from a
+// genuine orphan-cancel -- so re-importing the base alone (without its
+// paired rewrite in the same batch) silently flipped dropped lines back
+// to ACTIVE and re-introduced the double-count the cleanup exists to
+// prevent. See docs/domains/import-pipeline.md "Same-day rewrites -- the
+// dropped-line edge case" for the full incident history.
+//
+// Exported so the writer (`cleanupOneRewriteChain`) and every reader
+// (tests, future audit queries, admin UI) share one string instead of
+// duplicating the literal.
+export const SAME_DAY_REWRITE_DROP_CANCEL_REASON = "same-day-rewrite-drop";
+
 /**
  * Extract the base orderno from a rewrite. Returns null if this is not a
  * rewrite.

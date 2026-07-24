@@ -11,6 +11,10 @@
 // Pure shape-construction lives in `lib/historicalPoImport.ts`; this
 // handler is the I/O + transaction wrapper per CLAUDE.md rule 14.
 //
+// Slice 6.13.2 (2026-07-24) — also refuses (409) when the target buy
+// already has forward-flow draft items linked to a product on this PO
+// (double-count guard; see `findForwardFlowOverlap`).
+//
 // ADMIN-only.
 
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -19,7 +23,9 @@ import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import {
   buildImportFromPurchaseOrder,
+  findForwardFlowOverlap,
   type PurchaseOrderForImport,
+  type ExistingBuyDraftItemForOverlapCheck,
 } from "@/lib/historicalPoImport";
 
 interface RequestBody {
@@ -113,6 +119,52 @@ export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: N
       return res
         .status(400)
         .json({ error: "Cannot import a CANCELLED purchase order — restore it first." });
+    }
+
+    // Slice 6.13.2 (2026-07-24) — double-count guard. Documented as a
+    // followup in docs/domains/buyer-drafts.md ("Linked-PO scoping")
+    // after the Spring 2026 audit: a buy that already has forward-flow
+    // drafts (buyer-typed items later linked to a catalog Product) AND
+    // gets a historical import of a real PO covering the SAME
+    // products ends up with two BuyerDraftItem rows counting the same
+    // purchase — the budget rollup (`GET /buys/[id]`) sums qty × cost
+    // across every item under the buy with no dedup. Refuse up front
+    // rather than silently create the duplicate; the doc's own
+    // resolution recipe is to cancel/delete the forward-flow drafts
+    // (or keep the paths on separate buys) and retry.
+    const existingBuyItemRows = await prisma.buyerDraftItem.findMany({
+      where: { draftPo: { buyId }, fulfilledProductId: { not: null } },
+      select: {
+        id: true,
+        draftPoId: true,
+        partNumber: true,
+        productName: true,
+        fulfilledProductId: true,
+        source: true,
+        status: true,
+      },
+    });
+    const existingBuyItems: ExistingBuyDraftItemForOverlapCheck[] = existingBuyItemRows;
+    const overlap = findForwardFlowOverlap(
+      po.lineItems.map((li) => ({
+        productId: li.productId,
+        partNo: li.partNo,
+        productName: li.productName,
+      })),
+      existingBuyItems,
+    );
+    if (overlap.length > 0) {
+      return res.status(409).json({
+        error:
+          `Cannot import PON ${po.poNumber} — ${overlap.length} product(s) on this PO already ` +
+          `have forward-flow drafts in "${buy.name}". Importing would double-count budget for ` +
+          `those products. Cancel or delete the existing forward-flow drafts, or keep this PO's ` +
+          `import on a separate buy, then retry.`,
+        poNumber: po.poNumber,
+        buyId,
+        buyName: buy.name,
+        overlappingProducts: overlap,
+      });
     }
 
     // Build the create shapes.
