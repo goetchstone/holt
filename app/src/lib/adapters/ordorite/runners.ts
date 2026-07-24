@@ -28,6 +28,7 @@ import {
   rewriteBaseOrderno,
   classifyPOReceiptStatus,
   ensureUnknownVendorId,
+  SAME_DAY_REWRITE_DROP_CANCEL_REASON,
 } from "@/lib/adapters/ordorite/shared";
 import { buildLocationMap } from "@/lib/storeLocationResolver";
 import { syncConsignmentReturns } from "@/lib/paymentService";
@@ -412,9 +413,12 @@ export async function runSalesImport(
             if (existingLine) {
               // If the line was previously CANCELLED by orphan cleanup
               // (no cancelReason set), and the CSV now provides a row at
-              // this lineNumber, reactivate it. User-cancelled lines
-              // (cancelReason set) keep their CANCELLED status — those
-              // are deliberate intent we don't want to undo.
+              // this lineNumber, reactivate it. Lines with a cancelReason
+              // set (user-cancelled VIA the sales-order UI, OR
+              // same-day-rewrite-dropped via cleanupOneRewriteChain —
+              // see SAME_DAY_REWRITE_DROP_CANCEL_REASON in shared.ts)
+              // keep their CANCELLED status — those are deliberate intent
+              // we don't want to undo.
               //
               // Without this reactivation, orders that oscillate in line
               // count across re-imports get stuck with permanently-
@@ -423,6 +427,16 @@ export async function runSalesImport(
               // first import, grew to 22, shrank to 17 (orphan-cancelled
               // 18-22), then grew to 29 — but lines 18-29 stayed
               // CANCELLED, dropping $7,819 from the Detailed Sales report.
+              //
+              // BUG FIXED 2026-07-24: until this cancelReason stamp
+              // existed, this exact reactivation logic could not tell a
+              // same-day-rewrite drop apart from a genuine orphan-cancel,
+              // so re-importing a base order WITHOUT its paired rewrite
+              // in the same batch (e.g. a manual single-day re-upload)
+              // silently reactivated the dropped lines, re-introducing
+              // the double-count `cleanupOneRewriteChain` exists to
+              // prevent. See docs/domains/import-pipeline.md "Same-day
+              // rewrites -- the dropped-line edge case".
               const isOrphanCancelled =
                 existingLine.lineItemStatus === "CANCELLED" && !existingLine.cancelReason;
               const updateData = isOrphanCancelled
@@ -503,6 +517,15 @@ export async function runSalesImport(
               where: { orderno: { startsWith: `${orderno} - ` } },
               select: { id: true },
             })) !== null;
+          // Deliberately NO cancelReason here (audited 2026-07-24,
+          // alongside the same-day-rewrite-drop cancelReason fix above).
+          // This IS the genuine orphan case the PR #201 reactivation
+          // guard is designed for: a line number that fell off the CSV
+          // and may legitimately come back on a later import (line-count
+          // oscillation, SBOM39275 2026-05-02). Stamping a reason here
+          // would defeat reactivation for exactly the case it exists to
+          // handle. Do not add one without also re-deriving how a
+          // legitimately-returning line would ever get un-cancelled again.
           const maxLine = orderLines.length;
           const orphanedLines = baseHasRewrite
             ? []
@@ -841,9 +864,17 @@ async function cleanupOneRewriteChain(rewriteOrderno: string): Promise<number> {
   });
   if (droppedIds.length === 0) return 0;
 
+  // Stamp cancelReason so the PR #201 reactivation guard (~line 427,
+  // `isOrphanCancelled = lineItemStatus === "CANCELLED" && !cancelReason`)
+  // treats this as a deliberate cancellation and never flips it back to
+  // ACTIVE just because a later import re-supplies this lineNumber
+  // without the paired rewrite in the same batch. See
+  // SAME_DAY_REWRITE_DROP_CANCEL_REASON's doc comment in shared.ts and
+  // docs/domains/import-pipeline.md "Same-day rewrites -- the
+  // dropped-line edge case" for the full incident.
   await prisma.orderLineItem.updateMany({
     where: { id: { in: droppedIds } },
-    data: { lineItemStatus: "CANCELLED" },
+    data: { lineItemStatus: "CANCELLED", cancelReason: SAME_DAY_REWRITE_DROP_CANCEL_REASON },
   });
   return droppedIds.length;
 }
@@ -1056,6 +1087,13 @@ async function reconcileExistingQuoteOrder(
       where: { orderno: { startsWith: `${orderno} - ` } },
       select: { id: true },
     })) !== null;
+  // Deliberately NO cancelReason here (audited 2026-07-24, same
+  // reasoning as runSalesImport's orphan cleanup above): this is the
+  // genuine orphan case, and `cleanupOneRewriteChain`
+  // (SAME_DAY_REWRITE_DROP_CANCEL_REASON) never runs against quote
+  // orders, so there is no same-day-rewrite-drop ambiguity to guard
+  // against here. Reactivation must stay possible if the CSV's line
+  // count grows back.
   const orphans = baseHasRewrite
     ? []
     : existingLines.filter((l) => l.lineNumber !== null && l.lineNumber > orderLines.length);
