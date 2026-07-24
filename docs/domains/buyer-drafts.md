@@ -465,7 +465,13 @@ Implementation lives in `lib/buyerDraftRealPoLink.ts:computeLinkedPos` (new opti
 4. Each click creates a new `BuyerDraftPurchaseOrder` with `importedFromPurchaseOrderId` set.
 5. The Linked Real POs panel + performance report immediately switch to the authoritative set.
 
-**Risk noted**: a Buy that already has forward-flow drafts AND gets explicit Slice 6.13 imports will see the budget rollup count BOTH sets of draft items. To avoid double-counting, either delete the forward-flow drafts (`status=CANCELLED` or hard-delete) OR don't mix the paths on the same Buy. A future safeguard could refuse Slice 6.13 imports when the buy already has overlapping `fulfilledProductId` drafts — tracked as a followup, not yet shipped.
+**Risk noted**: a Buy that already has forward-flow drafts AND gets explicit Slice 6.13 imports will see the budget rollup count BOTH sets of draft items. To avoid double-counting, either delete the forward-flow drafts (`status=CANCELLED` or hard-delete) OR don't mix the paths on the same Buy.
+
+**Double-count guard — Slice 6.13.2 (2026-07-24, shipped)**: `POST /api/admin/buyer-drafts/import-purchase-order` now refuses (409) an import when the target buy already has a forward-flow (non-`HISTORICAL_PO_IMPORT`), non-`CANCELLED` `BuyerDraftItem` whose `fulfilledProductId` matches a product on the real PO being imported. Response body includes `overlappingProducts` (productId + partNo/productName from the incoming PO + the colliding existing draft item ids/draftPoId) so the operator can see exactly what to cancel/delete before retrying — matching the resolution recipe above. Hard-fail, no override flag: silently creating the duplicate is the bug being guarded against, and the doc's own resolution path (cancel the forward-flow drafts, or don't mix paths) doesn't call for a bypass.
+
+Scope is deliberately narrower than "any overlapping `fulfilledProductId` draft in the buy": it only compares against *forward-flow* existing items. Two different Slice 6.13 historical imports sharing a `fulfilledProductId` is normal and load-bearing — it's the sibling-PO / partial-receive-split workflow (`find-sibling-pos`, `lib/historicalPoSiblings.ts`), where the POS splits one order across 2-3 real PONs that share line items and the buyer is expected to import all of them into the same buy. That's real total spend across separate real POs, not a double count, so historical-vs-historical overlap is intentionally left unguarded. Cancelled forward-flow rows are also excluded from the check, since cancelling is the doc's own stated resolution.
+
+Pure helper `lib/historicalPoImport.ts:findForwardFlowOverlap(incomingLines, existingBuyItems)` — no I/O, the handler hydrates both inputs from Prisma. 14 A-grade unit tests in `__tests__/historicalPoImport.test.ts` (`describe("findForwardFlowOverlap")`) cover: no existing items, no overlap, exact overlap against MANUAL/HD_PROPOSAL/APPAREL_SCAN/CONFIGURATOR sources, HISTORICAL_PO_IMPORT exclusion (sibling chaining), CANCELLED exclusion, unlinked (`fulfilledProductId: null`) exclusion, partial overlap, multiple colliding rows for one product, incoming-side dedup, null-productId incoming lines, deterministic sort order, and the buy-scoping contract (caller pre-filters `existingBuyItems` by `buyId` — a different buy's forward-flow drafts never enter the check). 4 more tripwire tests in `__tests__/historicalPoImport.tripwire.test.ts` pin the wiring (handler calls the helper before creating the draft graph, refuses with 409 + `overlappingProducts`, scopes the Prisma query to `draftPo: { buyId }`, and the helper's own source/status exclusions).
 
 ### Field mapping
 
@@ -550,6 +556,7 @@ The API endpoint is responsible for hydrating raw data — including loading buy
 | `buyerDraftRealPoLink.test.ts` | A | computeLinkedPos pure helper. 15 tests covering 1:1, 1:N, partial coverage, no-link, not-on-any-real-po, sort + dedup. |
 | `buyerDraftLinkedPos.integration.test.ts` | B | real-DB version of the linked-POs hydration. 4 tests. |
 | `frameSalesHistory.test.ts` | A | computeFrameSalesHistory + trailingWindowStart. 9 tests covering empty input, multi-line aggregation, distinct-order dedup, RETURNED netting, float rounding, year underflow, immutability. |
+| `historicalPoImport.test.ts` | A | buildImportFromPurchaseOrder + (2026-07-24) findForwardFlowOverlap double-count guard. 14 new tests on the guard: source/status exclusions, overlap detection, dedup, sort order. |
 | `BuyerDraftsPage` (page-level) | (none) | UI integration test infrastructure doesn't exist yet. Phase 0.6 testing roadmap covers this. |
 | `DraftItemWizard` / `DraftPoModal` / `DraftBuyModal` | (none) | Same as above. |
 
@@ -582,6 +589,7 @@ The page-level test gap is what causes the local Sonar gate's `new_coverage` to 
 | 6.11 | Per-frame margin split: stock vs special-order | Shipped (PR #271) |
 | 6.12 | Trailing 12-month frame sales surfaced in BarcodeLookupModal preview | Shipped (PR #271) |
 | 6.13 | Historical PO import — bulk-import an existing real PurchaseOrder into a Buy so Slice 6 reports run against past buys | Shipped (2026-05-22) |
+| 6.13.2 | Forward-flow double-count guard on historical PO import (409 refusal when the buy already has overlapping forward-flow `fulfilledProductId` drafts) | Shipped (2026-07-24) |
 | 5.5 | Optional receiving UI (manual override of auto-link) | Pending |
 
 ## Verification checklist (before shipping a buyer-drafts PR)
