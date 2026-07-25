@@ -107,17 +107,43 @@ services:
   # --------------------------------------------------------------------------
   # Nginx reverse proxy (production)
   # Starts by default with: docker compose up
+  #
+  # Ports changed from the old "8080:80"-only mapping to standard 80/443 as
+  # part of adding TLS (docs/PRODUCTION.md section 2): Let's Encrypt's
+  # HTTP-01 challenge always validates against the real port 80, and
+  # browsers assume 443 for https:// with no port in the URL. If a router
+  # or NAT rule forwarded an external port to the old host 8080, repoint it
+  # at host 80 and 443 instead.
   # --------------------------------------------------------------------------
   nginx:
     image: nginx:1.27-alpine
     pull_policy: always
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Populated by scripts/init-letsencrypt.sh; nginx only ever reads them.
+      - certbot-etc:/etc/letsencrypt:ro
+      - certbot-webroot:/var/www/certbot:ro
     depends_on:
       - app
+
+  # --------------------------------------------------------------------------
+  # Certbot (Let's Encrypt client) -- issues and renews the TLS cert nginx
+  # uses above. Not part of the default `docker compose up` (profile "tls"
+  # keeps it out of the way day-to-day); scripts/init-letsencrypt.sh invokes
+  # it explicitly for both first issuance and renewal. See
+  # docs/PRODUCTION.md section 2.
+  # --------------------------------------------------------------------------
+  certbot:
+    image: certbot/certbot:latest
+    pull_policy: always
+    profiles: ["tls"]
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
 
   # --------------------------------------------------------------------------
   # Staging database (separate volume from production)
@@ -191,3 +217,8 @@ volumes:
   app_node_modules:
   uploads:
   uploads-staging:
+  # TLS cert (certbot's /etc/letsencrypt) and ACME webroot, shared between
+  # the nginx and certbot services. No secrets in the repo -- these are
+  # empty until scripts/init-letsencrypt.sh populates them at deploy time.
+  certbot-etc:
+  certbot-webroot:

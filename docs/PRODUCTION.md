@@ -24,14 +24,42 @@ Legend: ☑ = handled in code · ☐ = deploy-time action you take.
 
 ## 2. TLS / HTTPS  ← the one true go-live blocker
 
-- ☐ `nginx/nginx.conf` ships HTTP-only. Add a 443 server block with certs
-  (Let's Encrypt / certbot), redirect 80→443, and pass
-  `X-Forwarded-Proto $scheme`. Without this, sessions + Stripe + passwords
-  travel in plaintext.
+- ☑ The CODE artifact now exists: `nginx/nginx.conf` has a 443 server block
+  (modern TLS 1.2+1.3 ciphers, session cache, OCSP stapling) plus a port-80
+  block that serves the ACME challenge and 301-redirects everything else to
+  HTTPS, and `scripts/init-letsencrypt.sh` bootstraps + renews the
+  Let's Encrypt certificate (handling the chicken-and-egg problem of nginx
+  needing a cert to start on 443 while certbot needs nginx up on 80 to issue
+  one). `docker-compose.yml`'s `nginx` service now publishes 80 and 443
+  (was `8080:80` only) and mounts the cert + ACME-webroot volumes; a
+  profile-gated `certbot` service runs the actual Let's Encrypt client.
+  `nginx/nginx-staging.conf` intentionally stays HTTP-only — see the comment
+  at the top of that file for why.
+- ☐ **Still a deploy-time action** — the code can't invent your domain or
+  touch a live cert for you. Concretely, at go-live:
+  1. Point DNS for your domain at this host, and make sure ports 80 + 443
+     are reachable from the internet on it (repoint any router/NAT rule
+     that pointed at the old 8080).
+  2. Substitute the domain in `nginx/nginx.conf`:
+     `sed -i '' 's/REPLACE_ME_DOMAIN/<your-domain>/g' nginx/nginx.conf`
+     (drop the `''` on Linux).
+  3. Run `./scripts/init-letsencrypt.sh <your-domain> <your-email>` (add
+     `--staging` first if you want a dry run against Let's Encrypt's
+     rate-limit-free staging environment before spending your real quota).
+  4. Set `NEXTAUTH_URL=https://<your-domain>` and `TRUST_PROXY=true` (§1) —
+     confirms `validateEnv.ts`'s https:// check passes and rate-limit IP
+     attribution trusts nginx's `X-Real-IP`.
+  5. Schedule `./scripts/init-letsencrypt.sh --renew` in cron/Task
+     Scheduler (see the comment block at the top of that script) — it's a
+     no-op unless the cert is within 30 days of expiry.
+  Without this, sessions + Stripe + passwords travel in plaintext.
 - ☑ HSTS, X-Frame-Options DENY, X-Content-Type-Options, Referrer-Policy, a
   baseline CSP, and `__Secure-` session cookies are all set in code — they
-  activate the moment TLS is in front. (CSP still allows `unsafe-inline` for
-  scripts/styles; tightening to nonces is tracked, not a blocker.)
+  activate the moment TLS is in front. HSTS is sent by the app
+  (`app/next.config.js`), not nginx, so it stays a single source of truth;
+  nginx's 443 block deliberately does not add its own copy. (CSP still
+  allows `unsafe-inline` for scripts/styles; tightening to nonces is
+  tracked, not a blocker.)
 
 ## 3. Database, migrations, backups
 
