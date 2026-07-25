@@ -28,3 +28,25 @@ reason = "Prototype pollution in SheetJS xlsx. We install from SheetJS CDN tarba
 id = "GHSA-5pgg-2g8v-p4x9"
 ignoreUntil = 2026-10-24
 reason = "ReDoS in SheetJS xlsx. Same mitigation as GHSA-4r6h-8v6p-xvw6 — installed from SheetJS patched CDN tarball."
+
+# brace-expansion 1.x — GHSA-mh99-v99m-4gvg (added 2026-07-24).
+#
+# 1.1.16 is the NEWEST 1.x ever published; upstream fixed this on the 5.x
+# line only (5.0.8), so there is no patched 1.x to bump to. The 5.x line
+# IS bumped to 5.0.8 in package.json — this suppression covers only the
+# residual 1.x copy.
+#
+# Scope: dev-only. Every path to it runs through minimatch@3.1.5 pulled by
+# lint tooling (eslint, @eslint/eslintrc, eslint-plugin-import via
+# eslint-config-next). `npm ls brace-expansion --all --omit=dev` returns no
+# production path, so nothing ships to a deployed holt.
+#
+# Why not force minimatch@10 (which depends on brace-expansion 5.x)? Tried
+# and reverted: minimatch 10 changed its export shape, and @babel/core +
+# istanbul call it as a bare function. A global override turned the whole
+# unit suite into "TypeError: minimatch is not a function" in CI. Revisit
+# when the eslint toolchain moves off minimatch 3.x on its own.
+[[IgnoredVulns]]
+id = "GHSA-mh99-v99m-4gvg"
+ignoreUntil = 2026-10-24
+reason = "brace-expansion 1.1.16 — no patched 1.x exists (fix is 5.0.8, and the 5.x line IS bumped). Dev-only: reachable solely via minimatch@3.1.5 under eslint tooling, zero production paths. Forcing minimatch@10 breaks @babel/core + istanbul (minimatch is not a function)."
