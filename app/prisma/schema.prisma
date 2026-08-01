@@ -64,6 +64,9 @@ model Vendor {
   // narrow to this vendor. See CommissionPlanRule.
   commissionPlanRules CommissionPlanRule[]
 
+  // Import definitions scoped to this vendor. See ImportDefinition.
+  importDefinitions ImportDefinition[]
+
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
   createdBy String?
@@ -5127,4 +5130,124 @@ model TicketAttachment {
   created DateTime @default(now())
 
   @@index([ticketId])
+}
+
+// ---------------------------------------------------------------------------
+// CONFIGURABLE IMPORTS (Stage 1, 2026-08-01)
+// ---------------------------------------------------------------------------
+//
+// Declarative CSV/XLSX import definitions, replacing hand-coded importers one
+// at a time (docs/domains/imports-configurable.md). `targetEntity` is a
+// string key into `IMPORT_ENTITIES` (app/src/lib/genericImport.ts) — entities
+// are defined in code, not in the DB, so there is no FK here.
+//
+// `importMode` is the axis that predicts whether a definition can be pure
+// config or needs a code-backed runner:
+//   INSERT_ONLY / UPSERT -- the source is a delta or one-time dump; every row
+//     is a fact to land. Fully engine-driven, no runnerKey required.
+//   RECONCILE -- the source is a full-state re-export (e.g. Ordorite); the
+//     importer must diff against existing data (dropped lines, rewrites,
+//     zero-qty-means-cancelled). That diffing is inherently code, so
+//     RECONCILE definitions MUST name a registered runnerKey — enforced by
+//     both validateImportDefinition() (lib/imports/validation.ts) and the
+//     ImportDefinition_reconcile_requires_runner CHECK constraint below.
+// A runnerKey may also be set on an INSERT_ONLY/UPSERT definition when the
+// write-side logic is nontrivial enough to warrant code (see the customer/
+// product runners, which predate this model and do cascading dedup /
+// auto-create taxonomy) — it just isn't REQUIRED for those modes.
+enum ImportSourceFormat {
+  CSV
+  XLSX
+}
+
+enum ImportMode {
+  INSERT_ONLY
+  UPSERT
+  RECONCILE
+}
+
+// Keep this list SMALL — see docs/domains/imports-configurable.md for why
+// each transform earns its place. Do not add one without a justification.
+enum ImportTransform {
+  TRIM
+  UPPERCASE
+  LOWERCASE
+  NUMBER
+  DATE
+  CURRENCY
+}
+
+model ImportDefinition {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+
+  // Key into IMPORT_ENTITIES (app/src/lib/genericImport.ts), e.g. "customer".
+  targetEntity String
+  sourceFormat ImportSourceFormat @default(CSV)
+  importMode   ImportMode         @default(INSERT_ONLY)
+
+  // Target field keys (from the entity's field defs) that identify an
+  // existing record for UPSERT matching, e.g. ["externalId"]. Required when
+  // importMode = UPSERT; unused for INSERT_ONLY; optional documentation for
+  // RECONCILE (the runner owns the actual matching there).
+  naturalKeyFields String[] @default([])
+
+  // Optional owning vendor, for vendor/POS-specific presets (e.g. a Wesley
+  // Hall price-list importer) as opposed to a source-agnostic one.
+  vendorId Int?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+
+  // Code-backed escape hatch (app/src/lib/imports/runnerRegistry.ts). Names a
+  // compile-time-registered runner that owns row processing while still
+  // consuming this definition's field/value mappings. Required when
+  // importMode = RECONCILE; optional otherwise.
+  runnerKey String?
+
+  isActive Boolean @default(true)
+
+  fieldMappings ImportFieldMapping[]
+  valueMappings ImportValueMapping[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([targetEntity])
+  @@index([vendorId])
+}
+
+model ImportFieldMapping {
+  id           Int              @id @default(autoincrement())
+  definitionId Int
+  definition   ImportDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+
+  // The uploaded file's column header, verbatim.
+  sourceColumn String
+  // The entity field key this column feeds (ImportFieldDef.key).
+  targetField String
+  transform   ImportTransform?
+  required    Boolean          @default(false)
+  sortOrder   Int              @default(0)
+
+  @@unique([definitionId, targetField])
+  @@index([definitionId])
+}
+
+// Where "Card Connect" -> CARD lives. A row's raw source value is looked up
+// per targetField; a value present in the file but absent from this table
+// for a mapped field is a REPORTED unmapped-value outcome, never a silent
+// pass-through (lib/imports/engine.ts).
+model ImportValueMapping {
+  id           Int              @id @default(autoincrement())
+  definitionId Int
+  definition   ImportDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+
+  targetField String
+  sourceValue String
+  targetValue String
+
+  @@unique([definitionId, targetField, sourceValue])
+  @@index([definitionId])
 }

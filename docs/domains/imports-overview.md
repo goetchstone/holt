@@ -213,6 +213,11 @@ Gaps acknowledged: no real-DB tests for the manual products-import path (the ups
 
 ## Cross-references
 
+- `docs/domains/imports-configurable.md` — Stage 1 of the declarative,
+  no-code importer effort (models, the pure execution engine, the
+  code-backed escape hatch, the Ordorite payment-mode value-mapping proof).
+  Nothing on this page is migrated to it yet — every path below is still
+  the live, hand-coded pipeline.
 - `docs/domains/import-pipeline.md` — runner details + report-to-runner table + rewrites
 - `docs/domains/sales-orders.md` — status derivation + return detection + orphan cleanup
 - `docs/domains/purchasing.md` — POs + POR + receiving + auto-create-products from imports + the temp-PO Postatus → DRAFT mapping
