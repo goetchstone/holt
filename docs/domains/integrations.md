@@ -68,7 +68,7 @@ When a new Axper store appears that isn't mapped, the import persists it with `s
 
 ## PBX / pbxact — call logging (ROADMAP only)
 
-**Status**: Roadmap item, NOT yet wired up. Tracked as GitHub Issue #180.
+**Status**: Roadmap item, NOT yet wired up. Tracked as GitHub Issue #180 (pre-squash repo numbering — historical reference only).
 
 The intent: tie inbound calls (from the pbxact PBX) to customer records so the interactions log auto-populates when staff answer the phone. Would tie into:
 
@@ -150,7 +150,7 @@ Covered fully in `docs/domains/import-pipeline.md`. Service account with domain-
 
 ## Known gaps
 
-- **PBX integration** — entire roadmap item (#180)
+- **PBX integration** — entire roadmap item (#180, pre-squash repo numbering — historical reference only)
 - **FileMaker** — no migration deadline; treat as sun-setting forever-pending
 - **No outbound webhooks** — we receive from Stripe + GitHub but don't send to anyone
 - **No SMS provider** — portal links + reminders go manually

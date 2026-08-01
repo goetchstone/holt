@@ -26,7 +26,7 @@ this harness.
 │              jest --selectProjects integration              │
 │                   --testPathPatterns <file>                 │
 │                                                             │
-│  Per-file invocation (PR #181) — without it, multiple       │
+│  Per-file invocation — without it, multiple                 │
 │  files in one Jest worker deadlock during the beforeEach    │
 │  TRUNCATE because ACCESS EXCLUSIVE locks pile up across     │
 │  pg.Pool connections. Per-file gives each file its own      │
@@ -156,15 +156,15 @@ When converting a placeholder mocked test:
 5. Run `npm run test:integration` — confirm all 16+ pass.
 6. Coverage gate may need a small downward bump per the ratchet doctrine since mocked-orchestration coverage moves from the unit project to the integration project (which the gate doesn't currently merge — Phase 0.6.5 fixes that).
 
-Existing conversions to model from: PR #179 (quotesReconcile), PR #181 (dailyReconciliation).
+Existing conversions to model from: the quotesReconcile conversion and the dailyReconciliation conversion.
 
 ## What's covered today (as of 2026-05-01)
 
 | File | Tests | Phase |
 |---|---|---|
 | `cancelledLineFilter.integration.test.ts` | 2 | 0.6.1 (proof of concept) |
-| `quotesReconcile.integration.test.ts` | 6 | 0.6.3 (PR #179) |
-| `dailyReconciliation.integration.test.ts` | 8 | 0.6.3 (PR #181) |
+| `quotesReconcile.integration.test.ts` | 6 | 0.6.3 |
+| `dailyReconciliation.integration.test.ts` | 8 | 0.6.3 |
 
 **Total: 16 tests.**
 
@@ -174,7 +174,7 @@ Remaining 0.6.3 placeholders: `journalEntry` orchestration, `mailchimpAudienceSy
 
 ### TRUNCATE deadlocks under multi-file Jest workers
 
-Surfaced in PR #181 when adding the second integration file. With `maxWorkers: 1` and multiple test files in one worker, the `beforeEach` TRUNCATE in file B deadlocks against pg.Pool connections that file A's last test was still releasing. Fix: per-file Jest invocation via `scripts/run-integration-tests.sh` — each file gets its own pool. Don't merge files into one Jest invocation.
+Surfaced when adding the second integration file (the dailyReconciliation conversion). With `maxWorkers: 1` and multiple test files in one worker, the `beforeEach` TRUNCATE in file B deadlocks against pg.Pool connections that file A's last test was still releasing. Fix: per-file Jest invocation via `scripts/run-integration-tests.sh` — each file gets its own pool. Don't merge files into one Jest invocation.
 
 ### PrismaPg pool size
 

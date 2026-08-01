@@ -150,7 +150,7 @@ Ported from furniture-configurator's `pages/tools/home-accessory-order.tsx` and 
 - [ ] Query Builder: any new ENTITY added to the config has its columns AND joins explicitly allowlisted
 - [ ] Categorize: 500-id cap stays in place
 - [ ] Merge: audit log entry written for every merge (forensics)
-- [ ] Auth: `roles: ["ADMIN"]` on Query Builder + Merge + Ledger Backfill; SUPER_ADMIN auto-passes via PR #308 promotion
+- [ ] Auth: `roles: ["ADMIN"]` on Query Builder + Merge + Ledger Backfill; SUPER_ADMIN auto-passes via the auto-promotion-over-ADMIN mechanism (see `docs/domains/staff-auth.md`)
 
 ## Test coverage
 
