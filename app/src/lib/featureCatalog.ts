@@ -5,6 +5,16 @@
 // UI and any server-side gate validate keys against this list. Core modules
 // (catalog, sales, customers, reporting) are always on and are NOT listed here
 // -- only the modules a plan can switch off appear.
+//
+// This is now a thin back-compat shim over lib/modules/registry.ts, THE
+// module manifest (docs/domains/modules.md). FEATURES is derived from
+// MODULES rather than hand-duplicated, so the two can never drift -- but the
+// exported shape (FeatureDef, FEATURES, isValidFeatureKey, isFeatureEnabled)
+// is unchanged, and every existing call site (25 files, grep -rn
+// isFeatureEnabled src/) keeps working with no edits. Do not add fields here;
+// add them to ModuleDef in lib/modules/types.ts instead.
+
+import { MODULES } from "./modules/registry";
 
 export interface FeatureDef {
   key: string;
@@ -13,133 +23,12 @@ export interface FeatureDef {
   defaultEnabled: boolean;
 }
 
-export const FEATURES: FeatureDef[] = [
-  {
-    key: "warehousing",
-    name: "Warehousing",
-    description: "Inventory locations, transfers, physical counts, warehouse dashboards.",
-    defaultEnabled: true,
-  },
-  {
-    key: "dispatch",
-    name: "Dispatch & Delivery",
-    description: "Delivery zones, dispatch board, route planning, service appointments.",
-    defaultEnabled: false,
-  },
-  {
-    key: "consignment",
-    name: "Consignment",
-    description: "Consignment receipts, items, vendor payouts, and returns.",
-    defaultEnabled: false,
-  },
-  {
-    key: "purchasing",
-    name: "Purchasing",
-    description: "Purchase orders, receiving, and inbound tracking.",
-    defaultEnabled: true,
-  },
-  {
-    key: "pos",
-    name: "Point of Sale",
-    description: "Register checkout / counter sales.",
-    defaultEnabled: true,
-  },
-  {
-    key: "giftCards",
-    name: "Gift Cards",
-    description: "Sell and redeem gift cards.",
-    defaultEnabled: true,
-  },
-  {
-    key: "tills",
-    name: "Tills & Cash Drawers",
-    description: "Till sessions and cash reconciliation.",
-    defaultEnabled: true,
-  },
-  {
-    key: "accounting",
-    name: "Accounting",
-    description: "Journal entries, GL chart, period close, customer ledger.",
-    defaultEnabled: false,
-  },
-  {
-    key: "marketing",
-    name: "Marketing & Enrichment",
-    description: "Campaign attribution, lead scoring, and wealth enrichment.",
-    defaultEnabled: false,
-  },
-  {
-    key: "cms",
-    name: "Content (CMS)",
-    description: "Public marketing pages, content blocks, and site navigation.",
-    defaultEnabled: true,
-  },
-  {
-    key: "blog",
-    name: "Blog",
-    description: "Dated blog posts on the public site (requires Content).",
-    defaultEnabled: false,
-  },
-  {
-    key: "booking",
-    name: "Booking",
-    description: "Public consultation booking with calendar (.ics) invites and a staff iCal feed.",
-    defaultEnabled: true,
-  },
-  {
-    key: "helpdesk",
-    name: "Helpdesk",
-    description: "Support tickets with a threaded message log and a public submit form.",
-    defaultEnabled: true,
-  },
-  {
-    key: "timeTracking",
-    name: "Time Tracking",
-    description: "Log billable and non-billable time against customers.",
-    defaultEnabled: false,
-  },
-  {
-    key: "blogComments",
-    name: "Blog Comments",
-    description: "Let visitors comment on blog posts, held for moderation (requires Blog).",
-    defaultEnabled: false,
-  },
-  {
-    key: "billing",
-    name: "Billing & Invoices",
-    description:
-      "Author invoices, issue them to AR (GL + customer ledger), email with a Stripe pay link, and record payments. Requires AR GL mappings in Accounting setup.",
-    defaultEnabled: false,
-  },
-  {
-    key: "legacyPosImport",
-    name: "Legacy POS auto-import",
-    description:
-      "Automated daily ingestion of the legacy POS's emailed CSV reports (sales, quotes, payments, invoices, POs, stock, customers, products) via the edition's import adapter. Runs in parallel with the legacy system until cutover.",
-    defaultEnabled: false,
-  },
-  {
-    key: "legacyArchive",
-    name: "Legacy Archive",
-    description:
-      "Read-only lookup of sales history imported from a previous system (one-time load at onboarding). Isolated from live data and reports.",
-    defaultEnabled: false,
-  },
-  {
-    key: "clientPortal",
-    name: "Client Portal",
-    description:
-      "No-login client hub (tokenized link): upcoming appointments, invoices with online payment, and support ticket status.",
-    defaultEnabled: false,
-  },
-  {
-    key: "dmarcTools",
-    name: "Email Auth Tools (DMARC)",
-    description:
-      "Public DMARC / SPF / DKIM domain checker + aggregate-report analyzer. Lead-gen consult tooling; off by default.",
-    defaultEnabled: false,
-  },
-];
+export const FEATURES: FeatureDef[] = MODULES.map(({ key, name, description, defaultEnabled }) => ({
+  key,
+  name,
+  description,
+  defaultEnabled,
+}));
 
 const FEATURE_KEYS = new Set(FEATURES.map((f) => f.key));
 

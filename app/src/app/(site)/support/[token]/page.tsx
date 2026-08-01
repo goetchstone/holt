@@ -5,9 +5,7 @@
 // private links, not content we want crawled.
 
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { requireModule } from "@/lib/modules/requireModule";
 import { TicketStatusView } from "./TicketStatusView";
 
 export const metadata: Metadata = { title: "Your request", robots: { index: false } };
@@ -15,8 +13,7 @@ export const metadata: Metadata = { title: "Your request", robots: { index: fals
 export default async function SupportStatusPage({
   params,
 }: Readonly<{ params: Promise<{ token: string }> }>) {
-  const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "helpdesk")) notFound();
+  await requireModule("helpdesk");
   const { token } = await params;
 
   return (

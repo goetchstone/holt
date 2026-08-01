@@ -15,6 +15,7 @@ import {
   type PaymentProvider,
 } from "@/lib/payments";
 import { stripeProvider } from "@/lib/payments/stripeProvider";
+import { squareProvider } from "@/lib/payments/squareProvider";
 
 describe("getProviderForPayment", () => {
   it("resolves a payment processed by Stripe (uppercase, as stored on Payment rows)", () => {
@@ -33,8 +34,12 @@ describe("getProviderForPayment", () => {
     expect(getProviderForPayment(undefined)).toBe(stripeProvider);
   });
 
-  it("throws a clear error for SQUARE while Square is unregistered in this build", () => {
-    expect(() => getProviderForPayment("SQUARE")).toThrow(/not available in this build/i);
+  it("resolves a payment processed by Square (uppercase, as stored on Payment rows), now that Square is registered", () => {
+    expect(getProviderForPayment("SQUARE")).toBe(squareProvider);
+  });
+
+  it("resolves lowercase square too", () => {
+    expect(getProviderForPayment("square")).toBe(squareProvider);
   });
 
   it("throws rather than silently defaulting for an unknown, non-null processor", () => {

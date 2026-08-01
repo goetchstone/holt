@@ -63,6 +63,17 @@ export const INTEGRATION_PROVIDERS: IntegrationProviderDef[] = [
     ],
   },
   {
+    id: "square",
+    name: "Square",
+    description: "Card payments for the customer portal and point of sale.",
+    fields: [
+      { key: "accessToken", label: "Access Token", placeholder: "EAAA..." },
+      { key: "applicationId", label: "Application ID", placeholder: "sq0idp-..." },
+      { key: "locationId", label: "Location ID" },
+      { key: "webhookSignatureKey", label: "Webhook Signature Key" },
+    ],
+  },
+  {
     id: "google",
     name: "Google OAuth",
     description: "Sign-in and Drive access for staff accounts.",

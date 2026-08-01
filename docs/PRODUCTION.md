@@ -52,6 +52,9 @@ Legend: ☑ = handled in code · ☐ = deploy-time action you take.
   5. Schedule `./scripts/init-letsencrypt.sh --renew` in cron/Task
      Scheduler (see the comment block at the top of that script) — it's a
      no-op unless the cert is within 30 days of expiry.
+  6. Verify: `./scripts/go-live-check.sh --base-url https://<your-domain>`
+     confirms the cert is actually reachable on 443, not expired, and not
+     expiring soon — alongside the rest of the nine-condition gate below.
   Without this, sessions + Stripe + passwords travel in plaintext.
 - ☑ HSTS, X-Frame-Options DENY, X-Content-Type-Options, Referrer-Policy, a
   baseline CSP, and `__Secure-` session cookies are all set in code — they
@@ -72,16 +75,27 @@ Legend: ☑ = handled in code · ☐ = deploy-time action you take.
 - ☑ `/api/health` reports DB + AppSettings readiness; the app container has a
   healthcheck + `stop_grace_period`.
 - ☐ Schedule `scripts/backup-db.sh` (cron/Task Scheduler) with off-box
-  retention. **Do a restore drill before go-live** — restore the latest
-  backup into a scratch DB and boot against it (procedure in
-  `docs/DISASTER-RECOVERY.md`). A backup you've never restored is a hope.
+  retention. **Do a restore drill before go-live** — run
+  `./scripts/restore-drill.sh` (restores the latest backup into a
+  throwaway database, verifies table count / row counts / migration
+  history landed, drops the throwaway, and records a pass/fail summary +
+  timestamp that `scripts/go-live-check.sh` checks for) instead of doing
+  the `docs/DISASTER-RECOVERY.md` procedure by hand. A backup you've never
+  restored is a hope.
 - ☐ Back up `data/uploads/` (ticket attachments, inventory photos, line
-  drawings) — it is NOT in the SQL dump. Wire it into your backup job.
+  drawings) via `scripts/backup-uploads.sh` — it is NOT in the SQL dump.
+  Wire it into your backup job.
 
 ## 4. Scheduled jobs (cron) — register ALL of these on the host
 
 Each is a manually-callable endpoint until a scheduler invokes it. Use a
 Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
+
+- ☐ Run `./scripts/install-cron.sh` to register all nine jobs below in one
+  idempotent step (`--dry-run` previews the crontab it would install and
+  changes nothing; `--uninstall` removes them). See the manifest at the
+  top of that script for the schedule and the consequence of each job not
+  running. It refuses to run if `AUTO_IMPORT_API_KEY` isn't set.
 
 - ☐ **`auto-email-queue.sh`** — drains the email queue. **Without it, every
   invoice / booking confirmation / ticket reply / password-reset email
@@ -140,3 +154,12 @@ TLS on · backups scheduled + one restore drilled · uploads backed up ·
 `auto-email-queue.sh` running · ops alert channel set · live Stripe keys +
 webhook secret + AR GL mappings configured · `create-admin` done. When all
 nine are true, you can issue real invoices.
+
+Run `./scripts/go-live-check.sh --base-url https://<your-domain>` to check
+everything on this list that's actually machine-checkable from the host, in
+one pass: app health, TLS, recent backups, a recorded restore drill, the
+cron block, the alert channel, and `create-admin`. It exits non-zero if any
+of those fail, so it can gate a deploy. The two items no host-side script
+can confirm — whether the Stripe keys are genuinely **live** (vs. test) and
+whether the AR GL mappings point at the *right* accounts, not just *some*
+accounts — always print as MANUAL reminders, never as a pass.

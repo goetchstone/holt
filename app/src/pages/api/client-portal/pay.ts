@@ -8,8 +8,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { rateLimit } from "@/lib/rateLimit";
-import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { verifyClientPortalToken } from "@/lib/clientPortalToken";
 import { createInvoicePaymentLink } from "@/lib/billing/invoiceStripe";
 import { InvoiceValidationError } from "@/lib/billing/invoiceAuthoring";
@@ -21,8 +20,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
-  const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "clientPortal")) {
+  if (!(await isModuleEnabled("clientPortal"))) {
     return res.status(404).json({ error: "Not found" });
   }
 
