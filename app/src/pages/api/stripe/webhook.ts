@@ -1,14 +1,13 @@
 // /app/src/pages/api/stripe/webhook.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getStripe } from "@/lib/stripe";
+import { getPaymentProvider } from "@/lib/payments";
 import { resolveCredential } from "@/lib/integrationCredentials";
 import { prisma } from "@/lib/prisma";
 import { completePayment, onPaymentReceived } from "@/lib/paymentService";
 import { applyInvoiceStripePayment } from "@/lib/billing/invoiceService";
 import { logError } from "@/lib/logger";
 import { reportOpsAlert } from "@/lib/opsAlert";
-import type Stripe from "stripe";
 
 export const config = { api: { bodyParser: false } };
 
@@ -25,7 +24,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const stripe = await getStripe();
+  // This route is Stripe's delivery endpoint, so it resolves the Stripe
+  // provider explicitly. Verification and event parsing happen behind the
+  // seam — Square HMACs the notification URL + body rather than signing a
+  // header, so each provider owns its own mechanism.
+  const provider = getPaymentProvider("stripe");
   const rawBody = await buffer(req);
   const webhookSecret =
     (await resolveCredential("stripe", "webhookSecret", "STRIPE_WEBHOOK_SECRET")) ?? "";
@@ -41,23 +44,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Webhook secret not configured" });
   }
 
-  const sig = req.headers["stripe-signature"];
-  if (!sig) {
-    return res.status(400).json({ error: "Missing stripe-signature header" });
-  }
-
-  let event: Stripe.Event;
+  let completion;
   try {
-    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+    const event = await provider.verifyWebhook!({
+      rawBody,
+      headers: req.headers,
+      secret: webhookSecret,
+      requestUrl: req.url,
+    });
+    completion = await provider.extractCompletion!(event);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Signature verification failed";
     return res.status(400).json({ error: message });
   }
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const orderId = session.metadata?.orderId;
-    const invoiceId = session.metadata?.invoiceId;
+  // Authentic event, but not a completion (processors send many event types).
+  if (completion) {
+    const orderId = completion.metadata.orderId;
+    const invoiceId = completion.metadata.invoiceId;
 
     if (!orderId && !invoiceId) {
       return res.status(200).json({ received: true, warning: "No orderId/invoiceId in metadata" });
@@ -65,35 +69,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const pendingPayment = await prisma.payment.findFirst({
       where: {
-        processorTxnId: session.id,
+        processorTxnId: completion.providerTxnId,
         status: "PENDING",
       },
     });
 
     if (pendingPayment) {
+      // Card details were resolved by the provider (supplementary — absent if
+      // the processor lookup failed, which must not block posting the charge).
       const extraData: {
         processorData?: Record<string, unknown>;
         cardLast4?: string;
         cardBrand?: string;
-      } = {};
-
-      // Retrieve payment intent for card details if available
-      if (session.payment_intent && typeof session.payment_intent === "string") {
-        try {
-          const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent);
-          extraData.processorData = { paymentIntentId: paymentIntent.id };
-
-          if (paymentIntent.latest_charge && typeof paymentIntent.latest_charge === "string") {
-            const charge = await stripe.charges.retrieve(paymentIntent.latest_charge);
-            if (charge.payment_method_details?.card) {
-              extraData.cardLast4 = charge.payment_method_details.card.last4 ?? undefined;
-              extraData.cardBrand = charge.payment_method_details.card.brand ?? undefined;
-            }
-          }
-        } catch {
-          // Card details are supplementary; proceed without them
-        }
-      }
+      } = {
+        processorData: completion.processorData,
+        cardLast4: completion.cardLast4,
+        cardBrand: completion.cardBrand,
+      };
 
       // The charge is confirmed; now post it to the books. If any step throws,
       // the money has moved at Stripe but our ledger is out of sync — the most
@@ -123,7 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       } catch (err) {
         logError("Stripe webhook: failed to post confirmed payment to the ledger", err, {
           paymentId: pendingPayment.id,
-          sessionId: session.id,
+          sessionId: completion.providerTxnId,
         });
         await reportOpsAlert({
           title: "Stripe payment received but not posted to the ledger",
@@ -131,7 +123,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             "A charge completed at Stripe but the AR/ledger post failed. The books are out of sync until this is resolved; Stripe will retry the webhook.",
           context: {
             paymentId: pendingPayment.id,
-            sessionId: session.id,
+            sessionId: completion.providerTxnId,
             orderId: orderId ?? null,
             invoiceId: invoiceId ?? pendingPayment.invoiceId ?? null,
           },

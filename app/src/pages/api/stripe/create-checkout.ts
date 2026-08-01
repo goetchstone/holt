@@ -4,7 +4,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
-import { getStripe } from "@/lib/stripe";
+import { assertCapability, getActiveProvider } from "@/lib/payments";
 import { calculateOrderBalance, recordPendingPayment } from "@/lib/paymentService";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -43,30 +43,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const stripe = await getStripe();
-    const amountInCents = Math.round(balance.balanceDue * 100);
-
     const description = `Order ${order.orderno}`;
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-      mode: "payment",
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: { name: description },
-            unit_amount: amountInCents,
-          },
-          quantity: 1,
-        },
-      ],
-      customer_email: order.customer?.email || undefined,
+    // Whichever processor the deployment has made active takes new payments.
+    const provider = getActiveProvider();
+    assertCapability(provider, "hostedCheckout");
+
+    const checkout = await provider.createCheckout!({
+      amount: balance.balanceDue,
+      currency: "USD",
+      description,
+      customerEmail: order.customer?.email || undefined,
       metadata: {
         orderId: order.id.toString(),
         orderno: order.orderno,
       },
-      success_url: successUrl || `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl || `${baseUrl}/app/payment/cancel?order_id=${orderId}`,
+      successUrl: successUrl || `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: cancelUrl || `${baseUrl}/app/payment/cancel?order_id=${orderId}`,
     });
 
     // PENDING + no ledger entry yet. The AR-ledger entry is posted only when the
@@ -75,14 +68,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await recordPendingPayment(orderId, {
       method: "CARD",
       amount: balance.balanceDue,
-      processorType: "STRIPE",
-      processorTxnId: checkoutSession.id,
+      processorType: provider.id.toUpperCase(),
+      processorTxnId: checkout.providerTxnId,
       createdBy: session.user?.email || undefined,
     });
 
     return res.status(200).json({
-      url: checkoutSession.url,
-      sessionId: checkoutSession.id,
+      url: checkout.url,
+      sessionId: checkout.providerTxnId,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to create checkout session";

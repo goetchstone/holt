@@ -4,7 +4,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
-import { getStripe, resolveCheckoutEmail } from "@/lib/stripe";
+import { resolveCheckoutEmail } from "@/lib/stripe";
+import { assertCapability, getActiveProvider } from "@/lib/payments";
 import { calculateOrderBalance } from "@/lib/paymentService";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -58,9 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Payment amount must be greater than zero" });
     }
 
-    const stripe = await getStripe();
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const amountInCents = Math.round(paymentAmount * 100);
 
     // Build line item description for the checkout page
     const isDeposit = paymentAmount < balance.balanceDue;
@@ -73,22 +72,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .map((li) => li.productName || li.partNo || "Item")
       .join(", ");
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-      mode: "payment",
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: productName,
-              description: description || undefined,
-            },
-            unit_amount: amountInCents,
-          },
-          quantity: 1,
-        },
-      ],
-      customer_email: resolveCheckoutEmail(order.customer.email),
+    // Whichever processor the deployment has made active takes new payments.
+    const provider = getActiveProvider();
+    assertCapability(provider, "hostedCheckout");
+
+    const checkout = await provider.createCheckout!({
+      amount: paymentAmount,
+      currency: "USD",
+      // The seam models one line-item label (stripeProvider.createCheckout uses
+      // it as product_data.name); fold the item-list detail Stripe used to show
+      // as a separate `description` into the same string rather than dropping it.
+      description: description ? `${productName} — ${description}` : productName,
+      customerEmail: resolveCheckoutEmail(order.customer.email),
       metadata: {
         orderId: order.id.toString(),
         orderno: order.orderno,
@@ -96,8 +91,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         isDeposit: isDeposit.toString(),
         requestedBy: session.user?.email || "",
       },
-      success_url: `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/app/payment/cancel?order_id=${orderId}`,
+      successUrl: `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/app/payment/cancel?order_id=${orderId}`,
     });
 
     // Create a PENDING payment record for tracking
@@ -105,18 +100,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: {
         salesOrderId: orderId,
         paymentDate: new Date(),
-        paymentType: isDeposit ? "Deposit - Stripe" : "Card - Stripe",
+        paymentType: isDeposit ? "Deposit" : "Card",
         paymentAmount: paymentAmount,
         status: "PENDING",
         method: "CARD",
-        processorType: "STRIPE",
-        processorTxnId: checkoutSession.id,
+        processorType: provider.id.toUpperCase(),
+        processorTxnId: checkout.providerTxnId,
         createdBy: session.user?.email || undefined,
       },
     });
 
     return res.status(200).json({
-      url: checkoutSession.url,
+      url: checkout.url,
       amount: paymentAmount,
       balanceDue: balance.balanceDue,
       isDeposit,
