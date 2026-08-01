@@ -8,8 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { promises as dns } from "node:dns";
 import { rateLimit } from "@/lib/rateLimit";
-import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import {
   classifyDnsError,
   isDkimKeyRecord,
@@ -75,11 +74,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Akritos-only tool: gated behind the dmarcTools feature flag. Other
-  // tenants get a 404 so the endpoint is indistinguishable from a
-  // non-existent route.
-  const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "dmarcTools")) {
+  // Akritos-only tool: gated behind the dmarcTools module. Other tenants get
+  // a 404 so the endpoint is indistinguishable from a non-existent route.
+  if (!(await isModuleEnabled("dmarcTools"))) {
     return res.status(404).json({ error: "Not found" });
   }
 

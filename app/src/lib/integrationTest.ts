@@ -14,6 +14,7 @@
 import axios from "axios";
 import { resolveCredential } from "@/lib/integrationCredentials";
 import { getStripe } from "@/lib/stripe";
+import { getSquareCredentials, squareRequest } from "@/lib/square";
 import { getInstallationToken } from "@/lib/githubApp";
 import { fetchAxperTraffic } from "@/lib/axperClient";
 
@@ -49,6 +50,24 @@ async function testStripe(): Promise<IntegrationTestResult> {
     return verified(`Authenticated. ${balance.available.length} balance currenc(ies) available.`);
   } catch (err) {
     return fail(`Stripe test failed: ${describeError(err)}`);
+  }
+}
+
+async function testSquare(): Promise<IntegrationTestResult> {
+  try {
+    // Cheapest authenticated call that proves the access token + location are
+    // both real: list locations and confirm the configured one is among them.
+    const { locationId } = await getSquareCredentials();
+    const { locations } = await squareRequest<{ locations?: { id: string }[] }>("/v2/locations");
+    const found = locations?.some((l) => l.id === locationId);
+    if (!found) {
+      return fail(
+        `Square authenticated, but location "${locationId}" was not found among this account's locations.`,
+      );
+    }
+    return verified(`Authenticated. ${locations?.length ?? 0} location(s) available.`);
+  } catch (err) {
+    return fail(`Square test failed: ${describeError(err)}`);
   }
 }
 
@@ -111,6 +130,8 @@ export async function testIntegration(provider: string): Promise<IntegrationTest
   switch (provider) {
     case "stripe":
       return testStripe();
+    case "square":
+      return testSquare();
     case "mailchimp":
       return testMailchimp();
     case "github":

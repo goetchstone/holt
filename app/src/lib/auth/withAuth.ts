@@ -4,8 +4,8 @@ import { getSession } from "next-auth/react";
 import { GetServerSidePropsContext, GetServerSidePropsResult } from "next";
 import { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { getPublicBranding, getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { getPublicBranding } from "@/lib/appSettings";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import type { Branding } from "@/lib/branding";
 
 // Merge resolved branding into a page's props so the client chrome renders
@@ -110,11 +110,8 @@ export function withAuth<P>(
       }
     }
 
-    if (options?.feature) {
-      const settings = await getAppSettings();
-      if (!isFeatureEnabled(settings.features, options.feature)) {
-        return { redirect: { destination: "/", permanent: false } };
-      }
+    if (options?.feature && !(await isModuleEnabled(options.feature))) {
+      return { redirect: { destination: "/", permanent: false } };
     }
 
     const branding = await getPublicBranding();

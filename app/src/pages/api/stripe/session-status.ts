@@ -1,7 +1,7 @@
 // /app/src/pages/api/stripe/session-status.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getStripe } from "@/lib/stripe";
+import { assertCapability, getPaymentProvider } from "@/lib/payments";
 import { success, badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
 import { rateLimit } from "@/lib/rateLimit";
 
@@ -19,11 +19,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const stripe = await getStripe();
-    const session = await stripe.checkout.sessions.retrieve(session_id);
+    // Stripe's own redirect lands here, so resolve Stripe explicitly. The
+    // provider returns a PII-free status shape by construction.
+    const provider = getPaymentProvider("stripe");
+    assertCapability(provider, "hostedCheckout");
+    const session = await provider.retrieveSession!(session_id);
     return success(res, {
       status: session.status,
-      payment_status: session.payment_status,
+      payment_status: session.paid ? "paid" : "unpaid",
     });
   } catch (err) {
     return handleError(res, err, "GET /stripe/session-status");

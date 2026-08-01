@@ -30,7 +30,7 @@ Daily imports:
 
 **Auto-recalculation**: The receiving import (`runReceivedItemsImport`) now auto-updates PO status after processing each batch by comparing total received items to total ordered items. Migration `20260408_recalculate_po_status` fixed 426 historical POs that had stale statuses. Going forward, PO status stays in sync automatically as receiving records come in.
 
-**0-qty lines are excluded from the recalc** (GitHub #113, CLAUDE.md rule 39). the POS sometimes exports a PO line that was zeroed out at source (`orderedQuantity = 0`) but not removed. These are effectively cancelled lines -- they must not count toward the "total ordered items" denominator or the PO gets stuck at RECEIVED_PARTIAL forever. The recalc filters both counts to `orderedQuantity > 0`, and the UI renders 0-qty lines as an `N/A` badge (not "Pending"). Pure helper: `classifyPOReceiptStatus()` in `lib/importHelpers.ts`.
+**0-qty lines are excluded from the recalc** (the 0-qty PO line receiving-status incident, CLAUDE.md rule 39). the POS sometimes exports a PO line that was zeroed out at source (`orderedQuantity = 0`) but not removed. These are effectively cancelled lines -- they must not count toward the "total ordered items" denominator or the PO gets stuck at RECEIVED_PARTIAL forever. The recalc filters both counts to `orderedQuantity > 0`, and the UI renders 0-qty lines as an `N/A` badge (not "Pending"). Pure helper: `classifyPOReceiptStatus()` in `lib/importHelpers.ts`.
 
 ## Consignment PO Integration
 
@@ -102,7 +102,7 @@ Open POs feed the dispatch board (per `docs/domains/service-dispatch.md`). The `
 
 ## Verification re-check (2026-05-20)
 
-- 0-qty line exclusion in PO status recalc — documented ✓ (GitHub #113, CLAUDE.md rule 39)
+- 0-qty line exclusion in PO status recalc — documented ✓ (the 0-qty PO line receiving-status incident, CLAUDE.md rule 39)
 - ESD as DateTime — documented ✓
 - Buyer Drafts handoff — added in this refresh
 - Auto-create products from imports — added in this refresh

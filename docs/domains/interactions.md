@@ -89,7 +89,7 @@ The `active` endpoint enforces `staffMemberId = current staff` server-side, so a
 
 - No native "follow-up reminder" workflow — the model doesn't have a `nextActionAt`-style field. If the user wants "call them back tomorrow at 3pm" reminders, that's a new feature (separate model or extend this one).
 - No integration with calendar (would need Google Calendar OAuth)
-- No call-logging integration with `pages/api/pbx/*` (per ROADMAP #180; PBX integration is roadmap-only today)
+- No call-logging integration with `pages/api/pbx/*` (per ROADMAP #180, pre-squash repo numbering — historical reference only; PBX integration is roadmap-only today)
 - No template / quick-form for common interaction shapes
 - Bulk close-out for stale active rows (a designer who forgot to close several interactions ends up with a cluttered "active" list)
 

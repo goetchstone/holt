@@ -2863,6 +2863,14 @@ model Register {
   isActive        Boolean       @default(true)
   sortOrder       Int           @default(0)
 
+  // Till variance discipline (Phase 0.6, docs/domains/pos.md). Set when a
+  // till closes with |variance| > $100 (see lib/tillVariance.ts). Non-null
+  // blockedAt blocks new till opens at this register (see
+  // pages/api/registers/[id]/tills/open.ts) until a MANAGER/ADMIN clears it
+  // via POST /api/registers/[id]/unblock.
+  blockedAt   DateTime?
+  blockReason String?
+
   tills    Till[]
   payments Payment[]
 

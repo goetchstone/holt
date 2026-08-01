@@ -8,11 +8,10 @@
 export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Mail, ShieldCheck, MailWarning } from "lucide-react";
 import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { requireModule } from "@/lib/modules/requireModule";
 import { DmarcCheckForm } from "./DmarcCheckForm";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -48,8 +47,7 @@ const whatItDoes = [
 ];
 
 export default async function DmarcCheckPage() {
-  const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "dmarcTools")) notFound();
+  await requireModule("dmarcTools");
 
   return (
     <div className="flex flex-col bg-midnight">

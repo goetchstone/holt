@@ -5,7 +5,8 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getStripe, resolveCheckoutEmail } from "@/lib/stripe";
+import { resolveCheckoutEmail } from "@/lib/stripe";
+import { assertCapability, getActiveProvider } from "@/lib/payments";
 import { verifyPortalToken } from "@/lib/portalToken";
 import { calculateOrderBalance } from "@/lib/paymentService";
 import { rateLimit } from "@/lib/rateLimit";
@@ -62,9 +63,7 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
       return res.status(400).json({ error: "Payment amount must be greater than zero" });
     }
 
-    const stripe = await getStripe();
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const amountInCents = Math.round(paymentAmount * 100);
 
     const isDeposit = paymentAmount < balance.balanceDue;
     const productName = isDeposit
@@ -76,22 +75,18 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
       .map((li) => li.productName || li.partNo || "Item")
       .join(", ");
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-      mode: "payment",
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: productName,
-              description: description || undefined,
-            },
-            unit_amount: amountInCents,
-          },
-          quantity: 1,
-        },
-      ],
-      customer_email: resolveCheckoutEmail(order.customer.email),
+    // Whichever processor the deployment has made active takes new payments.
+    const provider = getActiveProvider();
+    assertCapability(provider, "hostedCheckout");
+
+    const checkout = await provider.createCheckout!({
+      amount: paymentAmount,
+      currency: "USD",
+      // The seam models one line-item label (stripeProvider.createCheckout uses
+      // it as product_data.name); fold the item-list detail Stripe used to show
+      // as a separate `description` into the same string rather than dropping it.
+      description: description ? `${productName} — ${description}` : productName,
+      customerEmail: resolveCheckoutEmail(order.customer.email),
       metadata: {
         orderId: order.id.toString(),
         orderno: order.orderno,
@@ -99,8 +94,8 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
         isDeposit: isDeposit.toString(),
         requestedBy: "customer-portal",
       },
-      success_url: `${baseUrl}/portal/order?token=${token}&paid=true`,
-      cancel_url: `${baseUrl}/portal/order?token=${token}`,
+      successUrl: `${baseUrl}/portal/order?token=${token}&paid=true`,
+      cancelUrl: `${baseUrl}/portal/order?token=${token}`,
     });
 
     // Create a PENDING payment record
@@ -108,18 +103,18 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
       data: {
         salesOrderId: payload.orderId,
         paymentDate: new Date(),
-        paymentType: isDeposit ? "Deposit - Stripe" : "Card - Stripe",
+        paymentType: isDeposit ? "Deposit" : "Card",
         paymentAmount: paymentAmount,
         status: "PENDING",
         method: "CARD",
-        processorType: "STRIPE",
-        processorTxnId: checkoutSession.id,
+        processorType: provider.id.toUpperCase(),
+        processorTxnId: checkout.providerTxnId,
         createdBy: "customer-portal",
       },
     });
 
     return res.status(200).json({
-      url: checkoutSession.url,
+      url: checkout.url,
       amount: paymentAmount,
       balanceDue: balance.balanceDue,
       isDeposit,

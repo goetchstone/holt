@@ -9,8 +9,7 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "@/lib/prisma";
 import { router } from "../trpc";
 import { roleProcedure } from "../trpc";
-import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { generateClientPortalToken } from "@/lib/clientPortalToken";
 
 const PORTAL_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
@@ -19,8 +18,7 @@ export const clientPortalRouter = router({
   generateLink: roleProcedure(PORTAL_ROLES)
     .input(z.object({ customerId: z.number().int().positive() }))
     .mutation(async ({ input }) => {
-      const settings = await getAppSettings();
-      if (!isFeatureEnabled(settings.features, "clientPortal")) {
+      if (!(await isModuleEnabled("clientPortal"))) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "The client portal module is not enabled.",

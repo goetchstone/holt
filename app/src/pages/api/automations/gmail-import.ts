@@ -12,8 +12,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
-import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { runGmailImport } from "@/lib/adapters/ordorite/orchestrator";
 import { reportOpsAlert } from "@/lib/opsAlert";
 import { getErrorMessage } from "@/lib/toastError";
@@ -53,8 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
   }
-  const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "legacyPosImport")) {
+  if (!(await isModuleEnabled("legacyPosImport"))) {
     return res.status(404).json({ error: "Not found" });
   }
   if (authorizedByApiKey(req)) return run(req, res);

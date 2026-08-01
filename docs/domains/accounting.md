@@ -129,7 +129,7 @@ Entry point: `generateSalesJournal(opts: { date, storeLocation?, journalNumber?,
 4. Query `Payment` rows for the date (filtered by store if specified). Each Payment includes its `salesOrder` with:
    - `invoices` (used to determine "is this a deposit-only payment?")
    - `taxDistrict` (resolves the tax GL)
-   - `lineItems` **filtered by `lineItemStatus != "CANCELLED"`** (CLAUDE.md rule 33 — see B1 in the SOR plan and PR #133)
+   - `lineItems` **filtered by `lineItemStatus != "CANCELLED"`** (CLAUDE.md rule 33 — see B1 in the SOR plan; shipped as the cancelled-line JE filter change)
 5. Map each Prisma row into `SalesPayment` (a plain type) — peels Decimal to Number, follows the `accountGroup` chain to extract sales/COGS/inventory GL ids.
 6. Call `buildJournalLines(payments, overShortGlId, depositGlId)` (the pure helper) — produces `BuildResult` with `lines[]`, `totalDebits`, `totalCredits`, `warnings[]`.
 7. Persist as a `JournalEntry` (status=DRAFT) with `JournalEntryLine[]` children in a single transaction.
@@ -283,11 +283,11 @@ These are documented gaps as of 2026-04-28. Each is a Phase 0 BLOCKER or a Phase
 
 | Gap | Plan reference | Status |
 |---|---|---|
-| Cancelled-line filter in JE | B1 | ✓ shipped (PR #133) |
-| JE balance assertion before POST | B4 | ✓ shipped (PR #135) |
-| Accounting runbook | B5 | ✓ shipped (PR #134) |
-| Returns as sale-in-reverse (mechanism + restock/writeoff branching + exception report) | B3 | ✓ shipped 2026-07-24 — sign-flip mechanism (PR #138) + classified restock/writeoff branching + "Unclassified Returns" report (this change) |
-| Payment immutability DB trigger | B6 | ✓ shipped (PR #137); behavior covered by `__tests__/integration/paymentDeleteImmutability.integration.test.ts` (Phase 0.6.4) |
+| Cancelled-line filter in JE | B1 | ✓ shipped (cancelled-line filter change) |
+| JE balance assertion before POST | B4 | ✓ shipped (balance-assertion-before-POST change) |
+| Accounting runbook | B5 | ✓ shipped (accounting runbook) |
+| Returns as sale-in-reverse (mechanism + restock/writeoff branching + exception report) | B3 | ✓ shipped 2026-07-24 — sign-flip mechanism + classified restock/writeoff branching + "Unclassified Returns" report (this change) |
+| Payment immutability DB trigger | B6 | ✓ shipped (payment-immutability trigger change); behavior covered by `__tests__/integration/paymentDeleteImmutability.integration.test.ts` (Phase 0.6.4) |
 | Daily auto-reconciliation cron | C1 | next |
 | ~~Voided-order reversal JE~~ | ~~B2~~ | **DROPPED 2026-04-28** — daily-summary model handles voids/returns natively via B3 sign-flip. The rare "Day 1 JE was wrong, noticed Day 5" case is corrected by the accountant entering a journal entry directly in QuickBooks (right tool: rare, requires accounting judgment, not auto-generated). |
 | Period close / lock workflow | G4 | Phase 2 |
@@ -357,8 +357,8 @@ For changes that affect cutover readiness (any Phase 0 BLOCKER work):
 |---|---|---|
 | `__tests__/journalEntry.test.ts` | A (pure) + C+ (orchestration, placeholder) | `buildJournalLines` — 12 scenarios: balanced sales, multi-line, deposits, refunds, gift cards, multi-payment, multi-department. Plus `generateSalesJournal` orchestration with mocked Prisma — placeholder pending Phase 0.6.3 conversion. |
 | `__tests__/dailyReconciliation.test.ts` | A | `compareReconciliation` — 8 scenarios for the comparator math (tolerance, drift detection, return-day shape). |
-| `__tests__/integration/dailyReconciliation.integration.test.ts` | A (Postgres) | `computeDailyReconciliation` end-to-end against the live schema — 8 scenarios including 3 integration-only (cancelled-line filter against actual data, date-window exclusion, CANCELLED-status order exclusion). PR #181, 2026-05-01. |
-| `__tests__/integration/generateSalesJournal.integration.test.ts` | A (Postgres) | `generateSalesJournal` end-to-end — 10 scenarios: happy-path balanced JE, B1 cancelled-line filter against real rows, B3 sale-in-reverse signed amounts (unclassified default), B3 mixed-sign per-order, B3 large-dollar precision, **B3 classified `WRITTEN_OFF` Return debits the shrinkage GL** (added 2026-07-24), **B3 classified `RESTOCKED` Return books identically to the default** (added 2026-07-24), idempotency, refusal on POSTED, empty day. PR #189, 2026-04-30. |
+| `__tests__/integration/dailyReconciliation.integration.test.ts` | A (Postgres) | `computeDailyReconciliation` end-to-end against the live schema — 8 scenarios including 3 integration-only (cancelled-line filter against actual data, date-window exclusion, CANCELLED-status order exclusion). Added 2026-05-01 (PR #181, pre-squash repo numbering — historical reference only). |
+| `__tests__/integration/generateSalesJournal.integration.test.ts` | A (Postgres) | `generateSalesJournal` end-to-end — 14 scenarios: happy-path balanced JE, B1 cancelled-line filter against real rows, B3 sale-in-reverse signed amounts (unclassified default), B3 mixed-sign per-order, B3 large-dollar precision, **B3 classified `WRITTEN_OFF` Return debits the shrinkage GL** (added 2026-07-24), **B3 classified `RESTOCKED` Return books identically to the default** (added 2026-07-24), idempotency, refusal on POSTED, empty day, **`Payment.isRefund` sign normalization — native refund credits cash, imported refund isn't double-negated, isRefund:false unchanged, same-day sale+native-refund+imported-refund nets correctly and still balances** (added 2026-08-01, fix/refund-sign-in-journal). Added 2026-04-30 (PR #189, pre-squash repo numbering — historical reference only). |
 | `__tests__/unclassifiedReturns.test.ts` | A (pure) | `buildUnclassifiedReturnsRows` + `explainUnclassified` — row selection (includes no-Return-record and not-yet-classified lines, excludes classified restock/writeoff), multi-line-per-order product matching, missing-customer/store fallbacks, sort + totals. Reuses `matchReturnForLine`/`resolveReturnBookingPath` from `lib/journalEntry.ts` so the report can never disagree with what the JE actually booked. Added 2026-07-24 (B3). |
 | `__tests__/integration/paymentDeleteImmutability.integration.test.ts` | A (Postgres) | B6 trigger behavior end-to-end — 9 scenarios: PENDING/FAILED/NULL deletes succeed, COMPLETED/REFUNDED/VOIDED deletes blocked, exception message shape, transaction rollback on sibling delete, deleteMany atomicity. Replaces the deleted source-text tripwire. PR-pending, 2026-04-30. |
 | `__tests__/reports.cancelledLineFilter.test.ts` | B- | Source-text tripwires: every aggregation site filters CANCELLED lines (reports + accounting). |
@@ -366,8 +366,9 @@ For changes that affect cutover readiness (any Phase 0 BLOCKER work):
 
 ## Failure log cross-references
 
-- 2026-04-25 (`SKILL.md`): Sales import outage — fixed via PRs #120, #121, #125, #126. Affects this domain because PR #121 changed the orphan-cleanup mechanism from `deleteMany` to `updateMany SET CANCELLED`, which is why B1 (PR #133) is needed: cancelled rows now exist in the table and would otherwise inflate the JE.
-- 2026-04-28 (`SKILL.md`): Quotes-import line-item reconciliation — fixed via PR #130. Side-effect on accounting: imported quotes now stay in sync with the POS, so any quote that becomes a sale carries its full line-item set into the JE. Without #130, a stale-quote-becoming-a-sale would have produced an under-recorded JE.
+- 2026-08-01: Native-refund cash sign bug (branch `fix/refund-sign-in-journal`). The payment-mapping loop in `generateSalesJournal` (`lib/journalEntry.ts`) summed `payment.paymentAmount` with no reference to `Payment.isRefund`. `paymentService.ts::processRefund` writes the refund row with a POSITIVE `paymentAmount` and `isRefund: true`, so a native ERP refund was booked as cash RECEIVED instead of paid out — inflating the day's cash and producing unexplained daily-reconciliation drift. Imported POS refunds were unaffected (the Ordorite import already stores them negative), so production data carries both sign conventions simultaneously. Fix: normalize on the flag (`payment.isRefund ? -Math.abs(rawAmount) : rawAmount`) so a negative import isn't double-negated — the same pattern already used by `paymentService.ts` (`computeBalance`, `calculateTillExpected`) and `customerLedger.ts`. Regression coverage: `__tests__/integration/generateSalesJournal.integration.test.ts` "Payment.isRefund sign normalization" (4 scenarios, see Test coverage table above).
+- 2026-04-25 (`SKILL.md`): Sales import outage — fixed via a four-PR patch series (pre-squash repo numbering, historical reference only). The fix in that series that changed the orphan-cleanup mechanism from `deleteMany` to `updateMany SET CANCELLED` is why B1 (the cancelled-line JE filter) is needed: cancelled rows now exist in the table and would otherwise inflate the JE.
+- 2026-04-28 (`SKILL.md`): Quotes-import line-item reconciliation fix. Side-effect on accounting: imported quotes now stay in sync with the POS, so any quote that becomes a sale carries its full line-item set into the JE. Without that fix, a stale-quote-becoming-a-sale would have produced an under-recorded JE.
 
 ## Cross-references
 

@@ -23,13 +23,13 @@ Role-based access control, navigation permissions, up-board staff rotation, onbo
 - Filter: `GET /api/staff?isDesigner=true` (designer pickers), `listPeriodConfirmationStatus` (pay-period grid), and the Team Commission view (`designersOnly`).
 - See `docs/domains/commission.md` "The `isDesigner` staff flag" for the full surface list.
 
-## SUPER_ADMIN — owner-only tier (added 2026-05-19, PR #296)
+## SUPER_ADMIN — owner-only tier (added 2026-05-19)
 
 Sits strictly above ADMIN. Reserved for the owner (Goetch Stone). The role exists so commission-tier data (the rate schedule the owner pays salespeople) can ship in the ERP without being visible to anyone else, including ADMIN-level staff.
 
 Key invariants:
 
-- **Auto-promotion over ADMIN gates** — any `roles: ["ADMIN"]` check passes for SUPER_ADMIN. Logic lives in `lib/auth/withAuth.ts:isAuthorized()` after the 2026-05-20 helper extraction (PR #308). No need to spell SUPER_ADMIN out everywhere; ADMIN is implied.
+- **Auto-promotion over ADMIN gates** — any `roles: ["ADMIN"]` check passes for SUPER_ADMIN. Logic lives in `lib/auth/withAuth.ts:isAuthorized()` after the 2026-05-20 helper extraction. No need to spell SUPER_ADMIN out everywhere; ADMIN is implied.
 - **PRIVILEGED_ROLES sets** — when an API needs "any privileged role," it lists `["SUPER_ADMIN", "ADMIN", "MANAGER"]` explicitly. See `lib/auth/requireAuth.ts` + the bootstrap safeguard in `withAuth.ts:hasAnyPrivilegedUser()`.
 - **Impersonation** — SUPER_ADMIN can impersonate too (same path as ADMIN); both `lib/auth/withAuth.ts:resolveEffectiveRole()` and `api/admin/impersonate.ts` accept either role.
 - **Card filtering** — `CardGridPageLayout` has a SUPER_ADMIN bypass (`if (effectiveRole === "SUPER_ADMIN") return true;`) so any hub card is visible without needing to be listed explicitly.
@@ -145,7 +145,7 @@ Covered: `navPermissions.test.ts` (role filtering, DB overrides, defaults, ADMIN
 
 Gaps: `upboard.ts` logic untested (Prisma-dependent, needs refactoring to test)
 
-## withAuth helper extraction (2026-05-20, PR #308)
+## withAuth helper extraction (2026-05-20)
 
 `lib/auth/withAuth.ts` was previously a single 60-line function with cognitive complexity 18. Refactored into three pure helpers:
 

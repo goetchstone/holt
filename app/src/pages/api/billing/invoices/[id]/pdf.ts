@@ -6,7 +6,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { getInvoiceDetail } from "@/lib/billing/invoiceService";
 import { generateInvoicePdf } from "@/lib/billing/invoicePdf";
 import { InvoiceValidationError } from "@/lib/billing/invoiceAuthoring";
@@ -17,10 +17,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
-  const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "billing")) {
+  if (!(await isModuleEnabled("billing"))) {
     return res.status(404).json({ error: "Not found" });
   }
+  const settings = await getAppSettings();
   const id = Number.parseInt(String(req.query.id), 10);
   if (Number.isNaN(id)) {
     return res.status(400).json({ error: "Invalid invoice id" });
