@@ -1,8 +1,18 @@
 # DMARC Tools (Akritos-gated)
 
 Two public, lead-gen email-authentication tools ported from akritos.com. Gated
-behind the `dmarcTools` feature flag (default **off**); only the Akritos tenant
-enables it (`scripts/seed-akritos.mjs`). Other tenants get a 404.
+behind the `dmarcTools` module (default **off**, `category: "addon"`); only
+the Akritos tenant enables it (`scripts/seed-akritos.mjs`). Other tenants get
+a 404, and never see it as an option in Settings → Modules either (addon
+modules are hidden from that toggle grid unless already on — see
+`docs/domains/modules.md`).
+
+This is the first module migrated onto the module manifest
+(`src/lib/modules/registry.ts`) end-to-end: its manifest entry declares its
+own `nav` (the two routes below) and `docs` (this file) instead of those
+living only in prose here. It has no configurable settings, so it's the
+"nav but no fields" case in the manifest design — see
+`docs/domains/modules.md#the-fields-path-not-yet-load-bearing`.
 
 ## Surfaces
 
@@ -13,16 +23,24 @@ enables it (`scripts/seed-akritos.mjs`). Other tenants get a 404.
 
 Both live in the public `(site)` group (dark "akritos tool" palette: `midnight` /
 `bone` / `conviction` / `slate-brand` tokens in `globals.css @theme`). The
-`(site)` layout supplies header/footer chrome. Pages 404 via `notFound()` when
-`isFeatureEnabled(settings.features, "dmarcTools")` is false.
+`(site)` layout supplies header/footer chrome. Pages 404 via
+`requireModule("dmarcTools")` (`src/lib/modules/requireModule.ts`), the
+shared guard that replaced each page's own `getAppSettings()` /
+`isFeatureEnabled()` / `notFound()` block.
 
 ## Files
 
-- `src/lib/featureCatalog.ts` — `dmarcTools` feature (default off).
+- `src/lib/modules/registry.ts` — the `dmarcTools` `ModuleDef` (default off,
+  `category: "addon"`, `nav`, `docs`). `src/lib/featureCatalog.ts` still
+  exports the flat `FEATURES` list as a back-compat shim, now derived from
+  this registry.
+- `src/lib/modules/requireModule.ts` — `requireModule("dmarcTools")` (page
+  gate, calls `notFound()`) and `isModuleEnabled("dmarcTools")` (boolean, used
+  by the API route below).
 - `src/pages/api/tools/dmarc-check.ts` — DNS checker API (Pages Router). Wrapped
-  in `rateLimit({ windowMs: 10m, maxRequests: 20 })`; feature-gated (404 when
-  off). DKIM is probed against a curated static-selector list — selector names
-  aren't DNS-enumerable.
+  in `rateLimit({ windowMs: 10m, maxRequests: 20 })`; module-gated (404 when
+  off) via `isModuleEnabled`. DKIM is probed against a curated static-selector
+  list — selector names aren't DNS-enumerable.
 - `src/lib/dmarc/decompress.ts` — client-side gzip/zip/xml decompression. Web
   standards only (no deps); magic-byte sniffing, decompression-bomb + zip-quine
   guards, one decompression level.

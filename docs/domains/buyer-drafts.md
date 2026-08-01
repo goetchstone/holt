@@ -188,7 +188,7 @@ DRAFT  →  READY  →  EXPORTED  →  FULFILLED
 | Object | Status flow | What drives the flip |
 |---|---|---|
 | `BuyerDraftBuy` | PLANNING → OPEN → EXPORTED → CLOSED | **Fully manual.** `DraftBuyModal` exposes the status dropdown. |
-| `BuyerDraftPurchaseOrder` | DRAFT → READY → EXPORTED → FULFILLED → CANCELLED | **Fully manual.** `DraftPoModal` exposes the status dropdown on edit (added 2026-05-14, PR #268). No auto-driver — slice 5 auto-link only flips ITEM status, not PO. |
+| `BuyerDraftPurchaseOrder` | DRAFT → READY → EXPORTED → FULFILLED → CANCELLED | **Fully manual.** `DraftPoModal` exposes the status dropdown on edit (added 2026-05-14 — Slice 6.5 in the roadmap below). No auto-driver — slice 5 auto-link only flips ITEM status, not PO. |
 | `BuyerDraftItem` | DRAFT → READY → EXPORTED → FULFILLED → CANCELLED | **Mostly manual.** Wizard exposes DRAFT/READY radio on save. Slice 5 (`autoLinkBuyerDrafts` in `importRunners.ts`) automatically flips EXPORTED items to FULFILLED when their barcode appears in the daily Stock-by-Item file. Other transitions (DRAFT/READY → EXPORTED, → CANCELLED) require admin action or a future bulk affordance. |
 
 There is no cascading status mechanic — closing a Buy does NOT flip child POs or items. This is intentional: a buyer might mark a Buy CLOSED while some POs are still in-flight (and should stay EXPORTED until they receive) and others were never executed (and should be CANCELLED). Per-record control is the right granularity.
@@ -563,6 +563,10 @@ The API endpoint is responsible for hydrating raw data — including loading buy
 The page-level test gap is what causes the local Sonar gate's `new_coverage` to land in the 50-60% range whenever this domain ships work — the React component lines never get instrumented. Acknowledged trade-off; covered under Phase 0.6 in `~/.claude/plans/check-the-repo-familiarize-lovely-leaf.md`.
 
 ## Roadmap (active slices, oldest first)
+
+> PR numbers below use holt's pre-squash repo numbering — they predate the
+> public squash/renumber and do not resolve on GitHub. Retained here for
+> historical sequencing only.
 
 | Slice | What | Status |
 |---|---|---|

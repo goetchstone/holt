@@ -1,6 +1,6 @@
 // /app/src/lib/paymentService.ts
 import { prisma } from "@/lib/prisma";
-import { getStripe } from "@/lib/stripe";
+import { assertCapability, getProviderForPayment } from "@/lib/payments";
 import { syncServiceAppointments } from "@/lib/serviceDispatchService";
 import { isMarjanRug, toMarjanBarcode, toMarjanCustomerNumber } from "@/lib/consignment";
 import { appendEntry } from "@/lib/customerLedger";
@@ -467,27 +467,23 @@ export async function processRefund(paymentId: number, input: RefundInput): Prom
     }
 
     // Issue refund through Stripe if original payment was processed via Stripe
-    let stripeRefundId: string | null = null;
-    if (original.processorType === "STRIPE" && original.processorTxnId) {
-      try {
-        const stripe = await getStripe();
-        // The processorTxnId is the checkout session ID; retrieve the payment intent
-        const session = await stripe.checkout.sessions.retrieve(original.processorTxnId);
-        const paymentIntentId =
-          typeof session.payment_intent === "string" ? session.payment_intent : null;
-
-        if (paymentIntentId) {
-          const stripeRefund = await stripe.refunds.create({
-            payment_intent: paymentIntentId,
-            amount: Math.round(rounded * 100), // Stripe uses cents
-            reason: "requested_by_customer",
-          });
-          stripeRefundId = stripeRefund.id;
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Stripe refund failed";
-        throw new Error(`Stripe refund failed: ${msg}`);
-      }
+    // Route by the ORIGINAL payment's processor — never the currently-active
+    // one. After an org switches providers, previously captured payments must
+    // still refund through whoever actually took the money; sending them to the
+    // new provider would refund against a transaction it has never seen.
+    // Provider-specific indirection (Stripe must resolve checkout session ->
+    // payment intent; Square refunds its payment id directly) lives inside each
+    // implementation, so this stays processor-neutral.
+    let providerRefundId: string | null = null;
+    if (original.processorType && original.processorTxnId) {
+      const provider = getProviderForPayment(original.processorType);
+      assertCapability(provider, "refunds");
+      const result = await provider.refund!({
+        providerTxnId: original.processorTxnId,
+        amount: rounded,
+        reason: input.reason,
+      });
+      providerRefundId = result.refundId;
     }
 
     const refundMethod = input.method ?? original.method;
@@ -510,8 +506,10 @@ export async function processRefund(paymentId: number, input: RefundInput): Prom
         tillId: input.tillId,
         staffMemberId: input.staffMemberId,
         customerId: original.customerId,
-        processorType: stripeRefundId ? "STRIPE" : original.processorType,
-        processorTxnId: stripeRefundId || undefined,
+        // The refund was issued by the same processor that captured the original,
+        // so the type carries over unchanged rather than being re-derived.
+        processorType: original.processorType,
+        processorTxnId: providerRefundId || undefined,
         createdBy: input.createdBy,
       },
     });

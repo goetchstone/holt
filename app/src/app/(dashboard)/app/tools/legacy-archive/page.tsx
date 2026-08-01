@@ -4,15 +4,12 @@
 // previous system. Any signed-in staff (parity with the Tools hub); 404 when
 // the legacyArchive feature is off.
 
-import { notFound } from "next/navigation";
 import { requirePage } from "@/lib/auth/requirePage";
-import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { requireModule } from "@/lib/modules/requireModule";
 import { LegacyArchiveView } from "./LegacyArchiveView";
 
 export default async function LegacyArchivePage() {
   await requirePage();
-  const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "legacyArchive")) notFound();
+  await requireModule("legacyArchive");
   return <LegacyArchiveView />;
 }

@@ -568,4 +568,122 @@ describe("generateSalesJournal (real DB)", () => {
     await seedAccountingFixtures();
     await expect(generateSalesJournal(DAY)).rejects.toThrow(/No payments/);
   });
+
+  // ─── Payment.isRefund sign normalization (fix/refund-sign-in-journal) ──
+  //
+  // Before this fix, the payment-mapping loop summed `payment.paymentAmount`
+  // with NO reference to `Payment.isRefund`. `paymentService.ts::processRefund`
+  // creates the refund row with a POSITIVE `paymentAmount` and `isRefund:
+  // true` -- so a native ERP refund was booked as cash RECEIVED instead of
+  // paid out, inflating the day's cash and producing unexplained daily-
+  // reconciliation drift.
+  //
+  // Imported POS refunds were NOT affected -- the Ordorite import stores
+  // them already negative. Production data contains BOTH conventions at
+  // once, so the fix normalizes on the flag
+  // (`isRefund ? -Math.abs(raw) : raw`) rather than assuming either sign,
+  // which also means it must NOT double-negate a row that's already
+  // negative. Same normalization pattern already exists in
+  // `paymentService.ts` (`computeBalance`, `calculateTillExpected`) and
+  // `customerLedger.ts` -- this fix brings `journalEntry.ts` in line with
+  // the established convention.
+  describe("Payment.isRefund sign normalization", () => {
+    /**
+     * A standalone Payment with no SalesOrder link -- the shape
+     * `processRefund()` produces for a walk-in / unlinked refund, and the
+     * simplest fixture for isolating the cash-side effect from the
+     * order/line-item machinery (revenue/COGS/tax are a separate concern
+     * from whether a refund's sign lands on the right side of Cash).
+     */
+    async function seedStandalonePayment(opts: {
+      paymentAmount: number;
+      isRefund?: boolean;
+      paymentType?: string;
+    }) {
+      return prisma.payment.create({
+        data: {
+          paymentAmount: opts.paymentAmount,
+          paymentDate: DAY,
+          status: "COMPLETED",
+          paymentType: opts.paymentType ?? "Cash",
+          isRefund: opts.isRefund ?? false,
+        },
+      });
+    }
+
+    it("a NATIVE refund (positive paymentAmount, isRefund: true) reduces the cash side by that magnitude", async () => {
+      await seedAccountingFixtures();
+      // Mirrors processRefund()'s exact output shape: positive amount, isRefund true.
+      await seedStandalonePayment({ paymentAmount: 150, isRefund: true });
+
+      const result = await generateSalesJournal(DAY);
+
+      expect(result.warnings).toEqual([]);
+      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      // This is the regression the fix closes: cash must be CREDITED
+      // (reduced), not debited (increased), when a refund pays money out.
+      expect(byCode.get("1-1006")?.credit).toBe(150);
+      expect(byCode.get("1-1006")?.debit).toBe(0);
+      expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+    });
+
+    it("an IMPORTED refund (negative paymentAmount, isRefund: true) reduces cash by the same magnitude and is NOT double-negated", async () => {
+      await seedAccountingFixtures();
+      // Ordorite import shape: already negative. -Math.abs(-150) must land
+      // on -150, not flip back to +150 (the double-negation failure mode).
+      await seedStandalonePayment({ paymentAmount: -150, isRefund: true });
+
+      const result = await generateSalesJournal(DAY);
+
+      expect(result.warnings).toEqual([]);
+      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      expect(byCode.get("1-1006")?.credit).toBe(150);
+      expect(byCode.get("1-1006")?.debit).toBe(0);
+      expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+    });
+
+    it("a normal payment (isRefund: false) posts unchanged", async () => {
+      await seedAccountingFixtures();
+      await seedStandalonePayment({ paymentAmount: 500, isRefund: false });
+
+      const result = await generateSalesJournal(DAY);
+
+      expect(result.warnings).toEqual([]);
+      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      expect(byCode.get("1-1006")?.debit).toBe(500);
+      expect(byCode.get("1-1006")?.credit).toBe(0);
+    });
+
+    it("nets a normal sale with a same-day native refund and imported refund: net cash = sale - refund - refund, JE still balances", async () => {
+      const fx = await seedAccountingFixtures();
+      await seedSale({
+        productId: fx.product.id,
+        netPrice: 1000,
+        cost: 400,
+        vatAmount: 63.5,
+        paymentAmount: 1063.5,
+        paymentType: "Cash",
+        withInvoice: true,
+      });
+      // Native refund (processRefund shape): positive amount, isRefund true.
+      await seedStandalonePayment({ paymentAmount: 200, isRefund: true });
+      // Imported refund (Ordorite shape): already-negative amount, isRefund true.
+      await seedStandalonePayment({ paymentAmount: -100, isRefund: true });
+
+      const result = await generateSalesJournal(DAY);
+
+      expect(result.warnings).toEqual([]);
+      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      // Net cash = 1063.50 (sale) - 200 (native refund) - 100 (imported refund) = 763.50.
+      // All three payments share the same Cash GL, so they net into ONE line.
+      expect(byCode.get("1-1006")?.debit).toBe(763.5);
+      expect(byCode.get("1-1006")?.credit).toBe(0);
+      // The JE must still balance even though the $300 of refunds has no
+      // offsetting revenue/COGS/tax reversal (standalone refunds here, not
+      // return line items) -- the Over/Short plug absorbs the difference,
+      // same as it would for any other day-level drift.
+      expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+      expect(byCode.get("5-5900")?.debit).toBe(300); // Over/Short plug
+    });
+  });
 });

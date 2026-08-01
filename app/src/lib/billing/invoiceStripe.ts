@@ -8,7 +8,8 @@
 // Server-only (imports the Stripe client).
 
 import { prisma } from "@/lib/prisma";
-import { getStripe, resolveCheckoutEmail } from "@/lib/stripe";
+import { resolveCheckoutEmail } from "@/lib/stripe";
+import { assertCapability, getActiveProvider } from "@/lib/payments";
 import { getAppSettings } from "@/lib/appSettings";
 import { InvoiceValidationError, invoiceActionError } from "@/lib/billing/invoiceAuthoring";
 
@@ -53,35 +54,30 @@ export async function createInvoicePaymentLink(
   }
 
   const settings = await getAppSettings();
-  const stripe = await getStripe();
   const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: [
-      {
-        price_data: {
-          currency: (settings.currency || "USD").toLowerCase(),
-          product_data: {
-            name: `Invoice ${invoice.invoiceNo} — ${settings.companyName || settings.appName}`,
-          },
-          unit_amount: Math.round(open * 100),
-        },
-        quantity: 1,
-      },
-    ],
-    customer_email: resolveCheckoutEmail(invoice.customer.email),
-    metadata: {
-      invoiceId: String(invoiceId),
-      invoiceNo: invoice.invoiceNo,
-      requestedBy: requestedBy ?? "",
-    },
-    success_url: `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}/app/payment/cancel?invoice_id=${invoiceId}`,
-  });
+  // Whichever processor the deployment has made active takes new payments.
+  const provider = getActiveProvider();
+  assertCapability(provider, "hostedCheckout");
 
-  if (!session.url) {
-    throw new InvoiceValidationError("Stripe did not return a checkout URL");
+  let checkout;
+  try {
+    checkout = await provider.createCheckout!({
+      amount: open,
+      currency: settings.currency || "USD",
+      description: `Invoice ${invoice.invoiceNo} — ${settings.companyName || settings.appName}`,
+      customerEmail: resolveCheckoutEmail(invoice.customer.email),
+      metadata: {
+        invoiceId: String(invoiceId),
+        invoiceNo: invoice.invoiceNo,
+        requestedBy: requestedBy ?? "",
+      },
+      successUrl: `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/app/payment/cancel?invoice_id=${invoiceId}`,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Checkout could not be created";
+    throw new InvoiceValidationError(msg);
   }
 
   await prisma.payment.create({
@@ -94,11 +90,11 @@ export async function createInvoicePaymentLink(
       customerId: invoice.customerId,
       // Structural binding — the webhook routes on this, never on metadata.
       invoiceId,
-      processorType: "STRIPE",
-      processorTxnId: session.id,
+      processorType: provider.id.toUpperCase(),
+      processorTxnId: checkout.providerTxnId,
       createdBy: requestedBy ?? null,
     },
   });
 
-  return { url: session.url, amount: open };
+  return { url: checkout.url, amount: open };
 }

@@ -10,8 +10,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { roleProcedure } from "../trpc";
 import { router } from "../trpc";
-import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import {
   createDraftInvoice,
   updateDraftInvoice,
@@ -45,8 +44,7 @@ const draftInput = z.object({
 });
 
 async function requireBillingEnabled(): Promise<void> {
-  const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "billing")) {
+  if (!(await isModuleEnabled("billing"))) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Billing is not enabled." });
   }
 }

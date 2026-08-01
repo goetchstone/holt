@@ -144,21 +144,21 @@ Report at `/reports/sales-by-salesperson` for HR's compensation structure. Date-
 
 - Pure helpers in `lib/marginMath.ts` — `aggregateMargin`, `applySplit`, `formatMarginPct`, `imputeMissingCost`.
 - `applySplit` halves BOTH retail and cost so margin % stays correct across partners. `aggregateMargin` uses `retail !== 0` (not `> 0`) so return-day rows with negative retail still produce a meaningful margin %.
-- **`imputeMissingCost` (added 2026-04-29 / PR #160)** — when a line has non-zero retail but cost = 0 (the common shape for auto-created products without a vendor cost feed), treat its cost as `retail / 2` so margin reads as 50 % rather than the misleading 100 %. Sign-preserving (returns get the same treatment), idempotent on already-populated lines, idempotent on fully-zero lines. Apply BEFORE `applySplit` and `aggregateMargin` — it's a data-cleaning step. Order doesn't actually matter (split halves both sides) but data-cleaning-first is the convention.
+- **`imputeMissingCost` (added 2026-04-29)** — when a line has non-zero retail but cost = 0 (the common shape for auto-created products without a vendor cost feed), treat its cost as `retail / 2` so margin reads as 50 % rather than the misleading 100 %. Sign-preserving (returns get the same treatment), idempotent on already-populated lines, idempotent on fully-zero lines. Apply BEFORE `applySplit` and `aggregateMargin` — it's a data-cleaning step. Order doesn't actually matter (split halves both sides) but data-cleaning-first is the convention.
 
 ### Filtering and bucketing — match by name OR id
 
 The the POS sales import only populates `SalesOrder.salesperson` (string), never `SalesOrder.salesPersonId` (FK). Verified 2026-04-29: 863 of 878 April orders had NULL `salesPersonId`. Any salesperson-aware filter or bucketing MUST match both:
 
 - Use `applySalesPersonFilter(orderWhere, { ids, names })` from `lib/salesBySalesperson.ts`. It emits one OR clause per name (Prisma `in` is case-sensitive on string columns; each name uses `equals` + `mode: "insensitive"`).
-- Use `effectiveStaffId(order, idByLcName)` in `bucketBySalesperson` — when the FK is null but the name matches a known staff `displayName`, route the order into the same `sp-${id}` bucket as FK-linked rows. Without this, unlinked + linked orders for the same person split across two rows and the report grossly understates totals (PR #162 root cause).
+- Use `effectiveStaffId(order, idByLcName)` in `bucketBySalesperson` — when the FK is null but the name matches a known staff `displayName`, route the order into the same `sp-${id}` bucket as FK-linked rows. Without this, unlinked + linked orders for the same person split across two rows and the report grossly understates totals (the FK/name-split under-counting bug's root cause).
 - For drilldowns: `narrowSalesperson` in `pages/api/reports/sales-by-salesperson/items.ts` handles three group-key shapes: `sp-${id}` ORs in a `(salesPersonId IS NULL AND salesperson = displayName insensitive)` clause; `sp-name-${name}` is scoped to FK-null only (so bucket and drilldown stay consistent); `sp-unassigned` matches both fields null.
 
 If you build a new salesperson-aware report, copy this pattern. Filtering only by FK silently drops ~98 % of orders.
 
 ### Non-merchandise filter (HR comp vs. accounting view)
 
-`buildLineItemWhere(departmentNames, includeNonMerch = false)` excludes `DELIVERY CHARGE`, `HD-FREIGHT`, `LABOR-HD` by default — the comp convention used by Monthly Performance. When the user toggles "Include delivery / freight / labor" on the report (PR #161), `includeNonMerch = true` and the partNo filter is dropped, so totals reconcile to Detailed Sales. The CSV export header records which mode produced the file. The cancelled-line filter (rule 33) is unconditional — never optional.
+`buildLineItemWhere(departmentNames, includeNonMerch = false)` excludes `DELIVERY CHARGE`, `HD-FREIGHT`, `LABOR-HD` by default — the comp convention used by Monthly Performance. When the user toggles "Include delivery / freight / labor" on the report, `includeNonMerch = true` and the partNo filter is dropped, so totals reconcile to Detailed Sales. The CSV export header records which mode produced the file. The cancelled-line filter (rule 33) is unconditional — never optional.
 
 ### Role gate
 
@@ -278,7 +278,7 @@ ALL = visible to every signed-in user (Designer, Manager, Admin, Marketing). Des
 
 These four salesperson-aware reports are subject to the **designer self-lock**: when a non-privileged caller (DESIGNER, REGISTER, INSTALLER, WAREHOUSE) hits the API, `resolveSalesPersonFilter` in `lib/salesBySalesperson.ts` substitutes their own staffId for any requested ids — they cannot view another salesperson's numbers via direct API call or URL parameter.
 
-**Split-order partner protection** (PR #217, 2026-05-05): when a designer view is locked, the bucketing logic also drops the _partner_ row of split orders so the partner's name + half-revenue never leaks. Privileged roles still see both buckets.
+**Split-order partner protection** (2026-05-05): when a designer view is locked, the bucketing logic also drops the _partner_ row of split orders so the partner's name + half-revenue never leaks. Privileged roles still see both buckets.
 
 **Calculation**: `SUM(OrderLineItem.netPrice)` over orders in `[ORDER, FULFILLED, RETURNED]`, `lineItemStatus != CANCELLED`, excluding the 5 canonical delivery/freight productNames. For split orders, both primary and split-partner get 50%. See `lib/salesBySalesperson.ts` and the four "rules" sections at the top of this doc.
 
@@ -528,7 +528,7 @@ Built to answer the three questions a buyer asks every time they look at a vendo
 
 ### Ship 2 additions (shipped 2026-04-24)
 
-**Stock Sold vs Special Sold columns** — `soldQty` / `soldTotal` split into per-row `stockSoldQty`+`stockSoldTotal` and `specialSoldQty`+`specialSoldTotal`. SQL classifies each line via a `LEFT JOIN LATERAL` against `PurchaseOrderItem`. **A line is "special" iff the `PurchaseOrderItem` is on a `PurchaseOrder` whose `salesOrderId = li."salesOrderId"`** AND either (a) `poi.orderLineItemId = li.id` (direct link) OR (b) `poi.externalPorNo = li.porNumber` AND the POR is non-empty. The **same-SO requirement is load-bearing** — without it, the POS-reused POR strings false-matched across totally unrelated orders, classifying ~87% of Womens Apparel as "special" when the real rate is ~3% (issue #168, fixed 2026-05-16 — see `__tests__/integration/buyersStockSpecialClassifier.integration.test.ts` for the pin). Same-SO gate also applies to the parallel POR-chain exclusion in `positions.ts` (with an additional `productId` gate there because the exclusion runs before any salesOrderId link exists). Inverted business meaning per department type:
+**Stock Sold vs Special Sold columns** — `soldQty` / `soldTotal` split into per-row `stockSoldQty`+`stockSoldTotal` and `specialSoldQty`+`specialSoldTotal`. SQL classifies each line via a `LEFT JOIN LATERAL` against `PurchaseOrderItem`. **A line is "special" iff the `PurchaseOrderItem` is on a `PurchaseOrder` whose `salesOrderId = li."salesOrderId"`** AND either (a) `poi.orderLineItemId = li.id` (direct link) OR (b) `poi.externalPorNo = li.porNumber` AND the POR is non-empty. The **same-SO requirement is load-bearing** — without it, the POS-reused POR strings false-matched across totally unrelated orders, classifying ~87% of Womens Apparel as "special" when the real rate is ~3% (the same-SO POR false-match incident, fixed 2026-05-16 — see `__tests__/integration/buyersStockSpecialClassifier.integration.test.ts` for the pin). Same-SO gate also applies to the parallel POR-chain exclusion in `positions.ts` (with an additional `productId` gate there because the exclusion runs before any salesOrderId link exists). Inverted business meaning per department type:
 
 | Dept type | Expected ratio | Signal when Special is HIGH | Signal when Stock is HIGH |
 |---|---|---|---|

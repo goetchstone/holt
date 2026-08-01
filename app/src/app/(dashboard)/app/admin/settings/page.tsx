@@ -1,14 +1,14 @@
 // /app/src/app/(dashboard)/app/admin/settings/page.tsx
 //
-// Settings -- App Router page-only port of the legacy admin/settings. ADMIN only
-// (mirrors the legacy withAuth roles). Branding, theme colors, localization,
-// feature modules, and encrypted integration credentials (with per-provider Test
-// Connection) via the shared /api/admin/settings REST endpoints, which stay REST.
+// Settings overview -- ADMIN only (mirrors the legacy withAuth roles).
+// Branding, theme colors, localization, booking, and the module manifest's
+// on/off grid + settings index. Integrations lives at ./integrations;
+// per-module settings pages live at ./[module]. See docs/domains/modules.md.
 
 import { requirePage } from "@/lib/auth/requirePage";
-import { SettingsView } from "./SettingsView";
+import { SettingsOverviewView } from "./SettingsOverviewView";
 
 export default async function SettingsPage() {
   await requirePage(["ADMIN"]);
-  return <SettingsView />;
+  return <SettingsOverviewView />;
 }
