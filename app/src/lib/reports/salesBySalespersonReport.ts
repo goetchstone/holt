@@ -24,6 +24,7 @@ import {
   aggregateMargin,
   applySplit,
   imputeMissingCost,
+  resolveLineCost,
   type MarginRow,
   type MarginLine,
 } from "@/lib/marginMath";
@@ -258,21 +259,6 @@ function bucketBySalesperson(
     const name2 = maps.nameById.get(order.splitWithId) || "Unknown";
     addToBucket(buckets, `sp-${order.splitWithId}`, name2, halfLine);
   }
-}
-
-/**
- * Three-step cost fallback (user direction 2026-04-30):
- *   1. li.cost if set and non-zero
- *   2. product.baseCost × qty if li.cost is zero AND baseCost is set
- *   3. retail/2 imputation handled by imputeMissingCost downstream
- */
-function resolveLineCost(li: OrderForReport["lineItems"][number]): number {
-  const rawLineCost = Number(li.cost ?? 0);
-  if (rawLineCost !== 0) return rawLineCost;
-  const qty = Number(li.orderedQuantity ?? 1);
-  const productBaseCost = Number(li.product?.baseCost ?? 0);
-  if (productBaseCost > 0 && qty > 0) return productBaseCost * qty;
-  return 0;
 }
 
 /**
@@ -629,24 +615,14 @@ function lineToItem(
   custLabel: string,
 ): SalesByGroupItem {
   const isSplit = order.splitWithId !== null;
-  // Cost fallback chain (user direction 2026-04-30):
-  //   1. line cost (`li.cost`) if it's set and non-zero
-  //   2. product baseCost × ordered quantity if li.cost is zero/missing
-  //      but the product card has a baseCost
-  //   3. `retail / 2` interim imputation (last-resort 50% margin) via
-  //      `imputeMissingCost`
-  // Without step 2, every line whose the POS cost was missing showed
-  // 50% margin even when the product had a real baseCost.
-  const rawLineCost = Number(li.cost ?? 0);
+  // Cost fallback chain (user direction 2026-04-30): li.cost -> product
+  // baseCost x qty -> retail/2 imputation. Shared with the summary path
+  // (getSalesBySalesperson) and lib/reports/salesExplorerQuery.ts via
+  // lib/marginMath.ts:resolveLineCost — see that function's doc comment.
   const qty = Number(li.orderedQuantity ?? 1);
-  const productBaseCost = Number(li.product?.baseCost ?? 0);
-  let resolvedCost = rawLineCost;
-  if (resolvedCost === 0 && productBaseCost > 0 && qty > 0) {
-    resolvedCost = productBaseCost * qty;
-  }
   const cleaned = imputeMissingCost({
     retail: Number(li.netPrice ?? 0),
-    cost: resolvedCost,
+    cost: resolveLineCost(li),
   });
   const showSplit = groupBy === "salesperson" && isSplit;
   const halved = applySplit(cleaned, showSplit);

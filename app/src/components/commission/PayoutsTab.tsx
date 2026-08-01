@@ -33,9 +33,27 @@ import { getErrorMessage } from "@/lib/toastError";
 
 interface BreakdownEntry {
   tierLabel: string;
-  rate: number;
+  // Stage 1 rule engine: a UNITS-basis tier pays a flat perUnitAmount
+  // instead of a rate, so `rate` is nullable (and a RETROACTIVE tier can
+  // legitimately have neither, when drift dropped the basis below every
+  // tier — see docs/domains/commission.md "Rule model").
+  rate: number | null;
+  perUnitAmount?: number | null;
   sliceAmount: number;
   sliceCommission: number;
+}
+
+// Stage 1 rule engine: tierBreakdown grew a versioned envelope shape for
+// newly-generated payouts (docs/domains/commission.md "Snapshot — old and
+// new shapes"). Pre-existing rows still hold the bare array. Both must
+// render without crashing.
+type TierBreakdownField = BreakdownEntry[] | { schemaVersion: 2; entries: BreakdownEntry[] };
+
+/** Normalize either tierBreakdown shape down to the entry array the table
+ *  below renders. */
+function breakdownEntries(field: TierBreakdownField | null | undefined): BreakdownEntry[] {
+  if (!field) return [];
+  return Array.isArray(field) ? field : field.entries;
 }
 
 interface PreviewedPayout {
@@ -46,7 +64,7 @@ interface PreviewedPayout {
   periodSalesAmount: number;
   ytdSalesAtStart: number;
   ytdSalesAtEnd: number;
-  tierBreakdown: BreakdownEntry[];
+  tierBreakdown: TierBreakdownField;
   commissionAmount: number;
   commissionPlanName: string;
 }
@@ -80,7 +98,7 @@ interface StoredPayout {
   periodSalesAmount: string | number;
   ytdSalesAtStart: string | number;
   ytdSalesAtEnd: string | number;
-  tierBreakdown: BreakdownEntry[];
+  tierBreakdown: TierBreakdownField;
   commissionAmount: string | number;
   commissionPlanName: string | null;
   lockedAt: string | null;
@@ -778,10 +796,16 @@ function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) 
                     </tr>
                   </thead>
                   <tbody>
-                    {p.tierBreakdown.map((b, i) => (
+                    {breakdownEntries(p.tierBreakdown).map((b, i) => (
                       <tr key={`${b.tierLabel}-${i}`}>
                         <td className="py-1">{b.tierLabel}</td>
-                        <td className="py-1 text-right">{(b.rate * 100).toFixed(1)}%</td>
+                        <td className="py-1 text-right">
+                          {b.rate != null
+                            ? `${(b.rate * 100).toFixed(1)}%`
+                            : b.perUnitAmount != null
+                              ? `${money(b.perUnitAmount)}/unit`
+                              : "—"}
+                        </td>
                         <td className="py-1 text-right tabular-nums">{money(b.sliceAmount)}</td>
                         <td className="py-1 text-right tabular-nums">{money(b.sliceCommission)}</td>
                       </tr>

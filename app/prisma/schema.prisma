@@ -60,6 +60,13 @@ model Vendor {
   buyerDraftItems          BuyerDraftItem[]
   buyerDraftPurchaseOrders BuyerDraftPurchaseOrder[]
 
+  // Rule-engine scope target (Stage 1 commission rules) — a rule may
+  // narrow to this vendor. See CommissionPlanRule.
+  commissionPlanRules CommissionPlanRule[]
+
+  // Import definitions scoped to this vendor. See ImportDefinition.
+  importDefinitions ImportDefinition[]
+
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
   createdBy String?
@@ -789,6 +796,9 @@ model Department {
   productPairingsFrom ProductPairing[] @relation("ProductPairingFrom")
   productPairingsTo   ProductPairing[] @relation("ProductPairingTo")
 
+  // Rule-engine scope target (Stage 1 commission rules).
+  commissionPlanRules CommissionPlanRule[]
+
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
   createdBy String?
@@ -796,19 +806,21 @@ model Department {
 }
 
 model Category {
-  id              Int              @id @default(autoincrement())
-  name            String
-  departmentId    Int
-  department      Department       @relation(fields: [departmentId], references: [id])
-  types           Type[]
-  labelTemplateId Int?
-  labelTemplate   LabelTemplate?   @relation(fields: [labelTemplateId], references: [id])
-  trackInventory  Boolean          @default(true)
-  accountGroupId  Int?
-  accountGroup    AccountGroup?    @relation(fields: [accountGroupId], references: [id])
-  products        Product[]
-  vendorStyles    VendorStyle[]
-  buyerDraftItems BuyerDraftItem[]
+  id                  Int                  @id @default(autoincrement())
+  name                String
+  departmentId        Int
+  department          Department           @relation(fields: [departmentId], references: [id])
+  types               Type[]
+  labelTemplateId     Int?
+  labelTemplate       LabelTemplate?       @relation(fields: [labelTemplateId], references: [id])
+  trackInventory      Boolean              @default(true)
+  accountGroupId      Int?
+  accountGroup        AccountGroup?        @relation(fields: [accountGroupId], references: [id])
+  products            Product[]
+  vendorStyles        VendorStyle[]
+  // Rule-engine scope target (Stage 1 commission rules).
+  commissionPlanRules CommissionPlanRule[]
+  buyerDraftItems     BuyerDraftItem[]
 
   productPairingsFrom ProductPairing[] @relation("ProductPairingFromCat")
   productPairingsTo   ProductPairing[] @relation("ProductPairingToCat")
@@ -829,6 +841,10 @@ model Type {
   products        Product[]
   vendorStyles    VendorStyle[]
   buyerDraftItems BuyerDraftItem[]
+
+  // Rule-engine scope target (Stage 1 commission rules) — the "productType"
+  // scope dimension on CommissionPlanRule targets this model.
+  commissionPlanRules CommissionPlanRule[]
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
@@ -1384,6 +1400,9 @@ model StoreLocation {
   buyerDraftPurchaseOrders BuyerDraftPurchaseOrder[]
   trafficSnapshots         TrafficSnapshot[]
 
+  // Rule-engine scope target (Stage 1 commission rules).
+  commissionPlanRules CommissionPlanRule[]
+
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
   createdBy String?
@@ -1518,19 +1537,19 @@ enum PurchaseOrderStatus {
 }
 
 model PurchaseOrder {
-  id                Int                 @id @default(autoincrement())
-  poNumber          String              @unique
-  vendorId          Int
-  vendor            Vendor              @relation(fields: [vendorId], references: [id])
-  salesOrderId      Int?
-  salesOrder        SalesOrder?         @relation(fields: [salesOrderId], references: [id])
-  orderDate         DateTime            @default(now())
-  expectedDelivery  DateTime?
-  estimatedShipDate DateTime?
-  status            PurchaseOrderStatus @default(DRAFT)
-  vendorAckNumber   String?
-  vendorAckDate     DateTime?
-  notes             String?
+  id                      Int                 @id @default(autoincrement())
+  poNumber                String              @unique
+  vendorId                Int
+  vendor                  Vendor              @relation(fields: [vendorId], references: [id])
+  salesOrderId            Int?
+  salesOrder              SalesOrder?         @relation(fields: [salesOrderId], references: [id])
+  orderDate               DateTime            @default(now())
+  expectedDelivery        DateTime?
+  estimatedShipDate       DateTime?
+  status                  PurchaseOrderStatus @default(DRAFT)
+  vendorAckNumber         String?
+  vendorAckDate           DateTime?
+  notes                   String?
   // Stamped by the legacy-POS inbound-items import (a full snapshot of open
   // POs): a PO absent from the latest export was received/cancelled upstream,
   // so inbound dashboards filter to MAX(lastSeenInInboundExport).
@@ -2253,11 +2272,11 @@ model SalesOrder {
   taxExemptReasonId Int?
   taxExemptReason   TaxExemptReason? @relation(fields: [taxExemptReasonId], references: [id])
 
-  orderNotes      String?
-  dispatchStatus  DispatchStatus? @default(PO_PLACED)
+  orderNotes           String?
+  dispatchStatus       DispatchStatus? @default(PO_PLACED)
   externalCustomerCode String?
-  quoteCode       String?
-  quoteDate       DateTime?
+  quoteCode            String?
+  quoteDate            DateTime?
 
   deliveryMethod        DeliveryMethod?
   deliveryAddressId     Int?
@@ -2432,7 +2451,7 @@ model PaymentApplication {
 
   amountApplied Decimal
 
-  created   DateTime  @default(now())
+  created   DateTime @default(now())
   createdBy String?
 
   @@index([invoiceId])
@@ -2458,7 +2477,7 @@ model InvoiceLineItem {
   quantity    Decimal?
   unitPrice   Decimal?
   amount      Decimal?
-  sortOrder   Int     @default(0)
+  sortOrder   Int      @default(0)
 
   @@unique([invoiceId, orderLineItemId], name: "invoiceId_orderLineItemId")
 }
@@ -2484,17 +2503,17 @@ enum PaymentMethod {
 }
 
 model Payment {
-  id              Int            @id @default(autoincrement())
+  id              Int                  @id @default(autoincrement())
   salesOrderId    Int?
-  salesOrder      SalesOrder?    @relation(fields: [salesOrderId], references: [id])
+  salesOrder      SalesOrder?          @relation(fields: [salesOrderId], references: [id])
   paymentDate     DateTime
   paymentType     String
   paymentAmount   Decimal
-  paymentCode     String?        @unique
+  paymentCode     String?              @unique
   applications    PaymentApplication[]
   storeLocation   String?
   storeLocationId Int?
-  store           StoreLocation? @relation("PaymentStore", fields: [storeLocationId], references: [id])
+  store           StoreLocation?       @relation("PaymentStore", fields: [storeLocationId], references: [id])
 
   // Structured payment tracking (nullable for backward compat with imports)
   status PaymentStatus?
@@ -2614,61 +2633,61 @@ enum UpBoardStatus {
 }
 
 model StaffMember {
-  id                    Int            @id @default(autoincrement())
-  userId                String?        @unique
-  user                  User?          @relation(fields: [userId], references: [id])
+  id                    Int                  @id @default(autoincrement())
+  userId                String?              @unique
+  user                  User?                @relation(fields: [userId], references: [id])
   displayName           String // Name shown on up-board
   // Alternate names this person is known by in the POS's `salesperson`
   // field. Reports OR-match on (displayName + every alias) so Sandy can
   // be linked to "Sandra Matheny" without renaming the up-board record.
   // Populated via admin UI or one-off SQL when a mismatch is discovered.
   // Origin: Issue #274, ROADMAP Short-Term #12.
-  aliases               String[]       @default([])
-  email                 String?        @unique // For matching to User on first login
+  aliases               String[]             @default([])
+  email                 String?              @unique // For matching to User on first login
   // Local-account password (scrypt hash, see lib/auth/password.ts). Null for
   // OAuth-only staff. Only consulted when AUTH_LOCAL_ENABLED turns on the
   // credentials sign-in method.
   passwordHash          String?
   passwordResetTokens   PasswordResetToken[]
-  role                  StaffRole      @default(DESIGNER)
+  role                  StaffRole            @default(DESIGNER)
   defaultStore          String? // Legacy: the POS store name
   activeStoreLocationId Int?
-  activeStoreLocation   StoreLocation? @relation("ActiveStaff", fields: [activeStoreLocationId], references: [id])
-  isActive              Boolean        @default(true)
+  activeStoreLocation   StoreLocation?       @relation("ActiveStaff", fields: [activeStoreLocationId], references: [id])
+  isActive              Boolean              @default(true)
   // Appears on designer-based sales + commission reports. Independent
   // of `role` so a selling MANAGER can be included and an ex-designer
   // excluded. Backfilled true for existing role=DESIGNER staff.
   // Origin: owner direction 2026-05-29.
-  isDesigner            Boolean        @default(false)
+  isDesigner            Boolean              @default(false)
 
   // Per-salesperson commission structure. NULL = the default plan (or the
   // legacy tier table / built-in defaults — see lib/commissionPlans.ts).
   commissionPlanId Int?
   commissionPlan   CommissionPlan? @relation(fields: [commissionPlanId], references: [id])
 
-  shifts               StaffShift[]
-  upBoardEntries       UpBoardEntry[]
-  payments             Payment[]
-  tillsOpened          Till[]                @relation("TillOpener")
-  tillsClosed          Till[]                @relation("TillCloser")
-  interactions         CustomerInteraction[]
-  assignedCases        ServiceCase[]         @relation("CaseAssignee")
-  salesPersonCases     ServiceCase[]         @relation("OriginalSalesperson")
-  caseNotes            ServiceCaseNote[]
-  assignedTasks        ServiceTask[]         @relation("TaskAssignee")
-  returnsReceived      Return[]              @relation("ReturnReceivedBy")
-  returnsInspected     Return[]              @relation("ReturnInspectedBy")
-  designerAppointments ServiceAppointment[]  @relation("DesignerAppointments")
-  driverRuns           DeliveryRun[]         @relation("DriverRuns")
-  assignedPickLists    PickList[]            @relation("PickListAssignee")
-  salesOrders          SalesOrder[]          @relation("OrderSalesPerson")
-  splitSales           SalesOrder[]          @relation("SplitSales")
-  installer            Installer?
-  primaryCustomers     Customer[]            @relation("PrimaryDesigner")
-  assignedLeads        Lead[]                @relation("LeadAssignments")
-  salesGoals           SalesGoal[]
-  proposals            Proposal[]            @relation("ProposalSalesPerson")
-  commissionPayouts    CommissionPayout[]
+  shifts                 StaffShift[]
+  upBoardEntries         UpBoardEntry[]
+  payments               Payment[]
+  tillsOpened            Till[]                  @relation("TillOpener")
+  tillsClosed            Till[]                  @relation("TillCloser")
+  interactions           CustomerInteraction[]
+  assignedCases          ServiceCase[]           @relation("CaseAssignee")
+  salesPersonCases       ServiceCase[]           @relation("OriginalSalesperson")
+  caseNotes              ServiceCaseNote[]
+  assignedTasks          ServiceTask[]           @relation("TaskAssignee")
+  returnsReceived        Return[]                @relation("ReturnReceivedBy")
+  returnsInspected       Return[]                @relation("ReturnInspectedBy")
+  designerAppointments   ServiceAppointment[]    @relation("DesignerAppointments")
+  driverRuns             DeliveryRun[]           @relation("DriverRuns")
+  assignedPickLists      PickList[]              @relation("PickListAssignee")
+  salesOrders            SalesOrder[]            @relation("OrderSalesPerson")
+  splitSales             SalesOrder[]            @relation("SplitSales")
+  installer              Installer?
+  primaryCustomers       Customer[]              @relation("PrimaryDesigner")
+  assignedLeads          Lead[]                  @relation("LeadAssignments")
+  salesGoals             SalesGoal[]
+  proposals              Proposal[]              @relation("ProposalSalesPerson")
+  commissionPayouts      CommissionPayout[]
   payPeriodConfirmations PayPeriodConfirmation[] @relation("PayPeriodConfirmations")
   payPeriodIssues        PayPeriodIssue[]        @relation("PayPeriodIssues")
   assignedTickets        Ticket[]                @relation("TicketAssignee")
@@ -3114,7 +3133,7 @@ model ServiceCase {
   // externalSourceLastSeen is bumped on every successful re-sync so
   // operators can spot cases that disappear from the source.
   externalSource         String? // "cs-sheet" | "google-form" | etc.
-  externalSourceId       String? @unique
+  externalSourceId       String?   @unique
   externalSourceLastSeen DateTime?
 
   notes  ServiceCaseNote[]
@@ -3135,18 +3154,18 @@ model ServiceCase {
 }
 
 model ServiceCaseNote {
-  id         Int          @id @default(autoincrement())
-  caseId     Int
-  case       ServiceCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  authorId   Int?
-  author     StaffMember? @relation(fields: [authorId], references: [id])
+  id                Int          @id @default(autoincrement())
+  caseId            Int
+  case              ServiceCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId          Int?
+  author            StaffMember? @relation(fields: [authorId], references: [id])
   // Snapshot of the original author's display name. Used when we
   // can't resolve authorId to a current StaffMember (former staff,
   // external collaborator on a threaded comment, etc.) so the note
   // still attributes correctly in the UI.
   authorDisplayName String?
-  note       String
-  isInternal Boolean      @default(true)
+  note              String
+  isInternal        Boolean      @default(true)
 
   // Per-note idempotency for sheet/form re-imports. For threaded
   // comments this is `cs-sheet-note:{commentGuid}` — the GUID Excel
@@ -3917,6 +3936,20 @@ model CommissionTier {
 // defaults. The legacy table stays as the restore landing target (a prior
 // system's tier rows land there and keep computing identically until plans
 // are created); no code writes it anymore.
+//
+// Stage 1 (commission rule engine, see docs/domains/commission.md "Rule
+// model"): `rules` is the generalized replacement for `tiers`. `tiers`
+// (CommissionPlanTier) is kept, untouched, as the flat single-axis YTD-band
+// shape the existing plan CRUD + tier editor still read/write. Every
+// existing CommissionPlanTier set was converted 1:1 into an equivalent
+// CommissionPlanRule (scope = all, basis = REVENUE, accumulator = YTD,
+// tierMode = MARGINAL) by the data migration in
+// 20260801_commission_rule_engine — the payout engine (lib/commissionRules.ts
+// resolvePlanRulesForStaff -> lib/commissionRuleEngine.ts) reads ONLY rules.
+// A plan created/edited via the old flat-tier API without ever getting real
+// CommissionPlanRule rows still works: resolvePlanRulesForStaff derives an
+// equivalent rule on the fly from `tiers` when no persisted rule exists, so
+// the two editors can never price a designer differently.
 model CommissionPlan {
   id          Int     @id @default(autoincrement())
   name        String  @unique
@@ -3924,7 +3957,18 @@ model CommissionPlan {
   isDefault   Boolean @default(false)
   isActive    Boolean @default(true)
 
+  // WRITTEN | DELIVERED | COLLECTED — which sales-order event a period's
+  // sales are counted against. Default WRITTEN is today's (only
+  // implemented) behavior: orderDate + SALES_REVENUE_STATUSES, exactly what
+  // sumDesignerSales / commissionSales.ts already do. DELIVERED/COLLECTED
+  // are stored so a plan can declare the intent, but the Stage 1 engine has
+  // no delivered-date or paid-date commission basis wired up yet — seleting
+  // either on a plan is a documented, honest no-op boundary (see
+  // docs/domains/commission.md "countsWhen — what's actually implemented").
+  countsWhen CommissionCountsWhen @default(WRITTEN)
+
   tiers        CommissionPlanTier[]
+  rules        CommissionPlanRule[]
   staffMembers StaffMember[]
   payouts      CommissionPayout[]
 
@@ -3948,6 +3992,110 @@ model CommissionPlanTier {
 }
 
 // ---------------------------------------------------------------------------
+// COMMISSION RULE ENGINE (Stage 1) — declarative replacement for the
+// single-axis CommissionPlanTier band. See docs/domains/commission.md
+// "Rule model" for the full design writeup (precedence, basis options, tier
+// modes, migration, and the honest boundaries of what a rule can express).
+// ---------------------------------------------------------------------------
+
+enum CommissionRuleBasis {
+  REVENUE // OrderLineItem.netPrice (line total), matches today's behavior
+  MARGIN // netPrice - resolved line cost (shared cascade, lib/marginMath.ts)
+  UNITS // OrderLineItem.orderedQuantity
+}
+
+enum CommissionAccumulator {
+  YTD // resets Jan 1; carries forward via chain continuity across locked periods (generalizes today's only behavior)
+  PERIOD // resets every pay period; no cross-period carry
+  PER_TRANSACTION // resets per SalesOrder; no cross-transaction or cross-period carry
+}
+
+// How a rule's tiers apply once a sale/accumulator value lands in a band.
+// See docs/domains/commission.md "Tier modes — precedence and math" for the
+// full worked examples and the deferred-vs-catch-up distinction.
+enum CommissionTierMode {
+  MARGINAL // each band pays its own rate on the dollars/units within that band (today's only behavior)
+  RETROACTIVE // crossing into a new band re-rates the WHOLE accumulated amount at the new band's rate
+  THRESHOLD // no commission below the lowest tier's minAmount ("the goal"); once reached, pays marginally on amounts from the goal forward only
+}
+
+// Which SalesOrder event a plan's periods are counted against. See
+// CommissionPlan.countsWhen doc comment for the Stage 1 implementation
+// boundary (only WRITTEN is wired into the engine).
+enum CommissionCountsWhen {
+  WRITTEN // orderDate — today's (only implemented) behavior
+  DELIVERED // NOT YET IMPLEMENTED in the Stage 1 engine — stored for forward-compat only
+  COLLECTED // NOT YET IMPLEMENTED in the Stage 1 engine — stored for forward-compat only
+}
+
+// One declarative commission rule within a plan. Rules are evaluated in
+// ascending `sortOrder`; the FIRST rule whose scope matches a given sale
+// claims it (first-match-wins — see docs/domains/commission.md "Rule
+// precedence" for why most-specific-wins was rejected). A sale matched by
+// no active rule earns zero commission under that plan (visible, not an
+// error — lib/commissionRuleEngine.ts's `unmatchedAmount`).
+model CommissionPlanRule {
+  id     Int            @id @default(autoincrement())
+  planId Int
+  plan   CommissionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  label     String
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  // SCOPE — every field nullable; NULL matches every value for that
+  // dimension. A rule with every scope field NULL matches every sale (the
+  // "catch-all" shape every migrated legacy plan uses).
+  departmentId    Int?
+  department      Department?    @relation(fields: [departmentId], references: [id])
+  categoryId      Int?
+  category        Category?      @relation(fields: [categoryId], references: [id])
+  vendorId        Int?
+  vendor          Vendor?        @relation(fields: [vendorId], references: [id])
+  // Store the sale was written at (SalesOrder.storeLocationId).
+  storeLocationId Int?
+  storeLocation   StoreLocation? @relation(fields: [storeLocationId], references: [id])
+  // Product.typeId ("productType" in the Stage 1 brief).
+  productTypeId   Int?
+  productType     Type?          @relation(fields: [productTypeId], references: [id])
+
+  basis       CommissionRuleBasis   @default(REVENUE)
+  accumulator CommissionAccumulator @default(YTD)
+  tierMode    CommissionTierMode    @default(MARGINAL)
+
+  tiers CommissionRuleTier[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([planId, sortOrder])
+  @@index([planId])
+}
+
+// A tier band within a CommissionPlanRule. Exactly one of `rate` (a
+// percentage, 0..1) or `perUnitAmount` (a flat $/unit, UNITS basis only) is
+// expected to be set per tier — validated by
+// lib/commissionRuleEngine.ts:validateRuleTiers, not a DB constraint (mirrors
+// how CommissionPlanTier's bracket contiguity is app-validated, not a DB
+// CHECK).
+model CommissionRuleTier {
+  id     Int                @id @default(autoincrement())
+  ruleId Int
+  rule   CommissionPlanRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  label              String
+  minAmount          Decimal
+  maxAmountExclusive Decimal?
+  rate               Decimal?
+  perUnitAmount      Decimal?
+  sortOrder          Int      @default(0)
+
+  @@unique([ruleId, sortOrder])
+}
+
+// ---------------------------------------------------------------------------
 // COMMISSION PAYOUTS — one row per salesperson per pay period
 // ---------------------------------------------------------------------------
 // Records what was actually paid (or queued to be paid) on a specific pay
@@ -3955,16 +4103,24 @@ model CommissionPlanTier {
 // history. `tierBreakdown` + `tierDefinitionSnapshot` are JSON so the math
 // stays inspectable years later even if CommissionTier rows are edited.
 // SUPER_ADMIN-only at the API + UI layer. Origin: owner direction 2026-05-27.
+//
+// Stage 1 rule engine: `ruleEngineVersion` discriminates the JSON shape of
+// `tierBreakdown` / `tierDefinitionSnapshot` so old and new rows can BOTH
+// render correctly (docs/domains/commission.md "Snapshot — old and new
+// shapes"). version 1 (default, all pre-existing rows) = the flat
+// PayoutBreakdownEntry[] / TierDefinitionSnapshot[] arrays. version 2 (rows
+// generated by the rule engine) = `{schemaVersion: 2, ...}` envelopes
+// (lib/commissionPayout.ts RuleBreakdownEnvelope / RuleSnapshotEnvelope).
 
 model CommissionPayout {
-  id              Int         @id @default(autoincrement())
-  staffMemberId   Int
-  staffMember     StaffMember @relation(fields: [staffMemberId], references: [id])
+  id            Int         @id @default(autoincrement())
+  staffMemberId Int
+  staffMember   StaffMember @relation(fields: [staffMemberId], references: [id])
 
   // Custom pay-period range — owner picks each cycle (not necessarily
   // calendar-month aligned). Both ends are inclusive DATEs.
-  periodStart     DateTime
-  periodEnd       DateTime
+  periodStart DateTime
+  periodEnd   DateTime
 
   // Sales context, frozen at generation time. `ytdSalesAtStart` is YTD
   // through the day BEFORE periodStart (the "pre-period" baseline);
@@ -3977,7 +4133,7 @@ model CommissionPayout {
   // Marginal-tier breakdown — array of {tierLabel, rate, sliceAmount,
   // sliceCommission}. One period can span N tiers (e.g. crossing $750k
   // mid-period earns part at 3% + part at 4%).
-  tierBreakdown   Json
+  tierBreakdown Json
 
   // The bottom line.
   commissionAmount Decimal
@@ -3986,6 +4142,12 @@ model CommissionPayout {
   // the tiers are later edited (e.g. raising the top rate), historical
   // payouts continue to render their original math.
   tierDefinitionSnapshot Json
+
+  // Discriminates the JSON shape of tierBreakdown/tierDefinitionSnapshot.
+  // 1 = legacy flat-array shape (every row before the rule engine shipped;
+  // this is the column default so existing rows need no backfill). 2 = the
+  // rule-engine envelope shape. See lib/commissionPayout.ts.
+  ruleEngineVersion Int @default(1)
 
   // Which plan produced this payout, frozen at generation time. The name is
   // denormalized so history renders even if the plan row is later deleted
@@ -3998,8 +4160,8 @@ model CommissionPayout {
   // During rollout SUPER_ADMIN can clear lockedAt → null again
   // (recorded as a CommissionPayoutEdit audit row); eventually we'll
   // remove that path.
-  lockedAt  DateTime?
-  lockedBy  String?
+  lockedAt DateTime?
+  lockedBy String?
 
   // Optional payment metadata.
   paidOn DateTime?
@@ -4025,9 +4187,9 @@ model CommissionPayout {
 // edit; that reason lives in `reason`.
 
 model CommissionPayoutEdit {
-  id        Int              @id @default(autoincrement())
-  payoutId  Int
-  payout    CommissionPayout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  id       Int              @id @default(autoincrement())
+  payoutId Int
+  payout   CommissionPayout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
 
   // The name of the column that changed. "lockedAt" specifically for
   // unlock/lock transitions. JSON for old + new value lets us preserve
@@ -4316,19 +4478,19 @@ model TrafficSnapshot {
 // Keeps a permanent audit of how many intervals landed each run.
 
 model TrafficSyncLog {
-  id            Int       @id @default(autoincrement())
-  startedAt     DateTime  @default(now())
-  finishedAt    DateTime?
-  kind          String // "axper-traffic-sync" | "axper-traffic-sync:backfill"
-  dayFrom       DateTime // first day requested
-  dayTo         DateTime // last day requested
-  rowsFetched   Int       @default(0)
-  rowsInserted  Int       @default(0)
-  rowsUpdated   Int       @default(0)
-  daysScanned   Int       @default(0)
-  daysBackfilled Int      @default(0)
-  errors        String[]  @default([])
-  triggeredBy   String? // "cron" | actor email | "admin-ui"
+  id             Int       @id @default(autoincrement())
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+  kind           String // "axper-traffic-sync" | "axper-traffic-sync:backfill"
+  dayFrom        DateTime // first day requested
+  dayTo          DateTime // last day requested
+  rowsFetched    Int       @default(0)
+  rowsInserted   Int       @default(0)
+  rowsUpdated    Int       @default(0)
+  daysScanned    Int       @default(0)
+  daysBackfilled Int       @default(0)
+  errors         String[]  @default([])
+  triggeredBy    String? // "cron" | actor email | "admin-ui"
 
   @@index([startedAt])
   @@index([kind, startedAt])
@@ -4614,7 +4776,7 @@ model Ticket {
 
   ticketNumber String @unique
   // Stable random token for the no-login status view (lib/tickets/token.ts).
-  publicToken String @unique
+  publicToken  String @unique
 
   // Origin: a known customer, or an anonymous public submitter.
   customerId     Int?
@@ -4655,7 +4817,7 @@ model TicketMessage {
   authorStaff   StaffMember? @relation("TicketMessageAuthor", fields: [authorStaffId], references: [id])
   authorName    String?
 
-  body String
+  body       String
   // Internal notes are staff-only and excluded from the public token view.
   isInternal Boolean @default(false)
 
@@ -4685,8 +4847,8 @@ model TimeEntry {
 
   description String
   minutes     Int
-  date        DateTime @db.Date
-  isBillable  Boolean  @default(true)
+  date        DateTime  @db.Date
+  isBillable  Boolean   @default(true)
   billedAt    DateTime?
 
   created   DateTime  @default(now())
@@ -4716,12 +4878,12 @@ model Service {
   name            String
   slug            String
   description     String?
-  durationMinutes Int          @default(30)
-  bufferMinutes   Int          @default(0)
-  price           Decimal?     @db.Decimal(10, 2)
-  isPublic        Boolean      @default(true)
-  isActive        Boolean      @default(true)
-  sortOrder       Int          @default(0)
+  durationMinutes Int      @default(30)
+  bufferMinutes   Int      @default(0)
+  price           Decimal? @db.Decimal(10, 2)
+  isPublic        Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
 
   windows  AvailabilityWindow[]
   bookings Booking[]
@@ -4918,14 +5080,14 @@ model LegacyOrderLine {
 }
 
 model LegacyImportLog {
-  id          Int       @id @default(autoincrement())
-  startedAt   DateTime  @default(now())
-  finishedAt  DateTime?
-  sourceFile  String?
-  ordersLoaded Int      @default(0)
-  linesLoaded  Int      @default(0)
-  errors      String[]
-  triggeredBy String?
+  id           Int       @id @default(autoincrement())
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  sourceFile   String?
+  ordersLoaded Int       @default(0)
+  linesLoaded  Int       @default(0)
+  errors       String[]
+  triggeredBy  String?
 
   @@index([startedAt])
 }
@@ -4958,14 +5120,134 @@ model TicketAttachment {
   ticketId Int
   ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
-  filename String
-  url      String
-  mimeType String
-  bytes    Int?
+  filename   String
+  url        String
+  mimeType   String
+  bytes      Int?
   // Staff display name or the public submitter name — display only.
   uploadedBy String?
 
   created DateTime @default(now())
 
   @@index([ticketId])
+}
+
+// ---------------------------------------------------------------------------
+// CONFIGURABLE IMPORTS (Stage 1, 2026-08-01)
+// ---------------------------------------------------------------------------
+//
+// Declarative CSV/XLSX import definitions, replacing hand-coded importers one
+// at a time (docs/domains/imports-configurable.md). `targetEntity` is a
+// string key into `IMPORT_ENTITIES` (app/src/lib/genericImport.ts) — entities
+// are defined in code, not in the DB, so there is no FK here.
+//
+// `importMode` is the axis that predicts whether a definition can be pure
+// config or needs a code-backed runner:
+//   INSERT_ONLY / UPSERT -- the source is a delta or one-time dump; every row
+//     is a fact to land. Fully engine-driven, no runnerKey required.
+//   RECONCILE -- the source is a full-state re-export (e.g. Ordorite); the
+//     importer must diff against existing data (dropped lines, rewrites,
+//     zero-qty-means-cancelled). That diffing is inherently code, so
+//     RECONCILE definitions MUST name a registered runnerKey — enforced by
+//     both validateImportDefinition() (lib/imports/validation.ts) and the
+//     ImportDefinition_reconcile_requires_runner CHECK constraint below.
+// A runnerKey may also be set on an INSERT_ONLY/UPSERT definition when the
+// write-side logic is nontrivial enough to warrant code (see the customer/
+// product runners, which predate this model and do cascading dedup /
+// auto-create taxonomy) — it just isn't REQUIRED for those modes.
+enum ImportSourceFormat {
+  CSV
+  XLSX
+}
+
+enum ImportMode {
+  INSERT_ONLY
+  UPSERT
+  RECONCILE
+}
+
+// Keep this list SMALL — see docs/domains/imports-configurable.md for why
+// each transform earns its place. Do not add one without a justification.
+enum ImportTransform {
+  TRIM
+  UPPERCASE
+  LOWERCASE
+  NUMBER
+  DATE
+  CURRENCY
+}
+
+model ImportDefinition {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+
+  // Key into IMPORT_ENTITIES (app/src/lib/genericImport.ts), e.g. "customer".
+  targetEntity String
+  sourceFormat ImportSourceFormat @default(CSV)
+  importMode   ImportMode         @default(INSERT_ONLY)
+
+  // Target field keys (from the entity's field defs) that identify an
+  // existing record for UPSERT matching, e.g. ["externalId"]. Required when
+  // importMode = UPSERT; unused for INSERT_ONLY; optional documentation for
+  // RECONCILE (the runner owns the actual matching there).
+  naturalKeyFields String[] @default([])
+
+  // Optional owning vendor, for vendor/POS-specific presets (e.g. a Wesley
+  // Hall price-list importer) as opposed to a source-agnostic one.
+  vendorId Int?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+
+  // Code-backed escape hatch (app/src/lib/imports/runnerRegistry.ts). Names a
+  // compile-time-registered runner that owns row processing while still
+  // consuming this definition's field/value mappings. Required when
+  // importMode = RECONCILE; optional otherwise.
+  runnerKey String?
+
+  isActive Boolean @default(true)
+
+  fieldMappings ImportFieldMapping[]
+  valueMappings ImportValueMapping[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([targetEntity])
+  @@index([vendorId])
+}
+
+model ImportFieldMapping {
+  id           Int              @id @default(autoincrement())
+  definitionId Int
+  definition   ImportDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+
+  // The uploaded file's column header, verbatim.
+  sourceColumn String
+  // The entity field key this column feeds (ImportFieldDef.key).
+  targetField String
+  transform   ImportTransform?
+  required    Boolean          @default(false)
+  sortOrder   Int              @default(0)
+
+  @@unique([definitionId, targetField])
+  @@index([definitionId])
+}
+
+// Where "Card Connect" -> CARD lives. A row's raw source value is looked up
+// per targetField; a value present in the file but absent from this table
+// for a mapped field is a REPORTED unmapped-value outcome, never a silent
+// pass-through (lib/imports/engine.ts).
+model ImportValueMapping {
+  id           Int              @id @default(autoincrement())
+  definitionId Int
+  definition   ImportDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+
+  targetField String
+  sourceValue String
+  targetValue String
+
+  @@unique([definitionId, targetField, sourceValue])
+  @@index([definitionId])
 }
