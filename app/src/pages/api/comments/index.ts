@@ -6,8 +6,8 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_ORG_ID, getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { DEFAULT_ORG_ID } from "@/lib/appSettings";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { rateLimit } from "@/lib/rateLimit";
 import { parseCommentCreateInput } from "@/lib/comments/requestBody";
 import { getErrorMessage } from "@/lib/toastError";
@@ -23,8 +23,7 @@ function clientIp(req: NextApiRequest): string | null {
 
 const createComment = limiter(async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const settings = await getAppSettings();
-    if (!isFeatureEnabled(settings.features, "blogComments")) {
+    if (!(await isModuleEnabled("blogComments"))) {
       return res.status(404).json({ error: "Comments are not enabled" });
     }
     const input = parseCommentCreateInput(req.body);

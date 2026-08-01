@@ -11,8 +11,7 @@ import { cookies, headers } from "next/headers";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { decideRoleAccess } from "@/lib/auth/roleDecision";
-import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 
 export interface RequirePageOptions {
   /** Feature-module key (lib/featureCatalog.ts) that must be enabled in
@@ -56,11 +55,8 @@ export async function requirePage(
 
   // Feature-module gate (mirrors withAuth `feature`): redirect home when the
   // module is disabled in AppSettings.features. Independent of role.
-  if (options?.feature) {
-    const settings = await getAppSettings();
-    if (!isFeatureEnabled(settings.features, options.feature)) {
-      redirect("/app");
-    }
+  if (options?.feature && !(await isModuleEnabled(options.feature))) {
+    redirect("/app");
   }
 
   if (!allowedRoles || allowedRoles.length === 0) {

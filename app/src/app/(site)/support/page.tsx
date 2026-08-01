@@ -5,9 +5,8 @@
 // metadata; the client SupportFormView submits over the public /api/tickets API.
 
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { requireModule } from "@/lib/modules/requireModule";
 import { SupportFormView } from "./SupportFormView";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -19,8 +18,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SupportPage() {
+  await requireModule("helpdesk");
   const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "helpdesk")) notFound();
   const teamName = settings.companyName?.trim() || settings.appName;
 
   return (

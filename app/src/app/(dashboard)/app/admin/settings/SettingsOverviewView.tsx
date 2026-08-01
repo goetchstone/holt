@@ -1,38 +1,29 @@
 "use client";
 
-// /app/src/app/(dashboard)/app/admin/settings/SettingsView.tsx
+// /app/src/app/(dashboard)/app/admin/settings/SettingsOverviewView.tsx
 //
-// Settings body. App Router port of the legacy admin/settings page (minus
-// MainLayout chrome + next/head, supplied by the (dashboard) layout). Edits
-// branding, theme colors, localization, feature modules, and encrypted
-// integration credentials (with per-provider Test Connection) via the shared
-// /api/admin/settings REST endpoints. Credentials are encrypted at rest and
-// never returned -- entering a new value replaces the stored one.
+// Settings overview: the core, always-present sections (Branding, Theme,
+// Localization, Booking) plus the Modules on/off grid, plus an index of
+// enabled modules that have their own settings page (lib/modules -- the
+// module manifest, docs/domains/modules.md). Integrations moved to its own
+// route (./integrations) since it was already the size of a page on its own.
+//
+// This is the App Router replacement for the old single 595-line
+// SettingsView.tsx -- same branding/theme/localization/booking/modules
+// behavior, same /api/admin/settings contract, just no longer sharing one
+// page with Integrations and now driven by the module manifest instead of a
+// hand-maintained FEATURES list.
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "react-toastify";
-import { Loader2, Save, Trash2 } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/toastError";
-import { INTEGRATION_PROVIDERS } from "@/lib/integrationCatalog";
-import { FEATURES, isFeatureEnabled } from "@/lib/featureCatalog";
+import { MODULES, getToggleableModules, getModulesForSettingsIndex } from "@/lib/modules";
+import { isFeatureEnabled } from "@/lib/featureCatalog";
 import { ImageUploadField } from "@/components/cms/admin/ImageUploadField";
 import type { ResolvedAppSettings } from "@/lib/appSettings";
-
-interface MaskedCred {
-  provider: string;
-  field: string;
-  lastFour: string | null;
-  updated: string | null;
-}
-
-interface TestResult {
-  ok: boolean;
-  level: string;
-  message: string;
-}
-
-type TestState = TestResult | "loading";
 
 // fetch() bodies are plain objects, not axios errors, so getErrorMessage can't
 // reach the server's { error } -- pull it out here, then let the outer catch
@@ -273,26 +264,30 @@ function ModulesSection({
   features: Record<string, boolean>;
   onToggle: (key: string, enabled: boolean) => void;
 }>) {
+  // Core modules always appear here, on or off. Addon modules (niche /
+  // single-tenant, e.g. dmarcTools) only appear once already enabled -- see
+  // lib/modules/index.ts getToggleableModules and docs/domains/modules.md.
+  const toggleable = getToggleableModules(features);
   return (
     <section className="space-y-4">
       <h2 className="font-serif text-lg text-sh-blue">Modules</h2>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {FEATURES.map((f) => (
+        {toggleable.map((m) => (
           <label
-            key={f.key}
-            htmlFor={`feature-${f.key}`}
+            key={m.key}
+            htmlFor={`feature-${m.key}`}
             className="flex cursor-pointer items-start gap-3 rounded-md border border-sh-brand-gray p-3"
           >
             <input
-              id={`feature-${f.key}`}
+              id={`feature-${m.key}`}
               type="checkbox"
-              checked={features[f.key] ?? false}
-              onChange={(e) => onToggle(f.key, e.target.checked)}
+              checked={features[m.key] ?? false}
+              onChange={(e) => onToggle(m.key, e.target.checked)}
               className="mt-1 h-4 w-4"
             />
             <span>
-              <span className="block text-sm font-medium text-sh-black">{f.name}</span>
-              <span className="block text-xs text-sh-gray">{f.description}</span>
+              <span className="block text-sm font-medium text-sh-black">{m.name}</span>
+              <span className="block text-xs text-sh-gray">{m.description}</span>
             </span>
           </label>
         ))}
@@ -301,119 +296,62 @@ function ModulesSection({
   );
 }
 
-function TestResultBadge({ state }: Readonly<{ state: TestState | undefined }>) {
-  if (!state || state === "loading") return null;
-  return (
-    <span
-      className={`max-w-[220px] text-right text-xs ${state.ok ? "text-green-700" : "text-red-600"}`}
-    >
-      {state.ok ? "✓ " : "✗ "}
-      {state.message}
-    </span>
-  );
-}
-
-function IntegrationCard({
-  provider,
-  drafts,
-  testState,
-  maskFor,
-  onDraft,
-  onSave,
-  onClear,
-  onTest,
+// Index of enabled modules that declare their own settings page (a `settings`
+// and/or `nav` manifest entry). A module with neither has nothing beyond its
+// on/off switch above, so it doesn't get a card here -- there'd be nowhere
+// useful to send the click. Deliberately NOT the shared CardGrid component:
+// CardGrid re-fetches role + features client-side for a whole hub page; this
+// is a subsection of a page that already has `features` loaded, and needs an
+// <h2> here, not another page-level <h1>.
+function ModuleSettingsIndex({
+  features,
 }: Readonly<{
-  provider: (typeof INTEGRATION_PROVIDERS)[number];
-  drafts: Record<string, string>;
-  testState: TestState | undefined;
-  maskFor: (provider: string, field: string) => string;
-  onDraft: (draftKey: string, value: string) => void;
-  onSave: (provider: string, field: string) => void;
-  onClear: (provider: string, field: string) => void;
-  onTest: (provider: string) => void;
+  features: Record<string, boolean>;
 }>) {
+  const items = getModulesForSettingsIndex(features);
+  if (items.length === 0) return null;
   return (
-    <div className="rounded-md border border-sh-brand-gray p-4">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-sh-black">{provider.name}</h3>
-          <p className="text-xs text-sh-gray">{provider.description}</p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onTest(provider.id)}
-            disabled={testState === "loading"}
+    <section className="space-y-4">
+      <div>
+        <h2 className="font-serif text-lg text-sh-blue">Module settings</h2>
+        <p className="text-xs text-sh-gray">
+          Enabled modules with their own settings or linked pages. Disabled modules don&apos;t
+          appear here.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {items.map((m) => (
+          <Link
+            key={m.key}
+            href={`/app/admin/settings/${m.key}`}
+            className="block rounded-md border border-sh-brand-gray p-3 transition hover:border-sh-blue"
           >
-            {testState === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Test"}
-          </Button>
-          <TestResultBadge state={testState} />
-        </div>
+            <span className="block text-sm font-medium text-sh-black">{m.name}</span>
+            <span className="block text-xs text-sh-gray">{m.description}</span>
+          </Link>
+        ))}
       </div>
-      <div className="space-y-3">
-        {provider.fields.map((field) => {
-          const draftKey = `${provider.id}.${field.key}`;
-          return (
-            <div key={field.key} className="flex flex-wrap items-end gap-2">
-              <div className="min-w-[200px] flex-1">
-                <label htmlFor={`cred-${draftKey}`} className="mb-1 block text-xs text-sh-gray">
-                  {field.label}{" "}
-                  <span className="text-sh-brand-gray">({maskFor(provider.id, field.key)})</span>
-                </label>
-                <input
-                  id={`cred-${draftKey}`}
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder={field.placeholder ?? "Enter new value"}
-                  value={drafts[draftKey] ?? ""}
-                  onChange={(e) => onDraft(draftKey, e.target.value)}
-                  className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
-                />
-              </div>
-              <Button variant="secondary" size="sm" onClick={() => onSave(provider.id, field.key)}>
-                Save
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onClear(provider.id, field.key)}
-                aria-label={`Clear ${provider.name} ${field.label}`}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    </section>
   );
 }
 
-export function SettingsView() {
+export function SettingsOverviewView() {
   const [settings, setSettings] = useState<ResolvedAppSettings | null>(null);
   const [features, setFeatures] = useState<Record<string, boolean>>({});
-  const [credentials, setCredentials] = useState<MaskedCred[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testResults, setTestResults] = useState<Record<string, TestState>>({});
 
   const load = useCallback(async () => {
     try {
-      const [sRes, cRes] = await Promise.all([
-        fetch("/api/admin/settings"),
-        fetch("/api/admin/settings/integrations"),
-      ]);
-      const sData = await sRes.json().catch(() => ({}));
-      if (!sRes.ok) throw new Error(serverError(sData, "Failed to load settings"));
-      setSettings(sData.settings);
+      const res = await fetch("/api/admin/settings");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(serverError(data, "Failed to load settings"));
+      setSettings(data.settings);
       setFeatures(
         Object.fromEntries(
-          FEATURES.map((f) => [f.key, isFeatureEnabled(sData.settings.features ?? {}, f.key)]),
+          MODULES.map((m) => [m.key, isFeatureEnabled(data.settings.features ?? {}, m.key)]),
         ),
       );
-      if (cRes.ok) setCredentials((await cRes.json()).credentials ?? []);
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to load settings"));
     } finally {
@@ -435,9 +373,6 @@ export function SettingsView() {
     setSettings((prev) =>
       prev ? { ...prev, bookingConfig: { ...prev.bookingConfig, [key]: value } } : prev,
     );
-
-  const setDraft = (draftKey: string, value: string) =>
-    setDrafts((prev) => ({ ...prev, [draftKey]: value }));
 
   const saveSettings = async () => {
     if (!settings) return;
@@ -473,67 +408,6 @@ export function SettingsView() {
     }
   };
 
-  const saveCredential = async (provider: string, field: string) => {
-    const draftKey = `${provider}.${field}`;
-    const value = drafts[draftKey];
-    if (!value || value.trim() === "") return;
-    try {
-      const res = await fetch("/api/admin/settings/integrations", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, field, value }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(serverError(data, "Failed to save credential"));
-      setCredentials(data.credentials ?? []);
-      setDrafts((prev) => ({ ...prev, [draftKey]: "" }));
-      toast.success("Saved");
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Failed to save credential"));
-    }
-  };
-
-  const clearCredential = async (provider: string, field: string) => {
-    try {
-      const res = await fetch("/api/admin/settings/integrations", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, field }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(serverError(data, "Failed to clear credential"));
-      setCredentials(data.credentials ?? []);
-      toast.success("Cleared");
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Failed to clear credential"));
-    }
-  };
-
-  const testConnection = async (provider: string) => {
-    setTestResults((prev) => ({ ...prev, [provider]: "loading" }));
-    try {
-      const res = await fetch("/api/admin/settings/integrations/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(serverError(data, "Test failed"));
-      setTestResults((prev) => ({ ...prev, [provider]: data }));
-    } catch (err: unknown) {
-      setTestResults((prev) => ({
-        ...prev,
-        [provider]: { ok: false, level: "failed", message: getErrorMessage(err, "Test failed") },
-      }));
-    }
-  };
-
-  const maskFor = (provider: string, field: string): string => {
-    const found = credentials.find((c) => c.provider === provider && c.field === field);
-    if (!found) return "Not set";
-    return found.lastFour ? `•••• ${found.lastFour}` : "Set";
-  };
-
   if (loading || !settings) {
     return (
       <div className="flex items-center gap-2 p-8 text-sh-gray">
@@ -546,14 +420,22 @@ export function SettingsView() {
     <div className="space-y-10 pb-16">
       <div className="flex items-center justify-between">
         <h1 className="font-serif text-2xl text-sh-blue">Settings</h1>
-        <Button onClick={saveSettings} disabled={saving}>
-          {saving ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Save changes
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/app/admin/settings/integrations"
+            className="inline-flex items-center justify-center rounded-lg border border-sh-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-sh-blue shadow-md transition hover:bg-sh-gray/10"
+          >
+            Integrations
+          </Link>
+          <Button onClick={saveSettings} disabled={saving}>
+            {saving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            Save changes
+          </Button>
+        </div>
       </div>
 
       <BrandingSection settings={settings} onChange={setText} />
@@ -568,28 +450,7 @@ export function SettingsView() {
         features={features}
         onToggle={(key, enabled) => setFeatures((prev) => ({ ...prev, [key]: enabled }))}
       />
-
-      <section className="space-y-6">
-        <div>
-          <h2 className="font-serif text-lg text-sh-blue">Integrations</h2>
-          <p className="text-xs text-sh-gray">
-            Keys are encrypted at rest and never shown again. Enter a new value to replace one.
-          </p>
-        </div>
-        {INTEGRATION_PROVIDERS.map((p) => (
-          <IntegrationCard
-            key={p.id}
-            provider={p}
-            drafts={drafts}
-            testState={testResults[p.id]}
-            maskFor={maskFor}
-            onDraft={setDraft}
-            onSave={saveCredential}
-            onClear={clearCredential}
-            onTest={testConnection}
-          />
-        ))}
-      </section>
+      <ModuleSettingsIndex features={features} />
     </div>
   );
 }
