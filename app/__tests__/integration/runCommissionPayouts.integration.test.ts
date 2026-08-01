@@ -418,7 +418,30 @@ describe("commitPayoutsForPeriod (real DB)", () => {
     expect(Number(row!.periodSalesAmount)).toBe(100_000);
     expect(row!.lockedAt).toBeNull();
     expect(row!.createdBy).toBe("admin@example.com");
-    expect(row!.tierBreakdown).toEqual([
+    // Stage 1 rule engine: tierBreakdown is now a versioned envelope
+    // (docs/domains/commission.md "Snapshot — old and new shapes"), not the
+    // old bare array — ruleEngineVersion discriminates it. The DOLLAR
+    // figures and per-tier math are unchanged; project down to the shared
+    // fields to keep this assertion focused on what actually matters.
+    expect(row!.ruleEngineVersion).toBe(2);
+    const breakdown = row!.tierBreakdown as { schemaVersion: 2; entries: unknown[] };
+    expect(breakdown.schemaVersion).toBe(2);
+    expect(
+      breakdown.entries.map((e) => {
+        const entry = e as {
+          tierLabel: string;
+          rate: number;
+          sliceAmount: number;
+          sliceCommission: number;
+        };
+        return {
+          tierLabel: entry.tierLabel,
+          rate: entry.rate,
+          sliceAmount: entry.sliceAmount,
+          sliceCommission: entry.sliceCommission,
+        };
+      }),
+    ).toEqual([
       { tierLabel: "Up to $750k", rate: 0.03, sliceAmount: 100_000, sliceCommission: 3000 },
     ]);
   });
