@@ -31,7 +31,8 @@
     "db:push": "prisma db push && prisma generate",
     "db:generate": "prisma generate",
     "create-admin": "node scripts/create-admin.mjs",
-    "seed:cms": "node scripts/seed-cms.mjs"
+    "seed:cms": "node scripts/seed-cms.mjs",
+    "seed:demo": "TZ=UTC TS_NODE_PROJECT=prisma/seed/tsconfig.seed.json ts-node -r tsconfig-paths/register prisma/seed/demo/index.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -105,6 +106,7 @@
     "tailwindcss": "^4.3.0",
     "ts-jest": "^29.4.12",
     "ts-node": "10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.65.0"
   },

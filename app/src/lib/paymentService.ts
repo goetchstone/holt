@@ -5,6 +5,7 @@ import { syncServiceAppointments } from "@/lib/serviceDispatchService";
 import { isMarjanRug, toMarjanBarcode, toMarjanCustomerNumber } from "@/lib/consignment";
 import { appendEntry } from "@/lib/customerLedger";
 import { logError } from "@/lib/logger";
+import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import type { Payment } from "@prisma/client";
 
 export const round2 = (n: number): number => Math.round(n * 100) / 100;
@@ -120,18 +121,6 @@ interface OrderBalance {
     isRefund: boolean;
   }[];
 }
-
-const METHOD_DISPLAY: Record<string, string> = {
-  CASH: "Cash",
-  CARD: "Card",
-  CHECK: "Check",
-  GIFT_CARD: "Gift Card",
-  STORE_CREDIT: "Store Credit",
-  WIRE: "Wire",
-  ACH: "ACH",
-  FINANCE: "Finance",
-  OTHER: "Other",
-};
 
 export async function calculateOrderBalance(orderId: number): Promise<OrderBalance> {
   const order = await prisma.salesOrder.findUniqueOrThrow({
