@@ -89,7 +89,7 @@ Source-text tripwire: `__tests__/reports.salesRevenueStatusFilter.test.ts`.
 
 Real-DB integration: `__tests__/integration/mailchimpAttributionRewriteChain.integration.test.ts` — pins the exact net math for base + return + rewrite chains.
 
-User-reported origin: Barbara Germano report showed $88,624 attributed when her real net spend was $61,922. Five surfaces were patched in PR #246 (Mailchimp list + detail, Wealth Insights, three `customerLeveling.ts` SQL sites).
+User-reported origin: Barbara Germano report showed $88,624 attributed when her real net spend was $61,922. Five surfaces were patched in the RETURNED-status revenue-attribution fix (Mailchimp list + detail, Wealth Insights, three `customerLeveling.ts` SQL sites).
 
 After deploying any fix that touches revenue aggregation, run `POST /api/customers/recalculate-levels` once so `Customer.lifetimeSpend` catches up.
 
@@ -141,7 +141,7 @@ After deploying any fix that touches revenue aggregation, run `POST /api/custome
 
 ## Known gaps
 
-- Mailchimp impact report separation from Wealth Insights (GitHub #187, ROADMAP)
+- Mailchimp impact report separation from Wealth Insights (GitHub #187, ROADMAP; pre-squash repo numbering — historical reference only)
 - No backfill for Mailchimp campaigns sent BEFORE the Mailchimp account migrated
 - Lead `assignedTo` doesn't currently support multiple designers (e.g., for couples-team-handle)
 

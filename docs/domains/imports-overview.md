@@ -106,10 +106,10 @@ the POS's customer code (the `Cuscode` column) is the canonical the POS-side cus
 | Path | Reads Cuscode | Status |
 |---|---|---|
 | Sales import | ✓ | Always did |
-| Customer import | ✓ | Always did (after PR #301 BOM-strip fix on the manual upload path) |
+| Customer import | ✓ | Always did (after the BOM-strip fix on the manual upload path) |
 | Payments import | ✓ | Always did |
 | Invoices import | ✓ | Always did |
-| **Quote import** | ✓ post-PR #309 | Was the gap until 2026-05-20 — owner added Cuscode to the POS's Daily Quote Report export THE SAME DAY we shipped #309 |
+| **Quote import** | ✓ post-fix | Was the gap until 2026-05-20 — owner added Cuscode to the POS's Daily Quote Report export THE SAME DAY we shipped the Cuscode-read fix |
 
 Cuscode round-trip:
 
@@ -126,10 +126,10 @@ the POS's `Postatus` column is converted via `derivePOStatus()` in `lib/importHe
 | `received` | `RECEIVED_FULL` |
 | `cancelled` | `CANCELLED` |
 | `part received` | `RECEIVED_PARTIAL` |
-| **`temporary`** | **`DRAFT`** (added 2026-05-21 in PR #315) |
+| **`temporary`** | **`DRAFT`** (added 2026-05-21) |
 | (any other / blank) | `CONFIRMED` (fallback) |
 
-`runTempItemsImport` was hardcoding `CONFIRMED` regardless of Postatus until PR #315. The bug was latent — the runner had never executed against real data because the router was looking for the old `Prior_Day_Temp_Items` filename. Both halves were fixed on 2026-05-20–21 (router rename + status mapping).
+`runTempItemsImport` was hardcoding `CONFIRMED` regardless of Postatus until this fix. The bug was latent — the runner had never executed against real data because the router was looking for the old `Prior_Day_Temp_Items` filename. Both halves were fixed on 2026-05-20–21 (router rename + status mapping).
 
 ## the POS-side data quality findings (2026-05-21 audit)
 
@@ -180,7 +180,7 @@ CLAUDE.md rule 51 ("Nullable columns: never use a naked `not:` filter"). Verifie
 - `OrderLineItem.productName` — 172 NULL rows. Same pattern.
 - `OrderLineItem.lineItemStatus` — 67K NULL legacy rows (backfilled to `ACTIVE` 2026-05-05).
 
-Plus the `Customer.email @unique` collision pattern (PR #214/#299) — pre-flight `findUnique` before any email update or create.
+Plus the `Customer.email @unique` collision pattern — pre-flight `findUnique` before any email update or create.
 
 ## Self-heal patterns
 
@@ -189,7 +189,7 @@ When something breaks in the POS-side data, two recovery paths:
 1. **Self-heal on next import.** Most things — quote runner re-pulls quoteCode + Cuscode, sales runner reactivates orphan-cancelled lines, customer runner late-hydrates name/email. Just wait for tomorrow.
 2. **One-off migration.** When the bug was latent for a while and self-heal can't catch up (e.g. quote-runner never wrote cuscodes for 14 customers because the runner had a code bug — those needed a migration to be merged with their placeholders).
 
-The 2026-05-21 placeholder-merge migration (`20260521_merge_POS_placeholders`) is the canonical example of (2). The router-fix in PR #314 is (1) — once shipped, the next quote import re-processes all 228 active quotes and writes the cuscode links naturally.
+The 2026-05-21 placeholder-merge migration (`20260521_merge_POS_placeholders`) is the canonical example of (2). The router-fix is (1) — once shipped, the next quote import re-processes all 228 active quotes and writes the cuscode links naturally.
 
 ## Verification checklist (before touching any import code)
 
