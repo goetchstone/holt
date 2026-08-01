@@ -1,0 +1,216 @@
+# .claude/hooks/domain-map.txt
+#
+# Maps source-file path patterns to the domain runbook that should be
+# updated when that pattern is touched. Used by pre-pr-check.sh to enforce
+# CLAUDE.md rule 19/36 (doc-updates ship in the same PR as code).
+#
+# Format:
+#   <pattern>|<runbook>
+#
+# Patterns are bash-glob-style, matched against `git diff --name-only`
+# output. Order matters -- more-specific patterns first; the first
+# matching line wins. This repo is App Router (app/src/app/**) with a
+# REST API retained under app/src/pages/api/** and typed reads/writes
+# under app/src/server/trpc/** -- most domains touch two or three of
+# those trees plus a lib/ module, so each domain has entries in each.
+#
+# Add a new line whenever a new domain gains a runbook. If you change
+# code in a path that has no mapping here, the hook treats it as
+# "miscellaneous" -- touching CLAUDE.md, ROADMAP.md, OR any file under
+# docs/ is enough to satisfy the gate.
+
+# Buyer drafts (more specific than the generic admin/purchasing patterns)
+app/src/app/(dashboard)/app/admin/buyer-drafts/*|docs/domains/buyer-drafts.md
+app/src/pages/api/admin/buyer-drafts/*|docs/domains/buyer-drafts.md
+app/src/lib/buyerDraft*|docs/domains/buyer-drafts.md
+app/src/lib/homeAccessoryBuyerDraftMapping.ts|docs/domains/buyer-drafts.md
+app/src/lib/historicalPoImport*|docs/domains/buyer-drafts.md
+
+# Import pipeline (legacy/adapter ingestion)
+app/src/lib/adapters/ordorite/*|docs/domains/import-pipeline.md
+app/src/pages/api/import/*|docs/domains/import-pipeline.md
+app/src/pages/api/automations/*|docs/domains/imports-overview.md
+
+# Consignment (more specific than the generic inventory patterns below)
+app/src/lib/consignment*|docs/domains/consignment.md
+app/src/app/(dashboard)/app/inventory/consignment/*|docs/domains/consignment.md
+app/src/pages/api/consignment/*|docs/domains/consignment.md
+
+# POS / counter sales / tills / registers / gift cards / Stripe
+# (more specific than the generic sales/* pattern below)
+app/src/app/(dashboard)/app/sales/pos/*|docs/domains/pos.md
+app/src/app/(dashboard)/app/sales/till/*|docs/domains/pos.md
+app/src/app/(dashboard)/app/sales/gift-card-sale/*|docs/domains/pos.md
+app/src/pages/api/tills/*|docs/domains/pos.md
+app/src/pages/api/registers/*|docs/domains/pos.md
+app/src/pages/api/gift-cards/*|docs/domains/pos.md
+app/src/pages/api/stripe/*|docs/domains/pos.md
+app/src/lib/giftCard.ts|docs/domains/pos.md
+app/src/lib/stripe.ts|docs/domains/pos.md
+
+# Returns -- both ERP-native path AND aggregations touching RETURNED status
+# (more specific than the generic sales/* and pages/api/sales/* below)
+app/src/app/(dashboard)/app/sales/returns/*|docs/domains/returns.md
+app/src/app/(dashboard)/app/reports/returns/*|docs/domains/returns.md
+app/src/app/(dashboard)/app/reports/unclassified-returns/*|docs/domains/returns.md
+app/src/pages/api/returns/*|docs/domains/returns.md
+app/src/lib/returnService.ts|docs/domains/returns.md
+app/src/lib/adapters/ordorite/sameDayRewriteCleanup.ts|docs/domains/returns.md
+app/src/lib/salesOrderRevenue.ts|docs/domains/returns.md
+
+# Sales orders / quotes / pipeline (generic -- catches remaining sales/*)
+app/src/app/(dashboard)/app/sales/*|docs/domains/sales-orders.md
+app/src/pages/api/sales/*|docs/domains/sales-orders.md
+app/src/lib/paymentService.ts|docs/domains/sales-orders.md
+app/src/lib/duplicateQuotes.ts|docs/domains/sales-orders.md
+app/src/lib/quoteArchive.ts|docs/domains/sales-orders.md
+
+# Accounting / journal entries / customer ledger / AR
+app/src/lib/journalEntry.ts|docs/domains/accounting.md
+app/src/lib/customerLedger*|docs/domains/accounting.md
+app/src/lib/customerArDrift*|docs/domains/accounting.md
+app/src/pages/api/accounting/*|docs/domains/accounting.md
+app/src/app/(dashboard)/app/admin/accounting/*|docs/domains/accounting.md
+app/src/lib/reports/balanceAging.ts|docs/domains/accounts-receivable.md
+app/src/app/(dashboard)/app/reports/balance-aging/*|docs/domains/accounts-receivable.md
+
+# Purchasing + receiving (consignment receiving is in consignment.md above)
+app/src/pages/api/purchasing/*|docs/domains/purchasing.md
+app/src/app/(dashboard)/app/purchasing/*|docs/domains/purchasing.md
+
+# Reporting (generic report libs + pages)
+app/src/app/(dashboard)/app/reports/*|docs/domains/reporting.md
+app/src/pages/api/reports/*|docs/domains/reporting.md
+app/src/lib/reports/*|docs/domains/reporting.md
+app/src/lib/opportunityTiles.ts|docs/domains/reporting.md
+app/src/lib/frameSalesHistory.ts|docs/domains/reporting.md
+app/src/lib/buyPerformance*|docs/domains/reporting.md
+
+# Commission payouts + pay-period lock
+app/src/lib/commission*|docs/domains/commission.md
+app/src/lib/payPeriod*|docs/domains/commission.md
+app/src/app/(dashboard)/app/reports/commission/*|docs/domains/commission.md
+app/src/pages/api/admin/reports/commission*|docs/domains/commission.md
+
+# Service dispatch / delivery
+app/src/app/(dashboard)/app/service/*|docs/domains/service-dispatch.md
+app/src/app/(dashboard)/app/dispatch/*|docs/domains/service-dispatch.md
+app/src/app/(dashboard)/app/warehouse/dispatch/*|docs/domains/service-dispatch.md
+app/src/pages/api/service/*|docs/domains/service-dispatch.md
+app/src/pages/api/dispatch/*|docs/domains/service-dispatch.md
+app/src/lib/serviceDispatchService.ts|docs/domains/service-dispatch.md
+app/src/lib/deliveryService.ts|docs/domains/service-dispatch.md
+
+# Inventory + warehouse (after consignment carve-out above)
+app/src/app/(dashboard)/app/inventory/*|docs/domains/inventory.md
+app/src/app/(dashboard)/app/warehouse/*|docs/domains/inventory.md
+app/src/pages/api/inventory/*|docs/domains/inventory.md
+app/src/pages/api/warehouse/*|docs/domains/inventory.md
+
+# Mailchimp + lead intake
+app/src/pages/api/mailchimp/*|docs/domains/mailchimp.md
+app/src/app/(dashboard)/app/leads/*|docs/domains/mailchimp.md
+app/src/pages/api/leads/*|docs/domains/mailchimp.md
+app/src/lib/mailchimp*|docs/domains/mailchimp.md
+app/src/lib/leadScore.ts|docs/domains/mailchimp.md
+app/src/lib/leadHousekeeping.ts|docs/domains/mailchimp.md
+app/src/lib/campaignAttribution.ts|docs/domains/mailchimp.md
+app/src/lib/campaignDedup.ts|docs/domains/mailchimp.md
+
+# Customer intelligence (leveling, wealth, scoring -- non-Mailchimp pieces)
+app/src/lib/customerLeveling.ts|docs/domains/customer-intelligence.md
+app/src/app/(dashboard)/app/reports/wealth-insights/*|docs/domains/customer-intelligence.md
+app/src/app/(dashboard)/app/reports/dormant-customers/*|docs/domains/customer-intelligence.md
+
+# Client portal (token-gated, no-login) -- separate from the older portal.md surface
+app/src/app/portal/client/*|docs/domains/client-portal.md
+app/src/pages/api/client-portal/*|docs/domains/client-portal.md
+app/src/lib/clientPortal*|docs/domains/client-portal.md
+
+# Legacy token-gated customer portal (order view, pay, return request)
+app/src/app/portal/order/*|docs/domains/portal.md
+app/src/app/portal/return/*|docs/domains/portal.md
+app/src/pages/api/portal/*|docs/domains/portal.md
+app/src/lib/portalToken.ts|docs/domains/portal.md
+
+# CMS (storefront pages/posts/menus/blocks)
+app/src/lib/cms/*|docs/domains/cms.md
+app/src/pages/api/cms/*|docs/domains/cms.md
+app/src/app/(dashboard)/app/admin/cms/*|docs/domains/cms.md
+app/src/app/(site)/*|docs/domains/cms.md
+
+# Scheduling / bookings
+app/src/lib/booking/*|docs/domains/scheduling.md
+app/src/pages/api/bookings/*|docs/domains/scheduling.md
+app/src/pages/api/scheduling/*|docs/domains/scheduling.md
+app/src/app/(site)/book/*|docs/domains/scheduling.md
+app/src/app/(dashboard)/app/admin/scheduling/*|docs/domains/scheduling.md
+
+# Printing + labels (receipt/invoice HTML + ZPL TCP)
+app/src/pages/api/print/*|docs/domains/printing.md
+app/src/pages/api/print-label/*|docs/domains/printing.md
+app/src/pages/api/printers/*|docs/domains/printing.md
+app/src/pages/api/labels/*|docs/domains/printing.md
+app/src/app/print/*|docs/domains/printing.md
+app/src/lib/labelPrinter.ts|docs/domains/printing.md
+
+# Up-board (staff rotation)
+app/src/lib/upboard.ts|docs/domains/upboard.md
+app/src/pages/api/upboard/*|docs/domains/upboard.md
+
+# Feedback -> GitHub Issues
+app/src/pages/api/feedback/*|docs/domains/feedback.md
+app/src/lib/githubApp.ts|docs/domains/feedback.md
+
+# Helpdesk / tickets
+app/src/lib/tickets/*|docs/domains/helpdesk.md
+app/src/pages/api/tickets/*|docs/domains/helpdesk.md
+app/src/app/(dashboard)/app/helpdesk/*|docs/domains/helpdesk.md
+
+# Time tracking
+app/src/lib/timeEntries/*|docs/domains/time-tracking.md
+app/src/pages/api/time-entries/*|docs/domains/time-tracking.md
+app/src/app/(dashboard)/app/time/*|docs/domains/time-tracking.md
+
+# Interactions / CRM logging
+app/src/pages/api/interactions/*|docs/domains/interactions.md
+app/src/pages/api/sales/interactions/*|docs/domains/interactions.md
+app/src/app/(dashboard)/app/interactions/*|docs/domains/interactions.md
+
+# Admin tools (Query Builder, apparel-order import, home-accessory order)
+app/src/app/(dashboard)/app/tools/*|docs/domains/tools.md
+app/src/app/(dashboard)/app/admin/tools/*|docs/domains/tools.md
+app/src/pages/api/tools/*|docs/domains/tools.md
+app/src/lib/queryBuilderConfig.ts|docs/domains/tools.md
+app/src/lib/apparelOrder*|docs/domains/tools.md
+app/src/lib/homeAccessory*|docs/domains/tools.md
+
+# Legacy archive (read-only pre-cutover data lookup)
+app/src/lib/legacyArchive.ts|docs/domains/legacy-archive.md
+app/src/app/(dashboard)/app/tools/legacy-archive/*|docs/domains/legacy-archive.md
+
+# Pricing catalog
+app/src/pages/api/pricing/*|docs/domains/pricing-catalog.md
+app/src/app/(dashboard)/app/admin/pricing/*|docs/domains/pricing-catalog.md
+
+# External integrations: Axper traffic, Google, FileMaker-style mappers, Windfall
+app/src/lib/integrationCatalog.ts|docs/domains/integrations.md
+app/src/lib/integrationCredentials.ts|docs/domains/integrations.md
+app/src/lib/axperClient.ts|docs/domains/integrations.md
+app/src/lib/fmSafeMapper.ts|docs/domains/integrations.md
+app/src/lib/windfallImport.ts|docs/domains/integrations.md
+app/src/pages/api/google/*|docs/domains/integrations.md
+
+# DMARC tools (public site utility)
+app/src/lib/dmarc/*|docs/domains/dmarc-tools.md
+app/src/app/(site)/tools/dmarc-*|docs/domains/dmarc-tools.md
+
+# Email queue / templates
+app/src/lib/email/*|docs/domains/email.md
+app/src/pages/api/templates/*|docs/domains/email.md
+
+# Auth + staff
+app/src/lib/auth/*|docs/domains/staff-auth.md
+app/src/pages/api/staff/*|docs/domains/staff-auth.md
+app/src/pages/api/admin/staff/*|docs/domains/staff-auth.md
+app/src/app/(dashboard)/app/admin/staff/*|docs/domains/staff-auth.md

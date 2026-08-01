@@ -253,7 +253,7 @@ This two-layer model lets designers act on the signal without leaking sensitive 
 
 **Prevention**: helper `isUntrustedMergeEmail(email)` flags any email whose domain contains the value of the `COMPANY_EMAIL_DOMAIN` env var (case-insensitive substring match, so it also covers typo variants of the configured domain). When unset, the guard is a no-op. `findOrCreateCustomer` skips the email-match branch when untrusted, and stores NULL on create rather than the staff email. The customer importer similarly skips email-enrichment of existing customers when the incoming email is untrusted.
 
-**Recovery** (PR #211, admin tool at `/admin/tools/customer-unmerge`):
+**Recovery** (the customer-unmerge admin tool at `/admin/tools/customer-unmerge`):
 
 1. Upload the full the POS customer CSV (8K rows)
 2. Generate Preview → returns one row per (seed customer × cuscode) showing the planned action: KEEP / MERGE_INTO_NEW / MERGE_INTO_EXISTING_NEW

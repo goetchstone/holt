@@ -26,14 +26,15 @@ Invoices) carry `organizationId` and scope their queries to it. That keeps
 the door open for the shared-database SaaS mode without retrofitting the
 newer modules.
 
-## The tracked precondition for shared-DB SaaS (task #135)
+## The tracked precondition for shared-DB SaaS (internal task #135)
 
 If Holt ever serves multiple tenants from ONE database, the retail core must
 first gain `organizationId` across ~40 models plus scoping on every query —
 the sweep's findings list is effectively the work inventory for that
 migration. Until that lands, **shared-database multi-tenancy is not a
-supported deployment mode.** This is recorded on task #135 (multi-modal
-deployment) and re-verified by the periodic security-sweep workflow.
+supported deployment mode.** This is recorded on internal task #135
+(multi-modal deployment — an internal task-tracker reference, not a GitHub
+issue) and re-verified by the periodic security-sweep workflow.
 
 ## Sweep disposition log
 
@@ -44,4 +45,4 @@ deployment) and re-verified by the periodic security-sweep workflow.
   `requireAuthWithRole(["MANAGER","ADMIN"])` for all methods). Won't-fix
   with rationale (this document): org-scoping on retail-core models —
   single-org-per-deployment makes the flagged boundary non-existent;
-  tracked as the #135 precondition instead.
+  tracked as the internal task #135 precondition instead.
