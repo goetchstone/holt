@@ -138,7 +138,7 @@ services:
   # docs/PRODUCTION.md section 2.
   # --------------------------------------------------------------------------
   certbot:
-    image: certbot/certbot:latest
+    image: certbot/certbot:v5.7.0
     pull_policy: always
     profiles: ["tls"]
     volumes:

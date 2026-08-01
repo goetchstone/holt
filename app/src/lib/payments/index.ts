@@ -20,6 +20,7 @@
 // in this codebase uses.
 
 import { stripeProvider } from "@/lib/payments/stripeProvider";
+import { squareProvider } from "@/lib/payments/squareProvider";
 import type {
   PaymentProvider,
   PaymentProviderId,
@@ -30,8 +31,7 @@ export * from "@/lib/payments/types";
 
 const PROVIDERS: Record<PaymentProviderId, PaymentProvider | undefined> = {
   stripe: stripeProvider,
-  // square: added by the Square integration.
-  square: undefined,
+  square: squareProvider,
 };
 
 /** True when the string names a processor this build knows about. */
