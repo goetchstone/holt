@@ -129,3 +129,43 @@ export function imputeMissingCost(line: MarginLine): MarginLine {
   if (line.retail === 0) return line;
   return { retail: line.retail, cost: line.retail / 2 };
 }
+
+/**
+ * Shape accepted by `resolveLineCost` — deliberately loose (Decimal | number
+ * | null) so it accepts a raw Prisma row selected with `{ cost, orderedQuantity,
+ * product: { select: { baseCost } } }` without the caller pre-converting to
+ * plain numbers.
+ */
+export interface LineCostInput {
+  cost: { toString(): string } | number | null;
+  orderedQuantity: { toString(): string } | number | null;
+  product: { baseCost: { toString(): string } | number | null } | null;
+}
+
+/**
+ * Three-step line-cost fallback (user direction 2026-04-30):
+ *   1. OrderLineItem.cost if set and non-zero (already a LINE cost, never
+ *      multiplied by quantity — the netPrice-is-line-total invariant's
+ *      sister rule for cost, docs/domains/reporting.md).
+ *   2. product.baseCost x orderedQuantity if the line cost is zero/missing
+ *      but the product card has a baseCost.
+ *   3. Falls through to 0 here — callers apply `imputeMissingCost` (the
+ *      retail/2 imputation) as the final step, same as this function's
+ *      original two call sites.
+ *
+ * This is THE canonical implementation. It used to be duplicated verbatim as
+ * a private function in both `lib/reports/salesExplorerQuery.ts`
+ * (`baseLineCost`) and `lib/reports/salesBySalespersonReport.ts`
+ * (`resolveLineCost`) — extracted here (2026-08-01, commission rule engine
+ * Stage 1) so the MARGIN commission basis reuses the exact same cost
+ * definition instead of a third copy. Both report call sites now import
+ * this function instead of keeping their own copy.
+ */
+export function resolveLineCost(li: LineCostInput): number {
+  const rawLineCost = Number(li.cost ?? 0);
+  if (rawLineCost !== 0) return rawLineCost;
+  const qty = Number(li.orderedQuantity ?? 1);
+  const productBaseCost = Number(li.product?.baseCost ?? 0);
+  if (productBaseCost > 0 && qty > 0) return productBaseCost * qty;
+  return 0;
+}

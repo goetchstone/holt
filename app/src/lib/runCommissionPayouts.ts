@@ -18,10 +18,20 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { sumDesignerSales } from "@/lib/commissionSales";
-import { computePayoutForRange, type ComputedPayout } from "@/lib/commissionPayout";
+import { sumDesignerSales, loadDesignerSaleRows } from "@/lib/commissionSales";
+import {
+  computeRulePayoutForRange,
+  bridgeLegacyLockToRuleState,
+  isRuleSnapshotEnvelope,
+  type ComputedRulePayout,
+} from "@/lib/commissionPayout";
 import { findOverlappingPayoutPeriods, describeOverlap } from "@/lib/commissionPeriodOverlap";
-import { resolvePlanTiersForStaff } from "@/lib/commissionPlans";
+import { resolvePlanRulesForStaff } from "@/lib/commissionRules";
+import type {
+  CommissionRuleDef,
+  CommissionSaleRow,
+  RulePriorState,
+} from "@/lib/commissionRuleEngine";
 
 interface ActiveDesigner {
   id: number;
@@ -97,7 +107,89 @@ export async function computeDesignerYtdSums(
   };
 }
 
-export interface PreviewedPayout extends ComputedPayout {
+/**
+ * Rule-engine chain continuity for ONE designer: the per-rule analogue of
+ * `computeDesignerYtdSums` above, generalized to N rules instead of one
+ * implicit tier set. Reads the SAME "most recent LOCKED payout with
+ * periodEnd < periodStart, year-anchored" lookup, but pulls `priorState`
+ * from that row's frozen `tierDefinitionSnapshot.ruleState` (rule-engine
+ * shape) instead of a scalar column — see docs/domains/commission.md
+ * "Snapshot — old and new shapes".
+ *
+ * A prior lock generated BEFORE the rule engine shipped (`ruleEngineVersion
+ * = 1`) has no `ruleState` to read; `bridgeLegacyLockToRuleState` maps its
+ * scalar `ytdSalesAtEnd`/`commissionAmount` onto the designer's current
+ * PRIMARY rule so the first rule-engine generation after this ships still
+ * chains from real history rather than treating everyone as brand new.
+ *
+ * Deliberately independent of `computeDesignerYtdSums` — that function (and
+ * the `ytdSalesAtStart`/`ytdSalesAtEnd`/`periodSalesAmount` columns it
+ * feeds) is left completely untouched by Stage 1 so its existing,
+ * well-tested chain-continuity behavior carries zero risk of regression.
+ * This function only ever affects `commissionAmount`/`tierBreakdown`/
+ * `tierDefinitionSnapshot`.
+ */
+async function computeDesignerRuleState(
+  staff: ActiveDesigner,
+  periodStart: Date,
+  periodEndExclusive: Date,
+  rules: readonly CommissionRuleDef[],
+): Promise<{ priorState: RulePriorState[]; saleRows: CommissionSaleRow[] }> {
+  const yearStart = new Date(Date.UTC(periodStart.getUTCFullYear(), 0, 1));
+  const matchNames = [staff.displayName, ...(staff.aliases ?? [])];
+
+  const priorLock = await prisma.commissionPayout.findFirst({
+    where: {
+      staffMemberId: staff.id,
+      lockedAt: { not: null },
+      periodEnd: { lt: periodStart, gte: yearStart },
+    },
+    orderBy: { periodEnd: "desc" },
+    select: {
+      ruleEngineVersion: true,
+      tierDefinitionSnapshot: true,
+      ytdSalesAtEnd: true,
+      commissionAmount: true,
+    },
+  });
+
+  // ALWAYS fetch the full [yearStart, periodEndExclusive) row set —
+  // regardless of whether a prior lock exists. This mirrors
+  // computeDesignerYtdSums exactly: ytdAtStart is conditionally frozen (via
+  // priorLock) or live, but ytdAtEnd is UNCONDITIONALLY a live recompute
+  // over the whole YTD range. Fetching only the period-window rows here
+  // when a prior lock exists would miss a return/rewrite dated inside the
+  // already-locked prior period that lands after the lock — exactly the
+  // late-landing-return scenario chain continuity + drift detection exist
+  // to handle correctly (see computeRuleForYtdOrPeriod's doc comment in
+  // lib/commissionRuleEngine.ts).
+  const saleRows = await loadDesignerSaleRows(staff.id, matchNames, yearStart, periodEndExclusive);
+
+  if (!priorLock) {
+    return { priorState: [], saleRows };
+  }
+
+  if (
+    priorLock.ruleEngineVersion === 2 &&
+    isRuleSnapshotEnvelope(priorLock.tierDefinitionSnapshot)
+  ) {
+    return { priorState: priorLock.tierDefinitionSnapshot.ruleState, saleRows };
+  }
+
+  const primaryRuleKey = rules[0]?.ruleKey;
+  const priorState = primaryRuleKey
+    ? bridgeLegacyLockToRuleState(
+        {
+          ytdSalesAtEnd: Number(priorLock.ytdSalesAtEnd),
+          commissionAmount: Number(priorLock.commissionAmount),
+        },
+        primaryRuleKey,
+      )
+    : [];
+  return { priorState, saleRows };
+}
+
+export interface PreviewedPayout extends ComputedRulePayout {
   displayName: string;
   // Which plan priced this draft (resolved per designer; null planId = the
   // legacy tier table / built-in defaults). Frozen onto the payout row at
@@ -116,33 +208,50 @@ export async function previewPayoutsForPeriod(
   periodEnd: Date,
 ): Promise<PreviewedPayout[]> {
   const designers = await loadActiveDesigners();
-  // Per-designer tier resolution: assigned plan -> default plan -> legacy
-  // tier table -> built-in defaults. Chain continuity (ytdAtStart from the
-  // prior locked payout) is plan-independent — it carries sales DOLLARS, so a
-  // mid-year plan switch keeps the YTD position and simply prices subsequent
-  // slices through the new plan's brackets.
-  const planTiers = await resolvePlanTiersForStaff(designers.map((d) => d.id));
+  // Per-designer RULE resolution (Stage 1): assigned plan's rules -> the
+  // assigned plan's flat tiers derived on the fly -> the default plan (same
+  // two-step) -> the legacy tier table -> built-in defaults, all derived
+  // into an equivalent rule. See lib/commissionRules.ts. Chain continuity is
+  // plan-independent — it carries PER-RULE accumulated basis (dollars or
+  // units), so a mid-year plan switch keeps position and simply prices
+  // subsequent slices through the new plan's rules.
+  const planRules = await resolvePlanRulesForStaff(designers.map((d) => d.id));
 
   // Make the period endpoint inclusive by extending to end-of-day.
   const periodEndExclusive = new Date(periodEnd);
   periodEndExclusive.setUTCDate(periodEndExclusive.getUTCDate() + 1);
+  const yearStart = new Date(Date.UTC(periodStart.getUTCFullYear(), 0, 1));
 
   const out: PreviewedPayout[] = [];
   for (const s of designers) {
-    const resolved = planTiers.get(s.id);
+    const resolved = planRules.get(s.id);
     if (!resolved) continue;
+    // ytdSalesAtStart/ytdSalesAtEnd/periodSalesAmount: UNCHANGED Stage-0
+    // path — same function, same query, same values as before the rule
+    // engine. These stay REVENUE-basis designer-level totals for
+    // backward-compatible display regardless of the plan's rules.
     const { ytdAtStart, ytdAtEnd } = await computeDesignerYtdSums(
       s,
       periodStart,
       periodEndExclusive,
     );
-    const computed = computePayoutForRange({
+    const { priorState, saleRows } = await computeDesignerRuleState(
+      s,
+      periodStart,
+      periodEndExclusive,
+      resolved.rules,
+    );
+    const computed = computeRulePayoutForRange({
       staffMemberId: s.id,
       periodStart,
       periodEnd,
+      periodEndExclusive,
+      yearStart,
+      rules: resolved.rules,
+      saleRows,
+      priorState,
       ytdSalesAtStart: ytdAtStart,
       ytdSalesAtEnd: ytdAtEnd,
-      tiers: resolved.tiers,
     });
     out.push({
       ...computed,
@@ -301,6 +410,7 @@ export async function commitPayoutsForPeriod(
         tierBreakdown: d.tierBreakdown as unknown as Prisma.InputJsonValue,
         commissionAmount: finalCommissionAmount,
         tierDefinitionSnapshot: d.tierDefinitionSnapshot as unknown as Prisma.InputJsonValue,
+        ruleEngineVersion: d.ruleEngineVersion,
         commissionPlanId: d.commissionPlanId,
         commissionPlanName: d.commissionPlanName,
         notes: ov?.notes ?? null,
@@ -479,3 +589,15 @@ export async function editPayout(
 
 export type { ComputedPayout } from "@/lib/commissionPayout";
 export type { PayoutBreakdownEntry, TierDefinitionSnapshot } from "@/lib/commissionPayout";
+export type {
+  ComputedRulePayout,
+  RuleBreakdownEnvelope,
+  RuleSnapshotEnvelope,
+  RuleDefSnapshot,
+  RuleTierSnapshot,
+} from "@/lib/commissionPayout";
+export {
+  isRuleSnapshotEnvelope,
+  isRuleBreakdownEnvelope,
+  isLegacyArrayShape,
+} from "@/lib/commissionPayout";

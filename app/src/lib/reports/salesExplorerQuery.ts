@@ -32,7 +32,7 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
-import { imputeMissingCost } from "@/lib/marginMath";
+import { imputeMissingCost, resolveLineCost } from "@/lib/marginMath";
 import {
   UNCATEGORIZED_DEPARTMENT,
   NO_CATEGORY_LABEL,
@@ -116,29 +116,6 @@ export function buildSalesExplorerProductFilter(
 }
 
 /**
- * Three-step line-cost fallback, same cascade documented for Detailed Sales
- * in reporting.md and implemented privately in
- * lib/reports/salesBySalespersonReport.ts's `resolveLineCost`:
- *   1. OrderLineItem.cost if set and non-zero (already a LINE cost, never
- *      multiplied by quantity — invariant (c)'s sister rule for cost).
- *   2. product.baseCost x orderedQuantity if line cost is zero.
- *   3. retail/2 imputation, applied by imputeMissingCost() below (the same
- *      pure helper marginMath.ts / Sales by Salesperson / Detailed Sales use).
- */
-function baseLineCost(li: {
-  cost: Prisma.Decimal | number | null;
-  orderedQuantity: Prisma.Decimal | number | null;
-  product: { baseCost: Prisma.Decimal | number | null } | null;
-}): number {
-  const rawLineCost = Number(li.cost ?? 0);
-  if (rawLineCost !== 0) return rawLineCost;
-  const qty = Number(li.orderedQuantity ?? 1);
-  const productBaseCost = Number(li.product?.baseCost ?? 0);
-  if (productBaseCost > 0 && qty > 0) return productBaseCost * qty;
-  return 0;
-}
-
-/**
  * One period's cell map: every ACTIVE line item on a revenue-status order in
  * range, bucketed by (store, department, category, vendor). Call this once
  * per period (period 1, period 2) — mirrors comparativeSales.ts's per-period
@@ -204,7 +181,7 @@ export async function computeSalesExplorerCells(
     // Invariant (c): netPrice is the LINE TOTAL — never multiplied by
     // orderedQuantity.
     const lineNet = Number(li.netPrice || 0);
-    const rawCost = baseLineCost(li);
+    const rawCost = resolveLineCost(li);
     const { cost: lineCost } = imputeMissingCost({ retail: lineNet, cost: rawCost });
 
     const existing = cells[key];

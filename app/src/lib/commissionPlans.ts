@@ -13,8 +13,10 @@
 //   4. DEFAULT_COMMISSION_TIERS          — fresh dev DB / first boot
 // Steps 3+4 are exactly the old loadTiers() behavior.
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_COMMISSION_TIERS, type CommissionTier } from "@/lib/commissionTiers";
+import { LEGACY_MIRROR_RULE_LABEL } from "@/lib/commissionRuleEngine";
 
 export interface PlanTier extends CommissionTier {
   sortOrder: number;
@@ -177,6 +179,74 @@ function validateTierBrackets(t: TierInput, i: number, tiers: TierInput[]): stri
 }
 
 /**
+ * Keep the plan's single auto-managed CommissionPlanRule (the Stage 1 rule
+ * engine's "MIGRATING each existing CommissionPlanTier set into an
+ * equivalent single rule" story, generalized to ONGOING edits too — not
+ * just the one-time migration) in sync with its CommissionPlanTier rows.
+ * Called at the end of both `replacePlanTiers` and `createPlan`'s
+ * transactions, right after they write CommissionPlanTier.
+ *
+ * WHY THIS EXISTS: lib/commissionRules.ts:resolvePlanRulesForStaff prefers
+ * a plan's PERSISTED CommissionPlanRule rows over deriving one on the fly
+ * from CommissionPlanTier (real rules are authoritative once they exist —
+ * a plan built with genuinely distinct multi-dimensional rules must win
+ * over any stale flat-tier leftovers). Without this sync, a plan migrated
+ * by 20260801_commission_rule_engine would freeze its rule at whatever the
+ * tiers looked like AT MIGRATION TIME: the SUPER_ADMIN could keep editing
+ * tiers in the existing commission-tiers UI, see the change reflected
+ * there, and have it silently NEVER affect an actual commission run again
+ * — the exact kind of "same inputs, same commission" break Stage 1
+ * promises not to introduce.
+ *
+ * Finds-or-creates by LABEL (`LEGACY_MIRROR_RULE_LABEL`) so the rule's `id`
+ * — and therefore its `ruleKey` (`id:<n>`) — stays STABLE across edits.
+ * That stability is load-bearing: chain continuity (lib/commissionRuleEngine.ts's
+ * `priorState`) is keyed by ruleKey, so a rule whose identity changed
+ * between periods would silently lose its carried-forward YTD position.
+ * The one-time data migration inserts its converted rule under this exact
+ * label so the FIRST post-migration tier edit updates that row in place
+ * rather than creating a duplicate.
+ */
+async function syncLegacyMirrorRule(
+  tx: Prisma.TransactionClient,
+  planId: number,
+  tiers: TierInput[],
+): Promise<void> {
+  const existing = await tx.commissionPlanRule.findFirst({
+    where: { planId, label: LEGACY_MIRROR_RULE_LABEL },
+    select: { id: true },
+  });
+  const ruleId = existing
+    ? existing.id
+    : (
+        await tx.commissionPlanRule.create({
+          data: {
+            planId,
+            label: LEGACY_MIRROR_RULE_LABEL,
+            sortOrder: 0,
+            basis: "REVENUE",
+            accumulator: "YTD",
+            tierMode: "MARGINAL",
+          },
+          select: { id: true },
+        })
+      ).id;
+  await tx.commissionRuleTier.deleteMany({ where: { ruleId } });
+  for (const [i, t] of tiers.entries()) {
+    await tx.commissionRuleTier.create({
+      data: {
+        ruleId,
+        label: t.label,
+        minAmount: t.minYtdSales,
+        maxAmountExclusive: t.maxYtdSalesExclusive,
+        rate: t.rate,
+        sortOrder: t.sortOrder ?? i,
+      },
+    });
+  }
+}
+
+/**
  * Replace a plan's tier set transactionally (the whole-set PUT idiom the
  * tier editor has always used — the set is small).
  */
@@ -203,6 +273,7 @@ export async function replacePlanTiers(
         },
       });
     }
+    await syncLegacyMirrorRule(tx, planId, tiers);
     await tx.commissionPlan.update({
       where: { id: planId },
       data: { updatedBy: updatedBy ?? null },
@@ -257,6 +328,7 @@ export async function createPlan(input: {
         },
       });
     }
+    await syncLegacyMirrorRule(tx, plan.id, tiers);
     return { id: plan.id };
   });
 }
