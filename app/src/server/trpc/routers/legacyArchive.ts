@@ -9,13 +9,11 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/lib/prisma";
 import { router, protectedProcedure } from "../trpc";
-import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { buildLegacyArchiveWhere, LEGACY_ARCHIVE_PAGE_SIZE } from "@/lib/legacyArchive";
 
 async function requireArchiveEnabled(): Promise<void> {
-  const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "legacyArchive")) {
+  if (!(await isModuleEnabled("legacyArchive"))) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Legacy archive is not enabled." });
   }
 }

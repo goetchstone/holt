@@ -166,9 +166,13 @@ invisible until someone turns them on.
 
 **Enforced by:** `lib/featureCatalog.ts` — flags default `false`, and gated
 routes 404 rather than render, so an unconfigured module is indistinguishable
-from one that does not exist.
+from one that does not exist. `FEATURES` is now derived from the module
+manifest (`lib/modules/registry.ts`, see `docs/domains/modules.md`), which
+also adds a `category` so niche/single-tenant modules stay hidden from the
+Settings toggle grid even before anyone flips them on — but the flag
+contract itself (key, default, 404-on-off) is unchanged.
 
-**Source:** `app/src/lib/featureCatalog.ts`
+**Source:** `app/src/lib/featureCatalog.ts`, `app/src/lib/modules/registry.ts`
 
 ---
 

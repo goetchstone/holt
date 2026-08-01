@@ -11,14 +11,14 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { requireModule } from "@/lib/modules/requireModule";
 import { verifyClientPortalToken } from "@/lib/clientPortalToken";
 import { getClientPortalData } from "@/lib/clientPortal";
 import { ClientPortalView } from "./ClientPortalView";
 
 export default async function ClientPortalPage({ params }: { params: Promise<{ token: string }> }) {
+  await requireModule("clientPortal");
   const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "clientPortal")) notFound();
 
   const { token } = await params;
   const payload = verifyClientPortalToken(token);

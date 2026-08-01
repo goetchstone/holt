@@ -4,14 +4,12 @@
 
 import { notFound } from "next/navigation";
 import { requirePage } from "@/lib/auth/requirePage";
-import { getAppSettings } from "@/lib/appSettings";
-import { isFeatureEnabled } from "@/lib/featureCatalog";
+import { requireModule } from "@/lib/modules/requireModule";
 import { InvoiceDetailView } from "./InvoiceDetailView";
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePage(["MANAGER", "ADMIN"]);
-  const settings = await getAppSettings();
-  if (!isFeatureEnabled(settings.features, "billing")) notFound();
+  await requireModule("billing");
 
   const { id } = await params;
   const invoiceId = Number.parseInt(id, 10);
