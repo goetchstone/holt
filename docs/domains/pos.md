@@ -9,7 +9,7 @@ This runbook covers the **ERP-native** POS path. Imported the POS orders flow th
 | Area | UI | API |
 |---|---|---|
 | Cart + checkout | `pages/sales/pos.tsx` | `pages/api/sales/orders/create-from-cart.ts` |
-| Till open/close | `pages/sales/till.tsx`, `pages/sales/till/[id].tsx` | `pages/api/tills/index.ts`, `pages/api/tills/[id]/reconcile.ts` |
+| Till open/close | `pages/sales/till.tsx`, `pages/sales/till/[id].tsx` | `pages/api/registers/[id]/tills/open.ts`, `pages/api/tills/[id]/close.ts`, `pages/api/tills/[id]/reconcile.ts`, `pages/api/tills/index.ts` (list) |
 | Register list / select | (POS page header) | `pages/api/registers/index.ts`, `pages/api/registers/[id]/*` |
 | Gift card sale | `pages/sales/gift-card-sale.tsx` | `pages/api/gift-cards/sell.ts` |
 | Returns | `pages/sales/returns/*` | `pages/api/returns/*` (see `docs/domains/returns.md`) |
@@ -37,17 +37,18 @@ Key invariants enforced by `recordPayment()`:
 
 Lifecycle:
 
-1. **Open** (`POST /api/tills` with `registerId` + denomination counts) → status `OPEN`, opening cash computed from counts
-2. **During shift** → `expectedCash` recomputed live as Payment rows accumulate against the till (`tillId` FK on `Payment`)
-3. **Close** (`POST /api/tills/[id]/reconcile`) → closing denomination counts → variance = actual − expected → status `RECONCILED`
+1. **Open** (`POST /api/registers/[id]/tills/open` with denomination counts or a raw `openingCash`) → status `OPEN`, opening cash computed from counts. Refused with `409` if the register is variance-blocked (see below).
+2. **During shift** → `expectedCash` recomputed live as Payment rows accumulate against the till (`tillId` FK on `Payment`, `lib/paymentService.ts:calculateTillExpected`)
+3. **Close** (`POST /api/tills/[id]/close`) → closing denomination counts + counted `actualCash` → variance = actual − expected → status `CLOSED`. This is where variance is actually computed and where the Phase 0.6 thresholds below are enforced.
+4. **Reconcile** (`POST /api/tills/[id]/reconcile`, MANAGER/ADMIN only) → approves the already-computed variance → status `RECONCILED`.
 
-**Variance discipline** (Phase 0.6 plan, not yet enforced in code):
+**Variance discipline** (Phase 0.6, shipped — `lib/tillVariance.ts:classifyTillVariance`). Thresholds are named constants (`TILL_VARIANCE_NOTE_THRESHOLD` / `_MANAGER_THRESHOLD` / `_ESCALATION_THRESHOLD`), evaluated against `Math.abs(variance)` — an overage is treated exactly like a shortage of the same size:
 
-- Variance > $5 → mandatory note
-- Variance > $20 → manager required
-- Variance > $100 → escalation, block new opens at that register
+- **Variance > $5** → mandatory note. `close.ts` rejects the close (`400`) if no note is supplied once `|variance| > $5`.
+- **Variance > $20** → manager required. `reconcile.ts` already requires MANAGER/ADMIN (via the shared `requireAuthWithRole` helper) for **every** reconcile regardless of variance size — a superset of this rule, left as-is rather than narrowed.
+- **Variance > $100** → escalation: `close.ts` sets `Register.blockedAt` + `Register.blockReason` (naming the till, amount, and timestamp) in the same transaction that closes the till. `POST /api/registers/[id]/tills/open` refuses new opens (`409`) on a blocked register. **Clearing the block**: `POST /api/registers/[id]/unblock`, MANAGER/ADMIN only, requires a `resolutionNote`; it nulls `blockedAt` (which is what actually unblocks opens) but appends the resolution to `blockReason` rather than erasing it, so the escalation's history survives the clear. `reconcile.ts` also re-applies the block defensively for any till that reaches `CLOSED` without having gone through `close.ts`'s check.
 
-Today: variance is captured, no thresholds enforced.
+`Register.blockedAt` / `Register.blockReason` — migration `20260801114847_till_variance_escalation`, additive/nullable, no backfill.
 
 ## Cash movements (planned, not yet shipped)
 
@@ -100,7 +101,8 @@ No auto-print on order confirmation yet (master plan G3 / Phase 1).
 | `lib/paymentService.ts` (recordPayment, processRefund) | Real-DB integration in `__tests__/integration/paymentServiceLedger.integration.test.ts` |
 | `lib/giftCard.ts` (issue, redeem) | Unit tests in `__tests__/giftCard.test.ts` |
 | `lib/customerLedger.ts` (atomic ledger append) | Unit + real-DB integration |
-| Till reconciliation | `__tests__/tills.reconcile.test.ts` (calc), no real-DB equivalent yet |
+| `lib/tillVariance.ts` (classifyTillVariance, threshold boundaries) | Unit tests in `__tests__/tillVariance.test.ts` |
+| Till close/reconcile/open/unblock (variance discipline, register block) | Real-DB integration in `__tests__/integration/tillVarianceEnforcement.integration.test.ts` |
 | Stripe webhook | None — should add tripwire for signature verification + idempotency |
 
 ## Known gaps (master plan Phase 1)
@@ -113,4 +115,4 @@ No auto-print on order confirmation yet (master plan G3 / Phase 1).
 - **C8**: Stripe webhook idempotency tripwire (verify processorTxnId unique index, add test)
 
 ---
-Last verified: 2026-05-20
+Last verified: 2026-08-01
