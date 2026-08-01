@@ -1676,6 +1676,7 @@ enum BuyerDraftSource {
   APPAREL_SCAN // barcode-scanned apparel item
   CONFIGURATOR // built via vendor style configurator
   HISTORICAL_PO_IMPORT // bulk-imported from an existing real PurchaseOrder (Slice 6.13, 2026-05-22) — used so historical buys can be reconstructed in BuyerDraftBuy form and the Slice 6 performance report can run against them
+  HOME_ACCESSORY_ORDER_IMPORT // parsed from a home-accessory vendor order file (K&K, Wendover, MarketTime, BrandWise/Zodax, Aesthetic Movement, SuperCat, Simblist, Beatriz Ball) via the Home Accessory Order Import tool (2026-07-22)
 }
 
 // Description-template selector for `BuyerDraftItem`. Drives which fields

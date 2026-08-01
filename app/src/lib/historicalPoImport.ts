@@ -212,3 +212,146 @@ function firstOfMonthUtc(d: Date | null): Date | null {
   if (!d) return null;
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Slice 6.13.2 (2026-07-24) — forward-flow double-count guard.
+//
+// docs/domains/buyer-drafts.md ("Linked-PO scoping — tightening after
+// the Spring 2026 audit") flagged this as a followup, not yet shipped:
+//
+//   "a Buy that already has forward-flow drafts AND gets explicit
+//    Slice 6.13 imports will see the budget rollup count BOTH sets of
+//    draft items. To avoid double-counting, either delete the
+//    forward-flow drafts (status=CANCELLED or hard-delete) OR don't
+//    mix the paths on the same Buy. A future safeguard could refuse
+//    Slice 6.13 imports when the buy already has overlapping
+//    `fulfilledProductId` drafts — tracked as a followup, not yet
+//    shipped."
+//
+// Mechanism: `GET /buys/[id]` (and the client `buyRollup` memo) sum
+// `qty × cost` across every BuyerDraftItem under the buy with no
+// status filter. If a product is already represented by a
+// forward-flow item (the buyer drafted it, and it got linked to a
+// catalog Product via barcode-lookup / catalog-picker / Slice 5
+// auto-link) AND a historical import ALSO creates a brand-new
+// BuyerDraftItem row for that same product (because the historical
+// import target PO was never itself auto-linked/imported), the buy
+// now has two rows counting the same purchase.
+//
+// Scope of the check — deliberately NARROW:
+//   - Only compares against EXISTING items whose `source` is NOT
+//     `HISTORICAL_PO_IMPORT`. Two different historical imports
+//     legitimately sharing a productId is normal and load-bearing —
+//     it's exactly the "sibling PO" partial-receive-split workflow
+//     (`lib/historicalPoSiblings.ts`): a POS partial-receive can split
+//     one order across 2-3 real PONs that share line items, and the
+//     buyer is expected to import ALL of them into the same buy. That
+//     is real total spend across separate real POs, not a double
+//     count. Only forward-flow rows are "the same purchase, told
+//     twice."
+//   - Only compares against EXISTING items whose `status` is NOT
+//     `CANCELLED` — the doc's own resolution recipe is "cancel the
+//     forward-flow drafts" to unblock a re-import, so a cancelled row
+//     must not keep tripping the guard.
+//   - Only rows with a non-null `fulfilledProductId` participate —
+//     unlinked forward-flow drafts (`fulfilledProductId IS NULL`)
+//     can't be proven to represent the same product.
+//
+// Pure — no I/O. The handler hydrates `existingBuyItems` from
+// `prisma.buyerDraftItem.findMany({ where: { draftPo: { buyId } } })`
+// and `incomingLines` from the real PO's line items being imported.
+
+/** Existing `BuyerDraftItem` row already in the target buy — the
+ *  candidate set the guard checks the incoming import against. */
+export interface ExistingBuyDraftItemForOverlapCheck {
+  id: number;
+  draftPoId: number | null;
+  partNumber: string;
+  productName: string;
+  fulfilledProductId: number | null;
+  source: string;
+  status: string;
+}
+
+/** One real-PO line item's identity, as needed for the overlap check.
+ *  Subset of `PurchaseOrderItemForImport`. */
+export interface IncomingLineForOverlapCheck {
+  productId: number | null;
+  partNo: string | null;
+  productName: string | null;
+}
+
+/** An existing forward-flow draft item that collides with a product on
+ *  the PO being imported. */
+export interface OverlappingProductDraft {
+  id: number;
+  draftPoId: number | null;
+  partNumber: string;
+  productName: string;
+}
+
+/** One product that appears BOTH on the incoming real PO AND on an
+ *  existing forward-flow draft in the target buy. */
+export interface OverlappingProduct {
+  productId: number;
+  /** partNo / productName as they appear on the INCOMING real PO line
+   *  (may differ cosmetically from the existing draft's values). */
+  partNo: string | null;
+  productName: string | null;
+  existingDrafts: OverlappingProductDraft[];
+}
+
+/**
+ * Finds products that are on the incoming real PO's line items AND
+ * already represented by a forward-flow (non-historical-import),
+ * non-cancelled draft item in the target buy.
+ *
+ * Returns an empty array when the import is safe to proceed (no
+ * forward-flow drafts in the buy at all, or none of them overlap with
+ * this PO's products). A non-empty result means the caller should
+ * refuse the import — see `import-purchase-order.ts`.
+ *
+ * Dedupes by productId: if the incoming PO has two lines for the same
+ * product (rare but possible — e.g. two colorways sharing a catalog
+ * row), it still surfaces once, with every colliding existing draft
+ * item listed under `existingDrafts`.
+ */
+export function findForwardFlowOverlap(
+  incomingLines: ReadonlyArray<IncomingLineForOverlapCheck>,
+  existingBuyItems: ReadonlyArray<ExistingBuyDraftItemForOverlapCheck>,
+): OverlappingProduct[] {
+  const forwardFlowByProduct = new Map<number, OverlappingProductDraft[]>();
+  for (const item of existingBuyItems) {
+    if (item.source === "HISTORICAL_PO_IMPORT") continue;
+    if (item.status === "CANCELLED") continue;
+    if (item.fulfilledProductId === null) continue;
+    const bucket = forwardFlowByProduct.get(item.fulfilledProductId) ?? [];
+    bucket.push({
+      id: item.id,
+      draftPoId: item.draftPoId,
+      partNumber: item.partNumber,
+      productName: item.productName,
+    });
+    forwardFlowByProduct.set(item.fulfilledProductId, bucket);
+  }
+
+  if (forwardFlowByProduct.size === 0) return [];
+
+  const seenProductIds = new Set<number>();
+  const out: OverlappingProduct[] = [];
+  for (const line of incomingLines) {
+    if (line.productId === null) continue;
+    if (seenProductIds.has(line.productId)) continue;
+    const existingDrafts = forwardFlowByProduct.get(line.productId);
+    if (!existingDrafts) continue;
+    seenProductIds.add(line.productId);
+    out.push({
+      productId: line.productId,
+      partNo: line.partNo,
+      productName: line.productName,
+      existingDrafts,
+    });
+  }
+  out.sort((a, b) => a.productId - b.productId);
+  return out;
+}

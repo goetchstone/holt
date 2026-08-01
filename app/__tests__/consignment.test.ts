@@ -8,6 +8,7 @@ import {
   isMarjanRug,
   toMarjanBarcode,
   toMarjanCustomerNumber,
+  findWashedRugCustomerNumbers,
 } from "../src/lib/consignment";
 
 describe("calculateRugPricing", () => {
@@ -209,5 +210,59 @@ describe("toMarjanCustomerNumber", () => {
 
   it("returns null for empty/invalid input", () => {
     expect(toMarjanCustomerNumber("")).toBeNull();
+  });
+});
+
+describe("findWashedRugCustomerNumbers", () => {
+  it("matches a same-day sell+return across the barcode/product-number gap (SBOM42090)", () => {
+    // The sold side has the PHYSICAL barcode "M8994-22"; the returned side has
+    // toMarjanBarcode("MAR-10684-26") = "M10684-26". These never equal — the
+    // shared key is the customerNumber "10684-26". The old barcode comparison
+    // missed this, leaving the rug SOLD (wrongly owed to Marjan).
+    const sold = [
+      { barcode: "M8994-22", customerNumber: "10684-26" },
+      { barcode: "M8996-71", customerNumber: "10685-26" },
+    ];
+    const returned = ["M10684-26", "M10685-26"]; // toMarjanBarcode(MAR-…) form
+    const washed = findWashedRugCustomerNumbers(sold, returned);
+    expect(washed).toEqual(new Set(["10684-26", "10685-26"]));
+  });
+
+  it("does NOT wash a rug that only sold (no matching return)", () => {
+    const sold = [{ barcode: "M8994-22", customerNumber: "10684-26" }];
+    expect(findWashedRugCustomerNumbers(sold, []).size).toBe(0);
+    // A different rug returned — no overlap.
+    expect(findWashedRugCustomerNumbers(sold, ["M9999-99"]).size).toBe(0);
+  });
+
+  it("ignores non-Marjan and null identifiers", () => {
+    const sold = [{ barcode: null, customerNumber: null }];
+    expect(findWashedRugCustomerNumbers(sold, ["CRL-6600", null, undefined]).size).toBe(0);
+  });
+
+  it("does NOT wash a rug re-sold more times than returned (net SOLD)", () => {
+    // M1854-236: sold on GTOM3819, returned on GTOA10324, then RE-SOLD on
+    // GTOM3820 — two sale lines against one return in the batch. Net +1, so the
+    // rug is legitimately SOLD and must NOT wash (reverting it would erase the
+    // second sale and understate what's owed to Marjan).
+    const sold = [
+      { barcode: null, customerNumber: "9932-26" },
+      { barcode: null, customerNumber: "9932-26" },
+    ];
+    const returned = ["M9932-26"];
+    expect(findWashedRugCustomerNumbers(sold, returned).size).toBe(0);
+  });
+
+  it("washes only when returns fully offset sales (net <= 0)", () => {
+    // Two rugs in one batch: A sold twice / returned twice (net 0 -> wash);
+    // B sold twice / returned once (net +1 -> keep SOLD).
+    const sold = [
+      { barcode: null, customerNumber: "10685-26" },
+      { barcode: null, customerNumber: "10685-26" },
+      { barcode: null, customerNumber: "10561-26" },
+      { barcode: null, customerNumber: "10561-26" },
+    ];
+    const returned = ["M10685-26", "M10685-26", "M10561-26"];
+    expect(findWashedRugCustomerNumbers(sold, returned)).toEqual(new Set(["10685-26"]));
   });
 });

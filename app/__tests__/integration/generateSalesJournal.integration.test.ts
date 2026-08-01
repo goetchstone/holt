@@ -50,6 +50,7 @@ interface AccountingFixtures {
     inventory: { id: number };
     tax: { id: number };
     overShort: { id: number };
+    shrinkage: { id: number };
   };
   category: { id: number };
   product: { id: number };
@@ -79,14 +80,19 @@ async function seedAccountingFixtures(): Promise<AccountingFixtures> {
   const overShort = await prisma.gLAccount.create({
     data: { code: "5-5900", name: "Cash Over/Short", accountType: "EXPENSE" },
   });
+  const shrinkage = await prisma.gLAccount.create({
+    data: { code: "5-5010", name: "Furniture Shrinkage", accountType: "EXPENSE" },
+  });
 
-  // Account group with the four GL FKs the generator looks at
+  // Account group with the GL FKs the generator looks at, including the
+  // B3 classified-writeoff shrinkage GL.
   const accountGroup = await prisma.accountGroup.create({
     data: {
       name: "Furniture",
       salesAccountId: sales.id,
       cogsAccountId: cogs.id,
       inventoryAccountId: inventory.id,
+      shrinkageAccountId: shrinkage.id,
     },
   });
 
@@ -129,7 +135,7 @@ async function seedAccountingFixtures(): Promise<AccountingFixtures> {
   });
 
   return {
-    glAccounts: { cash, deposit, sales, cogs, inventory, tax, overShort },
+    glAccounts: { cash, deposit, sales, cogs, inventory, tax, overShort, shrinkage },
     category: { id: category.id },
     product: { id: product.id },
     vendor: { id: vendor.id },
@@ -318,6 +324,90 @@ describe("generateSalesJournal (real DB)", () => {
     expect(byCode.get("1-1006")?.debit).toBe(0);
     // Sales side flipped: was credit; now debit.
     expect(byCode.get("4-4080")?.debit).toBe(500);
+    // No classifying Return record exists (the imported-POS shape) -- the
+    // named UNCLASSIFIED_DEFAULT_RESTOCK path restocks Inventory.
+    expect(byCode.get("1-1380")?.debit).toBe(200);
+    // No shrinkage line -- nothing was classified as a writeoff.
+    expect(byCode.get("5-5010")).toBeUndefined();
+  });
+
+  it("(B3) a return with a WRITTEN_OFF Return record debits the shrinkage GL instead of restocking inventory", async () => {
+    // Classified return: an ERP-native Return record for this line has
+    // progressed to WRITTEN_OFF (major damage at inspection). The JE must
+    // debit the department's shrinkage GL, not Inventory -- the item never
+    // re-enters sellable stock. COGS still reverses normally; Sales / Tax /
+    // Cash are unaffected by the restock-vs-writeoff branch.
+    const fx = await seedAccountingFixtures();
+    const order = await seedSale({
+      productId: fx.product.id,
+      netPrice: -500,
+      cost: -200,
+      vatAmount: -31.75,
+      paymentAmount: -531.75,
+      paymentType: "Cash",
+      withInvoice: true,
+    });
+
+    await prisma.return.create({
+      data: {
+        returnNumber: "RET-260428-001",
+        status: "WRITTEN_OFF",
+        reason: "DAMAGED_IN_DELIVERY",
+        salesOrderId: order.id,
+        productId: fx.product.id,
+        inspectionCondition: "MAJOR_DAMAGE",
+      },
+    });
+
+    const result = await generateSalesJournal(DAY);
+
+    expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+    const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+
+    // No inventory line at all -- the write-off never restocks.
+    expect(byCode.get("1-1380")).toBeUndefined();
+    // Shrinkage GL debited for the line's cost magnitude.
+    expect(byCode.get("5-5010")?.debit).toBe(200);
+    expect(byCode.get("5-5010")?.credit).toBe(0);
+    // COGS still reverses normally (credit) — unchanged by the branch.
+    expect(byCode.get("5-5280")?.credit).toBe(200);
+    // Sales / Tax / Cash reversal unaffected.
+    expect(byCode.get("4-4080")?.debit).toBe(500);
+    expect(byCode.get("2-2120")?.debit).toBe(31.75);
+    expect(byCode.get("1-1006")?.credit).toBe(531.75);
+  });
+
+  it("(B3) a classified RESTOCKED Return books identically to the unclassified default", async () => {
+    // Same shape as WRITTEN_OFF above, but the inspection came back clean —
+    // confirms a classified restock doesn't accidentally route to shrinkage.
+    const fx = await seedAccountingFixtures();
+    const order = await seedSale({
+      productId: fx.product.id,
+      netPrice: -500,
+      cost: -200,
+      vatAmount: -31.75,
+      paymentAmount: -531.75,
+      paymentType: "Cash",
+      withInvoice: true,
+    });
+
+    await prisma.return.create({
+      data: {
+        returnNumber: "RET-260428-002",
+        status: "RESTOCKED",
+        reason: "CUSTOMER_CHANGED_MIND",
+        salesOrderId: order.id,
+        productId: fx.product.id,
+        inspectionCondition: "LIKE_NEW",
+      },
+    });
+
+    const result = await generateSalesJournal(DAY);
+
+    expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+    const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+    expect(byCode.get("1-1380")?.debit).toBe(200);
+    expect(byCode.get("5-5010")).toBeUndefined();
   });
 
   it("(B3) mixed-sign per-order: a $500 sale + $200 same-day return on the same order", async () => {

@@ -42,6 +42,17 @@ export const VALID_SOURCES: readonly BuyerDraftSource[] = [
   "HD_PROPOSAL",
   "APPAREL_SCAN",
   "CONFIGURATOR",
+  // Home Accessory Order Import tool (pages/api/tools/home-accessory-order,
+  // app/(dashboard)/app/tools/home-accessory-order) — stamped on every item
+  // it creates so they're visually distinguishable from MANUAL drafts.
+  // Added via migration 20260722_home_accessory_order_source. (Note:
+  // HISTORICAL_PO_IMPORT, the other enum value not listed here, is
+  // deliberately excluded from this whitelist — that source is set via a
+  // direct unchecked Prisma create in lib/historicalPoImport.ts, not through
+  // this generic create-item endpoint, so it stays off the "can be POSTed by
+  // any client" list. HOME_ACCESSORY_ORDER_IMPORT DOES go through
+  // buildItemCreateData, so it belongs here.)
+  "HOME_ACCESSORY_ORDER_IMPORT",
 ];
 
 export const VALID_ITEM_TYPES: readonly BuyerDraftItemType[] = [

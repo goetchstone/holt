@@ -24,6 +24,48 @@ export function toMarjanCustomerNumber(productNumber: string): string | null {
   return null;
 }
 
+/**
+ * customerNumbers of Marjan rugs whose returns in this import batch fully offset
+ * their sales — a same-day sell+return "wash" that must revert the rug to
+ * ON_FLOOR instead of leaving it SOLD (owed to Marjan).
+ *
+ * Two things this gets right:
+ *
+ * 1. **Match on the customerNumber**, the only identifier the two sides share:
+ *    the sold side carries the PHYSICAL rug barcode (e.g. "M8994-22") while the
+ *    returned side carries the product-number-derived barcode
+ *    (`toMarjanBarcode("MAR-10684-26")` = "M10684-26") — those never equal each
+ *    other, so a barcode-vs-barcode comparison silently misses every Marjan
+ *    same-day sell+return. Both, however, resolve to the same customerNumber.
+ *
+ * 2. **Net quantity, not mere presence.** A rug is washed only when its return
+ *    lines are at least as many as its sale lines in the batch. A rug that sold
+ *    MORE times than it was returned (a re-sale, or a base+rewrite chain that
+ *    keeps two active sale lines against one accounting return) is net-SOLD and
+ *    must stay SOLD — reverting it would erase a real sale and understate what's
+ *    owed to Marjan.
+ */
+export function findWashedRugCustomerNumbers(
+  soldRugMatches: readonly { customerNumber: string | null }[],
+  returnedProductNumbers: readonly (string | null | undefined)[],
+): Set<string> {
+  const soldCounts = new Map<string, number>();
+  for (const { customerNumber } of soldRugMatches) {
+    if (customerNumber) soldCounts.set(customerNumber, (soldCounts.get(customerNumber) ?? 0) + 1);
+  }
+  const returnedCounts = new Map<string, number>();
+  for (const pn of returnedProductNumbers) {
+    const cn = pn ? toMarjanCustomerNumber(pn) : null;
+    if (cn) returnedCounts.set(cn, (returnedCounts.get(cn) ?? 0) + 1);
+  }
+  const washed = new Set<string>();
+  for (const [customerNumber, sold] of soldCounts) {
+    const returned = returnedCounts.get(customerNumber) ?? 0;
+    if (returned >= sold) washed.add(customerNumber);
+  }
+  return washed;
+}
+
 export function calculateRugPricing(cost: number): {
   anchorPrice: number;
   retailPrice: number;

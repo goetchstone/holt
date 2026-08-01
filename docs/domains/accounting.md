@@ -195,6 +195,7 @@ Journal lines are stored with a `sortOrder` so the export prints in a consistent
 | 10 | Payment debits (cash receipts, GC redemptions) |
 | 20 | Payment credits (deposits, on-account) |
 | 30 | Inventory credits (per department) |
+| 35 | Write-off/shrinkage debits (per department) — B3 classified WRITTEN_OFF returns only |
 | 40 | Tax credits (per district) |
 | 50 | Revenue credits (per department) |
 | 60 | COGS debits (per department) |
@@ -211,15 +212,34 @@ Returns are **sales-in-reverse**, not their own GL category. A typical return re
 | Sales revenue | `4-40XX` | **Debit** (reverses the original credit) |
 | Sales tax payable | `2-2120` | **Debit** (reverses the tax we collected) |
 | Cash / Card | `1-1006` | **Credit** (refund the customer) |
-| COGS | `5-52XX` | **Credit** (reverses the expense recognition) |
-| Inventory | `1-13XX` | **Debit** (assumes restock — see below) |
+| COGS | `5-52XX` | **Credit** (reverses the expense recognition, regardless of restock/writeoff) |
+| Inventory | `1-13XX` | **Debit** — restock only (see branching below) |
+| Write-off/Shrinkage | `5-5010`-style, per department (`AccountGroup.shrinkageAccount`) | **Debit** — writeoff only, in place of Inventory |
 
-**All imported returns assume restock.** Anything that needs to be written off as damaged, defective, or unsaleable uses the manual transfer-out workflow rather than going through the return path. This collapses the restock-vs-writeoff branching entirely for the JE generator (decision: 2026-04-28 user direction).
+### Restock vs. writeoff branching (B3, shipped 2026-07-24)
+
+Every return-shaped line (negative cost) resolves to one of three named
+booking paths via `resolveReturnBookingPath()` in `lib/journalEntry.ts`:
+
+| Path | When | JE effect |
+|---|---|---|
+| `CLASSIFIED_RESTOCK` | A `Return` record covers this line and is `RESTOCKED` (or `inspectionCondition` is `LIKE_NEW`/`MINOR_DAMAGE`) | Debit Inventory (item back on shelf) |
+| `CLASSIFIED_WRITEOFF` | A `Return` record covers this line and is `WRITTEN_OFF` (or `inspectionCondition` is `MAJOR_DAMAGE`/`UNSALVAGEABLE`) | Debit the department's shrinkage/write-off GL instead of Inventory — the item never re-enters sellable stock. Falls back to restock (with a warning) if the account group has no shrinkage GL configured. |
+| `UNCLASSIFIED_DEFAULT_RESTOCK` | No `Return` record matches this line, or one exists but hasn't been inspected/classified yet | Debit Inventory — the owner-directed default (2026-04-28: "returns aren't shrinkage — they're sales in reverse"). Books identically to `CLASSIFIED_RESTOCK`; kept as a separate, named, greppable path so it's distinguishable from an actual human decision. |
+
+**Every imported historical return takes the `UNCLASSIFIED_DEFAULT_RESTOCK`
+path** — the `Return` table is never populated by import, so there's nothing
+to classify against. Matching a return-shaped line to a `Return` record
+(`matchReturnForLine()`) tries, in order: exact `lineItemId` FK, then a
+unique same-order `productId` match, then "the sole `Return` on this order"
+when nothing else disambiguates. See `docs/domains/returns.md` for the full
+match/classification writeup and the **Unclassified Returns** exception
+report that makes the default visible instead of silent.
 
 Two parallel data realities:
 
-- **Imported returns** (accounting returns) — data lives on the `SalesOrder` + negative `OrderLineItem` rows. No `Return` record. Reason and original-sale linkage are unavailable. JE math works on what's there.
-- **Native ERP returns** — populated `Return` model captures reason, restock flag, original line item link. Phase 1+ of the SOR plan.
+- **Imported returns** (accounting returns) — data lives on the `SalesOrder` + negative `OrderLineItem` rows. No `Return` record. Reason and original-sale linkage are unavailable. JE math works on what's there. Always takes `UNCLASSIFIED_DEFAULT_RESTOCK`.
+- **Native ERP returns** — populated `Return` model captures reason, condition, and (once inspected) a restock/writeoff decision the JE now honors. Phase 1+ of the SOR plan.
 
 See `docs/domains/returns.md` for the full breakdown of data holes and approximations.
 
@@ -266,7 +286,7 @@ These are documented gaps as of 2026-04-28. Each is a Phase 0 BLOCKER or a Phase
 | Cancelled-line filter in JE | B1 | ✓ shipped (PR #133) |
 | JE balance assertion before POST | B4 | ✓ shipped (PR #135) |
 | Accounting runbook | B5 | ✓ shipped (PR #134) |
-| Returns as sale-in-reverse (mechanism) | B3 | open (PR #138) |
+| Returns as sale-in-reverse (mechanism + restock/writeoff branching + exception report) | B3 | ✓ shipped 2026-07-24 — sign-flip mechanism (PR #138) + classified restock/writeoff branching + "Unclassified Returns" report (this change) |
 | Payment immutability DB trigger | B6 | ✓ shipped (PR #137); behavior covered by `__tests__/integration/paymentDeleteImmutability.integration.test.ts` (Phase 0.6.4) |
 | Daily auto-reconciliation cron | C1 | next |
 | ~~Voided-order reversal JE~~ | ~~B2~~ | **DROPPED 2026-04-28** — daily-summary model handles voids/returns natively via B3 sign-flip. The rare "Day 1 JE was wrong, noticed Day 5" case is corrected by the accountant entering a journal entry directly in QuickBooks (right tool: rare, requires accounting judgment, not auto-generated). |
@@ -338,7 +358,8 @@ For changes that affect cutover readiness (any Phase 0 BLOCKER work):
 | `__tests__/journalEntry.test.ts` | A (pure) + C+ (orchestration, placeholder) | `buildJournalLines` — 12 scenarios: balanced sales, multi-line, deposits, refunds, gift cards, multi-payment, multi-department. Plus `generateSalesJournal` orchestration with mocked Prisma — placeholder pending Phase 0.6.3 conversion. |
 | `__tests__/dailyReconciliation.test.ts` | A | `compareReconciliation` — 8 scenarios for the comparator math (tolerance, drift detection, return-day shape). |
 | `__tests__/integration/dailyReconciliation.integration.test.ts` | A (Postgres) | `computeDailyReconciliation` end-to-end against the live schema — 8 scenarios including 3 integration-only (cancelled-line filter against actual data, date-window exclusion, CANCELLED-status order exclusion). PR #181, 2026-05-01. |
-| `__tests__/integration/generateSalesJournal.integration.test.ts` | A (Postgres) | `generateSalesJournal` end-to-end — 6 scenarios: happy-path balanced JE, B1 cancelled-line filter against real rows, B3 sale-in-reverse signed amounts, idempotency, refusal on POSTED, empty day. PR #189, 2026-04-30. |
+| `__tests__/integration/generateSalesJournal.integration.test.ts` | A (Postgres) | `generateSalesJournal` end-to-end — 10 scenarios: happy-path balanced JE, B1 cancelled-line filter against real rows, B3 sale-in-reverse signed amounts (unclassified default), B3 mixed-sign per-order, B3 large-dollar precision, **B3 classified `WRITTEN_OFF` Return debits the shrinkage GL** (added 2026-07-24), **B3 classified `RESTOCKED` Return books identically to the default** (added 2026-07-24), idempotency, refusal on POSTED, empty day. PR #189, 2026-04-30. |
+| `__tests__/unclassifiedReturns.test.ts` | A (pure) | `buildUnclassifiedReturnsRows` + `explainUnclassified` — row selection (includes no-Return-record and not-yet-classified lines, excludes classified restock/writeoff), multi-line-per-order product matching, missing-customer/store fallbacks, sort + totals. Reuses `matchReturnForLine`/`resolveReturnBookingPath` from `lib/journalEntry.ts` so the report can never disagree with what the JE actually booked. Added 2026-07-24 (B3). |
 | `__tests__/integration/paymentDeleteImmutability.integration.test.ts` | A (Postgres) | B6 trigger behavior end-to-end — 9 scenarios: PENDING/FAILED/NULL deletes succeed, COMPLETED/REFUNDED/VOIDED deletes blocked, exception message shape, transaction rollback on sibling delete, deleteMany atomicity. Replaces the deleted source-text tripwire. PR-pending, 2026-04-30. |
 | `__tests__/reports.cancelledLineFilter.test.ts` | B- | Source-text tripwires: every aggregation site filters CANCELLED lines (reports + accounting). |
 | `__tests__/quoteArchive.test.ts` | A | Server-side archive validation (touches the financial path indirectly via `SalesOrder.status` transitions). |

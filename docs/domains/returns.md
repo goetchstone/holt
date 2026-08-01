@@ -47,10 +47,15 @@ The JE shape (per `docs/domains/accounting.md`):
 
 | Event | JE shape |
 |---|---|
-| Return | Debit Sales (reverse the credit), debit Sales-Tax-Payable (reverse the tax), credit Cash/Card (refund tender), then EITHER debit Inventory + credit COGS (restock) OR debit Loss + credit COGS (writeoff). The "Returns" GL account in the schema is mostly informational — actual lines hit Sales / Tax / Cash. |
+| Return | Debit Sales (reverse the credit), debit Sales-Tax-Payable (reverse the tax), credit Cash/Card (refund tender), then EITHER debit Inventory + credit COGS (restock) OR debit the department's shrinkage/write-off GL + credit COGS (writeoff). The "Returns" GL account in the schema is mostly informational — actual lines hit Sales / Tax / Cash. |
 | Shrinkage | Debit Shrinkage, credit Inventory. No cash movement. **Separate from returns.** |
 
-**Owner rule** (master plan): all imported returns are assumed restocks. Anything actually written off goes through the manual transfer-out workflow, not through the return path. This collapses the restock-vs-writeoff branching for imported returns; native ERP returns still capture the decision at the counter via `InspectionCondition`.
+**B3 shipped 2026-07-24**: the restock-vs-writeoff decision is now wired into the JE generator (`resolveReturnBookingPath()` in `lib/journalEntry.ts`), not just modeled in the schema. Three named paths:
+
+- **`CLASSIFIED_RESTOCK`** / **`CLASSIFIED_WRITEOFF`** — a `Return` record covers the return-shaped line (matched via exact `lineItemId` FK, then unique same-order `productId`, then "sole `Return` on the order") AND is classified (terminal `status` of `RESTOCKED`/`WRITTEN_OFF`, or an `inspectionCondition` of `LIKE_NEW`/`MINOR_DAMAGE` → restock, `MAJOR_DAMAGE`/`UNSALVAGEABLE` → writeoff — the same mapping `suggestDisposition()` in `lib/returnService.ts` already suggested at the counter). `CLASSIFIED_WRITEOFF` debits the account group's `shrinkageAccount` GL instead of Inventory; falls back to restock (with a JE warning) if that GL isn't configured.
+- **`UNCLASSIFIED_DEFAULT_RESTOCK`** — no `Return` record matches, or one exists but hasn't been inspected yet. Books exactly like `CLASSIFIED_RESTOCK` (debit Inventory) — this IS the owner-directed default, just made an explicit, named, greppable code path instead of an implicit fallthrough. **Every imported historical return takes this path** — the `Return` table is never populated by import, so there is nothing to classify against. Native ERP returns take it too until someone inspects them.
+
+**Visibility**: the "Unclassified Returns" report (`/app/reports/unclassified-returns`, MANAGER/ADMIN) lists every line that took the default path — date, order #, store, customer, amount, and why (no Return record / ambiguous match / not yet inspected) — so an accountant can review the assumption instead of it being silent. See `docs/domains/reporting.md` "Unclassified Returns (B3 exception report)" for the query and invariants. Anything confirmed as an actual writeoff still goes through the manual transfer-out workflow OR gets a `Return` record classified to `WRITTEN_OFF` so the next JE run books it correctly.
 
 ## Imported-the POS-return gaps
 
@@ -60,7 +65,7 @@ What we can't get from any current the POS export:
 |---|---|---|
 | No link to original sale (accounting returns) | Limits return-rate analytics | Heuristic (orderno pattern + customer + date proximity + line-item overlap) — reconstructible as a one-off if needed |
 | No return reason | Can't categorize for vendor scorecards | Imported returns lump under "Customer Return — reason not captured." Document in runbook. |
-| No restock-vs-writeoff flag per item | All imported returns assumed restock per owner rule | Manual transfer-out for any item actually written off |
+| No restock-vs-writeoff flag per item | All imported returns take the `UNCLASSIFIED_DEFAULT_RESTOCK` path (owner rule) — visible on the "Unclassified Returns" report | Manual transfer-out, OR classify a `Return` record to `WRITTEN_OFF`, for any item actually written off |
 | Tax computed at return-date rate, not sale-date rate | Small edge case (CT rate hasn't changed in years) | Accept the POS's value |
 | Refund tender doesn't reference line items | OK for JE (sum at order level); gap for partial-refund analytics | Native ERP path captures this |
 | `Return` model never populated by import | Two parallel realities | Document the duality (this runbook) |
@@ -110,6 +115,8 @@ Every state transition writes to `OrderChangeLog` for the linked `salesOrderId`:
 | `returnService.ts` state transitions | Unit tests TBD |
 | `reports.salesRevenueStatusFilter.test.ts` | Source-text tripwire ensuring RETURNED is included in revenue aggregations |
 | `integration/mailchimpAttributionRewriteChain.integration.test.ts` | Real-DB test of the rewrite + return net-out math |
+| B3 restock/writeoff JE branching (`resolveReturnBookingPath`, `matchReturnForLine`, `classifyReturnDisposition`) | `__tests__/journalEntry.test.ts` (pure, 21 scenarios) + `__tests__/integration/generateSalesJournal.integration.test.ts` (2 real-DB scenarios: classified `WRITTEN_OFF`, classified `RESTOCKED`) |
+| Unclassified Returns exception report | `__tests__/unclassifiedReturns.test.ts` (pure, row selection + reason text + invariants) |
 | Exchange order creation | None — gap |
 | Inspection workflow | None — gap |
 
@@ -120,4 +127,4 @@ Every state transition writes to `OrderChangeLog` for the linked `salesOrderId`:
 - **Restocking-fee policy table** — currently per-return manual entry; no store-wide default
 
 ---
-Last verified: 2026-05-20
+Last verified: 2026-07-24 (B3 — restock/writeoff JE branching + Unclassified Returns report)

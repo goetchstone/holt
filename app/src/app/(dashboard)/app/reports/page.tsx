@@ -40,6 +40,13 @@ const ITEMS: CardGridItem[] = [
     roles: ["MANAGER", "ADMIN"],
   },
   {
+    title: "Sales Explorer",
+    description:
+      "Compare two periods across Store, Department, Category, and Vendor in one expandable pivot tree, with variance and margin at every level plus drill-down to product-level rows.",
+    href: "/app/reports/sales-explorer",
+    roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"],
+  },
+  {
     title: "Gross Margin",
     description:
       "Revenue, cost, and margin for a date range. Pivot by department or vendor to see where the profit actually comes from. Flags rows where cost is missing.",
@@ -72,6 +79,13 @@ const ITEMS: CardGridItem[] = [
     description:
       "Return rate by department or vendor plus the most-returned products. Shows where merchandise is coming back so you can act on quality or fit issues.",
     href: "/app/reports/returns",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
+    title: "Unclassified Returns",
+    description:
+      "Returns booked on the default restock assumption because no Return record classifies them — the accountant's worklist to review and correct any that were actually written off.",
+    href: "/app/reports/unclassified-returns",
     roles: ["MANAGER", "ADMIN"],
   },
   {
