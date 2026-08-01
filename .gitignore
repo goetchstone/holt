@@ -25,6 +25,14 @@ app/data/
 # Service account keys (never commit credentials)
 config/*.json
 
+# Per-deployment config presets. config/presets/ SHIPS (white-box defaults,
+# tuned to the seed database); config/local/ is one specific deployment's real
+# mappings -- store names, vendor payment codes, tenant quirks. That is tenant
+# data, not product code, and per docs/TENANCY.md it must not travel with the
+# white box. The example file is committed so the shape is discoverable.
+config/local/*
+!config/local/.gitkeep
+
 # Claude Code -- keep enforcement infra tracked, ignore session state.
 # Skills (checklist content), hooks (the scripts settings.json wires up),
 # and settings.json (which wires the hooks) MUST travel with the repo so

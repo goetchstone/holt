@@ -50,6 +50,8 @@ services:
       - ./app:/app
       - app_node_modules:/app/node_modules
       - uploads:/app/data/uploads
+      # Writable here (not :ro) so the dev flow can edit presets in place.
+      - ./config:/etc/holt/config
     command: >
       sh -c "apk add --no-cache poppler-utils postgresql-client &&
              npm install &&
@@ -62,6 +64,7 @@ services:
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - HOLT_CONFIG_DIR=/etc/holt/config
     depends_on:
       db:
         condition: service_healthy
@@ -85,9 +88,21 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
+      # Without this, resolveConfigRoot() looks at /app/../config = /config,
+      # which does not exist in the image, and every preset silently resolves
+      # to nothing.
+      - HOLT_CONFIG_DIR=/etc/holt/config
     volumes:
       - uploads:/app/data/uploads
       - ./config/service-account.json:/app/config/service-account.json:ro
+      # Config presets. Mounted rather than baked into the image for two
+      # reasons: the build context is ./app, so repo-root config/ is not
+      # reachable by a COPY at all; and changing a mapping should not require
+      # an image rebuild -- that is the whole point of config-as-data.
+      # Read-only: the app reads presets and writes rows, never files. The
+      # GUI's export is a download, not a disk write.
+      # See docs/domains/config-presets.md.
+      - ./config:/etc/holt/config:ro
     depends_on:
       db:
         condition: service_healthy

@@ -12,7 +12,6 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { format, subYears } from "date-fns";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import UpBoard from "@/components/dashboard/UpBoard";
-import { getStoreDisplayName, getStoreLocationName } from "@/lib/storeColors";
 import { useStoreLocations } from "@/hooks/useStoreLocations";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 
@@ -27,6 +26,13 @@ interface TrafficRow {
   local_time?: string;
   entries: number;
   exits: number;
+  // Resolved server-side (see /api/axper/traffic) via the DB-backed
+  // trafficStoreMap -- a friendly label and the StoreLocation.name join
+  // key for salesByStore. Optional because rows from a stale cached
+  // response (or a mocked fetch in a test) may predate these fields;
+  // callers fall back to store_name when absent.
+  displayName?: string;
+  storeLocationName?: string;
 }
 
 interface StoreSales {
@@ -62,6 +68,26 @@ export function HomeView() {
     () => dbStores.map((s) => ({ store: s.name, label: s.name })),
     [dbStores],
   );
+
+  // The traffic rows carry the server-resolved displayName /
+  // storeLocationName, but `storeName` alone (the key used everywhere
+  // below, including for dbStores that have no traffic rows yet) doesn't --
+  // so build a lookup from whatever rows we've actually fetched. Stores
+  // with no traffic data (brand new, or a slow first fetch) simply fall
+  // back to their raw name, same as the server does for an unmapped
+  // counter.
+  const storeInfoByName = useMemo(() => {
+    const map: Record<string, { displayName: string; storeLocationName: string }> = {};
+    [...todayTraffic, ...lastYearTraffic].forEach((row) => {
+      if (row?.store_name && row.displayName && row.storeLocationName) {
+        map[row.store_name] = {
+          displayName: row.displayName,
+          storeLocationName: row.storeLocationName,
+        };
+      }
+    });
+    return map;
+  }, [todayTraffic, lastYearTraffic]);
 
   const allStores = useMemo(() => {
     const names = new Set<string>(dbStores.map((s) => s.name));
@@ -175,8 +201,8 @@ export function HomeView() {
           {allStores.map((storeName) => (
             <StoreCard
               key={storeName}
-              storeName={storeName}
-              sales={salesByStore[getStoreLocationName(storeName)]}
+              displayName={storeInfoByName[storeName]?.displayName ?? storeName}
+              sales={salesByStore[storeInfoByName[storeName]?.storeLocationName ?? storeName]}
               entriesToday={todayByStore[storeName] ?? 0}
               entriesLastYear={lastYearByStore[storeName] ?? 0}
               inStore={occupancyByStore[storeName] ?? 0}
@@ -202,14 +228,14 @@ export function HomeView() {
 }
 
 function StoreCard({
-  storeName,
+  displayName,
   sales,
   entriesToday,
   entriesLastYear,
   inStore,
   formatCurrency,
 }: {
-  storeName: string;
+  displayName: string;
   sales: StoreSales | undefined;
   entriesToday: number;
   entriesLastYear: number;
@@ -224,7 +250,7 @@ function StoreCard({
   return (
     <div className="bg-white border border-gray-200 p-5 text-center">
       <div className="font-serif-display text-sh-blue text-base tracking-wide mb-2">
-        {getStoreDisplayName(storeName)}
+        {displayName}
       </div>
       <div className="text-3xl font-serif text-sh-blue font-light mb-1">{entriesToday}</div>
       <div className="text-xs font-sans uppercase tracking-wider text-sh-gray mb-3">

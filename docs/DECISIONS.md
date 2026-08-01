@@ -249,6 +249,37 @@ was actually fine.
 
 ---
 
+## 13. Deployment facts are config, never code
+
+**Rejected:** hardcoded mapping literals (`AXPER_TO_STORE_LOCATION`,
+per-vendor payment code maps), and the obvious alternative of a
+database-only admin UI with no file representation.
+
+**Why:** a fact about *a* deployment compiled into *the* product means every
+deployment that adds a store forks a TypeScript file. But database-only
+configuration is not reviewable, not diffable, and not reproducible across
+environments. So: a checked-in YAML/JSON file is the authoring and review
+surface, database rows are the runtime store, and an admin GUI is a second
+door onto the same rows that exports back to a file. Both doors share one zod
+schema, so they cannot drift.
+
+The boundary that makes this safe to accept from a pull request, an upload, or
+a form: **a preset selects behaviour from a fixed catalog and can never supply
+behaviour.** It may name a `runnerKey` that already exists in the compile-time
+registry; it may not define what that runner does. No expression language, no
+conditionals, no computed values — the transform vocabulary is six fixed keys.
+A config DSL is a remote code execution surface wearing a config file's
+clothes.
+
+**Cost accepted:** two surfaces to keep in sync (mitigated by the shared
+schema and a YAML/JSON parity test), and a reconcile-to-desired-state apply
+that deletes rows a file no longer mentions — which is correct for GitOps and
+surprising the first time you see it.
+
+**Source:** [`docs/domains/config-presets.md`](domains/config-presets.md)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

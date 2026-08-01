@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { fetchAxperTraffic } from "@/lib/axperClient";
 import { rollupByDayAndStore, type TrafficRowForSummary } from "@/lib/trafficSummary";
-import { getStoreDisplayName } from "@/lib/storeColors";
+import { getTrafficStoreMap } from "@/lib/trafficStoreMap";
 import { logError } from "@/lib/logger";
 
 function parseDateInput(s: unknown): Date | null {
@@ -123,11 +123,12 @@ export default requireAuthWithRole(
       const allRows = [...persistedRows, ...liveRows];
       const byDayAndStore = rollupByDayAndStore(allRows);
 
+      const storeMap = await getTrafficStoreMap();
       const header = ["Date", "Store (Axper)", "Store (Display)", "Visitors", "Exits"];
       const body = byDayAndStore.map((r) => [
         r.date,
         r.axperStoreName,
-        getStoreDisplayName(r.axperStoreName),
+        storeMap.resolveDisplayName(r.axperStoreName),
         r.visitors,
         r.exits ?? "",
       ]);

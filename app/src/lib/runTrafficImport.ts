@@ -13,9 +13,9 @@
 //     DB and pulls those too. Auto-self-heals when a previous cron
 //     run missed.
 //
-//   - resolveAxperStoreLocation(axperStoreName, cache)
+//   - resolveAxperStoreLocation(axperStoreName, storeMap)
 //     Map an Axper store name to a StoreLocation FK using the shared
-//     `lib/storeColors.ts` mapping. Returns null when no mapping
+//     `lib/trafficStoreMap.ts` resolver. Returns null when no mapping
 //     exists; the import still persists the row with FK=null so the
 //     operator can add the mapping + re-run.
 //
@@ -24,7 +24,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { fetchAxperTraffic, type AxperTrafficRow } from "@/lib/axperClient";
-import { getStoreLocationName } from "@/lib/storeColors";
+import { getTrafficStoreMap, type TrafficStoreMap } from "@/lib/trafficStoreMap";
 import { logError } from "@/lib/logger";
 
 export interface TrafficImportResult {
@@ -84,25 +84,17 @@ function parseLocalTime(s: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-async function buildStoreLocationCache(): Promise<Map<string, number>> {
-  const locations = await prisma.storeLocation.findMany({
-    select: { id: true, name: true },
-  });
-  const byName = new Map<string, number>();
-  for (const loc of locations) {
-    byName.set(loc.name.toLowerCase(), loc.id);
-  }
-  return byName;
-}
-
+/**
+ * Resolves an Axper store name directly to a StoreLocation FK via the
+ * shared resolver -- no name round-trip needed since the resolver already
+ * knows StoreLocation ids (unlike the old getStoreLocationName(), which
+ * only ever returned a name that still had to be looked up separately).
+ */
 export function resolveAxperStoreLocation(
   axperStoreName: string,
-  cache: Map<string, number>,
+  storeMap: TrafficStoreMap,
 ): number | null {
-  // First map Axper name → StoreLocation.name via the shared mapping,
-  // then look up the location FK from the cache.
-  const targetName = getStoreLocationName(axperStoreName);
-  return cache.get(targetName.toLowerCase()) ?? null;
+  return storeMap.resolveStoreLocation(axperStoreName)?.id ?? null;
 }
 
 interface UpsertOutcome {
@@ -171,7 +163,7 @@ async function fetchRowsOrLog(
  */
 async function processOneRow(
   row: AxperTrafficRow,
-  cache: Map<string, number>,
+  storeMap: TrafficStoreMap,
   result: TrafficImportResult,
   unmapped: Set<string>,
 ): Promise<void> {
@@ -180,7 +172,7 @@ async function processOneRow(
     result.errors.push(`Skipped row with unparseable local_time: ${row.local_time}`);
     return;
   }
-  const storeLocationId = resolveAxperStoreLocation(row.store_name, cache);
+  const storeLocationId = resolveAxperStoreLocation(row.store_name, storeMap);
   if (storeLocationId === null) unmapped.add(row.store_name);
 
   try {
@@ -204,7 +196,7 @@ export async function runTrafficImportForDay(date: Date): Promise<TrafficImportR
   const result = emptyResult(ymd, ymd);
   result.daysScanned = 1;
 
-  const cache = await buildStoreLocationCache();
+  const storeMap = await getTrafficStoreMap();
   const rows = await fetchRowsOrLog(ymd, result);
   if (rows === null) return result;
 
@@ -213,7 +205,7 @@ export async function runTrafficImportForDay(date: Date): Promise<TrafficImportR
 
   const unmapped = new Set<string>();
   for (const row of rows) {
-    await processOneRow(row, cache, result, unmapped);
+    await processOneRow(row, storeMap, result, unmapped);
   }
 
   result.unmappedStores = [...unmapped];

@@ -12,7 +12,8 @@ export type AuditEvent =
   | "IMPORT_WOOD"
   | "ROLE_CHANGE"
   | "BULK_DELETE"
-  | "INVENTORY_CLEAR";
+  | "INVENTORY_CLEAR"
+  | "CONFIG_PRESET_APPLY";
 
 /**
  * Log a structured audit event. All audit entries include `audit: true`

@@ -85,6 +85,7 @@ const ALL_TABLES = [
   "CommissionPlanTier",
   "CommissionRuleTier",
   "CommissionTier",
+  "ConfigChangeLog",
   "ConsignmentItem",
   "ConsignmentPaymentBatch",
   "ConsignmentReceipt",

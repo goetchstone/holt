@@ -5,8 +5,9 @@
 // Settings overview: the core, always-present sections (Branding, Theme,
 // Localization, Booking) plus the Modules on/off grid, plus an index of
 // enabled modules that have their own settings page (lib/modules -- the
-// module manifest, docs/domains/modules.md). Integrations moved to its own
-// route (./integrations) since it was already the size of a page on its own.
+// module manifest, docs/domains/modules.md). Integrations and Configuration
+// (the config-preset GUI, docs/domains/config-presets.md) each moved to
+// their own route since each was already the size of a page on its own.
 //
 // This is the App Router replacement for the old single 595-line
 // SettingsView.tsx -- same branding/theme/localization/booking/modules
@@ -421,6 +422,12 @@ export function SettingsOverviewView() {
       <div className="flex items-center justify-between">
         <h1 className="font-serif text-2xl text-sh-blue">Settings</h1>
         <div className="flex items-center gap-2">
+          <Link
+            href="/app/admin/settings/configuration"
+            className="inline-flex items-center justify-center rounded-lg border border-sh-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-sh-blue shadow-md transition hover:bg-sh-gray/10"
+          >
+            Configuration
+          </Link>
           <Link
             href="/app/admin/settings/integrations"
             className="inline-flex items-center justify-center rounded-lg border border-sh-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-sh-blue shadow-md transition hover:bg-sh-gray/10"

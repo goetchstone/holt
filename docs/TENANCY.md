@@ -26,6 +26,24 @@ Invoices) carry `organizationId` and scope their queries to it. That keeps
 the door open for the shared-database SaaS mode without retrofitting the
 newer modules.
 
+## What stays OUT of the white box
+
+Tenant configuration is not product code, and does not travel with the repo:
+
+- `config/local/` is gitignored. A deployment's real store names, traffic
+  counter labels and vendor payment codes live there (`saybrook.yaml`,
+  `akritos.json`). `config/presets/` — the committed set — holds only defaults
+  tuned to the demo seed, so a fresh clone works without carrying anyone's
+  data. `config/example.yaml` is committed as a template — at config root,
+  not inside `config/local/`, because the loader would otherwise treat it as
+  live configuration. See `domains/config-presets.md`.
+- The same reasoning already applies to `app/scripts/seed-akritos.mjs` and
+  `app/scripts/akritos-content/` (see `.gitignore`): improvements stay
+  code-only, so they flow to every tenant.
+
+The test for whether something belongs in the white box: would a second
+deployment want it verbatim? Defaults yes, facts no.
+
 ## The tracked precondition for shared-DB SaaS (internal task #135)
 
 If Holt ever serves multiple tenants from ONE database, the retail core must

@@ -78,5 +78,33 @@ To check if the database schema matches the Prisma schema:
 
 ```bash
 cd app
-npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma
 ```
+
+Add `--script` to get the SQL rather than a human-readable summary.
+
+Prisma 7 removed `--from-schema-datasource` / `--to-schema-datamodel`; the
+datasource now comes from `prisma.config.ts` via `--from-config-datasource`,
+and a schema file is `--from-schema` / `--to-schema`. `migrate diff` also no
+longer accepts `--shadow-database-url`, and `db execute` no longer accepts
+`--url` — export `DATABASE_URL` instead, or pipe the SQL straight to `psql`:
+
+```bash
+docker exec -i holt-db-1 psql -U dbuser_fbc -d <db> -v ON_ERROR_STOP=1 \
+  < prisma/migrations/<name>/migration.sql
+```
+
+### When `migrate dev` wants to reset
+
+If the dev database has drifted, `prisma migrate dev` offers to drop it. Do
+not accept — `fbc_dev_db` holds working data. Hand-write the migration SQL
+instead, apply it with the `psql` command above, then mark it applied:
+
+```bash
+npx prisma migrate resolve --applied <migration_dir_name>
+```
+
+`migrate resolve` only records the migration as applied; it does **not** run
+the SQL. Apply first, resolve second, and verify the object exists before
+moving on — resolving without applying leaves the history lying about the
+database.
