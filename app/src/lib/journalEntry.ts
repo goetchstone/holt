@@ -713,7 +713,18 @@ export async function generateSalesJournal(
   // Map Prisma data to plain types for the pure build function
   const mappedPayments: SalesPayment[] = [];
   for (const payment of payments) {
-    const amount = toNum(payment.paymentAmount);
+    // A refund moves money OUT of the drawer, so it must reduce the cash side
+    // of the journal. Two sign conventions coexist in the data and neither can
+    // be assumed: imported POS refunds arrive already negative, while
+    // processRefund writes a POSITIVE amount and marks isRefund. Normalising on
+    // the flag makes both mean the same thing, and -Math.abs() cannot
+    // double-negate a row that was already stored negative.
+    //
+    // Before this, a native refund was summed as cash RECEIVED — it inflated
+    // the day's cash instead of relieving it, and the daily reconciliation
+    // reported drift with no obvious cause.
+    const rawAmount = toNum(payment.paymentAmount);
+    const amount = payment.isRefund ? -Math.abs(rawAmount) : rawAmount;
     if (amount === 0) continue;
 
     // Authored-invoice payments (no sales order, applied to an invoice) post
