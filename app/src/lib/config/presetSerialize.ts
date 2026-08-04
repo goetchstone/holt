@@ -6,8 +6,13 @@
 // (or vice versa). Both go through the same zod schema in presetSchema.ts,
 // so neither format can express something the other cannot.
 //
-// Isomorphic: the `yaml` package runs in the browser, so the admin GUI uses
-// this module directly to preview and download a file without a round-trip.
+// Isomorphic — the `yaml` package runs in the browser and nothing here touches
+// `fs` — but note what the GUI actually does today: it imports only
+// `detectFormat` (a filename check) and sends the text to
+// /api/admin/config/presets/validate, downloading exports from
+// /api/admin/config/presets/export. Both are server round-trips. Keeping this
+// module client-safe means a future GUI could validate as you type without a
+// request; it does not mean it does so now.
 
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
@@ -36,10 +41,13 @@ export const MAX_PRESET_BYTES = 512 * 1024;
  *   gigabytes during parse and takes the process down. 100 is the library
  *   default; we set it explicitly so a future default change cannot quietly
  *   remove the protection.
- * - `customTags: []` refuses every non-core tag. The `yaml` package does not
- *   construct arbitrary JS types the way old `js-yaml` `load()` did, but
- *   stating the empty tag set makes the intent (data only, never behaviour)
- *   explicit and enforced.
+ * - `customTags: []` declares that we register no tag handlers of our own. It
+ *   is NOT a refusal: the core schema still resolves `!!binary` to a Buffer
+ *   and `!!timestamp` to a Date, and an unrecognised tag is kept with a
+ *   warning rather than rejected. An earlier version of this comment claimed
+ *   otherwise; assertPlainData() below is what actually enforces "data only,
+ *   never behaviour," by rejecting any value that is not a string, finite
+ *   number, boolean, null, array or plain object.
  * - `version: "1.2"` pins the spec so `NO` stays the string "NO" and does not
  *   become boolean false under YAML 1.1 rules. Store names and payment codes
  *   are exactly the kind of short uppercase tokens that this bites.
@@ -49,6 +57,41 @@ const YAML_PARSE_OPTIONS = {
   customTags: [],
   version: "1.2" as const,
 };
+
+/**
+ * Walks a parsed document and reports every value that is not plain data.
+ * Deliberately an allow-list: anything not explicitly permitted is reported,
+ * so a future YAML tag that resolves to some new type fails closed instead of
+ * quietly flowing into the database.
+ */
+function assertPlainData(
+  value: unknown,
+  path = "(root)",
+): Array<{ path: string; kind: string }> {
+  if (value === null) return [];
+  const t = typeof value;
+  if (t === "string" || t === "boolean") return [];
+  if (t === "number") {
+    return Number.isFinite(value as number) ? [] : [{ path, kind: "non-finite number" }];
+  }
+  if (t === "bigint" || t === "function" || t === "symbol" || t === "undefined") {
+    return [{ path, kind: t }];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((v, i) => assertPlainData(v, `${path}.${i}`));
+  }
+  if (value instanceof Date) return [{ path, kind: "date (!!timestamp)" }];
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
+    return [{ path, kind: "binary (!!binary)" }];
+  }
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) {
+    return [{ path, kind: `${(value as object).constructor?.name ?? "object"} instance` }];
+  }
+  return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) =>
+    assertPlainData(v, `${path === "(root)" ? "" : `${path}.`}${k}`),
+  );
+}
 
 export function detectFormat(filename: string): PresetFormat | null {
   const lower = filename.toLowerCase();
@@ -88,6 +131,21 @@ export function parsePresetText(text: string, format?: PresetFormat): PresetPars
 
   if (data === null || data === undefined) {
     return { ok: false, errors: ["(root): document is empty"] };
+  }
+
+  // Real enforcement of "data only". YAML's core schema can hand back a
+  // Buffer (`!!binary`) or a Date (`!!timestamp`), and zod's `z.string()`
+  // would simply reject those with a confusing type error deep in a path —
+  // or, for a field typed loosely, let them through into the database. Reject
+  // them here, by name, so the operator is told what actually happened.
+  const exotic = assertPlainData(data);
+  if (exotic.length > 0) {
+    return {
+      ok: false,
+      errors: exotic.map(
+        (e) => `${e.path}: unsupported ${e.kind} — presets carry plain data only (no YAML tags)`,
+      ),
+    };
   }
 
   return parsePresetBundle(data);

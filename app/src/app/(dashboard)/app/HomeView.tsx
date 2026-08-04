@@ -89,15 +89,30 @@ export function HomeView() {
     return map;
   }, [todayTraffic, lastYearTraffic]);
 
+  // One card per STORE, not per counter. A store can have several counted
+  // doors — Old Saybrook's north and south buildings are two Axper feeds — and
+  // keying cards on the raw counter label produced one card per door, each
+  // repeating the store's full sales. With three stores and four feeds that
+  // rendered six cards, three of them titled "Old Saybrook".
+  //
+  // Resolve every raw label to its StoreLocation first, then dedupe. An
+  // unmapped label resolves to itself, so a newly-installed counter still
+  // appears (as its raw name) rather than vanishing — the operator needs to
+  // see it to go map it.
+  const resolveStore = useCallback(
+    (rawName: string) => storeInfoByName[rawName]?.storeLocationName ?? rawName,
+    [storeInfoByName],
+  );
+
   const allStores = useMemo(() => {
     const names = new Set<string>(dbStores.map((s) => s.name));
     [todayTraffic, lastYearTraffic].forEach((dataset) => {
       (dataset || []).forEach((row) => {
-        if (row?.store_name) names.add(row.store_name);
+        if (row?.store_name) names.add(resolveStore(row.store_name));
       });
     });
     return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [todayTraffic, lastYearTraffic, dbStores]);
+  }, [todayTraffic, lastYearTraffic, dbStores, resolveStore]);
 
   const getTrafficData = useCallback(
     async (dateFrom: string, dateTo: string): Promise<TrafficRow[]> => {
@@ -153,39 +168,40 @@ export function HomeView() {
     return () => clearInterval(interval);
   }, []);
 
-  const todayByStore = useMemo(() => {
-    const result: Record<string, number> = {};
-    allStores.forEach((store) => (result[store] = 0));
-    todayTraffic.forEach((row) => {
-      if (row?.store_name && result[row.store_name] !== undefined) {
-        result[row.store_name] += row.entries;
-      }
-    });
-    return result;
-  }, [todayTraffic, allStores]);
+  // Every rollup below resolves the counter label to its store before
+  // accumulating, so a store's several doors sum into one figure. Without the
+  // resolve step the raw key misses the (now store-keyed) accumulator entirely
+  // and the guard below silently drops the row -- a store would read zero
+  // visitors while its counters were reporting normally.
+  const rollup = useCallback(
+    (rows: TrafficRow[], value: (row: TrafficRow) => number) => {
+      const result: Record<string, number> = {};
+      allStores.forEach((store) => (result[store] = 0));
+      rows.forEach((row) => {
+        if (!row?.store_name) return;
+        const store = resolveStore(row.store_name);
+        if (result[store] === undefined) return;
+        result[store] += value(row);
+      });
+      return result;
+    },
+    [allStores, resolveStore],
+  );
 
-  const lastYearByStore = useMemo(() => {
-    const result: Record<string, number> = {};
-    allStores.forEach((store) => (result[store] = 0));
-    lastYearTraffic.forEach((row) => {
-      if (row?.store_name && result[row.store_name] !== undefined) {
-        result[row.store_name] += row.entries;
-      }
-    });
-    return result;
-  }, [lastYearTraffic, allStores]);
+  const todayByStore = useMemo(
+    () => rollup(todayTraffic, (r) => r.entries),
+    [todayTraffic, rollup],
+  );
 
-  const occupancyByStore = useMemo(() => {
-    const result: Record<string, number> = {};
-    allStores.forEach((store) => (result[store] = 0));
-    todayTraffic.forEach((row) => {
-      if (row?.store_name && result[row.store_name] !== undefined) {
-        result[row.store_name] += row.entries;
-        result[row.store_name] -= row.exits;
-      }
-    });
-    return result;
-  }, [todayTraffic, allStores]);
+  const lastYearByStore = useMemo(
+    () => rollup(lastYearTraffic, (r) => r.entries),
+    [lastYearTraffic, rollup],
+  );
+
+  const occupancyByStore = useMemo(
+    () => rollup(todayTraffic, (r) => r.entries - (r.exits ?? 0)),
+    [todayTraffic, rollup],
+  );
 
   return (
     <div className="py-2">
@@ -201,8 +217,8 @@ export function HomeView() {
           {allStores.map((storeName) => (
             <StoreCard
               key={storeName}
-              displayName={storeInfoByName[storeName]?.displayName ?? storeName}
-              sales={salesByStore[storeInfoByName[storeName]?.storeLocationName ?? storeName]}
+              displayName={storeName}
+              sales={salesByStore[storeName]}
               entriesToday={todayByStore[storeName] ?? 0}
               entriesLastYear={lastYearByStore[storeName] ?? 0}
               inStore={occupancyByStore[storeName] ?? 0}

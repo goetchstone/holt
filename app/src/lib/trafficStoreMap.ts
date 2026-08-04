@@ -74,7 +74,7 @@ export function buildTrafficStoreMap(rows: TrafficSourceStoreLocation[]): Traffi
       warnedUnmapped.add(key);
       logger.warn("traffic source name has no StoreLocation mapping", {
         sourceName,
-        hint: "add it to the store's Traffic Source Names in Admin > Stores",
+        hint: "add it to the store's Traffic Source Names in Admin > Settings > Configuration",
       });
     }
     return null;

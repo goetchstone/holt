@@ -56,12 +56,14 @@ presets:
     importMode: UPSERT            # INSERT_ONLY | UPSERT | RECONCILE
     naturalKeyFields: [externalId]  # required for UPSERT: how to find an existing row
 
-    # RECONCILE additionally requires `runnerKey`, naming a compile-time
-    # runner. A full-state re-export has to diff against what is already
+    # RECONCILE additionally requires `runnerKey`, naming a runner that is
+    # already registered in lib/imports/runnerRegistry.ts. Today that is
+    # `customer` and `product` — an unregistered key fails the apply outright,
+    # so do not invent one here. A full-state re-export has to diff against what is already
     # stored — detect vanished lines, rewrites, zero-quantity cancellations —
     # and that is code, not mapping. Config SELECTS a runner from a fixed
     # catalog; it can never define one.
-    # runnerKey: ordorite-sales
+    # runnerKey: product
 
     fieldMappings:
       # sourceColumn is the file's header text, verbatim — case and spacing

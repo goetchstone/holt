@@ -42,9 +42,43 @@ export const presetNameSchema = z
 // A preset never carries secrets. API keys, tokens and passwords belong in
 // IntegrationCredential (encrypted at rest, see docs/SECRETS.md) — a preset
 // is meant to be committed to git and reviewed in a pull request, so
-// anything in it is public by construction. `refineNoSecrets` below is the
+// anything in it is public by construction. findSecrets() below is the
 // tripwire that keeps a well-meaning contributor from pasting one in.
-const SECRET_LIKE_KEY = /(?:pass(?:word|wd)?|secret|token|api[-_]?key|private[-_]?key|credential)/i;
+//
+// Anchored to a whole key segment, NOT a bare substring. The first version
+// tested `/pass|secret|token/` against every key at every depth, which meant
+// ordinary retail data tripped it: a payment type of "Bus Pass", a store on
+// "Passaic Ave", a vendor called "Tokenworks" made the entire bundle
+// unloadable — and, worse, made a GUI export of that data un-re-importable,
+// silently breaking the round-trip the whole design rests on. A tripwire that
+// fires on the business's own vocabulary gets disabled, and then it protects
+// nothing.
+const SECRET_LIKE_KEY =
+  /^(?:pass(?:word|wd)?|secret|token|auth|api[-_]?key|access[-_]?key|private[-_]?key|credentials?|client[-_]?secret)$/i;
+
+// Keys are only half the problem: `{ "note": "sk-live-abc123" }` has an
+// innocent key. Rather than guess at entropy (which false-positives on
+// barcodes, SKUs and hashes — exactly what a retail preset is full of), match
+// the small set of credential formats that announce themselves.
+const SECRET_LIKE_VALUE = [
+  /^sk-[A-Za-z0-9_-]{16,}$/, // OpenAI-style secret key
+  /^sk_(?:live|test)_[A-Za-z0-9]{16,}$/, // Stripe secret key
+  /^rk_(?:live|test)_[A-Za-z0-9]{16,}$/, // Stripe restricted key
+  /^gh[pousr]_[A-Za-z0-9]{20,}$/, // GitHub token
+  /^xox[abposr]-[A-Za-z0-9-]{10,}$/, // Slack token
+  /^AKIA[0-9A-Z]{16}$/, // AWS access key id
+  /^eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./, // JWT
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/, // PEM private key
+];
+
+/**
+ * Keys under these nodes are DATA, not configuration: `valueMappings` is
+ * keyed by target field and then by the source system's own vocabulary, so a
+ * key there is a payment string or a state name the business chose. Scanning
+ * them for credential-shaped names is a category error. Their VALUES are
+ * still scanned — a pasted token is a pasted token wherever it lands.
+ */
+const DATA_KEYED_NODES = new Set(["valueMappings"]);
 
 // --------------------------------------------------------------------------
 // kind: import-definition
@@ -238,15 +272,22 @@ function formatIssues(error: z.ZodError): string[] {
  * already been written to disk, but refusing to APPLY it is what stops it
  * from also being copied into the database and shown in the GUI.
  */
-function findSecretLikeKeys(value: unknown, path: string[] = []): string[] {
+function findSecrets(value: unknown, path: string[] = [], inDataNode = false): string[] {
+  if (typeof value === "string") {
+    return SECRET_LIKE_VALUE.some((re) => re.test(value.trim()))
+      ? [`${path.join(".") || "(root)"} (value looks like a credential)`]
+      : [];
+  }
   if (Array.isArray(value)) {
-    return value.flatMap((v, i) => findSecretLikeKeys(v, [...path, String(i)]));
+    return value.flatMap((v, i) => findSecrets(v, [...path, String(i)], inDataNode));
   }
   if (value && typeof value === "object") {
     return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) => {
       const here = [...path, k];
-      const hit = SECRET_LIKE_KEY.test(k) ? [here.join(".")] : [];
-      return [...hit, ...findSecretLikeKeys(v, here)];
+      // Once inside a data-keyed node, every key below is the source system's
+      // vocabulary, not ours — check values only.
+      const hit = !inDataNode && SECRET_LIKE_KEY.test(k) ? [here.join(".")] : [];
+      return [...hit, ...findSecrets(v, here, inDataNode || DATA_KEYED_NODES.has(k))];
     });
   }
   return [];
@@ -269,7 +310,7 @@ export function parsePresetBundle(input: unknown): PresetParseResult {
     };
   }
 
-  const secretKeys = findSecretLikeKeys(input);
+  const secretKeys = findSecrets(input);
   if (secretKeys.length > 0) {
     return {
       ok: false,

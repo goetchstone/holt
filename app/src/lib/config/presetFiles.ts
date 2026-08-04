@@ -101,8 +101,23 @@ async function listPresetFiles(dir: string): Promise<string[]> {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw err;
   }
+  // Symlinks count. `readdir` does not follow them, so a symlinked preset
+  // reports isFile() === false and would be dropped before it was ever read —
+  // and because a skipped file leaves no error, `apply-preset` would print
+  // "0 presets" and exit 0, which reads exactly like "nothing to do". Pointing
+  // config/local/ at a private repo with `ln -s` is a documented deployment
+  // shape ($HOLT_CONFIG_DIR exists for it), so this has to work.
+  //
+  // `stat` (unlike `lstat`/`readdir`) follows the link, so a dangling symlink
+  // throws in readIfSmallEnough and surfaces as a load error rather than
+  // silence.
   return entries
-    .filter((e) => e.isFile() && detectFormat(e.name) !== null && !e.name.startsWith("."))
+    .filter(
+      (e) =>
+        (e.isFile() || e.isSymbolicLink()) &&
+        detectFormat(e.name) !== null &&
+        !e.name.startsWith("."),
+    )
     .map((e) => e.name)
     .sort();
 }

@@ -172,6 +172,57 @@ describe("preset schema", () => {
     expect(result.errors.join(" ")).toMatch(/credential-like keys/);
   });
 
+  it("does not fire the credential tripwire on ordinary business vocabulary", () => {
+    // Regression: the first version substring-matched /pass|token|secret/
+    // against every key at every depth, so a payment type of "Bus Pass" or a
+    // vendor called "Tokenworks" made the whole bundle unloadable — and made
+    // a GUI export of that data un-re-importable, breaking the round-trip the
+    // design rests on. A tripwire that fires on the business's own words gets
+    // switched off, and then it guards nothing.
+    const result = parsePresetBundle({
+      version: 1,
+      presets: [
+        {
+          kind: "import-definition",
+          name: "acme",
+          targetEntity: "customer",
+          valueMappings: {
+            paymentType: {
+              "Bus Pass": "OTHER",
+              "Season Pass": "OTHER",
+              Tokenworks: "OTHER",
+              "Secret Santa": "OTHER",
+            },
+            state: { Passaic: "NJ" },
+          },
+        },
+      ],
+    });
+    if (!result.ok) throw new Error(`unexpectedly rejected: ${result.errors.join("; ")}`);
+    expect(result.bundle.presets).toHaveLength(1);
+  });
+
+  it("still refuses a credential pasted as a VALUE, wherever it lands", () => {
+    // The key-name check alone missed `{ note: "sk-live-..." }`. Matching a
+    // small set of self-announcing credential formats catches that without
+    // the entropy heuristics that would false-positive on SKUs and barcodes.
+    for (const secret of [
+      "sk_live_abcdefghij1234567890",
+      "ghp_abcdefghijklmnopqrstuvwxyz1234",
+      "AKIAIOSFODNN7EXAMPLE",
+      "-----BEGIN RSA PRIVATE KEY-----",
+    ]) {
+      const result = parsePresetBundle({
+        version: 1,
+        description: secret,
+        presets: [],
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("expected failure");
+      expect(result.errors.join(" ")).toMatch(/credential/i);
+    }
+  });
+
   it("reports the path of a nested problem so it is findable in a long file", () => {
     const result = parsePresetBundle({
       version: 1,
@@ -275,6 +326,22 @@ describe("YAML / JSON parity", () => {
     ].join("\n");
     const result = parsePresetText(bomb, "yaml");
     expect(result.ok).toBe(false);
+  });
+
+  it("refuses YAML tags that resolve to non-plain types", () => {
+    // `customTags: []` does NOT do this — the core schema still resolves
+    // !!binary to a Buffer and !!timestamp to a Date. The comment in
+    // presetSerialize.ts used to claim otherwise; this asserts the behaviour
+    // that actually enforces "data only, never behaviour".
+    for (const doc of [
+      'version: 1\ndescription: !!binary "aGVsbG8="\npresets: []\n',
+      "version: 1\ndescription: !!timestamp 2026-08-01\npresets: []\n",
+    ]) {
+      const result = parsePresetText(doc, "yaml");
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("expected failure");
+      expect(result.errors.join(" ")).toMatch(/plain data only/);
+    }
   });
 
   it("reports a parse error rather than throwing", () => {
@@ -381,6 +448,29 @@ describe("disk loader", () => {
     const report = await loadAllPresets(root);
     expect(report.presets.map((p) => p.preset.name)).toEqual(["alpha"]);
     expect(report.errors).toEqual([]);
+  });
+
+  it("loads a preset reached through a symlink", async () => {
+    // readdir does not follow symlinks, so a symlinked file reports
+    // isFile() === false and was dropped before it was ever read — with no
+    // error, so `apply-preset` printed "0 presets" and exited 0, which is
+    // indistinguishable from "nothing to do". Pointing config/local/ at a
+    // private repo with `ln -s` is a shape $HOLT_CONFIG_DIR exists to support.
+    const outside = path.join(root, "outside.yaml");
+    await fs.writeFile(outside, trafficPreset("linked", "A"), "utf8");
+    await fs.symlink(outside, path.join(root, "local", "linked.yaml"));
+
+    const report = await loadAllPresets(root);
+    expect(report.errors).toEqual([]);
+    expect(report.presets.map((p) => p.preset.name)).toEqual(["linked"]);
+  });
+
+  it("reports a dangling symlink as an error rather than skipping it", async () => {
+    await fs.symlink(path.join(root, "nope.yaml"), path.join(root, "local", "broken.yaml"));
+    const report = await loadAllPresets(root);
+    expect(report.presets).toEqual([]);
+    expect(report.errors).toHaveLength(1);
+    expect(report.errors[0].sourceFile).toBe("config/local/broken.yaml");
   });
 
   it("records which file each preset came from", async () => {

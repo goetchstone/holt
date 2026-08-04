@@ -31,9 +31,11 @@ The rule this establishes:
 > fixed catalog. It can never supply behaviour.
 
 That boundary is what makes it safe to accept a preset from a pull request, a
-file upload, or an admin form. A preset can say `runnerKey: ordorite-sales`,
-naming a runner that already exists in the compile-time registry. It cannot
-define what that runner does. There is no expression language, no eval, no
+file upload, or an admin form. A preset can say `runnerKey: product`, naming a
+runner that already exists in the compile-time registry
+(`lib/imports/runnerRegistry.ts` — today `customer` and `product`). It cannot
+define what that runner does, and an unregistered key is a hard failure at
+apply time. There is no expression language, no eval, no
 plugin loading — the transform vocabulary is six fixed keys
 (`TRIM`/`UPPERCASE`/`LOWERCASE`/`NUMBER`/`DATE`/`CURRENCY`) and that is
 deliberate. A DSL here would be a remote code execution surface wearing a
@@ -95,7 +97,11 @@ Parser safety is not left to defaults:
   ~200-byte document expands to gigabytes during parse and takes the process
   down (the billion-laughs attack). Set explicitly so a future library default
   change cannot quietly remove the protection.
-- **`customTags: []`** — data only, never behaviour.
+- **`customTags: []`** registers no tag handlers of our own. It is not, by
+  itself, a refusal: the core schema still resolves `!!binary` to a Buffer and
+  `!!timestamp` to a Date. `assertPlainData()` is what enforces data-only, by
+  rejecting any parsed value that is not a string, finite number, boolean,
+  null, array or plain object.
 - **`version: "1.2"`** — pinned so a store code like `NO` stays the string
   `"NO"` instead of becoming boolean `false` under YAML 1.1 rules. Short
   uppercase tokens are exactly what this bites, and store and payment codes are
@@ -104,8 +110,9 @@ Parser safety is not left to defaults:
   a real mapping file is tens of KB; a megabyte is a mistake or a probe.
 - **Path traversal** is blocked at one choke point (`safeJoin`), belt and
   braces: the name is pattern-checked *and* the resolved path is verified to
-  still sit under the config root. Both the CLI and the GUI turn user input
-  into a path, so there is exactly one place to get this right.
+  still sit under the config root. Only the CLI turns user input into a path
+  today — the GUI reads uploaded text and never names a file — but the check
+  lives in the loader rather than in the CLI so a future caller inherits it.
 - **Credential-shaped keys are refused outright.** Presets are committed in
   plaintext and rendered in the GUI. Secrets belong in `IntegrationCredential`,
   encrypted at rest (`docs/SECRETS.md`). The loader enforces this rather than
@@ -121,8 +128,11 @@ node app/scripts/apply-preset.mjs --file config/local/saybrook.yaml
 
 Two properties matter more than the rest:
 
-**Idempotent.** Applying twice reports `UNCHANGED` the second time and performs
-zero writes. The diff is computed before anything is written.
+**Idempotent.** Applying twice reports `UNCHANGED` the second time and writes no
+configuration rows — the diff is computed before anything is written. It does
+still append one `ConfigChangeLog` row per preset, deliberately: "we applied
+this and it was already correct" is a fact an audit wants, and a re-apply that
+left no trace would be indistinguishable from never having run.
 
 **Declarative.** A preset is desired state, not an append. Delete a line from
 the YAML, re-apply, and the corresponding row goes away. This is what makes
@@ -187,8 +197,11 @@ Two layers:
 The log stream alone is not enough: it rotates, and it cannot be joined against
 a journal entry.
 
-`summary` holds counts and changed field names, never the whole preset. The
-file is the source of truth for content; the row records that it was applied.
+`summary` holds counts plus the mappings that actually changed — including
+their source and target values, because "Card Connect stopped mapping to CARD"
+is the whole point of the record during a reconciliation dispute. It does not
+hold the unchanged remainder of the preset; the file stays the source of truth
+for content.
 
 ## Kinds
 
