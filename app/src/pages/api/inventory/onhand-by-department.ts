@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Fetch all necessary data in parallel
     const [snapshotRecords, physicalCounts, reconciliations, allProducts, departments] =
       await Promise.all([
-        prisma.inventorySnapshot.findMany({ select: { externalId: true, quantity: true } }),
+        prisma.inventorySnapshot.findMany({ select: { productId: true, quantity: true } }),
         prisma.physicalInventoryCount.findMany({ select: { productId: true, quantity: true } }),
         prisma.reconciliation.findMany({ include: { product: { select: { externalId: true } } } }),
         prisma.product.findMany({
@@ -77,12 +77,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
     } = {};
 
-    // Process snapshot (expected)
+    // Process snapshot (expected). Keyed on productId directly -- InventorySnapshot
+    // no longer needs the externalId indirection, and never silently drops
+    // native-born products (null externalId) the way this loop used to.
     for (const snapshot of snapshotRecords) {
-      const productId = externalToProductIdMap.get(snapshot.externalId);
-      if (!productId) continue;
-
-      const productInfo = productInfoMap.get(productId);
+      const productInfo = productInfoMap.get(snapshot.productId);
       const deptName = productInfo?.departmentName || "Unknown Department";
 
       if (!departmentTotals[deptName]) {

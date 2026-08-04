@@ -2,10 +2,10 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { logError } from "@/lib/logger";
+import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
 
 const APPAREL_DEPARTMENTS = ["Accessories", "Mens Apparel", "Womens Apparel"];
 
@@ -33,42 +33,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Step 1: Get the externalIds of products that have ALREADY been reconciled for this location.
+    // Step 1: Get the products that have ALREADY been reconciled for this location.
     // This is the key to fixing the bug.
     const reconciledProducts = await prisma.reconciliation.findMany({
       where: { location },
-      select: { product: { select: { externalId: true } } },
+      select: { productId: true },
     });
-    const reconciledExternalIds = new Set(
-      reconciledProducts.map((r) => r.product.externalId).filter((id): id is number => id !== null),
-    );
+    const reconciledProductIds = new Set(reconciledProducts.map((r) => r.productId));
 
     // Step 2: Fetch all snapshot and physical counts for the location.
-    const snapshotCounts = await prisma.inventorySnapshot.findMany({
-      where: { stockLocation: location },
-    });
+    // InventorySnapshot's counting grain is storeLocationId (see its schema
+    // comment), not the free-text PhysicalInventoryCount.stockLocation string
+    // this page's location picker deals in, so resolve the name first.
+    const storeLocationId = await resolveStoreLocationId(location);
+    const snapshotCounts = storeLocationId
+      ? await prisma.inventorySnapshot.findMany({ where: { storeLocationId } })
+      : [];
     const physicalCounts = await prisma.physicalInventoryCount.findMany({
       where: { stockLocation: location },
-      include: { product: { select: { externalId: true } } },
+      select: { productId: true, quantity: true },
     });
 
-    const expectedMap = new Map(snapshotCounts.map((item) => [item.externalId, item.quantity]));
+    const expectedMap = new Map(snapshotCounts.map((item) => [item.productId, item.quantity]));
     const countedMap = new Map<number, number>();
     for (const count of physicalCounts) {
-      if (count.product.externalId) {
-        countedMap.set(
-          count.product.externalId,
-          (countedMap.get(count.product.externalId) || 0) + count.quantity,
-        );
-      }
+      countedMap.set(count.productId, (countedMap.get(count.productId) || 0) + count.quantity);
     }
 
     // Step 3: Get all unique product IDs from both datasets, BUT EXCLUDE the ones that have been reconciled.
-    const allExternalIds = Array.from(
-      new Set([...expectedMap.keys(), ...countedMap.keys()]),
-    ).filter((id) => !reconciledExternalIds.has(id));
+    // Keyed on productId (holt's own identity) rather than externalId --
+    // externalId is null for every product created natively in holt, which
+    // used to make this filter silently drop them from the report entirely.
+    const allProductIds = Array.from(new Set([...expectedMap.keys(), ...countedMap.keys()])).filter(
+      (id) => !reconciledProductIds.has(id),
+    );
 
-    if (allExternalIds.length === 0) {
+    if (allProductIds.length === 0) {
       const accurateCountResult = await prisma.reconciliation.count({
         where: { location, finalVariance: 0 },
       });
@@ -76,8 +76,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const allProductsInfo = await prisma.product.findMany({
-      where: { externalId: { in: allExternalIds } },
+      where: { id: { in: allProductIds } },
       select: {
+        id: true,
         externalId: true,
         name: true,
         productNumber: true,
@@ -85,14 +86,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         upcs: { select: { upc: true }, take: 1 },
       },
     });
-    const productInfoMap = new Map(allProductsInfo.map((p) => [p.externalId, p]));
+    const productInfoMap = new Map(allProductsInfo.map((p) => [p.id, p]));
 
-    const varianceReport = allExternalIds.map((id) => {
+    const varianceReport = allProductIds.map((id) => {
       const product = productInfoMap.get(id);
       const expected = expectedMap.get(id) || 0;
       const counted = countedMap.get(id) || 0;
       return {
-        externalId: id,
+        productId: id,
+        // Nullable now -- native-born products have no POS id. Consumers
+        // (the product-variance drill-down link) must handle null.
+        externalId: product?.externalId ?? null,
         productName: product?.name || "Product Not Found",
         productNumber: product?.productNumber || "N/A",
         barcode: product?.upcs[0]?.upc || "N/A",
@@ -123,8 +127,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const accurateCount = accurateItemsInSnapshot + accurateItemsReconciled;
 
     discrepancies.sort((a, b) => {
-      const aVal = sortBy === "variance" ? Math.abs(a.variance) : a[sortBy as keyof typeof a];
-      const bVal = sortBy === "variance" ? Math.abs(b.variance) : b[sortBy as keyof typeof b];
+      // externalId is nullable now (native-born products have none) -- ?? 0
+      // is a sort-stability fallback only. It's not a sortable column in the
+      // UI (buildVarianceColumns never offers it as a sort key).
+      const aVal =
+        sortBy === "variance" ? Math.abs(a.variance) : (a[sortBy as keyof typeof a] ?? 0);
+      const bVal =
+        sortBy === "variance" ? Math.abs(b.variance) : (b[sortBy as keyof typeof b] ?? 0);
       if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
       if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
       return 0;

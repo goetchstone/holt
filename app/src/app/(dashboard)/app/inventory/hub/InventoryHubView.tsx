@@ -33,6 +33,73 @@ function LinkCard({
   );
 }
 
+// A LinkCard-alike for a secondary/migration path rather than the normal
+// flow -- amber border so it visually reads as "not the button you usually
+// want" next to the Core Actions cards.
+function SecondaryLinkCard({
+  href,
+  title,
+  description,
+}: Readonly<{ href: string; title: string; description: string }>) {
+  return (
+    <Link
+      href={href}
+      className="bg-amber-50 rounded-lg border border-amber-400/40 shadow-sm p-5 hover:shadow-md transition block group"
+    >
+      <h2 className="text-lg font-semibold text-amber-900 mb-1 group-hover:text-amber-700 transition">
+        {title}
+      </h2>
+      <p className="text-amber-800/80 text-sm">{description}</p>
+    </Link>
+  );
+}
+
+// Step 1 of a physical count: freeze today's expected on-hand baseline from
+// holt's own InventoryPosition data (POST /api/inventory/snapshot/generate).
+// Styled like LinkCard so it sits naturally among the Core Actions cards, but
+// it's a button -- generating a snapshot is an action with a result to
+// report, not a navigation.
+function GenerateSnapshotCard() {
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerate = async () => {
+    const confirmed = globalThis.confirm(
+      "Generate today's inventory snapshot from current on-hand data? " +
+        "This replaces any snapshot already generated today.",
+    );
+    if (!confirmed) return;
+
+    setGenerating(true);
+    try {
+      const { data } = await axios.post("/api/inventory/snapshot/generate");
+      toast.success(
+        `Snapshot generated: ${data.products.toLocaleString()} products, ` +
+          `${data.units.toLocaleString()} units, ${data.stores.toLocaleString()} store locations.`,
+      );
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to generate inventory snapshot."));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleGenerate}
+      disabled={generating}
+      className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-5 hover:shadow-lg transition block group text-left w-full disabled:opacity-60 disabled:cursor-wait"
+    >
+      <h2 className="text-lg font-semibold text-sh-black mb-1 group-hover:text-sh-blue transition">
+        {generating ? "Generating..." : "Step 1: Generate Snapshot"}
+      </h2>
+      <p className="text-sh-gray text-sm">
+        Freeze today&apos;s expected on-hand baseline from current inventory data.
+      </p>
+    </button>
+  );
+}
+
 interface DangerZoneProps {
   locations: string[];
   selectedLocation: string;
@@ -163,11 +230,7 @@ export function InventoryHubView() {
 
       {/* Core Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <LinkCard
-          href="/app/admin/import/inventory-snapshot"
-          title="Step 1: Import Snapshot"
-          description="Upload the latest the POS on-hand inventory file."
-        />
+        <GenerateSnapshotCard />
         <LinkCard
           href="/app/inventory/physical-count"
           title="Step 2: Start Counting"
@@ -227,6 +290,24 @@ export function InventoryHubView() {
             href="/app/inventory/variance-report"
             title="General Variance Report"
             description="Reconcile all other departments and locations."
+          />
+        </div>
+      </div>
+
+      {/* Migration / Cutover Tools -- NOT the normal Step 1. Kept only to
+          compare a POS export against holt's own snapshot while validating
+          the cutover; see InventorySnapshot's schema comment. */}
+      <div>
+        <h2 className="text-xl font-semibold text-amber-800 mb-1">Migration &amp; Cutover Tools</h2>
+        <p className="text-sh-gray text-sm mb-3">
+          Not part of the normal count flow. Use only to parallel-run a POS export against
+          holt&apos;s own snapshot (Step 1 above) while validating a cutover.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <SecondaryLinkCard
+            href="/app/admin/import/inventory-snapshot"
+            title="Import POS Snapshot"
+            description="Upload a POS on-hand export for comparison. Resolves POS ids/locations to holt's own before writing."
           />
         </div>
       </div>

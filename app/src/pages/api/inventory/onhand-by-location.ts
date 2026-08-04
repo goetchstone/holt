@@ -21,7 +21,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const [snapshotRecords, physicalCounts, reconciliations, allProducts, departments] =
       await Promise.all([
         prisma.inventorySnapshot.findMany({
-          select: { externalId: true, quantity: true, stockLocation: true },
+          select: {
+            productId: true,
+            quantity: true,
+            storeLocation: { select: { name: true } },
+          },
         }),
         prisma.physicalInventoryCount.findMany({
           select: { productId: true, quantity: true, stockLocation: true },
@@ -63,13 +67,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     });
 
-    const externalToProductIdMap = new Map<number, number>();
-    allProducts.forEach((p) => {
-      if (p.externalId) {
-        externalToProductIdMap.set(p.externalId, p.id);
-      }
-    });
-
     const reconciliationMap = new Map(
       reconciliations.map((r) => [r.product.externalId + "-" + r.location, r]),
     );
@@ -83,13 +80,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
     } = {};
 
-    // Process snapshot (expected)
+    // Process snapshot (expected). Keyed on productId directly -- InventorySnapshot
+    // no longer needs the externalId indirection, and never silently drops
+    // native-born products (null externalId) the way this loop used to.
+    // Location name comes from the joined StoreLocation (the counting grain),
+    // not a free-text column.
     for (const snapshot of snapshotRecords) {
-      const productId = externalToProductIdMap.get(snapshot.externalId);
-      if (!productId) continue;
-
-      const productInfo = productInfoMap.get(productId);
-      let locName = snapshot.stockLocation;
+      const productInfo = productInfoMap.get(snapshot.productId);
+      let locName = snapshot.storeLocation.name;
 
       if (locName === "Warehouse") {
         const deptName = productInfo?.departmentName;

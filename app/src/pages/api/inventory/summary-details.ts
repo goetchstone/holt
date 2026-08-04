@@ -6,8 +6,70 @@ import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { logError } from "@/lib/logger";
+import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
 
 const APPAREL_DEPARTMENTS = ["Accessories", "Mens Apparel", "Womens Apparel"];
+
+interface LocationGroupFilter {
+  productWhereClause: Prisma.ProductWhereInput;
+  locationFilter: string;
+  storeLocationId: number | null;
+}
+
+/**
+ * Resolve a "location" group (including the two synthetic Warehouse-Apparel /
+ * Warehouse-General splits) to a Product filter. Split out of the handler
+ * purely to keep the handler's branching within the repo's cognitive-
+ * complexity budget -- the two data sources it reads (InventorySnapshot,
+ * PhysicalInventoryCount) mean this can't be a one-liner.
+ */
+async function buildLocationGroupFilter(groupName: string): Promise<LocationGroupFilter> {
+  let productWhereClause: Prisma.ProductWhereInput = {};
+  let locationFilter = groupName;
+
+  // Handle the special compound warehouse location names
+  if (groupName === "Warehouse - Apparel") {
+    locationFilter = "Warehouse";
+    productWhereClause = { department: { name: { in: APPAREL_DEPARTMENTS } } };
+  } else if (groupName === "Warehouse - General") {
+    locationFilter = "Warehouse";
+    productWhereClause = { department: { name: { notIn: APPAREL_DEPARTMENTS } } };
+  }
+
+  // InventorySnapshot's counting grain is storeLocationId (see its schema
+  // comment), not the free-text PhysicalInventoryCount.stockLocation string
+  // this page's location groups use.
+  const storeLocationId = await resolveStoreLocationId(locationFilter);
+
+  // Find all products that have records in the specified location. Keyed on
+  // productId, not externalId -- externalId is null for every product
+  // created natively in holt, which used to make this filter silently drop
+  // them from the group entirely.
+  const snapshotProductIds = storeLocationId
+    ? (
+        await prisma.inventorySnapshot.findMany({
+          where: { storeLocationId },
+          select: { productId: true },
+        })
+      ).map((s) => s.productId)
+    : [];
+
+  const physicalCountProductIds = (
+    await prisma.physicalInventoryCount.findMany({
+      where: { stockLocation: locationFilter },
+      select: { productId: true },
+    })
+  ).map((p) => p.productId);
+
+  return {
+    productWhereClause: {
+      ...productWhereClause,
+      OR: [{ id: { in: snapshotProductIds } }, { id: { in: physicalCountProductIds } }],
+    },
+    locationFilter,
+    storeLocationId,
+  };
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -33,39 +95,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     let productWhereClause: Prisma.ProductWhereInput = {};
     let locationFilter = groupName; // Default location is the group name itself.
+    // InventorySnapshot's counting grain is storeLocationId (see its schema
+    // comment) -- resolved by buildLocationGroupFilter and reused below
+    // wherever this branch needs to filter InventorySnapshot.
+    let storeLocationId: number | null = null;
 
     if (groupType === "department") {
       productWhereClause = { department: { name: groupName } };
     } else if (groupType === "location") {
-      // Handle the special compound warehouse location names
-      if (groupName === "Warehouse - Apparel") {
-        locationFilter = "Warehouse";
-        productWhereClause = { department: { name: { in: APPAREL_DEPARTMENTS } } };
-      } else if (groupName === "Warehouse - General") {
-        locationFilter = "Warehouse";
-        productWhereClause = { department: { name: { notIn: APPAREL_DEPARTMENTS } } };
-      }
-
-      // Find all products that have records in the specified location.
-      const snapshotExternalIds = (
-        await prisma.inventorySnapshot.findMany({
-          where: { stockLocation: locationFilter },
-          select: { externalId: true },
-        })
-      ).map((s) => s.externalId);
-
-      const physicalCountProductIds = (
-        await prisma.physicalInventoryCount.findMany({
-          where: { stockLocation: locationFilter },
-          select: { productId: true },
-        })
-      ).map((p) => p.productId);
-
-      // Combine product IDs from both sources and add to the main where clause
-      productWhereClause = {
-        ...productWhereClause,
-        OR: [{ externalId: { in: snapshotExternalIds } }, { id: { in: physicalCountProductIds } }],
-      };
+      const locationGroup = await buildLocationGroupFilter(groupName);
+      productWhereClause = locationGroup.productWhereClause;
+      locationFilter = locationGroup.locationFilter;
+      storeLocationId = locationGroup.storeLocationId;
     }
 
     const products = await prisma.product.findMany({
@@ -81,15 +122,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const productIds = products.map((p) => p.id);
-    const externalIds = products.map((p) => p.externalId).filter((id): id is number => id !== null);
 
     const [snapshotCounts, physicalCounts] = await Promise.all([
-      prisma.inventorySnapshot.findMany({
-        where: {
-          externalId: { in: externalIds },
-          ...(groupType === "location" && { stockLocation: locationFilter }),
-        },
-      }),
+      groupType === "location" && !storeLocationId
+        ? Promise.resolve([])
+        : prisma.inventorySnapshot.findMany({
+            where: {
+              productId: { in: productIds },
+              ...(groupType === "location" ? { storeLocationId: storeLocationId! } : {}),
+            },
+          }),
       prisma.physicalInventoryCount.findMany({
         where: {
           productId: { in: productIds },
@@ -99,7 +141,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ]);
 
     const productIdMap = new Map(products.map((p) => [p.id, p]));
-    const externalIdMap = new Map(products.map((p) => [p.externalId, p]));
 
     const itemDetails: {
       [key: number]: {
@@ -111,7 +152,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } = {};
 
     snapshotCounts.forEach((s) => {
-      const product = externalIdMap.get(s.externalId);
+      const product = productIdMap.get(s.productId);
       if (!product) return;
       if (!itemDetails[product.id])
         itemDetails[product.id] = {

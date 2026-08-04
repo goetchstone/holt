@@ -18,7 +18,12 @@ import type { Column } from "@/components/table/PaginatedTable";
 import { getErrorMessage } from "@/lib/toastError";
 
 export interface VarianceRecord {
-  externalId: number;
+  productId: number;
+  // Nullable: native-born products (created in holt, never imported from the
+  // POS) have no externalId. The product-variance drill-down page is keyed
+  // by externalId in its URL, so rows with none can't link there --
+  // ProductNameCell falls back to plain text for those rows.
+  externalId: number | null;
   productName: string;
   productNumber: string;
   barcode: string;
@@ -84,16 +89,21 @@ export async function reconcileVariance(args: {
 function ProductNameCell({
   row,
   productHref,
-}: Readonly<{ row: VarianceRecord; productHref: (row: VarianceRecord) => string }>) {
+}: Readonly<{ row: VarianceRecord; productHref: (row: VarianceRecord) => string | null }>) {
+  // Rows with no externalId (native-born products) have nowhere to link --
+  // the product-variance detail page is keyed by externalId in its URL.
+  const href = productHref(row);
   return (
     <div className="flex items-center gap-2">
-      <Link
-        href={productHref(row)}
-        className="hover:underline text-sh-blue truncate"
-        title={row.productName}
-      >
-        {row.productName}
-      </Link>
+      {href ? (
+        <Link href={href} className="hover:underline text-sh-blue truncate" title={row.productName}>
+          {row.productName}
+        </Link>
+      ) : (
+        <span className="truncate" title={row.productName}>
+          {row.productName}
+        </span>
+      )}
       {row.barcode && row.barcode !== "N/A" && (
         <button
           type="button"
@@ -142,7 +152,7 @@ function VarianceActionsCell({
  * appends a returnUrl); `onReconcile` wires the row action buttons.
  */
 export function buildVarianceColumns(args: {
-  productHref: (row: VarianceRecord) => string;
+  productHref: (row: VarianceRecord) => string | null;
   onReconcile: (row: VarianceRecord, action: ReconcileAction) => void;
 }): Column[] {
   const { productHref, onReconcile } = args;

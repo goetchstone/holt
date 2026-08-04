@@ -13,6 +13,7 @@ export type AuditEvent =
   | "ROLE_CHANGE"
   | "BULK_DELETE"
   | "INVENTORY_CLEAR"
+  | "INVENTORY_SNAPSHOT_GENERATE"
   | "CONFIG_PRESET_APPLY";
 
 /**

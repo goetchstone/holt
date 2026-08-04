@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { logError } from "@/lib/logger";
+import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
 
 const APPAREL_DEPARTMENTS = ["Accessories", "Mens Apparel", "Womens Apparel"];
 
@@ -25,47 +26,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // This logic mirrors the variance-report API to ensure we're looking at the same dataset
-    const snapshotCounts = await prisma.inventorySnapshot.findMany({
-      where: { stockLocation: location },
-    });
+    // This logic mirrors the variance-report API to ensure we're looking at the same dataset.
+    // Same storeLocationId resolution as variance-report.ts -- InventorySnapshot's
+    // counting grain, not the free-text PhysicalInventoryCount.stockLocation string.
+    const storeLocationId = await resolveStoreLocationId(location);
+    const snapshotCounts = storeLocationId
+      ? await prisma.inventorySnapshot.findMany({ where: { storeLocationId } })
+      : [];
 
     const physicalCounts = await prisma.physicalInventoryCount.findMany({
       where: { stockLocation: location },
-      include: { product: { select: { externalId: true } } },
+      select: { productId: true, quantity: true },
     });
 
-    const expectedMap = new Map(snapshotCounts.map((item) => [item.externalId, item.quantity]));
+    const expectedMap = new Map(snapshotCounts.map((item) => [item.productId, item.quantity]));
     const countedMap = new Map<number, number>();
     for (const count of physicalCounts) {
-      if (count.product.externalId) {
-        const currentCount = countedMap.get(count.product.externalId) || 0;
-        countedMap.set(count.product.externalId, currentCount + count.quantity);
-      }
+      const currentCount = countedMap.get(count.productId) || 0;
+      countedMap.set(count.productId, currentCount + count.quantity);
     }
 
-    const allExternalIds = Array.from(new Set([...expectedMap.keys(), ...countedMap.keys()]));
-    if (allExternalIds.length === 0) {
+    // Keyed on productId, not externalId -- see variance-report.ts. Native
+    // products (no externalId) used to be silently excluded here too.
+    const allProductIds = Array.from(new Set([...expectedMap.keys(), ...countedMap.keys()]));
+    if (allProductIds.length === 0) {
       return res.status(200).json({ records: [], total: 0 });
     }
 
     const allProductsInfo = await prisma.product.findMany({
-      where: { externalId: { in: allExternalIds } },
+      where: { id: { in: allProductIds } },
       select: {
-        externalId: true,
+        id: true,
         name: true,
         productNumber: true,
         department: { select: { name: true } },
       },
     });
-    const productInfoMap = new Map(allProductsInfo.map((p) => [p.externalId, p]));
+    const productInfoMap = new Map(allProductsInfo.map((p) => [p.id, p]));
 
-    const fullVarianceReport = allExternalIds.map((id) => {
+    const fullVarianceReport = allProductIds.map((id) => {
       const product = productInfoMap.get(id);
       const expected = expectedMap.get(id) || 0;
       const counted = countedMap.get(id) || 0;
       return {
-        externalId: id,
+        productId: id,
         productName: product?.name || "Product Not Found",
         productNumber: product?.productNumber || "N/A",
         department: product?.department?.name || "Unknown",
