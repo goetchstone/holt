@@ -1,17 +1,12 @@
 // /app/__tests__/storeColors.test.ts
+//
+// Traffic-counter display-name / StoreLocation mapping used to be tested
+// here too (getStoreDisplayName), back when it was a hardcoded literal in
+// this file. That mapping is now database-backed -- see
+// lib/trafficStoreMap.ts and __tests__/trafficStoreMap.test.ts. This file
+// stays focused on the one thing storeColors.ts still owns: colors.
 
-import { getStoreDisplayName, getStoreColor } from "../src/lib/storeColors";
-
-describe("getStoreDisplayName", () => {
-  it("maps a configured counter name to its display label", () => {
-    expect(getStoreDisplayName("Main Showroom")).toBe("Main Showroom");
-    expect(getStoreDisplayName("West Showroom")).toBe("West Showroom");
-  });
-
-  it("returns raw name for unmapped stores", () => {
-    expect(getStoreDisplayName("New Location")).toBe("New Location");
-  });
-});
+import { getStoreColor } from "../src/lib/storeColors";
 
 describe("getStoreColor", () => {
   it("returns solid colors by default", () => {

@@ -270,11 +270,15 @@ that migration is not "point the sales runner at a value-mapping table" —
 it needs `runnerKey`-backed reconciliation logic that still consumes the
 definition's mappings, exactly the pattern customer/product already prove.
 
-## How someone adds a definition (Stage 1 state — no admin UI yet)
+## How someone adds a definition
 
-Stage 1 ships the model, the engine, and the registry — not an admin UI
-(that's Stage 2) and not a migration of the 14 existing importers (Stage
-3). Until Stage 2 ships, adding a definition means:
+**Stage 2 update:** definitions no longer have to be written as Prisma calls
+in a seed script. A definition is now authored either as a `config/` preset
+(YAML or JSON, reviewable in a pull request) or in the admin UI, and applied
+idempotently — see `config-presets.md`. Stage 3, migrating the 14 hand-coded
+importers onto the engine, is still outstanding.
+
+The decisions below are unchanged; only step 4 has an easier answer now.
 
 1. Decide the `importMode` by asking: does the source file describe
    *changes* (delta / one-time dump) or does it describe *everything as of
@@ -285,10 +289,14 @@ Stage 1 ships the model, the engine, and the registry — not an admin UI
 3. For `RECONCILE`, write and register a runner
    (`app/src/lib/imports/runnerRegistry.ts`) before the definition can pass
    validation.
-4. Create the `ImportDefinition` row (Prisma, or a seed script like
-   `prisma/seed/ordoritePaymentMode.ts`) plus its `ImportFieldMapping` rows
-   (one per CSV column you want to land) and any `ImportValueMapping` rows
-   for fields with a bounded target vocabulary.
+4. Write the definition as a preset — `kind: import-definition` in a file
+   under `config/presets/` (ships with the product) or `config/local/`
+   (gitignored, this deployment only) — and apply it with
+   `node app/scripts/apply-preset.mjs`. Field mappings are a list; value
+   mappings are a nested map keyed by target field, so you write the field
+   name once rather than on every row. The admin UI writes the same rows and
+   exports back to the same file format. Creating the rows directly in Prisma
+   still works and is what the preset does under the hood.
 5. Call `validateImportDefinition` before writing — it rejects a
    `RECONCILE` definition with no `runnerKey` and an `UPSERT` definition
    with no `naturalKeyFields`.
@@ -354,6 +362,10 @@ secretly insufficient.
   `validation.test.ts`, `runnerRegistry.test.ts`, `ordoritePaymentMode.test.ts`
 
 ## Cross-references
+
+- `config-presets.md` — the authoring surface for these definitions: YAML/JSON
+  presets and the admin GUI, one schema behind both, plus the audit trail
+  every apply writes.
 
 - `imports-overview.md` — the canonical map of the live, hand-coded
   Ordorite/POS import pipeline this stage does not yet touch

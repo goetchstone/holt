@@ -1,0 +1,37 @@
+# Traffic-counter store mapping — SHIPPED DEFAULT.
+#
+# Tuned to the demo seed database (prisma/seed/demo/locations.ts), so a fresh
+# clone that runs the seed and then `apply-preset` has working traffic
+# attribution with no editing.
+#
+# A real deployment overrides this by dropping a file with the SAME preset
+# name into config/local/ — see config/example.yaml for a template. Local wins.
+
+version: 1
+description: Default traffic-counter store labels, matching the demo seed data.
+
+presets:
+  - kind: traffic-store-mapping
+    name: traffic-stores
+    description: >-
+      Maps the traffic counter's own door labels onto StoreLocation records.
+      The counter names each door in its own scheme, which rarely matches the
+      POS or the store's name in holt. Unmapped labels are never dropped —
+      they flow through under their raw name and are logged, so a new door
+      shows up as something to fix rather than as missing visitors.
+
+    stores:
+      - storeLocation: Millbrook Falls Showroom
+        sourceNames:
+          # Two physical doors on one showroom, counted separately upstream
+          # and rolled up here. This is the case the whole mapping exists for.
+          - Millbrook Falls
+          - Millbrook Falls Annex
+
+      - storeLocation: Wintergreen Harbor Showroom
+        sourceNames:
+          - Wintergreen Harbor
+
+  # The warehouse (Central Distribution Warehouse) is deliberately absent:
+  # it has no retail door and no counter, and claiming a source name for it
+  # would put phantom visitors into conversion math.

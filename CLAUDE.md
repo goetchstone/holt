@@ -80,7 +80,22 @@ The highest-consequence cluster in the codebase. Detail and worked examples:
 
 ### Imports and legacy data
 
-→ `docs/domains/import-pipeline.md`, `docs/domains/imports-overview.md`
+→ `docs/domains/import-pipeline.md`, `docs/domains/imports-overview.md`,
+`docs/domains/config-presets.md`
+
+61. **Deployment facts are config, not code.** Store names, vendor payment
+    codes, column mappings — anything true of one deployment and not the
+    product — belongs in a `config/` preset or a database row, never in a
+    literal in `src/`. If you are about to add a `Record<string, string>` of
+    real-world names, you want a preset.
+62. **Config selects behaviour; it never supplies it.** A preset may name a
+    `runnerKey` from the compile-time registry. It may not carry an
+    expression, a conditional, or a computed value — that is an RCE surface
+    wearing a config file's clothes. When a mapping needs logic, it needs a
+    runner, and a runner goes through review.
+63. **Applying a preset is idempotent and declarative.** Compute the diff
+    before writing; a second apply must write nothing. A preset is desired
+    state, so a mapping deleted from the file is deleted from the database.
 
 31. **Zero-quantity source rows are cancelled lines.** Every aggregation decides
     explicitly whether to include them. Default: exclude.

@@ -1,0 +1,17 @@
+-- ImportDefinition.name uniqueness (docs/domains/config-presets.md,
+-- applyPreset.ts applyImportDefinition).
+--
+-- Without this, two concurrent applies of the same brand-new preset name
+-- both see "no existing row" from their pre-transaction read and both
+-- `create` -- producing two ImportDefinition rows sharing one `name` that no
+-- later apply can ever reconcile or remove (every lookup in applyPreset.ts
+-- is find-by-name, which only ever finds the first). applyPreset.ts's
+-- writeImportDefinitionChanges now upserts on this constraint for the
+-- create path, making that race actually safe rather than merely unlikely.
+--
+-- Checked before writing this migration: `fbc_dev_db` has zero
+-- ImportDefinition rows sharing a name today (one row total, seeded by
+-- ordoritePaymentMode.ts), so this is safe to apply as-is. A deployment
+-- with existing duplicates would need those reconciled by hand first --
+-- this migration does not attempt to pick a survivor for them.
+CREATE UNIQUE INDEX "ImportDefinition_name_key" ON "ImportDefinition"("name");

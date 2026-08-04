@@ -218,6 +218,10 @@ Gaps acknowledged: no real-DB tests for the manual products-import path (the ups
   code-backed escape hatch, the Ordorite payment-mode value-mapping proof).
   Nothing on this page is migrated to it yet — every path below is still
   the live, hand-coded pipeline.
+- `docs/domains/config-presets.md` — how those definitions are authored: a
+  YAML or JSON file in `config/`, or the admin GUI, applied idempotently to
+  the same rows. Also covers `traffic-store-mapping`, which replaced the
+  hardcoded Axper store literals in `lib/storeColors.ts`.
 - `docs/domains/import-pipeline.md` — runner details + report-to-runner table + rewrites
 - `docs/domains/sales-orders.md` — status derivation + return detection + orphan cleanup
 - `docs/domains/purchasing.md` — POs + POR + receiving + auto-create-products from imports + the temp-PO Postatus → DRAFT mapping

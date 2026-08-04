@@ -17,7 +17,7 @@ import {
   totalVisitors,
   type TrafficRowForSummary,
 } from "@/lib/trafficSummary";
-import { getStoreDisplayName } from "@/lib/storeColors";
+import { getTrafficStoreMap } from "@/lib/trafficStoreMap";
 
 export interface TrafficReportParams {
   dateFrom: string; // YYYY-MM-DD
@@ -125,13 +125,14 @@ export async function getTrafficReport(prisma: PrismaClient, params: TrafficRepo
 
   const allRows: TrafficRowForSummary[] = [...persistedRows, ...liveRows];
 
+  const storeMap = await getTrafficStoreMap();
   const byStore = rollupByStore(allRows).map((s) => ({
     ...s,
-    displayName: getStoreDisplayName(s.axperStoreName),
+    displayName: storeMap.resolveDisplayName(s.axperStoreName),
   }));
   const byDayAndStore = rollupByDayAndStore(allRows).map((d) => ({
     ...d,
-    displayName: getStoreDisplayName(d.axperStoreName),
+    displayName: storeMap.resolveDisplayName(d.axperStoreName),
   }));
 
   const totals = totalVisitors(allRows);

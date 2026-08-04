@@ -1371,6 +1371,15 @@ model StoreLocation {
   // Maps to the POS's stock location strings for linking imported data
   externalLocationName String? @unique
 
+  // Traffic-counter (Axper and friends) labels for this store's doors. A
+  // counter names each door in its own scheme, which rarely matches the POS
+  // or this record's `name`; one store may own several (two co-located
+  // buildings counted separately still roll up here). Replaces the hardcoded
+  // AXPER_TO_STORE_LOCATION / STORE_DISPLAY_NAMES literals that used to live
+  // in lib/storeColors.ts. Populated by a `traffic-store-mapping` config
+  // preset or by hand in the store editor -- see docs/domains/config-presets.md.
+  trafficSourceNames String[] @default([])
+
   defaultReceivingStockLocationId Int?
   defaultReceivingStockLocation   StockLocation? @relation("DefaultReceivingLocation", fields: [defaultReceivingStockLocationId], references: [id])
 
@@ -4443,7 +4452,8 @@ model TrafficSnapshot {
   // store (e.g. "Downtown", "Main St"). Kept on every row so we can audit
   // back to the source and so rows still upsert correctly if a new
   // Axper store appears before we map it. Mapping to StoreLocation
-  // lives in `lib/storeColors.ts:AXPER_TO_STORE_LOCATION`.
+  // lives in `StoreLocation.trafficSourceNames`, resolved via
+  // `lib/trafficStoreMap.ts`.
   axperStoreName String
 
   // Optional FK — resolved at import time via the mapping above.
@@ -5179,7 +5189,14 @@ enum ImportTransform {
 
 model ImportDefinition {
   id          Int     @id @default(autoincrement())
-  name        String
+  // Unique so applyPreset.ts can upsert on it race-safely: two concurrent
+  // applies of the same brand-new preset name both read `existing === null`
+  // (that read runs outside the write transaction), and without a DB-level
+  // constraint both would `create` and produce two rows for one preset that
+  // no future apply could ever reconcile (every lookup here is find-by-name,
+  // which only ever finds the first). Added in
+  // 20260804120000_import_definition_name_unique.
+  name        String  @unique
   description String?
 
   // Key into IMPORT_ENTITIES (app/src/lib/genericImport.ts), e.g. "customer".
@@ -5250,4 +5267,44 @@ model ImportValueMapping {
 
   @@unique([definitionId, targetField, sourceValue])
   @@index([definitionId])
+}
+
+// Durable audit trail for configuration presets. Applying a preset changes
+// how holt INTERPRETS data -- which payment string means CARD, and therefore
+// which GL account the money lands in -- so "who changed this mapping, when,
+// from which file" has to be answerable months later. The log stream
+// (lib/audit.ts) is not enough: it rotates, and it cannot be joined against
+// a journal entry during a reconciliation dispute.
+//
+// Append-only by convention: nothing in the codebase updates or deletes a
+// row here. Both doors write it -- the CLI (GitOps) and the admin GUI.
+model ConfigChangeLog {
+  id Int @id @default(autoincrement())
+
+  // Identifies the preset: "import-definition" / "traffic-store-mapping"
+  // plus its stable kebab-case name. Not an FK -- a preset that was applied
+  // and later removed must still show in history.
+  presetKind String
+  presetName String
+
+  // APPLIED (rows written) | UNCHANGED (idempotent re-apply, no writes) |
+  // FAILED (validation or database error, nothing written).
+  action String
+
+  // Where it came from: "cli:config/local/saybrook.yaml", "gui", "seed".
+  // Keeps the GitOps and GUI paths distinguishable in an audit.
+  source String
+
+  // Counts plus a compact before/after of what actually moved. Never holds
+  // the whole preset -- the file is the source of truth for content; this is
+  // the record that it was applied.
+  summary Json
+
+  // Email of the operator, or null for an unattended CLI/seed run.
+  actor String?
+
+  created DateTime @default(now())
+
+  @@index([presetKind, presetName, created])
+  @@index([created])
 }

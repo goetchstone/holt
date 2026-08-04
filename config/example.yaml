@@ -1,0 +1,86 @@
+# EXAMPLE preset — documentation, not live configuration.
+#
+# It lives at config/ root deliberately. The loader scans ONLY config/presets/
+# and config/local/, so nothing here is ever loaded or applied. Putting it in
+# config/local/ made it a real preset: its fake stores and "acme-customer-export"
+# importer showed up in the override report and would have been applied to a
+# fresh clone's database.
+#
+# Copy it to something meaningful — `config/local/mycompany.yaml` — and edit.
+# config/local/ is gitignored, because store names, vendor payment codes and
+# tenant quirks are deployment data, not product code (docs/TENANCY.md).
+# JSON works identically; name the file `.json` and write the same structure.
+#
+#   node app/scripts/apply-preset.mjs --dry-run    # show the diff first
+#   node app/scripts/apply-preset.mjs
+#
+# A preset here OVERRIDES a shipped one in config/presets/ when it uses the
+# same `kind` + `name`. Apply reports every override by name, so shadowing is
+# visible rather than surprising.
+#
+# NEVER put an API key, token or password in this file. It is plaintext on
+# disk and rendered in the admin GUI. Secrets belong in Integration
+# Credentials, encrypted at rest — see docs/SECRETS.md. The loader refuses any
+# document containing a credential-shaped key rather than trusting you to
+# remember.
+
+version: 1
+description: Example tenant configuration. Copy, rename, edit.
+
+presets:
+  # ---------------------------------------------------------------------
+  # Map a traffic counter's own door labels onto stores that already exist.
+  # A preset maps ONTO stores; it never creates one.
+  # ---------------------------------------------------------------------
+  - kind: traffic-store-mapping
+    name: traffic-stores
+    stores:
+      - storeLocation: Downtown Showroom   # must match StoreLocation.name exactly
+        sourceNames:
+          - DOWNTOWN            # whatever the counter calls it
+          - Downtown Annex      # several labels may roll up to one store
+      - storeLocation: Airport Road Outlet
+        sourceNames:
+          - ARO-1
+
+  # ---------------------------------------------------------------------
+  # A declarative CSV importer: which column feeds which field, and which
+  # source values translate to which stored values.
+  # ---------------------------------------------------------------------
+  - kind: import-definition
+    name: acme-customer-export
+    description: Customer list from Acme POS, weekly full export.
+
+    targetEntity: customer        # customer | product
+    sourceFormat: CSV             # CSV | XLSX
+    importMode: UPSERT            # INSERT_ONLY | UPSERT | RECONCILE
+    naturalKeyFields: [externalId]  # required for UPSERT: how to find an existing row
+
+    # RECONCILE additionally requires `runnerKey`, naming a runner that is
+    # already registered in lib/imports/runnerRegistry.ts. Today that is
+    # `customer` and `product` — an unregistered key fails the apply outright,
+    # so do not invent one here. A full-state re-export has to diff against what is already
+    # stored — detect vanished lines, rewrites, zero-quantity cancellations —
+    # and that is code, not mapping. Config SELECTS a runner from a fixed
+    # catalog; it can never define one.
+    # runnerKey: product
+
+    fieldMappings:
+      # sourceColumn is the file's header text, verbatim — case and spacing
+      # matter, because it is matched against a real CSV header.
+      - sourceColumn: Customer Code
+        targetField: externalId
+        required: true
+      - sourceColumn: Email Address
+        targetField: email
+        transform: LOWERCASE      # TRIM | UPPERCASE | LOWERCASE | NUMBER | DATE | CURRENCY
+      - sourceColumn: Phone
+        targetField: phone
+        transform: TRIM
+
+    # Translate source vocabulary into holt's. Keyed by target field, so you
+    # write the field name once rather than on every row.
+    valueMappings:
+      state:
+        Connecticut: CT
+        Massachusetts: MA

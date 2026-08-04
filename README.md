@@ -55,6 +55,8 @@ Everything else is configured at **Admin → Settings**:
 - **Integrations** — Stripe, Mailchimp, Google, and other provider keys, stored
   encrypted at rest and never returned to the browser in plaintext
 - **Imports** — CSV column mappings; vendor/POS formats ship as reusable presets
+  (`config/presets/`, YAML or JSON, editable in the admin UI or applied from git —
+  see [config-presets](docs/domains/config-presets.md))
 
 See `env.example` for the full environment template.
 

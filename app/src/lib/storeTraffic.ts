@@ -1,7 +1,7 @@
 // /app/src/lib/storeTraffic.ts
 //
 // Shared foot-traffic rollup. Groups the raw door-counter store names
-// into the canonical StoreLocation names via getStoreLocationName —
+// into the canonical StoreLocation names via the trafficStoreMap resolver —
 // multiple counter names can map to one physical store (co-located
 // buildings) so the keys line up with SalesOrder.storeLocation.
 // Locations with no door counter simply won't appear (they read 0
@@ -12,7 +12,7 @@
 // view, so the two reports can't diverge on how traffic is bucketed.
 
 import { prisma } from "@/lib/prisma";
-import { getStoreLocationName } from "@/lib/storeColors";
+import { getTrafficStoreMap } from "@/lib/trafficStoreMap";
 
 /**
  * Total visitors per canonical StoreLocation name for the window
@@ -26,9 +26,10 @@ export async function visitorsByStoreLocation(
     where: { intervalStart: { gte: from, lt: to } },
     select: { axperStoreName: true, visitors: true },
   });
+  const storeMap = await getTrafficStoreMap();
   const result: Record<string, number> = {};
   for (const s of snaps) {
-    const loc = getStoreLocationName(s.axperStoreName);
+    const loc = storeMap.resolveDisplayName(s.axperStoreName);
     result[loc] = (result[loc] ?? 0) + s.visitors;
   }
   return result;

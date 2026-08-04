@@ -12,7 +12,6 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { format, subYears } from "date-fns";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import UpBoard from "@/components/dashboard/UpBoard";
-import { getStoreDisplayName, getStoreLocationName } from "@/lib/storeColors";
 import { useStoreLocations } from "@/hooks/useStoreLocations";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 
@@ -27,6 +26,13 @@ interface TrafficRow {
   local_time?: string;
   entries: number;
   exits: number;
+  // Resolved server-side (see /api/axper/traffic) via the DB-backed
+  // trafficStoreMap -- a friendly label and the StoreLocation.name join
+  // key for salesByStore. Optional because rows from a stale cached
+  // response (or a mocked fetch in a test) may predate these fields;
+  // callers fall back to store_name when absent.
+  displayName?: string;
+  storeLocationName?: string;
 }
 
 interface StoreSales {
@@ -63,15 +69,50 @@ export function HomeView() {
     [dbStores],
   );
 
+  // The traffic rows carry the server-resolved displayName /
+  // storeLocationName, but `storeName` alone (the key used everywhere
+  // below, including for dbStores that have no traffic rows yet) doesn't --
+  // so build a lookup from whatever rows we've actually fetched. Stores
+  // with no traffic data (brand new, or a slow first fetch) simply fall
+  // back to their raw name, same as the server does for an unmapped
+  // counter.
+  const storeInfoByName = useMemo(() => {
+    const map: Record<string, { displayName: string; storeLocationName: string }> = {};
+    [...todayTraffic, ...lastYearTraffic].forEach((row) => {
+      if (row?.store_name && row.displayName && row.storeLocationName) {
+        map[row.store_name] = {
+          displayName: row.displayName,
+          storeLocationName: row.storeLocationName,
+        };
+      }
+    });
+    return map;
+  }, [todayTraffic, lastYearTraffic]);
+
+  // One card per STORE, not per counter. A store can have several counted
+  // doors — Old Saybrook's north and south buildings are two Axper feeds — and
+  // keying cards on the raw counter label produced one card per door, each
+  // repeating the store's full sales. With three stores and four feeds that
+  // rendered six cards, three of them titled "Old Saybrook".
+  //
+  // Resolve every raw label to its StoreLocation first, then dedupe. An
+  // unmapped label resolves to itself, so a newly-installed counter still
+  // appears (as its raw name) rather than vanishing — the operator needs to
+  // see it to go map it.
+  const resolveStore = useCallback(
+    (rawName: string) => storeInfoByName[rawName]?.storeLocationName ?? rawName,
+    [storeInfoByName],
+  );
+
   const allStores = useMemo(() => {
     const names = new Set<string>(dbStores.map((s) => s.name));
     [todayTraffic, lastYearTraffic].forEach((dataset) => {
       (dataset || []).forEach((row) => {
-        if (row?.store_name) names.add(row.store_name);
+        if (row?.store_name) names.add(resolveStore(row.store_name));
       });
     });
     return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [todayTraffic, lastYearTraffic, dbStores]);
+  }, [todayTraffic, lastYearTraffic, dbStores, resolveStore]);
 
   const getTrafficData = useCallback(
     async (dateFrom: string, dateTo: string): Promise<TrafficRow[]> => {
@@ -127,39 +168,40 @@ export function HomeView() {
     return () => clearInterval(interval);
   }, []);
 
-  const todayByStore = useMemo(() => {
-    const result: Record<string, number> = {};
-    allStores.forEach((store) => (result[store] = 0));
-    todayTraffic.forEach((row) => {
-      if (row?.store_name && result[row.store_name] !== undefined) {
-        result[row.store_name] += row.entries;
-      }
-    });
-    return result;
-  }, [todayTraffic, allStores]);
+  // Every rollup below resolves the counter label to its store before
+  // accumulating, so a store's several doors sum into one figure. Without the
+  // resolve step the raw key misses the (now store-keyed) accumulator entirely
+  // and the guard below silently drops the row -- a store would read zero
+  // visitors while its counters were reporting normally.
+  const rollup = useCallback(
+    (rows: TrafficRow[], value: (row: TrafficRow) => number) => {
+      const result: Record<string, number> = {};
+      allStores.forEach((store) => (result[store] = 0));
+      rows.forEach((row) => {
+        if (!row?.store_name) return;
+        const store = resolveStore(row.store_name);
+        if (result[store] === undefined) return;
+        result[store] += value(row);
+      });
+      return result;
+    },
+    [allStores, resolveStore],
+  );
 
-  const lastYearByStore = useMemo(() => {
-    const result: Record<string, number> = {};
-    allStores.forEach((store) => (result[store] = 0));
-    lastYearTraffic.forEach((row) => {
-      if (row?.store_name && result[row.store_name] !== undefined) {
-        result[row.store_name] += row.entries;
-      }
-    });
-    return result;
-  }, [lastYearTraffic, allStores]);
+  const todayByStore = useMemo(
+    () => rollup(todayTraffic, (r) => r.entries),
+    [todayTraffic, rollup],
+  );
 
-  const occupancyByStore = useMemo(() => {
-    const result: Record<string, number> = {};
-    allStores.forEach((store) => (result[store] = 0));
-    todayTraffic.forEach((row) => {
-      if (row?.store_name && result[row.store_name] !== undefined) {
-        result[row.store_name] += row.entries;
-        result[row.store_name] -= row.exits;
-      }
-    });
-    return result;
-  }, [todayTraffic, allStores]);
+  const lastYearByStore = useMemo(
+    () => rollup(lastYearTraffic, (r) => r.entries),
+    [lastYearTraffic, rollup],
+  );
+
+  const occupancyByStore = useMemo(
+    () => rollup(todayTraffic, (r) => r.entries - (r.exits ?? 0)),
+    [todayTraffic, rollup],
+  );
 
   return (
     <div className="py-2">
@@ -175,8 +217,8 @@ export function HomeView() {
           {allStores.map((storeName) => (
             <StoreCard
               key={storeName}
-              storeName={storeName}
-              sales={salesByStore[getStoreLocationName(storeName)]}
+              displayName={storeName}
+              sales={salesByStore[storeName]}
               entriesToday={todayByStore[storeName] ?? 0}
               entriesLastYear={lastYearByStore[storeName] ?? 0}
               inStore={occupancyByStore[storeName] ?? 0}
@@ -202,14 +244,14 @@ export function HomeView() {
 }
 
 function StoreCard({
-  storeName,
+  displayName,
   sales,
   entriesToday,
   entriesLastYear,
   inStore,
   formatCurrency,
 }: {
-  storeName: string;
+  displayName: string;
   sales: StoreSales | undefined;
   entriesToday: number;
   entriesLastYear: number;
@@ -224,7 +266,7 @@ function StoreCard({
   return (
     <div className="bg-white border border-gray-200 p-5 text-center">
       <div className="font-serif-display text-sh-blue text-base tracking-wide mb-2">
-        {getStoreDisplayName(storeName)}
+        {displayName}
       </div>
       <div className="text-3xl font-serif text-sh-blue font-light mb-1">{entriesToday}</div>
       <div className="text-xs font-sans uppercase tracking-wider text-sh-gray mb-3">
