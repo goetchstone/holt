@@ -132,7 +132,12 @@ Two properties matter more than the rest:
 configuration rows — the diff is computed before anything is written. It does
 still append one `ConfigChangeLog` row per preset, deliberately: "we applied
 this and it was already correct" is a fact an audit wants, and a re-apply that
-left no trace would be indistinguishable from never having run.
+left no trace would be indistinguishable from never having run. For
+`traffic-store-mapping` this includes a stable answer to "who owns this
+store" across every preset of that kind, not just the one being applied —
+see "Ownership" under that kind, below. Without that, two presets naming the
+same store would each report `APPLIED` forever, trading it back and forth
+depending on which file happened to apply last — the opposite of idempotent.
 
 **Declarative.** A preset is desired state, not an append. Delete a line from
 the YAML, re-apply, and the corresponding row goes away. This is what makes
@@ -246,6 +251,61 @@ defaults that a mapping file has no business triggering.
 `getStoreColor()` stayed in `lib/storeColors.ts` untouched — colours are
 assigned by index and already scale to any number of stores without code
 changes. Only the name mappings were the problem.
+
+#### Ownership
+
+**A store may be claimed by exactly one `traffic-store-mapping` preset at a
+time.** `StoreLocation` itself has no column recording which preset last
+claimed it — the only record is `ConfigChangeLog.summary.ownedStores`, one
+entry per successful (`APPLIED` or `UNCHANGED`) apply, keyed by that preset's
+`name`. Without a rule enforcing single ownership, two differently-named
+presets that both list the same store would reclaim it from each other on
+every apply: both permanently report `APPLIED`, and the "winner" is whichever
+one ran last — for the CLI's file-order loop, whichever file happens to sort
+last. That is not idempotent by any definition worth having.
+
+So: `applyPreset()` looks up each store's current owner across **every**
+`traffic-store-mapping` preset's history (`currentTrafficStoreOwners()` in
+`applyPreset.ts`), not just the applying preset's own. A store already owned
+by a *different* name is a **`FAILED`** apply for the preset trying to claim
+it, naming the current owner. That failure is stable on re-apply — it does
+not flip back and forth — which is what makes it idempotent: the same input
+produces the same result every time, even though that result is "no."
+
+To move a store from one preset to another on purpose, release it under the
+old name first (re-apply that preset without the store, or with an empty
+`stores` list) and only then claim it under the new name. There is
+deliberately no "steal" or "force-claim" operation — a store changing hands
+is exactly the kind of thing that should require a visible, separate step,
+not fall out of applying a file that happens to mention it.
+
+**Renaming** a preset is a special case of this: the renamed file has no
+`ConfigChangeLog` history of its own, but if it still claims a store the
+*old* name owns, the ownership check above catches it — the store's current
+owner is the old name, which does not match the new one, so the apply fails
+loudly and names the old preset. That is deliberate: silently reporting "no
+changes" while the old name's stores sit unreleased is the orphaned-ownership
+failure mode this whole mechanism exists to prevent. Release the stores under
+the old name (or keep at least one store in common across the rename so this
+check has something to catch) before reusing the new name. A rename that
+drops **every** store the preset owned, in the same edit, with nothing left
+in common with the old name, is a residual gap this check cannot see —
+there is nothing left for it to compare against. Prefer a two-step rename in
+that case: release everything under the old name first, confirm the stores
+read back empty, then introduce the new name.
+
+The admin GUI is just another `traffic-store-mapping` preset as far as this
+rule is concerned — it applies under the fixed name
+`TRAFFIC_STORE_MAPPING_PRESET_NAME` ("traffic-stores"). `loadDbConfigState()`
+(the GET-route/export read path) renders the live database back out grouped
+by each store's *real* current owner rather than collapsing every store
+under that one fixed name — otherwise an export from a deployment whose CLI
+preset uses a different name would be unusable: re-importing it would try to
+reclaim stores that preset never actually owns and fail the whole
+traffic-store-mapping apply as a conflict, even though nothing substantive
+had changed. A store with no ownership history at all (`trafficSourceNames`
+set some other way — a direct write, an old fixture) falls back to the GUI's
+own default name.
 
 ## Adding a kind
 

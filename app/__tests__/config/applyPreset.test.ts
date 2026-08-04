@@ -17,6 +17,9 @@
 // removing a mapping/store from the preset then re-applying must delete the
 // corresponding row.
 
+import * as fs from "node:fs";
+import * as path from "node:path";
+
 import {
   importDefinitionPresetSchema,
   trafficStoreMappingPresetSchema,
@@ -104,6 +107,10 @@ type DefinitionCreateData = Omit<FakeDefinition, "id" | "fieldMappings" | "value
 type FieldMappingCreateData = Omit<FakeFieldMapping, "id"> & { definitionId: number };
 type ValueMappingCreateData = Omit<FakeValueMapping, "id"> & { definitionId: number };
 type ChangeLogCreateData = Omit<FakeChangeLog, "id" | "created">;
+type ChangeLogFindManyArgs = {
+  where: { presetKind: string; presetName?: string; action?: { in: string[] } };
+  orderBy?: { created: "asc" | "desc" };
+};
 
 // Explicitly typed (rather than inferred from the object literal below) so
 // the self-reference inside $transaction's implementation — it hands the
@@ -116,6 +123,14 @@ interface FakeDb {
     update: jest.Mock<
       Promise<FakeDefinition>,
       [{ where: { id: number }; data: Partial<DefinitionCreateData> }]
+    >;
+    // Real Prisma `upsert` keyed on the @@unique([name]) constraint
+    // (migration 20260804120000). applyPreset.ts uses this for the
+    // brand-new-definition path so two concurrent applies of the same
+    // preset name converge onto one row instead of duplicating it.
+    upsert: jest.Mock<
+      Promise<FakeDefinition>,
+      [{ where: { name: string }; create: DefinitionCreateData; update: Partial<DefinitionCreateData> }]
     >;
   };
   importFieldMapping: {
@@ -152,8 +167,24 @@ interface FakeDb {
         },
       ]
     >;
+    // Used by currentTrafficStoreOwners (applyPreset.ts) to scan ownership
+    // across EVERY traffic-store-mapping preset, not just one preset's own
+    // history -- no presetName filter, unlike findFirst above.
+    findMany: jest.Mock<Promise<FakeChangeLog[]>, [ChangeLogFindManyArgs]>;
   };
   $transaction: jest.Mock<Promise<unknown>, [(tx: FakeDb) => Promise<unknown>, unknown?]>;
+}
+
+/** Newest-first by default (created desc, ties broken by id desc, mirroring
+ *  insertion order) -- shared by configChangeLog.findFirst and .findMany
+ *  above so the two stay consistent with each other. */
+function sortChangeLogs(rows: FakeChangeLog[], orderBy?: { created: "asc" | "desc" }): FakeChangeLog[] {
+  const sorted = [...rows].sort((a, b) => {
+    const byTime = b.created.getTime() - a.created.getTime();
+    return byTime !== 0 ? byTime : b.id - a.id;
+  });
+  if (orderBy?.created === "asc") sorted.reverse();
+  return sorted;
 }
 
 function createFakeDb(seedStores: Array<{ name: string }> = []) {
@@ -207,6 +238,22 @@ function createFakeDb(seedStores: Array<{ name: string }> = []) {
         if (!row) throw new Error(`ImportDefinition ${where.id} not found`);
         Object.assign(row, data);
         return { ...row };
+      }),
+      // Mirrors real Prisma upsert semantics keyed on the unique `name`:
+      // find-by-name first, update in place if found, else create. Doing
+      // the lookup here (rather than trusting whatever the caller last saw
+      // via findFirst) is exactly what makes this race-safe -- a row
+      // inserted by a "concurrent" write between the caller's findFirst and
+      // this upsert is still found here and updated, never duplicated.
+      upsert: jest.fn(async ({ where, create, update }) => {
+        const row = definitions.find((d) => d.name === where.name);
+        if (row) {
+          Object.assign(row, update);
+          return { ...row };
+        }
+        const created: FakeDefinition = { id: nextDefId++, fieldMappings: [], valueMappings: [], ...create };
+        definitions.push(created);
+        return { ...created };
       }),
     },
     importFieldMapping: {
@@ -291,12 +338,21 @@ function createFakeDb(seedStores: Array<{ name: string }> = []) {
           const allowed = where.action.in;
           rows = rows.filter((r) => allowed.includes(r.action));
         }
-        rows = [...rows].sort((a, b) => {
-          const byTime = b.created.getTime() - a.created.getTime();
-          return byTime !== 0 ? byTime : b.id - a.id;
-        });
-        if (orderBy?.created === "asc") rows.reverse();
+        rows = sortChangeLogs(rows, orderBy);
         return rows[0] ?? null;
+      }),
+      // No presetName filter -- currentTrafficStoreOwners scans across
+      // every preset of this kind to find each store's real current owner.
+      findMany: jest.fn(async ({ where, orderBy }) => {
+        let rows = changeLogs.filter((r) => r.presetKind === where.presetKind);
+        if (where.presetName !== undefined) {
+          rows = rows.filter((r) => r.presetName === where.presetName);
+        }
+        if (where.action?.in) {
+          const allowed = where.action.in;
+          rows = rows.filter((r) => allowed.includes(r.action));
+        }
+        return sortChangeLogs(rows, orderBy);
       }),
     },
     $transaction: jest.fn(async (fn) => fn(db)),
@@ -630,4 +686,248 @@ describe("ConfigChangeLog audit trail", () => {
     expect(changeLogs[0].actor).toBe("ops@example.com");
     expect(changeLogs[1].actor).toBeNull();
   });
+
+  it("does not abort the apply, or the rest of the bundle, when writing the ConfigChangeLog row throws", async () => {
+    const { db, definitions, stores, changeLogs } = createFakeDb([{ name: "Downtown" }]);
+    // Seed history as if "traffic-stores" already owns Downtown, so the
+    // second preset below is a real declarative delete -- exactly the kind
+    // of write that used to be silently lost if a bundle aborted after an
+    // earlier preset's audit write failed.
+    stores[0].trafficSourceNames = ["DT"];
+    changeLogs.push({
+      id: 999,
+      presetKind: "traffic-store-mapping",
+      presetName: "traffic-stores",
+      action: "APPLIED",
+      source: "seed",
+      actor: null,
+      created: new Date(0),
+      summary: { ownedStores: ["Downtown"] },
+    });
+
+    db.configChangeLog.create.mockImplementationOnce(async () => {
+      throw new Error("simulated ConfigChangeLog write failure");
+    });
+
+    const bundle = {
+      version: 1 as const,
+      presets: [
+        importDefPreset({ name: "first-preset" }),
+        trafficPreset({ name: "traffic-stores", stores: [] }),
+      ],
+    };
+
+    const results = await applyBundle(bundle, opts(db));
+
+    expect(results).toHaveLength(2);
+    // The first preset's real write happened -- the audit row is a RECORD
+    // of the apply, not a precondition for it.
+    expect(results[0].action).toBe("APPLIED");
+    expect(definitions.some((d) => d.name === "first-preset")).toBe(true);
+    // The bundle did not abort: the second preset was still processed, and
+    // its declarative delete actually landed.
+    expect(results[1].action).toBe("APPLIED");
+    expect(stores[0].trafficSourceNames).toEqual([]);
+    // The first preset's audit row is the one casualty of the simulated
+    // failure -- acceptable, since the underlying write already succeeded.
+    // The second preset's own audit write, using the unmodified mock
+    // implementation, still succeeds normally.
+    expect(changeLogs.filter((c) => c.presetName === "first-preset")).toHaveLength(0);
+    expect(changeLogs.some((c) => c.presetName === "traffic-stores" && c.id !== 999)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Value-mapping key collisions (a literal NUL byte used to sit here)
+// ---------------------------------------------------------------------------
+
+describe("import-definition value mapping keys", () => {
+  it("never reintroduces a literal NUL byte into applyPreset.ts (regression guard)", () => {
+    const src = fs.readFileSync(
+      path.join(__dirname, "..", "..", "src", "lib", "config", "applyPreset.ts"),
+      "utf8",
+    );
+    expect(src.includes("\u0000")).toBe(false);
+  });
+
+  it("keeps two value mappings distinct even when a target field or source value contains an " +
+    "embedded NUL character (regression guard for the old NUL-delimited key, which collided here)",
+    async () => {
+      const { db, definitions } = createFakeDb();
+      // Under the old `${targetField}\0${sourceValue}` key, these two DIFFERENT
+      // pairs produced the SAME string: "a\0b" + "\0" + "c" === "a" + "\0" + "b\0c".
+      const NUL = String.fromCharCode(0);
+      const preset = importDefPreset({
+        fieldMappings: [{ sourceColumn: "Customer Code", targetField: "externalId" }],
+        valueMappings: {
+          [`a${NUL}b`]: { c: "first" },
+          a: { [`b${NUL}c`]: "second" },
+        },
+      });
+
+      const result = await applyPreset(preset, opts(db));
+
+      expect(result.action).toBe("APPLIED");
+      expect(definitions[0].valueMappings).toHaveLength(2);
+      const targetValues = definitions[0].valueMappings.map((v) => v.targetValue).sort();
+      expect(targetValues).toEqual(["first", "second"]);
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// import-definition: race-safe upsert (item 3) and targetEntity on an
+// existing, active definition (item 4)
+// ---------------------------------------------------------------------------
+
+describe("applyPreset — import-definition — concurrency and targetEntity safety", () => {
+  it("does not create a duplicate ImportDefinition when a concurrent apply already created the row " +
+    "between the read and the write", async () => {
+      const { db, definitions } = createFakeDb();
+      const preset = importDefPreset({ name: "concurrent-preset" });
+
+      // Simulate the race directly: seed the row a "concurrent" apply already
+      // created, but make THIS apply's pre-transaction read still see null --
+      // exactly what happens when two applies of a brand-new preset name
+      // interleave around that read.
+      definitions.push({
+        id: 999,
+        name: "concurrent-preset",
+        description: null,
+        targetEntity: "customer",
+        sourceFormat: "CSV",
+        importMode: "INSERT_ONLY",
+        naturalKeyFields: [],
+        runnerKey: null,
+        isActive: true,
+        fieldMappings: [],
+        valueMappings: [],
+      });
+      db.importDefinition.findFirst.mockImplementationOnce(async () => null);
+
+      const result = await applyPreset(preset, opts(db));
+
+      expect(result.action).toBe("APPLIED");
+      // The critical assertion: still exactly ONE row for this name, not two.
+      const matching = definitions.filter((d) => d.name === "concurrent-preset");
+      expect(matching).toHaveLength(1);
+      expect(matching[0].id).toBe(999); // converged onto the "concurrent" row, not a new one
+    },
+  );
+
+  it("fails loudly instead of silently deactivating an EXISTING, active definition when " +
+    "targetEntity becomes unknown (e.g. a typo)", async () => {
+      const { db, definitions } = createFakeDb();
+      const v1 = importDefPreset({ name: "typo-prone", targetEntity: "customer", isActive: true });
+      const first = await applyPreset(v1, opts(db));
+      expect(first.action).toBe("APPLIED");
+      expect(definitions[0].isActive).toBe(true);
+
+      const v2 = importDefPreset({ name: "typo-prone", targetEntity: "custoemr", isActive: true });
+      const second = await applyPreset(v2, opts(db));
+
+      expect(second.action).toBe("FAILED");
+      expect(second.messages[0]).toMatch(/not in IMPORT_ENTITIES/);
+      expect(second.messages[0]).toMatch(/active/i);
+      expect(second.changes).toEqual({ created: 0, updated: 0, deleted: 0 });
+      // The live definition was NOT silently switched off or retargeted.
+      expect(definitions[0].isActive).toBe(true);
+      expect(definitions[0].targetEntity).toBe("customer");
+    },
+  );
+
+  it("still saves-but-forces-inactive when targetEntity is unknown on an EXISTING but already " +
+    "inactive definition (nothing live is being switched off)", async () => {
+      const { db, definitions } = createFakeDb();
+      const v1 = importDefPreset({ name: "already-off", targetEntity: "customer", isActive: false });
+      await applyPreset(v1, opts(db));
+      expect(definitions[0].isActive).toBe(false);
+
+      const v2 = importDefPreset({ name: "already-off", targetEntity: "not-a-real-entity", isActive: true });
+      const result = await applyPreset(v2, opts(db));
+
+      expect(result.action).toBe("APPLIED");
+      expect(definitions[0].isActive).toBe(false); // forced, still
+      expect(definitions[0].targetEntity).toBe("not-a-real-entity");
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// traffic-store-mapping: ownership (items 1 and 2)
+// ---------------------------------------------------------------------------
+
+describe("applyPreset — traffic-store-mapping — ownership", () => {
+  it("fails a differently-named preset that claims a store another traffic-store-mapping preset " +
+    "already owns, and keeps failing (converges) on re-apply", async () => {
+      const { db } = createFakeDb([{ name: "Downtown" }]);
+      const first = trafficPreset({
+        name: "storefront-a",
+        stores: [{ storeLocation: "Downtown", sourceNames: ["DT"] }],
+      });
+      const firstResult = await applyPreset(first, opts(db));
+      expect(firstResult.action).toBe("APPLIED");
+
+      const second = trafficPreset({
+        name: "storefront-b",
+        stores: [{ storeLocation: "Downtown", sourceNames: ["DT2"] }],
+      });
+      const secondResult = await applyPreset(second, opts(db));
+      expect(secondResult.action).toBe("FAILED");
+      expect(secondResult.messages[0]).toMatch(
+        /already owned by traffic-store-mapping preset "storefront-a"/,
+      );
+
+      // The true owner stays healthy...
+      const firstReapply = await applyPreset(first, opts(db));
+      expect(firstReapply.action).toBe("UNCHANGED");
+
+      // ...and the second preset keeps failing deterministically, rather
+      // than the two trading ownership back and forth on every re-apply
+      // (which is what "idempotent" has to mean once two presets can name
+      // the same store).
+      const secondReapply = await applyPreset(second, opts(db));
+      expect(secondReapply.action).toBe("FAILED");
+    },
+  );
+
+  it("does not conflict with itself on a normal re-apply (owner === this preset)", async () => {
+    const { db } = createFakeDb([{ name: "Downtown" }]);
+    const preset = trafficPreset({
+      name: "traffic-stores",
+      stores: [{ storeLocation: "Downtown", sourceNames: ["DT"] }],
+    });
+    await applyPreset(preset, opts(db));
+    const second = await applyPreset(preset, opts(db));
+    expect(second.action).toBe("UNCHANGED");
+  });
+
+  it("fails loudly (rather than silently reporting no changes) when a renamed preset still claims " +
+    "a store owned under its old name", async () => {
+      const { db, stores } = createFakeDb([{ name: "Downtown" }, { name: "Uptown" }]);
+      const original = trafficPreset({
+        name: "old-name",
+        stores: [
+          { storeLocation: "Downtown", sourceNames: ["DT"] },
+          { storeLocation: "Uptown", sourceNames: ["UT"] },
+        ],
+      });
+      await applyPreset(original, opts(db));
+      expect(stores.find((s) => s.name === "Uptown")?.trafficSourceNames).toEqual(["UT"]);
+
+      // Same preset, renamed, AND Uptown dropped in the same edit -- the
+      // exact "rename + drop a store" scenario that used to silently no-op.
+      const renamed = trafficPreset({
+        name: "new-name",
+        stores: [{ storeLocation: "Downtown", sourceNames: ["DT"] }],
+      });
+      const result = await applyPreset(renamed, opts(db));
+
+      expect(result.action).toBe("FAILED");
+      expect(result.messages[0]).toMatch(/already owned by traffic-store-mapping preset "old-name"/);
+      // Nothing was silently dropped: Uptown (still owned by "old-name") is
+      // untouched, not cleared out from under it by the failed rename.
+      expect(stores.find((s) => s.name === "Uptown")?.trafficSourceNames).toEqual(["UT"]);
+    },
+  );
 });

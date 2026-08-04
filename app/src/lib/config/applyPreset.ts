@@ -219,16 +219,35 @@ async function recordApply(
   // this durable audit row. A dry run is a read-only simulation.
   if (opts.dryRun) return result;
 
-  await db.configChangeLog.create({
-    data: {
+  // The durable audit row is a RECORD of the apply, not a precondition for
+  // it: by this point (for import-definition and traffic-store-mapping
+  // alike) the target-table writes already committed in their own
+  // transaction above. A failure writing THIS row — a DB hiccup, a
+  // serialization edge case — must not look like the whole apply failed,
+  // and critically must not throw back into applyBundle()'s loop: an
+  // uncaught throw here would abort the loop and silently skip every
+  // remaining preset in the bundle, including a later preset's declarative
+  // delete. Log it and keep going; the ApplyResult returned to the caller
+  // (and printed by the CLI) already reflects what actually happened.
+  try {
+    await db.configChangeLog.create({
+      data: {
+        presetKind: result.kind,
+        presetName: result.name,
+        action: result.action,
+        source: opts.source,
+        actor: opts.actor ?? null,
+        summary: summary as Prisma.InputJsonValue,
+      },
+    });
+  } catch (err) {
+    logError(`applyPreset: failed to write ConfigChangeLog for ${result.kind}/${result.name}`, err, {
       presetKind: result.kind,
       presetName: result.name,
       action: result.action,
       source: opts.source,
-      actor: opts.actor ?? null,
-      summary: summary as Prisma.InputJsonValue,
-    },
-  });
+    });
+  }
 
   return result;
 }
@@ -274,8 +293,18 @@ function fieldMappingKey(targetField: string): string {
   return targetField;
 }
 
+/** JSON-encode the pair rather than joining with a delimiter: targetField
+ *  and sourceValue are free text pulled from a source system's own
+ *  vocabulary (a payment string, a state name, ...) and may contain any
+ *  character at all -- including whatever single-character delimiter we
+ *  might otherwise pick, which is exactly how a previous version of this
+ *  function broke (it joined with a literal NUL byte, invisible in an
+ *  editor and in grep, one careless paste away from colliding with real
+ *  data). JSON.stringify's own escaping means two different pairs always
+ *  produce two different keys, unconditionally -- there is no delimiter
+ *  left to collide with. */
 function valueMappingKey(targetField: string, sourceValue: string): string {
-  return `${targetField} ${sourceValue}`;
+  return JSON.stringify([targetField, sourceValue]);
 }
 
 interface ExistingFieldMapping {
@@ -369,8 +398,24 @@ async function writeImportDefinitionChanges(
 ): Promise<void> {
   let definitionId: number;
   if (!existing) {
-    const created = await tx.importDefinition.create({ data: { name: preset.name, ...desiredTop } });
-    definitionId = created.id;
+    // Race-safe by construction, not by convention: `existing` was read
+    // OUTSIDE this transaction (so a dry run can report the same diff
+    // without writing), which means two concurrent applies of the same
+    // brand-new preset name can both see `existing === null`. A plain
+    // `.create()` here would let both writes through and produce two
+    // ImportDefinition rows sharing one `name` — nothing after this could
+    // ever reconcile or remove the duplicate, because every lookup in this
+    // file is find-BY-name and only ever finds the first. `upsert`, keyed
+    // on the `@@unique([name])` constraint (20260804120000_import_
+    // definition_name_unique), makes the actual write race-safe: whichever
+    // transaction commits first inserts the row; the other converges onto
+    // that same row instead of duplicating it.
+    const upserted = await tx.importDefinition.upsert({
+      where: { name: preset.name },
+      create: { name: preset.name, ...desiredTop },
+      update: desiredTop,
+    });
+    definitionId = upserted.id;
   } else {
     definitionId = existing.id;
     if (definitionChanged) {
@@ -437,12 +482,36 @@ async function applyImportDefinition(
     ]);
   }
 
+  // Fetched before the targetEntity check (rather than after, as before) so
+  // that check can tell a NEW definition from an EXISTING, currently-active
+  // one — see below.
+  const existing = await db.importDefinition.findFirst({
+    where: { name: preset.name },
+    include: { fieldMappings: true, valueMappings: true },
+  });
+
   const knownEntity = getImportEntity(preset.targetEntity);
   let isActive = preset.isActive;
   let forcedInactiveReason: string | null = null;
   if (!knownEntity) {
-    isActive = false;
     const known = IMPORT_ENTITIES.map((e) => e.key).join(", ") || "(none)";
+    // "Saved but forced inactive" is the right answer for a NEW definition —
+    // that's how a preset documents an intended mapping before its entity
+    // exists (ordorite-payment-modes ships exactly this way). It is the
+    // WRONG answer for an EXISTING, currently-active definition: a
+    // one-character typo in targetEntity would silently switch off a live
+    // importer while this function still reports APPLIED and the CLI exits
+    // 0. Only a definition that is new, or already inactive (nothing live
+    // is being switched off), gets the quiet treatment; an active one gets
+    // a loud, hard failure instead.
+    if (existing?.isActive) {
+      return failOutcome(preset, [
+        `targetEntity "${preset.targetEntity}" is not in IMPORT_ENTITIES (known: ${known}) — refusing ` +
+          `to silently deactivate the existing, active ImportDefinition "${preset.name}". Fix the typo, ` +
+          "or explicitly set isActive: false in the preset if this entity is intentionally going away.",
+      ]);
+    }
+    isActive = false;
     forcedInactiveReason =
       `targetEntity "${preset.targetEntity}" is not in IMPORT_ENTITIES (known: ${known}) — ` +
       "definition saved but forced inactive";
@@ -451,11 +520,6 @@ async function applyImportDefinition(
       targetEntity: preset.targetEntity,
     });
   }
-
-  const existing = await db.importDefinition.findFirst({
-    where: { name: preset.name },
-    include: { fieldMappings: true, valueMappings: true },
-  });
 
   const desiredTop: DesiredDefinitionFields = {
     description: preset.description ?? null,
@@ -573,6 +637,25 @@ function findDuplicateSourceNameClaim(preset: TrafficStoreMappingPreset): string
   return conflicts.length ? `ambiguous source name(s): ${conflicts.join("; ")}` : null;
 }
 
+/** Extracts the `ownedStores` list from a ConfigChangeLog.summary blob,
+ *  defensively — `summary` is untyped JSON (see the Prisma model comment),
+ *  written by this same file but read back with no schema guarantee. Shared
+ *  by previouslyOwnedStores (one preset's own history) and
+ *  currentTrafficStoreOwners (every preset's history) below. */
+function ownedStoresOf(summary: unknown): string[] {
+  if (
+    summary &&
+    typeof summary === "object" &&
+    !Array.isArray(summary) &&
+    Array.isArray((summary as Record<string, unknown>).ownedStores)
+  ) {
+    return ((summary as Record<string, unknown>).ownedStores as unknown[]).filter(
+      (v): v is string => typeof v === "string",
+    );
+  }
+  return [];
+}
+
 /** What store names this SAME preset (by kind + name) last successfully
  *  claimed, read back from its own ConfigChangeLog history. This is how we
  *  know a store block was REMOVED from the file (as opposed to never having
@@ -590,18 +673,61 @@ async function previouslyOwnedStores(db: PrismaClient, presetName: string): Prom
     orderBy: { created: "desc" },
     select: { summary: true },
   });
-  const summary = last?.summary;
-  if (
-    summary &&
-    typeof summary === "object" &&
-    !Array.isArray(summary) &&
-    Array.isArray((summary as Record<string, unknown>).ownedStores)
-  ) {
-    return ((summary as Record<string, unknown>).ownedStores as unknown[]).filter(
-      (v): v is string => typeof v === "string",
-    );
+  return ownedStoresOf(last?.summary);
+}
+
+/**
+ * For a set of store names, determines which traffic-store-mapping preset
+ * (by name) currently owns each one — the most recent APPLIED/UNCHANGED
+ * ConfigChangeLog row, across EVERY preset of this kind (not just one
+ * preset's own history), whose `summary.ownedStores` still lists that name.
+ * A store absent from the returned map has never been claimed by any
+ * preset — its `trafficSourceNames`, if it has any, were set some other way
+ * (a direct DB write, an old fixture).
+ *
+ * This is the single source of truth behind "a store may be owned by
+ * exactly one traffic-store-mapping preset at a time" (docs/domains/
+ * config-presets.md, "Ownership"):
+ *   - applyTrafficStoreMapping uses it to FAIL a preset that tries to claim
+ *     a store a differently-named preset already owns, instead of the two
+ *     presets reclaiming the store from each other on every re-apply.
+ *   - dbConfigState.ts uses it to render the live DB back out under each
+ *     store's REAL owning preset name, instead of collapsing every store
+ *     under one fixed name a re-import might not be entitled to.
+ *
+ * Scans traffic-store-mapping history newest-first and stops once every
+ * requested name has an answer. This kind of preset is applied rarely and a
+ * real deployment runs only a handful of distinct ones, so an unbounded scan
+ * is fine — this is not a per-request hot path the way getTrafficStoreMap()
+ * is.
+ */
+export async function currentTrafficStoreOwners(
+  db: PrismaClient,
+  storeNames: readonly string[],
+): Promise<Map<string, string>> {
+  const owners = new Map<string, string>();
+  if (storeNames.length === 0) return owners;
+  const remaining = new Set(storeNames);
+
+  const rows = await db.configChangeLog.findMany({
+    where: {
+      presetKind: "traffic-store-mapping",
+      action: { in: ["APPLIED", "UNCHANGED"] },
+    },
+    orderBy: { created: "desc" },
+    select: { presetName: true, summary: true },
+  });
+
+  for (const row of rows) {
+    if (remaining.size === 0) break;
+    for (const name of ownedStoresOf(row.summary)) {
+      if (remaining.has(name)) {
+        owners.set(name, row.presetName);
+        remaining.delete(name);
+      }
+    }
   }
-  return [];
+  return owners;
 }
 
 async function applyTrafficStoreMapping(
@@ -634,6 +760,38 @@ async function applyTrafficStoreMapping(
   }
 
   const desiredNames = new Set(names);
+
+  // Single-owner invariant: a store may be claimed by at most one
+  // traffic-store-mapping preset at a time (docs/domains/config-presets.md,
+  // "Ownership"). Without this check, two differently-named presets that
+  // both list the same store reclaim it from each other on every apply —
+  // both permanently report APPLIED, and the "winner" is whichever one ran
+  // last (for the CLI's file-order loop, whichever file sorts last), which
+  // is not idempotent by any reasonable definition. This makes the SECOND
+  // preset to claim an already-owned store fail, deterministically, until
+  // an operator resolves it on purpose — including the case where "the
+  // second preset" is really the first one renamed: a rename that still
+  // claims a store it owned under its old name trips this too, which is
+  // the intended way to surface an otherwise-silent orphan (see "Renaming a
+  // preset" below).
+  const owners = await currentTrafficStoreOwners(db, names);
+  const conflicts = names
+    .map((n) => ({ name: n, owner: owners.get(n) }))
+    .filter((o): o is { name: string; owner: string } => Boolean(o.owner) && o.owner !== preset.name);
+  if (conflicts.length) {
+    return failOutcome(
+      preset,
+      conflicts.map(
+        (c) =>
+          `store "${c.name}" is already owned by traffic-store-mapping preset "${c.owner}" — a store ` +
+          "may be claimed by only one traffic-store-mapping preset at a time. Remove it from " +
+          `"${c.owner}" first (release it there, or apply "${c.owner}" without that store) before ` +
+          `claiming it under "${preset.name}". If "${preset.name}" is a rename of "${c.owner}", release ` +
+          `the store under "${c.owner}" first — renaming a preset does not carry its ownership history.`,
+      ),
+    );
+  }
+
   const previousOwned = await previouslyOwnedStores(db, preset.name);
   const clearCandidateNames = previousOwned.filter((n) => !desiredNames.has(n));
   const clearCandidates: StoreLocationRow[] = clearCandidateNames.length

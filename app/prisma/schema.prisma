@@ -5189,7 +5189,14 @@ enum ImportTransform {
 
 model ImportDefinition {
   id          Int     @id @default(autoincrement())
-  name        String
+  // Unique so applyPreset.ts can upsert on it race-safely: two concurrent
+  // applies of the same brand-new preset name both read `existing === null`
+  // (that read runs outside the write transaction), and without a DB-level
+  // constraint both would `create` and produce two rows for one preset that
+  // no future apply could ever reconcile (every lookup here is find-by-name,
+  // which only ever finds the first). Added in
+  // 20260804120000_import_definition_name_unique.
+  name        String  @unique
   description String?
 
   // Key into IMPORT_ENTITIES (app/src/lib/genericImport.ts), e.g. "customer".

@@ -51,6 +51,31 @@ function toEditable(stores: StoreLocationSummary[]): EditableStore[] {
   }));
 }
 
+export type ApplyOutcomeSummary = "failed" | "no-op" | "saved";
+
+/**
+ * Classifies an apply result for the confirm toast. "no-op" is distinct
+ * from "saved": every result came back UNCHANGED, meaning the server wrote
+ * nothing, even though reaching handleConfirm requires `dirty` to have been
+ * true (the button is disabled otherwise) -- so the operator DID change
+ * something locally. Treating that as "saved" is exactly the "reports
+ * success but writes nothing" bug: the most common way to land here is
+ * removing a store's LAST counter name, which drops that store from the
+ * submitted bundle entirely (the schema requires sourceNames.min(1) per
+ * store — see buildBundle below) and relies on THIS preset's own
+ * ConfigChangeLog history to notice the drop and clear it. If that store
+ * was never claimed under TRAFFIC_STORE_MAPPING_PRESET_NAME — a
+ * differently-named CLI preset owns it instead; see that constant's comment
+ * in presetApiTypes.ts — there is nothing for this identity to release, and
+ * the apply is a genuine no-op. The operator still needs to know that,
+ * rather than see a green "saved" toast for an edit that didn't take.
+ */
+export function summarizeApplyOutcome(results: ApplyResultSummary[]): ApplyOutcomeSummary {
+  if (results.some((r) => r.action === "FAILED")) return "failed";
+  if (results.length > 0 && results.every((r) => r.action === "UNCHANGED")) return "no-op";
+  return "saved";
+}
+
 function buildBundle(stores: EditableStore[]): PresetBundle {
   return {
     version: PRESET_SCHEMA_VERSION,
@@ -163,9 +188,16 @@ export function TrafficStoreMappingPanel({
     setApplying(true);
     try {
       const { results } = await applyConfigBundle(pendingBundle, false);
-      const failed = results.filter((r) => r.action === "FAILED");
-      if (failed.length > 0) {
-        toast.warn(`Applied with ${failed.length} failure(s) — see details below`);
+      const outcome = summarizeApplyOutcome(results);
+      if (outcome === "failed") {
+        const failedCount = results.filter((r) => r.action === "FAILED").length;
+        toast.warn(`Applied with ${failedCount} failure(s) — see details below`);
+      } else if (outcome === "no-op") {
+        toast.warn(
+          "No changes were written — the server reports nothing to save. If you removed a store's " +
+            "last counter name, this editor may not be the preset that currently owns that store; " +
+            "check Config Change History for who does.",
+        );
       } else {
         toast.success("Traffic store mapping saved");
       }

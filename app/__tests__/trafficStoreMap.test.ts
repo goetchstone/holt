@@ -1,16 +1,33 @@
 // /app/__tests__/trafficStoreMap.test.ts
 //
-// PLACEHOLDER TEST — Grade: A (pure helpers only). The Prisma mock below
-// is an isolation shim -- buildTrafficStoreMap is a pure function taking
-// literal StoreLocation-shaped rows, so no SQL is exercised in this file.
+// PLACEHOLDER TEST — Grade: A (mocked-Prisma wiring only, not SQL behavior)
+// buildTrafficStoreMap is a pure function taking literal StoreLocation-shaped
+// rows, so most of this file exercises no SQL at all -- the Prisma mock below
+// is purely an isolation shim for those cases.
 //
-// NOT tested here: getTrafficStoreMap's 60s cache / invalidateTrafficStoreMap
-// (those need real timers or a real DB round-trip). That's an integration-test
-// concern per the task brief for this change.
+// getTrafficStoreMap's 60s cache / invalidateTrafficStoreMap's generation
+// counter (the fix for a cache-invalidation race -- see that describe block)
+// ARE tested here, with a controllable (deferred-promise) prisma.storeLocation
+// .findMany mock standing in for a real DB round-trip. That mock returns
+// canned rows -- it verifies none of Prisma's actual query/filter behavior,
+// only that getTrafficStoreMap() calls it and reacts to timing correctly.
+// The thing actually under test (the generation counter) is pure in-process
+// logic, so this stays Grade A despite the Prisma mock: no real timers
+// needed either, since the race is about ORDER of completion between two
+// in-flight loads, not elapsed wall-clock time -- resolving mocked promises
+// in a chosen order is enough to reproduce it deterministically.
 
-jest.mock("@/lib/prisma", () => ({ prisma: {} }));
+jest.mock("@/lib/prisma", () => ({ prisma: { storeLocation: { findMany: jest.fn() } } }));
 
-import { buildTrafficStoreMap, type TrafficSourceStoreLocation } from "@/lib/trafficStoreMap";
+import { prisma } from "@/lib/prisma";
+import {
+  buildTrafficStoreMap,
+  getTrafficStoreMap,
+  invalidateTrafficStoreMap,
+  type TrafficSourceStoreLocation,
+} from "@/lib/trafficStoreMap";
+
+const findManyMock = prisma.storeLocation.findMany as jest.Mock;
 
 describe("buildTrafficStoreMap", () => {
   it("resolves a source name to its owning StoreLocation (case-insensitive)", () => {
@@ -79,4 +96,92 @@ describe("buildTrafficStoreMap", () => {
     expect(map.resolveStoreLocation("No Counter Store")).toBeNull();
     expect(map.resolveDisplayName("No Counter Store")).toBe("No Counter Store");
   });
+});
+
+// ---------------------------------------------------------------------------
+// getTrafficStoreMap / invalidateTrafficStoreMap -- cache invalidation race
+// ---------------------------------------------------------------------------
+
+/** A promise plus its resolver, pulled out so a test can control exactly
+ *  when a mocked prisma.storeLocation.findMany() call resolves relative to
+ *  other calls and to invalidateTrafficStoreMap(). */
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+describe("getTrafficStoreMap / invalidateTrafficStoreMap", () => {
+  beforeEach(() => {
+    // Reset both the cache AND the generation counter to a known state --
+    // these are module-level singletons shared across every test in this
+    // file, exactly the way they are shared across every request in the
+    // real server process.
+    invalidateTrafficStoreMap();
+    findManyMock.mockReset();
+  });
+
+  it("serves the cached resolver on a second call within the TTL, without re-querying", async () => {
+    findManyMock.mockResolvedValueOnce([
+      { id: 1, name: "Downtown", trafficSourceNames: ["DT"] },
+    ]);
+    const first = await getTrafficStoreMap();
+    const second = await getTrafficStoreMap();
+    expect(first).toBe(second); // same cached object, not just equal
+    expect(findManyMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rebuilds from StoreLocation after invalidateTrafficStoreMap()", async () => {
+    findManyMock.mockResolvedValueOnce([{ id: 1, name: "Downtown", trafficSourceNames: ["DT"] }]);
+    await getTrafficStoreMap();
+
+    invalidateTrafficStoreMap();
+    findManyMock.mockResolvedValueOnce([{ id: 1, name: "Downtown", trafficSourceNames: ["DT", "DT2"] }]);
+    const map = await getTrafficStoreMap();
+
+    expect(findManyMock).toHaveBeenCalledTimes(2);
+    expect(map.resolveDisplayName("DT2")).toBe("Downtown");
+  });
+
+  it(
+    "does not let a load started BEFORE an invalidation re-pin a stale mapping after it resolves " +
+      "AFTER a fresher load already cached (the race invalidateTrafficStoreMap's generation counter fixes)",
+    async () => {
+      // Kick off a load. Its query is still pending -- nothing has resolved
+      // yet, so this load is "in flight" exactly like a real request whose
+      // DB round-trip hasn't come back.
+      const firstQuery = deferred<Array<{ id: number; name: string; trafficSourceNames: string[] }>>();
+      findManyMock.mockImplementationOnce(() => firstQuery.promise);
+      const firstCall = getTrafficStoreMap();
+
+      // A config-preset apply lands WHILE that load is still in flight: it
+      // invalidates the cache, and the NEXT call re-queries for fresh
+      // (post-apply) data. This second load resolves immediately and caches
+      // its result.
+      invalidateTrafficStoreMap();
+      findManyMock.mockResolvedValueOnce([
+        { id: 1, name: "Downtown", trafficSourceNames: ["DT", "New Door"] },
+      ]);
+      const freshMap = await getTrafficStoreMap();
+      expect(freshMap.resolveDisplayName("New Door")).toBe("Downtown");
+      expect(findManyMock).toHaveBeenCalledTimes(2);
+
+      // NOW let the stale first load resolve, with the PRE-apply row set it
+      // originally queried for.
+      firstQuery.resolve([{ id: 1, name: "Downtown", trafficSourceNames: ["DT"] }]);
+      const staleMap = await firstCall;
+      // The caller who started that load still gets a self-consistent
+      // answer for what it asked...
+      expect(staleMap.resolveDisplayName("New Door")).toBe("New Door"); // unmapped, from ITS point of view
+
+      // ...but it must NOT have clobbered the cache when it resolved late.
+      // A third call within the TTL should still see the FRESH mapping and
+      // must not trigger a third query.
+      const thirdMap = await getTrafficStoreMap();
+      expect(thirdMap.resolveDisplayName("New Door")).toBe("Downtown");
+      expect(findManyMock).toHaveBeenCalledTimes(2);
+    },
+  );
 });
