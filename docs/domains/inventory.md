@@ -11,7 +11,7 @@ Stock positions, physical counts, reconciliation, transfers, warehouse dashboard
 | `Upc` | UPC/barcode → Product link (one product can have many barcodes) |
 | `StockLocation` | Physical floor location (Main Showroom front, West Showroom warehouse, etc.) — has `name` + `code` + `locationAliases` array |
 | `InventoryPosition` | One row per (product, location) with on-hand quantity. Daily-overwritten by Stock-by-Item import. |
-| `InventorySnapshot` | Periodic snapshot of the full position table |
+| `InventorySnapshot` | The expected on-hand baseline a physical count is measured against. Transient working table — regenerated per count, and cleared by `clear-snapshot` (scoped by `source`). Identity is holt's own `productId` + `storeLocationId`, not a POS id — see "Inventory snapshot generation" below. |
 | `PhysicalInventoryCount` | Per-scan log during a physical count event |
 | `Reconciliation` | Variance reconciliation record (resolved discrepancy after a physical count) |
 | `UnidentifiedScan` | Photo of an item that scanned to nothing during a count |
@@ -32,6 +32,17 @@ Since 2026-04-24:
 - **Result surfaces `unmappedLocations`** array. Admin should add aliases (or create the proper StockLocation) so future imports land correctly.
 
 **Rule for any new inventory-bearing import**: never silently drop a row with an unmappable location. Always route to the catch-all and surface the unmapped name to the admin.
+
+## Inventory snapshot generation (Step 1 of a physical count)
+
+`InventorySnapshot` had exactly one writer for most of this domain's history: a CSV importer fed by the POS, keyed on `Product.externalId` and a free-text POS location string. Since `Product.externalId` is nullable, every product created natively in holt (never imported from the POS) was silently absent from its own inventory count — a correctness bug, not a wiring gap, and it went undetected because nothing failed loudly. Migration `20260801170000_inventory_snapshot_local_identity` (2026-08-01) changed `InventorySnapshot`'s identity to holt's own `productId` (FK to `Product`) and `storeLocationId` (FK to `StoreLocation`, the counting grain — matches how counts are actually run, per store rather than per bin). `stockLocationId` is captured too when known, but deliberately excluded from the unique key.
+
+**The migration dropped the table rather than backfilling it** (see the migration's own header comment for the reasoning) — any snapshot that was mid-count when this deployed is gone and **must be regenerated from Physical Inventory Hub, Step 1** before counting resumes.
+
+- **Normal path**: `POST /api/inventory/snapshot/generate` (MANAGER/ADMIN) builds `InventorySnapshot` rows with `source: LOCAL` straight from `InventoryPosition` — the same aggregation `InventoryFreeze` uses (`lib/inventory/snapshot.ts:aggregateCurrentInventory`, shared so the two can never drift on what "current inventory" means). `snapshotDate` is truncated to the start of today, so re-running mid-day (e.g. after fixing a department mapping) replaces today's `LOCAL` rows rather than tripping the `(snapshotDate, productId, storeLocationId)` unique constraint. Wired to the Hub's Step 1 card in `InventoryHubView.tsx`.
+- **Cutover/parallel-run path**: `pages/api/import/inventory-snapshot.ts` (POS CSV upload) still exists, demoted to a secondary tool for validating the cutover. Writes `source: IMPORT` rows, resolving POS identifiers to holt's own before writing: `externalId` → `Product.externalId` → `productId`, and the POS `Stocklocation` string → `StockLocation.locationAliases` (case-insensitive, trimmed) → `storeLocationId`/`stockLocationId`. A row that resolves to neither a product nor a location is reported back (count + samples) in the response, never silently dropped — same discipline as the Stock-by-Item catch-all above. Surfaced in the Hub UI under "Migration & Cutover Tools", worded so it isn't mistaken for the normal Step 1.
+  - The upload UI (`InventorySnapshotImportView.tsx`) calls `clear-snapshot` with `{ source: "IMPORT" }` first, so it replaces only prior imported rows and a locally generated baseline survives the upload. That makes side-by-side comparison the default: generate `LOCAL`, upload the POS file, and both sets sit in the table at once keyed by `source`.
+  - It did NOT start out this way. The clear was unscoped (`deleteMany({})`), so importing a POS file destroyed the local baseline and the count silently reverted to being measured against whatever the POS knew — the exact coupling generating locally was meant to remove. Scoped in `clearSnapshotScope.integration.test.ts`, which asserts each source survives the other's clear.
 
 ## Physical count workflow
 
@@ -83,7 +94,7 @@ The classic "where's the missing inventory" debugging path:
 
 ## Cleanup / admin endpoints
 
-- `clear-snapshot.ts` — deletes a `PhysicalInventoryCount` event (use sparingly)
+- `clear-snapshot.ts` — `POST { source?: "LOCAL" | "IMPORT" }`. Omitting `source` clears everything (the deliberate start-over); passing one clears only that source. An unrecognised value is rejected rather than falling back to a wider delete. Returns the deleted count, and audits as `INVENTORY_SNAPSHOT_CLEAR` — it destroys the baseline a count is judged against.
 - `clear-location.ts` — zeroes positions at a location
 - `clear-all-data.ts` — wipes count data (NOT positions). Use with backup in hand.
 
@@ -108,6 +119,9 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 - `buyersStockSpecialClassifier.integration.test.ts` — real-DB classifier for stock-special items
 - No dedicated tests for `runStockByItemImport`'s catch-all routing — **gap, worth a tripwire**
 - No tests for the reconcile + undo-reconcile round-trip
+- `inventorySnapshot.test.ts` — unit tests for `summarizeInventoryAggregate` (the shared freeze/snapshot roll-up)
+- `snapshotImport.test.ts` — unit tests for `resolveSnapshotImportRow` (the POS cutover importer's per-row resolution)
+- `inventorySnapshotGenerate.integration.test.ts` — real-DB coverage for `POST /api/inventory/snapshot/generate`, including a product with no `externalId` and same-day re-run idempotency
 
 ---
-Last verified: 2026-05-20
+Last verified: 2026-08-04

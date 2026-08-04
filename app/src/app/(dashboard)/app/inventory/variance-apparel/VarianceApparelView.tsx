@@ -79,8 +79,12 @@ export function VarianceApparelView() {
   };
 
   const columns = buildVarianceColumns({
+    // Native-born products (no externalId) have no detail page to link to --
+    // see VarianceRecord's comment.
     productHref: (row) =>
-      `/app/inventory/product-variance/${row.externalId}?location=${location}&returnUrl=/inventory/variance-apparel`,
+      row.externalId == null
+        ? null
+        : `/app/inventory/product-variance/${row.externalId}?location=${location}&returnUrl=/inventory/variance-apparel`,
     onReconcile: handleReconcile,
   });
 

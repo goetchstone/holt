@@ -113,7 +113,12 @@ export function VarianceReportView() {
   };
 
   const columns = buildVarianceColumns({
-    productHref: (row) => `/app/inventory/product-variance/${row.externalId}?location=${location}`,
+    // Native-born products (no externalId) have no detail page to link to --
+    // see VarianceRecord's comment.
+    productHref: (row) =>
+      row.externalId == null
+        ? null
+        : `/app/inventory/product-variance/${row.externalId}?location=${location}`,
     onReconcile: handleReconcile,
   });
 

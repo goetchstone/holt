@@ -18,7 +18,10 @@ import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 
 interface ReportRow {
   productId: number;
-  externalId: number;
+  // Nullable: native-born products (created in holt, never imported from the
+  // POS) have no externalId, so they have no product-variance detail page
+  // to link to (that route is keyed by externalId in its URL).
+  externalId: number | null;
   name: string;
   productNumber: string;
   expectedQty: number;
@@ -93,10 +96,15 @@ export function SummaryDetailsView() {
   const sortedData = useMemo(() => {
     const sortableItems = [...report];
     sortableItems.sort((a, b) => {
-      if (a[sortConfig.key] < b[sortConfig.key]) {
+      // externalId is nullable now (native-born products have none) -- ?? 0
+      // is a sort-stability fallback only. It's not offered as a sort key by
+      // HEADERS, so this only guards the type, not real user-facing sorting.
+      const aVal = a[sortConfig.key] ?? 0;
+      const bVal = b[sortConfig.key] ?? 0;
+      if (aVal < bVal) {
         return sortConfig.direction === "asc" ? -1 : 1;
       }
-      if (a[sortConfig.key] > b[sortConfig.key]) {
+      if (aVal > bVal) {
         return sortConfig.direction === "asc" ? 1 : -1;
       }
       return 0;
@@ -161,14 +169,20 @@ export function SummaryDetailsView() {
                     className="p-2 border-b border-sh-gray font-semibold"
                     style={{ width: "250px" }}
                   >
-                    <Link
-                      href={`/app/inventory/product-variance/${item.externalId}?location=${groupName}`}
-                      className="hover:underline text-sh-blue"
-                    >
+                    {item.externalId == null ? (
                       <div className="truncate" title={item.name}>
                         {item.name}
                       </div>
-                    </Link>
+                    ) : (
+                      <Link
+                        href={`/app/inventory/product-variance/${item.externalId}?location=${groupName}`}
+                        className="hover:underline text-sh-blue"
+                      >
+                        <div className="truncate" title={item.name}>
+                          {item.name}
+                        </div>
+                      </Link>
+                    )}
                   </td>
                   <td className="p-2 border-b border-sh-gray" style={{ width: "120px" }}>
                     {item.productNumber}
