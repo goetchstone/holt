@@ -119,8 +119,15 @@ export function InventorySnapshotImportView() {
     setTotalRecords(0);
     setFinalResult({ created: 0, errors: 0, errorDetails: [] });
 
-    // 1. CLEAR
-    const clearResponse = await fetch("/api/inventory/clear-snapshot", { method: "POST" });
+    // 1. CLEAR -- only the rows this importer owns. InventorySnapshot now has
+    // two writers, and an unscoped clear here would destroy the locally
+    // generated baseline (source: LOCAL) that Physical Inventory Hub Step 1
+    // produces, leaving the count measured against whatever the POS knew.
+    const clearResponse = await fetch("/api/inventory/clear-snapshot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "IMPORT" }),
+    });
     if (!clearResponse.ok) {
       setStatus("error");
       setFinalResult({

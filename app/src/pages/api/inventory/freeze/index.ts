@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 import { requireAuth, requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
+import { aggregateCurrentInventory } from "@/lib/inventory/snapshot";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
@@ -31,12 +32,10 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
   const { description } = req.body || {};
 
   const freeze = await prisma.$transaction(async (tx) => {
-    // Aggregate current inventory positions by product + store location
-    const positions = await tx.inventoryPosition.groupBy({
-      by: ["productId", "storeLocationId"],
-      _sum: { quantity: true },
-      where: { quantity: { gt: 0 } },
-    });
+    // Aggregate current inventory positions by product + store location.
+    // Shared with InventorySnapshot's LOCAL generator (src/lib/inventory/snapshot.ts)
+    // so the two can never disagree about what "current inventory" means.
+    const positions = await aggregateCurrentInventory(tx);
 
     const newFreeze = await tx.inventoryFreeze.create({
       data: {
@@ -52,12 +51,12 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
           freezeId: newFreeze.id,
           productId: pos.productId,
           storeLocationId: pos.storeLocationId,
-          quantity: pos._sum.quantity || 0,
+          quantity: pos.quantity,
         })),
       });
     }
 
-    const totalUnits = positions.reduce((sum, p) => sum + (p._sum.quantity || 0), 0);
+    const totalUnits = positions.reduce((sum, p) => sum + p.quantity, 0);
 
     const updated = await tx.inventoryFreeze.update({
       where: { id: newFreeze.id },

@@ -30,18 +30,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: "Product not found." });
     }
 
+    // InventorySnapshot is keyed on productId now, not this route's externalId
+    // -- the lookup above already resolved externalId -> product.id, so the
+    // URL contract (this route is still keyed by externalId) stays intact.
     const [snapshotCounts, physicalCounts] = await Promise.all([
-      prisma.inventorySnapshot.findMany({ where: { externalId: id } }),
+      prisma.inventorySnapshot.findMany({
+        where: { productId: product.id },
+        select: { quantity: true, storeLocation: { select: { name: true } } },
+      }),
       prisma.physicalInventoryCount.findMany({ where: { productId: product.id } }),
     ]);
 
     const locationData: { [key: string]: { expected: number; counted: number } } = {};
 
     snapshotCounts.forEach((s) => {
-      if (!locationData[s.stockLocation]) {
-        locationData[s.stockLocation] = { expected: 0, counted: 0 };
+      const locName = s.storeLocation.name;
+      if (!locationData[locName]) {
+        locationData[locName] = { expected: 0, counted: 0 };
       }
-      locationData[s.stockLocation].expected += s.quantity;
+      locationData[locName].expected += s.quantity;
     });
 
     physicalCounts.forEach((p) => {

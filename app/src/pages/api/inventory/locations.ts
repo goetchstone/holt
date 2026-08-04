@@ -15,17 +15,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const locations = await prisma.inventorySnapshot.findMany({
-      select: {
-        stockLocation: true,
-      },
-      distinct: ["stockLocation"],
-      orderBy: {
-        stockLocation: "asc",
-      },
+    // InventorySnapshot's counting grain is storeLocationId (see its schema
+    // comment), not a free-text location string, so the distinct-locations
+    // list comes from resolving the ids present in the snapshot to their
+    // StoreLocation names. Two queries rather than distinct+orderBy across a
+    // relation, which Postgres' DISTINCT ON semantics don't support cleanly.
+    const rows = await prisma.inventorySnapshot.findMany({
+      select: { storeLocationId: true },
+      distinct: ["storeLocationId"],
+    });
+    const storeLocations = await prisma.storeLocation.findMany({
+      where: { id: { in: rows.map((r) => r.storeLocationId) } },
+      select: { name: true },
+      orderBy: { name: "asc" },
     });
 
-    const locationNames = locations.map((l) => l.stockLocation);
+    const locationNames = storeLocations.map((l) => l.name);
     res.status(200).json(locationNames);
   } catch (error) {
     logError("Error fetching inventory locations", error);

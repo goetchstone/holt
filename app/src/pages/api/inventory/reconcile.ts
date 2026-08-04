@@ -25,7 +25,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const product = await prisma.product.findUnique({ where: { externalId: item.externalId } });
+    // Prefer productId (holt's own identity, always present on rows from the
+    // current variance-report/accurate-scans APIs). Fall back to externalId
+    // lookup for older cached frontend bundles -- but a native-born product
+    // (no externalId) can only ever arrive with a productId, since it has no
+    // externalId to send.
+    const product = item.productId
+      ? await prisma.product.findUnique({ where: { id: Number(item.productId) } })
+      : await prisma.product.findUnique({ where: { externalId: item.externalId } });
     if (!product) {
       return res.status(404).json({ error: "Product not found to reconcile." });
     }

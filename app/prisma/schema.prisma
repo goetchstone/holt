@@ -302,6 +302,7 @@ model Product {
   consignmentItems     ConsignmentItem[]
   pickListItems        PickListItem[]
   inventoryFreezeItems InventoryFreezeItem[]
+  inventorySnapshots   InventorySnapshot[]
   proposalLineItems    ProposalLineItem[]
 
   fulfilledBuyerDrafts BuyerDraftItem[]
@@ -1287,14 +1288,57 @@ model PhysicalInventoryCount {
   @@index([countedAt, stockLocation, userId])
 }
 
+/// The expected on-hand baseline a physical count is measured against.
+///
+/// A TRANSIENT working table: `clear-snapshot` wipes it wholesale, and it is
+/// regenerated per count. Treat it as scratch, not history -- InventoryFreeze
+/// is the durable point-in-time record.
+///
+/// Previously keyed on `externalId` (the POS's product id) and a free-text POS
+/// location string, which made holt's own inventory count depend on another
+/// system's identifiers. `Product.externalId` is nullable, so every product
+/// created natively in holt was silently absent from its own count. Identity
+/// is now holt's own FKs; the external fields survive as provenance for rows
+/// that came in from a POS export.
 model InventorySnapshot {
-  id            Int      @id @default(autoincrement())
-  externalId    Int
-  stockLocation String
-  quantity      Float
-  snapshotDate  DateTime @default(now())
+  id Int @id @default(autoincrement())
 
-  @@unique([externalId, stockLocation, snapshotDate])
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  /// Counting grain. Matches InventoryFreeze's groupBy, and matches how counts
+  /// are actually run -- per store, not per bin.
+  storeLocationId Int
+  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id])
+
+  /// Finer grain when known. Informational: the unique key deliberately does
+  /// not include it, so one product in three bins is one snapshot row.
+  stockLocationId Int?
+  stockLocation   StockLocation? @relation(fields: [stockLocationId], references: [id])
+
+  quantity     Float
+  snapshotDate DateTime @default(now())
+
+  /// LOCAL -- generated from InventoryPosition, the normal path.
+  /// IMPORT -- uploaded from a POS export, kept for cutover/parallel-run only.
+  source InventorySnapshotSource @default(LOCAL)
+
+  /// Provenance for IMPORT rows. Null for LOCAL rows, and null for imported
+  /// rows whose product has no external id.
+  externalId            Int?
+  externalStockLocation String?
+
+  createdBy String?
+
+  @@unique([snapshotDate, productId, storeLocationId])
+  @@index([productId])
+  @@index([storeLocationId])
+  @@index([snapshotDate])
+}
+
+enum InventorySnapshotSource {
+  LOCAL
+  IMPORT
 }
 
 model Reconciliation {
@@ -1377,7 +1421,8 @@ model StoreLocation {
   // buildings counted separately still roll up here). Replaces the hardcoded
   // AXPER_TO_STORE_LOCATION / STORE_DISPLAY_NAMES literals that used to live
   // in lib/storeColors.ts. Populated by a `traffic-store-mapping` config
-  // preset or by hand in the store editor -- see docs/domains/config-presets.md.
+  // preset, or in the GUI at Admin > Settings > Configuration -- see
+  // docs/domains/config-presets.md.
   trafficSourceNames String[] @default([])
 
   defaultReceivingStockLocationId Int?
@@ -1406,6 +1451,7 @@ model StoreLocation {
   consignmentItems         ConsignmentItem[]         @relation("ConsignmentLocation")
   pickItemsFromStore       PickListItem[]            @relation("PickFromStore")
   inventoryFreezeItems     InventoryFreezeItem[]
+  inventorySnapshots       InventorySnapshot[]
   buyerDraftPurchaseOrders BuyerDraftPurchaseOrder[]
   trafficSnapshots         TrafficSnapshot[]
 
@@ -1435,6 +1481,7 @@ model StockLocation {
   sortOrder       Int           @default(0)
 
   inventoryPositions InventoryPosition[]
+  inventorySnapshots InventorySnapshot[]
   transfersFrom      InventoryTransfer[] @relation("StockTransferFrom")
   transfersTo        InventoryTransfer[] @relation("StockTransferTo")
   receivingRecords   ReceivingRecord[]
