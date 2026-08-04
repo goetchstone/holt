@@ -11,7 +11,7 @@ Stock positions, physical counts, reconciliation, transfers, warehouse dashboard
 | `Upc` | UPC/barcode → Product link (one product can have many barcodes) |
 | `StockLocation` | Physical floor location (Main Showroom front, West Showroom warehouse, etc.) — has `name` + `code` + `locationAliases` array |
 | `InventoryPosition` | One row per (product, location) with on-hand quantity. Daily-overwritten by Stock-by-Item import. |
-| `InventorySnapshot` | The expected on-hand baseline a physical count is measured against. Transient working table — `clear-snapshot` wipes it wholesale and it's regenerated per count. Identity is holt's own `productId` + `storeLocationId`, not a POS id — see "Inventory snapshot generation" below. |
+| `InventorySnapshot` | The expected on-hand baseline a physical count is measured against. Transient working table — regenerated per count, and cleared by `clear-snapshot` (scoped by `source`). Identity is holt's own `productId` + `storeLocationId`, not a POS id — see "Inventory snapshot generation" below. |
 | `PhysicalInventoryCount` | Per-scan log during a physical count event |
 | `Reconciliation` | Variance reconciliation record (resolved discrepancy after a physical count) |
 | `UnidentifiedScan` | Photo of an item that scanned to nothing during a count |
@@ -41,7 +41,8 @@ Since 2026-04-24:
 
 - **Normal path**: `POST /api/inventory/snapshot/generate` (MANAGER/ADMIN) builds `InventorySnapshot` rows with `source: LOCAL` straight from `InventoryPosition` — the same aggregation `InventoryFreeze` uses (`lib/inventory/snapshot.ts:aggregateCurrentInventory`, shared so the two can never drift on what "current inventory" means). `snapshotDate` is truncated to the start of today, so re-running mid-day (e.g. after fixing a department mapping) replaces today's `LOCAL` rows rather than tripping the `(snapshotDate, productId, storeLocationId)` unique constraint. Wired to the Hub's Step 1 card in `InventoryHubView.tsx`.
 - **Cutover/parallel-run path**: `pages/api/import/inventory-snapshot.ts` (POS CSV upload) still exists, demoted to a secondary tool for validating the cutover. Writes `source: IMPORT` rows, resolving POS identifiers to holt's own before writing: `externalId` → `Product.externalId` → `productId`, and the POS `Stocklocation` string → `StockLocation.locationAliases` (case-insensitive, trimmed) → `storeLocationId`/`stockLocationId`. A row that resolves to neither a product nor a location is reported back (count + samples) in the response, never silently dropped — same discipline as the Stock-by-Item catch-all above. Surfaced in the Hub UI under "Migration & Cutover Tools", worded so it isn't mistaken for the normal Step 1.
-  - **Gotcha**: the upload UI (`InventorySnapshotImportView.tsx`) calls `clear-snapshot` first, which wipes the *whole* `InventorySnapshot` table — `LOCAL` rows included, not just prior `IMPORT` rows. A true side-by-side comparison means capturing today's `LOCAL` numbers (e.g. the generate response, or an on-hand report) *before* running the POS upload, or regenerating `LOCAL` again afterward to diff against the `IMPORT` rows that are now sitting there. `clear-snapshot.ts` wasn't scoped to a `source` when this shipped — worth revisiting if the parallel-run window turns out to be more than a one-time cutover check.
+  - The upload UI (`InventorySnapshotImportView.tsx`) calls `clear-snapshot` with `{ source: "IMPORT" }` first, so it replaces only prior imported rows and a locally generated baseline survives the upload. That makes side-by-side comparison the default: generate `LOCAL`, upload the POS file, and both sets sit in the table at once keyed by `source`.
+  - It did NOT start out this way. The clear was unscoped (`deleteMany({})`), so importing a POS file destroyed the local baseline and the count silently reverted to being measured against whatever the POS knew — the exact coupling generating locally was meant to remove. Scoped in `clearSnapshotScope.integration.test.ts`, which asserts each source survives the other's clear.
 
 ## Physical count workflow
 
@@ -93,7 +94,7 @@ The classic "where's the missing inventory" debugging path:
 
 ## Cleanup / admin endpoints
 
-- `clear-snapshot.ts` — wipes the entire `InventorySnapshot` table (`deleteMany({})`, both `LOCAL` and `IMPORT` rows). Called automatically before a POS cutover upload; regenerate via Step 1 afterward.
+- `clear-snapshot.ts` — `POST { source?: "LOCAL" | "IMPORT" }`. Omitting `source` clears everything (the deliberate start-over); passing one clears only that source. An unrecognised value is rejected rather than falling back to a wider delete. Returns the deleted count, and audits as `INVENTORY_SNAPSHOT_CLEAR` — it destroys the baseline a count is judged against.
 - `clear-location.ts` — zeroes positions at a location
 - `clear-all-data.ts` — wipes count data (NOT positions). Use with backup in hand.
 
