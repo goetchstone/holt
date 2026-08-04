@@ -241,12 +241,16 @@ async function recordApply(
       },
     });
   } catch (err) {
-    logError(`applyPreset: failed to write ConfigChangeLog for ${result.kind}/${result.name}`, err, {
-      presetKind: result.kind,
-      presetName: result.name,
-      action: result.action,
-      source: opts.source,
-    });
+    logError(
+      `applyPreset: failed to write ConfigChangeLog for ${result.kind}/${result.name}`,
+      err,
+      {
+        presetKind: result.kind,
+        presetName: result.name,
+        action: result.action,
+        source: opts.source,
+      },
+    );
   }
 
   return result;
@@ -277,13 +281,17 @@ interface ExistingDefinitionTop {
   isActive: boolean;
 }
 
-function changedTopFields(existing: ExistingDefinitionTop, desired: DesiredDefinitionFields): string[] {
+function changedTopFields(
+  existing: ExistingDefinitionTop,
+  desired: DesiredDefinitionFields,
+): string[] {
   const out: string[] = [];
   if ((existing.description ?? null) !== desired.description) out.push("description");
   if (existing.targetEntity !== desired.targetEntity) out.push("targetEntity");
   if (existing.sourceFormat !== desired.sourceFormat) out.push("sourceFormat");
   if (existing.importMode !== desired.importMode) out.push("importMode");
-  if (!arraysEqual(existing.naturalKeyFields, desired.naturalKeyFields)) out.push("naturalKeyFields");
+  if (!arraysEqual(existing.naturalKeyFields, desired.naturalKeyFields))
+    out.push("naturalKeyFields");
   if ((existing.runnerKey ?? null) !== desired.runnerKey) out.push("runnerKey");
   if (existing.isActive !== desired.isActive) out.push("isActive");
   return out;
@@ -365,8 +373,10 @@ function describeFieldMappingChanges(
   recon: Reconciliation<ExistingFieldMapping, FieldMappingInput>,
 ): string[] {
   const messages: string[] = [];
-  for (const d of recon.toCreate) messages.push(`created field mapping "${d.targetField}" <- "${d.sourceColumn}"`);
-  for (const { desired } of recon.toUpdate) messages.push(`updated field mapping "${desired.targetField}"`);
+  for (const d of recon.toCreate)
+    messages.push(`created field mapping "${d.targetField}" <- "${d.sourceColumn}"`);
+  for (const { desired } of recon.toUpdate)
+    messages.push(`updated field mapping "${desired.targetField}"`);
   for (const e of recon.toDelete) messages.push(`deleted field mapping "${e.targetField}"`);
   return messages;
 }
@@ -376,10 +386,14 @@ function describeValueMappingChanges(
 ): string[] {
   const messages: string[] = [];
   for (const d of recon.toCreate) {
-    messages.push(`created value mapping "${d.targetField}:${d.sourceValue}" -> "${d.targetValue}"`);
+    messages.push(
+      `created value mapping "${d.targetField}:${d.sourceValue}" -> "${d.targetValue}"`,
+    );
   }
   for (const { desired } of recon.toUpdate) {
-    messages.push(`updated value mapping "${desired.targetField}:${desired.sourceValue}" -> "${desired.targetValue}"`);
+    messages.push(
+      `updated value mapping "${desired.targetField}:${desired.sourceValue}" -> "${desired.targetValue}"`,
+    );
   }
   for (const e of recon.toDelete) {
     messages.push(`deleted value mapping "${e.targetField}:${e.sourceValue}"`);
@@ -454,7 +468,10 @@ async function writeImportDefinitionChanges(
     await tx.importValueMapping.delete({ where: { id: e.id } });
   }
   for (const { existing: e, desired: d } of valueRecon.toUpdate) {
-    await tx.importValueMapping.update({ where: { id: e.id }, data: { targetValue: d.targetValue } });
+    await tx.importValueMapping.update({
+      where: { id: e.id },
+      data: { targetValue: d.targetValue },
+    });
   }
   for (const d of valueRecon.toCreate) {
     await tx.importValueMapping.create({
@@ -548,8 +565,10 @@ async function applyImportDefinition(
   messages.push(...describeFieldMappingChanges(fieldRecon));
   messages.push(...describeValueMappingChanges(valueRecon));
 
-  const created = (definitionIsNew ? 1 : 0) + fieldRecon.toCreate.length + valueRecon.toCreate.length;
-  const updated = (definitionChanged ? 1 : 0) + fieldRecon.toUpdate.length + valueRecon.toUpdate.length;
+  const created =
+    (definitionIsNew ? 1 : 0) + fieldRecon.toCreate.length + valueRecon.toCreate.length;
+  const updated =
+    (definitionChanged ? 1 : 0) + fieldRecon.toUpdate.length + valueRecon.toUpdate.length;
   const deleted = fieldRecon.toDelete.length + valueRecon.toDelete.length;
   const hasChanges = created > 0 || updated > 0 || deleted > 0;
 
@@ -777,7 +796,9 @@ async function applyTrafficStoreMapping(
   const owners = await currentTrafficStoreOwners(db, names);
   const conflicts = names
     .map((n) => ({ name: n, owner: owners.get(n) }))
-    .filter((o): o is { name: string; owner: string } => Boolean(o.owner) && o.owner !== preset.name);
+    .filter(
+      (o): o is { name: string; owner: string } => Boolean(o.owner) && o.owner !== preset.name,
+    );
   if (conflicts.length) {
     return failOutcome(
       preset,
@@ -823,7 +844,11 @@ async function applyTrafficStoreMapping(
   }
 
   const ownedStores = [...desiredNames].sort((a, b) => a.localeCompare(b));
-  const changes: ApplyChangeCounts = { created: 0, updated: updates.length, deleted: clears.length };
+  const changes: ApplyChangeCounts = {
+    created: 0,
+    updated: updates.length,
+    deleted: clears.length,
+  };
   const hasChanges = updates.length > 0 || clears.length > 0;
 
   if (!hasChanges) {
@@ -842,7 +867,10 @@ async function applyTrafficStoreMapping(
   if (!opts.dryRun) {
     await db.$transaction(async (tx) => {
       for (const u of updates) {
-        await tx.storeLocation.update({ where: { id: u.id }, data: { trafficSourceNames: u.sourceNames } });
+        await tx.storeLocation.update({
+          where: { id: u.id },
+          data: { trafficSourceNames: u.sourceNames },
+        });
       }
       for (const c of clears) {
         await tx.storeLocation.update({ where: { id: c.id }, data: { trafficSourceNames: [] } });

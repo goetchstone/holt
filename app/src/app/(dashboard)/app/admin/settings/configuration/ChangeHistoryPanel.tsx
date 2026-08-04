@@ -52,7 +52,12 @@ export function ChangeHistoryPanel() {
       created: string;
     }>
   >([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: PAGE_SIZE, total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+  });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async (p: number) => {
@@ -103,7 +108,9 @@ export function ChangeHistoryPanel() {
                   </td>
                   <td className="px-3 py-2">{row.source}</td>
                   <td className="px-3 py-2">{row.actor ?? "unattended"}</td>
-                  <td className="max-w-md px-3 py-2 text-xs text-sh-gray">{summaryText(row.summary)}</td>
+                  <td className="max-w-md px-3 py-2 text-xs text-sh-gray">
+                    {summaryText(row.summary)}
+                  </td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (
@@ -119,7 +126,12 @@ export function ChangeHistoryPanel() {
       )}
       {pagination.totalPages > 1 && (
         <div className="flex items-center gap-2 text-sm">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+          >
             Previous
           </Button>
           <span>

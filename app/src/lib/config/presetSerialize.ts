@@ -64,10 +64,7 @@ const YAML_PARSE_OPTIONS = {
  * so a future YAML tag that resolves to some new type fails closed instead of
  * quietly flowing into the database.
  */
-function assertPlainData(
-  value: unknown,
-  path = "(root)",
-): Array<{ path: string; kind: string }> {
+function assertPlainData(value: unknown, path = "(root)"): Array<{ path: string; kind: string }> {
   if (value === null) return [];
   const t = typeof value;
   if (t === "string" || t === "boolean") return [];
@@ -109,9 +106,10 @@ export function detectFormat(filename: string): PresetFormat | null {
 export function parsePresetText(text: string, format?: PresetFormat): PresetParseResult {
   // Byte length, not string length: a document of multi-byte characters is
   // as expensive as its encoded size, which is what the ceiling is about.
-  const bytes = typeof Buffer !== "undefined"
-    ? Buffer.byteLength(text, "utf8")
-    : new TextEncoder().encode(text).length;
+  const bytes =
+    typeof Buffer !== "undefined"
+      ? Buffer.byteLength(text, "utf8")
+      : new TextEncoder().encode(text).length;
   if (bytes > MAX_PRESET_BYTES) {
     return {
       ok: false,
@@ -214,9 +212,7 @@ function orderBundle(bundle: PresetBundle): Record<string, unknown> {
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([field, pairs]) => [
               field,
-              Object.fromEntries(
-                Object.entries(pairs).sort(([a], [b]) => a.localeCompare(b)),
-              ),
+              Object.fromEntries(Object.entries(pairs).sort(([a], [b]) => a.localeCompare(b))),
             ]),
         ),
       };

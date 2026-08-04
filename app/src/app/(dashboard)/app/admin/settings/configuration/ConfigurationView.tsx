@@ -29,7 +29,9 @@ import { ImportDefinitionsPanel } from "./ImportDefinitionsPanel";
 import { ImportExportPanel } from "./ImportExportPanel";
 import { ChangeHistoryPanel } from "./ChangeHistoryPanel";
 
-function DiskReportBanner({ diskReport }: Readonly<{ diskReport: PresetsGetResponse["diskReport"] }>) {
+function DiskReportBanner({
+  diskReport,
+}: Readonly<{ diskReport: PresetsGetResponse["diskReport"] }>) {
   if (diskReport.errors.length === 0 && diskReport.overrides.length === 0) return null;
   return (
     <div className="space-y-2 rounded-md border border-sh-gold/50 bg-sh-gold/5 p-4 text-sm">

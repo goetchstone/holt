@@ -150,7 +150,9 @@ function buildBundle(form: DefinitionForm): PresetBundle {
   return { version: PRESET_SCHEMA_VERSION, presets: [buildPreset(form)] };
 }
 
-function groupValueMappings(rows: ValueMappingForm[]): Array<{ targetField: string; indices: number[] }> {
+function groupValueMappings(
+  rows: ValueMappingForm[],
+): Array<{ targetField: string; indices: number[] }> {
   const order: string[] = [];
   const byField = new Map<string, number[]>();
   rows.forEach((row, index) => {
@@ -219,7 +221,9 @@ export function ImportDefinitionsPanel({
   function updateFieldMapping(index: number, patch: Partial<FieldMappingForm>) {
     setForm((prev) => {
       if (!prev) return prev;
-      const fieldMappings = prev.fieldMappings.map((fm, i) => (i === index ? { ...fm, ...patch } : fm));
+      const fieldMappings = prev.fieldMappings.map((fm, i) =>
+        i === index ? { ...fm, ...patch } : fm,
+      );
       return { ...prev, fieldMappings };
     });
     setPreview(null);
@@ -251,7 +255,9 @@ export function ImportDefinitionsPanel({
   function updateValueMapping(index: number, patch: Partial<ValueMappingForm>) {
     setForm((prev) => {
       if (!prev) return prev;
-      const valueMappings = prev.valueMappings.map((vm, i) => (i === index ? { ...vm, ...patch } : vm));
+      const valueMappings = prev.valueMappings.map((vm, i) =>
+        i === index ? { ...vm, ...patch } : vm,
+      );
       return { ...prev, valueMappings };
     });
     setPreview(null);
@@ -261,7 +267,13 @@ export function ImportDefinitionsPanel({
   function addValueMapping(targetField: string) {
     setForm((prev) =>
       prev
-        ? { ...prev, valueMappings: [...prev.valueMappings, { targetField, sourceValue: "", targetValue: "" }] }
+        ? {
+            ...prev,
+            valueMappings: [
+              ...prev.valueMappings,
+              { targetField, sourceValue: "", targetValue: "" },
+            ],
+          }
         : prev,
     );
   }
@@ -278,7 +290,7 @@ export function ImportDefinitionsPanel({
   const nameError = useMemo(() => {
     if (!form || !form.isNew || !form.name) return null;
     const result = presetNameSchema.safeParse(form.name);
-    return result.success ? null : result.error.issues[0]?.message ?? "Invalid name";
+    return result.success ? null : (result.error.issues[0]?.message ?? "Invalid name");
   }, [form]);
 
   async function handlePreview() {
@@ -414,7 +426,9 @@ export function ImportDefinitionsPanel({
               <select
                 id="def-source-format"
                 value={form.sourceFormat}
-                onChange={(e) => updateForm("sourceFormat", e.target.value as DefinitionForm["sourceFormat"])}
+                onChange={(e) =>
+                  updateForm("sourceFormat", e.target.value as DefinitionForm["sourceFormat"])
+                }
                 className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
               >
                 {importSourceFormatSchema.options.map((f) => (
@@ -432,7 +446,9 @@ export function ImportDefinitionsPanel({
               <select
                 id="def-import-mode"
                 value={form.importMode}
-                onChange={(e) => updateForm("importMode", e.target.value as DefinitionForm["importMode"])}
+                onChange={(e) =>
+                  updateForm("importMode", e.target.value as DefinitionForm["importMode"])
+                }
                 className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
               >
                 {importModeSchema.options.map((m) => (
@@ -515,7 +531,10 @@ export function ImportDefinitionsPanel({
                   className="grid grid-cols-1 items-end gap-2 rounded-md border border-sh-brand-gray p-3 sm:grid-cols-[1fr_1fr_140px_auto_auto]"
                 >
                   <div>
-                    <label htmlFor={`fm-source-${index}`} className="mb-1 block text-xs text-sh-gray">
+                    <label
+                      htmlFor={`fm-source-${index}`}
+                      className="mb-1 block text-xs text-sh-gray"
+                    >
                       Source column
                     </label>
                     <input
@@ -527,7 +546,10 @@ export function ImportDefinitionsPanel({
                     />
                   </div>
                   <div>
-                    <label htmlFor={`fm-target-${index}`} className="mb-1 block text-xs text-sh-gray">
+                    <label
+                      htmlFor={`fm-target-${index}`}
+                      className="mb-1 block text-xs text-sh-gray"
+                    >
                       Target field
                     </label>
                     <input
@@ -540,13 +562,18 @@ export function ImportDefinitionsPanel({
                     />
                   </div>
                   <div>
-                    <label htmlFor={`fm-transform-${index}`} className="mb-1 block text-xs text-sh-gray">
+                    <label
+                      htmlFor={`fm-transform-${index}`}
+                      className="mb-1 block text-xs text-sh-gray"
+                    >
                       Transform
                     </label>
                     <select
                       id={`fm-transform-${index}`}
                       value={fm.transform}
-                      onChange={(e) => updateFieldMapping(index, { transform: e.target.value as TransformValue })}
+                      onChange={(e) =>
+                        updateFieldMapping(index, { transform: e.target.value as TransformValue })
+                      }
                       className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
                     >
                       <option value="">(none)</option>
@@ -557,7 +584,10 @@ export function ImportDefinitionsPanel({
                       ))}
                     </select>
                   </div>
-                  <label htmlFor={`fm-required-${index}`} className="flex items-center gap-1.5 pb-2 text-xs text-sh-black">
+                  <label
+                    htmlFor={`fm-required-${index}`}
+                    className="flex items-center gap-1.5 pb-2 text-xs text-sh-black"
+                  >
                     <input
                       id={`fm-required-${index}`}
                       type="checkbox"
@@ -607,9 +637,15 @@ export function ImportDefinitionsPanel({
                     {group.indices.map((index) => {
                       const vm = form.valueMappings[index];
                       return (
-                        <div key={index} className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                        <div
+                          key={index}
+                          className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]"
+                        >
                           <div>
-                            <label htmlFor={`vm-field-${index}`} className="mb-1 block text-xs text-sh-gray">
+                            <label
+                              htmlFor={`vm-field-${index}`}
+                              className="mb-1 block text-xs text-sh-gray"
+                            >
                               Target field
                             </label>
                             <input
@@ -617,31 +653,43 @@ export function ImportDefinitionsPanel({
                               type="text"
                               list="import-field-options"
                               value={vm.targetField}
-                              onChange={(e) => updateValueMapping(index, { targetField: e.target.value })}
+                              onChange={(e) =>
+                                updateValueMapping(index, { targetField: e.target.value })
+                              }
                               className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
                             />
                           </div>
                           <div>
-                            <label htmlFor={`vm-source-${index}`} className="mb-1 block text-xs text-sh-gray">
+                            <label
+                              htmlFor={`vm-source-${index}`}
+                              className="mb-1 block text-xs text-sh-gray"
+                            >
                               Source value
                             </label>
                             <input
                               id={`vm-source-${index}`}
                               type="text"
                               value={vm.sourceValue}
-                              onChange={(e) => updateValueMapping(index, { sourceValue: e.target.value })}
+                              onChange={(e) =>
+                                updateValueMapping(index, { sourceValue: e.target.value })
+                              }
                               className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
                             />
                           </div>
                           <div>
-                            <label htmlFor={`vm-target-${index}`} className="mb-1 block text-xs text-sh-gray">
+                            <label
+                              htmlFor={`vm-target-${index}`}
+                              className="mb-1 block text-xs text-sh-gray"
+                            >
                               Target value
                             </label>
                             <input
                               id={`vm-target-${index}`}
                               type="text"
                               value={vm.targetValue}
-                              onChange={(e) => updateValueMapping(index, { targetValue: e.target.value })}
+                              onChange={(e) =>
+                                updateValueMapping(index, { targetValue: e.target.value })
+                              }
                               className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
                             />
                           </div>

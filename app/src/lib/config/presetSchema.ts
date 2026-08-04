@@ -149,14 +149,11 @@ export const importDefinitionPresetSchema = z
   })
   // These two mirror the DB-level constraints so a bad preset is rejected at
   // the door (in the GUI, before any write) instead of by a Postgres error.
-  .refine(
-    (d) => d.importMode !== "RECONCILE" || Boolean(d.runnerKey),
-    {
-      message:
-        "importMode RECONCILE requires a runnerKey — a full-state re-export must diff against existing data, which is code, not mapping",
-      path: ["runnerKey"],
-    },
-  )
+  .refine((d) => d.importMode !== "RECONCILE" || Boolean(d.runnerKey), {
+    message:
+      "importMode RECONCILE requires a runnerKey — a full-state re-export must diff against existing data, which is code, not mapping",
+    path: ["runnerKey"],
+  })
   .refine((d) => d.importMode !== "UPSERT" || d.naturalKeyFields.length > 0, {
     message: "importMode UPSERT requires at least one entry in naturalKeyFields",
     path: ["naturalKeyFields"],
