@@ -30,7 +30,11 @@ interface CartItem {
   isReturn?: boolean;
 }
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+/** Exported for integration tests, which call it directly against the real
+ *  Prisma client with a fake req/res + session -- requireAuthWithRole needs
+ *  real cookies. Role enforcement is covered by the apiRouteAuthorization
+ *  tripwire. Same pattern as inventory/snapshot/generate.ts. */
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
