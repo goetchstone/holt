@@ -11,14 +11,35 @@
 
 ### Setup
 
-Schedule `scripts/backup-db.sh` to run daily (e.g. via cron or your host's task scheduler):
-
-```
-# Example cron entry — runs at 2:00 AM, adjust path to your deploy root:
-0 2 * * * <deploy-path>/scripts/backup-db.sh <deploy-path>/backups
+```bash
+./scripts/install-cron.sh
 ```
 
-Enable failure notifications via your preferred alerting channel.
+That installs the database and uploads backups (01:15 and 01:45 daily)
+alongside the automations. Backups used to be excluded from this installer on
+the grounds that they had their own retention and off-box concerns — the
+reasoning was fine and the outcome was not, since a documented manual step at
+go-live is a step nobody performs. Those concerns are now handled by
+environment variables instead of by omission, and backups install even when
+`AUTO_IMPORT_API_KEY` is missing (the automations are skipped, the backups are
+not — a backup must never depend on an unrelated secret).
+
+**Set `BACKUP_REMOTE` in the root `.env`.** This is the difference between a
+backup and a second copy of a single point of failure:
+
+```bash
+BACKUP_REMOTE=user@nas:/volume1/holt-backups   # rsync target, or
+BACKUP_REMOTE=s3:holt-backups                  # with BACKUP_REMOTE_CMD=rclone
+```
+
+When it is set, a failed off-host copy **fails the whole backup** and exits
+non-zero, because a silently local-only backup is precisely the state you
+believe you are protected from. When it is unset, every run warns.
+
+`backup-db.sh` verifies each dump before counting it as a backup: valid gzip,
+and pg_dump's completion marker present. A dump killed by a full disk produces
+a plausible-looking `.gz` holding half a database, and you would otherwise find
+out at restore time.
 
 ### Manual Backup
 
@@ -27,9 +48,9 @@ Enable failure notifications via your preferred alerting channel.
 ```
 
 Backups are saved to `backups/` as compressed `db-backup-*.sql.gz` files with
-timestamps. The script prunes backups older than `RETENTION_DAYS` (default 14;
-override via env). **Ship at least one copy off-box** — a backup that lives only
-on the host it protects is lost with the host.
+timestamps. Pruning happens only *after* a verified backup, so a run of
+failures cannot age out the last good copy. Retention is `RETENTION_DAYS`
+(default 14).
 
 ### Uploaded files (separate backup)
 
@@ -69,8 +90,26 @@ Always run a manual backup before applying migrations:
 ls -la backups/
 
 # 2. Restore (will prompt for confirmation)
-./scripts/restore-db.sh backups/<db-name>_20260324_120000.sql.gz
+./scripts/restore-db.sh backups/db-backup-20260324-120000.sql.gz
+
+# Restoring a database other than $POSTGRES_DB:
+./scripts/restore-db.sh --database fbc_prod_db backups/db-backup-....sql.gz
 ```
+
+The restore script resolves the Postgres container from **this repo's compose
+project**, never by container name. It previously hardcoded
+`furniture-configurator-db-1` with a fallback to `tender-robinson-db-1` and ran
+`DROP DATABASE` against whichever answered — on a host running both stacks it
+would drop a database belonging to another project.
+
+It validates the dump before dropping anything, takes a pre-drop safety dump to
+`backups/pre-restore/` so a failed restore is recoverable, runs psql with
+`ON_ERROR_STOP=1`, and treats a zero-table result as failure rather than
+printing "Restore complete."
+
+Confirmation requires typing the **database name**, not a generic word — the
+last chance to notice the target is not the database you meant.
+
 
 The restore script will:
 
