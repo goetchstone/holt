@@ -110,7 +110,6 @@ printing "Restore complete."
 Confirmation requires typing the **database name**, not a generic word — the
 last chance to notice the target is not the database you meant.
 
-
 The restore script will:
 
 1. Stop the app container
