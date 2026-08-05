@@ -3,22 +3,17 @@
 import { getErrorCode } from "@/lib/errorCode";
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import {
   success,
   created,
-  unauthorized,
   badRequest,
   conflict,
   methodNotAllowed,
   handleError,
 } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
     try {
       const districts = await prisma.taxDistrict.findMany({
@@ -60,3 +55,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return methodNotAllowed(res, ["GET", "POST"]);
 }
+
+export default requireAuthWithRole(["ADMIN"], handler);

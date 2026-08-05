@@ -1,15 +1,12 @@
 // /app/src/pages/api/sales/orders/[id]/refunds.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { processRefund, calculateOrderBalance } from "@/lib/paymentService";
-import { unauthorized, badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
+import { badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
 
   const orderId = Number.parseInt(req.query.id as string);
@@ -45,3 +42,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return handleError(res, err, "POST /sales/orders/[id]/refunds");
   }
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);

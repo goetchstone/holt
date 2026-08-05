@@ -4,8 +4,7 @@
 // Saves to /data/uploads/line-drawings/{vendor-slug}/ and updates imageUrl.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../../auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import fs from "fs";
 import path from "path";
@@ -18,10 +17,7 @@ export const config = {
   api: { bodyParser: false },
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid style ID" });
 
@@ -42,6 +38,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.setHeader("Allow", ["POST", "DELETE"]);
   return res.status(405).json({ error: "Method not allowed" });
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
 
 async function handleUpload(
   req: NextApiRequest,

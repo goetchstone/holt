@@ -1,16 +1,13 @@
 // /app/src/pages/api/warehouse/positions/index.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     try {
       const page = Number.parseInt(req.query.page as string) || 1;
@@ -85,11 +82,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === "POST") {
     // Inventory mutations belong to warehouse staff. Designer / register /
-    // marketing have no workflow reason to create positions directly.
-    const role = (session as unknown as { role?: string })?.role;
-    if (role !== "WAREHOUSE" && role !== "MANAGER" && role !== "ADMIN") {
-      return res.status(403).json({ error: "Warehouse, Manager, or Admin role required" });
-    }
+    // marketing have no workflow reason to create positions directly. Same
+    // role set as the outer gate, kept here since it predates the wrapper.
     try {
       const { productId, storeLocationId, stockLocationId, quantity, salesOrderId, notes } =
         req.body;
@@ -132,3 +126,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ error: "Method not allowed" });
 }
+
+export default requireAuthWithRole(["WAREHOUSE", "MANAGER", "ADMIN"], handler);

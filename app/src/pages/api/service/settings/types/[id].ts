@@ -3,13 +3,11 @@
 import { getErrorCode } from "@/lib/errorCode";
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import {
   success,
   noContent,
-  unauthorized,
-  forbidden,
   badRequest,
   notFound,
   conflict,
@@ -17,13 +15,7 @@ import {
   handleError,
 } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
-  const role = (session as any)?.role;
-  if (role !== "MANAGER" && role !== "ADMIN") return forbidden(res, "Manager role required");
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return badRequest(res, "Invalid ID");
 
@@ -67,3 +59,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return methodNotAllowed(res, ["PUT", "DELETE"]);
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);

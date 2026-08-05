@@ -3,8 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import axios from "axios";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { mailchimpDatacenter, mailchimpBaseUrl } from "@/lib/mailchimp/baseUrl";
 
@@ -12,10 +11,7 @@ const RATE_LIMIT_DELAY_MS = 5000;
 const INTER_CAMPAIGN_DELAY_MS = 1000;
 const INTER_PAGE_DELAY_MS = 500;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
 
   const full = req.query.full === "true" || req.body?.full === true;
@@ -157,3 +153,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to sync activity" });
   }
 }
+
+export default requireAuthWithRole(["MARKETING", "MANAGER", "ADMIN"], handler);

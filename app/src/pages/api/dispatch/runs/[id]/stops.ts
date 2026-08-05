@@ -1,40 +1,21 @@
 // /app/src/pages/api/dispatch/runs/[id]/stops.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const runId = Number.parseInt(req.query.id as string);
   if (Number.isNaN(runId)) return res.status(400).json({ error: "Invalid run ID" });
 
   if (req.method === "GET") {
     return handleGet(runId, res);
   } else if (req.method === "POST") {
-    const mutationRole = (session as unknown as { role?: string })?.role;
-    if (!["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
-    }
-
     return handlePost(runId, req, res);
   } else if (req.method === "PUT") {
-    const mutationRole = (session as unknown as { role?: string })?.role;
-    if (!["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
-    }
-
     return handleReorder(runId, req, res);
   } else if (req.method === "DELETE") {
-    const mutationRole = (session as unknown as { role?: string })?.role;
-    if (!["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
-    }
-
     return handleDelete(runId, req, res);
   }
 
@@ -158,3 +139,5 @@ async function handleDelete(runId: number, req: NextApiRequest, res: NextApiResp
     return res.status(500).json({ error: "Failed to delete stop" });
   }
 }
+
+export default requireAuthWithRole(["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"], handler);

@@ -1,8 +1,8 @@
 // /app/src/pages/api/google/create-project.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { google } from "googleapis";
 import { logError } from "@/lib/logger";
 
@@ -11,14 +11,13 @@ const ROOT_FOLDER_ID = "1zlCFD_X19sw6PyFsTGMuhTE_buAv-mFK";
 const TEMPLATE_PRESENTATION_ID = "14R696lLFtEjGAOoZt2XBo_UkBWVRo7aaHywHOqi4Mfs";
 // ------------------------------------
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // CORRECTED: Use getServerSession for reliable server-side session retrieval
-  const session = await getServerSession(req, res, authOptions);
-
+  // Extra check beyond role: the Google Drive call needs an OAuth
+  // accessToken on the session, not just staff membership.
   if (!(session as any)?.accessToken) {
     return res
       .status(401)
@@ -97,3 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   }
 }
+
+// Design-consultation project folders (Windows, Rugs, Fabrics, Furniture...)
+// -- a designer's tool; register/warehouse/marketing have no use for it.
+export default requireAuthWithRole(["DESIGNER", "MANAGER", "ADMIN"], handler);

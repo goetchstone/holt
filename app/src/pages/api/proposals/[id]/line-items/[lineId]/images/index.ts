@@ -4,8 +4,7 @@
 // Saves to data/uploads/proposals/{proposalId}/{lineId}-{timestamp}.{ext}
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import fs from "fs";
@@ -21,21 +20,14 @@ export const config = {
 // for filename-extension selection below.
 const ALLOWED_EXTS = [".jpg", ".jpeg", ".png", ".webp"];
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role = (session as any).role as string;
-  if (role !== "ADMIN" && role !== "MANAGER") {
-    return res.status(403).json({ error: "Forbidden" });
-  }
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "POST") return handleUpload(req, res);
 
   res.setHeader("Allow", ["POST"]);
   return res.status(405).end();
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
 
 async function handleUpload(req: NextApiRequest, res: NextApiResponse) {
   const proposalId = Number.parseInt(req.query.id as string, 10);

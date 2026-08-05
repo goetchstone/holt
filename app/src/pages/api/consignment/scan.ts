@@ -1,11 +1,11 @@
 // /app/src/pages/api/consignment/scan.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuth } from "@/lib/auth/requireAuth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default requireAuth(async (req, res) => {
+export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], async (req, res) => {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

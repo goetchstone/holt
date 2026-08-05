@@ -1,22 +1,14 @@
 // /app/src/pages/api/customers/[id]/credit/adjust.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { adjustCredit } from "@/lib/customerCredit";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
-
-  const role = (session as any)?.role;
-  if (role !== "MANAGER" && role !== "ADMIN") {
-    return res.status(403).json({ error: "Manager role required" });
   }
 
   const customerId = Number.parseInt(req.query.id as string);
@@ -47,3 +39,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: msg });
   }
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);

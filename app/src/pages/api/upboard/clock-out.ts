@@ -8,18 +8,14 @@
 // 3. Compacts positions so there are no gaps
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { compactAndPromote } from "@/lib/upboard";
 import { logError } from "@/lib/logger";
 import { getErrorMessage } from "@/lib/toastError";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
 
   const { staffMemberId } = req.body;
   if (!staffMemberId) return res.status(400).json({ error: "staffMemberId required" });
@@ -53,3 +49,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: getErrorMessage(err, "Failed to clock out") });
   }
 }
+
+// Self-service: any staff role clocks themselves out.
+export default requireAuthWithRole(
+  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+  handler,
+);

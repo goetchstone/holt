@@ -1,15 +1,12 @@
 // /app/src/pages/api/warehouse/locations/index.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     try {
       const { type, isActive } = req.query;
@@ -54,6 +51,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "POST") {
+    // Narrower than the outer WAREHOUSE/MANAGER/ADMIN gate -- warehouse staff
+    // can view store locations but not create them.
     const role = (session as any)?.role;
     if (role !== "MANAGER" && role !== "ADMIN") {
       return res.status(403).json({ error: "Manager role required" });
@@ -111,3 +110,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ error: "Method not allowed" });
 }
+
+export default requireAuthWithRole(["WAREHOUSE", "MANAGER", "ADMIN"], handler);

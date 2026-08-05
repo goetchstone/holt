@@ -3,8 +3,7 @@
 import { getErrorCode } from "@/lib/errorCode";
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 function toNumber(v: unknown): number | null {
@@ -12,10 +11,7 @@ function toNumber(v: unknown): number | null {
   return Number(v);
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
     try {
       const districtId = req.query.districtId
@@ -117,3 +113,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.setHeader("Allow", ["GET", "POST"]);
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
+
+export default requireAuthWithRole(["ADMIN"], handler);

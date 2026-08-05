@@ -1,17 +1,14 @@
 // /app/src/pages/api/service/dispatch/[id]/status.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { isValidTransition } from "@/lib/serviceDispatchService";
 import type { ServiceAppointmentStatus } from "@prisma/client";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") {
     res.setHeader("Allow", ["PUT"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -69,3 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to update appointment status" });
   }
 }
+
+// Matches the role set on the sibling service/dispatch/[id].ts PUT (which
+// updates the same ServiceAppointment): warehouse/installer crews + managers.
+export default requireAuthWithRole(["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"], handler);

@@ -1,16 +1,10 @@
 // /app/src/pages/api/sales/orders/[id]/dispatch.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import {
-  success,
-  unauthorized,
-  badRequest,
-  methodNotAllowed,
-  handleError,
-} from "@/lib/apiResponse";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { success, badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
 const VALID_STATUSES = [
   "PO_PLACED",
@@ -21,10 +15,7 @@ const VALID_STATUSES = [
   "CANCELLED",
 ];
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") return methodNotAllowed(res, ["PUT"]);
 
   const orderId = Number.parseInt(req.query.id as string);
@@ -64,3 +55,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return handleError(res, err, "PUT /sales/orders/[id]/dispatch");
   }
 }
+
+export default requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"], handler);

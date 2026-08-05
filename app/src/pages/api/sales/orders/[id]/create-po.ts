@@ -2,21 +2,11 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { onPaymentReceived } from "@/lib/paymentService";
-import {
-  unauthorized,
-  badRequest,
-  notFound,
-  methodNotAllowed,
-  handleError,
-} from "@/lib/apiResponse";
+import { badRequest, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
 
   const orderId = Number.parseInt(req.query.id as string);
@@ -48,3 +38,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return handleError(res, err, "POST /sales/orders/[id]/create-po");
   }
 }
+
+export default requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"], handler);

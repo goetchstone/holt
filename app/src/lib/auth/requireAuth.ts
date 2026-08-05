@@ -40,10 +40,40 @@ export function requireAuthWithRole(roles: string[], handler: AuthenticatedHandl
       return res.status(403).json({ error: "Forbidden" });
     }
 
+    // isActive is part of the authorization decision, not just a UI flag.
+    // Without it, deactivating a staff member in Admin > Staff removed them
+    // from lists but left every API route open to them for as long as their
+    // session lived -- offboarding that does not actually revoke anything.
     const staff = await prisma.staffMember.findFirst({
-      where: { userId },
+      where: { userId, isActive: true },
       select: { role: true },
     });
+
+    // No ACTIVE staff record => no role. This used to default to "DESIGNER",
+    // a real staff role, which meant anyone who could obtain a session at all
+    // -- including a customer-portal or unlisted OAuth account -- was treated
+    // as staff. Denying here makes staff membership the thing that grants
+    // access, rather than merely authenticating.
+    if (!staff) {
+      // The bootstrap safeguard below still needs a shot: on a brand-new
+      // deployment nobody is staff yet, and the first user has to be able to
+      // reach Admin > Staff to promote themselves. decideRoleAccess() only
+      // grants that when NO active privileged staff exist.
+      const anyPrivileged = await prisma.staffMember.count({
+        where: {
+          role: { in: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
+          isActive: true,
+          userId: { not: null },
+        },
+      });
+      if (anyPrivileged > 0) {
+        logger.warn("Role check denied: no active StaffMember for user", {
+          userId,
+          requiredRoles: roles,
+        });
+        return res.status(403).json({ error: "Forbidden" });
+      }
+    }
 
     const realRole = staff?.role || "DESIGNER";
     const impersonate = req.cookies?.["sh-impersonate"] || null;

@@ -3,22 +3,18 @@
 import { getErrorCode } from "@/lib/errorCode";
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import {
   success,
   created,
-  unauthorized,
   badRequest,
   notFound,
   methodNotAllowed,
   handleError,
 } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const caseId = Number.parseInt(req.query.id as string);
   if (Number.isNaN(caseId)) return badRequest(res, "Invalid case ID");
 
@@ -42,6 +38,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "POST") {
+    // Narrower than the outer gate (GET stays open to any staff): case tasks
+    // are a service-team action, register/marketing have no reason to add one.
     const mutationRole = (session as unknown as { role?: string })?.role;
     if (!["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"].includes(mutationRole ?? "")) {
       return res.status(403).json({ error: "Insufficient role for this action" });
@@ -82,3 +80,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return methodNotAllowed(res, ["GET", "POST"]);
 }
+
+export default requireAuthWithRole(
+  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+  handler,
+);

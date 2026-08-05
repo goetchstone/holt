@@ -1,15 +1,11 @@
 // /app/src/pages/api/dispatch/stops/[id].ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "PUT") {
     res.setHeader("Allow", ["PUT"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -57,3 +53,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to update stop" });
   }
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler);

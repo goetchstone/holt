@@ -1,13 +1,12 @@
 // /app/src/pages/api/registers/[id].ts
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { getErrorCode } from "@/lib/errorCode";
 import {
   success,
-  unauthorized,
   badRequest,
   notFound,
   conflict,
@@ -15,10 +14,7 @@ import {
   handleError,
 } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return badRequest(res, "Invalid ID");
 
@@ -87,3 +83,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return methodNotAllowed(res, ["GET", "PUT", "DELETE"]);
 }
+
+export default requireAuthWithRole(["REGISTER", "MANAGER", "ADMIN"], handler);

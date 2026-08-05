@@ -1,17 +1,12 @@
 // /app/src/pages/api/interactions/[id].ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const userEmail = session.user.email;
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) {
@@ -128,3 +123,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.setHeader("Allow", ["GET", "PUT", "DELETE"]);
   return res.status(405).json({ error: `Method ${req.method} not allowed` });
 }
+
+export default requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"], handler);
