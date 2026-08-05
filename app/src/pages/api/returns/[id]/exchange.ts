@@ -1,25 +1,15 @@
 // /app/src/pages/api/returns/[id]/exchange.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
-
-  // Processing an exchange touches inventory + balances. Register desk,
-  // warehouse returns, manager, and admin only.
-  const role = (session as unknown as { role?: string })?.role;
-  if (!["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"].includes(role ?? "")) {
-    return res.status(403).json({ error: "Insufficient role to process exchange" });
   }
 
   const returnId = Number.parseInt(req.query.id as string);
@@ -99,3 +89,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to create exchange order" });
   }
 }
+
+// Processing an exchange touches inventory + balances. Register desk,
+// warehouse returns, manager, and admin only.
+export default requireAuthWithRole(
+  ["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"],
+  handler,
+);

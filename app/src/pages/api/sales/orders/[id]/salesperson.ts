@@ -1,30 +1,14 @@
 // /app/src/pages/api/sales/orders/[id]/salesperson.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import {
-  success,
-  unauthorized,
-  forbidden,
-  badRequest,
-  notFound,
-  methodNotAllowed,
-  handleError,
-} from "@/lib/apiResponse";
+import { success, badRequest, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
 import { assertReassignAllowed, AttributionLockedError } from "@/lib/payPeriodLockGuard";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") return methodNotAllowed(res, ["PUT"]);
-
-  const role = (session as any)?.role;
-  if (role !== "MANAGER" && role !== "ADMIN") {
-    return forbidden(res, "Manager role required to change salesperson");
-  }
 
   const orderId = Number.parseInt(req.query.id as string);
   if (Number.isNaN(orderId)) return badRequest(res, "Invalid order ID");
@@ -156,3 +140,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return handleError(res, err, "PUT /sales/orders/[id]/salesperson");
   }
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);

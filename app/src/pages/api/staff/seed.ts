@@ -4,8 +4,7 @@
 // admin UI. Existing members (matched by displayName) are left untouched.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
 const KNOWN_STAFF = [
@@ -16,11 +15,8 @@ const KNOWN_STAFF = [
   { displayName: "Taylor Brooks", defaultStore: "B2B", role: "MANAGER" },
 ] as const;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
 
   let created = 0;
   let existing = 0;
@@ -45,3 +41,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.json({ created, existing, total: KNOWN_STAFF.length });
 }
+
+export default requireAuthWithRole(["ADMIN"], handler);

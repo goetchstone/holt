@@ -3,21 +3,13 @@
 // PUT/DELETE for individual stock location records.
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
-  const role = (session as any)?.role;
-  if (role !== "MANAGER" && role !== "ADMIN") {
-    return res.status(403).json({ error: "Manager role required" });
-  }
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id } = req.query;
   if (!id || typeof id !== "string") {
     return res.status(400).json({ error: "Stock location ID is required." });
@@ -101,3 +93,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ error: "Method not allowed" });
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);

@@ -2,8 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 
 const getMonthOrder = () => {
   const months = [
@@ -29,10 +28,7 @@ const getMonthOrder = () => {
   );
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { method, body, query } = req;
 
   switch (method) {
@@ -73,3 +69,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       res.status(405).end(`Method ${method} Not Allowed`);
   }
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);

@@ -8,18 +8,14 @@
 // 3. If they're the only one, they're automatically UP
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
 import { logError } from "@/lib/logger";
 import { getErrorMessage } from "@/lib/toastError";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
 
   const { staffMemberId, storeLocation } = req.body;
   if (!staffMemberId || !storeLocation) {
@@ -82,3 +78,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: getErrorMessage(err, "Failed to clock in") });
   }
 }
+
+// Self-service: any staff role clocks themselves in.
+export default requireAuthWithRole(
+  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+  handler,
+);

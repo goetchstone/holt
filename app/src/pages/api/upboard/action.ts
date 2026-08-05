@@ -10,8 +10,8 @@
 //   "return_from_break" — person goes back to bottom of rotation as AVAILABLE
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
 import { logError } from "@/lib/logger";
@@ -39,11 +39,8 @@ async function getMaxPosition(storeLocation: string): Promise<number> {
   return max?.position ?? 0;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
 
   const { staffMemberId, action, customerNote } = req.body;
   if (!staffMemberId || !action) {
@@ -192,3 +189,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: getErrorMessage(err, "Up-board action failed") });
   }
 }
+
+// Self-service: the up-board is visible to every role on the home dashboard,
+// and any clocked-in staff member can move themselves through the rotation.
+export default requireAuthWithRole(
+  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+  handler,
+);

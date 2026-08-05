@@ -102,4 +102,77 @@ describe("decideRoleAccess", () => {
     });
     expect(d.allowed).toBe(false);
   });
+
+  describe("impersonation cannot escalate", () => {
+    test("ADMIN impersonating SUPER_ADMIN does not satisfy a SUPER_ADMIN gate", () => {
+      // The whole point of a tier above ADMIN is that ADMIN cannot reach it.
+      // Honouring the cookie verbatim made sh-impersonate a self-serve
+      // privilege upgrade for anyone already holding ADMIN.
+      const d = decideRoleAccess({
+        allowedRoles: ["SUPER_ADMIN"],
+        realRole: "ADMIN",
+        impersonate: "SUPER_ADMIN",
+        privilegedCount: 5,
+      });
+      expect(d.allowed).toBe(false);
+      expect(d.effectiveUserRole).toBe("ADMIN");
+    });
+
+    test("MANAGER's impersonation is ignored entirely, escalating or not", () => {
+      const d = decideRoleAccess({
+        allowedRoles: ["ADMIN"],
+        realRole: "MANAGER",
+        impersonate: "ADMIN",
+        privilegedCount: 5,
+      });
+      expect(d.allowed).toBe(false);
+      expect(d.effectiveUserRole).toBe("MANAGER");
+    });
+
+    test("SUPER_ADMIN impersonating ADMIN still works — downward is the point", () => {
+      const d = decideRoleAccess({
+        allowedRoles: ["ADMIN"],
+        realRole: "SUPER_ADMIN",
+        impersonate: "ADMIN",
+        privilegedCount: 5,
+      });
+      expect(d.allowed).toBe(true);
+      expect(d.effectiveUserRole).toBe("ADMIN");
+    });
+
+    test("SUPER_ADMIN impersonating DESIGNER loses SUPER_ADMIN's reach", () => {
+      // Seeing the app as a designer has to mean actually being limited to
+      // what a designer can do, or impersonation proves nothing.
+      const d = decideRoleAccess({
+        allowedRoles: ["ADMIN"],
+        realRole: "SUPER_ADMIN",
+        impersonate: "DESIGNER",
+        privilegedCount: 5,
+      });
+      expect(d.allowed).toBe(false);
+      expect(d.effectiveUserRole).toBe("DESIGNER");
+    });
+
+    test("ADMIN impersonating a lateral role is honoured — those are not rungs", () => {
+      const d = decideRoleAccess({
+        allowedRoles: ["WAREHOUSE"],
+        realRole: "ADMIN",
+        impersonate: "WAREHOUSE",
+        privilegedCount: 5,
+      });
+      expect(d.allowed).toBe(true);
+      expect(d.effectiveUserRole).toBe("WAREHOUSE");
+    });
+
+    test("ADMIN impersonating MANAGER is a downgrade and is honoured", () => {
+      const d = decideRoleAccess({
+        allowedRoles: ["ADMIN"],
+        realRole: "ADMIN",
+        impersonate: "MANAGER",
+        privilegedCount: 5,
+      });
+      expect(d.allowed).toBe(false);
+      expect(d.effectiveUserRole).toBe("MANAGER");
+    });
+  });
 });

@@ -1,16 +1,13 @@
 // /app/src/pages/api/warehouse/transfers/index.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     try {
       const page = Number.parseInt(req.query.page as string) || 1;
@@ -81,11 +78,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "POST") {
-    // Creating an inventory transfer is a warehouse operation.
-    const role = (session as unknown as { role?: string })?.role;
-    if (role !== "WAREHOUSE" && role !== "MANAGER" && role !== "ADMIN") {
-      return res.status(403).json({ error: "Warehouse, Manager, or Admin role required" });
-    }
+    // Creating an inventory transfer is a warehouse operation -- same role
+    // set as the outer gate.
     try {
       const {
         productId,
@@ -119,7 +113,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const user = await prisma.user.findUnique({
-        where: { email: session.user.email },
+        where: { email: session.user.email! },
         select: { id: true },
       });
 
@@ -152,3 +146,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ error: "Method not allowed" });
 }
+
+export default requireAuthWithRole(["WAREHOUSE", "MANAGER", "ADMIN"], handler);

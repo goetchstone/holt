@@ -1,8 +1,8 @@
 // /app/src/pages/api/sales/interactions/index.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
 interface CreateInteractionBody {
@@ -12,18 +12,22 @@ interface CreateInteractionBody {
   notes?: string;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  // requireAuthWithRole guarantees a session and a role; it does NOT guarantee
+  // an email, and this route uses email as the StaffMember lookup key. The
+  // check the wrapper replaced was doing double duty -- authorization AND
+  // narrowing `email` to string for the query below.
+  const email = session.user?.email;
+  if (!email) return res.status(401).json({ error: "Unauthorized" });
 
   const { salesOrderId, customerId, source, notes } = req.body as CreateInteractionBody;
 
   if (!source) return res.status(400).json({ error: "source is required" });
 
   const staff = await prisma.staffMember.findUnique({
-    where: { email: session.user.email },
+    where: { email },
     select: { id: true, defaultStore: true, activeStoreLocation: { select: { name: true } } },
   });
 
@@ -65,3 +69,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(201).json(interaction);
 }
+
+export default requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"], handler);

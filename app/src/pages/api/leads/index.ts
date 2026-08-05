@@ -1,21 +1,16 @@
 // /app/src/pages/api/leads/index.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { calculateLeadScore } from "@/lib/leadScore";
 import { leadTemperature, daysSinceLastAction } from "@/lib/leadHousekeeping";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  const userEmail = session.user.email;
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+  const userEmail = session.user.email!;
   const role = (session as { role?: string }).role;
   const canSeeWealth = role === "ADMIN" || role === "SUPER_ADMIN" || role === "MARKETING";
   const canSeeNumericScore =
@@ -380,3 +375,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.setHeader("Allow", ["GET", "POST"]);
   return res.status(405).json({ error: `Method ${req.method} not allowed` });
 }
+
+// Deviates from the generic "leads -> MARKETING,MANAGER,ADMIN" policy bucket:
+// the leads board page (app/leads/page.tsx) is gated
+// requirePage(["MANAGER","ADMIN","DESIGNER"]) with no MARKETING at all, and
+// leads auto-assign to a customer's primary designer. Matching that real
+// access pattern here instead of the generic bucket. canSeeWealth /
+// canSeeNumericScore below still further restrict wealth-tier fields.
+export default requireAuthWithRole(["DESIGNER", "MANAGER", "ADMIN"], handler);

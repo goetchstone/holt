@@ -2,8 +2,8 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import path from "path";
 import fs from "fs/promises";
 import { createSecureForm, assertUploadedFileInRoot } from "@/lib/secureUpload";
@@ -16,18 +16,13 @@ export const config = {
   },
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const session = await getServerSession(req, res, authOptions);
-  const userId = (session?.user as any)?.id;
-
-  if (!userId) {
-    return res.status(401).json({ error: "Not authenticated." });
-  }
+  const userId = (session.user as any)?.id;
 
   const form = createSecureForm("INVENTORY_SCAN");
 
@@ -81,3 +76,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   });
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler);

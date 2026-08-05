@@ -4,21 +4,12 @@
 // per salesperson.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_BONUS_RATE } from "@/lib/goalsConfig";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return res.status(401).json({ error: "Unauthorized" });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const role = (session as any)?.role;
-  if (role !== "MANAGER" && role !== "ADMIN") {
-    return res.status(403).json({ error: "Manager role required" });
-  }
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     const fiscalYear = Number.parseInt(
       (req.query.year as string) || String(new Date().getFullYear()),
@@ -66,3 +57,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ error: "Method not allowed" });
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);

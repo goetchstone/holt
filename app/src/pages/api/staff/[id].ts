@@ -4,8 +4,7 @@
 // DELETE /api/staff/[id] — soft-delete (set isActive: false)
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -26,10 +25,11 @@ async function resolveCommissionPlanPatch(
   return { ok: false };
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+// Staff records (including soft-delete via DELETE) are admin-only. Previously
+// only the role-change branch inside PATCH checked anything -- GET, PATCH of
+// non-role fields, and DELETE (deactivation) were reachable by any signed-in
+// session with no role check at all.
+export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res, session) => {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
 
@@ -122,4 +122,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   return res.status(405).json({ error: "Method not allowed" });
-}
+});

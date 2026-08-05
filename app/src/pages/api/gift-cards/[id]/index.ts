@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth/requireAuth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -11,7 +11,7 @@ function toNum(d: any): number {
   return typeof d === "number" ? d : Number(d);
 }
 
-export default requireAuth(async (req, res, session) => {
+export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, session) => {
   const id = Number.parseInt(req.query.id as string, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid gift card ID" });
 

@@ -1,26 +1,16 @@
 // /app/src/pages/api/returns/[id]/refund.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { processRefund } from "@/lib/paymentService";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
-
-  // Issuing a refund moves money. Register (till), Warehouse (returns desk),
-  // Manager, and Admin only.
-  const role = (session as unknown as { role?: string })?.role;
-  if (!["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"].includes(role ?? "")) {
-    return res.status(403).json({ error: "Insufficient role to issue refund" });
   }
 
   const returnId = Number.parseInt(req.query.id as string);
@@ -81,3 +71,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: message });
   }
 }
+
+// Issuing a refund moves money. Register (till), Warehouse (returns desk),
+// Manager, and Admin only.
+export default requireAuthWithRole(
+  ["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"],
+  handler,
+);

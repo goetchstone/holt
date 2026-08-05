@@ -4,8 +4,8 @@
 // (JWT + installation token) so no personal access token is needed.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { createIssue, isConfigured } from "@/lib/githubApp";
 import { logError } from "@/lib/logger";
 
@@ -16,14 +16,11 @@ const LABEL_MAP: Record<string, string[]> = {
   question: ["question"],
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end();
   }
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
 
   const { category, area, description, pageUrl, userAgent } = req.body as {
     category: string;
@@ -82,6 +79,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(502).json({ error: "Failed to create GitHub issue" });
   }
 }
+
+// Self-service: any signed-in staff member can submit in-app feedback.
+export default requireAuthWithRole(
+  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+  handler,
+);
 
 function parseDevice(ua: string): string {
   if (ua.includes("iPad")) return "iPad";
