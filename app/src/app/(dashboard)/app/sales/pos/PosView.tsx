@@ -20,6 +20,7 @@ import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import { priceCart, type CartDiscount, type DiscountType } from "@/lib/pos/cartPricing";
 
 const REGISTER_STORAGE_KEY = "pos-register-id";
 
@@ -30,11 +31,10 @@ interface Register {
   storeLocation: { id: number; name: string; code: string };
 }
 
-interface Discount {
-  type: "PERCENT" | "FLAT";
-  value: number;
-  label: string;
-}
+// The shared pricing vocabulary (PERCENT/AMOUNT) -- kept as an alias rather
+// than a second definition so the wire format always matches what the
+// server (and priceCart) expects. See cartPricing.ts.
+type Discount = CartDiscount;
 
 interface InventorySummary {
   locationName: string;
@@ -78,6 +78,10 @@ interface GiftCardInfo {
 interface CreatedOrder {
   id: number;
   orderno: string;
+  /** All four come from the server's response -- see the note in handleCreateOrder. */
+  subtotal: number;
+  orderDiscountAmount: number;
+  taxAmount: number;
   total: number;
 }
 
@@ -113,20 +117,6 @@ function resolvePrice(product: { baseRetail?: number | null; baseCost?: number |
   if (product.baseRetail) return Number(product.baseRetail);
   if (product.baseCost) return Number(product.baseCost) * 2.5;
   return 0;
-}
-
-function calcItemTotal(item: CartItem): number {
-  let price = item.price;
-  for (const d of item.discounts) {
-    if (d.type === "PERCENT") {
-      price = price * (1 - d.value / 100);
-    } else {
-      price = price - d.value;
-    }
-  }
-  if (price < 0) price = 0;
-  const total = Math.round(price * item.quantity * 100) / 100;
-  return item.isReturn ? -total : total;
 }
 
 function onHandAt(item: CartItem, locationName: string): number {
@@ -180,12 +170,12 @@ export function PosView() {
   // Order-level discount
   const [orderDiscount, setOrderDiscount] = useState<Discount | null>(null);
   const [showOrderDiscount, setShowOrderDiscount] = useState(false);
-  const [orderDiscType, setOrderDiscType] = useState<"PERCENT" | "FLAT">("PERCENT");
+  const [orderDiscType, setOrderDiscType] = useState<DiscountType>("PERCENT");
   const [orderDiscValue, setOrderDiscValue] = useState("");
 
   // Per-item discount editing
   const [discountIdx, setDiscountIdx] = useState<number | null>(null);
-  const [discType, setDiscType] = useState<"PERCENT" | "FLAT">("PERCENT");
+  const [discType, setDiscType] = useState<DiscountType>("PERCENT");
   const [discValue, setDiscValue] = useState("");
 
   // Customer search
@@ -248,9 +238,24 @@ export function PosView() {
     }
   }, [selectedRegister, showRegisterSelect, createdOrder]);
 
-  const subtotal = cart.reduce((sum, item) => sum + calcItemTotal(item), 0);
-  const orderDiscountAmount = computeOrderDiscount(orderDiscount, subtotal);
-  const cartTotal = Math.round((subtotal - orderDiscountAmount) * 100) / 100;
+  // Priced through the shared module -- see cartPricing.ts. There is no tax
+  // rate to price with yet: tax depends on the order's tax district and the
+  // customer's exemption, both resolved server-side when the order is
+  // created. So `netSubtotal` here is the discounted total BEFORE tax; the
+  // tax-inclusive, tenderable total only exists once the server returns it
+  // (see handleCreateOrder / CreatedOrder). Showing a client-computed tax
+  // figure would duplicate tax policy in the client, which is the thing
+  // that caused the original bug.
+  const priced = priceCart(
+    cart.map((item) => ({
+      unitPrice: item.price,
+      quantity: item.quantity,
+      discounts: item.discounts,
+      isReturn: item.isReturn,
+    })),
+    { orderDiscount },
+  );
+  const { subtotal, orderDiscountAmount, netSubtotal } = priced;
   const cartItemCount = cart.reduce((sum, item) => sum + Math.abs(item.quantity), 0);
 
   // Fetch on-hand counts per store location for informational display only.
@@ -441,8 +446,38 @@ export function PosView() {
         orderDiscount: orderDiscount || undefined,
         deliveryMethod,
       });
-      toast.success(`Order ${res.data.orderno} created`);
-      setCreatedOrder({ id: res.data.id, orderno: res.data.orderno, total: cartTotal });
+
+      const data = res.data as {
+        id: number;
+        orderno: string;
+        total?: number;
+        subtotal?: number;
+        taxAmount?: number;
+        orderDiscountAmount?: number;
+      };
+
+      // The server prices the order; tendering anything else -- including
+      // falling back to the client's own `netSubtotal` -- is exactly the bug
+      // this endpoint was fixed to stop. If the total didn't come back, the
+      // order still exists in the DB, so send the register to the order
+      // instead of silently re-deriving a number here.
+      if (typeof data.total !== "number") {
+        toast.error(
+          `Order ${data.orderno} created, but no total came back from the server. Open the order to take payment.`,
+        );
+        router.push(`/app/sales/orders/${data.id}`);
+        return;
+      }
+
+      toast.success(`Order ${data.orderno} created`);
+      setCreatedOrder({
+        id: data.id,
+        orderno: data.orderno,
+        subtotal: data.subtotal ?? 0,
+        orderDiscountAmount: data.orderDiscountAmount ?? 0,
+        taxAmount: data.taxAmount ?? 0,
+        total: data.total,
+      });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to create order"));
     }
@@ -839,6 +874,7 @@ export function PosView() {
                 item={item}
                 idx={idx}
                 fmt={fmt}
+                lineTotal={priced.items[idx].lineSubtotal}
                 registerStoreName={selectedRegister?.storeLocation.name}
                 isEditingPrice={editingPriceIdx === idx}
                 editPriceValue={editPriceValue}
@@ -894,7 +930,15 @@ export function PosView() {
                 >
                   {orderDiscount ? "Change Order Discount" : "Add Order Discount"}
                 </button>
-                <span className="text-xl font-semibold text-sh-black">{fmt(cartTotal)}</span>
+                <div className="text-right">
+                  <span className="text-xl font-semibold text-sh-black">{fmt(netSubtotal)}</span>
+                  {/* No tax rate is known client-side (it depends on the tax
+                      district/exemption resolved server-side), so this is
+                      explicitly pre-tax rather than showing a guessed figure.
+                      The real, tax-inclusive total appears on the payment
+                      screen once the server returns it. */}
+                  <p className="text-[10px] text-sh-gray">+ tax, added when the order is created</p>
+                </div>
               </div>
 
               {showOrderDiscount && (
@@ -905,11 +949,11 @@ export function PosView() {
                   <select
                     id="pos-order-disc-type"
                     value={orderDiscType}
-                    onChange={(e) => setOrderDiscType(e.target.value as "PERCENT" | "FLAT")}
+                    onChange={(e) => setOrderDiscType(e.target.value as DiscountType)}
                     className="border border-sh-gray/30 rounded px-1.5 py-1 text-xs"
                   >
                     <option value="PERCENT">%</option>
-                    <option value="FLAT">$</option>
+                    <option value="AMOUNT">$</option>
                   </select>
                   <label htmlFor="pos-order-disc-value" className="sr-only">
                     Order discount amount
@@ -979,16 +1023,6 @@ export function PosView() {
       )}
     </div>
   );
-}
-
-// Order-level discount amount: percent of subtotal (rounded to cents) or a flat
-// amount capped at the subtotal. Copied verbatim from the legacy register math.
-function computeOrderDiscount(orderDiscount: Discount | null, subtotal: number): number {
-  if (!orderDiscount) return 0;
-  if (orderDiscount.type === "PERCENT") {
-    return Math.round(subtotal * (orderDiscount.value / 100) * 100) / 100;
-  }
-  return Math.min(orderDiscount.value, subtotal);
 }
 
 type MoneyFmt = ReturnType<typeof useMoneyFormatter>;
@@ -1154,6 +1188,24 @@ function TakePaymentPanel({
           </div>
           <span className="text-2xl font-semibold text-sh-black">{fmt(order.total)}</span>
         </div>
+        {/* Breakdown from the server's authoritative pricing -- the tax line
+            the cart screen couldn't show, now that the rate is known. */}
+        <div className="text-xs text-sh-gray space-y-0.5 border-t border-sh-gray/10 pt-2 mt-2">
+          <div className="flex justify-between">
+            <span>Subtotal</span>
+            <span>{fmt(order.subtotal)}</span>
+          </div>
+          {order.orderDiscountAmount > 0 && (
+            <div className="flex justify-between text-green-700">
+              <span>Discount</span>
+              <span>-{fmt(order.orderDiscountAmount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between">
+            <span>Tax</span>
+            <span>{fmt(order.taxAmount)}</span>
+          </div>
+        </div>
       </div>
 
       {!paymentMethod ? (
@@ -1313,6 +1365,8 @@ type CartRowProps = Readonly<{
   item: CartItem;
   idx: number;
   fmt: MoneyFmt;
+  /** Line total after item-level discounts (priced.items[idx].lineSubtotal) -- never recomputed here. */
+  lineTotal: number;
   registerStoreName?: string;
   isEditingPrice: boolean;
   editPriceValue: string;
@@ -1326,8 +1380,8 @@ type CartRowProps = Readonly<{
   onClearItemDiscounts: () => void;
   isDiscountOpen: boolean;
   onToggleDiscount: () => void;
-  discType: "PERCENT" | "FLAT";
-  setDiscType: Dispatch<SetStateAction<"PERCENT" | "FLAT">>;
+  discType: DiscountType;
+  setDiscType: Dispatch<SetStateAction<DiscountType>>;
   discValue: string;
   setDiscValue: Dispatch<SetStateAction<string>>;
   onAddItemDiscount: () => void;
@@ -1338,6 +1392,7 @@ function CartRow({
   item,
   idx,
   fmt,
+  lineTotal,
   registerStoreName,
   isEditingPrice,
   editPriceValue,
@@ -1452,7 +1507,7 @@ function CartRow({
               className="text-sm font-medium hover:text-sh-blue"
               title="Click to edit price"
             >
-              {fmt(calcItemTotal(item))}
+              {fmt(lineTotal)}
             </button>
           )}
           {item.discounts.length > 0 && !isEditingPrice && (
@@ -1481,11 +1536,11 @@ function CartRow({
           <select
             id={`pos-item-disc-type-${idx}`}
             value={discType}
-            onChange={(e) => setDiscType(e.target.value as "PERCENT" | "FLAT")}
+            onChange={(e) => setDiscType(e.target.value as DiscountType)}
             className="border border-sh-gray/30 rounded px-1.5 py-1 text-xs"
           >
             <option value="PERCENT">%</option>
-            <option value="FLAT">$</option>
+            <option value="AMOUNT">$</option>
           </select>
           <label htmlFor={`pos-item-disc-value-${idx}`} className="sr-only">
             Discount amount
