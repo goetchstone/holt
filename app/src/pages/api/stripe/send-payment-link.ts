@@ -6,16 +6,28 @@ import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { resolveCheckoutEmail } from "@/lib/stripe";
 import { assertCapability, getActiveProvider } from "@/lib/payments";
-import { calculateOrderBalance } from "@/lib/paymentService";
+import {
+  calculateOrderBalance,
+  findActivePendingPayment,
+  voidPendingPayment,
+} from "@/lib/paymentService";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { orderId, amount: requestedAmount } = req.body as {
+  const {
+    orderId,
+    amount: requestedAmount,
+    force,
+  } = req.body as {
     orderId: number;
     amount?: number;
+    /** Void an already-open PENDING checkout and replace it. See
+     *  findActivePendingPayment — for when a customer says the earlier link
+     *  never arrived. */
+    force?: boolean;
   };
 
   if (!orderId) {
@@ -43,6 +55,27 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
     if (balance.balanceDue <= 0) {
       return res.status(400).json({ error: "No balance due on this order" });
+    }
+
+    // A PENDING row from a link the customer may still be sitting on —
+    // sending a second one risks both landing (double-charge). Refuse with
+    // enough detail that the operator can tell "still open" from "actually
+    // failed," unless they've explicitly confirmed a replacement.
+    const existingPending = await findActivePendingPayment(orderId);
+    if (existingPending) {
+      if (!force) {
+        return res.status(409).json({
+          error:
+            `A payment link for $${existingPending.amount.toFixed(2)} is already open on ` +
+            `this order (started ${existingPending.ageMinutes} min ago). If the customer says ` +
+            `it never arrived, retry with force:true to void it and send a new one.`,
+          existingPayment: existingPending,
+        });
+      }
+      await voidPendingPayment(existingPending.id, {
+        voidedBy: session.user?.email,
+        reason: "Replaced by a new payment link (force)",
+      });
     }
 
     // Use requested amount if provided, otherwise full balance

@@ -217,6 +217,18 @@ export const squareProvider: PaymentProvider = {
     return completion;
   },
 
+  // No extractExpiration here, deliberately. Square's Checkout API payment
+  // links don't emit a distinct "this link expired" webhook event the way
+  // Stripe's checkout.session.expired does -- an abandoned Payment Link's
+  // Order just stays in whatever state it was in (see mapOrderStateToStatus
+  // above, which already treats Square's CANCELED as the closest analog for
+  // the POLLING path). Rather than guess at an event type Square doesn't
+  // document, this provider leaves the method undefined; the webhook route
+  // treats a missing extractExpiration as "this provider never signals
+  // expiration" and relies entirely on the age-based sweeper
+  // (paymentService.sweepStalePendingPayments) to close out abandoned Square
+  // PENDING rows after PENDING_SESSION_LIFETIME_MS.
+
   async refund(req: RefundRequest): Promise<RefundResult> {
     try {
       // Payment.processorTxnId holds the Square ORDER id (stamped at

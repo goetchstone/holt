@@ -84,6 +84,50 @@ describe("computeBalance", () => {
     expect(result.balanceDue).toBe(500);
   });
 
+  it("excludes PENDING payments — an unconfirmed hosted checkout is not money in hand", () => {
+    // THE BUG this guards against: recordPendingPayment writes a PENDING row
+    // BEFORE the customer pays. If they abandon or decline the checkout and
+    // nothing ever resolves the row, treating PENDING as paid here would
+    // permanently zero the balance with no way to detect or reverse it
+    // (every re-charge path refuses once balanceDue <= 0). PENDING becomes
+    // real money only when completePayment() flips it to COMPLETED.
+    const result = computeBalance(
+      [{ netPrice: 1000, orderedQuantity: 1 }],
+      [{ paymentAmount: 1000, isRefund: false, status: "PENDING" }],
+    );
+    expect(result.totalPaid).toBe(0);
+    expect(result.balanceDue).toBe(1000);
+  });
+
+  it("a PENDING row alongside a real COMPLETED payment only counts the COMPLETED one", () => {
+    const result = computeBalance(
+      [{ netPrice: 1000, orderedQuantity: 1 }],
+      [
+        { paymentAmount: 400, isRefund: false, status: "COMPLETED" },
+        { paymentAmount: 600, isRefund: false, status: "PENDING" },
+      ],
+    );
+    expect(result.totalPaid).toBe(400);
+    expect(result.balanceDue).toBe(600);
+  });
+
+  it("still includes REFUNDED payments — that status is the ORIGINAL payment, not the refund", () => {
+    // REFUNDED marks the original COMPLETED payment once it's been fully
+    // refunded (see processRefund). It must stay INCLUDED in totalPaid: the
+    // refund itself is a separate isRefund=true row that nets it out.
+    // Excluding REFUNDED too would double-count the refund and understate
+    // totalPaid by the refunded amount.
+    const result = computeBalance(
+      [{ netPrice: 1000, orderedQuantity: 1 }],
+      [
+        { paymentAmount: 500, isRefund: false, status: "REFUNDED" },
+        { paymentAmount: 500, isRefund: true, status: "COMPLETED" },
+      ],
+    );
+    expect(result.totalPaid).toBe(0);
+    expect(result.balanceDue).toBe(1000);
+  });
+
   it("subtracts refund amounts from total paid", () => {
     const result = computeBalance(
       [{ netPrice: 1000, orderedQuantity: 1 }],

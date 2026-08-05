@@ -103,6 +103,7 @@ JOBS=(
   "10 6 * * *|auto-import.sh|auto-import.log|POS/ERP daily CSV reports never import -- sales/inventory data silently stops updating from the source system. Only relevant where the legacyPosImport feature flag is on."
   "30 6 * * *|auto-mailchimp-customer-sync.sh|auto-mailchimp-customer-sync.log|New customers never get pushed to the Mailchimp audience -- the audience silently falls further behind the real customer list every day."
   "0 2 * * *|auto-axper-traffic.sh|auto-axper-traffic.log|Door-counter traffic snapshots stop landing -- TrafficSnapshot gaps grow and traffic reporting goes blank/stale. Only relevant where a door-counter integration is configured."
+  "0 * * * *|auto-expire-stale-pending-payments.sh|auto-expire-stale-pending-payments.log|Abandoned or declined hosted-checkout payments never reach a terminal status -- they keep reading as 'in progress' forever, and staff can't tell an abandoned checkout from one still genuinely open without checking the timestamp by hand. computeBalance already stops crediting a stale PENDING row toward the balance; this only closes the row out."
 )
 
 # Backup jobs run the same managed block but need DATABASE/backup env rather

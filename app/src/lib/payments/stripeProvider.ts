@@ -19,6 +19,7 @@ import type {
   CheckoutResult,
   ConnectionTestResult,
   PaymentCompletion,
+  PaymentExpiration,
   PaymentProvider,
   RefundRequest,
   RefundResult,
@@ -125,6 +126,18 @@ export const stripeProvider: PaymentProvider = {
     }
 
     return completion;
+  },
+
+  // Fires when a customer abandons a checkout page (or it's still open when
+  // the payer's card declines and they never retry) and Stripe's own
+  // session lifetime — 24h — elapses. This is the PRIMARY mechanism for
+  // ending a PENDING row's life; sweepStalePendingPayments (an age-based
+  // sweep) exists only as a backstop for webhooks that never arrive.
+  async extractExpiration(event: VerifiedWebhookEvent): Promise<PaymentExpiration | null> {
+    if (event.type !== "checkout.session.expired") return null;
+    const stripeEvent = event.raw as Stripe.Event;
+    const session = stripeEvent.data.object as Stripe.Checkout.Session;
+    return { providerTxnId: session.id };
   },
 
   async refund(req: RefundRequest): Promise<RefundResult> {
