@@ -1,17 +1,12 @@
 // /app/src/pages/api/leads/[id].ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const userEmail = session.user.email;
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) {
@@ -129,6 +124,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "DELETE") {
+    // Narrower than the outer gate: any of the leads-board roles can edit a
+    // lead, but only managers/admins can delete one outright.
     const role = (session as any)?.role;
     if (role !== "MANAGER" && role !== "ADMIN") {
       return res.status(403).json({ error: "Only managers can delete leads" });
@@ -151,3 +148,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.setHeader("Allow", ["GET", "PUT", "DELETE"]);
   return res.status(405).json({ error: `Method ${req.method} not allowed` });
 }
+
+// Deviates from the generic "leads -> MARKETING,MANAGER,ADMIN" policy bucket:
+// the leads board page (app/leads/page.tsx) is gated
+// requirePage(["MANAGER","ADMIN","DESIGNER"]) with no MARKETING at all, and
+// leads auto-assign to a customer's primary designer. Matching that real
+// access pattern here instead of the generic bucket.
+export default requireAuthWithRole(["DESIGNER", "MANAGER", "ADMIN"], handler);

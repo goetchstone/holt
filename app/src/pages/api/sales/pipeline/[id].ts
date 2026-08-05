@@ -6,8 +6,8 @@
 // "Duplicate" reasons) so conversion reports can roll them together.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import {
   ARCHIVE_REASONS,
@@ -22,11 +22,10 @@ interface ArchiveBody {
   replacedByOrderId?: number | null;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PATCH") return res.status(405).json({ error: "Method not allowed" });
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return res.status(401).json({ error: "Unauthorized" });
+  if (!session.user?.email) return res.status(401).json({ error: "Unauthorized" });
 
   const id = Number.parseInt(req.query.id as string, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
@@ -121,3 +120,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(200).json(updated);
 }
+
+// Quotes are a designer/manager concern (register and warehouse have no
+// ownership stake in the pipeline), matching this file's own isManager
+// ownership check above.
+export default requireAuthWithRole(["DESIGNER", "MANAGER", "ADMIN"], handler);

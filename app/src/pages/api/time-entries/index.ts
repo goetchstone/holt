@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
-import { requireAuth } from "@/lib/auth/requireAuth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { parseTimeEntryCreateInput } from "@/lib/timeEntries/requestBody";
@@ -21,7 +21,12 @@ async function resolveStaff(userId: string | undefined) {
   return prisma.staffMember.findFirst({ where: { userId }, select: { id: true, role: true } });
 }
 
-export default requireAuth(async (req: NextApiRequest, res: NextApiResponse, session) => {
+// Self-service: every staff role logs their own time, so the gate is "any
+// active staff member" -- the CAN_SEE_ALL check below narrows who can see or
+// attribute someone else's entries.
+export default requireAuthWithRole(
+  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+  async (req: NextApiRequest, res: NextApiResponse, session) => {
   const staff = await resolveStaff((session.user as { id?: string }).id);
   if (!staff) return res.status(403).json({ error: "Only staff can track time" });
   const privileged = CAN_SEE_ALL.has(staff.role);
@@ -89,6 +94,7 @@ export default requireAuth(async (req: NextApiRequest, res: NextApiResponse, ses
     }
   }
 
-  res.setHeader("Allow", ["GET", "POST"]);
-  return res.status(405).json({ error: "Method not allowed" });
-});
+    res.setHeader("Allow", ["GET", "POST"]);
+    return res.status(405).json({ error: "Method not allowed" });
+  },
+);

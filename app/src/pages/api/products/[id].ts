@@ -2,14 +2,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
   const productId = Number.parseInt(id as string);
   if (Number.isNaN(productId)) return res.status(400).json({ error: "Invalid product ID" });
@@ -122,3 +118,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).end();
   }
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);

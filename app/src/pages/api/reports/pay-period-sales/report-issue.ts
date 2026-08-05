@@ -7,28 +7,27 @@
 // a problem at any time, including mid-period.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { reportPayPeriodIssue, periodFromStartParam } from "@/lib/payPeriodConfirmationService";
 import { logError } from "@/lib/logger";
 
 const PRIVILEGED_ROLES = new Set(["MANAGER", "ADMIN", "SUPER_ADMIN"]);
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
+  if (!session.user) return res.status(401).json({ error: "Unauthorized" });
 
+  // The requireAuthWithRole(["SUPER_ADMIN"]) gate below already enforces
+  // "Tabled 2026-05-29 (owner direction): SUPER_ADMIN-only" off a fresh DB
+  // role, so isPrivileged is always true past the gate -- kept as-is
+  // (unchanged business logic) rather than simplified away.
   const role = (session as { role?: string }).role;
-  // Tabled 2026-05-29 (owner direction): SUPER_ADMIN-only.
-  if (role !== "SUPER_ADMIN") {
-    return res.status(403).json({ error: "This report is restricted to SUPER_ADMIN." });
-  }
   const userId = (session.user as { id?: string }).id;
   const isPrivileged = role !== undefined && PRIVILEGED_ROLES.has(role);
   const email = session.user.email ?? "unknown";
@@ -74,3 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to report issue" });
   }
 }
+
+// SUPER_ADMIN excluded from the ADMIN bucket deliberately (owner direction,
+// 2026-05-29) -- do not widen to ["ADMIN"], which would also admit ADMIN.
+export default requireAuthWithRole(["SUPER_ADMIN"], handler);

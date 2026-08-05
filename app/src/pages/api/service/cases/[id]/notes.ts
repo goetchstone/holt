@@ -3,32 +3,18 @@
 import { getErrorCode } from "@/lib/errorCode";
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import {
   created,
-  unauthorized,
-  forbidden,
   badRequest,
   notFound,
   methodNotAllowed,
   handleError,
 } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
-
-  // Case notes are written by the service team. Register/Marketing have no
-  // reason to add notes to a service case.
-  const role = (session as unknown as { role?: string })?.role;
-  if (
-    !["SUPER_ADMIN", "DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"].includes(role ?? "")
-  ) {
-    return forbidden(res, "Insufficient role to add case note");
-  }
 
   const caseId = Number.parseInt(req.query.id as string);
   if (Number.isNaN(caseId)) return badRequest(res, "Invalid case ID");
@@ -60,3 +46,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return handleError(res, err, "POST /service/cases/[id]/notes");
   }
 }
+
+// Case notes are written by the service team. Register/Marketing have no
+// reason to add notes to a service case.
+export default requireAuthWithRole(
+  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"],
+  handler,
+);

@@ -3,23 +3,11 @@
 import { getErrorCode } from "@/lib/errorCode";
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import {
-  success,
-  created,
-  unauthorized,
-  forbidden,
-  badRequest,
-  conflict,
-  methodNotAllowed,
-  handleError,
-} from "@/lib/apiResponse";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { success, created, badRequest, conflict, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     try {
       const templates = await prisma.emailTemplate.findMany({
@@ -32,9 +20,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "POST") {
-    const role = (session as any)?.role;
-    if (role !== "MANAGER" && role !== "ADMIN") return forbidden(res, "Manager role required");
-
     const { name, subject, body, category } = req.body;
     if (!name?.trim() || !subject?.trim() || !body?.trim() || !category?.trim()) {
       return badRequest(res, "name, subject, body, and category are required");
@@ -60,3 +45,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return methodNotAllowed(res, ["GET", "POST"]);
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);

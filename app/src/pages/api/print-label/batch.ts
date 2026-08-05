@@ -6,8 +6,7 @@
 // 2. Manual: pass { productId, templateId, printerId, copies } to override.
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { printLabel, autoRoutePrint, resolveRoute } from "@/lib/labelPrinter";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
@@ -16,9 +15,6 @@ const MAX_BATCH_SIZE = 50;
 const MAX_COPIES = 10;
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -90,4 +86,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default rateLimit({ windowMs: 60000, maxRequests: 10 })(handler);
+// rateLimit stays outermost: it rejects a flood of unauthenticated requests
+// before requireAuthWithRole runs, which does two DB queries per call (the
+// StaffMember lookup and the privileged-count). Auth-outermost would let
+// anyone without a session drive that DB load. Do not reorder.
+export default rateLimit({ windowMs: 60000, maxRequests: 10 })(
+  requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler),
+);

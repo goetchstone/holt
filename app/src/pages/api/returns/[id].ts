@@ -1,26 +1,18 @@
 // /app/src/pages/api/returns/[id].ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid return ID" });
 
   if (req.method === "GET") {
     return handleGet(id, res);
   } else if (req.method === "PUT") {
-    const mutationRole = (session as unknown as { role?: string })?.role;
-    if (!["MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
-    }
-
     return handlePut(id, req, res, session.user?.email || null);
   }
 
@@ -117,3 +109,5 @@ async function handlePut(
     return res.status(500).json({ error: "Failed to update return" });
   }
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"], handler);

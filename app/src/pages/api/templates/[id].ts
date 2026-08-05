@@ -2,13 +2,9 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const id = Number.parseInt(req.query.id as string);
 
   if (req.method === "GET") {
@@ -41,3 +37,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ message: "Method not allowed" });
 }
+
+export default requireAuthWithRole(["ADMIN"], handler);

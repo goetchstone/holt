@@ -11,17 +11,10 @@
 // the report.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import {
-  success,
-  unauthorized,
-  forbidden,
-  badRequest,
-  methodNotAllowed,
-  handleError,
-} from "@/lib/apiResponse";
+import { success, badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
 interface QuickCreateBody {
   name: string;
@@ -36,15 +29,7 @@ interface QuickCreateBody {
   description?: string | null;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return unauthorized(res);
-
-  const role = (session as { role?: string }).role;
-  if (role !== "MANAGER" && role !== "ADMIN") {
-    return forbidden(res, "Manager or Admin role required");
-  }
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
 
   const body = req.body as QuickCreateBody;
@@ -126,3 +111,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return handleError(res, err, "POST /products/quick-create");
   }
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);

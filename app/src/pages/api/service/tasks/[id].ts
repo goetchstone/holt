@@ -3,12 +3,11 @@
 import { getErrorCode } from "@/lib/errorCode";
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import {
   success,
   noContent,
-  unauthorized,
   badRequest,
   notFound,
   methodNotAllowed,
@@ -21,19 +20,11 @@ const taskInclude = {
   linkedPurchaseOrder: { select: { id: true, poNumber: true } },
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return badRequest(res, "Invalid task ID");
 
   if (req.method === "PUT") {
-    const mutationRole = (session as unknown as { role?: string })?.role;
-    if (!["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
-    }
-
     const {
       title,
       description,
@@ -90,11 +81,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "DELETE") {
-    const mutationRole = (session as unknown as { role?: string })?.role;
-    if (!["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
-    }
-
     try {
       await prisma.serviceTask.delete({ where: { id } });
       return noContent(res);
@@ -106,3 +92,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return methodNotAllowed(res, ["PUT", "DELETE"]);
 }
+
+export default requireAuthWithRole(
+  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"],
+  handler,
+);

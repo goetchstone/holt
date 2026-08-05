@@ -1,15 +1,12 @@
 // /app/src/pages/api/sales/orders/[id].ts
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id } = req.query;
 
   if (!id || typeof id !== "string") {
@@ -75,6 +72,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "DELETE") {
+    // Deleting a whole order is narrower than the general sales-order gate
+    // this file is wrapped in -- MANAGER/ADMIN only, not DESIGNER/REGISTER.
     const role = (session as any)?.role;
     if (role !== "MANAGER" && role !== "ADMIN") {
       return res.status(403).json({ error: "Manager role required to delete orders" });
@@ -203,3 +202,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to fetch order details." });
   }
 }
+
+export default requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"], handler);

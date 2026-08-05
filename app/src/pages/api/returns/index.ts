@@ -1,24 +1,16 @@
 // /app/src/pages/api/returns/index.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { generateReturnNumber } from "@/lib/returnService";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     return handleGet(req, res);
   } else if (req.method === "POST") {
-    const mutationRole = (session as unknown as { role?: string })?.role;
-    if (!["MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"].includes(mutationRole ?? "")) {
-      return res.status(403).json({ error: "Insufficient role for this action" });
-    }
-
     return handlePost(req, res, session.user?.email || null);
   }
 
@@ -177,3 +169,5 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, changedBy: 
     return res.status(500).json({ error: "Failed to create return" });
   }
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"], handler);

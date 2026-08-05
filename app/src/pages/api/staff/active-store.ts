@@ -4,15 +4,12 @@
 // PUT: sets the current user's active store location
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import { success, unauthorized, badRequest, notFound, methodNotAllowed } from "@/lib/apiResponse";
+import { badRequest, notFound, methodNotAllowed, success } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const email = session.user?.email;
   if (!email) return badRequest(res, "No email in session");
 
@@ -54,3 +51,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return methodNotAllowed(res, ["GET", "PUT"]);
 }
+
+// Self-service: every staff role sets their own active store location.
+export default requireAuthWithRole(
+  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+  handler,
+);

@@ -6,9 +6,9 @@
 // Any -> CANCELLED: reverses any position changes already applied
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -16,17 +16,9 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   IN_TRANSIT: ["RECEIVED", "CANCELLED"],
 };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return res.status(401).json({ error: "Unauthorized" });
-
-  // Advancing transfer status moves inventory between stores. Warehouse
-  // staff and their managers only.
-  const role = (session as unknown as { role?: string })?.role;
-  if (role !== "WAREHOUSE" && role !== "MANAGER" && role !== "ADMIN") {
-    return res.status(403).json({ error: "Warehouse, Manager, or Admin role required" });
-  }
-
+// Advancing transfer status moves inventory between stores. Warehouse staff
+// and their managers only.
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") return res.status(405).json({ error: "Method not allowed" });
 
   const { id } = req.query;
@@ -164,3 +156,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to update transfer status" });
   }
 }
+
+export default requireAuthWithRole(["WAREHOUSE", "MANAGER", "ADMIN"], handler);

@@ -3,8 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@prisma/client";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { calculateTillExpected } from "@/lib/paymentService";
 import { logError } from "@/lib/logger";
@@ -155,8 +154,8 @@ export async function handleClose(
   }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   await handleClose(req, res, session, prisma);
 }
+
+export default requireAuthWithRole(["REGISTER", "MANAGER", "ADMIN"], handler);

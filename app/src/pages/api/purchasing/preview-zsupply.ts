@@ -1,8 +1,7 @@
 // /app/src/pages/api/purchasing/preview-zsupply.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { parseZSupplyPDF } from "@/lib/pricing/zSupplyParser";
 import fs from "fs";
 import { createSecureForm } from "@/lib/secureUpload";
@@ -10,9 +9,7 @@ import { logError } from "@/lib/logger";
 
 export const config = { api: { bodyParser: false } };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
@@ -57,3 +54,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: msg || "Parse failed" });
   }
 }
+
+export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler);

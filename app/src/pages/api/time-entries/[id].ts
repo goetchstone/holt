@@ -6,7 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
-import { requireAuth } from "@/lib/auth/requireAuth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { parseTimeEntryUpdateInput } from "@/lib/timeEntries/requestBody";
@@ -15,7 +15,12 @@ import { logError } from "@/lib/logger";
 
 const CAN_SEE_ALL = new Set(["SUPER_ADMIN", "ADMIN", "MANAGER"]);
 
-export default requireAuth(async (req: NextApiRequest, res: NextApiResponse, session) => {
+// Self-service: every staff role can own time entries, so the gate is "any
+// active staff member" -- the isOwner/CAN_SEE_ALL check below narrows who
+// can change someone else's entries.
+export default requireAuthWithRole(
+  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+  async (req: NextApiRequest, res: NextApiResponse, session) => {
   const id = Number(req.query.id);
   if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
 
@@ -63,6 +68,7 @@ export default requireAuth(async (req: NextApiRequest, res: NextApiResponse, ses
     return res.status(204).end();
   }
 
-  res.setHeader("Allow", ["PATCH", "DELETE"]);
-  return res.status(405).json({ error: "Method not allowed" });
-});
+    res.setHeader("Allow", ["PATCH", "DELETE"]);
+    return res.status(405).json({ error: "Method not allowed" });
+  },
+);

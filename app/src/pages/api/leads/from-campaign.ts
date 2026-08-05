@@ -1,23 +1,18 @@
 // /app/src/pages/api/leads/from-campaign.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: `Method ${req.method} not allowed` });
   }
 
-  const userEmail = session.user.email;
+  const userEmail = session.user.email!;
   const { campaignId } = req.body;
 
   if (!campaignId) {
@@ -116,3 +111,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to generate leads" });
   }
 }
+
+// Same deviation as leads/[id].ts and leads/index.ts: the leads board this
+// feeds is DESIGNER/MANAGER/ADMIN, not the generic Marketing policy bucket.
+export default requireAuthWithRole(["DESIGNER", "MANAGER", "ADMIN"], handler);
