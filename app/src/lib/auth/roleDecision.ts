@@ -64,11 +64,9 @@ export function decideRoleAccess(input: RoleDecisionInput): RoleDecision {
   // just an ADMIN; a SUPER_ADMIN impersonating anyone is that lesser role.
   // Without this, the sh-impersonate cookie is a self-serve privilege upgrade
   // for anyone who already holds ADMIN.
-  const escalates = canImpersonate && impersonate
-    ? ROLE_RANK[impersonate] > (ROLE_RANK[realRole] ?? 0)
-    : false;
-  const effectiveUserRole =
-    canImpersonate && impersonate && !escalates ? impersonate : realRole;
+  const escalates =
+    canImpersonate && impersonate ? ROLE_RANK[impersonate] > (ROLE_RANK[realRole] ?? 0) : false;
+  const effectiveUserRole = canImpersonate && impersonate && !escalates ? impersonate : realRole;
 
   // SUPER_ADMIN satisfies any ADMIN-gated check.
   const effectiveAllowed =

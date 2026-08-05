@@ -5,13 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
-import {
-  created,
-  badRequest,
-  notFound,
-  methodNotAllowed,
-  handleError,
-} from "@/lib/apiResponse";
+import { created, badRequest, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
