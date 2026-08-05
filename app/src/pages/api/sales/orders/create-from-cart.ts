@@ -10,6 +10,7 @@ import type { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { priceCart, type CartDiscount } from "@/lib/pos/cartPricing";
 
 interface CartItem {
   type?: "PRODUCT" | "CONFIGURED" | "CUSTOM";
@@ -23,21 +24,31 @@ interface CartItem {
   vendor?: string;
   source?: string;
   fulfillment?: string;
+  /** Item-level discounts, applied in order by cartPricing.priceCart. */
+  discounts?: CartDiscount[];
+  /** A return line; priceCart negates it and excludes it from discount allocation. */
+  isReturn?: boolean;
 }
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+/** Exported for integration tests, which call it directly against the real
+ *  Prisma client with a fake req/res + session -- requireAuthWithRole needs
+ *  real cookies. Role enforcement is covered by the apiRouteAuthorization
+ *  tripwire. Same pattern as inventory/snapshot/generate.ts. */
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 
-  const { customerId, items, storeLocation, orderNotes, deliveryMethod } = req.body as {
-    customerId?: number | null;
-    items: CartItem[];
-    storeLocation?: string;
-    orderNotes?: string;
-    deliveryMethod?: "TAKEN" | "PICKUP" | "DELIVERY";
-  };
+  const { customerId, items, storeLocation, orderNotes, deliveryMethod, orderDiscount } =
+    req.body as {
+      customerId?: number | null;
+      items: CartItem[];
+      storeLocation?: string;
+      orderNotes?: string;
+      deliveryMethod?: "TAKEN" | "PICKUP" | "DELIVERY";
+      orderDiscount?: CartDiscount | null;
+    };
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "Cart must contain at least one item" });
@@ -126,6 +137,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         }
       }
 
+      // Price the whole cart through the shared module so this order's
+      // numbers can never diverge from what the POS charged the customer.
+      // `item.quantity` here may already be negative for a return (see the
+      // client's create-from-cart call), but priceCart derives sign from
+      // `isReturn` itself -- feeding it a pre-negated quantity would negate
+      // twice, so it's normalized to a magnitude first. `orderedQuantity`
+      // below still stores the signed value; only the money math changes.
+      const priced = priceCart(
+        items.map((item) => ({
+          unitPrice: item.unitPrice,
+          quantity: Math.abs(item.quantity),
+          discounts: item.discounts,
+          isReturn: item.isReturn,
+        })),
+        { taxRate, orderDiscount },
+      );
+
       // Build line items, creating products as needed
       const lineItemData = [];
 
@@ -204,13 +232,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           productName: productName || "Unknown",
           partNo: partNo || "",
           orderedQuantity: item.quantity,
-          netPrice: item.unitPrice * item.quantity,
+          // netPrice/vatAmount come from priceCart, not a re-derivation here --
+          // that duplication is exactly how the client and server used to
+          // disagree. netPrice already reflects item + order discounts.
+          netPrice: priced.items[idx].netPrice,
           // itemCost is per-unit (configurator value or product baseCost);
           // OrderLineItem.cost stores the LINE total, like netPrice.
           cost: itemCost * item.quantity,
           barcode: "",
           vatRate: taxRate,
-          vatAmount: Math.round(item.unitPrice * item.quantity * taxRate * 100) / 100,
+          vatAmount: priced.items[idx].vatAmount,
           selectedGrade: item.description || null,
           source: item.source || null,
           fulfillment: item.fulfillment || null,
@@ -230,6 +261,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           orderNotes: orderNotes || null,
           deliveryMethod: deliveryMethod || null,
           createdBy: session.user?.email || null,
+          totalTax: priced.taxAmount,
+          // NOTE: SalesOrder/OrderLineItem have no discount column, so the
+          // discount amount is not persisted as its own field -- it's only
+          // recoverable as subtotal minus the sum of line netPrice. Adding
+          // one is a schema change out of scope here; flagging it rather
+          // than adding a migration.
           lineItems: { create: lineItemData },
         },
         select: {
@@ -239,7 +276,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         },
       });
 
-      return created;
+      return {
+        ...created,
+        subtotal: priced.subtotal,
+        orderDiscountAmount: priced.orderDiscountAmount,
+        taxAmount: priced.taxAmount,
+        total: priced.total,
+      };
     });
 
     return res.status(201).json(order);
