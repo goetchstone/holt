@@ -6,6 +6,7 @@
 import { logger } from "@/lib/logger";
 
 export type AuditEvent =
+  | "DATABASE_RESTORE"
   | "IMPORT_WHOLESALE"
   | "IMPORT_FOUNDATIONS"
   | "IMPORT_FABRICS"
