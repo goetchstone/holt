@@ -2,6 +2,16 @@
 //
 // StoreLocations (two showrooms + one warehouse), their StockLocations, and
 // the Registers each showroom runs its POS on.
+//
+// `taxDistrictId` (optional) wires every seeded store to the CT district
+// seedAccounting() creates -- this seed's whole deployment is Connecticut,
+// so every store shares the one district. A real multi-state deployment
+// would set each store's own district per docs/domains/config-presets.md
+// or the admin UI; this seed has no second state to demonstrate that with.
+// Passing it (or not) is a fresh `npm run setup`'s only lever for keeping
+// resolveTaxRate.ts's "store's district" tier populated -- leaving it unset
+// still works (falls through to AppSettings.defaultTaxDistrictId, wired in
+// index.ts), but setting it here exercises the more common real-world path.
 
 import type { PrismaClient } from "@prisma/client";
 
@@ -40,10 +50,13 @@ const STORE_DEFS = [
   },
 ] as const;
 
-export async function seedLocations(prisma: PrismaClient): Promise<LocationsSetup> {
+export async function seedLocations(
+  prisma: PrismaClient,
+  taxDistrictId?: number,
+): Promise<LocationsSetup> {
   const warehouse = await prisma.storeLocation.upsert({
     where: { code: "CDW" },
-    update: {},
+    update: { taxDistrictId },
     create: {
       name: "Central Distribution Warehouse",
       code: "CDW",
@@ -53,6 +66,7 @@ export async function seedLocations(prisma: PrismaClient): Promise<LocationsSetu
       state: "CT",
       zip: "06070",
       sortOrder: 0,
+      taxDistrictId,
       createdBy: SEED_ACTOR,
     },
   });
@@ -76,7 +90,7 @@ export async function seedLocations(prisma: PrismaClient): Promise<LocationsSetu
   for (const [i, def] of STORE_DEFS.entries()) {
     const store = await prisma.storeLocation.upsert({
       where: { code: def.code },
-      update: {},
+      update: { taxDistrictId },
       create: {
         name: def.name,
         code: def.code,
@@ -86,6 +100,7 @@ export async function seedLocations(prisma: PrismaClient): Promise<LocationsSetu
         state: def.state,
         zip: def.zip,
         sortOrder: i + 1,
+        taxDistrictId,
         createdBy: SEED_ACTOR,
       },
     });

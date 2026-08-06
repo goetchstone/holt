@@ -54,7 +54,9 @@ const session = { user: { email: "register@example.com" } } as unknown as Sessio
 const CT_RATE = 0.0635;
 
 async function seedCatalogAndTax() {
-  const vendor = await prisma.vendor.create({ data: { name: "Test Vendor", pricingModel: "FLAT" } });
+  const vendor = await prisma.vendor.create({
+    data: { name: "Test Vendor", pricingModel: "FLAT" },
+  });
   const dept = await prisma.department.create({ data: { name: "Furniture" } });
   const cat = await prisma.category.create({
     data: { name: "Sofas", departmentId: dept.id, trackInventory: true },
@@ -63,16 +65,24 @@ async function seedCatalogAndTax() {
     data: { name: "Test Store", code: "TS", type: "STORE" },
   });
 
-  // shortName "CT" is not incidental: create-from-cart resolves the district
-  // with a hardcoded `where: { shortName: "CT" }`, so a deployment outside
-  // Connecticut charges zero tax. Tracked separately -- this PR is about the
-  // charge matching the record, not about which rate applies.
+  // shortName "CT" is not incidental -- it matches the real seed district
+  // (prisma/seed/demo/accounting.ts). create-from-cart no longer resolves it
+  // with a hardcoded `where: { shortName: "CT" }`; it goes through
+  // resolveTaxRate.ts's resolution order (customer override, then the
+  // store's own district, then AppSettings.defaultTaxDistrictId). The
+  // `taxDistrictId` set on the store below IS that fix under test -- remove
+  // it and every assertion in this file charging 6.35% would fail closed to
+  // $0, which is exactly the bug src/lib/tax/resolveTaxRate.ts replaces.
   const district = await prisma.taxDistrict.create({
     data: { shortName: "CT", state: "CT", name: "Connecticut State Sales Tax", isActive: true },
   });
   const group = await prisma.taxGroup.create({ data: { name: "Standard Retail" } });
   await prisma.taxRule.create({
     data: { districtId: district.id, groupId: group.id, taxRate: CT_RATE, sortOrder: 0 },
+  });
+  await prisma.storeLocation.update({
+    where: { id: store.id },
+    data: { taxDistrictId: district.id },
   });
 
   const product = await prisma.product.create({
@@ -86,7 +96,7 @@ async function seedCatalogAndTax() {
     },
   });
 
-  return { store, product };
+  return { store, product, district };
 }
 
 /** Sum what actually landed in the database for an order. */
@@ -95,10 +105,7 @@ async function recordedTotal(orderId: number): Promise<number> {
     where: { salesOrderId: orderId },
     select: { netPrice: true, vatAmount: true },
   });
-  const sum = lines.reduce(
-    (acc, l) => acc + Number(l.netPrice) + Number(l.vatAmount ?? 0),
-    0,
-  );
+  const sum = lines.reduce((acc, l) => acc + Number(l.netPrice) + Number(l.vatAmount ?? 0), 0);
   return Math.round(sum * 100) / 100;
 }
 
@@ -212,5 +219,48 @@ describe("cart pricing end to end (real DB)", () => {
       select: { totalTax: true },
     });
     expect(Number(order?.totalTax ?? 0)).toBe(payload.taxAmount);
+  });
+
+  // The bug this refactor fixes: a store outside the deployment's default
+  // district used to charge zero tax (the resolver only ever looked for
+  // `shortName: "CT"`). This proves a second store, in a second district,
+  // charges ITS OWN rate -- not CT's, and not zero.
+  it("charges a second store's own district rate, not the first store's", async () => {
+    await seedCatalogAndTax(); // CT district + "Test Store" exist but are unused below
+
+    const nyGroup = await prisma.taxGroup.create({ data: { name: "NY Standard Retail" } });
+    const nyDistrict = await prisma.taxDistrict.create({
+      data: { shortName: "NY", state: "NY", name: "New York State Sales Tax", isActive: true },
+    });
+    await prisma.taxRule.create({
+      data: { districtId: nyDistrict.id, groupId: nyGroup.id, taxRate: 0.08, sortOrder: 0 },
+    });
+    const nyStore = await prisma.storeLocation.create({
+      data: { name: "NY Store", code: "NYS", type: "STORE", taxDistrictId: nyDistrict.id },
+    });
+    const product = await prisma.product.findFirstOrThrow({ where: { productNumber: "SOFA-1" } });
+
+    const res = makeRes();
+    await handler(
+      makeReq({
+        storeLocation: nyStore.name,
+        items: [{ productId: product.id, quantity: 1, unitPrice: 1000 }],
+      }),
+      res,
+      session,
+    );
+
+    expect(res.statusCode).toBe(201);
+    const payload = res.body as { id: number; total: number; taxAmount: number };
+    // 1000 * 8% = 80, NOT 63.50 (CT's rate) and NOT 0 (the pre-fix bug).
+    expect(payload.taxAmount).toBe(80);
+    expect(payload.total).toBe(1080);
+    expect(await recordedTotal(payload.id)).toBe(payload.total);
+
+    const order = await prisma.salesOrder.findUnique({
+      where: { id: payload.id },
+      select: { taxDistrictId: true },
+    });
+    expect(order?.taxDistrictId).toBe(nyDistrict.id);
   });
 });
