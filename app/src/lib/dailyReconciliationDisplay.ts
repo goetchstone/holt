@@ -46,6 +46,22 @@ export function driftCellClass(driftAmount: number, tolerance: number = 0.01): s
   return Math.abs(driftAmount) > tolerance ? "text-red-700 font-semibold" : "";
 }
 
+/**
+ * Sentence shown under the reconciliation table when the day's journal only
+ * balanced because a plug was posted. Returns null when there was no material
+ * plug, so the panel stays quiet on a genuinely clean day.
+ *
+ * The plug is deliberately NOT one of RECONCILIATION_CATEGORIES: those are
+ * source-vs-journal pairs, and a plug has no source side. Rendering it as a
+ * drift row would recreate the confusion this change exists to remove.
+ */
+export function plugNotice(overShort: number, threshold: number = 0.01): string | null {
+  if (Math.abs(overShort) <= threshold) return null;
+  const magnitude = Math.abs(overShort).toFixed(2);
+  const side = overShort > 0 ? "credit" : "debit";
+  return `Over/Short plug: $${magnitude} (${side}) — the journal balances only because of it. This is not revenue.`;
+}
+
 // Re-export so the page only has one import for display concerns.
 export type { DailyReconciliationResult } from "./dailyReconciliation";
 // Tolerance is referenced by tests; pull it through for symmetry.

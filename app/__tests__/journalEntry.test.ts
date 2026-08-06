@@ -441,6 +441,141 @@ describe("buildJournalLines — returns are sales in reverse (B3)", () => {
   });
 });
 
+// ─── Native refunds must not re-recognize the original sale ─────
+//
+// `paymentService.processRefund` writes the refund row against the ORIGINAL
+// SalesOrder (`salesOrderId: original.salesOrderId`) with `originalPaymentId`
+// pointing back at the payment being reversed. On the refund's day the JE
+// generator therefore saw an order whose line items are the original POSITIVE
+// sale lines -- and booked them AGAIN, in the same direction as the sale.
+// Revenue was credited twice for one sale, COGS debited twice, inventory
+// relieved twice, tax credited twice; the resulting imbalance then disappeared
+// into the Over/Short plug.
+//
+// The discriminator is `reversesPaymentId` (Payment.originalPaymentId), NOT
+// `isRefund`: imported POS returns also carry `isRefund`, but they hang off
+// their own return-order with NEGATIVE line items that have never been booked.
+// Those must keep flowing through the B3 sale-in-reverse path above.
+
+describe("buildJournalLines — a native refund does not re-book the original sale", () => {
+  /** The shape processRefund produces: negative cash, original order attached. */
+  function nativeRefund(overrides: Partial<SalesPayment> = {}): SalesPayment {
+    return {
+      amount: -1063.5,
+      memo: "Cash",
+      glAccountId: GL.CASH,
+      glCode: "1-1006",
+      reversesPaymentId: 7,
+      order: {
+        id: 1,
+        hasInvoices: true,
+        taxGlId: GL.TAX,
+        taxMemo: "CT",
+        // The ORIGINAL sale's lines -- positive, already booked on sale day.
+        lineItems: [makeLine({ netPrice: 1000, cost: 400, taxAmount: 63.5 })],
+      },
+      ...overrides,
+    };
+  }
+
+  it("books only the cash leg — no second revenue credit", () => {
+    const result = buildJournalLines([nativeRefund()], GL.OVER_SHORT, GL.DEPOSIT);
+
+    // Cash goes out.
+    const cash = result.lines.find((l) => l.glAccountId === GL.CASH);
+    expect(cash?.credit).toBe(1063.5);
+    expect(cash?.debit).toBe(0);
+
+    // The original sale's legs are NOT re-recognized. Before the fix each of
+    // these produced a line: revenue credited a second time for a sale that
+    // happened days ago.
+    expect(result.lines.find((l) => l.glAccountId === GL.REVENUE)).toBeUndefined();
+    expect(result.lines.find((l) => l.glAccountId === GL.COGS)).toBeUndefined();
+    expect(result.lines.find((l) => l.glAccountId === GL.INVENTORY)).toBeUndefined();
+    expect(result.lines.find((l) => l.glAccountId === GL.TAX)).toBeUndefined();
+  });
+
+  it("surfaces the unreversed refund as a plug instead of hiding it in revenue", () => {
+    // A native refund carries no line-level reversal (processRefund records an
+    // amount, not which lines it unwinds), so the day does not balance on its
+    // own. That is now a $1,063.50 plug WITH a warning -- honest -- rather
+    // than a $212.70 plug plus a phantom $1,000 of revenue.
+    const result = buildJournalLines([nativeRefund()], GL.OVER_SHORT, GL.DEPOSIT);
+
+    expect(result.totalDebits).toBe(result.totalCredits);
+    expect(result.overShort).toBe(-1063.5);
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([expect.stringContaining("Over/Short plug of $1063.50")]),
+    );
+  });
+
+  it("still lets a normal payment for the same order recognize it, in either arrival order", () => {
+    // The guard must not mark the order processed, or whichever row Prisma
+    // happens to return first would decide whether the sale is ever booked.
+    const sale = makePayment({ order: { ...makePayment().order!, id: 1 } });
+
+    const refundFirst = buildJournalLines([nativeRefund(), sale], GL.OVER_SHORT, GL.DEPOSIT);
+    const saleFirst = buildJournalLines([sale, nativeRefund()], GL.OVER_SHORT, GL.DEPOSIT);
+
+    for (const result of [refundFirst, saleFirst]) {
+      // Recognized exactly once, not zero times and not twice.
+      expect(result.lines.find((l) => l.glAccountId === GL.REVENUE)?.credit).toBe(1000);
+      expect(result.lines.find((l) => l.glAccountId === GL.COGS)?.debit).toBe(400);
+      // Sale in, refund out, same amount -- the cash nets to nothing.
+      expect(result.lines.find((l) => l.glAccountId === GL.CASH)).toBeUndefined();
+    }
+  });
+
+  it("leaves an IMPORTED POS return untouched (no originalPaymentId, negative lines)", () => {
+    // Regression guard on the fix itself. Keying the guard on `isRefund`
+    // instead would have silently stopped booking every imported return's
+    // reversal -- the B3 path -- and dumped the whole refund into the plug.
+    const importedReturn: SalesPayment = {
+      amount: -531.75,
+      memo: "Cash",
+      glAccountId: GL.CASH,
+      glCode: "1-1006",
+      // Ordorite import sets isRefund but never originalPaymentId.
+      order: {
+        id: 99,
+        hasInvoices: true,
+        taxGlId: GL.TAX,
+        taxMemo: "CT",
+        lineItems: [makeLine({ netPrice: -500, cost: -200, taxAmount: -31.75 })],
+      },
+    };
+    const result = buildJournalLines([importedReturn], GL.OVER_SHORT, GL.DEPOSIT);
+
+    // Full sale-in-reverse, balanced, and with no plug at all.
+    expect(result.lines.find((l) => l.glAccountId === GL.REVENUE)?.debit).toBe(500);
+    expect(result.lines.find((l) => l.glAccountId === GL.TAX)?.debit).toBe(31.75);
+    expect(result.lines.find((l) => l.glAccountId === GL.COGS)?.credit).toBe(200);
+    expect(result.lines.find((l) => l.glAccountId === GL.INVENTORY)?.debit).toBe(200);
+    expect(result.overShort).toBe(0);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("still reverses a deposit refund on an order with no invoice", () => {
+    // A refunded deposit has no revenue to unwind -- it relieves the deposit
+    // liability. That branch runs before the guard and must keep working.
+    const depositRefund = nativeRefund({
+      amount: -500,
+      order: {
+        id: 5,
+        hasInvoices: false,
+        taxGlId: GL.TAX,
+        taxMemo: "CT",
+        lineItems: [],
+      },
+    });
+    const result = buildJournalLines([depositRefund], GL.OVER_SHORT, GL.DEPOSIT);
+
+    expect(result.lines.find((l) => l.glAccountId === GL.CASH)?.credit).toBe(500);
+    expect(result.lines.find((l) => l.glAccountId === GL.DEPOSIT)?.debit).toBe(500);
+    expect(result.overShort).toBe(0);
+  });
+});
+
 // ─── B3 classified returns: restock vs. writeoff branching ──────
 
 function makeReturn(overrides: Partial<ReturnForJournal> = {}): ReturnForJournal {
@@ -972,6 +1107,70 @@ describe("buildJournalLines", () => {
     expect(result.warnings).toEqual(
       expect.arrayContaining([expect.stringContaining("out of balance by $-0.50")]),
     );
+  });
+
+  // ─── The plug is never silent ─────────────────────────────────
+  //
+  // The perversity this closes: configuring an Over/Short account used to
+  // make the generator QUIETER. Without one you got a warning; with one, the
+  // difference was absorbed and the journal reported balanced, with nothing
+  // pushed to `warnings` at all. `assertBalanced` cannot catch it either --
+  // after the plug the entry genuinely balances.
+
+  /** A day whose payment is `short` dollars under revenue + tax. */
+  function shortDay(short: number): SalesPayment {
+    return makePayment({
+      amount: round2(1063.5 - short),
+      order: {
+        id: 1,
+        hasInvoices: true,
+        taxGlId: GL.TAX,
+        taxMemo: "CT",
+        lineItems: [makeLine({ netPrice: 1000, taxAmount: 63.5, cost: 400 })],
+      },
+    });
+  }
+
+  it("warns EVERY time the plug fires, naming the amount and the journal", () => {
+    const result = buildJournalLines([shortDay(0.5)], GL.OVER_SHORT, GL.DEPOSIT, "SJ20260501");
+
+    // Still balances -- that was never the problem.
+    expect(result.totalDebits).toBe(result.totalCredits);
+    // ...but it no longer does so silently.
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([expect.stringContaining("Over/Short plug of $0.50")]),
+    );
+    expect(result.warnings[0]).toContain("SJ20260501");
+  });
+
+  it("reports the absorbed imbalance as BuildResult.overShort", () => {
+    // The only evidence left that the entry did not balance on its own,
+    // signed the same way the builder computes it (debits - credits).
+    const short = buildJournalLines([shortDay(0.5)], GL.OVER_SHORT, GL.DEPOSIT);
+    expect(short.overShort).toBe(-0.5);
+
+    const over = buildJournalLines([shortDay(-0.5)], GL.OVER_SHORT, GL.DEPOSIT);
+    expect(over.overShort).toBe(0.5);
+  });
+
+  it("reports overShort as 0 when the journal balanced on its own", () => {
+    const result = buildJournalLines([makePayment()], GL.OVER_SHORT, GL.DEPOSIT);
+    expect(result.overShort).toBe(0);
+    expect(result.lines.find((l) => l.glAccountId === GL.OVER_SHORT)).toBeUndefined();
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("grades a $0.02 rounding plug as noise and a $12,000 plug as a missing payment", () => {
+    const rounding = buildJournalLines([shortDay(0.02)], GL.OVER_SHORT, GL.DEPOSIT);
+    expect(rounding.warnings[0]).toContain("Over/Short plug of $0.02");
+    expect(rounding.warnings[0]).toContain("Within the $1.00 rounding threshold");
+    expect(rounding.warnings[0]).not.toContain("Do not export");
+
+    const material = buildJournalLines([shortDay(12000)], GL.OVER_SHORT, GL.DEPOSIT);
+    expect(material.warnings[0]).toContain("Over/Short plug of $12000.00");
+    expect(material.warnings[0]).toContain("above the $1.00 review threshold");
+    expect(material.warnings[0]).toContain("Do not export");
+    expect(Math.abs(material.overShort)).toBe(12000);
   });
 
   it("warns when line item has no account group mapping", () => {

@@ -14,11 +14,11 @@
 // GL codes and account roles follow docs/domains/accounting.md's
 // documented chart exactly (1-1006 Cash, 1-1200/1-1203 deposits, 1-13XX
 // inventory by department, 2-2120 tax payable, 2-2127 gift-card liability,
-// 4-40XX sales by department, 4-0005 Over/Short, 5-52XX COGS by
-// department). Store Credit (2-2128) and the per-department shrinkage
-// account (shared 5-5010) aren't in that doc's worked example but follow
-// the same numbering convention -- the doc's sample simply predates a day
-// with a store-credit redemption or a classified write-off.
+// 4-40XX sales by department, 5-52XX COGS by department). Store Credit
+// (2-2128), the per-department shrinkage account (shared 5-5010) and Cash
+// Over/Short (5-5900) aren't in that doc's worked example but follow the
+// same numbering convention -- the doc's sample simply predates a day with
+// a store-credit redemption or a classified write-off.
 //
 // Reference values (CT district, 6.35%, 3 exempt reasons, "Standard
 // Retail" tax group) intentionally match prisma/seed/tax.ts's seed data --
@@ -61,7 +61,19 @@ export async function seedAccounting(prisma: PrismaClient): Promise<AccountingSe
   await upsertGl("2-2120", "CT Sales Tax Payable", "LIABILITY");
   await upsertGl("2-2127", "Gift Card Liability", "LIABILITY");
   await upsertGl("2-2128", "Store Credit Liability", "LIABILITY");
-  await upsertGl("4-0005", "Over/Short", "REVENUE");
+  // Cash Over/Short is an operating expense, not sales. It was seeded as
+  // `4-0005` typed REVENUE, which put every balancing plug the JE generator
+  // posted straight into the revenue bucket -- a misstatement of sales, and
+  // one that sent whoever reconciled the day hunting through orders for a
+  // discrepancy that was never in the orders. `5-5900` / EXPENSE matches both
+  // ordinary practice and the fixture already used by
+  // __tests__/integration/generateSalesJournal.integration.test.ts.
+  //
+  // Safe to move because nothing reads this account by code any more: the
+  // reconciliation resolves it through the SystemGLMapping row below
+  // (lib/dailyReconciliation.ts), and the generator always did
+  // (lib/journalEntry.ts).
+  await upsertGl("5-5900", "Cash Over/Short", "EXPENSE");
   await upsertGl("5-5005", "Transfers (Between Stores)", "EXPENSE");
   await upsertGl("5-5010", "Shrinkage / Write-offs", "EXPENSE");
   await upsertGl("5-5300", "Purchase Invoice Accrual / Freight", "LIABILITY");
@@ -136,7 +148,7 @@ export async function seedAccounting(prisma: PrismaClient): Promise<AccountingSe
 
   // --- SystemGLMapping: POS_TRANSACTIONS ------------------------------
   await upsertMapping("POS_TRANSACTIONS", "Sales Tax", "2-2120");
-  await upsertMapping("POS_TRANSACTIONS", "Over/Short", "4-0005");
+  await upsertMapping("POS_TRANSACTIONS", "Over/Short", "5-5900");
 
   // --- Tax setup (CT district, Standard Retail 6.35%, 3 exempt reasons) --
   const ct = await prisma.taxDistrict.upsert({

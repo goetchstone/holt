@@ -26,6 +26,9 @@ import { resetTestDb } from "@/lib/testing/withTestDb";
 import { generateSalesJournal } from "@/lib/journalEntry";
 
 const DAY = new Date("2026-04-28T00:00:00Z");
+// Used by the native-refund scenarios: the sale posts on this day, the refund
+// lands on DAY, so the refund's journal is a different journal from the sale's.
+const PRIOR_DAY = new Date("2026-04-27T00:00:00Z");
 
 // ─── Fixture builder ─────────────────────────────────────────────────
 //
@@ -672,18 +675,155 @@ describe("generateSalesJournal (real DB)", () => {
 
       const result = await generateSalesJournal(DAY);
 
-      expect(result.warnings).toEqual([]);
       const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
       // Net cash = 1063.50 (sale) - 200 (native refund) - 100 (imported refund) = 763.50.
       // All three payments share the same Cash GL, so they net into ONE line.
       expect(byCode.get("1-1006")?.debit).toBe(763.5);
       expect(byCode.get("1-1006")?.credit).toBe(0);
-      // The JE must still balance even though the $300 of refunds has no
+      // The JE still balances even though the $300 of refunds has no
       // offsetting revenue/COGS/tax reversal (standalone refunds here, not
-      // return line items) -- the Over/Short plug absorbs the difference,
-      // same as it would for any other day-level drift.
+      // return line items) -- the Over/Short plug absorbs the difference.
       expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
       expect(byCode.get("5-5900")?.debit).toBe(300); // Over/Short plug
+      // ...but it no longer does so silently. This assertion used to read
+      // `expect(result.warnings).toEqual([])`: a $300 plug produced a journal
+      // that reported itself balanced and said nothing at all.
+      expect(result.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining("Over/Short plug of $300.00")]),
+      );
+    });
+  });
+
+  // ─── A native refund must not re-book the original sale ────────────────
+  //
+  // `paymentService.processRefund` writes the refund row against the ORIGINAL
+  // SalesOrder, with `originalPaymentId` pointing at the payment it reverses.
+  // On the refund's day the generator therefore loaded an order whose line
+  // items are the original POSITIVE sale lines -- and booked them again, in
+  // the same direction as the sale. One $1,000 sale produced $2,000 of
+  // recognized revenue across two days, and the resulting imbalance
+  // disappeared into the Over/Short plug.
+  describe("native refund does not re-recognize the original sale", () => {
+    it("books only the cash leg when the refund lands on a later day", async () => {
+      const fx = await seedAccountingFixtures();
+      const order = await seedSale({
+        productId: fx.product.id,
+        netPrice: 1000,
+        cost: 400,
+        vatAmount: 63.5,
+        paymentAmount: 1063.5,
+        withInvoice: true,
+      });
+      // Move the sale's payment to the previous day: its revenue belongs to
+      // THAT day's journal, and must not reappear in this one.
+      const salePayment = await prisma.payment.findFirstOrThrow({
+        where: { salesOrderId: order.id },
+      });
+      await prisma.payment.update({
+        where: { id: salePayment.id },
+        data: { paymentDate: PRIOR_DAY },
+      });
+      // processRefund's exact output shape: positive amount, isRefund true,
+      // originalPaymentId pointing back at the sale payment.
+      await prisma.payment.create({
+        data: {
+          salesOrderId: order.id,
+          paymentAmount: 1063.5,
+          paymentDate: DAY,
+          status: "COMPLETED",
+          paymentType: "Cash",
+          isRefund: true,
+          originalPaymentId: salePayment.id,
+        },
+      });
+
+      const result = await generateSalesJournal(DAY);
+      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+
+      // Cash goes out.
+      expect(byCode.get("1-1006")?.credit).toBe(1063.5);
+      // The original sale's legs are NOT recognized a second time. Each of
+      // these produced a line before the fix.
+      expect(byCode.get("4-4080")).toBeUndefined(); // revenue
+      expect(byCode.get("5-5280")).toBeUndefined(); // COGS
+      expect(byCode.get("1-1380")).toBeUndefined(); // inventory
+      expect(byCode.get("2-2120")).toBeUndefined(); // tax
+      // The unreversed refund surfaces as a plug WITH a warning, instead of
+      // as a smaller plug plus $1,000 of phantom revenue.
+      expect(byCode.get("5-5900")?.debit).toBe(1063.5);
+      expect(result.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining("Over/Short plug of $1063.50")]),
+      );
+      expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+    });
+
+    it("recognizes the sale exactly once when sale and refund fall on the same day", async () => {
+      // The guard must not mark the order processed, or whichever row Prisma
+      // returned first would decide whether the sale is booked at all.
+      const fx = await seedAccountingFixtures();
+      const order = await seedSale({
+        productId: fx.product.id,
+        netPrice: 1000,
+        cost: 400,
+        vatAmount: 63.5,
+        paymentAmount: 1063.5,
+        withInvoice: true,
+      });
+      const salePayment = await prisma.payment.findFirstOrThrow({
+        where: { salesOrderId: order.id },
+      });
+      await prisma.payment.create({
+        data: {
+          salesOrderId: order.id,
+          paymentAmount: 400,
+          paymentDate: DAY,
+          status: "COMPLETED",
+          paymentType: "Cash",
+          isRefund: true,
+          originalPaymentId: salePayment.id,
+        },
+      });
+
+      const result = await generateSalesJournal(DAY);
+      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+
+      // Once. Not zero times, not twice.
+      expect(byCode.get("4-4080")?.credit).toBe(1000);
+      expect(byCode.get("5-5280")?.debit).toBe(400);
+      // Net cash = 1063.50 in - 400 out.
+      expect(byCode.get("1-1006")?.debit).toBe(663.5);
+      expect(byCode.get("5-5900")?.debit).toBe(400); // the unreversed refund
+      expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+    });
+
+    it("leaves an IMPORTED POS return booking its full sale-in-reverse", async () => {
+      // Regression guard on the fix itself. Imported returns also carry
+      // isRefund, so keying the guard on that flag instead of on
+      // originalPaymentId would have stopped booking every imported return's
+      // reversal and dumped the whole refund into the plug.
+      const fx = await seedAccountingFixtures();
+      await seedSale({
+        productId: fx.product.id,
+        netPrice: -500,
+        cost: -200,
+        vatAmount: -31.75,
+        paymentAmount: -531.75, // Ordorite shape: already negative
+        withInvoice: true,
+      });
+      // isRefund, but no originalPaymentId -- the import never sets one.
+      await prisma.payment.updateMany({ data: { isRefund: true } });
+
+      const result = await generateSalesJournal(DAY);
+      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+
+      expect(byCode.get("1-1006")?.credit).toBe(531.75);
+      expect(byCode.get("4-4080")?.debit).toBe(500); // revenue reversed
+      expect(byCode.get("2-2120")?.debit).toBe(31.75); // tax reversed
+      expect(byCode.get("5-5280")?.credit).toBe(200); // COGS reversed
+      expect(byCode.get("1-1380")?.debit).toBe(200); // restocked
+      // Balances on its own -- no plug, no warning.
+      expect(byCode.get("5-5900")).toBeUndefined();
+      expect(result.warnings).toEqual([]);
     });
   });
 });

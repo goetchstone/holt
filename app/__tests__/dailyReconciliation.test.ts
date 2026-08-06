@@ -11,6 +11,7 @@
 // Phase 0 control C1 from the SOR plan (2026-04-28).
 
 import { compareReconciliation, RECONCILIATION_TOLERANCE } from "../src/lib/dailyReconciliation";
+import { OVER_SHORT_ALERT_THRESHOLD } from "../src/lib/glMapping";
 
 describe("compareReconciliation", () => {
   const balancedSource = {
@@ -24,6 +25,7 @@ describe("compareReconciliation", () => {
     tax: 63.5,
     cost: 400,
     cash: 1063.5,
+    overShort: 0,
   };
 
   it("reports balanced when all four pairs match", () => {
@@ -51,6 +53,7 @@ describe("compareReconciliation", () => {
       tax: 60,
       cost: 410,
       cash: 1050,
+      overShort: 0,
     });
     expect(result.balanced).toBe(false);
     expect(result.warnings).toHaveLength(4);
@@ -86,7 +89,7 @@ describe("compareReconciliation", () => {
     // Day has only refunds: source revenue is negative, JE shape mirrors
     const result = compareReconciliation(
       { revenue: -500, tax: -31.75, cost: -200, cash: -531.75 },
-      { revenue: -500, tax: -31.75, cost: -200, cash: -531.75 },
+      { revenue: -500, tax: -31.75, cost: -200, cash: -531.75, overShort: 0 },
     );
     expect(result.balanced).toBe(true);
   });
@@ -109,5 +112,65 @@ describe("compareReconciliation", () => {
   it("exposes RECONCILIATION_TOLERANCE as a stable constant", () => {
     // Tripwire so a future "loosen the tolerance" PR is visible
     expect(RECONCILIATION_TOLERANCE).toBe(0.01);
+  });
+
+  // ─── Over/Short plug ──────────────────────────────────────────
+  //
+  // The plug has no source-side counterpart, so it is not a drift
+  // category. It is reported on its own and it is never revenue.
+
+  it("flags a material Over/Short plug even when every drift pair matches", () => {
+    // The dangerous shape: source and journal agree on all four buckets
+    // because the plug is what made them agree. Before the plug was pulled
+    // out of the revenue bucket, this day reported clean.
+    const result = compareReconciliation(balancedSource, {
+      ...balancedJournal,
+      overShort: 12000,
+    });
+    expect(result.balanced).toBe(false);
+    expect(result.drift).toEqual({ revenue: 0, tax: 0, cost: 0, cash: 0 });
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain("Over/Short plug $12000.00");
+    expect(result.warnings[0]).toContain("balances only because of it");
+  });
+
+  it("does not flag a rounding-sized plug", () => {
+    // $0.02 of rounding is noise. It is still reported as journal.overShort
+    // (the log column and both admin tables show it), it just does not turn
+    // the day amber.
+    const result = compareReconciliation(balancedSource, {
+      ...balancedJournal,
+      overShort: 0.02,
+    });
+    expect(result.balanced).toBe(true);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("flags a plug in either direction", () => {
+    const credit = compareReconciliation(balancedSource, { ...balancedJournal, overShort: 5000 });
+    const debit = compareReconciliation(balancedSource, { ...balancedJournal, overShort: -5000 });
+    expect(credit.balanced).toBe(false);
+    expect(debit.balanced).toBe(false);
+    expect(debit.warnings[0]).toContain("5000.00");
+  });
+
+  it("grades the plug at OVER_SHORT_ALERT_THRESHOLD, not the drift tolerance", () => {
+    // Boundary tripwire. A $0.50 plug sits above the $0.01 drift tolerance
+    // but below the $1.00 plug threshold -- it must NOT flag, or every
+    // rounding day goes amber.
+    const under = compareReconciliation(balancedSource, { ...balancedJournal, overShort: 0.5 });
+    expect(under.balanced).toBe(true);
+
+    const over = compareReconciliation(balancedSource, {
+      ...balancedJournal,
+      overShort: OVER_SHORT_ALERT_THRESHOLD + 0.01,
+    });
+    expect(over.balanced).toBe(false);
+  });
+
+  it("exposes OVER_SHORT_ALERT_THRESHOLD as a stable constant", () => {
+    // Same tripwire intent as the tolerance one above: raising the bar for
+    // "this plug is worth waking someone about" should be visible in a diff.
+    expect(OVER_SHORT_ALERT_THRESHOLD).toBe(1.0);
   });
 });
