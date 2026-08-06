@@ -24,6 +24,7 @@ import {
   classifyPOReceiptStatus,
   findProduct,
   clearAutoCreateCachesForTesting,
+  ordoriteHoldsCommittedStock,
 } from "@/lib/adapters/ordorite/shared";
 import {
   safeString,
@@ -727,6 +728,49 @@ describe("classifyPOReceiptStatus", () => {
     // line count the PO should be considered fully received rather than
     // silently dropped.
     expect(classifyPOReceiptStatus(2, 3)).toBe("RECEIVED_FULL");
+  });
+});
+
+// ─── ordoriteHoldsCommittedStock ───────────────────────────────────
+//
+// The one place the "Customer%" stock-location naming convention still
+// lives. It used to be a literal inside lib/inventory/allocation.ts and
+// lib/reports/buyersReport.ts, which meant every deployment inherited
+// Ordorite's naming whether or not it used it. Now it is one adapter's
+// fact about its own source, translated into StockLocation
+// .holdsCommittedStock at the point the adapter creates a location
+// (CLAUDE.md rule 61 / 62).
+
+describe("ordoriteHoldsCommittedStock", () => {
+  it("is set for a Customer-prefixed location", () => {
+    expect(ordoriteHoldsCommittedStock("Customer Sofas")).toBe(true);
+  });
+
+  it("is NOT set for an ordinary warehouse location", () => {
+    expect(ordoriteHoldsCommittedStock("Warehouse A")).toBe(false);
+  });
+
+  it("matches case-insensitively — the CSV is not consistent about it", () => {
+    expect(ordoriteHoldsCommittedStock("customer holds")).toBe(true);
+    expect(ordoriteHoldsCommittedStock("CUSTOMER PICKUP")).toBe(true);
+    expect(ordoriteHoldsCommittedStock("cUsToMeR misc")).toBe(true);
+  });
+
+  it("matches the bare word and ignores surrounding whitespace", () => {
+    expect(ordoriteHoldsCommittedStock("Customer")).toBe(true);
+    expect(ordoriteHoldsCommittedStock("  Customer Sofas  ")).toBe(true);
+  });
+
+  it("only matches at the START of the name", () => {
+    // "Returns from Customer" is a returns bay, not committed stock.
+    expect(ordoriteHoldsCommittedStock("Returns from Customer")).toBe(false);
+    expect(ordoriteHoldsCommittedStock("West Customer Hold")).toBe(false);
+  });
+
+  it("is false for an empty or missing name rather than throwing", () => {
+    expect(ordoriteHoldsCommittedStock("")).toBe(false);
+    expect(ordoriteHoldsCommittedStock(null)).toBe(false);
+    expect(ordoriteHoldsCommittedStock(undefined)).toBe(false);
   });
 });
 

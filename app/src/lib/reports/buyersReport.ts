@@ -9,9 +9,17 @@
 // The on-hand / customer-stock / on-order / stock-vs-special classification SQL
 // is load-bearing and copied as-is — every WHERE clause, the
 // `lineItemStatus != 'CANCELLED'` filter (rule 33), the customer-hold
-// location heuristic (`sl.name ILIKE 'customer%'`), the Issue #168 same-SO
-// gates, and the cost waterfall are preserved exactly. Do not change the
-// classification, on-hand, weeks-of-supply, or sell-through math here.
+// location split, the Issue #168 same-SO gates, and the cost waterfall are
+// preserved exactly. Do not change the classification, on-hand,
+// weeks-of-supply, or sell-through math here.
+//
+// The one thing that HAS changed: the customer-hold split used to test
+// `sl.name ILIKE 'customer%'` — an Ordorite naming convention hardcoded into
+// shared reporting code (rule 61). It now reads
+// `StockLocation.holdsCommittedStock`, which migration
+// 20260806163000_stock_location_holds_committed_stock backfilled from
+// exactly that string test: same rows, same numbers, but a deployment that
+// names its locations differently can finally be classified correctly.
 
 import type { PrismaClient } from "@prisma/client";
 import { buildBuyersRollup, type ProductFact, type BuyersPivot } from "@/lib/buyersRollup";
@@ -241,17 +249,25 @@ export async function getBuyersSummary(prisma: PrismaClient, params: BuyersSumma
   //   OrderLineItem(productId)               -- sold GROUP BY target
   const [onHandRows, customerStockRows, onOrderRows, soldRows] = (await Promise.all([
     // 1) Floor stock per product, AND stock-at-a-customer-hold-location.
-    //    Splits InventoryPosition via stock-location name: anything at
-    //    a StockLocation whose name starts with "Customer" (e.g.
-    //    "Customer Sofas") is already spoken for and should NOT count
-    //    as available-to-sell. InventoryPosition.salesOrderId exists in
-    //    the schema but is 100% NULL in our data -- location name is
-    //    the actual signal.
+    //    Splits InventoryPosition on StockLocation.holdsCommittedStock:
+    //    stock sitting in a flagged location is already spoken for and
+    //    should NOT count as available-to-sell. In Ordorite-fed data
+    //    those are the locations named "Customer ..." (the adapter sets
+    //    the flag from that name); a deployment with different naming
+    //    sets the flag from the admin UI instead.
+    //
+    //    The join is a LEFT JOIN -- InventoryPosition.stockLocationId is
+    //    nullable, and a position with no stock location is floor stock --
+    //    so the flag arrives as NULL for those rows and MUST be
+    //    COALESCEd. A bare `CASE WHEN sl."holdsCommittedStock"` would
+    //    land in ELSE for a NULL, which happens to be the right bucket
+    //    here; spelling it out means the second reader doesn't have to
+    //    re-derive that, and the sign can't flip by accident.
     prisma.$queryRawUnsafe(
       `
           SELECT ip."productId" AS "productId",
-                 COALESCE(SUM(CASE WHEN sl.name ILIKE 'customer%' THEN 0 ELSE ip.quantity END), 0)::bigint AS floor_qty,
-                 COALESCE(SUM(CASE WHEN sl.name ILIKE 'customer%' THEN ip.quantity ELSE 0 END), 0)::bigint AS customer_loc_qty
+                 COALESCE(SUM(CASE WHEN COALESCE(sl."holdsCommittedStock", FALSE) THEN 0 ELSE ip.quantity END), 0)::bigint AS floor_qty,
+                 COALESCE(SUM(CASE WHEN COALESCE(sl."holdsCommittedStock", FALSE) THEN ip.quantity ELSE 0 END), 0)::bigint AS customer_loc_qty
           FROM "InventoryPosition" ip
           LEFT JOIN "StockLocation" sl ON sl.id = ip."stockLocationId"
           WHERE 1=1
@@ -510,8 +526,16 @@ export async function getBuyersPositions(
         vendor: { select: { name: true } },
       },
     }),
-    // Per-location breakdown with the same customer-hold-location
-    // heuristic the main summary query uses (sl.name ILIKE 'customer%').
+    // Per-location breakdown with the same customer-hold-location test
+    // the main summary query uses (StockLocation.holdsCommittedStock,
+    // COALESCEd because the join is LEFT).
+    //
+    // `holdsCommittedStock` is added to the GROUP BY, not just the SELECT.
+    // The old form was an expression OVER a grouped column (sl.name), so
+    // Postgres accepted it; a bare column reference is not functionally
+    // dependent on `sl.name` (which is not sl's primary key) and would
+    // fail with "must appear in the GROUP BY clause". Grouping by it
+    // cannot split a row either -- it is single-valued per StockLocation.
     prisma.$queryRawUnsafe<
       Array<{
         store_name: string | null;
@@ -526,13 +550,13 @@ export async function getBuyersPositions(
             store.name AS store_name,
             sl.code AS loc_code,
             sl.name AS loc_name,
-            COALESCE(sl.name ILIKE 'customer%', FALSE) AS is_customer,
+            COALESCE(sl."holdsCommittedStock", FALSE) AS is_customer,
             COALESCE(SUM(ip.quantity), 0)::bigint AS qty
           FROM "InventoryPosition" ip
           LEFT JOIN "StoreLocation" store ON store.id = ip."storeLocationId"
           LEFT JOIN "StockLocation" sl ON sl.id = ip."stockLocationId"
           WHERE ip."productId" = $1
-          GROUP BY store.name, sl.code, sl.name
+          GROUP BY store.name, sl.code, sl.name, sl."holdsCommittedStock"
           ORDER BY store.name NULLS LAST, sl.code NULLS LAST
         `,
       productId,
@@ -540,6 +564,13 @@ export async function getBuyersPositions(
     // On-order summary: floor-stock POs only (exclude customer-allocated
     // via salesOrderId, orderLineItemId, externalPorNo). Earliest ESD
     // tells the buyer "first arrival is X weeks out".
+    //
+    // `estimatedShipDate` is aliased off `po`, not `poi`. It lives on
+    // PurchaseOrder; PurchaseOrderItem has no such column, so this query
+    // threw `column poi.estimatedShipDate does not exist` and took the whole
+    // per-product drill-down with it (the four queries share a Promise.all).
+    // Found by the committed-stock integration test, which is the first thing
+    // to call getBuyersPositions against a real database.
     prisma.$queryRawUnsafe<Array<{ on_order: string; earliest_esd: Date | null }>>(
       `
           WITH received AS (
@@ -548,7 +579,7 @@ export async function getBuyersPositions(
           )
           SELECT
             COALESCE(SUM(poi."orderedQuantity" - COALESCE(rcv.qty, 0)), 0)::text AS on_order,
-            MIN(poi."estimatedShipDate") AS earliest_esd
+            MIN(po."estimatedShipDate") AS earliest_esd
           FROM "PurchaseOrderItem" poi
           JOIN "PurchaseOrder" po ON po.id = poi."purchaseOrderId"
           LEFT JOIN received rcv ON rcv."purchaseOrderItemId" = poi.id

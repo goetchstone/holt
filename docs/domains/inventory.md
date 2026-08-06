@@ -9,7 +9,7 @@ Stock positions, physical counts, reconciliation, transfers, warehouse dashboard
 | `Product` | Catalog item (vendor + part number + name) |
 | `ProductVariant` | Size/color/finish for flat-priced vendors |
 | `Upc` | UPC/barcode → Product link (one product can have many barcodes) |
-| `StockLocation` | Physical floor location (Main Showroom front, West Showroom warehouse, etc.) — has `name` + `code` + `locationAliases` array |
+| `StockLocation` | Physical floor location (Main Showroom front, West Showroom warehouse, etc.) — has `name` + `code` + `locationAliases` array, plus `holdsCommittedStock` (stock here is on hand but already sold — see "Two signals" below) |
 | `InventoryPosition` | One row per (product, location) with on-hand quantity. Daily-overwritten by Stock-by-Item import. |
 | `InventorySnapshot` | The expected on-hand baseline a physical count is measured against. Transient working table — regenerated per count, and cleared by `clear-snapshot` (scoped by `source`). Identity is holt's own `productId` + `storeLocationId`, not a POS id — see "Inventory snapshot generation" below. |
 | `PhysicalInventoryCount` | Per-scan log during a physical count event |
@@ -43,12 +43,35 @@ order write commits stock to an order that failed to save.
 ### Two signals for "spoken for", honoured not unified
 
 - `salesOrderId` set — committed by a **native** holt sale.
-- `StockLocation.name` starting `Customer` — the **Ordorite** convention, real
-  in 50k+ imported orders and already read by `buyersReport.ts`.
+- `StockLocation.holdsCommittedStock` — the stock is physically here but
+  already sold. Set per location by an admin (Warehouse → Locations → edit a
+  stock location), or derived by an import adapter from its source's own
+  convention.
 
-Free stock requires *neither*. Imported rows are not migrated and
-`buyersReport` is not changed: unifying the conventions would break that report
-for every imported order to tidy up a naming choice.
+Free stock requires *neither*. `buyersReport.ts` reads the same flag for its
+floor-vs-`Cust Stock` split, so the two can't drift.
+
+**This was a hardcoded string until 2026-08.** Both `allocation.ts` and
+`buyersReport.ts` tested `StockLocation.name ILIKE 'customer%'` — an
+Ordorite/Saybrook naming convention living in shared inventory code, so any
+deployment that named its holding locations differently silently counted
+committed stock as available to sell. Migration
+`20260806163000_stock_location_holds_committed_stock` added the flag and
+backfilled it from exactly that string test, which is the whole equivalence
+guarantee: an existing Ordorite-fed database classifies every position the
+same after the migration as before it. The prefix itself now lives in
+`ordoriteHoldsCommittedStock()` in `lib/adapters/ordorite/shared.ts`, applied
+wherever that adapter creates a stock location — one adapter's fact about its
+source, not a product assumption (CLAUDE.md rule 61/62).
+
+The nullable-FK trap comes with it: `InventoryPosition.stockLocationId` is
+nullable and a position with **no** stock location is free stock, so the
+predicate is a disjunction —
+`OR: [{ stockLocationId: null }, { stockLocation: { holdsCommittedStock: false } }]`
+— not `NOT: { stockLocation: {…} }`, which is rule 51's three-valued-logic
+hazard on a to-one relation. Callers spread `freePositionWhere()` into a
+larger clause, so a caller that needs its own disjunction must nest it under
+`AND` rather than setting a sibling `OR:` that would overwrite this one.
 
 ### Overselling is allowed, deliberately
 
@@ -132,7 +155,7 @@ Operational views over the same inventory data:
 | `warehouse/awaiting-delivery.tsx` | All ORDER-status orders w/ balance due, age, linked-PO status (see `docs/domains/sales-orders.md`) |
 | `warehouse/dispatch.tsx` | Drag-and-drop assignment to delivery runs (see `docs/domains/service-dispatch.md`) |
 | `warehouse/returns.tsx` | Pending vendor returns (consignment) and customer-return staging |
-| `warehouse/locations.tsx` | StockLocation admin: rename, add aliases, view position counts |
+| `warehouse/locations.tsx` | StockLocation admin: rename, add aliases, mark a location as holding committed stock, view position counts |
 
 ## Transfers
 
@@ -185,6 +208,9 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 ## Test coverage
 
 - `buyersStockSpecialClassifier.integration.test.ts` — real-DB classifier for stock-special items
+- `buyersCommittedStockSplit.integration.test.ts` — real-DB floor-vs-customer split, fixtured **inverted** against the retired name heuristic (a flagged "Warehouse B", an unflagged "Customer Overflow")
+- `inventoryAllocation.integration.test.ts` — allocate/release/consume lifecycle, including the same inversion for the free-stock predicate and the no-stock-location case
+- `ordoriteShared.test.ts` — `ordoriteHoldsCommittedStock`, the adapter-local name convention
 - No dedicated tests for `runStockByItemImport`'s catch-all routing — **gap, worth a tripwire**
 - No tests for the reconcile + undo-reconcile round-trip
 - `inventorySnapshot.test.ts` — unit tests for `summarizeInventoryAggregate` (the shared freeze/snapshot roll-up)
