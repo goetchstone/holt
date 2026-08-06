@@ -295,6 +295,7 @@ model Product {
   purchaseOrderItems          PurchaseOrderItem[]
   inventoryTransfers          InventoryTransfer[]
   inventoryPositions          InventoryPosition[]
+  inventoryExceptions         InventoryException[]
   reconciledUnidentifiedScans UnidentifiedScan[]
   returns                     Return[]
 
@@ -1431,6 +1432,7 @@ model StoreLocation {
   stockLocations      StockLocation[]
   registers           Register[]
   inventoryPositions  InventoryPosition[]
+  inventoryExceptions InventoryException[]
   transfersFrom       InventoryTransfer[]  @relation("TransferFrom")
   transfersTo         InventoryTransfer[]  @relation("TransferTo")
   receivingRecords    ReceivingRecord[]
@@ -1517,6 +1519,49 @@ model InventoryPosition {
   updatedBy String?
 
   @@unique([productId, storeLocationId, stockLocationId, salesOrderId])
+}
+
+/// A shortfall recorded by `allocate()` (src/lib/inventory/allocation.ts): a
+/// sale went through with less free stock than requested. Overselling is
+/// allowed on purpose -- see that file's header -- the sale is never blocked
+/// or warned at the register. This is where the gap lands instead, per the
+/// owner's rule: "get the sale first, but also know that there is an issue
+/// for someone (back office perhaps) to address." One row per (order,
+/// product, store) shortfall at the moment it happened; it is a log of what
+/// occurred, not a live-recomputed view, so a later resync (line edit,
+/// cancel) never rewrites or deletes a past row.
+model InventoryException {
+  id Int @id @default(autoincrement())
+
+  salesOrderId Int
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id])
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+
+  storeLocationId Int
+  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id])
+
+  requested Int
+  allocated Int
+  shortfall Int
+
+  occurredAt DateTime @default(now())
+
+  // Set when back office has addressed the shortfall (received a PO,
+  // corrected a count, etc). NULL => still open. Same nullable-timestamp
+  // pattern as PayPeriodIssue.resolvedAt / ErrorEvent.resolvedAt.
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  resolutionNote String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([resolvedAt])
+  @@index([salesOrderId])
 }
 
 model DeliveryZone {
@@ -2347,6 +2392,7 @@ model SalesOrder {
   payments            Payment[]
   purchaseOrders      PurchaseOrder[]
   inventoryPositions  InventoryPosition[]
+  inventoryExceptions InventoryException[]
   creditTransactions  CustomerCreditTransaction[]
   ledgerEntries       CustomerLedgerEntry[]
   serviceCases        ServiceCase[]

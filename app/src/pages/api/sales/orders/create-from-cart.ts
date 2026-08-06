@@ -9,8 +9,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import { logError } from "@/lib/logger";
+import { logError, logger } from "@/lib/logger";
 import { priceCart, type CartDiscount } from "@/lib/pos/cartPricing";
+import { allocate, type AllocationLine } from "@/lib/inventory/allocation";
+import { resolveOrderStoreLocationId, recordShortfalls } from "@/lib/inventory/orderInventorySync";
 
 interface CartItem {
   type?: "PRODUCT" | "CONFIGURED" | "CUSTOM";
@@ -227,6 +229,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
               : 0;
 
         lineItemData.push({
+          // Carried for the allocation filter below, not persisted -- a
+          // made-to-order line must never draw down floor stock.
+          itemType,
           lineNumber: idx + 1,
           productId,
           productName: productName || "Unknown",
@@ -267,7 +272,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           // recoverable as subtotal minus the sum of line netPrice. Adding
           // one is a schema change out of scope here; flagging it rather
           // than adding a migration.
-          lineItems: { create: lineItemData },
+          lineItems: {
+            // Strip itemType -- it drives the allocation filter above and is
+            // not an OrderLineItem column.
+            create: lineItemData.map(({ itemType: _itemType, ...line }) => line),
+          },
         },
         select: {
           id: true,
@@ -275,6 +284,42 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           status: true,
         },
       });
+
+      // Commit stock for this sale in the same transaction as the order
+      // write -- allocation that isn't atomic with the order is how stock
+      // gets committed to an order that then fails to save. `quantity` is
+      // passed signed (not Math.abs'd): a return line's quantity is
+      // negative here, and allocate() already skips non-positive
+      // quantities, so a return never allocates. Never fails the sale --
+      // if the store location can't be resolved, skip and log instead.
+      const storeLocationId = await resolveOrderStoreLocationId(storeLocation, tx);
+      if (storeLocationId != null) {
+        const allocationLines: AllocationLine[] = lineItemData
+          // CONFIGURED and CUSTOM lines mint a brand-new Product a few lines
+          // above, so they have no InventoryPosition by construction and never
+          // will. Allocating them would post a full-shortfall
+          // InventoryException on every made-to-order sale -- which for a
+          // furniture retailer is a large share of them. The queue exists so
+          // somebody notices a real discrepancy; filling it with the normal
+          // case is how it gets ignored. A made-to-order item was never in
+          // stock and was never expected to be.
+          .filter((item) => item.productId != null && item.itemType === "PRODUCT")
+          .map((item) => ({
+            productId: item.productId as number,
+            quantity: item.orderedQuantity,
+            storeLocationId,
+          }));
+
+        if (allocationLines.length > 0) {
+          const allocationResult = await allocate(created.id, allocationLines, tx);
+          await recordShortfalls(created.id, allocationResult.shortfalls, tx);
+        }
+      } else {
+        logger.warn("Inventory allocation skipped -- storeLocationId could not be resolved", {
+          orderId: created.id,
+          storeLocation,
+        });
+      }
 
       return {
         ...created,

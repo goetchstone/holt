@@ -119,6 +119,11 @@ const ITEMS: CardGridItem[] = [
     href: "/app/admin/login-activity",
     roles: ["ADMIN"],
   },
+  {
+    title: "Inventory Exceptions",
+    description: "Sales that went through oversold -- the queue of shortfalls to address.",
+    href: "/app/admin/inventory-exceptions",
+  },
 ];
 
 export default async function AdminLandingPage() {

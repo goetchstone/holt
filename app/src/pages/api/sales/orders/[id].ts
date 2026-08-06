@@ -5,8 +5,14 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { consume, release } from "@/lib/inventory/allocation";
+import { getActiveOrderLines } from "@/lib/inventory/orderInventorySync";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+/** Exported for integration tests -- same pattern as create-from-cart.ts:
+ *  calls the real Prisma client with a fake req/res + session, bypassing
+ *  requireAuthWithRole (which needs real cookies). Role enforcement is
+ *  covered by the apiRouteAuthorization tripwire. */
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id } = req.query;
 
   if (!id || typeof id !== "string") {
@@ -59,6 +65,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
               changedBy,
             },
           });
+
+          // Consume/release on the TRANSITION into a terminal state, not on
+          // every write of this route -- guarded by status !== existing.status
+          // above. The goods leaving the building (FULFILLED) deletes the
+          // committed positions outright; cancelling returns them to free
+          // stock. Both are no-ops if nothing is currently committed (e.g. a
+          // CANCELLED after FULFILLED already consumed it), which is correct,
+          // not a bug -- see allocation.ts's consume()/release() headers.
+          if (status === "FULFILLED") {
+            const lines = await getActiveOrderLines(result.id, tx);
+            await consume(result.id, lines, tx);
+          } else if (status === "CANCELLED") {
+            await release(result.id, tx);
+          }
         }
 
         return result;

@@ -5,8 +5,13 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+/** Exported for integration tests -- same pattern as create-from-cart.ts:
+ *  calls the real Prisma client with a fake req/res + session, bypassing
+ *  requireAuthWithRole (which needs real cookies). Role enforcement is
+ *  covered by the apiRouteAuthorization tripwire. */
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id, lineItemId } = req.query;
   if (!id || typeof id !== "string" || !lineItemId || typeof lineItemId !== "string") {
     return res.status(400).json({ error: "Order ID and Line Item ID are required." });
@@ -79,6 +84,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
             data: { updatedBy: changedBy },
           });
 
+          // Relinking can change which product this line commits stock
+          // against -- full resync rather than delta math.
+          await resyncOrderAllocation(orderId, order.storeLocation, tx);
+
           return updated;
         });
 
@@ -117,6 +126,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
             where: { id: orderId },
             data: { updatedBy: changedBy },
           });
+
+          // Cancelling a line changes what the order has committed --
+          // full resync rather than delta math.
+          await resyncOrderAllocation(orderId, order.storeLocation, tx);
 
           return updated;
         });
@@ -196,6 +209,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
             where: { id: orderId },
             data: { updatedBy: changedBy },
           });
+
+          // The original line is now REPLACED (inactive) and the new line
+          // is ACTIVE -- full resync rather than delta math.
+          await resyncOrderAllocation(orderId, order.storeLocation, tx);
 
           return newItem;
         });
@@ -278,6 +295,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
             data: { updatedBy: changedBy },
           });
 
+          // A quantity change moves what the order has committed -- full
+          // resync rather than delta math.
+          await resyncOrderAllocation(orderId, order.storeLocation, tx);
+
           return updated;
         });
 
@@ -332,6 +353,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           where: { id: orderId },
           data: { updatedBy: changedBy },
         });
+
+        // Removing a line changes what the order has committed -- full
+        // resync rather than delta math.
+        await resyncOrderAllocation(orderId, order.storeLocation, tx);
       });
 
       return res.status(204).end();
