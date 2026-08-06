@@ -9,10 +9,13 @@
 // Invariants preserved verbatim from the handler:
 //  - netPrice is the LINE TOTAL (not unit price); order total = sum(netPrice + vatAmount).
 //  - CLAUDE.md rule 33: cancelled lines excluded.
-//  - VOIDED/FAILED payments excluded; NULL-status payments INCLUDED (44K legacy
-//    POS rows are real money) — CLAUDE.md rule 51.
+//  - VOIDED/FAILED/PENDING payments excluded (PENDING isn't money in hand
+//    until a processor webhook confirms it — see @/lib/paymentBalance, the
+//    shared rule computeBalance also uses); NULL-status payments INCLUDED
+//    (44K legacy POS rows are real money) — CLAUDE.md rule 51.
 
 import type { PrismaClient } from "@prisma/client";
+import { PAYMENT_STATUSES_EXCLUDED_FROM_BALANCE } from "@/lib/paymentBalance";
 
 export interface BalanceRow {
   id: number;
@@ -100,7 +103,12 @@ export async function getBalanceAging(
         select: { netPrice: true, orderedQuantity: true, vatAmount: true },
       },
       payments: {
-        where: { OR: [{ status: null }, { status: { notIn: ["VOIDED", "FAILED"] } }] },
+        where: {
+          OR: [
+            { status: null },
+            { status: { notIn: [...PAYMENT_STATUSES_EXCLUDED_FROM_BALANCE] } },
+          ],
+        },
         select: { paymentAmount: true, isRefund: true },
       },
     },

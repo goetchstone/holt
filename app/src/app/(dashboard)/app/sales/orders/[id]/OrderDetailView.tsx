@@ -22,6 +22,7 @@ import { Printer, FileText, Plus, X, RefreshCw, Clock, UserCog, Search } from "l
 import Modal from "@/components/ui/Modal";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import { computeTotalPaid } from "@/lib/paymentBalance";
 
 interface LineItem {
   id: number;
@@ -78,6 +79,8 @@ interface OrderPayment {
   paymentDate: string;
   paymentType: string;
   paymentAmount: number;
+  status: string | null;
+  isRefund: boolean;
 }
 
 interface OrderCustomerRef {
@@ -494,10 +497,7 @@ export function OrderDetailView({ id }: { id: string }) {
     const activeItems = orderDetails.lineItems.filter((i) => i.lineItemStatus === "ACTIVE");
     const totalSales = activeItems.reduce((acc, item) => acc + (Number(item.netPrice) || 0), 0);
     const totalTax = activeItems.reduce((acc, item) => acc + (Number(item.vatAmount) || 0), 0);
-    const totalPaid = orderDetails.payments.reduce(
-      (acc, p) => acc + (Number(p.paymentAmount) || 0),
-      0,
-    );
+    const totalPaid = computeTotalPaid(orderDetails.payments);
     const balanceDue = totalSales + totalTax - totalPaid;
 
     if (depositMode === "50") return Math.ceil(balanceDue * 0.5);
@@ -566,6 +566,32 @@ export function OrderDetailView({ id }: { id: string }) {
     }
   }, [portalLinkUrl]);
 
+  const handleVoidPayment = useCallback(
+    async (payment: OrderPayment) => {
+      if (!orderDetails) return;
+      if (
+        !confirm(
+          `Void the pending ${formatCurrency(payment.paymentAmount)} payment from ` +
+            `${format(parseLocalDate(payment.paymentDate), "PPP")}? The customer will need a new ` +
+            `payment link if they still owe this amount.`,
+        )
+      ) {
+        return;
+      }
+      try {
+        await axios.post(
+          `/api/sales/orders/${encodeURIComponent(String(id))}/payments/${payment.id}/void`,
+          { reason: "Voided from order detail (stuck pending checkout)" },
+        );
+        toast.success("Payment voided");
+        fetchOrder();
+      } catch (err: unknown) {
+        toast.error(getErrorMessage(err, "Failed to void payment"));
+      }
+    },
+    [orderDetails, id, formatCurrency, fetchOrder],
+  );
+
   const handleConveyanceChange = async (newMethod: string) => {
     if (!orderDetails) return;
     try {
@@ -589,10 +615,12 @@ export function OrderDetailView({ id }: { id: string }) {
 
   const activeItems = orderDetails.lineItems.filter((i) => i.lineItemStatus === "ACTIVE");
   const totalSales = activeItems.reduce((acc, item) => acc + (Number(item.netPrice) || 0), 0);
-  const totalPaid = orderDetails.payments.reduce(
-    (acc, p) => acc + (Number(p.paymentAmount) || 0),
-    0,
-  );
+  // Excludes VOIDED/FAILED/PENDING and signs refunds, mirroring
+  // paymentService.computeBalance (see @/lib/paymentBalance for why this
+  // used to just sum every row with no filter at all, which double-counted
+  // VOIDED/FAILED payments and treated an unconfirmed PENDING checkout as
+  // money already in hand).
+  const totalPaid = computeTotalPaid(orderDetails.payments);
   const totalTax = activeItems.reduce((acc, item) => acc + (Number(item.vatAmount) || 0), 0);
   const balanceDue = totalSales + totalTax - totalPaid;
   const isQuote = orderDetails.status === "QUOTE";
@@ -1063,7 +1091,9 @@ export function OrderDetailView({ id }: { id: string }) {
               <tr>
                 <th className="p-2 border-b">Date</th>
                 <th className="p-2 border-b">Type</th>
+                <th className="p-2 border-b">Status</th>
                 <th className="p-2 border-b text-right">Amount</th>
+                {isManager && <th className="p-2 border-b" />}
               </tr>
             </thead>
             <tbody>
@@ -1073,9 +1103,22 @@ export function OrderDetailView({ id }: { id: string }) {
                     {format(parseLocalDate(payment.paymentDate), "PPP")}
                   </td>
                   <td className="p-2 border-b">{payment.paymentType}</td>
+                  <td className="p-2 border-b">{payment.status || "—"}</td>
                   <td className="p-2 border-b text-right">
                     {formatCurrency(payment.paymentAmount)}
                   </td>
+                  {isManager && (
+                    <td className="p-2 border-b text-right">
+                      {payment.status === "PENDING" && (
+                        <button
+                          onClick={() => handleVoidPayment(payment)}
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Void
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

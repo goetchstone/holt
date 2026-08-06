@@ -5,6 +5,8 @@
 //   - computeRunningBalance
 //   - validateAgainstSource
 //   - signForType
+//   - computeSourceBalance (added 2026-08-05 alongside the PENDING-balance
+//     fix — this function had no direct unit coverage before)
 //
 // The DB-touching `appendEntry()` is exercised separately at B grade in
 // `__tests__/integration/customerLedger.integration.test.ts` — see the
@@ -13,6 +15,7 @@
 import {
   LEDGER_TOLERANCE,
   computeRunningBalance,
+  computeSourceBalance,
   signForType,
   validateAgainstSource,
 } from "@/lib/customerLedger";
@@ -191,5 +194,75 @@ describe("signForType", () => {
       const sign = signForType(t);
       expect([1, -1]).toContain(sign);
     }
+  });
+});
+
+// ─── computeSourceBalance ──────────────────────────────────────────────
+
+describe("computeSourceBalance", () => {
+  const activeLine = (netPrice: number, vatAmount = 0) => ({
+    netPrice,
+    vatAmount,
+    lineItemStatus: "ACTIVE",
+  });
+
+  it("excludes PENDING payments from the recomputed balance", () => {
+    // Mirrors computeBalance's PENDING fix (paymentService.ts): a hosted
+    // checkout that hasn't been confirmed by a webhook isn't money in hand,
+    // so it must not reduce the customer's recomputed AR balance either —
+    // this function feeds both the daily AR-drift cron and the backfill
+    // job, and if it disagreed with computeBalance here the drift check
+    // would flag every abandoned checkout as a false "books are wrong."
+    const balance = computeSourceBalance([
+      {
+        lineItems: [activeLine(1000)],
+        payments: [{ paymentAmount: 1000, isRefund: false, status: "PENDING" }],
+      },
+    ]);
+    expect(balance).toBe(1000);
+  });
+
+  it("still includes REFUNDED payments (the original charge, netted by a separate refund row)", () => {
+    const balance = computeSourceBalance([
+      {
+        lineItems: [activeLine(1000)],
+        payments: [
+          { paymentAmount: 500, isRefund: false, status: "REFUNDED" },
+          { paymentAmount: 500, isRefund: true, status: "COMPLETED" },
+        ],
+      },
+    ]);
+    expect(balance).toBe(1000);
+  });
+
+  it("includes null-status payments (legacy POS imports) at full weight", () => {
+    const balance = computeSourceBalance([
+      { lineItems: [activeLine(500)], payments: [{ paymentAmount: 500, isRefund: false, status: null }] },
+    ]);
+    expect(balance).toBe(0);
+  });
+
+  it("excludes CANCELLED line items and VOIDED/FAILED payments, summing across multiple orders", () => {
+    const balance = computeSourceBalance([
+      {
+        lineItems: [activeLine(1000), { netPrice: 200, vatAmount: 0, lineItemStatus: "CANCELLED" }],
+        payments: [
+          { paymentAmount: 400, isRefund: false, status: "COMPLETED" },
+          { paymentAmount: 100, isRefund: false, status: "VOIDED" },
+          { paymentAmount: 50, isRefund: false, status: "FAILED" },
+        ],
+      },
+      {
+        lineItems: [activeLine(300)],
+        payments: [],
+      },
+    ]);
+    // Order 1: due 1000 (cancelled line excluded) - paid 400 = 600
+    // Order 2: due 300 - paid 0 = 300
+    expect(balance).toBe(900);
+  });
+
+  it("returns 0 for no orders", () => {
+    expect(computeSourceBalance([])).toBe(0);
   });
 });

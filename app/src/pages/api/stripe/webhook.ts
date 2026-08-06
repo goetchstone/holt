@@ -2,9 +2,10 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getPaymentProvider } from "@/lib/payments";
+import type { PaymentExpiration } from "@/lib/payments/types";
 import { resolveCredential } from "@/lib/integrationCredentials";
 import { prisma } from "@/lib/prisma";
-import { completePayment, onPaymentReceived } from "@/lib/paymentService";
+import { completePayment, expirePendingPayment, onPaymentReceived } from "@/lib/paymentService";
 import { applyInvoiceStripePayment } from "@/lib/billing/invoiceService";
 import { logError } from "@/lib/logger";
 import { reportOpsAlert } from "@/lib/opsAlert";
@@ -45,6 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   let completion;
+  let expiration: PaymentExpiration | null = null;
   try {
     const event = await provider.verifyWebhook!({
       rawBody,
@@ -53,9 +55,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       requestUrl: req.url,
     });
     completion = await provider.extractCompletion!(event);
+    // Only worth checking when this event wasn't a completion — the two are
+    // mutually exclusive per event, and extractExpiration is optional (see
+    // squareProvider.ts, which doesn't implement it at all).
+    if (!completion && provider.extractExpiration) {
+      expiration = await provider.extractExpiration(event);
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Signature verification failed";
     return res.status(400).json({ error: message });
+  }
+
+  // Authentic event, and it's the processor telling us a hosted checkout
+  // expired without being paid — end the PENDING row's life so it stops
+  // blocking re-charge attempts (findActivePendingPayment) and stops
+  // reading as "in progress" forever. No ledger entry: recordPendingPayment
+  // never posted one, so there's nothing to reverse. Unlike the completion
+  // path below, a failure here does NOT need Stripe to retry via a 500 —
+  // sweepStalePendingPayments will catch this row anyway once it goes
+  // stale, so a transient error just means the sweep gets there instead of
+  // the webhook.
+  if (expiration) {
+    const pendingPayment = await prisma.payment.findFirst({
+      where: { processorTxnId: expiration.providerTxnId, status: "PENDING" },
+    });
+    if (pendingPayment) {
+      try {
+        await expirePendingPayment(pendingPayment.id);
+      } catch (err) {
+        logError("Stripe webhook: failed to expire a stale PENDING payment", err, {
+          paymentId: pendingPayment.id,
+          sessionId: expiration.providerTxnId,
+        });
+      }
+    }
+    return res.status(200).json({ received: true });
   }
 
   // Authentic event, but not a completion (processors send many event types).

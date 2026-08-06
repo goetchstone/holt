@@ -54,6 +54,7 @@
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isPaymentExcludedFromBalance } from "@/lib/paymentBalance";
 
 export type CustomerLedgerEntryType =
   | "SALE"
@@ -313,8 +314,10 @@ export function signForType(type: CustomerLedgerEntryType): 1 | -1 {
  *     stored `Customer.openArBalance` and what the source data says.
  *
  * Filters mirror `computeBalance`: lineItemStatus='CANCELLED' lines
- * are excluded; payments with status VOIDED/FAILED are excluded;
- * isRefund=true payments SUBTRACT from totalPaid (= ADD to balanceDue).
+ * are excluded; payments with status VOIDED/FAILED/PENDING are excluded
+ * (see @/lib/paymentBalance -- PENDING isn't money in hand until a
+ * processor webhook confirms it); isRefund=true payments SUBTRACT from
+ * totalPaid (= ADD to balanceDue).
  *
  * Returns 0 if the customer has no orders. Pure-helper-friendly: the
  * caller passes pre-loaded data (no DB access here), so the function
@@ -339,8 +342,6 @@ export interface OrderForLedgerSource {
   }>;
 }
 
-const EXCLUDED_PAYMENT_STATUSES = new Set(["VOIDED", "FAILED"]);
-
 export function computeSourceBalance(orders: ReadonlyArray<OrderForLedgerSource>): number {
   let total = 0;
   for (const o of orders) {
@@ -351,7 +352,7 @@ export function computeSourceBalance(orders: ReadonlyArray<OrderForLedgerSource>
     }
     let paid = 0;
     for (const p of o.payments) {
-      if (p.status && EXCLUDED_PAYMENT_STATUSES.has(p.status)) continue;
+      if (isPaymentExcludedFromBalance(p.status)) continue;
       const amt = Number(p.paymentAmount);
       paid += p.isRefund ? -Math.abs(amt) : amt;
     }

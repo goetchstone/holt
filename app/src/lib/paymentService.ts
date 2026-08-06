@@ -6,6 +6,7 @@ import { isMarjanRug, toMarjanBarcode, toMarjanCustomerNumber } from "@/lib/cons
 import { appendEntry } from "@/lib/customerLedger";
 import { logError } from "@/lib/logger";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
+import { isPaymentExcludedFromBalance } from "@/lib/paymentBalance";
 import type { Payment } from "@prisma/client";
 
 export const round2 = (n: number): number => Math.round(n * 100) / 100;
@@ -40,12 +41,26 @@ const MICRO_BALANCE_THRESHOLD = 1.0;
 // the chain yields: base_total - card_deposit - return_total + rewrite_total
 // = rewrite_total - card_deposit. See docs/domains/POS-import.md
 // "Rewrites -- what the payments really mean" and CLAUDE.md Key Gotchas.
+//
+// PENDING PAYMENTS NOTE (fixed 2026-08-05): PENDING no longer counts toward
+// totalPaid -- it used to, on the theory that a PENDING row meant "a checkout
+// is genuinely open, don't let a second one start." That protection was real
+// but the mechanism was wrong: recordPendingPayment writes the PENDING row
+// BEFORE the customer pays, and nothing ever ended the PENDING state if they
+// abandoned or declined the checkout (no `checkout.session.expired` handling,
+// no sweeper). The result was a balance permanently reading $0 with no path
+// in the product to fix it -- direct SQL was the only way to clear the row.
+// The double-charge protection this used to serve now lives in
+// `findActivePendingPayment`, an explicit pre-checkout check in the payment-
+// creation routes, and PENDING rows get a real terminal state via the
+// webhook's expiration handling plus `sweepStalePendingPayments`. See
+// isPaymentExcludedFromBalance in @/lib/paymentBalance, which every other
+// balance computation in the app shares with this function so they can't
+// drift back apart.
 export function computeBalance(
   lineItems: LineItemForBalance[],
   payments: PaymentForBalance[],
 ): { totalDue: number; totalPaid: number; balanceDue: number } {
-  const excludedStatuses = new Set(["VOIDED", "FAILED"]);
-
   // INVARIANT: OrderLineItem.netPrice stores the LINE TOTAL (unit price × qty),
   // never the unit price. Both the POS imports and POS creation follow this model.
   // Do NOT multiply by orderedQuantity here — that was a bug that inflated totals
@@ -60,7 +75,7 @@ export function computeBalance(
 
   const totalPaid = round2(
     payments.reduce((sum, p) => {
-      if (p.status && excludedStatuses.has(p.status)) return sum;
+      if (isPaymentExcludedFromBalance(p.status)) return sum;
       const amt = Number(p.paymentAmount);
       return sum + (p.isRefund ? -Math.abs(amt) : amt);
     }, 0),
@@ -373,6 +388,158 @@ export async function recordPendingPayment(
       createdBy: input.createdBy ?? undefined,
     },
   });
+}
+
+/**
+ * How long a hosted-checkout session stays "genuinely open" before it's
+ * abandoned rather than in-flight. Stripe checkout sessions expire after 24h
+ * (Stripe's own default and maximum for `expires_at`), so this is the
+ * shared cutoff for two independent mechanisms:
+ *   - `findActivePendingPayment` treats a PENDING row older than this as
+ *     stale, so it stops blocking a new checkout.
+ *   - `sweepStalePendingPayments` treats it as abandoned and marks it
+ *     FAILED, for rows the webhook's `checkout.session.expired` handling
+ *     never caught (missed delivery, or a provider with no expiry event —
+ *     see squareProvider.ts).
+ */
+export const PENDING_SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000;
+
+export interface ActivePendingPayment {
+  id: number;
+  amount: number;
+  createdAt: Date;
+  ageMinutes: number;
+}
+
+/**
+ * Look for a PENDING payment on this order that's still within the session
+ * lifetime — i.e. a checkout that may genuinely still be open. This is the
+ * double-charge protection that used to live inside computeBalance (treating
+ * PENDING as paid, so a second payment link would show a $0 balance and
+ * refuse). Moved here so the check can be evaluated explicitly, once, at the
+ * moment a new checkout is about to be created, rather than baked into every
+ * balance read in the app.
+ *
+ * Callers should surface `amount`/`ageMinutes` to the operator ("a $400
+ * payment link is already open, started 12 minutes ago") rather than a bare
+ * refusal — the whole point is that the operator needs to know THIS,
+ * specifically, not just that something went wrong.
+ */
+export async function findActivePendingPayment(
+  orderId: number,
+): Promise<ActivePendingPayment | null> {
+  const cutoff = new Date(Date.now() - PENDING_SESSION_LIFETIME_MS);
+  const pending = await prisma.payment.findFirst({
+    where: { salesOrderId: orderId, status: "PENDING", paymentDate: { gte: cutoff } },
+    orderBy: { paymentDate: "desc" },
+  });
+  if (!pending) return null;
+  return {
+    id: pending.id,
+    amount: Number(pending.paymentAmount),
+    createdAt: pending.paymentDate,
+    ageMinutes: Math.max(0, Math.round((Date.now() - pending.paymentDate.getTime()) / 60_000)),
+  };
+}
+
+/**
+ * Void a PENDING payment deliberately — either an operator clearing a stuck
+ * row from the product (see /api/sales/orders/[id]/payments/[paymentId]/void,
+ * MANAGER/ADMIN-gated because voiding a payment row is money-adjacent), or
+ * a payment-creation route replacing an open checkout the customer says
+ * never arrived (the `force` path in create-checkout/send-payment-link/
+ * portal-pay). Only PENDING rows are eligible: a COMPLETED payment must go
+ * through `processRefund` instead, which reverses real money and posts the
+ * ledger entry this function deliberately does NOT — a PENDING row was never
+ * posted to the ledger (see recordPendingPayment), so there's nothing to
+ * reverse.
+ */
+export async function voidPendingPayment(
+  paymentId: number,
+  opts: { voidedBy?: string | null; reason?: string } = {},
+): Promise<Payment> {
+  return prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
+    if (payment.status !== "PENDING") {
+      throw new Error(
+        `Cannot void payment ${paymentId}: status is ${payment.status}, expected PENDING`,
+      );
+    }
+    return tx.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: "VOIDED",
+        updatedBy: opts.voidedBy ?? undefined,
+        processorData: opts.reason ? { voidReason: opts.reason } : undefined,
+      },
+    });
+  });
+}
+
+/**
+ * Mark a PENDING payment FAILED because the processor's checkout session (or
+ * order, for Square) expired or was abandoned without being paid. Called
+ * from two places that both need to end a PENDING row's life without ANY
+ * ledger entry — nothing was ever posted for a PENDING row, so there is
+ * nothing to reverse:
+ *   - the webhook's `checkout.session.expired` branch (immediate — Stripe
+ *     fires this the moment the session actually expires)
+ *   - `sweepStalePendingPayments` (a backstop — webhooks get missed, and
+ *     Square has no expiry event at all)
+ *
+ * Idempotent by construction: only a currently-PENDING row transitions.
+ * Returns null (rather than throwing) when the row isn't PENDING anymore —
+ * a real race the sweeper and the webhook can both hit (the customer pays
+ * at the exact moment the row goes stale), and "already resolved, leave it
+ * alone" is correct, not an error.
+ */
+export async function expirePendingPayment(paymentId: number): Promise<Payment | null> {
+  return prisma.$transaction(async (tx) => {
+    const payment = await tx.payment.findUnique({ where: { id: paymentId } });
+    if (!payment || payment.status !== "PENDING") return null;
+    return tx.payment.update({ where: { id: paymentId }, data: { status: "FAILED" } });
+  });
+}
+
+export interface StalePendingSweepResult {
+  swept: number;
+  totalAmount: number;
+  payments: { id: number; salesOrderId: number | null; amount: number; ageHours: number }[];
+}
+
+/**
+ * Backstop for `expirePendingPayment` — sweeps every PENDING row older than
+ * `PENDING_SESSION_LIFETIME_MS` (the webhook's `checkout.session.expired`
+ * handling should have already caught most of these; this exists because
+ * webhooks get missed, and Square's Payment Links API has no expiry event to
+ * miss in the first place — see squareProvider.ts). Called from the
+ * `expire-stale-pending-payments` automation, on the same Bearer-token-or-
+ * session cron pattern as the other jobs in pages/api/automations/*.
+ */
+export async function sweepStalePendingPayments(): Promise<StalePendingSweepResult> {
+  const cutoff = new Date(Date.now() - PENDING_SESSION_LIFETIME_MS);
+  const stale = await prisma.payment.findMany({
+    where: { status: "PENDING", paymentDate: { lt: cutoff } },
+    select: { id: true, salesOrderId: true, paymentAmount: true, paymentDate: true },
+  });
+
+  const swept: StalePendingSweepResult["payments"] = [];
+  for (const p of stale) {
+    const updated = await expirePendingPayment(p.id);
+    if (!updated) continue; // raced with a completion between the query and the update — leave it alone
+    swept.push({
+      id: p.id,
+      salesOrderId: p.salesOrderId,
+      amount: Number(p.paymentAmount),
+      ageHours: Math.round((Date.now() - p.paymentDate.getTime()) / 3_600_000),
+    });
+  }
+
+  return {
+    swept: swept.length,
+    totalAmount: round2(swept.reduce((sum, p) => sum + p.amount, 0)),
+    payments: swept,
+  };
 }
 
 /**

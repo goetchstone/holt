@@ -98,6 +98,22 @@ export interface PaymentCompletion {
 }
 
 /**
+ * The provider-neutral "this hosted checkout was abandoned, not paid" fact —
+ * extracted from a webhook event that reports expiration/cancellation rather
+ * than completion. Null means the event isn't an expiration (same
+ * null-means-"not this kind of event" convention as `extractCompletion`).
+ *
+ * Deliberately its own type rather than a flag on `PaymentCompletion`: an
+ * expiration carries no card/processor detail to persist, only the id
+ * needed to find the PENDING row and fail it (see completePayment's sibling,
+ * expirePendingPayment, in paymentService.ts).
+ */
+export interface PaymentExpiration {
+  /** Matches Payment.processorTxnId written at checkout-creation time. */
+  providerTxnId: string;
+}
+
+/**
  * Post-redirect status poll. The payer lands back on the success page before
  * the webhook has necessarily arrived, so the UI asks the processor directly
  * whether the money actually moved. Distinct from the webhook path: this is a
@@ -176,6 +192,16 @@ export interface PaymentProvider {
   retrieveSession?(providerTxnId: string): Promise<SessionStatus>;
   verifyWebhook?(req: WebhookVerifyRequest): Promise<VerifiedWebhookEvent>;
   extractCompletion?(event: VerifiedWebhookEvent): Promise<PaymentCompletion | null>;
+  /**
+   * Optional: only implemented by a provider whose webhook stream carries a
+   * distinct "this checkout expired/was abandoned" event. Stripe fires
+   * `checkout.session.expired`; Square's Payment Links API has no equivalent
+   * (see squareProvider.ts) and simply omits this method — callers must
+   * treat a missing implementation as "this provider never signals
+   * expiration," not as an error, and fall back to the age-based sweeper
+   * (paymentService.sweepStalePendingPayments) to close those rows out.
+   */
+  extractExpiration?(event: VerifiedWebhookEvent): Promise<PaymentExpiration | null>;
   refund?(req: RefundRequest): Promise<RefundResult>;
 
   createTerminalCheckout?(req: TerminalCheckoutRequest): Promise<TerminalCheckoutResult>;

@@ -8,7 +8,11 @@ import { prisma } from "@/lib/prisma";
 import { resolveCheckoutEmail } from "@/lib/stripe";
 import { assertCapability, getActiveProvider } from "@/lib/payments";
 import { verifyPortalToken } from "@/lib/portalToken";
-import { calculateOrderBalance } from "@/lib/paymentService";
+import {
+  calculateOrderBalance,
+  findActivePendingPayment,
+  voidPendingPayment,
+} from "@/lib/paymentService";
 import { rateLimit } from "@/lib/rateLimit";
 
 // 5 requests per minute per IP -- payment creation should be rare
@@ -20,7 +24,14 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 
-  const { token, amount } = req.body as { token: string; amount?: number };
+  const { token, amount, force } = req.body as {
+    token: string;
+    amount?: number;
+    /** Void an already-open PENDING checkout and replace it. See
+     *  findActivePendingPayment — lets a customer retry when their earlier
+     *  checkout attempt never went through. */
+    force?: boolean;
+  };
 
   if (!token) {
     return res.status(400).json({ error: "Token is required" });
@@ -52,6 +63,29 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
 
     if (balance.balanceDue <= 0) {
       return res.status(400).json({ error: "No balance due on this order" });
+    }
+
+    // A PENDING row from a checkout this same customer may still be sitting
+    // on (another tab, a back-button retry) — starting a second one risks
+    // both landing (double-charge). The token already scopes this request
+    // to their own order, so a self-service `force` retry is safe: it can
+    // only ever void a PENDING payment on the order the customer's own link
+    // points at.
+    const existingPending = await findActivePendingPayment(payload.orderId);
+    if (existingPending) {
+      if (!force) {
+        return res.status(409).json({
+          error:
+            `A payment of $${existingPending.amount.toFixed(2)} is already in progress on ` +
+            `this order (started ${existingPending.ageMinutes} min ago). If that attempt ` +
+            `failed, retry with force:true to start a new one.`,
+          existingPayment: existingPending,
+        });
+      }
+      await voidPendingPayment(existingPending.id, {
+        voidedBy: "customer-portal",
+        reason: "Replaced by a new checkout from the customer portal (force)",
+      });
     }
 
     // Use requested amount if provided, otherwise full balance

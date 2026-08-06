@@ -195,6 +195,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         paymentDate: p.paymentDate,
         paymentType: p.paymentType,
         paymentAmount: Number(p.paymentAmount),
+        // status/isRefund: needed client-side so OrderDetailView can filter
+        // out VOIDED/FAILED/PENDING and sign refunds the same way
+        // computeBalance does (see @/lib/paymentBalance) instead of
+        // summing every row unfiltered.
+        status: p.status,
+        isRefund: p.isRefund,
       })),
     });
   } catch (error) {

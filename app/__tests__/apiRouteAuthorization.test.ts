@@ -77,6 +77,8 @@ const UNGATED_BY_DESIGN: Record<string, string> = {
     "Bearer AUTO_IMPORT_API_KEY for the Synology cron (scripts/auto-customer-level-recalc.sh) OR an ADMIN/MANAGER/SUPER_ADMIN session role checked in isAuthorized() -- stricter than the other automations, which accept any session",
   "mailchimp/backfill-customer-links.ts":
     "Bearer AUTO_IMPORT_API_KEY OR an ADMIN/MANAGER/SUPER_ADMIN session role checked in isAuthorized() -- same dual-auth mechanism as automations/customer-level-recalc.ts, triggered from the same admin mailchimp-sync UI though the route lives outside api/automations/*",
+  "automations/expire-stale-pending-payments.ts":
+    "Bearer AUTO_IMPORT_API_KEY for the Synology cron OR any authenticated session for manual triggering, same isAuthorized() pattern as daily-reconciliation.ts -- only ever marks an already-abandoned PENDING row FAILED (no ledger entry, nothing reversible), strictly less destructive than the MANAGER/ADMIN-gated manual void endpoint",
 };
 
 /** Files that are helpers/config, not routes. */
