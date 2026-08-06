@@ -14,7 +14,16 @@ export const authOptions: NextAuthOptions = {
   // In production NextAuth issues __Secure- cookies over HTTPS automatically;
   // set it explicitly so the intent is visible and a misread NODE_ENV can't
   // silently downgrade to insecure cookies.
-  useSecureCookies: process.env.NODE_ENV === "production",
+  //
+  // The ALLOW_INSECURE_NEXTAUTH_URL exception (loopback only -- validateEnv
+  // enforces that) exists because otherwise a production build over http is
+  // signed in and still bounced: NODE_ENV makes the cookie __Secure-prefixed
+  // on the way OUT, while the readers infer the plain name from the http
+  // scheme on the way BACK. /api/auth/session works, every guarded page
+  // 307s to the login screen, and nothing says why. Keeping the two halves
+  // agreeing is what makes `next start` verifiable locally and in CI.
+  useSecureCookies:
+    process.env.NODE_ENV === "production" && process.env.ALLOW_INSECURE_NEXTAUTH_URL !== "true",
 
   // Providers are assembled from environment configuration (Google / Okta /
   // Azure AD) plus local email+password when AUTH_LOCAL_ENABLED is set. See

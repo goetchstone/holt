@@ -45,6 +45,37 @@ describe("collectEnvProblems", () => {
     expect(dev.some((p) => p.key === "NEXTAUTH_URL")).toBe(false);
   });
 
+  describe("ALLOW_INSECURE_NEXTAUTH_URL", () => {
+    // The escape hatch exists so a production BUILD can boot on localhost --
+    // otherwise nothing ever verified that `next build` output actually
+    // starts, which is a bigger hole than the one the https rule closes.
+    const insecure = (url: string, allow: string | undefined) =>
+      collectEnvProblems(
+        { ...ok, NEXTAUTH_URL: url, ALLOW_INSECURE_NEXTAUTH_URL: allow } as unknown as NodeJS.ProcessEnv,
+        true,
+      ).some((p) => p.key === "NEXTAUTH_URL");
+
+    it("permits http on localhost when explicitly enabled", () => {
+      expect(insecure("http://localhost:3000", "true")).toBe(false);
+      expect(insecure("http://127.0.0.1:3000", "true")).toBe(false);
+    });
+
+    it("still rejects http on a REMOTE host even when enabled", () => {
+      // The point of the narrow scope: this must never become a way to turn
+      // the check off in production.
+      expect(insecure("http://app.example.com", "true")).toBe(true);
+      expect(insecure("http://10.0.0.5:3000", "true")).toBe(true);
+    });
+
+    it("rejects http on localhost when NOT enabled", () => {
+      expect(insecure("http://localhost:3000", undefined)).toBe(true);
+    });
+
+    it("does not relax the presence requirement", () => {
+      expect(insecure("", "true")).toBe(true);
+    });
+  });
+
   it("assertEnv throws listing every problem, passes when clean", () => {
     expect(() => assertEnv({} as unknown as NodeJS.ProcessEnv)).toThrow(/Refusing to start/);
     expect(() => assertEnv(ok)).not.toThrow();

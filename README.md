@@ -24,21 +24,57 @@ wired to its own systems without editing code.
 
 ## Quick Start
 
+From a fresh clone to a logged-in system with ~18 months of demo data:
+
 ```bash
-# Development (hot-reload)
-docker compose --profile dev up
+cp env.example .env                      # database credentials
+cp app/.env.local.example app/.env.local # then fill APP_ENCRYPTION_KEY + NEXTAUTH_SECRET
 
-# Production
-docker compose up -d --build
-
-# Database only (for local app development)
-docker compose up db -d
-cd app && npm install && npx prisma generate && npm run dev
+docker compose up db -d                  # Postgres only
+cd app && npm install
+npm run setup                            # migrate + seed demo data + seed CMS
+npm run dev
 ```
 
-The app runs at `http://localhost:3000` (direct) or `http://localhost:8080`
-(through Nginx). On first run, sign in with the bootstrap Google account; the
-first user is granted admin until a privileged user exists.
+Open <http://localhost:3000/auth/login> and sign in:
+
+| | |
+|---|---|
+| Email | `admin@example.com` |
+| Password | `Showroom2026!` |
+
+Every seeded staff account shares that password; `owner@`, `manager.*@`,
+`designer1@`, `register1@` and `warehouse1@` exist too, each with a different
+role, which is the quickest way to see how permissions behave.
+
+Two values in `app/.env.local` are **required** and easy to miss:
+
+- `APP_ENCRYPTION_KEY` — the app refuses to start without it (≥16 chars;
+  `openssl rand -base64 32`).
+- `AUTH_LOCAL_ENABLED=true` — without it the password provider is not
+  registered and the seeded accounts cannot sign in. Google OAuth is optional
+  and not needed to evaluate the system.
+
+Verify the whole path end to end at any time:
+
+```bash
+cd app && bash scripts/smoke.sh    # boots?, seeded?, can log in?, data loads?
+```
+
+That script is also what CI runs, so "it starts and a person can use it" is a
+gate rather than an assumption.
+
+### Docker
+
+```bash
+docker compose --profile dev up      # hot-reload
+docker compose up -d --build         # production build
+```
+
+The container applies migrations on start. A production build served over
+plain http on localhost additionally needs `ALLOW_INSECURE_NEXTAUTH_URL=true`
+— the https requirement is correct for a real deployment and only relaxes for
+loopback addresses.
 
 ## Configuration
 

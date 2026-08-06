@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "setup": "bash scripts/setup.sh",
     "build": "next build",
     "start": "next start",
     "lint": "eslint src/",

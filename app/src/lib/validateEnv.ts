@@ -47,14 +47,31 @@ export function collectEnvProblems(
   require("APP_ENCRYPTION_KEY", 16);
 
   // In production the canonical URL is mandatory; in dev NextAuth infers it.
+  //
+  // ALLOW_INSECURE_NEXTAUTH_URL exists for exactly two cases where a
+  // production BUILD runs over http on a loopback address and no cookie ever
+  // crosses a network: `next start` on a developer's machine, and the CI smoke
+  // job. Without it, the https requirement made a production build
+  // unstartable locally, so nothing verified that `next build` output actually
+  // boots -- which is a worse hole than the one the check closes.
+  //
+  // Deliberately narrow: it only relaxes the https rule, never the presence
+  // rule, and only for localhost/127.0.0.1. Pointing it at a real host still
+  // fails, so it cannot quietly become "we turned the check off in prod".
   if (isProd) {
     const url = env.NEXTAUTH_URL;
+    const insecureAllowed = env.ALLOW_INSECURE_NEXTAUTH_URL === "true";
+    const isLoopback = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url ?? "");
+
     if (!url || url.trim().length === 0) {
       problems.push({ key: "NEXTAUTH_URL", message: "NEXTAUTH_URL is required in production" });
-    } else if (!/^https:\/\//.test(url)) {
+    } else if (!/^https:\/\//.test(url) && !(insecureAllowed && isLoopback)) {
       problems.push({
         key: "NEXTAUTH_URL",
-        message: "NEXTAUTH_URL must be https:// in production (secure cookies depend on it)",
+        message: insecureAllowed
+          ? "ALLOW_INSECURE_NEXTAUTH_URL only permits http on localhost/127.0.0.1, not a remote host"
+          : "NEXTAUTH_URL must be https:// in production (secure cookies depend on it). " +
+            "For a local production build, set ALLOW_INSECURE_NEXTAUTH_URL=true with a localhost URL.",
       });
     }
   }
