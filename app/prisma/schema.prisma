@@ -5355,3 +5355,51 @@ model ConfigChangeLog {
   @@index([presetKind, presetName, created])
   @@index([created])
 }
+
+/// Durable record of application errors, so a 500 at 2am is discoverable the
+/// next morning. Logs are stdout-only and die with the container on every
+/// redeploy; before this table the only evidence an error ever happened was a
+/// line nobody read in a stream nobody kept.
+///
+/// GROUPED BY FINGERPRINT, not one row per occurrence. A crash loop is one row
+/// with count 5,000 -- storing 5,000 rows would fill the disk during exactly
+/// the incident you need the table for, and bury the other errors that
+/// mattered.
+model ErrorEvent {
+  id Int @id @default(autoincrement())
+
+  /// Stable identity for "the same bug". Derived from the message with
+  /// volatile parts normalised (ids, uuids, numbers, timestamps) plus the top
+  /// stack frame, so "Order 123 not found" and "Order 456 not found" collapse
+  /// to one row. Too loose and unrelated bugs merge; too tight and every
+  /// occurrence is a new row -- see lib/errorFingerprint.ts.
+  fingerprint String @unique
+
+  count       Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  /// Human-readable identity of the error. `message` is the most recent raw
+  /// message (NOT the normalised one) because an operator needs the real ids
+  /// to investigate; `normalized` is what was fingerprinted.
+  message    String
+  normalized String
+  stackTop   String?
+
+  /// "error" | "warn". Reserved for future severity routing; every row today
+  /// comes from logError.
+  severity String @default("error")
+
+  /// Most recent occurrence's context (route, method, userId, ...). Only the
+  /// latest is kept -- this is a pointer to go look, not an event store.
+  sample Json?
+
+  /// Acknowledged by an operator. A recurrence after this AUTO-CLEARS it (the
+  /// writer nulls it when count increments), so resolving is a statement about
+  /// what you have seen, not a way to permanently silence a live bug.
+  resolvedAt DateTime?
+  resolvedBy String?
+
+  @@index([lastSeenAt])
+  @@index([resolvedAt, lastSeenAt])
+}
