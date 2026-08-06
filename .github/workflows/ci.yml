@@ -98,6 +98,7 @@ jobs:
         with:
           name: coverage-report
           path: app/coverage/
+          retention-days: 14
 
   # Proves the app STARTS and a person can use it. The validate job above runs
   # 2,985 tests and never once boots the thing -- a change that broke startup
@@ -165,4 +166,3 @@ jobs:
           done
           bash scripts/smoke.sh
           kill "$APP_PID" 2>/dev/null || true
-          retention-days: 14
