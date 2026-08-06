@@ -24,6 +24,14 @@ chmod -R 755 /app/data
 #
 # RUN_MIGRATIONS=false opts out for a container that must not touch the schema
 # (a read replica, or a second instance racing the first during a rollout).
+#
+# The built-in roles are deliberately NOT seeded by a step here. They are
+# covered twice over, and neither way needs a script this image does not have
+# (stage 3 ships no src/ and no scripts/, so a ts-node seeder could not run):
+# the migration that creates Role/RolePermission inserts the eight roles
+# itself, and src/instrumentation.ts reconciles them against
+# lib/auth/permissionCatalog.ts when the server boots -- that is the `exec`
+# below, strictly after this migrate step. → docs/domains/staff-auth.md
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
   echo "entrypoint: applying migrations..."
   if ! su-exec node npx prisma migrate deploy; then

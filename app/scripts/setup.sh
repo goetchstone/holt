@@ -80,6 +80,14 @@ npx prisma migrate deploy
 step "Generating the Prisma client"
 npx prisma generate >/dev/null
 
+# The migration that created Role/RolePermission already inserted the eight
+# built-in roles, and `npm run dev` reconciles them again on boot via
+# src/instrumentation.ts. Running it explicitly here means a fresh checkout has
+# correct roles BEFORE the demo seed creates staff, rather than one server boot
+# later, and it puts the step somewhere a developer can see it.
+step "Seeding built-in roles"
+npm run seed:roles
+
 step "Seeding demo data (scale=$SCALE)"
 npm run seed:demo -- --scale="$SCALE"
 

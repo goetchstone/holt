@@ -11,7 +11,8 @@
 // (docs/FRAMEWORK.md: a hard rule belongs in a hard place).
 //
 // The rule: a route file that handles POST/PUT/PATCH/DELETE must either
-//   (a) wrap its handler in requireAuthWithRole([...]), or
+//   (a) wrap its handler in requireAuthWithRole([...]) or
+//       requirePermission("domain.action", ...), or
 //   (b) appear in UNGATED_BY_DESIGN below with a stated reason.
 //
 // (b) is deliberately noisy to add to. Adding a line here is a security
@@ -116,7 +117,13 @@ async function auditRoutes(): Promise<RouteAudit[]> {
         // req.method, so this is a reliable over-approximation. Over- rather
         // than under-approximating is the right error to make here.
         mutates: MUTATING_METHOD.test(src),
-        hasRoleGate: /requireAuthWithRole\s*\(/.test(src),
+        // Either shape counts as an explicit decision. requirePermission is
+        // where these are headed -- it gates on a capability from
+        // permissionCatalog.ts rather than a job title -- and both wrappers
+        // resolve the staff row from the database per request and share the
+        // same impersonation and bootstrap rules, so neither is the weaker
+        // check. A route that has moved must not read as an offender here.
+        hasRoleGate: /requireAuthWithRole\s*\(|requirePermission\s*\(/.test(src),
         hasBareAuth: /requireAuth\s*\(/.test(src),
       };
     }),
@@ -134,7 +141,8 @@ describe("API route authorization", () => {
     if (offenders.length > 0) {
       throw new Error(
         `${offenders.length} mutating API route(s) have no role gate.\n\n` +
-          "Each must either wrap its handler in requireAuthWithRole([...]) or be\n" +
+          "Each must either wrap its handler in requireAuthWithRole([...]) or\n" +
+          "requirePermission(\"domain.action\", ...), or be\n" +
           "added to UNGATED_BY_DESIGN in this file WITH a reason.\n\n" +
           "A signed-in user with any role can currently call these:\n" +
           offenders.map((o) => `  - ${o}`).join("\n"),

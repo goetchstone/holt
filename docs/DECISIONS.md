@@ -332,6 +332,55 @@ off in prod".
 
 ---
 
+## 16. `StaffRole` and `StaffMember.roleId` coexist for a release
+
+**Rejected:** dropping the `StaffRole` enum in the same change that introduced
+`Role` / `RolePermission`, and making `StaffMember.roleId` required.
+
+**Why:** 335 Pages Router API routes gate on the enum through
+`requireAuthWithRole([...])`. Dropping it means converting all 335 in one
+change, which is a flag day: every route's authorization changes at once, the
+diff is unreviewable, and any single mistake is a hole nobody can see among the
+other 334. The nullable FK is what lets a route move on its own — `requireAuthWithRole`
+and `requirePermission` read the same staff row, apply the same impersonation
+and bootstrap rules, and disagree about nothing except which question they ask.
+A route converts, its tests prove it, and the other 334 are untouched.
+
+Nullable rather than required for the same reason at the row level: a staff
+member created by a code path written before the column exists gets
+`roleId = null`, and `requirePermission` falls back to
+`permissionsForBuiltInRole(staffMember.role)`. The alternative — a required
+column — makes every staff-creation path a prerequisite of the first
+permission check, which is the flag day again, one layer down.
+
+The migration backfills `roleId` for every existing staff member by joining
+`Role.key = StaffMember.role::text`, so the two representations agree on day
+one and nothing changes for anyone.
+
+**Cost accepted:** two ways to say what someone is, for one release. That is a
+real cost — the enum can be edited without the FK following, and vice versa —
+so the correspondence is a tripwire rather than a convention:
+`__tests__/rolePermissionSchema.test.ts` fails if the eight `BUILT_IN_ROLES`
+keys and the eight `StaffRole` values ever stop being the same set in either
+direction, and the migration itself `RAISE`s rather than leaving a staff member
+unlinked. Removing the enum is its own later change, after the sweep.
+
+**Also decided here:** the `"*"` wildcard is `Role.grantsAllPermissions`, a
+boolean, not 45 `RolePermission` rows. Materialising it would freeze the
+Owner's grants at seeding time, so the next release that adds a permission
+would silently leave the Owner without it — a 403 whose cause is a data
+migration nobody ran.
+
+**Enforced by:** `__tests__/rolePermissionSchema.test.ts` (both-directions
+tripwire, migration scan), `__tests__/permissionDecision.test.ts` (the
+impersonation and bootstrap rules survive the move),
+`__tests__/integration/rbacFoundation.integration.test.ts` (real DB).
+
+**Source:** [`docs/domains/staff-auth.md`](domains/staff-auth.md),
+[`app/src/lib/auth/permissionCatalog.ts`](../app/src/lib/auth/permissionCatalog.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

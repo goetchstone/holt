@@ -172,6 +172,12 @@ const ALL_TABLES = [
   "Reconciliation",
   "Register",
   "Return",
+  // Role/RolePermission are product data, not fixtures, but they truncate like
+  // everything else: an integration test that wants the built-in roles calls
+  // syncBuiltInRoles() after resetTestDb(), and one that wants a bare database
+  // gets one. Leaving them behind would make "no roles seeded" untestable.
+  "Role",
+  "RolePermission",
   "SEComponent",
   "SalesGoal",
   "SalesGoals",

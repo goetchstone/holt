@@ -59,11 +59,23 @@ async function upsertStaff(
     create: { email, name: entry.displayName },
   });
 
+  // Link roleId the way the RBAC migration's backfill does: Role.key === the
+  // StaffRole value. Without it every seeded developer lands on
+  // requirePermission's StaffRole fallback and the FK that production staff all
+  // carry is never exercised locally. Null when the built-in roles have not been
+  // seeded yet (`npm run seed:roles`, which scripts/setup.sh runs first) — the
+  // fallback covers that, which is exactly what it exists for.
+  const roleRow = await prisma.role.findUnique({
+    where: { key: entry.role },
+    select: { id: true },
+  });
+
   const staff = await prisma.staffMember.upsert({
     where: { email },
     update: {
       displayName: entry.displayName,
       role: entry.role,
+      roleId: roleRow?.id ?? null,
       isDesigner: entry.isDesigner,
       activeStoreLocationId: entry.homeStoreId,
       userId: user.id,
@@ -74,6 +86,7 @@ async function upsertStaff(
       email,
       displayName: entry.displayName,
       role: entry.role,
+      roleId: roleRow?.id ?? null,
       isDesigner: entry.isDesigner,
       activeStoreLocationId: entry.homeStoreId,
       userId: user.id,
