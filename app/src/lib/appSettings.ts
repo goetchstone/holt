@@ -67,6 +67,8 @@ export interface ResolvedAppSettings {
   timezone: string;
   features: Record<string, boolean>;
   bookingConfig: BookingConfig;
+  /** Which SourceAdapter pulls data from a prior system. "none" = nothing does. */
+  sourceAdapterId: string;
 }
 
 export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
@@ -85,6 +87,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   timezone: "America/New_York",
   features: {},
   bookingConfig: { ...BOOKING_DEFAULTS },
+  sourceAdapterId: "none",
 };
 
 // Loosely typed view of the DB row -- the Json columns arrive as unknown.
@@ -103,6 +106,10 @@ interface AppSettingsRow {
   timezone: string | null;
   features: unknown;
   bookingConfig: unknown;
+  // Optional because this is a LOOSE view of the row: a partial select, or a
+  // row read before the column existed, simply doesn't carry it. Absent
+  // resolves to the default exactly as an empty string does.
+  sourceAdapterId?: string | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -152,6 +159,10 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     timezone: row.timezone?.trim() || DEFAULT_APP_SETTINGS.timezone,
     features,
     bookingConfig: parseBookingConfig(row.bookingConfig),
+    // An unknown id resolves in the registry, not here -- this layer reports
+    // what the database says, so a typo surfaces as "adapter X is not in this
+    // build" rather than silently reverting to "none".
+    sourceAdapterId: row.sourceAdapterId?.trim() || DEFAULT_APP_SETTINGS.sourceAdapterId,
   };
 }
 

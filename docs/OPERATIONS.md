@@ -296,7 +296,7 @@ Runs daily via the host scheduler using `scripts/backup-db.sh`.
 | Customer AR Drift Check | Daily 04:45 | `auto-customer-ar-drift-check.sh` | `/api/automations/customer-ar-drift-check` |
 | Lead Housekeeping | Daily 05:00 | `auto-lead-housekeeping.sh` | `/api/automations/lead-housekeeping` |
 | Mailchimp Sync | Daily 05:30 | `auto-mailchimp-sync.sh` | `/api/automations/mailchimp-sync` |
-| Daily Import | Daily 06:10 | `auto-import.sh` | `/api/automations/gmail-import` |
+| Daily Import | Daily 06:10 | `auto-import.sh` | `/api/automations/source-import` |
 | Mailchimp New Customer Sync | Daily 06:30 | `auto-mailchimp-customer-sync.sh` | `/api/automations/mailchimp-customer-sync` |
 | Daily Reconciliation | Daily 22:30 | `auto-daily-reconciliation.sh` | `/api/automations/daily-reconciliation` |
 | Database Backup | Daily | `backup-db.sh` | n/a |
