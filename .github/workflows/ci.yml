@@ -99,3 +99,70 @@ jobs:
           name: coverage-report
           path: app/coverage/
           retention-days: 14
+
+  # Proves the app STARTS and a person can use it. The validate job above runs
+  # 2,985 tests and never once boots the thing -- a change that broke startup
+  # (missing env var, bad migration, module that throws on import) passed green.
+  # This job is the gate for that whole class of failure.
+  smoke:
+    name: Setup, build, boot, smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      NEXTAUTH_SECRET: ci-secret-not-used-anywhere-else-0000
+      APP_ENCRYPTION_KEY: ci-encryption-key-not-a-real-one-000
+      NEXTAUTH_URL: http://localhost:3000
+      # Production build over http on loopback -- see lib/validateEnv.ts. It
+      # only relaxes the https rule for localhost, never for a real host.
+      ALLOW_INSECURE_NEXTAUTH_URL: "true"
+      AUTH_LOCAL_ENABLED: "true"
+
+    services:
+      postgres:
+        image: postgres:17.9-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The same command a newcomer runs. If `npm run setup` breaks, a fresh
+      # clone breaks, and this is where we find out.
+      - name: Setup (migrate + seed)
+        run: npm run setup -- --scale=ci --no-cms
+
+      - name: Build
+        run: npm run build
+
+      - name: Boot and smoke test
+        run: |
+          npm start &
+          APP_PID=$!
+          for _ in $(seq 1 90); do
+            curl -sf -o /dev/null http://localhost:3000/api/health && break
+            kill -0 "$APP_PID" 2>/dev/null || { echo "app exited during startup"; exit 1; }
+            sleep 1
+          done
+          bash scripts/smoke.sh
+          kill "$APP_PID" 2>/dev/null || true
