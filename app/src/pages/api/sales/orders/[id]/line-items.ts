@@ -5,8 +5,13 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+/** Exported for integration tests -- same pattern as create-from-cart.ts:
+ *  calls the real Prisma client with a fake req/res + session, bypassing
+ *  requireAuthWithRole (which needs real cookies). Role enforcement is
+ *  covered by the apiRouteAuthorization tripwire. */
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id } = req.query;
   if (!id || typeof id !== "string") {
     return res.status(400).json({ error: "Order ID is required." });
@@ -95,6 +100,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           where: { id: orderId },
           data: { updatedBy: changedBy },
         });
+
+        // A new line changes what the order has committed -- full resync
+        // (release everything, re-allocate current active lines) rather
+        // than per-line delta math. See allocation.ts's release() doc
+        // comment for why.
+        await resyncOrderAllocation(orderId, order.storeLocation, tx);
 
         return lineItem;
       });

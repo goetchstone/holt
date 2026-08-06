@@ -117,6 +117,7 @@ const ALL_TABLES = [
   "ImportValueMapping",
   "Installer",
   "IntegrationCredential",
+  "InventoryException",
   "InventoryFreeze",
   "InventoryFreezeItem",
   "InventoryPosition",
