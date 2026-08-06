@@ -236,24 +236,38 @@ export async function allocate(
     for (const step of plan.steps) {
       const position = byId.get(step.id)!;
 
-      await tx.inventoryPosition.upsert({
+      // findFirst + increment-or-create rather than upsert on the compound
+      // unique key, for the same reason release() does it -- `stockLocationId`
+      // is nullable and Postgres treats NULLs as distinct in that index, so an
+      // upsert keyed through it silently fails to match for any position with
+      // no stock location and creates a duplicate instead of merging. Two cart
+      // lines for the same product are the ordinary case here, not an edge one.
+      const existing = await tx.inventoryPosition.findFirst({
         where: {
-          productId_storeLocationId_stockLocationId_salesOrderId: {
-            productId: line.productId,
-            storeLocationId: line.storeLocationId,
-            stockLocationId: (position.stockLocationId ?? null) as number,
-            salesOrderId: orderId,
-          },
-        },
-        update: { quantity: { increment: step.take } },
-        create: {
           productId: line.productId,
           storeLocationId: line.storeLocationId,
           stockLocationId: position.stockLocationId ?? null,
           salesOrderId: orderId,
-          quantity: step.take,
         },
+        orderBy: { id: "asc" },
       });
+
+      if (existing) {
+        await tx.inventoryPosition.update({
+          where: { id: existing.id },
+          data: { quantity: { increment: step.take } },
+        });
+      } else {
+        await tx.inventoryPosition.create({
+          data: {
+            productId: line.productId,
+            storeLocationId: line.storeLocationId,
+            stockLocationId: position.stockLocationId ?? null,
+            salesOrderId: orderId,
+            quantity: step.take,
+          },
+        });
+      }
 
       if (step.exhausts) {
         await tx.inventoryPosition.delete({ where: { id: position.id } });
@@ -296,11 +310,21 @@ export async function allocate(
  * a partial-release implementation would go wrong, and a full resync inside
  * one transaction costs nothing extra a user would notice.
  *
- * Each allocated position is merged into the matching free position for the
- * same (product, store, stock location) via upsert-increment, never a bare
- * `create` -- the unique key means a naive create fails outright the second
- * time the same slot is released, and merging (not just avoiding the error)
- * is what keeps free stock from fragmenting into a pile of qty-1 rows.
+ * Each allocated position is merged into the matching FREE position for the
+ * same (product, store, stock location), so releasing twice does not leave
+ * free stock fragmented into a pile of qty-1 rows.
+ *
+ * The merge is a findFirst + increment-or-create, NOT an upsert on the
+ * compound unique key, and that is not a style preference. The key is
+ * [productId, storeLocationId, stockLocationId, salesOrderId] and a free row
+ * has salesOrderId NULL. Postgres treats NULLs as DISTINCT in a unique index
+ * unless it is declared NULLS NOT DISTINCT, and this one is not (see
+ * migrations/0_init) -- so the constraint does not actually prevent duplicate
+ * free rows, and Prisma cannot address one by that key either (an upsert here
+ * needs `null as unknown as number` to even compile, which is the tell). The
+ * upsert would never match, every release would create another row, and free
+ * stock would multiply instead of merge. `stockLocationId` is nullable for the
+ * same reason, so it is matched with an explicit null check too.
  */
 export async function release(orderId: number, tx: PrismaTx): Promise<void> {
   const allocated = await tx.inventoryPosition.findMany({
@@ -308,23 +332,31 @@ export async function release(orderId: number, tx: PrismaTx): Promise<void> {
   });
 
   for (const position of allocated) {
-    await tx.inventoryPosition.upsert({
+    const free = await tx.inventoryPosition.findFirst({
       where: {
-        productId_storeLocationId_stockLocationId_salesOrderId: {
-          productId: position.productId,
-          storeLocationId: position.storeLocationId,
-          stockLocationId: (position.stockLocationId ?? null) as number,
-          salesOrderId: null as unknown as number,
-        },
-      },
-      update: { quantity: { increment: position.quantity } },
-      create: {
         productId: position.productId,
         storeLocationId: position.storeLocationId,
         stockLocationId: position.stockLocationId ?? null,
-        quantity: position.quantity,
+        salesOrderId: null,
       },
+      orderBy: { id: "asc" },
     });
+
+    if (free) {
+      await tx.inventoryPosition.update({
+        where: { id: free.id },
+        data: { quantity: { increment: position.quantity } },
+      });
+    } else {
+      await tx.inventoryPosition.create({
+        data: {
+          productId: position.productId,
+          storeLocationId: position.storeLocationId,
+          stockLocationId: position.stockLocationId ?? null,
+          quantity: position.quantity,
+        },
+      });
+    }
 
     await tx.inventoryPosition.delete({ where: { id: position.id } });
   }
