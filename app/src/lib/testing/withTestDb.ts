@@ -106,6 +106,7 @@ const ALL_TABLES = [
   "Department",
   "EmailQueue",
   "EmailTemplate",
+  "ErrorEvent",
   "FabricCatalog",
   "GLAccount",
   "GiftCard",
