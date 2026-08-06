@@ -621,7 +621,14 @@ describe("generateSalesJournal (real DB)", () => {
 
       const result = await generateSalesJournal(DAY);
 
-      expect(result.warnings).toEqual([]);
+      // A standalone payment has no offsetting revenue/COGS/tax, so the plug
+      // absorbs the whole amount -- and now says so. Asserting the warning
+      // rather than its absence is the point of the change: this fixture was
+      // always producing a $150 plug, and the journal used to report itself
+      // balanced without mentioning it.
+      expect(result.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining("Over/Short plug of $150.00")]),
+      );
       const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
       // This is the regression the fix closes: cash must be CREDITED
       // (reduced), not debited (increased), when a refund pays money out.
@@ -638,7 +645,10 @@ describe("generateSalesJournal (real DB)", () => {
 
       const result = await generateSalesJournal(DAY);
 
-      expect(result.warnings).toEqual([]);
+      // Standalone again -- same $150 plug, now warned about. See above.
+      expect(result.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining("Over/Short plug of $150.00")]),
+      );
       const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
       expect(byCode.get("1-1006")?.credit).toBe(150);
       expect(byCode.get("1-1006")?.debit).toBe(0);
@@ -651,7 +661,11 @@ describe("generateSalesJournal (real DB)", () => {
 
       const result = await generateSalesJournal(DAY);
 
-      expect(result.warnings).toEqual([]);
+      // Cash debited $500 with nothing on the credit side, so the plug is a
+      // $500 CREDIT. Warned about, for the same reason as the two above.
+      expect(result.warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining("Over/Short plug of $500.00 (credit)")]),
+      );
       const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
       expect(byCode.get("1-1006")?.debit).toBe(500);
       expect(byCode.get("1-1006")?.credit).toBe(0);
