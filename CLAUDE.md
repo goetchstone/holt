@@ -74,6 +74,15 @@ The highest-consequence cluster in the codebase. Detail and worked examples:
     (returned in).
 51. **Never use a naked `not:`/`notIn:` on a nullable column** — three-valued
     logic drops NULL rows silently. Use `OR: [{ col: null }, { col: { not: X } }]`.
+64. **Never upsert through a compound unique key containing a nullable column.**
+    Postgres treats NULLs as DISTINCT in a unique index unless it is declared
+    `NULLS NOT DISTINCT` — none of ours are. So the constraint does not prevent
+    duplicate rows, and the upsert never matches: it creates another row every
+    time. Use `findFirst` + increment-or-create with an explicit `col: null`.
+    `InventoryPosition`'s key has two nullable columns and shipped with exactly
+    this bug in both `allocate` and `release`; free stock would have multiplied
+    on every cancel. **Tell:** if you need `null as unknown as number` to make
+    an upsert compile, the operation is invalid, not the types.
 60. **Route by recorded fact, not current config.** Refunds and webhooks resolve
     the processor from the payment's stored `processorType`, never from whichever
     provider is active now.

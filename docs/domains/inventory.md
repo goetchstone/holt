@@ -17,6 +17,74 @@ Stock positions, physical counts, reconciliation, transfers, warehouse dashboard
 | `UnidentifiedScan` | Photo of an item that scanned to nothing during a count |
 | `InventoryTransfer` | Operational inter-store transfer (no JE impact — see `docs/domains/accounting.md`) |
 
+## Allocation: how selling decrements stock
+
+Until 2026-08, **nothing decremented on-hand for a sale**. Every writer of
+`InventoryPosition` either added stock (import, PO receiving, returns) or moved
+it sideways (transfers, manual edits). A store could sell the same sofa five
+times and the floor still said one.
+
+The schema was already built for the fix and nobody had used it:
+`InventoryPosition.salesOrderId` is nullable with a unique key including it —
+that shape only makes sense as **allocate-then-consume**.
+
+| Operation | When | Effect |
+|---|---|---|
+| `allocate` | sale | commits free stock to the order, splitting a position if the sale takes part of it |
+| `release`  | cancel, line edit | returns committed stock to free, **merging** into the existing free row |
+| `consume`  | fulfilment / delivery | deletes the committed rows — the goods left the building |
+| `availableQuantity` | display | free stock only |
+
+All in `lib/inventory/allocation.ts`; wiring lives in
+`lib/inventory/orderInventorySync.ts`. Every function takes the caller's
+transaction client and runs inside it — allocation that is not atomic with the
+order write commits stock to an order that failed to save.
+
+### Two signals for "spoken for", honoured not unified
+
+- `salesOrderId` set — committed by a **native** holt sale.
+- `StockLocation.name` starting `Customer` — the **Ordorite** convention, real
+  in 50k+ imported orders and already read by `buyersReport.ts`.
+
+Free stock requires *neither*. Imported rows are not migrated and
+`buyersReport` is not changed: unifying the conventions would break that report
+for every imported order to tidy up a naming choice.
+
+### Overselling is allowed, deliberately
+
+If a cashier scans it, it sells — mis-tagged, mis-counted, floor model, special
+order. `allocate` commits what exists, returns the shortfall, and never throws.
+The discrepancy becomes **back-office work**, not a checkout interruption:
+shortfalls land in `InventoryException` (Admin → Inventory Exceptions) with
+order, product, store, requested, allocated and shortfall, resolvable once
+handled.
+
+**Made-to-order lines never allocate.** `CONFIGURED` and `CUSTOM` cart lines
+mint a brand-new `Product` during the sale, so they have no `InventoryPosition`
+by construction. Allocating them would post a full-shortfall exception on every
+custom order — for a furniture retailer, a large share of them — and a queue
+full of the normal case is a queue nobody reads. The filter is per-line, so a
+mixed cart still reports its stocked lines.
+
+### The trap, if you touch this code
+
+The unique key is `[productId, storeLocationId, stockLocationId, salesOrderId]`
+and **both** `stockLocationId` and `salesOrderId` are nullable. Postgres treats
+NULLs as distinct in a unique index unless declared `NULLS NOT DISTINCT`, and
+`0_init` does not declare it — so that constraint never prevented duplicate
+free rows, and an upsert keyed through it can never match. The draft shipped
+with exactly that bug in both `allocate` and `release`; free stock would have
+multiplied on every cancel. Both now use `findFirst` + increment-or-create.
+See CLAUDE.md rule 64.
+
+### Still raw
+
+`/api/warehouse/positions` and the POS availability display still sum raw
+`quantity`, which includes stock committed to another order. The data is
+correct; what reads it is not yet. `InventoryPositionsView.tsx` is an admin
+audit table that genuinely needs the raw rows, so that change needs its own
+care rather than flipping the endpoint's default.
+
 ## Stock-by-Item import (daily)
 
 CSV: `SH_Stock_by_Item.csv` from the POS (Gmail auto-import 06:10 ET). Runner: `runStockByItemImport` in `lib/importRunners.ts`. One row per (product, store location) with current on-hand qty.
