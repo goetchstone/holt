@@ -74,7 +74,14 @@ Phase 1 G8 in the master plan adds a `CashMovement` model for intra-day non-sale
 `POST /api/sales/orders/create-from-cart` (`pages/api/sales/orders/create-from-cart.ts`):
 
 1. Validate cart line items (product exists, qty > 0, price sane)
-2. Compute tax via `taxDistrictId` resolved from the register's store location
+2. Compute tax via `src/lib/tax/resolveTaxRate.ts`: customer exemption, then
+   the customer's own district override, then the selling store's district
+   (`StoreLocation.taxDistrictId`), then `AppSettings.defaultTaxDistrictId` —
+   never a hardcoded district. Rate is then banded per line against each
+   line's discounted amount (`TaxRule.triggerPrice`/`startPrice`/`stopPrice`),
+   not a single flat percentage for the whole order. See that file's header
+   for the full order and what it deliberately does not evaluate yet
+   (chained rules, tax-included pricing, per-product tax groups).
 3. Generate orderno: `SH-{storeCode}-YYMMDD-NNN` (will become per-store-configurable per master plan G1 / Phase 1)
 4. Create `SalesOrder` + line items in a transaction
 5. Optionally call `recordPayment` if a tender slice was provided with the create request

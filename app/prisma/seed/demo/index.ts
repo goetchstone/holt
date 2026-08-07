@@ -89,7 +89,19 @@ async function main(): Promise<void> {
 
   const org = await seedOrg(prisma);
   const accounting = await seedAccounting(prisma);
-  const locations = await seedLocations(prisma);
+
+  // AppSettings.defaultTaxDistrictId is resolveTaxRate.ts's last-resort
+  // fallback (CLAUDE.md rule 61 -- this used to be the hardcoded
+  // `shortName: "CT"` literal in create-from-cart.ts / import-hd-proposal.ts).
+  // Set here, after seedAccounting creates the CT district and before
+  // anything prices a sale, so a fresh `npm run setup` still charges tax
+  // even for an order whose store/customer resolve to nothing more specific.
+  await prisma.appSettings.update({
+    where: { organizationId: org.organizationId },
+    data: { defaultTaxDistrictId: accounting.taxDistrictId },
+  });
+
+  const locations = await seedLocations(prisma, accounting.taxDistrictId);
   const staff = await seedStaff(
     prisma,
     locations.stores,
