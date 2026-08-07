@@ -22,7 +22,7 @@ jest.mock("@/lib/prisma", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { permissionsForBuiltInRole } from "@/lib/auth/permissionCatalog";
+import { BASELINE_PERMISSIONS, permissionsForBuiltInRole } from "@/lib/auth/permissionCatalog";
 import {
   buildRoleGrantTable,
   getRoleGrantTable,
@@ -56,7 +56,8 @@ describe("buildRoleGrantTable", () => {
     const t = buildRoleGrantTable([
       row({ id: 7, key: "MANAGER", rank: 1, permissions: [{ permission: "payment.refund" }] }),
     ]);
-    expect(t.grantsByRole.MANAGER).toEqual(["payment.refund"]);
+    // Stored rows first, then the implicit floor — see BASELINE_PERMISSIONS.
+    expect(t.grantsByRole.MANAGER).toEqual(["payment.refund", ...BASELINE_PERMISSIONS]);
     expect(t.keyById[7]).toBe("MANAGER");
     expect(t.empty).toBe(false);
   });
@@ -102,15 +103,19 @@ describe("grant table cache", () => {
       row({ id: 1, key: "MANAGER", permissions: [{ permission: "payment.refund" }] }),
     ]);
     const before = await getRoleGrantTable();
-    expect(before.grantsByRole.MANAGER).toEqual(["payment.refund"]);
+    expect(before.grantsByRole.MANAGER).toEqual(["payment.refund", ...BASELINE_PERMISSIONS]);
 
     // An operator revokes it. Without invalidation the cache keeps granting
     // for up to the TTL, which is the security bug this exists to prevent.
     roleFindMany.mockResolvedValue([row({ id: 1, key: "MANAGER", permissions: [] })]);
-    expect((await getRoleGrantTable()).grantsByRole.MANAGER).toEqual(["payment.refund"]);
+    expect((await getRoleGrantTable()).grantsByRole.MANAGER).toEqual([
+      "payment.refund",
+      ...BASELINE_PERMISSIONS,
+    ]);
 
     invalidateRoleGrantCache();
-    expect((await getRoleGrantTable()).grantsByRole.MANAGER).toEqual([]);
+    // Revoked down to the floor, which is not revocable.
+    expect((await getRoleGrantTable()).grantsByRole.MANAGER).toEqual([...BASELINE_PERMISSIONS]);
     expect(roleFindMany).toHaveBeenCalledTimes(2);
   });
 
@@ -149,7 +154,7 @@ describe("grant table cache", () => {
     await inFlight;
 
     roleFindMany.mockResolvedValue([row({ id: 1, key: "MANAGER", permissions: [] })]);
-    expect((await getRoleGrantTable()).grantsByRole.MANAGER).toEqual([]);
+    expect((await getRoleGrantTable()).grantsByRole.MANAGER).toEqual([...BASELINE_PERMISSIONS]);
   });
 });
 

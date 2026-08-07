@@ -86,6 +86,13 @@ const ITEMS: CardGridItem[] = [
     href: "/app/admin/setup/email-templates",
   },
   {
+    title: "Roles",
+    description:
+      "Create roles and choose what each one can do. Clone a role that already works, then take away what it should not have.",
+    href: "/app/admin/setup/roles",
+    roles: ["ADMIN"],
+  },
+  {
     title: "Nav Permissions",
     description: "Control which navigation sections each role can access.",
     href: "/app/admin/setup/permissions",

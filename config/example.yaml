@@ -44,6 +44,79 @@ presets:
           - ARO-1
 
   # ---------------------------------------------------------------------
+  # Who may do what, kept in git.
+  #
+  # `permissions` is the role's WHOLE capability set, not additions to it.
+  # Delete a key from the list, re-apply, and the grant goes away — that is
+  # what makes the file the source of truth instead of a suggestion. It is a
+  # required key for the same reason: leaving it out would read as "no
+  # opinion" while meaning "revoke everything", so write `permissions: []`
+  # if that is really what you mean.
+  #
+  # Every key must exist in the catalog (app/src/lib/auth/permissionCatalog.ts).
+  # A typo is refused when the file is parsed, naming the key — a preset is
+  # reviewed in a diff, and a misspelled permission that merely failed to
+  # match would sit in the database looking like a grant while authorizing
+  # nothing.
+  #
+  # `staff.self` is the floor everybody already holds — clock yourself in,
+  # see your own shifts. Listing it is harmless and simply ignored; it can be
+  # neither granted nor revoked.
+  #
+  # A preset can NEVER set `grantsAllPermissions`. Minting a superuser from a
+  # config file is not a thing this door does.
+  # ---------------------------------------------------------------------
+  - kind: roles
+    name: roles
+    description: Role definitions for this deployment.
+
+    roles:
+      # A role of your own. `key` is UPPER_SNAKE, like the built-in keys, and
+      # is what the database stores — renaming the role later means changing
+      # `name`, not `key`.
+      - key: FLOOR_LEAD
+        name: Floor Lead
+        description: Runs the floor on a shift. Sells, and can discount, but no refunds.
+        # rank only stops impersonation escalating; 0 means "a different job,
+        # not a lower rung", which is right for most roles. Omit it and you
+        # get 0.
+        rank: 1
+        permissions:
+          - sales.read
+          - sales.write
+          - sales.discount
+          - customer.read
+          - customer.write
+          - catalog.read
+          - inventory.read
+          - staff.read
+          - reporting.read
+
+      # Re-permissioning a BUILT-IN role is legitimate policy, and this is
+      # where you do it: "our designers cannot see margin". Doing so tells the
+      # deploy-time seeder to stop reconciling that role's grants, so your
+      # edit survives every future release.
+      #
+      # Only the grants, though. `name` is required on every entry and must
+      # MATCH what the product ships for a built-in ("Designer" here) —
+      # description and rank likewise if you state them at all. Contradict one
+      # and the apply fails and says so, rather than writing a value the next
+      # deploy would quietly undo.
+      - key: DESIGNER
+        name: Designer
+        permissions:
+          - sales.read
+          - sales.write
+          - customer.read
+          - customer.write
+          - catalog.read
+          - inventory.read
+          - purchasing.read
+          - service.read
+          - service.write
+          # reporting.read deliberately absent — this is the revocation.
+
+  # ---------------------------------------------------------------------
   # A declarative CSV importer: which column feeds which field, and which
   # source values translate to which stored values.
   # ---------------------------------------------------------------------

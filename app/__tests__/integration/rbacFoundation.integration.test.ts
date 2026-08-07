@@ -29,14 +29,12 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { findOrphanPermissionKeys, syncBuiltInRoles } from "@/lib/auth/builtInRoles";
-import {
-  invalidateRoleGrantCache,
-  resolvePermissionAccess,
-} from "@/lib/auth/permissionResolver";
+import { invalidateRoleGrantCache, resolvePermissionAccess } from "@/lib/auth/permissionResolver";
 import {
   BUILT_IN_ROLES,
   PERMISSION_KEYS,
   permissionsForBuiltInRole,
+  stripBaselinePermissions,
 } from "@/lib/auth/permissionCatalog";
 import refundsRoute from "@/pages/api/sales/orders/[id]/refunds";
 
@@ -160,9 +158,12 @@ describe("syncBuiltInRoles", () => {
         where: { key: def.key },
         include: { permissions: true },
       });
+      // Minus the baseline: it is a floor applied at read time, never a row.
+      // __tests__/integration/permissionBaseline.integration.test.ts asserts
+      // that directly.
       expect({ key: def.key, grants: role.permissions.map((p) => p.permission).sort() }).toEqual({
         key: def.key,
-        grants: permissionsForBuiltInRole(def.key).sort(),
+        grants: stripBaselinePermissions(permissionsForBuiltInRole(def.key)).sort(),
       });
     }
   });
@@ -251,7 +252,7 @@ describe("syncBuiltInRoles", () => {
     // Grants too, not just roles — a dry run that under-reports is worse than
     // no dry run, because it reads as "this deploy changes less than it will".
     const expectedGrants = BUILT_IN_ROLES.filter((r) => r.permissions !== "*").reduce(
-      (n, r) => n + permissionsForBuiltInRole(r.key).length,
+      (n, r) => n + stripBaselinePermissions(permissionsForBuiltInRole(r.key)).length,
       0,
     );
     expect(result.grantsAdded).toBe(expectedGrants);
@@ -401,8 +402,13 @@ describe("resolvePermissionAccess against a real database", () => {
   it("sees a revocation only after the cache is invalidated", async () => {
     await makeStaff({ userId: "mgr", roleKey: "MANAGER" });
     expect(
-      (await resolvePermissionAccess({ userId: "mgr", permission: "payment.refund", impersonate: null }))
-        .allowed,
+      (
+        await resolvePermissionAccess({
+          userId: "mgr",
+          permission: "payment.refund",
+          impersonate: null,
+        })
+      ).allowed,
     ).toBe(true);
 
     const manager = await prisma.role.findUniqueOrThrow({ where: { key: "MANAGER" } });
@@ -412,14 +418,24 @@ describe("resolvePermissionAccess against a real database", () => {
 
     // Still cached — this is the documented TTL window, not a bug.
     expect(
-      (await resolvePermissionAccess({ userId: "mgr", permission: "payment.refund", impersonate: null }))
-        .allowed,
+      (
+        await resolvePermissionAccess({
+          userId: "mgr",
+          permission: "payment.refund",
+          impersonate: null,
+        })
+      ).allowed,
     ).toBe(true);
 
     invalidateRoleGrantCache();
     expect(
-      (await resolvePermissionAccess({ userId: "mgr", permission: "payment.refund", impersonate: null }))
-        .allowed,
+      (
+        await resolvePermissionAccess({
+          userId: "mgr",
+          permission: "payment.refund",
+          impersonate: null,
+        })
+      ).allowed,
     ).toBe(false);
   });
 
@@ -436,16 +452,26 @@ describe("resolvePermissionAccess against a real database", () => {
 
     // Cache now warm and holding the revoked state.
     expect(
-      (await resolvePermissionAccess({ userId: "dsgn", permission: "sales.read", impersonate: null }))
-        .allowed,
+      (
+        await resolvePermissionAccess({
+          userId: "dsgn",
+          permission: "sales.read",
+          impersonate: null,
+        })
+      ).allowed,
     ).toBe(false);
 
     // The reseed restores it and must make that visible with no other help.
     const result = await syncBuiltInRoles({ prisma });
     expect(result.grantsAdded).toBe(1);
     expect(
-      (await resolvePermissionAccess({ userId: "dsgn", permission: "sales.read", impersonate: null }))
-        .allowed,
+      (
+        await resolvePermissionAccess({
+          userId: "dsgn",
+          permission: "sales.read",
+          impersonate: null,
+        })
+      ).allowed,
     ).toBe(true);
   });
 });

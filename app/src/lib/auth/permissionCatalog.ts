@@ -334,6 +334,15 @@ export const PERMISSIONS: PermissionDef[] = [
 
   // --- Staff -------------------------------------------------------------
   {
+    // THE BASELINE. Declared here so the admin UI can name it and describe it,
+    // but it is never grantable — see BASELINE_PERMISSIONS below.
+    key: "staff.self",
+    domain: "staff",
+    label: "Use your own account",
+    description:
+      "Clock yourself in and out, see your own shifts and time entries, pick which store you are working from, use the up-board, and send feedback. Everyone has this. Editing someone ELSE's time is Manage time.",
+  },
+  {
     key: "staff.read",
     domain: "staff",
     label: "View staff",
@@ -408,6 +417,82 @@ export function isPermissionKey(key: string): boolean {
 
 export function getPermission(key: string): PermissionDef | undefined {
   return PERMISSION_BY_KEY.get(key);
+}
+
+// ---------------------------------------------------------------------------
+// The baseline — the floor under every role
+// ---------------------------------------------------------------------------
+
+/**
+ * Capabilities EVERY role holds, always. Not a default, not a suggestion: a
+ * floor. They are never stored as RolePermission rows, and they can be neither
+ * granted nor revoked — not by the admin GUI, not by a config preset, not by a
+ * hand-written SQL statement, because nothing anywhere reads a stored row to
+ * decide them.
+ *
+ * (ADMIN's declared grant list happens to contain the key, because that list is
+ * derived from PERMISSIONS. Harmless: the seeder strips it before writing, and
+ * every other role holds it just the same without it being listed.)
+ *
+ * WHY IMPLICIT RATHER THAN A CHECKBOX. `staff.self` covers the things a person
+ * must be able to do to hold a shift at all: clock in, clock out, see their own
+ * hours, set the store they are standing in, read the up-board, send feedback.
+ * Make it grantable and the failure mode is inevitable and awful: someone
+ * building a tightly-scoped "Seasonal Help" role unchecks a box labelled with
+ * words they did not read closely, and the next morning six people cannot clock
+ * in. The error they get says "forbidden"; the person who unchecked it has no
+ * reason to connect the two, and the shop's answer is to hand everybody
+ * Manager. A permission whose only realistic use is to break the install is not
+ * a policy choice — so it is not offered as one. There is no code path that can
+ * remove it, which is why the GUI does not have to remember not to.
+ *
+ * It is still DECLARED in PERMISSIONS so the admin UI can render it in the
+ * Staff domain, described in an operator's words, shown as always-on and
+ * disabled rather than mysteriously absent. `GET /api/admin/roles` returns this
+ * array as `baseline` for exactly that purpose.
+ *
+ * Growing this list is a deliberate, reviewed act. The bar: a capability whose
+ * absence breaks a person's ability to do their own job, where no deployment
+ * could sanely want it withheld. Anything a deployment might reasonably scope —
+ * viewing other people's schedules, editing time — stays grantable.
+ */
+export const BASELINE_PERMISSIONS: readonly string[] = ["staff.self"];
+
+const BASELINE_SET = new Set(BASELINE_PERMISSIONS);
+
+export function isBaselinePermission(key: string): boolean {
+  return BASELINE_SET.has(key);
+}
+
+/**
+ * Add the floor to a grant list. Every EVALUATION path — anything deciding what
+ * a role may do — goes through this, so no caller has to remember the floor
+ * exists (CLAUDE.md rule 42: one shared function on every path that needs it).
+ * Order-preserving and idempotent.
+ */
+export function withBaselinePermissions(keys: Iterable<string>): string[] {
+  const out = [...keys];
+  for (const key of BASELINE_PERMISSIONS) {
+    if (!out.includes(key)) out.push(key);
+  }
+  return out;
+}
+
+/**
+ * Drop the floor from a grant list. Every STORAGE path — the built-in role
+ * seeder, the admin GUI's create/update, a config preset that carries roles —
+ * goes through this before writing RolePermission rows.
+ *
+ * A stored baseline row is not merely redundant. It reads in the GUI as a grant
+ * someone made, which invites someone to un-make it; and it would make a role's
+ * stored grants disagree with its effective grants, which is how "why can this
+ * person clock in" stops having an answer. Silently dropped rather than
+ * rejected: a client that sends the baseline back in a PUT is echoing what the
+ * catalog told it, not attempting anything, and erroring on it would make the
+ * GUI's obvious implementation wrong.
+ */
+export function stripBaselinePermissions(keys: Iterable<string>): string[] {
+  return [...keys].filter((key) => !BASELINE_SET.has(key));
 }
 
 /**
@@ -570,9 +655,23 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
   },
 ];
 
-/** Resolve a built-in role's grants, expanding the "*" wildcard. */
+/**
+ * Resolve a built-in role's grants, expanding the "*" wildcard and adding the
+ * baseline floor.
+ *
+ * This is an EVALUATION answer — "what may a holder of this role do" — so the
+ * baseline is in it. Storage paths want stripBaselinePermissions() around the
+ * result; the seeder does exactly that.
+ *
+ * An unrecognised key still gets the baseline rather than an empty list. It
+ * reaches here through requirePermission's StaffRole fallback, i.e. a real
+ * staff member on a real shift whose role the catalog does not define; giving
+ * them nothing at all would mean they cannot clock in, which is the case the
+ * floor exists for. It grants nothing else — an unknown role is still an
+ * unknown role.
+ */
 export function permissionsForBuiltInRole(roleKey: string): string[] {
   const def = BUILT_IN_ROLES.find((r) => r.key === roleKey);
-  if (!def) return [];
-  return def.permissions === "*" ? [...PERMISSION_KEYS] : [...def.permissions];
+  if (!def) return [...BASELINE_PERMISSIONS];
+  return withBaselinePermissions(def.permissions === "*" ? PERMISSION_KEYS : def.permissions);
 }

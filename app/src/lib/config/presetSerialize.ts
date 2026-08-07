@@ -176,6 +176,27 @@ function orderBundle(bundle: PresetBundle): Record<string, unknown> {
     version: PRESET_SCHEMA_VERSION,
     ...(bundle.description ? { description: bundle.description } : {}),
     presets: bundle.presets.map((preset) => {
+      if (preset.kind === "roles") {
+        return {
+          kind: preset.kind,
+          name: preset.name,
+          ...(preset.description ? { description: preset.description } : {}),
+          // Sorted by key, and each grant list sorted, so a hand-written file
+          // and an export of the same policy compare equal. `permissions` is
+          // always emitted even when empty: for this kind an empty list is a
+          // statement ("this role holds nothing"), not an absence, and the
+          // schema requires it.
+          roles: [...preset.roles]
+            .sort((a, b) => a.key.localeCompare(b.key))
+            .map((role) => ({
+              key: role.key,
+              name: role.name,
+              ...(role.description ? { description: role.description } : {}),
+              ...(role.rank !== undefined ? { rank: role.rank } : {}),
+              permissions: [...role.permissions].sort((a, b) => a.localeCompare(b)),
+            })),
+        };
+      }
       if (preset.kind === "traffic-store-mapping") {
         return {
           kind: preset.kind,
