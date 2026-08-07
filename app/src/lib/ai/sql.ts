@@ -41,10 +41,22 @@ interface ColumnRow {
   data_type: string;
 }
 
+interface ForeignKeyRow {
+  table_name: string;
+  column_name: string;
+  foreign_table_name: string;
+  foreign_column_name: string;
+}
+
 /**
  * A compact, model-friendly description of the tenant's public schema, one line
- * per table: `"Table"(col type, col type, ...)`. Identifiers are double-quoted
- * to remind the model they are case-sensitive in this database (the models use
+ * per table: `"Table"(col type, col type, ...)`, followed by a
+ * "Relationships (foreign keys):" section that spells out each FK as
+ * `"Table"."col" -> "ForeignTable"."col"`. Column names alone do not tell the
+ * model that `SalesOrder."customerId"` points at `Customer` and
+ * `SalesOrder."salesPersonId"` at `StaffMember`; the FK lines make the join
+ * targets explicit so it stops guessing. Identifiers are double-quoted to
+ * remind the model they are case-sensitive in this database (the models use
  * camelCase column names such as "firstName").
  */
 export async function schemaText(): Promise<string> {
@@ -66,7 +78,42 @@ export async function schemaText(): Promise<string> {
   for (const [table, cols] of byTable) {
     lines.push(`"${table}"(${cols.join(", ")})`);
   }
+
+  const fkLines = await foreignKeyLines();
+  if (fkLines.length > 0) {
+    lines.push("", "Relationships (foreign keys):", ...fkLines);
+  }
+
   return lines.join("\n");
+}
+
+/**
+ * One line per foreign key, `"Table"."col" -> "ForeignTable"."col"`, read from
+ * information_schema. Compact on purpose: the join target is the whole point,
+ * so nothing else (constraint name, action) is included.
+ */
+async function foreignKeyLines(): Promise<string[]> {
+  const rows = await prisma.$queryRawUnsafe<ForeignKeyRow[]>(
+    `SELECT tc.table_name,
+            kcu.column_name,
+            ccu.table_name  AS foreign_table_name,
+            ccu.column_name AS foreign_column_name
+       FROM information_schema.table_constraints tc
+       JOIN information_schema.key_column_usage kcu
+         ON kcu.constraint_name = tc.constraint_name
+        AND kcu.table_schema = tc.table_schema
+       JOIN information_schema.constraint_column_usage ccu
+         ON ccu.constraint_name = tc.constraint_name
+        AND ccu.table_schema = tc.table_schema
+      WHERE tc.constraint_type = 'FOREIGN KEY'
+        AND tc.table_schema = 'public'
+      ORDER BY tc.table_name, kcu.column_name`,
+  );
+
+  return rows.map(
+    (r) =>
+      `"${r.table_name}"."${r.column_name}" -> "${r.foreign_table_name}"."${r.foreign_column_name}"`,
+  );
 }
 
 /**

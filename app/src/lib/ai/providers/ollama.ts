@@ -9,23 +9,8 @@
 // that lib/ai/sql.ts re-guards before execution. So the concerns here are just
 // prompt + transport + pulling the SQL back out of a chat reply.
 
+import { buildMessages } from "@/lib/ai/prompt";
 import type { AiProvider } from "@/lib/ai/types";
-
-// The model is told exactly one job. The double-quote instruction matters: the
-// schema uses camelCase identifiers ("firstName", "Customer"), which Postgres
-// folds to lowercase unless quoted, so an unquoted identifier silently 404s.
-const SYSTEM = [
-  "You are a PostgreSQL expert. Translate the user's question into ONE read-only",
-  "SQL query against the provided schema.",
-  "",
-  "Rules:",
-  '- Output a single SELECT statement (a leading WITH/CTE is fine). NEVER write',
-  "  INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE, GRANT, REVOKE, MERGE, or COPY.",
-  "- ALWAYS double-quote table and column identifiers, because they are",
-  '  case-sensitive in this database. Example: SELECT "firstName" FROM "Customer".',
-  "- Add LIMIT 50 to the query unless it is an aggregate (COUNT/SUM/AVG/etc.).",
-  "- Reply with ONLY the SQL, inside a single ```sql code block. No prose.",
-].join("\n");
 
 /**
  * Pull the SQL back out of a chat reply. Strips any <think>...</think> the model
@@ -59,10 +44,7 @@ export const ollamaProvider: AiProvider = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: "Schema:\n" + schema + "\n\nQuestion: " + question },
-        ],
+        messages: buildMessages(question, schema),
         stream: false,
         think: false,
         options: { temperature: 0 },
