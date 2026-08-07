@@ -16,14 +16,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@prisma/client";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
 /**
  * Pure(ish) handler body, exported for unit/integration testing (mirrors
- * the sibling till routes). Role check happens in the requireAuthWithRole
- * wrapper below.
+ * the sibling till routes). The capability check happens in the
+ * requirePermission wrapper below.
  */
 export async function handleUnblock(
   req: NextApiRequest,
@@ -81,6 +81,6 @@ export async function handleUnblock(
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, session) => {
+export default requirePermission("pos.till.adjust", async (req, res, session) => {
   await handleUnblock(req, res, session, prisma);
 });

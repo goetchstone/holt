@@ -3,7 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { getErrorCode } from "@/lib/errorCode";
 import {
   success,
@@ -84,4 +84,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return methodNotAllowed(res, ["GET", "PUT", "DELETE"]);
 }
 
-export default requireAuthWithRole(["REGISTER", "MANAGER", "ADMIN"], handler);
+export default requirePermission("pos.operate", handler);
