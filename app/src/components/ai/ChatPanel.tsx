@@ -97,8 +97,8 @@ export function ChatPanel() {
           {data.refused ? (
             <Card className="border-amber-300">
               <CardContent className="p-4 text-sm text-amber-800">
-                The generated statement was not a read-only SELECT, so nothing was run against
-                the database. The SQL above is shown for review only.
+                The generated statement was not a read-only SELECT, so nothing was run against the
+                database. The SQL above is shown for review only.
               </CardContent>
             </Card>
           ) : data.error ? (

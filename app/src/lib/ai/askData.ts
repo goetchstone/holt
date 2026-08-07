@@ -25,6 +25,8 @@ export interface AskDataResult {
   refused?: boolean;
   /** The SELECT was valid to attempt but the database rejected it. */
   error?: string;
+  /** More rows matched than were returned; the cap is enforced by Postgres. */
+  truncated?: boolean;
 }
 
 export async function askData(question: string): Promise<AskDataResult> {

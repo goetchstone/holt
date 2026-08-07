@@ -16,6 +16,7 @@
 // wandering long before Postgres does.
 
 import { prisma } from "@/lib/prisma";
+import { isTableAllowed, referencesDeniedTable } from "@/lib/ai/tableAccess";
 
 // Word-boundary match so "created_at" or "updatedBy" as an identifier does not
 // trip the guard, but a bare `DROP` / `DELETE` keyword does. Case-insensitive.
@@ -32,7 +33,11 @@ export function isReadOnly(sql: string): boolean {
   const trimmed = sql.trim();
   const lower = trimmed.toLowerCase();
   if (!lower.startsWith("select") && !lower.startsWith("with")) return false;
-  return !FORBIDDEN_KEYWORDS.test(trimmed);
+  if (FORBIDDEN_KEYWORDS.test(trimmed)) return false;
+  // Read-only is not the same as harmless. `SELECT * FROM "IntegrationCredential"`
+  // is a perfectly well-formed read; so is dumping every session token. The
+  // keyword gate above only asks whether the statement WRITES.
+  return !referencesDeniedTable(trimmed);
 }
 
 interface ColumnRow {
@@ -69,6 +74,9 @@ export async function schemaText(): Promise<string> {
 
   const byTable = new Map<string, string[]>();
   for (const row of rows) {
+    // Not shown to the model. runSelect refuses these too -- see tableAccess.ts
+    // for why omitting them from the prompt is not on its own a control.
+    if (!isTableAllowed(row.table_name)) continue;
     const cols = byTable.get(row.table_name) ?? [];
     cols.push(`${row.column_name} ${row.data_type}`);
     byTable.set(row.table_name, cols);
@@ -110,10 +118,12 @@ async function foreignKeyLines(): Promise<string[]> {
       ORDER BY tc.table_name, kcu.column_name`,
   );
 
-  return rows.map(
-    (r) =>
-      `"${r.table_name}"."${r.column_name}" -> "${r.foreign_table_name}"."${r.foreign_column_name}"`,
-  );
+  return rows
+    .filter((r) => isTableAllowed(r.table_name) && isTableAllowed(r.foreign_table_name))
+    .map(
+      (r) =>
+        `"${r.table_name}"."${r.column_name}" -> "${r.foreign_table_name}"."${r.foreign_column_name}"`,
+    );
 }
 
 /**
@@ -126,17 +136,33 @@ async function foreignKeyLines(): Promise<string[]> {
 export async function runSelect(
   sql: string,
   limit = 50,
-): Promise<{ columns: string[]; rows: unknown[] }> {
+): Promise<{ columns: string[]; rows: unknown[]; truncated: boolean }> {
   if (!isReadOnly(sql)) {
-    throw new Error("Refusing to run a statement that is not a read-only SELECT.");
+    throw new Error(
+      "Refusing to run a statement that is not a read-only SELECT, or that references a table the assistant may not read.",
+    );
   }
+
+  // The cap has to be applied by Postgres, not by slicing afterwards. A model
+  // that writes `SELECT * FROM "OrderLineItem"` on a real deployment returns
+  // millions of rows; slicing to 50 after the fact still pulls all of them
+  // through the driver and into this process first. The statement timeout does
+  // not save you -- a fast sequential scan returns a great deal in ten seconds.
+  //
+  // Wrapping as a subquery rather than appending LIMIT, because the model's SQL
+  // may already end in its own LIMIT, an ORDER BY, or a trailing semicolon.
+  const capped = `SELECT * FROM (${sql.trim().replace(/;\s*$/, "")}) AS ai_capped LIMIT ${Math.floor(limit) + 1}`;
 
   const rows = await prisma.$transaction(async (tx) => {
     // SET LOCAL scopes the timeout to this transaction only.
     await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '10s'");
-    return tx.$queryRawUnsafe<Record<string, unknown>[]>(sql);
+    return tx.$queryRawUnsafe<Record<string, unknown>[]>(capped);
   });
 
-  const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
-  return { columns, rows: rows.slice(0, limit) };
+  // One extra row was requested so "there is more" is knowable without a
+  // second query; it is dropped before returning.
+  const truncated = rows.length > limit;
+  const page = rows.slice(0, limit);
+  const columns = page.length > 0 ? Object.keys(page[0]) : [];
+  return { columns, rows: page, truncated };
 }

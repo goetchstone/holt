@@ -8,17 +8,25 @@
 // database read with side effects (statement-timeout'd SELECT) and must never
 // be cached or prefetched by react-query the way a report is.
 //
-// GATING: protectedProcedure (signed-in) only, for now. A module/permission
-// gate -- the `ai` module flag from lib/modules/registry.ts, via requireModule
-// / a permissionProcedure -- lands in a later phase alongside the settings UI;
-// phase 1 is backend-only and the endpoint is not yet wired to any nav.
+// GATING: reporting.read, via permissionProcedure.
+//
+// "Signed in" is not enough for this one. The assistant turns a sentence into a
+// SELECT over the business's own tables, so whoever can call it can read
+// anything the deny list in lib/ai/tableAccess.ts does not exclude -- every
+// customer, every order, every payment -- regardless of what the UI would show
+// them. Asking a question in English is a reporting capability, so it is gated
+// like one.
+//
+// The permission is the second of two controls and they are not
+// interchangeable: this one decides WHO may ask, tableAccess.ts decides WHAT
+// any question can reach. Neither is sufficient alone.
 
 import { z } from "zod";
 import { askData } from "@/lib/ai/askData";
-import { router, protectedProcedure } from "../trpc";
+import { router, permissionProcedure } from "../trpc";
 
 export const chatRouter = router({
-  ask: protectedProcedure
+  ask: permissionProcedure("reporting.read")
     .input(z.object({ question: z.string().min(1) }))
     .mutation(({ input }) => askData(input.question)),
 });

@@ -31,6 +31,12 @@ import {
 // before this refactor -- order and values copied verbatim. This is the
 // regression guard: it must NOT be derived from MODULES/FEATURES itself, or
 // it would just test the derivation against its own source.
+//
+// A genuinely new module is added HERE too, in the position it occupies in the
+// registry. That is the point: the list is a ledger of deliberate additions, so
+// a module appearing by accident -- or a defaultEnabled quietly flipping to true
+// on an existing one -- still fails. Every entry below defaultEnabled:false was
+// off before and must stay off unless someone says otherwise in a diff.
 const PRE_REFACTOR_FEATURES: ReadonlyArray<{ key: string; defaultEnabled: boolean }> = [
   { key: "warehousing", defaultEnabled: true },
   { key: "dispatch", defaultEnabled: false },
@@ -51,6 +57,10 @@ const PRE_REFACTOR_FEATURES: ReadonlyArray<{ key: string; defaultEnabled: boolea
   { key: "legacyPosImport", defaultEnabled: false },
   { key: "legacyArchive", defaultEnabled: false },
   { key: "clientPortal", defaultEnabled: false },
+  // Added with the AI assistant. Off by default: it is text-to-SQL over the
+  // deployment's own data, so it is opt-in per deployment, not something a
+  // release switches on for everybody.
+  { key: "ai", defaultEnabled: false },
   { key: "dmarcTools", defaultEnabled: false },
 ];
 
