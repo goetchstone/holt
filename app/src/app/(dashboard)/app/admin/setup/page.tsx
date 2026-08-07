@@ -93,12 +93,6 @@ const ITEMS: CardGridItem[] = [
     roles: ["ADMIN"],
   },
   {
-    title: "Nav Permissions",
-    description: "Control which navigation sections each role can access.",
-    href: "/app/admin/setup/permissions",
-    roles: ["ADMIN"],
-  },
-  {
     title: "Trade Tiers",
     description: "Configure discount tiers for trade program customers.",
     href: "/app/admin/setup/trade-tiers",

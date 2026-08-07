@@ -5,13 +5,15 @@
 // App Router left sidebar. Reuses the SAME getVisibleNavItems permission +
 // feature logic as the old top-nav, rendered as a vertical, icon-led list.
 // Persistent on lg+, a slide-in drawer on smaller screens (iPad portrait /
-// phone). Self-contained: does its own nav fetch like AppNav did.
+// phone).
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useCallback, useMemo } from "react";
 import {
   BarChart3,
+  Clock,
   Hammer,
   LayoutDashboard,
   LifeBuoy,
@@ -24,8 +26,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { BrandLogo } from "@/components/branding/BrandLogo";
-import { getVisibleNavItems, type DbPermission, type NavItem } from "@/lib/auth/navPermissions";
+import { getVisibleNavItems, resolveViewerPermissions } from "@/lib/auth/navPermissions";
 import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
+import { useFeatures } from "@/lib/hooks/useFeatures";
 import { useBranding } from "@/components/branding/BrandingProvider";
 
 // Label -> icon. Unknown labels fall back to a generic icon.
@@ -39,36 +42,26 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   Admin: Settings,
   Tools: Hammer,
   Helpdesk: LifeBuoy,
+  // Time is on the baseline now, so every signed-in staff member sees it and it
+  // no longer falls through to the generic icon.
+  Time: Clock,
 };
 
 export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
-  const { effectiveRole } = useEffectiveRole();
+  const { data: session } = useSession();
+  const { isImpersonating, impersonatedRole } = useEffectiveRole();
   const branding = useBranding();
   const pathname = usePathname() ?? "/";
-  const [navItems, setNavItems] = useState<NavItem[]>([]);
+  const { features } = useFeatures();
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadNav() {
-      const [permsRes, featuresRes] = await Promise.allSettled([
-        fetch("/api/admin/permissions"),
-        fetch("/api/settings/features"),
-      ]);
-      let dbPerms: DbPermission[] | undefined;
-      if (permsRes.status === "fulfilled" && permsRes.value.ok) {
-        dbPerms = (await permsRes.value.json()).permissions as DbPermission[];
-      }
-      let features: Record<string, boolean> | undefined;
-      if (featuresRes.status === "fulfilled" && featuresRes.value.ok) {
-        features = (await featuresRes.value.json()).features as Record<string, boolean>;
-      }
-      if (!cancelled) setNavItems(getVisibleNavItems(effectiveRole, dbPerms, features));
-    }
-    loadNav();
-    return () => {
-      cancelled = true;
-    };
-  }, [effectiveRole]);
+  const navItems = useMemo(() => {
+    if (!session) return [];
+    const permissions = resolveViewerPermissions(
+      session,
+      isImpersonating ? impersonatedRole : null,
+    );
+    return getVisibleNavItems(permissions, features ?? undefined);
+  }, [session, isImpersonating, impersonatedRole, features]);
 
   const isActive = useCallback(
     (href: string) => pathname === href || pathname.startsWith(href + "/"),

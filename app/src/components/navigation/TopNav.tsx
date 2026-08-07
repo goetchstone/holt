@@ -5,9 +5,10 @@ import { useSession, signOut } from "next-auth/react";
 import { BrandLogo } from "@/components/branding/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { getVisibleNavItems, type DbPermission, type NavItem } from "@/lib/auth/navPermissions";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getVisibleNavItems, resolveViewerPermissions } from "@/lib/auth/navPermissions";
 import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
+import { useFeatures } from "@/lib/hooks/useFeatures";
 import { useBranding } from "@/components/branding/BrandingProvider";
 import { Bell } from "lucide-react";
 
@@ -171,46 +172,24 @@ export default function TopNav() {
   const router = useRouter();
   // isImpersonating + impersonatedRole now read by the global
   // <ImpersonationBanner /> in _app.tsx; TopNav only needs the role
-  // values to gate its View-as dropdown and decide which nav items to
-  // show.
-  const { effectiveRole, realRole, isImpersonating } = useEffectiveRole();
+  // values to gate its View-as dropdown and narrow the menu while
+  // impersonating.
+  const { realRole, isImpersonating, impersonatedRole } = useEffectiveRole();
   const branding = useBranding();
 
-  const [navItems, setNavItems] = useState<NavItem[]>([]);
+  // The viewer's permissions ride in on the session (see [...nextauth].ts), so
+  // the menu costs no request. Enabled feature modules are the one remaining
+  // input that has to be fetched.
+  const { features } = useFeatures();
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadPermissions() {
-      // Role overrides and enabled feature modules are independent optional
-      // inputs to the pure getVisibleNavItems filter; fetch both in parallel.
-      const [permsRes, featuresRes] = await Promise.allSettled([
-        fetch("/api/admin/permissions"),
-        fetch("/api/settings/features"),
-      ]);
-
-      let dbPerms: DbPermission[] | undefined;
-      if (permsRes.status === "fulfilled" && permsRes.value.ok) {
-        const data = await permsRes.value.json();
-        dbPerms = data.permissions as DbPermission[];
-      }
-
-      let features: Record<string, boolean> | undefined;
-      if (featuresRes.status === "fulfilled" && featuresRes.value.ok) {
-        const data = await featuresRes.value.json();
-        features = data.features as Record<string, boolean>;
-      }
-
-      if (!cancelled) {
-        setNavItems(getVisibleNavItems(effectiveRole, dbPerms, features));
-      }
-    }
-
-    loadPermissions();
-    return () => {
-      cancelled = true;
-    };
-  }, [effectiveRole]);
+  const navItems = useMemo(() => {
+    if (!session) return [];
+    const permissions = resolveViewerPermissions(
+      session,
+      isImpersonating ? impersonatedRole : null,
+    );
+    return getVisibleNavItems(permissions, features ?? undefined);
+  }, [session, isImpersonating, impersonatedRole, features]);
 
   async function startImpersonation(role: string) {
     await fetch("/api/admin/impersonate", {

@@ -15,50 +15,34 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { BrandLogo } from "@/components/branding/BrandLogo";
 import { Button } from "@/components/ui/button";
-import { getVisibleNavItems, type DbPermission, type NavItem } from "@/lib/auth/navPermissions";
+import { getVisibleNavItems, resolveViewerPermissions } from "@/lib/auth/navPermissions";
 import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
+import { useFeatures } from "@/lib/hooks/useFeatures";
 import { useBranding } from "@/components/branding/BrandingProvider";
 
 export function AppNav() {
   const { data: session } = useSession();
-  const { effectiveRole } = useEffectiveRole();
+  const { isImpersonating, impersonatedRole } = useEffectiveRole();
   const branding = useBranding();
   const router = useRouter();
   const pathname = usePathname() ?? "/";
 
-  const [navItems, setNavItems] = useState<NavItem[]>([]);
+  // Permissions ride in on the session — no per-navigation fetch. Feature
+  // modules still come from the API, keyed on pathname so a Settings -> Modules
+  // toggle reaches the persistent layout without a full reload.
+  const { features } = useFeatures(pathname);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadNav() {
-      const [permsRes, featuresRes] = await Promise.allSettled([
-        fetch("/api/admin/permissions"),
-        fetch("/api/settings/features"),
-      ]);
-
-      let dbPerms: DbPermission[] | undefined;
-      if (permsRes.status === "fulfilled" && permsRes.value.ok) {
-        dbPerms = (await permsRes.value.json()).permissions as DbPermission[];
-      }
-      let features: Record<string, boolean> | undefined;
-      if (featuresRes.status === "fulfilled" && featuresRes.value.ok) {
-        features = (await featuresRes.value.json()).features as Record<string, boolean>;
-      }
-      if (!cancelled) setNavItems(getVisibleNavItems(effectiveRole, dbPerms, features));
-    }
-    loadNav();
-    return () => {
-      cancelled = true;
-    };
-    // Re-fetch on navigation (pathname) too, not just role change: AppNav lives
-    // in the persistent (dashboard) layout, so without this a Settings -> Modules
-    // toggle (or a permission change) wouldn't surface in the nav until a full
-    // page reload. setNavItems only fires on success, so the old items stay
-    // visible during the re-fetch (no flicker).
-  }, [effectiveRole, pathname]);
+  const navItems = useMemo(() => {
+    if (!session) return [];
+    const permissions = resolveViewerPermissions(
+      session,
+      isImpersonating ? impersonatedRole : null,
+    );
+    return getVisibleNavItems(permissions, features ?? undefined);
+  }, [session, isImpersonating, impersonatedRole, features]);
 
   const isActive = useCallback(
     (href: string) => {
