@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { getErrorMessage } from "@/lib/toastError";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -18,7 +18,7 @@ interface VoucherRow {
   Remainingamount: string;
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, session) => {
+export default requirePermission("payment.giftcard.issue", async (req, res, session) => {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);

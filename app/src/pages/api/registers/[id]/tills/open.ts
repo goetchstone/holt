@@ -3,7 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@prisma/client";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -145,4 +145,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   await handleOpenTill(req, res, session, prisma);
 }
 
-export default requireAuthWithRole(["REGISTER", "MANAGER", "ADMIN"], handler);
+export default requirePermission("pos.till.manage", handler);
