@@ -35,6 +35,7 @@ import {
   BUILT_IN_ROLES,
   PERMISSION_KEYS,
   permissionsForBuiltInRole,
+  stripBaselinePermissions,
 } from "@/lib/auth/permissionCatalog";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 
@@ -166,7 +167,15 @@ export async function syncBuiltInRoles(
     // including ones a future release adds, and materialising that as 45 rows
     // would freeze it at today's catalog. Any rows it somehow has are stale and
     // get removed.
-    const desired = wantsWildcard ? [] : permissionsForBuiltInRole(def.key);
+    // The baseline (staff.self) is likewise a floor, not rows. permissionsFor-
+    // BuiltInRole answers "what may this role do", which includes it; what gets
+    // STORED is that answer minus the floor. buildRoleGrantTable adds it back to
+    // every role at read time, so a stored row would be pure redundancy — and
+    // worse, it would read in the admin UI as a grant someone chose and could
+    // un-choose, which is the exact failure the implicit baseline prevents.
+    const desired = wantsWildcard
+      ? []
+      : stripBaselinePermissions(permissionsForBuiltInRole(def.key));
 
     if (grantsCustomized) {
       result.grantsSkippedCustomized.push(def.key);

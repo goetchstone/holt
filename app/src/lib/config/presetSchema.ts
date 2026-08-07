@@ -14,9 +14,25 @@
 // disk) live in presetFiles.ts; serialization lives in presetSerialize.ts;
 // database application lives in applyPreset.ts.
 //
+// The one import beyond zod is lib/auth/permissionCatalog.ts, which is itself
+// pure data with no imports of its own, so the isomorphic promise above still
+// holds. That import is what lets the `roles` kind reject an unknown
+// permission key HERE, at parse time, rather than at apply time the way an
+// unknown `targetEntity` or `runnerKey` has to be (those catalogs are
+// server-side and this file cannot see them). It is the better place when it
+// is available: a preset is reviewed in a diff, so a typo should fail in the
+// review, in the GUI as you type, and in CI — not quietly at 2am against a
+// production database.
+//
 // Rule 7 (shared client/server contracts live in one file) applies here.
 
 import { z } from "zod";
+
+import {
+  isPermissionKey,
+  stripBaselinePermissions,
+  PERMISSION_KEYS,
+} from "@/lib/auth/permissionCatalog";
 
 /**
  * Bumped only for a BREAKING change to the preset shape. Additive fields do
@@ -200,12 +216,162 @@ export const trafficStoreMappingPresetSchema = z.object({
 });
 
 // --------------------------------------------------------------------------
+// kind: roles
+// --------------------------------------------------------------------------
+//
+// Who may do what, kept in git. A deployment's role set — "our designers
+// cannot discount", "Floor Lead exists and holds these eleven capabilities" —
+// is a fact about ONE deployment and not about the product (rule 61), which
+// makes it a preset rather than a literal in `src/`. permissionCatalog.ts's
+// header already promises this shape: the vocabulary is code, which role
+// holds which key is data.
+//
+// Rule 62 holds throughout: a `permissions` entry NAMES a capability from the
+// compile-time catalog. It cannot define one, and a name that resolves to
+// nothing is refused rather than stored.
+
+/**
+ * A preset's permission list -> the keys that actually become RolePermission
+ * rows.
+ *
+ * The baseline (`staff.self`) is dropped here, not rejected above. It is
+ * DECLARED in PERMISSIONS — so a preset naming it parses like any other key —
+ * but it is the floor every role already holds, never stored as a row, and
+ * neither grantable nor revocable. A preset listing it is stating something
+ * already true, and refusing a statement of fact is a worse error than
+ * accepting one: the roles admin screen renders the baseline as an always-on
+ * checkbox, so a file written from what that screen shows would otherwise fail
+ * to load over a no-op.
+ *
+ * stripBaselinePermissions() is the catalog's own function, shared with the
+ * built-in role seeder and the admin API's write paths — the floor is
+ * vocabulary and permissionCatalog.ts owns the vocabulary (rules 6 and 37).
+ * Duplicates collapse and the result is sorted, so applyPreset.ts's diff is
+ * order-independent and a re-ordered YAML list is not a change.
+ */
+export function grantablePermissions(permissions: readonly string[]): string[] {
+  return [...new Set(stripBaselinePermissions(permissions))].sort((a, b) => a.localeCompare(b));
+}
+
+/** Names the sibling keys in the same domain when a permission key is
+ *  unrecognized. Listing all ~45 keys would make the error unreadable; the
+ *  domain the author was aiming at is almost always where the typo is. */
+function nearbyPermissionHint(key: string): string {
+  const domain = key.split(".")[0];
+  const siblings = PERMISSION_KEYS.filter((k) => k.startsWith(`${domain}.`));
+  return siblings.length > 0 ? ` Keys in the "${domain}" domain: ${siblings.join(", ")}.` : "";
+}
+
+/**
+ * Role.key. UPPER_SNAKE, matching the eight built-ins exactly — their keys ARE
+ * the StaffRole enum values, and the Role.key schema doc explains why that
+ * equality is load-bearing. A deployment's own roles follow the same spelling
+ * so the two sets read as one vocabulary in the database, in a grep, and in
+ * this file.
+ */
+export const roleKeySchema = z
+  .string()
+  .min(1, "key is required")
+  .max(64, "key must be 64 characters or fewer")
+  .regex(
+    /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/,
+    "key must be UPPER_SNAKE_CASE, like the built-in role keys (e.g. FLOOR_LEAD)",
+  );
+
+export const rolePresetEntrySchema = z.object({
+  key: roleKeySchema,
+  /** Role.name — what an operator sees. Reconciled from code for built-ins
+   *  (see applyPreset.ts, which refuses a preset that contradicts it). */
+  name: z.string().min(1).max(100),
+  description: z.string().max(2000).optional(),
+  /** Role.rank, the anti-escalation ladder in lib/auth/roleDecision.ts. Only
+   *  ever WRITTEN for a deployment's own roles: built-in ranks are reconciled
+   *  from code, and permissionResolver.ts floors every built-in at its
+   *  compile-time value with max(), so no file can lower SUPER_ADMIN into
+   *  impersonation range. Bounded because rank is compared, never summed —
+   *  a five-digit value is a typo, not intent. */
+  rank: z.number().int().min(0).max(100).optional(),
+  /**
+   * The role's WHOLE capability set — not additions to it. Required, unlike
+   * the optional collections on the other kinds, precisely because of that:
+   * an omitted key would read as "no opinion" while meaning "revoke
+   * everything". Make the author write `permissions: []` and mean it.
+   */
+  permissions: z.array(z.string().min(1).max(100)).max(500),
+  /**
+   * Refused outright rather than ignored. `grantsAllPermissions` is the
+   * wildcard that holds every permission including ones a future release adds
+   * — a config file that could set it would be a config file that mints a
+   * superuser, which is not a config file. It has to be DECLARED to be
+   * rejected: zod strips unknown keys, so leaving it out would silently drop
+   * the line and leave the author believing they had granted it.
+   */
+  grantsAllPermissions: z
+    .never({
+      error:
+        "grantsAllPermissions cannot be set from a preset — a config file must not be able to mint a superuser. The wildcard belongs to the built-in Owner role and is reconciled from code (lib/auth/permissionCatalog.ts).",
+    })
+    .optional(),
+  /** Same treatment, same reason: `isSystem` decides whether the built-in
+   *  role seeder owns a row. A preset that could set it could hand its own
+   *  invented role to the seeder, or take a shipped one away from it. */
+  isSystem: z
+    .never({
+      error:
+        "isSystem cannot be set from a preset — it marks a role as shipped with the product, and is owned by the built-in role seeder (lib/auth/builtInRoles.ts).",
+    })
+    .optional(),
+});
+
+export const rolesPresetSchema = z
+  .object({
+    kind: z.literal("roles"),
+    name: presetNameSchema,
+    description: z.string().max(2000).optional(),
+    roles: z.array(rolePresetEntrySchema).max(200).default([]),
+  })
+  .superRefine((preset, ctx) => {
+    const seen = new Set<string>();
+    preset.roles.forEach((role, i) => {
+      // Role.key is @unique, so the second entry would simply overwrite the
+      // first — in a GitOps flow that reads as "my change did nothing".
+      if (seen.has(role.key)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `duplicate role key "${role.key}" — each key may appear once per preset`,
+          path: ["roles", i, "key"],
+        });
+      }
+      seen.add(role.key);
+
+      role.permissions.forEach((permission, j) => {
+        // The baseline (`staff.self`) is in PERMISSIONS, so it passes here and
+        // is dropped by grantablePermissions() before anything is stored.
+        if (isPermissionKey(permission)) return;
+        // Refused at PARSE time, naming the key. A preset is reviewed in a
+        // diff and applied unattended; a typo that merely failed to match
+        // would store a RolePermission row granting nothing at all, and the
+        // admin UI would render it as a grant. Whoever holds the role finds
+        // out at their first 403, months later. Fail in the review instead.
+        ctx.addIssue({
+          code: "custom",
+          message:
+            `unknown permission "${permission}" — no such key in the permission catalog ` +
+            `(lib/auth/permissionCatalog.ts).${nearbyPermissionHint(permission)}`,
+          path: ["roles", i, "permissions", j],
+        });
+      });
+    });
+  });
+
+// --------------------------------------------------------------------------
 // The bundle
 // --------------------------------------------------------------------------
 
 export const presetSchema = z.discriminatedUnion("kind", [
   importDefinitionPresetSchema,
   trafficStoreMappingPresetSchema,
+  rolesPresetSchema,
 ]);
 
 export const presetBundleSchema = z
@@ -236,6 +402,8 @@ export const presetBundleSchema = z
 export type FieldMappingPreset = z.infer<typeof fieldMappingSchema>;
 export type ImportDefinitionPreset = z.infer<typeof importDefinitionPresetSchema>;
 export type TrafficStoreMappingPreset = z.infer<typeof trafficStoreMappingPresetSchema>;
+export type RolePresetEntry = z.infer<typeof rolePresetEntrySchema>;
+export type RolesPreset = z.infer<typeof rolesPresetSchema>;
 export type Preset = z.infer<typeof presetSchema>;
 export type PresetBundle = z.infer<typeof presetBundleSchema>;
 export type PresetKind = Preset["kind"];

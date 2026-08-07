@@ -32,6 +32,12 @@
 //     accepting an unresolvable one would let a RECONCILE definition look
 //     configured while running nothing at all. Different risk from an
 //     inactive-but-saved definition, so a different answer.
+//
+// The `roles` kind needs neither: the permission catalog is compile-time and
+// client-safe, so presetSchema.ts refuses an unknown permission key at parse
+// time. What this file adds for that kind is everything that depends on
+// database state — which roles the seeder owns, which one holds the wildcard,
+// and the grant diff itself.
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 
@@ -43,12 +49,17 @@ import { isRegisteredRunnerKey, listRegisteredRunnerKeys } from "@/lib/imports/r
 import type { FieldMappingInput, ValueMappingInput } from "@/lib/imports/types";
 import {
   flattenValueMappings,
+  grantablePermissions,
   type ImportDefinitionPreset,
   type Preset,
   type PresetBundle,
   type PresetKind,
+  type RolesPreset,
   type TrafficStoreMappingPreset,
 } from "@/lib/config/presetSchema";
+import { BUILT_IN_ROLES } from "@/lib/auth/permissionCatalog";
+import { invalidateRoleGrantCache, type RoleGrantRow } from "@/lib/auth/permissionResolver";
+import { countStaffHolding, lockoutMessage, LOCKOUT_PERMISSION } from "@/lib/auth/roleAdmin";
 import { invalidateTrafficStoreMap } from "@/lib/trafficStoreMap";
 
 // ---------------------------------------------------------------------------
@@ -90,10 +101,17 @@ export async function applyPreset(preset: Preset, opts: ApplyPresetOpts): Promis
   const db = opts.prisma ?? defaultPrisma;
   let outcome: KindOutcome;
   try {
-    outcome =
-      preset.kind === "import-definition"
-        ? await applyImportDefinition(db, preset, opts)
-        : await applyTrafficStoreMapping(db, preset, opts);
+    switch (preset.kind) {
+      case "import-definition":
+        outcome = await applyImportDefinition(db, preset, opts);
+        break;
+      case "traffic-store-mapping":
+        outcome = await applyTrafficStoreMapping(db, preset, opts);
+        break;
+      case "roles":
+        outcome = await applyRoles(db, preset, opts);
+        break;
+    }
   } catch (err) {
     logError(`applyPreset: unexpected error applying ${preset.kind}/${preset.name}`, err, {
       presetKind: preset.kind,
@@ -885,5 +903,425 @@ async function applyTrafficStoreMapping(
   return {
     result: { kind: preset.kind, name: preset.name, action: "APPLIED", changes, messages },
     summary: { changes, ownedStores, messages },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// kind: roles
+// ---------------------------------------------------------------------------
+//
+// Reconciles Role and RolePermission rows from a committed file, so a
+// deployment's answer to "who may do what" lives in git and arrives through a
+// reviewed pull request instead of a series of clicks nobody recorded.
+//
+// THE SPLIT THIS KIND TURNS ON. lib/auth/builtInRoles.ts reconciles the eight
+// shipped roles on EVERY deploy: their identity (name, description, rank,
+// grantsAllPermissions) always, their grants only while
+// Role.grantsCustomized is false. So there are two owners of a built-in role's
+// row, and this function has to respect the boundary between them or the two
+// will fight:
+//
+//   - GRANTS on a built-in are fair game. Editing them is legitimate policy
+//     ("our managers cannot reassign a salesperson"), and doing it here sets
+//     grantsCustomized so the next deploy's seeder leaves them alone. It is
+//     set whenever the preset NAMES a built-in role, not only when the grants
+//     currently differ: a preset that happens to match today's shipped grants
+//     still owns them from now on, and without the flag a later release that
+//     adds a permission to that role would have the seeder put it back and
+//     this preset take it away again, forever — both sides reporting a change
+//     on every run, which is the exact non-idempotency rule 63 forbids.
+//   - IDENTITY on a built-in is not. Writing it here would lose to the next
+//     deploy and then win again at the next apply, the same ping-pong. So a
+//     preset that CONTRADICTS a built-in's identity is a stable, loud failure
+//     naming the field, rather than a write that quietly does not stick. A
+//     preset that merely restates it (`name` is required on every entry, so
+//     it must say something) writes nothing.
+//
+// WHAT THIS DELIBERATELY DOES NOT DO: delete a role the preset stops listing.
+// Rule 63's "a mapping deleted from the file is deleted from the database" is
+// scoped here to the GRANTS — the mapping-like collection, which IS cleared
+// down to exactly what the file lists. The Role row is different in kind:
+// deleting one strands every StaffMember pointing at it, and if it held the
+// last grant of staff.manage nobody is left who can put it back. The admin
+// API's DELETE handles that with an explicit reassignment target and a
+// self-lockout guard — both of them decisions about where affected PEOPLE go,
+// which a config file has no way to express. A role vanishing from the file
+// therefore leaves the row alone.
+//
+// SELF-LOCKOUT. A revocation from a file can empty staff.manage out of a
+// deployment just as thoroughly as one from the admin screen, so this path
+// runs the SAME guard the admin API's PUT and DELETE run —
+// countStaffHolding() from lib/auth/roleAdmin.ts, asked about the state this
+// apply is about to write. Rule 42: one shared function on every path that
+// needs it; a second, preset-local implementation would be exactly the drift
+// that rule exists to prevent.
+
+const BUILT_IN_ROLE_KEYS = new Set(BUILT_IN_ROLES.map((r) => r.key));
+
+interface ExistingRoleRow {
+  id: number;
+  key: string;
+  name: string;
+  description: string | null;
+  rank: number;
+  isSystem: boolean;
+  grantsAllPermissions: boolean;
+  grantsCustomized: boolean;
+  permissions: Array<{ id: number; permission: string }>;
+}
+
+/** Identity columns a preset may write. Never includes `key`, `isSystem` or
+ *  `grantsAllPermissions`: the first is the row's identity, and the other two
+ *  are refused by the schema (see rolePresetEntrySchema) precisely so a file
+ *  cannot mint a superuser or reassign ownership of a row to the seeder. */
+interface RoleIdentityWrite {
+  name?: string;
+  description?: string | null;
+  rank?: number;
+  grantsCustomized?: boolean;
+}
+
+interface RoleWritePlan {
+  key: string;
+  /** Null only when this apply creates the row. */
+  existingId: number | null;
+  create: { key: string; name: string; description: string | null; rank: number } | null;
+  update: RoleIdentityWrite | null;
+  changedFields: string[];
+  toAdd: string[];
+  toRemove: Array<{ id: number; permission: string }>;
+}
+
+/** Compares only the identity fields the preset actually stated. An omitted
+ *  optional field is "no claim", not "set it to null" — a three-line preset
+ *  written to change one grant must not silently blank a role's description
+ *  and demote it to rank 0 as a side effect. */
+function changedRoleIdentity(
+  existing: ExistingRoleRow,
+  entry: { name: string; description?: string; rank?: number },
+): RoleIdentityWrite {
+  const update: RoleIdentityWrite = {};
+  if (existing.name !== entry.name) update.name = entry.name;
+  if (entry.description !== undefined && (existing.description ?? null) !== entry.description) {
+    update.description = entry.description;
+  }
+  if (entry.rank !== undefined && existing.rank !== entry.rank) update.rank = entry.rank;
+  return update;
+}
+
+/** One entry's outcome: a reason to refuse the whole apply, or the writes it
+ *  needs (`plan: null` meaning "this role is already correct"). */
+type RoleEntryPlan = { failure: string } | { plan: RoleWritePlan | null; messages: string[] };
+
+/**
+ * The whole per-role decision, pure and I/O-free (rule 14) so the branching —
+ * which is where every rule in this section actually lives — is testable with
+ * plain object literals and applyRoles() below stays a read, a diff and a
+ * transaction.
+ */
+function planRoleEntry(
+  entry: RolesPreset["roles"][number],
+  existing?: ExistingRoleRow,
+): RoleEntryPlan {
+  if (!existing) {
+    if (BUILT_IN_ROLE_KEYS.has(entry.key)) {
+      // An unseeded database must not let a preset invent an isSystem=false
+      // impostor under a reserved key — the seeder would then fight it for
+      // ownership of the row.
+      return {
+        failure:
+          `role "${entry.key}" ships with the product but has no row yet — it is created and ` +
+          "reconciled by the built-in role seeder (`npm run seed:roles`), not by a preset. Run " +
+          "the seeder first, then apply this preset to edit its grants.",
+      };
+    }
+    return {
+      plan: {
+        key: entry.key,
+        existingId: null,
+        create: {
+          key: entry.key,
+          name: entry.name,
+          description: entry.description ?? null,
+          rank: entry.rank ?? 0,
+        },
+        update: null,
+        changedFields: [],
+        toAdd: grantablePermissions(entry.permissions),
+        toRemove: [],
+      },
+      messages: [`created role "${entry.key}" (${entry.name})`],
+    };
+  }
+
+  // The wildcard short-circuits the permission check before RolePermission is
+  // ever read (see the Role.grantsAllPermissions schema doc), so rows written
+  // against such a role authorize nothing while reading as policy in the admin
+  // UI. Refuse rather than write a lie. The preset cannot clear the flag
+  // either — the schema refuses the field outright.
+  if (existing.grantsAllPermissions) {
+    return {
+      failure:
+        `role "${entry.key}" holds every permission via the wildcard, so a permission list cannot ` +
+        "narrow it — the check short-circuits on the flag and never reads the rows this preset " +
+        "would write. Remove it from the preset; a role that should be limited is a different role.",
+    };
+  }
+
+  // Built-in by key even where the row disagrees, so a row whose isSystem was
+  // tampered with does not become a way in.
+  const isBuiltIn = existing.isSystem || BUILT_IN_ROLE_KEYS.has(entry.key);
+  const identityDrift = changedRoleIdentity(existing, entry);
+  const contradicted = isBuiltIn ? Object.keys(identityDrift) : [];
+  if (contradicted.length > 0) {
+    // Stable on re-apply, which is what makes it idempotent: the same file
+    // produces the same answer every time, even though that answer is "no".
+    return {
+      failure:
+        `role "${entry.key}" ships with the product, and its ${contradicted.join(", ")} ` +
+        "is reconciled from lib/auth/permissionCatalog.ts on every deploy. A preset that " +
+        "sets it would be overwritten at the next deploy and rewrite it at the next apply, " +
+        `forever. Current value(s): ${contradicted
+          .map((f) => `${f}=${JSON.stringify(existing[f as "name" | "description" | "rank"])}`)
+          .join(", ")}. Change the shipped definition in code, or use a role of your own.`,
+    };
+  }
+
+  const desired = new Set(grantablePermissions(entry.permissions));
+  const held = new Set(existing.permissions.map((p) => p.permission));
+  const toAdd = [...desired].filter((p) => !held.has(p));
+  // Whole-set semantics: what the file no longer lists is revoked. This is the
+  // half of rule 63 that makes GitOps actually work — without it a permission
+  // removed from the file stays granted, and the file quietly stops describing
+  // the deployment.
+  const toRemove = existing.permissions
+    .filter((p) => !desired.has(p.permission))
+    .sort((a, b) => a.permission.localeCompare(b.permission));
+
+  const update: RoleIdentityWrite = isBuiltIn ? {} : identityDrift;
+  // Claiming a built-in's grants takes ownership of them from the seeder,
+  // whether or not they currently differ — see the header.
+  if (isBuiltIn && !existing.grantsCustomized) update.grantsCustomized = true;
+
+  const changedFields = Object.keys(update);
+  if (changedFields.length === 0 && toAdd.length === 0 && toRemove.length === 0) {
+    return { plan: null, messages: [] };
+  }
+
+  return {
+    plan: {
+      key: entry.key,
+      existingId: existing.id,
+      create: null,
+      update: changedFields.length > 0 ? update : null,
+      changedFields,
+      toAdd,
+      toRemove,
+    },
+    messages: [
+      ...(changedFields.length > 0
+        ? [`updated role "${entry.key}" (${changedFields.join(", ")})`]
+        : []),
+      ...toAdd.map((p) => `role "${entry.key}": granted ${p}`),
+      ...toRemove.map((p) => `role "${entry.key}": revoked ${p.permission}`),
+    ],
+  };
+}
+
+/**
+ * The self-lockout guard, on the preset path. Returns the operator-facing
+ * reason to refuse, or null.
+ *
+ * Only a REVOCATION can take staff.manage away — creating a role or adding a
+ * grant cannot — so the two reads are skipped entirely when the apply removes
+ * nothing. Roles this apply CREATES are left out of the projection: no staff
+ * member can already be linked to a role that does not exist, so a new role
+ * can never be the reason someone still holds the capability, and pretending
+ * otherwise would let a preset "protect" itself with a role nobody has.
+ *
+ * Read outside the transaction, like every other diff in this file, so a dry
+ * run reports the same refusal a real apply would hit. That leaves a window
+ * between the check and the write which the admin API (which reads inside its
+ * own transaction) does not have — acceptable here, where an apply is one
+ * operator running the CLI or pressing Save, not a concurrent request path.
+ */
+async function refuseRolesLockout(
+  db: PrismaClient,
+  plans: RoleWritePlan[],
+): Promise<string | null> {
+  if (!plans.some((p) => p.toRemove.length > 0)) return null;
+
+  // Only ACTIVE, USER-LINKED staff count as holders — isActive is part of the
+  // authorization decision everywhere else, and a StaffMember with no userId
+  // is a name on the up-board nobody can sign in as. `{ not: null }` is the
+  // IS NOT NULL form, not the three-valued comparison rule 51 warns about.
+  const staff = await db.staffMember.findMany({
+    where: { isActive: true, userId: { not: null } },
+    select: { role: true, roleId: true },
+  });
+  // Nobody to lock out. A fresh deployment applies its roles preset BEFORE it
+  // has any staff — that is the whole point of keeping roles in git — and a
+  // guard that refused the very first apply would make the door unusable
+  // exactly where GitOps starts. This is not the bootstrap safeguard (which
+  // countStaffHolding deliberately pins shut); it is the distinction between
+  // "everyone lost the capability" and "there is no one".
+  if (staff.length === 0) return null;
+
+  const current = await db.role.findMany({
+    select: {
+      id: true,
+      key: true,
+      rank: true,
+      grantsAllPermissions: true,
+      permissions: { select: { permission: true } },
+    },
+  });
+
+  const planById = new Map(
+    plans.filter((p) => p.existingId !== null).map((p) => [p.existingId as number, p]),
+  );
+  const projected: RoleGrantRow[] = current.map((role) => {
+    const plan = planById.get(role.id);
+    if (!plan) return role;
+    const removed = new Set(plan.toRemove.map((r) => r.permission));
+    const kept = role.permissions.map((p) => p.permission).filter((p) => !removed.has(p));
+    return {
+      ...role,
+      permissions: [...new Set([...kept, ...plan.toAdd])].map((permission) => ({ permission })),
+    };
+  });
+
+  return countStaffHolding(LOCKOUT_PERMISSION, staff, projected) === 0
+    ? lockoutMessage("Applying this roles preset")
+    : null;
+}
+
+async function applyRoles(
+  db: PrismaClient,
+  preset: RolesPreset,
+  opts: ApplyPresetOpts,
+): Promise<KindOutcome> {
+  const keys = preset.roles.map((r) => r.key);
+  const existingRows: ExistingRoleRow[] = keys.length
+    ? await db.role.findMany({
+        where: { key: { in: keys } },
+        select: {
+          id: true,
+          key: true,
+          name: true,
+          description: true,
+          rank: true,
+          isSystem: true,
+          grantsAllPermissions: true,
+          grantsCustomized: true,
+          permissions: { select: { id: true, permission: true } },
+        },
+      })
+    : [];
+  const existingByKey = new Map(existingRows.map((r) => [r.key, r]));
+
+  const failures: string[] = [];
+  const plans: RoleWritePlan[] = [];
+  const messages: string[] = [];
+
+  // Every entry is planned before any is rejected, so one apply reports every
+  // problem in the file rather than sending an operator round the loop once
+  // per typo.
+  for (const entry of preset.roles) {
+    const outcome = planRoleEntry(entry, existingByKey.get(entry.key));
+    if ("failure" in outcome) {
+      failures.push(outcome.failure);
+      continue;
+    }
+    if (outcome.plan) plans.push(outcome.plan);
+    messages.push(...outcome.messages);
+  }
+
+  if (failures.length > 0) return failOutcome(preset, failures);
+
+  const created =
+    plans.filter((p) => p.create).length + plans.reduce((n, p) => n + p.toAdd.length, 0);
+  const updated = plans.filter((p) => p.update).length;
+  const deleted = plans.reduce((n, p) => n + p.toRemove.length, 0);
+  const roles = [...keys].sort((a, b) => a.localeCompare(b));
+
+  if (created === 0 && updated === 0 && deleted === 0) {
+    return {
+      result: {
+        kind: preset.kind,
+        name: preset.name,
+        action: "UNCHANGED",
+        changes: zeroChanges(),
+        messages: ["no changes"],
+      },
+      summary: { changes: zeroChanges(), roles, messages: [] },
+    };
+  }
+
+  // After the no-op exit (nothing to guard against) and before any write —
+  // including on a dry run, which must report the refusal it would hit.
+  const lockout = await refuseRolesLockout(db, plans);
+  if (lockout) return failOutcome(preset, [lockout]);
+
+  const changes: ApplyChangeCounts = { created, updated, deleted };
+
+  if (!opts.dryRun) {
+    await db.$transaction(async (tx) => {
+      for (const plan of plans) {
+        let roleId = plan.existingId;
+        if (plan.create) {
+          // Upsert, not create, for the same reason the ImportDefinition path
+          // does: `existing` was read OUTSIDE this transaction so a dry run can
+          // report the diff without writing, which means two concurrent applies
+          // of the same new key can both see nothing. Role.key is a single,
+          // NOT NULL `@unique` column, so the constraint genuinely matches and
+          // the second transaction converges onto the first's row instead of
+          // erroring. (Rule 64 is about compound uniques containing a nullable
+          // column; this is neither.)
+          const row = await tx.role.upsert({
+            where: { key: plan.create.key },
+            create: {
+              ...plan.create,
+              isSystem: false,
+              grantsAllPermissions: false,
+              grantsCustomized: false,
+            },
+            update: {
+              name: plan.create.name,
+              description: plan.create.description,
+              rank: plan.create.rank,
+            },
+            select: { id: true },
+          });
+          roleId = row.id;
+        } else if (plan.update && plan.existingId !== null) {
+          await tx.role.update({ where: { id: plan.existingId }, data: plan.update });
+        }
+        if (roleId === null) throw new Error(`roles preset: no row id for role "${plan.key}"`);
+
+        if (plan.toRemove.length > 0) {
+          await tx.rolePermission.deleteMany({
+            where: { id: { in: plan.toRemove.map((p) => p.id) } },
+          });
+        }
+        if (plan.toAdd.length > 0) {
+          await tx.rolePermission.createMany({
+            data: plan.toAdd.map((permission) => ({ roleId, permission })),
+            skipDuplicates: true,
+          });
+        }
+      }
+    }, TX_TIMEOUT.SHORT);
+
+    // Every write above changes who can do what. The resolver caches the whole
+    // grant table for its TTL, so without this a revocation applied from the
+    // CLI or the GUI keeps not biting for up to a minute — which for a
+    // revocation is a security bug, not a staleness annoyance.
+    invalidateRoleGrantCache();
+  }
+
+  return {
+    result: { kind: preset.kind, name: preset.name, action: "APPLIED", changes, messages },
+    summary: { changes, roles, messages },
   };
 }

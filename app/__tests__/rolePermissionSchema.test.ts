@@ -11,9 +11,9 @@
 //     started;
 //   - requirePermission's enum fallback resolves an unlinked staff member
 //     through permissionsForBuiltInRole(staff.role). A role key with no
-//     built-in definition resolves to [] -- no permissions at all -- and
-//     someone is locked out of their own job with nothing in the logs to say
-//     why.
+//     built-in definition resolves to the baseline and nothing else -- they can
+//     still clock in, but they are locked out of the rest of their own job with
+//     nothing in the logs to say why.
 //
 // Source-text scan of schema.prisma rather than a behavioural assertion,
 // because the thing under test is a correspondence between a Prisma enum
@@ -24,11 +24,22 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 
-import { BUILT_IN_ROLES, isPermissionKey, permissionsForBuiltInRole } from "@/lib/auth/permissionCatalog";
+import {
+  BUILT_IN_ROLES,
+  isPermissionKey,
+  permissionsForBuiltInRole,
+} from "@/lib/auth/permissionCatalog";
 
 const SCHEMA = readFileSync(join(__dirname, "..", "prisma", "schema.prisma"), "utf8");
 const MIGRATION = readFileSync(
-  join(__dirname, "..", "prisma", "migrations", "20260806160000_role_and_role_permission", "migration.sql"),
+  join(
+    __dirname,
+    "..",
+    "prisma",
+    "migrations",
+    "20260806160000_role_and_role_permission",
+    "migration.sql",
+  ),
   "utf8",
 );
 

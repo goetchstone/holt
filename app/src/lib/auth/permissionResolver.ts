@@ -30,7 +30,11 @@ import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { BUILT_IN_ROLES, permissionsForBuiltInRole } from "@/lib/auth/permissionCatalog";
+import {
+  BUILT_IN_ROLES,
+  permissionsForBuiltInRole,
+  withBaselinePermissions,
+} from "@/lib/auth/permissionCatalog";
 import { decidePermissionAccess, type PermissionDecision } from "@/lib/auth/roleDecision";
 
 /**
@@ -63,7 +67,7 @@ export interface RoleGrantRow {
 }
 
 export interface RoleGrantTable {
-  /** Permission keys held, by Role.key. */
+  /** Permission keys held, by Role.key — RolePermission rows PLUS the baseline. */
   grantsByRole: Record<string, readonly string[]>;
   /** Role keys holding every permission present and future (the "*" wildcard). */
   wildcardRoles: readonly string[];
@@ -75,7 +79,19 @@ export interface RoleGrantTable {
   empty: boolean;
 }
 
-/** Pure: turn already-fetched Role rows into the lookup the decision needs. */
+/**
+ * Pure: turn already-fetched Role rows into the lookup the decision needs.
+ *
+ * THE place the baseline floor is applied to database-sourced roles. Every
+ * row's grants are unioned with BASELINE_PERMISSIONS here — not per call site,
+ * not in the GUI, not in the seeder — so a role with zero RolePermission rows,
+ * a role a deployment invented last Tuesday, and a role key the catalog has
+ * never heard of all hold the floor identically. That is what lets the admin
+ * GUI omit `staff.self` from its checkboxes without anyone having to remember
+ * to re-add it: there is no path from a Role row to a decision that does not
+ * come through this function. See permissionCatalog.ts's BASELINE_PERMISSIONS
+ * for why the floor is implicit rather than a checkbox.
+ */
 export function buildRoleGrantTable(rows: RoleGrantRow[]): RoleGrantTable {
   const grantsByRole: Record<string, readonly string[]> = {};
   const wildcardRoles: string[] = [...BUILT_IN_WILDCARD_KEYS];
@@ -84,7 +100,7 @@ export function buildRoleGrantTable(rows: RoleGrantRow[]): RoleGrantTable {
 
   for (const row of rows) {
     keyById[row.id] = row.key;
-    grantsByRole[row.key] = row.permissions.map((p) => p.permission);
+    grantsByRole[row.key] = withBaselinePermissions(row.permissions.map((p) => p.permission));
     if (row.grantsAllPermissions && !wildcardRoles.includes(row.key)) wildcardRoles.push(row.key);
     ranks[row.key] = Math.max(ranks[row.key] ?? 0, row.rank);
   }
@@ -237,7 +253,14 @@ export async function resolvePermissionAccess(
   const wildcardRoles = [...table.wildcardRoles];
   for (const key of [realRoleKey, input.impersonate].filter((k): k is string => !!k)) {
     if (key in grantsByRole) continue;
-    grantsByRole[key] = table.grantsByRole[key] ?? permissionsForBuiltInRole(key);
+    // Both sources already carry the baseline (buildRoleGrantTable unions it in,
+    // permissionsForBuiltInRole returns it even for a key it does not know). The
+    // union is repeated here anyway because this is the one line where a role
+    // KEY becomes a grant list: making it total here means the floor survives a
+    // future edit to either source, rather than depending on both staying right.
+    grantsByRole[key] = withBaselinePermissions(
+      table.grantsByRole[key] ?? permissionsForBuiltInRole(key),
+    );
   }
 
   const decisionInput = {
