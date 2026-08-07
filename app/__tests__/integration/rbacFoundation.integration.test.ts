@@ -96,6 +96,22 @@ async function makeStaff(opts: {
   });
 }
 
+/**
+ * Keep the bootstrap door SHUT.
+ *
+ * `applyBootstrapSafeguard` grants any failing check while no active,
+ * user-linked SUPER_ADMIN/ADMIN/MANAGER exists, so the first person on a fresh
+ * deployment can promote themselves. Every test that asserts a DENIAL must
+ * therefore establish that someone privileged exists -- otherwise the test is
+ * really asserting the bootstrap bypass, and would keep passing if the
+ * capability check were deleted entirely.
+ *
+ * This bit three tests on a truncated database.
+ */
+async function makeBootstrapClosed() {
+  await makeStaff({ userId: "owner-fixture", roleKey: "ADMIN" });
+}
+
 beforeEach(async () => {
   await resetTestDb();
   invalidateRoleGrantCache();
@@ -306,6 +322,10 @@ describe("resolvePermissionAccess against a real database", () => {
   });
 
   it("revokes immediately when a staff member is deactivated", async () => {
+    // The ADMIN keeps the bootstrap door shut; without it, deactivating the
+    // last privileged user opens access for everyone instead of closing it
+    // for this one, and this test would assert the opposite of its name.
+    await makeBootstrapClosed();
     await makeStaff({ userId: "mgr", roleKey: "MANAGER" });
     await prisma.staffMember.updateMany({
       where: { userId: "mgr" },
@@ -318,6 +338,37 @@ describe("resolvePermissionAccess against a real database", () => {
     });
     expect(r.allowed).toBe(false);
     expect(r.noActiveStaff).toBe(true);
+  });
+
+  it("opens the bootstrap door when the LAST privileged staff member is deactivated", async () => {
+    // The uncomfortable half of the safeguard, asserted rather than left to be
+    // discovered. Deactivating the last active SUPER_ADMIN/ADMIN/MANAGER does
+    // not lock the deployment -- it grants every failing check, so whoever is
+    // left can promote someone. That is deliberate (a deployment with no
+    // administrator has no other way back), but it means "deactivation revokes
+    // access" is true only while somebody privileged remains.
+    await makeStaff({ userId: "solo", roleKey: "ADMIN" });
+    await makeStaff({ userId: "dsgn", roleKey: "DESIGNER" });
+
+    const before = await resolvePermissionAccess({
+      userId: "dsgn",
+      permission: "payment.refund",
+      impersonate: null,
+    });
+    expect(before.allowed).toBe(false);
+
+    await prisma.staffMember.updateMany({
+      where: { userId: "solo" },
+      data: { isActive: false },
+    });
+
+    const after = await resolvePermissionAccess({
+      userId: "dsgn",
+      permission: "payment.refund",
+      impersonate: null,
+    });
+    expect(after.allowed).toBe(true);
+    expect(after.bootstrapBypass).toBe(true);
   });
 
   it("does not let an ADMIN impersonate SUPER_ADMIN into an owner-only capability", async () => {
@@ -375,6 +426,7 @@ describe("resolvePermissionAccess against a real database", () => {
   it("syncBuiltInRoles invalidates the cache itself when it writes", async () => {
     // Otherwise a deploy that restores a grant would keep 403ing for up to the
     // TTL afterwards, and the operator would conclude the seeder did nothing.
+    await makeBootstrapClosed();
     await makeStaff({ userId: "dsgn", roleKey: "DESIGNER" });
     const designer = await prisma.role.findUniqueOrThrow({ where: { key: "DESIGNER" } });
     await prisma.rolePermission.deleteMany({
@@ -412,6 +464,7 @@ describe("requirePermission on POST /api/sales/orders/[id]/refunds", () => {
   });
 
   it("403s a DESIGNER — the exact hole the audit found, now closed", async () => {
+    await makeBootstrapClosed();
     await makeStaff({ userId: "dsgn", roleKey: "DESIGNER" });
     sessionMock.mockResolvedValue({ user: { id: "dsgn", email: "dsgn@example.com" } });
 
@@ -421,8 +474,7 @@ describe("requirePermission on POST /api/sales/orders/[id]/refunds", () => {
   });
 
   it("403s a signed-in user who is not staff at all", async () => {
-    // A privileged staff member must exist, or the bootstrap safeguard applies.
-    await makeStaff({ userId: "adm", roleKey: "ADMIN" });
+    await makeBootstrapClosed();
     await prisma.user.create({ data: { id: "portal", email: "portal@example.com" } });
     sessionMock.mockResolvedValue({ user: { id: "portal", email: "portal@example.com" } });
 
