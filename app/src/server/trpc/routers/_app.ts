@@ -10,6 +10,7 @@ import { billingRouter } from "./billing";
 import { legacyArchiveRouter } from "./legacyArchive";
 import { clientPortalRouter } from "./clientPortal";
 import { accountRouter } from "./account";
+import { chatRouter } from "./chat";
 
 const healthRouter = router({
   // Liveness: confirms the tRPC HTTP route + transformer are working.
@@ -25,6 +26,7 @@ export const appRouter = router({
   legacyArchive: legacyArchiveRouter,
   clientPortal: clientPortalRouter,
   account: accountRouter,
+  chat: chatRouter,
 });
 
 export type AppRouter = typeof appRouter;

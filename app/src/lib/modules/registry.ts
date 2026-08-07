@@ -158,6 +158,14 @@ export const MODULES: ModuleDef[] = [
     category: "core",
   },
   {
+    key: "ai",
+    name: "AI Assistant",
+    description:
+      "Read-only AI data chatbot: ask questions in plain English and get an answer from the tenant's own database via guarded text-to-SQL.",
+    defaultEnabled: false,
+    category: "core",
+  },
+  {
     key: "dmarcTools",
     name: "Email Auth Tools (DMARC)",
     description:
