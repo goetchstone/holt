@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requireAuth, requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -24,7 +24,7 @@ export default requireAuth(async (req, res) => {
   }
 
   if (req.method === "POST") {
-    return requireAuthWithRole(["MANAGER", "ADMIN"], async (_req, _res, session) => {
+    return requirePermission("payment.giftcard.issue", async (_req, _res, session) => {
       const { code, amount, label, sortOrder } = req.body;
 
       if (!code || !label) {

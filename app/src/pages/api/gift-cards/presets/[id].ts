@@ -2,11 +2,11 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, session) => {
+export default requirePermission("payment.giftcard.issue", async (req, res, session) => {
   const id = Number.parseInt(req.query.id as string, 10);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid preset ID" });
 

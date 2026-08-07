@@ -2,11 +2,11 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 // Activation happens at the till, so REGISTER staff need access too.
-export default requireAuthWithRole(["REGISTER", "MANAGER", "ADMIN"], async (req, res, session) => {
+export default requirePermission("pos.operate", async (req, res, session) => {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
