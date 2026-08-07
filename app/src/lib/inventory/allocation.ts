@@ -18,19 +18,28 @@
 //
 // TWO SIGNALS FOR "SPOKEN FOR" -- HONOURED, NOT UNIFIED
 //
-// Because salesOrderId was never populated, the Ordorite import adapter grew
-// its own convention: imported stock that's committed to a customer gets
-// moved to a StockLocation whose name starts with "Customer" (see
-// src/lib/reports/buyersReport.ts). That convention is real in 50k+ imported
-// orders and buyersReport already reads it. This module does NOT migrate
-// those rows or change how buyersReport interprets them -- it just makes
-// sure NATIVE holt sales never treat a Customer-location row as free stock
-// to allocate from. Two signals, both honoured:
+// Because salesOrderId was never populated, the source system a deployment
+// imports from may carry its own convention for "committed to a customer" --
+// typically a holding location that stock is moved to. holt reads that as a
+// flag on the location itself, not as a fact about its name. Two signals,
+// both honoured:
 //
-//   - salesOrderId set                 -> committed via THIS module (native sale)
-//   - StockLocation.name ~ 'Customer%' -> committed via the Ordorite convention
+//   - salesOrderId set                     -> committed via THIS module (native sale)
+//   - StockLocation.holdsCommittedStock    -> committed by whoever put it there
 //
 // A position is free stock only if neither signal is present.
+//
+// The flag is set by an admin (warehouse -> locations) or derived by an
+// import adapter from its own source convention -- the Ordorite adapter
+// derives it from that deployment's "Customer%" location naming, in
+// src/lib/adapters/ordorite/shared.ts. That naming convention is real in
+// 50k+ imported orders, and the migration that added the flag backfilled it
+// from exactly that string test, so imported data behaves as before. It is
+// one adapter's fact about its source, though, not something shared
+// inventory code is entitled to assume (CLAUDE.md rule 61).
+//
+// This module does NOT migrate imported rows and does not change how
+// buyersReport interprets them; buyersReport reads the same flag.
 //
 // THE FOUR OPERATIONS
 //
@@ -158,23 +167,28 @@ export function planDraw(positions: PositionForDraw[], requested: number): DrawP
  * anything else that needs "is this position free to sell" can never drift
  * from each other. A position is free when:
  *   - it is not committed to an order (salesOrderId is null), AND
- *   - it is not sitting in an Ordorite "Customer%" holding location.
+ *   - it is not sitting in a location flagged as holding committed stock.
  *
- * Rule 51: `salesOrderId: null` is written as an explicit equality check,
- * never a `not`, because it's the nullable column we actually mean to test.
- * The Customer-location exclusion is a relation-level NOT instead of a
- * `stockLocationId: { not: X }` comparison -- filtering through the related
- * StockLocation's name means a position with no stock location at all
- * (stockLocationId null) correctly counts as free (there is no related row
- * for "NOT EXISTS" to match against), rather than being silently dropped by
- * three-valued logic on the nullable FK itself.
+ * Rule 51, twice. `salesOrderId: null` is an explicit equality check, never a
+ * `not`, because it's the nullable column we actually mean to test. And
+ * `stockLocationId` is nullable too -- a position with NO stock location is
+ * free stock -- so the location test is written as an explicit disjunction
+ * rather than a `NOT: { stockLocation: {...} }`. A relation-level NOT on a
+ * nullable to-one relation is exactly the three-valued-logic hazard rule 51
+ * warns about: it is the difference between "the location does not hold
+ * committed stock" and "there is no location", and getting it wrong drops
+ * every location-less position out of available stock silently.
+ *
+ * Callers spread the result into a larger where clause. Any caller that also
+ * needs a disjunction of its own must nest it under `AND`, NOT set a
+ * sibling `OR:` -- an object-literal spread would overwrite the one below
+ * and silently re-admit committed stock as free. No caller does today
+ * (availableQuantity and allocate, both in this file).
  */
 export function freePositionWhere(): Prisma.InventoryPositionWhereInput {
   return {
     salesOrderId: null,
-    NOT: {
-      stockLocation: { name: { startsWith: "Customer", mode: "insensitive" } },
-    },
+    OR: [{ stockLocationId: null }, { stockLocation: { holdsCommittedStock: false } }],
   };
 }
 

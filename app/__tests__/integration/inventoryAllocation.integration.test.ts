@@ -30,10 +30,22 @@ async function seed() {
   const floor = await prisma.stockLocation.create({
     data: { storeLocationId: store.id, code: "FLOOR", name: "Floor" },
   });
-  // The Ordorite convention for "already spoken for": a stock location whose
-  // name starts with Customer. Native allocation must never draw from it.
+  // "Already spoken for" is a flag on the location, not a fact about its
+  // name. Deliberately named nothing like "Customer": if the name were
+  // still load-bearing this location would read as free stock.
   const held = await prisma.stockLocation.create({
-    data: { storeLocationId: store.id, code: "CUST", name: "Customer Holds" },
+    data: {
+      storeLocationId: store.id,
+      code: "HOLD",
+      name: "Warehouse B",
+      holdsCommittedStock: true,
+    },
+  });
+  // The inversion: named exactly like the old heuristic's target, but NOT
+  // flagged. It is ordinary sellable stock, and any surviving `ILIKE
+  // 'customer%'` would wrongly exclude it.
+  const decoy = await prisma.stockLocation.create({
+    data: { storeLocationId: store.id, code: "CUST", name: "Customer Overflow" },
   });
   const product = await prisma.product.create({
     data: {
@@ -50,7 +62,7 @@ async function seed() {
   const other = await prisma.salesOrder.create({
     data: { orderno: "SO-2", status: "ORDER", storeLocation: store.name },
   });
-  return { store, floor, held, product, order, other };
+  return { store, floor, held, decoy, product, order, other };
 }
 
 const freeRows = (productId: number) =>
@@ -181,9 +193,10 @@ describe("inventory allocation (real DB)", () => {
     expect(await prisma.inventoryPosition.count({ where: { salesOrderId: order.id } })).toBe(0);
   });
 
-  it("never draws from a Customer-hold location", async () => {
-    // The imported-data convention. Treating it as free stock would sell
-    // something already promised to someone.
+  it("never draws from a holdsCommittedStock location", async () => {
+    // Stock that is on hand but already promised. Treating it as free would
+    // sell the same sofa twice. Note the location is called "Warehouse B" --
+    // the flag is doing this, not the name.
     const { store, held, product, order } = await seed();
     await prisma.inventoryPosition.create({
       data: { productId: product.id, storeLocationId: store.id, stockLocationId: held.id, quantity: 7 },
@@ -197,6 +210,78 @@ describe("inventory allocation (real DB)", () => {
       prisma,
     );
     expect(result.shortfalls[0].shortfall).toBe(1);
+  });
+
+  it("DOES draw from an unflagged location even when it is named 'Customer ...'", async () => {
+    // The inversion that proves the string literal is really gone. Until
+    // 2026-08 this exact row was excluded from free stock by
+    // `sl.name ILIKE 'customer%'` hardcoded in shared inventory code -- an
+    // Ordorite naming convention every deployment inherited whether or not
+    // it used it (CLAUDE.md rule 61).
+    const { store, decoy, product, order } = await seed();
+    await prisma.inventoryPosition.create({
+      data: { productId: product.id, storeLocationId: store.id, stockLocationId: decoy.id, quantity: 7 },
+    });
+
+    expect(await availableQuantity(product.id, store.id, prisma)).toBe(7);
+
+    const result = await allocate(
+      order.id,
+      [{ productId: product.id, quantity: 2, storeLocationId: store.id }],
+      prisma,
+    );
+    expect(result.shortfalls).toEqual([]);
+    expect(await availableQuantity(product.id, store.id, prisma)).toBe(5);
+  });
+
+  it("counts a position with NO stock location as free", async () => {
+    // Rule 51 on the other nullable column. The location test is a
+    // disjunction (`stockLocationId: null` OR `holdsCommittedStock: false`)
+    // precisely so this row survives; a `NOT: { stockLocation: {...} }`
+    // against a nullable to-one relation is where three-valued logic
+    // silently swallows every bin-less position.
+    const { store, product, order } = await seed();
+    await prisma.inventoryPosition.create({
+      data: { productId: product.id, storeLocationId: store.id, quantity: 4 },
+    });
+
+    expect(await availableQuantity(product.id, store.id, prisma)).toBe(4);
+
+    const result = await allocate(
+      order.id,
+      [{ productId: product.id, quantity: 4, storeLocationId: store.id }],
+      prisma,
+    );
+    expect(result.shortfalls).toEqual([]);
+  });
+
+  it("mixed locations: only the flagged one is withheld", async () => {
+    const { store, floor, held, decoy, product, order } = await seed();
+    for (const [stockLocationId, quantity] of [
+      [floor.id, 2],
+      [held.id, 6],
+      [decoy.id, 3],
+    ] as const) {
+      await prisma.inventoryPosition.create({
+        data: { productId: product.id, storeLocationId: store.id, stockLocationId, quantity },
+      });
+    }
+
+    // 2 + 3 free; the 6 sitting in the flagged location are not for sale.
+    expect(await availableQuantity(product.id, store.id, prisma)).toBe(5);
+
+    const result = await allocate(
+      order.id,
+      [{ productId: product.id, quantity: 6, storeLocationId: store.id }],
+      prisma,
+    );
+    expect(result.shortfalls[0].shortfall).toBe(1);
+    // The flagged position is untouched -- not drawn from, not split.
+    const heldRow = await prisma.inventoryPosition.findFirst({
+      where: { productId: product.id, stockLocationId: held.id },
+    });
+    expect(heldRow!.quantity).toBe(6);
+    expect(heldRow!.salesOrderId).toBeNull();
   });
 
   it("lets the sale through when stock is short, and reports it", async () => {
