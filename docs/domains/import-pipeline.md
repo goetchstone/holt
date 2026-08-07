@@ -16,7 +16,7 @@ Manual alternative: upload CSV via `/admin/import/POS-automation.tsx`.
 
 The pipeline runs daily at 6:10 AM via Synology Task Scheduler.
 
-**Script:** `scripts/auto-import.sh` -- sends a POST to `/api/automations/gmail-import` with a Bearer token.
+**Script:** `scripts/auto-import.sh` -- sends a POST to `/api/automations/source-import` with a Bearer token.
 
 **Task Scheduler setup:**
 
@@ -251,7 +251,7 @@ The sweep runs OUTSIDE the per-batch transaction — idempotent, and a single fa
 - `lib/adapters/ordorite/reportRouter.ts` -- filename-to-runner dispatch
 - `lib/adapters/ordorite/runners.ts` -- all runner functions (~2000 lines)
 - `lib/importHelpers.ts` -- pure utility functions (safeString, safeFloat, deriveSalesOrderStatus, etc.)
-- `pages/api/automations/gmail-import.ts` -- pipeline orchestrator
+- `pages/api/automations/source-import.ts` -- resolves the active source adapter (docs/domains/source-adapters.md)
 - `scripts/auto-import.sh` -- cron script for Synology Task Scheduler
 
 ## Verification Checklist

@@ -453,7 +453,7 @@ Each reconciliation pass writes a NEW `DailyReconciliationLog` row. A re-run of 
 
 ### Auth model
 
-- **Bearer-token auth** via `AUTO_IMPORT_API_KEY` env var (same key the gmail-import cron uses) — for unattended cron runs.
+- **Bearer-token auth** via `AUTO_IMPORT_API_KEY` env var (same key the source-import cron uses) — for unattended cron runs.
 - **NextAuth session auth** with MANAGER/ADMIN roles — for manual admin-UI triggers.
 
 ### Why this matters

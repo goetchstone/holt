@@ -28,6 +28,7 @@ import { TrafficStoreMappingPanel } from "./TrafficStoreMappingPanel";
 import { ImportDefinitionsPanel } from "./ImportDefinitionsPanel";
 import { ImportExportPanel } from "./ImportExportPanel";
 import { ChangeHistoryPanel } from "./ChangeHistoryPanel";
+import { SourceSystemPanel } from "./SourceSystemPanel";
 
 function DiskReportBanner({
   diskReport,
@@ -120,13 +121,18 @@ export function ConfigurationView() {
 
       <DiskReportBanner diskReport={state.diskReport} />
 
-      <Tabs defaultValue="traffic">
+      <Tabs defaultValue="source">
         <TabsList>
+          <TabsTrigger value="source">Source System</TabsTrigger>
           <TabsTrigger value="traffic">Traffic Store Mapping</TabsTrigger>
           <TabsTrigger value="imports">Import Definitions</TabsTrigger>
           <TabsTrigger value="export">Import &amp; Export</TabsTrigger>
           <TabsTrigger value="history">Change History</TabsTrigger>
         </TabsList>
+
+        <TabsContent tabValue="source">
+          <SourceSystemPanel />
+        </TabsContent>
 
         <TabsContent tabValue="traffic">
           <TrafficStoreMappingPanel

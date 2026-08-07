@@ -89,7 +89,7 @@ export function PosImportView() {
     setLastRun(null);
     try {
       const res = await axios.post<RunSummary>(
-        `/api/automations/gmail-import${dryRun ? "?dryRun=true" : ""}`,
+        `/api/automations/source-import${dryRun ? "?dryRun=true" : ""}`,
       );
       setLastRun(res.data);
       if (res.data.errors.length > 0) {

@@ -4709,6 +4709,13 @@ model AppSettings {
   defaultTaxDistrictId Int?
   defaultTaxDistrict   TaxDistrict? @relation(fields: [defaultTaxDistrictId], references: [id])
 
+  /// Which SourceAdapter (lib/adapters/) pulls data from the system this
+  /// deployment ran before holt. "none" is the shipped default and a real
+  /// answer -- a deployment that keys everything natively imports nothing.
+  /// Validated against the registry at resolution time, not by an enum, so
+  /// adding an adapter is a code registration and not a migration.
+  sourceAdapterId String @default("none")
+
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
   createdBy String?
