@@ -156,14 +156,29 @@ describe("built-in roles, resolved from the seeded rows", () => {
     expect(await menuFor("owner")).toEqual(ALL_LABELS);
   });
 
-  it("MANAGER sees every operational hub but not Admin", async () => {
+  it("MANAGER sees Admin — it can use accounting, pricing and commission inside it", async () => {
     await makeStaff({ userId: "manager", roleKey: "MANAGER" });
 
     const menu = await menuFor("manager");
     expect(menu).toContain("Sales");
     expect(menu).toContain("Warehouse");
     expect(menu).toContain("Reports");
+    // Admin is a hub whose cards self-filter. Requiring one admin.* key for the
+    // whole entry hid it from a Manager while every page inside stayed
+    // reachable by URL, so NAV_ITEMS lists several keys and the entry appears
+    // when the viewer holds any. accounting.read is the one that earns it here.
+    expect(menu).toContain("Admin");
+  });
+
+  it("REGISTER does not see Admin — it holds none of that hub's keys", async () => {
+    // The negative half, which the assertion above used to be carrying. Without
+    // it, "any of" could degrade into "everyone" and nothing would notice.
+    await makeStaff({ userId: "cashier", roleKey: "REGISTER" });
+
+    const menu = await menuFor("cashier");
+    expect(menu).toContain("Sales");
     expect(menu).not.toContain("Admin");
+    expect(menu).not.toContain("Purchasing");
   });
 
   it("resolves through the built-in definitions when roleId is NULL", async () => {
