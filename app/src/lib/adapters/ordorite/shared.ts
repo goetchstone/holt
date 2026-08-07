@@ -258,6 +258,38 @@ export function deriveSalesOrderStatus(
 }
 
 // ---------------------------------------------------------------------------
+// Stock-location naming convention (committed stock)
+// ---------------------------------------------------------------------------
+
+/**
+ * ORDORITE'S convention, not holt's.
+ *
+ * In an Ordorite-fed deployment, stock that is already committed to a
+ * customer is moved to a stock location whose name begins with "Customer"
+ * ("Customer Sofas", "Customer Holds"). holt does not know that. holt's own
+ * signal is the `StockLocation.holdsCommittedStock` boolean, read by
+ * lib/inventory/allocation.ts (free-stock predicate) and
+ * lib/reports/buyersReport.ts (floor vs customer split).
+ *
+ * This prefix used to live as a literal inside both of those shared files,
+ * which meant any deployment that named its locations differently silently
+ * got wrong availability -- stock promised to a customer counted as free to
+ * sell. CLAUDE.md rule 61: a deployment fact belongs to the adapter that
+ * knows it, and it SELECTS behaviour (sets a flag) rather than supplying it
+ * (rule 62). Every stock location this adapter creates derives the flag
+ * here; everything else in holt just reads the flag.
+ */
+const COMMITTED_STOCK_LOCATION_NAME_PREFIX = "customer";
+
+/** True when an Ordorite stock-location name marks committed customer stock.
+ *  Case-insensitive; `safeString` has already trimmed the name. */
+export function ordoriteHoldsCommittedStock(name: unknown): boolean {
+  const s = safeString(name);
+  if (!s) return false;
+  return s.toLowerCase().startsWith(COMMITTED_STOCK_LOCATION_NAME_PREFIX);
+}
+
+// ---------------------------------------------------------------------------
 // Email validation
 // ---------------------------------------------------------------------------
 

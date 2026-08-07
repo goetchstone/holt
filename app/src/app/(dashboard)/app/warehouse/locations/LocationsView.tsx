@@ -27,6 +27,7 @@ interface StockLocationItem {
   squareFootage: number | null;
   locationAliases: string[];
   isActive: boolean;
+  holdsCommittedStock: boolean;
   sortOrder: number;
 }
 

@@ -520,7 +520,9 @@ Built to answer the three questions a buyer asks every time they look at a vendo
 
 ### Ship 2.5 additions (shipped 2026-04-24)
 
-**Customer Stock column** — splits `InventoryPosition` into floor stock (`salesOrderId IS NULL`, column: On Hand) and customer-allocated stock (`salesOrderId IS NOT NULL`, column: Cust Stock). Single SQL using conditional `SUM(CASE WHEN ... THEN qty ELSE 0 END)`. Customer-allocated units aren't in the buyer's "available to sell" number but remain visible as a signal: `onHand=0, customerStock=3` means "people keep buying this, should we keep a floor sample?"
+**Customer Stock column** — splits `InventoryPosition` into floor stock (On Hand) and customer-allocated stock (Cust Stock). Single SQL using conditional `SUM(CASE WHEN ... THEN qty ELSE 0 END)` over `StockLocation.holdsCommittedStock`, `COALESCE`d because the join to `StockLocation` is LEFT (a position with no stock location is floor stock). Customer-allocated units aren't in the buyer's "available to sell" number but remain visible as a signal: `onHand=0, customerStock=3` means "people keep buying this, should we keep a floor sample?"
+
+The split condition was `sl.name ILIKE 'customer%'` until 2026-08 — an Ordorite location-naming convention hardcoded into shared reporting code, and this doc previously described it as a `salesOrderId` test, which it never was. It reads the `holdsCommittedStock` flag now, backfilled from exactly that string test so an Ordorite-fed deployment's numbers are unchanged. The same flag drives the free-stock predicate in `lib/inventory/allocation.ts`, so the report and the POS cannot disagree about what is sellable — see `docs/domains/inventory.md` → "Two signals for 'spoken for'".
 
 **Hidden demand Attention Panel** — third card (alongside Running Thin and Dead Money) surfaces leaves with `onHand = 0 AND (customerStock > 0 OR specialSoldQty > 0)`. Sorted by demand intensity. Direct "stock a floor sample" signal.
 

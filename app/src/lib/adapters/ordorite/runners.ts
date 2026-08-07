@@ -28,6 +28,7 @@ import {
   rewriteBaseOrderno,
   classifyPOReceiptStatus,
   ensureUnknownVendorId,
+  ordoriteHoldsCommittedStock,
   SAME_DAY_REWRITE_DROP_CANCEL_REASON,
 } from "@/lib/adapters/ordorite/shared";
 import { buildLocationMap } from "@/lib/storeLocationResolver";
@@ -1643,6 +1644,13 @@ async function ensureCatchallStockLocation(): Promise<{
       name: CATCHALL_NAME,
       storeLocationId: store.id,
       locationType: "STOCK",
+      // Derive holt's committed-stock flag from Ordorite's location-naming
+      // convention -- this adapter is the only place in the codebase that
+      // knows that convention (rule 61). The catch-all's own name never
+      // matches, so this is false today; deriving it at the creation site
+      // rather than hardcoding `false` means the next location this adapter
+      // creates gets it right instead of quietly defaulting to sellable.
+      holdsCommittedStock: ordoriteHoldsCommittedStock(CATCHALL_NAME),
     },
     select: { id: true, storeLocationId: true },
   });
