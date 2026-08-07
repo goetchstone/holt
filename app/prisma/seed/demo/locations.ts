@@ -29,6 +29,8 @@ export interface StoreSetup {
 export interface LocationsSetup {
   stores: StoreSetup[];
   warehouseStockLocationId: number;
+  /** The warehouse bay flagged `holdsCommittedStock` -- on hand, already sold. */
+  warehouseCommittedStockLocationId: number;
 }
 
 const STORE_DEFS = [
@@ -82,6 +84,28 @@ export async function seedLocations(
       isActive: true,
       sortOrder: 0,
       locationAliases: ["Warehouse", "Central Warehouse"],
+      createdBy: SEED_ACTOR,
+    },
+  });
+
+  // A staging bay for goods that are on hand but already sold. The flag --
+  // not the name -- is what keeps this stock out of available-to-sell
+  // quantities (lib/inventory/allocation.ts) and puts it in the Buyers
+  // Report's Cust Stock column. Named without the word "Customer" on
+  // purpose: the shipped seed should demonstrate that holt no longer cares
+  // what the location is called (see CLAUDE.md rule 61).
+  const warehouseCommitted = await prisma.stockLocation.upsert({
+    where: { storeLocationId_code: { storeLocationId: warehouse.id, code: "HOLD" } },
+    update: {},
+    create: {
+      storeLocationId: warehouse.id,
+      code: "HOLD",
+      name: "Central Warehouse — Sold Goods Staging",
+      locationType: "STOCK",
+      isActive: true,
+      sortOrder: 1,
+      holdsCommittedStock: true,
+      locationAliases: ["Sold Goods Staging"],
       createdBy: SEED_ACTOR,
     },
   });
@@ -165,5 +189,9 @@ export async function seedLocations(
     });
   }
 
-  return { stores, warehouseStockLocationId: warehouseStock.id };
+  return {
+    stores,
+    warehouseStockLocationId: warehouseStock.id,
+    warehouseCommittedStockLocationId: warehouseCommitted.id,
+  };
 }
