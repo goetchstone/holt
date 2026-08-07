@@ -17,6 +17,7 @@ interface StockLocationData {
   squareFootage: number | null;
   locationAliases: string[];
   isActive: boolean;
+  holdsCommittedStock: boolean;
 }
 
 type Props = {
@@ -43,6 +44,7 @@ export default function StockLocationModal({
     locationAliases: "",
   });
   const [isActive, setIsActive] = useState(true);
+  const [holdsCommittedStock, setHoldsCommittedStock] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -58,6 +60,7 @@ export default function StockLocationModal({
         locationAliases: (stockLocation.locationAliases || []).join(", "),
       });
       setIsActive(stockLocation.isActive);
+      setHoldsCommittedStock(stockLocation.holdsCommittedStock === true);
     } else {
       setForm({
         code: "",
@@ -70,6 +73,7 @@ export default function StockLocationModal({
         locationAliases: "",
       });
       setIsActive(true);
+      setHoldsCommittedStock(false);
     }
   }, [stockLocation]);
 
@@ -109,6 +113,7 @@ export default function StockLocationModal({
             .map((s) => s.trim())
             .filter(Boolean),
           isActive,
+          holdsCommittedStock,
         }),
       });
 
@@ -229,6 +234,24 @@ export default function StockLocationModal({
         <p className="text-[10px] text-sh-gray mt-0.5">
           External location names that map to this USL during import (e.g. &quot;NB 2nd Floor Area
           4, NB Attic&quot;)
+        </p>
+      </div>
+      <div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="slHoldsCommittedStock"
+            checked={holdsCommittedStock}
+            onChange={(e) => setHoldsCommittedStock(e.target.checked)}
+            className="rounded"
+          />
+          <label htmlFor="slHoldsCommittedStock" className="text-sm text-sh-gray">
+            Holds stock committed to customers
+          </label>
+        </div>
+        <p className="text-[10px] text-sh-gray mt-0.5">
+          Stock here is on hand but already sold — it stays out of available-to-sell quantities and
+          shows as Cust Stock on the Buyers Report.
         </p>
       </div>
       {stockLocation && (

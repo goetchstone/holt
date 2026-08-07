@@ -131,14 +131,21 @@ describe("freePositionWhere", () => {
     expect("not" in (where as Record<string, unknown>)).toBe(false);
   });
 
-  it("excludes Customer-location stock via a relation-level NOT, not a stockLocationId comparison", () => {
+  it("excludes committed-stock locations by flag, with an explicit null branch for no-location rows", () => {
+    // Rule 51 again, on the OTHER nullable column. stockLocationId is
+    // nullable and a position with no stock location IS free, so the test
+    // has to be a disjunction: `NOT: { stockLocation: {...} }` on a nullable
+    // to-one relation conflates "the location doesn't hold committed stock"
+    // with "there is no location".
     const where = freePositionWhere();
-    expect(where.NOT).toEqual({
-      stockLocation: { name: { startsWith: "Customer", mode: "insensitive" } },
-    });
-    // Must not filter stockLocationId directly -- that would risk dropping
-    // NULL-stockLocationId rows (floor stock with no bin) under the same
-    // three-valued-logic trap Rule 51 warns about.
-    expect((where as Record<string, unknown>).stockLocationId).toBeUndefined();
+    expect(where.OR).toEqual([
+      { stockLocationId: null },
+      { stockLocation: { holdsCommittedStock: false } },
+    ]);
+    // No name matching anywhere: the Ordorite "Customer%" convention lives
+    // in the Ordorite adapter now, not in shared inventory code (rule 61).
+    expect(JSON.stringify(where)).not.toMatch(/customer/i);
+    // And no bare NOT, which is what the flag replaced.
+    expect(where.NOT).toBeUndefined();
   });
 });
