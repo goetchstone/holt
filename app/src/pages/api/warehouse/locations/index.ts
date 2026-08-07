@@ -39,6 +39,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
               squareFootage: true,
               isActive: true,
               sortOrder: true,
+              // Both of these feed the edit modal, which PUTs the whole form
+              // back. Omitting a field here doesn't just hide it -- the modal
+              // sends its empty/false default and the PUT overwrites the
+              // stored value. `locationAliases` was already being wiped on
+              // every edit that way; `holdsCommittedStock` would have
+              // silently reclassified a location's stock as sellable on the
+              // next save.
+              locationAliases: true,
+              holdsCommittedStock: true,
             },
           },
         },
