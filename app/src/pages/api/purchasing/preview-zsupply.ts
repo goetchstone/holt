@@ -1,7 +1,7 @@
 // /app/src/pages/api/purchasing/preview-zsupply.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { parseZSupplyPDF } from "@/lib/pricing/zSupplyParser";
 import fs from "fs";
 import { createSecureForm } from "@/lib/secureUpload";
@@ -55,4 +55,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler);
+export default requirePermission("purchasing.receive", handler);

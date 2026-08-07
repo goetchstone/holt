@@ -6,7 +6,7 @@ import { getCellValue } from "@/lib/excelUtils";
 import { safeFloat, safeString } from "@/lib/fmSafeMapper";
 import { generateBarcode } from "@/lib/barcode";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
@@ -128,8 +128,8 @@ function generatePONumber(): string {
   return `PO-${yy}${mm}${dd}`;
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "purchasing.write",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

@@ -5,7 +5,7 @@
 // to show a preview before the user confirms department/category selections.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { parseNuOrderPDF } from "@/lib/pricing/nuorderParser";
 import fs from "fs";
 import { createSecureForm } from "@/lib/secureUpload";
@@ -35,4 +35,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler);
+export default requirePermission("purchasing.receive", handler);

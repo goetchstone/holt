@@ -5,7 +5,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { badRequest, notFound, methodNotAllowed, success } from "@/lib/apiResponse";
 
@@ -53,7 +53,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 }
 
 // Self-service: every staff role sets their own active store location.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
-  handler,
-);
+export default requirePermission("staff.self", handler);

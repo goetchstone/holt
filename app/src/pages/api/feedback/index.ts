@@ -5,7 +5,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { createIssue, isConfigured } from "@/lib/githubApp";
 import { logError } from "@/lib/logger";
 
@@ -81,10 +81,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 }
 
 // Self-service: any signed-in staff member can submit in-app feedback.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
-  handler,
-);
+export default requirePermission("staff.self", handler);
 
 function parseDevice(ua: string): string {
   if (ua.includes("iPad")) return "iPad";

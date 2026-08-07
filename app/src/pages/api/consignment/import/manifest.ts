@@ -6,7 +6,7 @@ import { safeString, safeFloat } from "@/lib/importHelpers";
 import { calculateRugPricing } from "@/lib/consignment";
 import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
 interface ManifestRow {
@@ -66,8 +66,8 @@ interface RowError {
   error: string;
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "purchasing.write",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });

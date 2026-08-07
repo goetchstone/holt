@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { isValidTransition } from "@/lib/serviceDispatchService";
 import type { ServiceAppointmentStatus } from "@prisma/client";
@@ -69,4 +69,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
 // Matches the role set on the sibling service/dispatch/[id].ts PUT (which
 // updates the same ServiceAppointment): warehouse/installer crews + managers.
-export default requireAuthWithRole(["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"], handler);
+export default requirePermission("warehouse.operate", handler);

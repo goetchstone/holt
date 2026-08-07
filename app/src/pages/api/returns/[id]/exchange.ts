@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -92,7 +92,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
 // Processing an exchange touches inventory + balances. Register desk,
 // warehouse returns, manager, and admin only.
-export default requireAuthWithRole(
-  ["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"],
-  handler,
-);
+export default requirePermission("sales.return", handler);

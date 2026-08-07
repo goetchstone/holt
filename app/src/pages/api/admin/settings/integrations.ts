@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { isValidProviderField } from "@/lib/integrationCatalog";
@@ -17,7 +17,7 @@ import {
   setCredential,
 } from "@/lib/integrationCredentials";
 
-export default requireAuthWithRole(["ADMIN"], async (req, res, session) => {
+export default requirePermission("admin.integrations", async (req, res, session) => {
   if (req.method === "GET") return handleGet(res);
   if (req.method === "PUT") return handlePut(req, res, session);
   if (req.method === "DELETE") return handleDelete(req, res);

@@ -39,11 +39,16 @@ jest.mock("child_process", () => ({
 }));
 
 jest.mock("@/lib/auth/requireAuth", () => ({
-  // Bypass auth; role enforcement is covered by roleDecision.test.ts and the
-  // apiRouteAuthorization tripwire.
+  // Bypass auth; enforcement is covered by roleDecision.test.ts,
+  // permissionResolver.test.ts and the apiRouteAuthorization tripwire.
+  // Both guards are stubbed because a route may be on either while the
+  // enum-to-permission sweep is in progress — mocking only the one this route
+  // happens to use today turns a guard swap into an unrelated test failure.
   requireAuthWithRole:
-    (_roles: string[], handler: (...a: unknown[]) => unknown) =>
-    (req: unknown, res: unknown) =>
+    (_roles: string[], handler: (...a: unknown[]) => unknown) => (req: unknown, res: unknown) =>
+      handler(req, res, { user: { email: "admin@example.com" } }),
+  requirePermission:
+    (_permission: string, handler: (...a: unknown[]) => unknown) => (req: unknown, res: unknown) =>
       handler(req, res, { user: { email: "admin@example.com" } }),
 }));
 
@@ -104,7 +109,9 @@ describe("admin database restore guards", () => {
     const res = makeRes();
     await handler(makeReq("id,name\n1,Chair\n"), res);
     expect(res.statusCode).toBe(400);
-    expect(String((res.payload as { error: string }).error)).toMatch(/does not look like a pg_dump/);
+    expect(String((res.payload as { error: string }).error)).toMatch(
+      /does not look like a pg_dump/,
+    );
     expect(schemaWasDropped()).toBe(false);
   });
 

@@ -22,7 +22,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { getActiveSourceAdapter } from "@/lib/adapters";
 import { reportOpsAlert } from "@/lib/opsAlert";
 import { getErrorMessage } from "@/lib/toastError";
@@ -86,5 +86,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
   if (authorizedByApiKey(req)) return run(req, res);
-  return requireAuthWithRole(["SUPER_ADMIN", "ADMIN"], run)(req, res);
+  return requirePermission("admin.data", run)(req, res);
 }

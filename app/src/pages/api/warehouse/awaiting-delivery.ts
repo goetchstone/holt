@@ -5,7 +5,7 @@
 // 3-6 Months, 6-12 Months, Over 1 Year.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { computeBalance } from "@/lib/paymentService";
@@ -44,8 +44,8 @@ export interface AwaitingDeliveryOrder {
   balanceDue: number;
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN", "WAREHOUSE"],
+export default requirePermission(
+  "purchasing.receive",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       return res.status(405).json({ error: "Method not allowed" });

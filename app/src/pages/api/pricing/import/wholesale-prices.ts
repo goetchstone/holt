@@ -12,7 +12,7 @@ import { validateBody } from "@/lib/validation/validate";
 import { ValidationError } from "@/lib/apiHandler";
 import { auditLog } from "@/lib/audit";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorMessage } from "@/lib/toastError";
 // ─── Vendor name normalization ────────────────────────────────────
@@ -577,8 +577,8 @@ function tierDisplayName(code: string): string {
 
 // ─── Handler ───────────────────────────────────────────────────────
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "catalog.pricing",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });

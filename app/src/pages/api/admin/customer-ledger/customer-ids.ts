@@ -8,12 +8,12 @@
 // Cheap query: ids only, no joins. ADMIN-only.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default requireAuthWithRole(
-  ["ADMIN"],
+export default requirePermission(
+  "accounting.post",
   async (_req: NextApiRequest, res: NextApiResponse) => {
     try {
       const customers = await prisma.customer.findMany({

@@ -4,7 +4,7 @@ import { getErrorCode } from "@/lib/errorCode";
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { created, badRequest, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
@@ -43,7 +43,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
 // Case notes are written by the service team. Register/Marketing have no
 // reason to add notes to a service case.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"],
-  handler,
-);
+export default requirePermission("service.write", handler);

@@ -8,7 +8,7 @@
 // 3. If they're the only one, they're automatically UP
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
 import { logError } from "@/lib/logger";
@@ -80,7 +80,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 }
 
 // Self-service: any staff role clocks themselves in.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
-  handler,
-);
+export default requirePermission("staff.self", handler);

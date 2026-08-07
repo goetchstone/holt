@@ -4,7 +4,7 @@
 // admin UI. Existing members (matched by displayName) are left untouched.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
 const KNOWN_STAFF = [
@@ -42,4 +42,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.json({ created, existing, total: KNOWN_STAFF.length });
 }
 
-export default requireAuthWithRole(["ADMIN"], handler);
+export default requirePermission("staff.manage", handler);

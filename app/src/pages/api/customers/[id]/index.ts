@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 // Wealth enrichment data (net worth, wealth tier, lifestyle signals)
@@ -12,8 +12,8 @@ import { logError } from "@/lib/logger";
 // SUPER_ADMIN (owner role above ADMIN) sees wealth fields too.
 const WEALTH_ROLES = new Set(["SUPER_ADMIN", "ADMIN", "MARKETING"]);
 
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+export default requirePermission(
+  "customer.read",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const { id } = req.query;
     if (!id) {

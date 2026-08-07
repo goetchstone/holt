@@ -2,14 +2,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 // Service cases span the delivery/install/designer/warehouse workflow.
 // Register and Marketing have no legitimate reason to read or mutate
 // service case data, so they're excluded.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"],
+export default requirePermission(
+  "service.write",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const id = Number.parseInt(req.query.id as string);
     if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid case ID" });

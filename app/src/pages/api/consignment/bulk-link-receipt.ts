@@ -8,9 +8,9 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+import { requirePermission } from "@/lib/auth/requireAuth";
+export default requirePermission(
+  "purchasing.write",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -19,7 +19,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "node:fs";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { createSecureForm } from "@/lib/secureUpload";
 import { parseKKOrderPDF } from "@/lib/pricing/kkOrderParser";
 import { parseWendoverOrderPDF } from "@/lib/pricing/wendoverOrderParser";
@@ -77,34 +77,37 @@ async function parseFor(
   return null;
 }
 
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const formatId = typeof req.query.format === "string" ? req.query.format : "";
-  const entry = HOME_ACCESSORY_FORMATS.find((f) => f.id === formatId);
-  if (!entry) {
-    return res.status(400).json({ error: `Unknown vendor format "${formatId}"` });
-  }
-
-  try {
-    const form = createSecureForm(entry.accepts === "csv" ? "CSV_XLSX" : "PDF");
-    const [, files] = await form.parse(req);
-    const file = Array.isArray(files.file) ? files.file[0] : files.file;
-    if (!file) {
-      return res.status(400).json({ error: "No file uploaded" });
+export default requirePermission(
+  "admin.data",
+  async (req: NextApiRequest, res: NextApiResponse) => {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", ["POST"]);
+      return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const draft = await parseFor(entry, fs.readFileSync(file.filepath));
-    if (!draft?.rows.length) {
-      return res.status(400).json({ error: "No line items found in the uploaded file" });
+    const formatId = typeof req.query.format === "string" ? req.query.format : "";
+    const entry = HOME_ACCESSORY_FORMATS.find((f) => f.id === formatId);
+    if (!entry) {
+      return res.status(400).json({ error: `Unknown vendor format "${formatId}"` });
     }
-    return res.status(200).json(draft);
-  } catch (err) {
-    logError("Home accessory order preview parse failed", err);
-    const message = err instanceof Error ? err.message : "Parse failed";
-    return res.status(500).json({ error: message });
-  }
-});
+
+    try {
+      const form = createSecureForm(entry.accepts === "csv" ? "CSV_XLSX" : "PDF");
+      const [, files] = await form.parse(req);
+      const file = Array.isArray(files.file) ? files.file[0] : files.file;
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const draft = await parseFor(entry, fs.readFileSync(file.filepath));
+      if (!draft?.rows.length) {
+        return res.status(400).json({ error: "No line items found in the uploaded file" });
+      }
+      return res.status(200).json(draft);
+    } catch (err) {
+      logError("Home accessory order preview parse failed", err);
+      const message = err instanceof Error ? err.message : "Parse failed";
+      return res.status(500).json({ error: message });
+    }
+  },
+);

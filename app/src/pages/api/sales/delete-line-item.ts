@@ -4,11 +4,11 @@
 // Used to clean up orphaned/duplicate lines from import issues.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "sales.cancel",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "DELETE") return res.status(405).json({ error: "Method not allowed" });
 

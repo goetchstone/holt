@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { spawn } from "child_process";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 // Pin the absolute path so a poisoned PATH (writable directory shadowing
@@ -17,7 +17,7 @@ export const config = {
   },
 };
 
-export default requireAuthWithRole(["ADMIN"], async (req, res) => {
+export default requirePermission("admin.data", async (req, res) => {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
