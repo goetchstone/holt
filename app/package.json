@@ -33,6 +33,7 @@
     "db:generate": "prisma generate",
     "create-admin": "node scripts/create-admin.mjs",
     "seed:cms": "node scripts/seed-cms.mjs",
+    "seed:roles": "node scripts/seed-roles.mjs",
     "seed:demo": "TZ=UTC TS_NODE_PROJECT=prisma/seed/tsconfig.seed.json ts-node -r tsconfig-paths/register prisma/seed/demo/index.ts"
   },
   "dependencies": {

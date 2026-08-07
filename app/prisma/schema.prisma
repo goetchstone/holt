@@ -2722,6 +2722,105 @@ model NavPermission {
 }
 
 // ---------------------------------------------------------------------------
+// ROLES & PERMISSIONS
+// ---------------------------------------------------------------------------
+//
+// The DATA half of authorization. The vocabulary (what is grantable) is code:
+// src/lib/auth/permissionCatalog.ts. Which role holds which capability is these
+// rows -- seeded from the built-in definitions and editable per deployment.
+// Same split as INTEGRATION_PROVIDERS/IntegrationCredential and
+// MODULES/AppSettings.features (docs/DECISIONS.md #13: policy is data,
+// mechanism is code).
+//
+// NOT YET ENFORCED EVERYWHERE. As of this model's introduction exactly one API
+// route consults a permission; the other 334 still gate on the StaffRole enum
+// via requireAuthWithRole. StaffMember carries BOTH `role` (enum) and `roleId`
+// (FK) for that reason -- see docs/DECISIONS.md.
+
+model Role {
+  id Int @id @default(autoincrement())
+
+  /// Stable identifier. For the eight built-in roles this is EXACTLY the
+  /// StaffRole enum value (SUPER_ADMIN, ADMIN, DESIGNER, ...). That equality is
+  /// load-bearing twice over: the roleId backfill in this model's migration
+  /// joins on it, and requirePermission's enum fallback resolves an unlinked
+  /// staff member through it. __tests__/rolePermissionSchema.test.ts is the
+  /// tripwire that keeps the two sets identical in both directions.
+  key String @unique
+
+  /// Operator-facing name ("Owner", "Floor Lead"). Reconciled from code for
+  /// built-ins; owned by the deployment for its own roles.
+  name        String
+  description String?
+
+  /// Grants EVERY permission -- the ones that exist now AND the ones a future
+  /// release adds. This is the "*" in BUILT_IN_ROLES, and it is a boolean
+  /// rather than 45 RolePermission rows on purpose: materialising the wildcard
+  /// would freeze the Owner's grants at the moment of seeding, so the next
+  /// release that adds a permission would leave the Owner silently without it
+  /// and nobody would find out until someone hit a 403. The permission check
+  /// short-circuits on this flag before it ever reads RolePermission.
+  grantsAllPermissions Boolean @default(false)
+
+  /// Ships with the product. Reconciled by the built-in role seeder on every
+  /// deploy, and refused by any delete path -- a deployment that could delete
+  /// ADMIN could lock itself out of its own installation. A deployment's own
+  /// roles are isSystem=false and the seeder never touches them.
+  isSystem Boolean @default(false)
+
+  /// Privilege rank, used ONLY to stop impersonation escalating (see
+  /// lib/auth/roleDecision.ts). 0 means lateral -- a different job, not a lower
+  /// rung -- which is what DESIGNER/REGISTER/WAREHOUSE/INSTALLER/MARKETING are.
+  /// Carried here rather than left to the code-side ROLE_RANK table so that a
+  /// deployment's custom role participates in the anti-escalation rule instead
+  /// of silently ranking 0 and being impersonable by anyone.
+  rank Int @default(0)
+
+  /// Set true the first time a deployment edits a BUILT-IN role's grants.
+  /// It decides what reseeding does, and reseeding happens on every deploy:
+  ///   false -> the seeder reconciles grants to the shipped definition, so a
+  ///            release that adds a permission to MANAGER actually reaches
+  ///            deployments that never customised MANAGER;
+  ///   true  -> the seeder does not touch grants at all. The deployment owns
+  ///            them. Identity fields (name/description/rank/
+  ///            grantsAllPermissions) are still reconciled from code.
+  /// Without this flag the seeder has to choose between "never update a
+  /// built-in" (new permissions never land) and "always update" (a deployment's
+  /// deliberate revocation silently reappears at the next deploy). Both are
+  /// wrong; this makes the answer depend on whether anyone actually edited it.
+  grantsCustomized Boolean @default(false)
+
+  permissions RolePermission[]
+  staff       StaffMember[]
+
+  created DateTime  @default(now())
+  updated DateTime? @updatedAt
+
+  @@index([isSystem])
+}
+
+model RolePermission {
+  id     Int  @id @default(autoincrement())
+  roleId Int
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  /// A key from PERMISSIONS in lib/auth/permissionCatalog.ts. A String and not
+  /// a Prisma enum, deliberately: the catalog is the single source of truth
+  /// (rule 37) and a committed config preset has to be able to name a key
+  /// without a schema migration. The cost is that the database cannot validate
+  /// it -- a key left behind by a rename is a grant of nothing, or an orphan
+  /// nobody notices. findOrphanPermissionKeys() in lib/auth/builtInRoles.ts is
+  /// the check for that; the seeder runs it on every deploy and logs, and
+  /// __tests__/integration/builtInRoleSeed.integration.test.ts asserts it.
+  permission String
+
+  created DateTime @default(now())
+
+  @@unique([roleId, permission])
+  @@index([permission])
+}
+
+// ---------------------------------------------------------------------------
 // STAFF & UP-BOARD
 // ---------------------------------------------------------------------------
 
@@ -2786,6 +2885,18 @@ model StaffMember {
   passwordHash          String?
   passwordResetTokens   PasswordResetToken[]
   role                  StaffRole            @default(DESIGNER)
+  // The permission-layer role. NULLABLE and coexisting with `role` above on
+  // purpose, for one release: 334 of 335 API routes still gate on the enum, so
+  // dropping it now would break every one of them at once. The migration that
+  // added this column backfilled it for every existing staff member
+  // (roleId -> the Role whose key equals their StaffRole), so nothing changed
+  // on day one. NULL means "not linked yet" -- a staff member created by a code
+  // path that predates this column -- and requirePermission falls back to
+  // permissionsForBuiltInRole(role) for exactly that case, which is what makes
+  // the route sweep adoptable one route at a time instead of a flag day.
+  // → docs/DECISIONS.md, docs/domains/staff-auth.md
+  roleId                Int?
+  roleRef               Role?                @relation(fields: [roleId], references: [id])
   defaultStore          String? // Legacy: the POS store name
   activeStoreLocationId Int?
   activeStoreLocation   StoreLocation?       @relation("ActiveStaff", fields: [activeStoreLocationId], references: [id])
@@ -2843,6 +2954,8 @@ model StaffMember {
 
   created DateTime  @default(now())
   updated DateTime? @updatedAt
+
+  @@index([roleId])
 }
 
 // Yearly sales goal per salesperson. The yearlyGoal is distributed across
