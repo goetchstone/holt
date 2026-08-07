@@ -1482,6 +1482,14 @@ model StockLocation {
   isActive        Boolean       @default(true)
   sortOrder       Int           @default(0)
 
+  /// Stock physically sitting here is already committed to a customer: it is
+  /// ON HAND but NOT available to sell. The free-stock predicate
+  /// (lib/inventory/allocation.ts) and the Buyers Report's floor-vs-customer
+  /// split both read this flag. An admin sets it per location; an import
+  /// adapter may derive it from its own source convention (the Ordorite
+  /// adapter derives it from its "Customer%" location naming).
+  holdsCommittedStock Boolean @default(false)
+
   inventoryPositions InventoryPosition[]
   inventorySnapshots InventorySnapshot[]
   transfersFrom      InventoryTransfer[] @relation("StockTransferFrom")

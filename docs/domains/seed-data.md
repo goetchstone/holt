@@ -39,7 +39,7 @@ npm run seed:demo -- --reset         # wipe an existing seeded DB and reseed
 |---|---|---|
 | 1 | `org.ts` | `Organization` + `AppSettings` (branding, currency/timezone, feature flags on) |
 | 2 | `accounting.ts` | Full chart of accounts (`GLAccount`), `AccountGroup` per department, **every** `SystemGLMapping` row the journal generator can look up, CT `TaxDistrict`/`TaxGroup`/`TaxRule`/`TaxExemptReason` |
-| 3 | `locations.ts` | 2 `StoreLocation`s + 1 warehouse, their `StockLocation`s, 2 `Register`s per store |
+| 3 | `locations.ts` | 2 `StoreLocation`s + 1 warehouse, their `StockLocation`s (incl. one `holdsCommittedStock` staging bay, deliberately not named "Customer…"), 2 `Register`s per store |
 | 4 | `staff.ts` | `StaffMember` + linked `User` across all 6 real roles, with working local-login passwords |
 | 5 | `catalog.ts` | `Department` → `Category` → `Type` taxonomy, invented `Vendor`s, `Product`s with cost AND retail |
 | 6 | `customers.ts` | `Customer` + `CustomerAddress`, a trade/tax-exempt slice |
