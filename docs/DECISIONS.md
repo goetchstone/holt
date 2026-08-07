@@ -332,7 +332,43 @@ off in prod".
 
 ---
 
-## 16. `StaffRole` and `StaffMember.roleId` coexist for a release
+## 16. "No source system" is an adapter, not a null
+
+**Decided:** every deployment has a `SourceAdapter`, and the shipped default is
+a real one named `none` that imports nothing and says so.
+
+**Rejected:** treating "this deployment doesn't import from anywhere" as an
+absent configuration — a null adapter id, a disabled module, an unreachable
+route.
+
+**Why:** before the seam, the only answer to "where does data come from" was
+the Ordorite adapter. A deployment that had never heard of Ordorite still got
+its import route, its admin page and its failure modes, and the honest state
+"we key everything natively" was indistinguishable from "Ordorite,
+misconfigured." A cron pointed at such a deployment failed nightly and paged
+whoever owned the alert, for working exactly as intended.
+
+Making it an adapter also collapses the branching: no caller asks whether a
+source exists. `getActiveSourceAdapter()` always returns something with
+`runImport` and `checkReadiness`, and the no-op case reports success with a
+message rather than an error.
+
+The same reasoning sets the module-off behaviour: a configured adapter whose
+module flag is off resolves to `none`, because switching a module off is how an
+operator disables a feature and it would be perverse for that to start throwing
+at 06:10. An id the build does not know still throws — that is a wrong image,
+and silently importing nothing is the worst available response.
+
+**Cost accepted:** one more `AppSettings` column and a migration that backfills
+from the `legacyPosImport` flag, plus a deprecated `/api/automations/gmail-import`
+alias kept alive until every deployed crontab is repointed.
+
+**Source:** [`docs/domains/source-adapters.md`](domains/source-adapters.md),
+[`app/src/lib/adapters/index.ts`](../app/src/lib/adapters/index.ts)
+
+---
+
+## 17. `StaffRole` and `StaffMember.roleId` coexist for a release
 
 **Rejected:** dropping the `StaffRole` enum in the same change that introduced
 `Role` / `RolePermission`, and making `StaffMember.roleId` required.

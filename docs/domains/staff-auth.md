@@ -52,7 +52,7 @@ is unchanged.
   be deletable (a deployment could lock itself out). Roles the deployment
   invents are `isSystem = false` and the seeder never touches them.
 - **`StaffMember.roleId`** — nullable FK, coexisting with the `role` enum. See
-  `docs/DECISIONS.md` #16 for why both, and why nullable.
+  `docs/DECISIONS.md` #17 for why both, and why nullable.
 
 ### Where the built-in roles get seeded
 

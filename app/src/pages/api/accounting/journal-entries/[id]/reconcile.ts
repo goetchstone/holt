@@ -71,6 +71,7 @@ export async function handleReconcile(
         journalTax: result.journal.tax,
         journalCost: result.journal.cost,
         journalCash: result.journal.cash,
+        journalOverShort: result.journal.overShort,
         driftRevenue: result.drift.revenue,
         driftTax: result.drift.tax,
         driftCost: result.drift.cost,
@@ -85,7 +86,8 @@ export async function handleReconcile(
 
     logger.info(
       `Reconciled JE ${je.journalNumber} (id=${id}, date=${result.date}): ` +
-        `balanced=${result.balanced}, drift={revenue:${result.drift.revenue}, tax:${result.drift.tax}, cost:${result.drift.cost}, cash:${result.drift.cash}}`,
+        `balanced=${result.balanced}, drift={revenue:${result.drift.revenue}, tax:${result.drift.tax}, cost:${result.drift.cost}, cash:${result.drift.cash}}, ` +
+        `overShort=${result.journal.overShort}`,
     );
 
     res.status(200).json(result);

@@ -20,6 +20,7 @@ import {
 } from "@/lib/appSettings";
 import { isValidFeatureKey } from "@/lib/featureCatalog";
 import { parseBookingConfig } from "@/lib/booking/config";
+import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
 
 const THEME_KEYS = Object.keys(DEFAULT_THEME) as ThemeKey[];
 
@@ -32,7 +33,10 @@ export default requireAuthWithRole(["ADMIN"], async (req, res, session) => {
 
 async function handleGet(res: NextApiResponse) {
   const settings = await getAppSettings();
-  return res.json({ settings });
+  // The picker needs the catalog, not just the current id -- otherwise the UI
+  // hardcodes the adapter list, which is exactly the coupling the registry
+  // exists to remove.
+  return res.json({ settings, sourceAdapters: listSourceAdapters() });
 }
 
 function isSafeUrl(value: string): boolean {
@@ -171,6 +175,24 @@ function parseBooking(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// Which source system this deployment pulls from. Validated against the
+// registry rather than a string enum: adding an adapter is a code
+// registration, and an unknown id here means an operator picked something this
+// build does not ship -- reject it loudly instead of storing a value that
+// makes every nightly import throw.
+function parseSourceAdapter(body: Body, data: SettingsData): ParseError {
+  if (body.sourceAdapterId === undefined) return null;
+  if (typeof body.sourceAdapterId !== "string" || !isSourceAdapterId(body.sourceAdapterId)) {
+    return {
+      error: `Unknown source adapter: ${String(body.sourceAdapterId)}. Known: ${listSourceAdapters()
+        .map((a) => a.id)
+        .join(", ")}`,
+    };
+  }
+  data.sourceAdapterId = body.sourceAdapterId;
+  return null;
+}
+
 const SETTINGS_PARSERS = [
   parseAppName,
   parseTextFields,
@@ -179,6 +201,7 @@ const SETTINGS_PARSERS = [
   parseTheme,
   parseFeatures,
   parseBooking,
+  parseSourceAdapter,
 ];
 
 async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Session) {

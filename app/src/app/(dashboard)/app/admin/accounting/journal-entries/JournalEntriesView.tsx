@@ -20,6 +20,7 @@ import {
   reconciliationHeader,
   reconciliationPanelClass,
   driftCellClass,
+  plugNotice,
 } from "@/lib/dailyReconciliationDisplay";
 
 interface JournalEntryListItem {
@@ -52,7 +53,7 @@ interface ReconciliationResult {
   date: string;
   hasJournalEntry: boolean;
   source: { revenue: number; tax: number; cost: number; cash: number };
-  journal: { revenue: number; tax: number; cost: number; cash: number };
+  journal: { revenue: number; tax: number; cost: number; cash: number; overShort: number };
   drift: { revenue: number; tax: number; cost: number; cash: number };
   balanced: boolean;
   warnings: string[];
@@ -102,6 +103,11 @@ function ReconciliationPanel({
           ))}
         </tbody>
       </table>
+      {plugNotice(result.journal.overShort) && (
+        <div className="mt-2 text-xs font-semibold text-red-700">
+          {plugNotice(result.journal.overShort)}
+        </div>
+      )}
       {result.warnings.length > 0 && (
         <ul className="mt-2 list-disc pl-5 text-xs">
           {result.warnings.map((w) => (

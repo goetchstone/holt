@@ -23,7 +23,7 @@ This doc exists because 2026-05-20 was the day we discovered we had **3 import-r
 
 | Path | Cadence | Trigger | Surface |
 |---|---|---|---|
-| **Gmail → automated daily orchestrator** | Daily 06:10 ET via Synology cron | `scripts/auto-import.sh` → `POST /api/automations/gmail-import` (Bearer auth) | 13 routes in `lib/adapters/ordorite/reportRouter.ts` |
+| **Gmail → automated daily orchestrator** | Daily 06:10 ET via Synology cron | `scripts/auto-import.sh` → `POST /api/automations/source-import` (Bearer auth) | 13 routes in `lib/adapters/ordorite/reportRouter.ts` |
 | **Manual products import** | Ad-hoc, owner-triggered | `/admin/import/POS-products` UI upload | `runthe POSProductsImport` |
 
 Plus a few one-off / legacy paths (FileMaker `lib/fmApiClient.ts`, Windfall weekly CSV via `/admin/import/windfall`, HD Proposal PDF) — covered in `integrations.md`.
@@ -51,7 +51,7 @@ Configured in `lib/adapters/ordorite/reportRouter.ts`. Each filename regex maps 
 
 **Route order matters.** First match wins. The specific `Company_Inbound_Items` pattern is listed BEFORE the generic `Inbound_Items` fallback so the more-specific runner is preferred.
 
-**BOM stripping**: the gmail orchestrator (`pages/api/automations/gmail-import.ts`) passes a `transformHeader` to Papa.parse that strips the U+FEFF byte-order mark and trims surrounding whitespace from header names. the POS ships some CSVs (including `SH_Item_Export`) with a UTF-8 BOM that would otherwise become part of the first column key (the first column header would parse as `U+FEFF` + `Active` rather than `Active`) and silently break alias matching. Added 2026-05-26 with the SH Item Export wiring.
+**BOM stripping**: the gmail orchestrator (`lib/adapters/ordorite/orchestrator.ts`) passes a `transformHeader` to Papa.parse that strips the U+FEFF byte-order mark and trims surrounding whitespace from header names. the POS ships some CSVs (including `SH_Item_Export`) with a UTF-8 BOM that would otherwise become part of the first column key (the first column header would parse as `U+FEFF` + `Active` rather than `Active`) and silently break alias matching. Added 2026-05-26 with the SH Item Export wiring.
 
 ## 2026-05-20 renames (owner-side the POS changes)
 
