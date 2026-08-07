@@ -176,6 +176,8 @@ Remaining 0.6.3 placeholders: `journalEntry` orchestration, `mailchimpAudienceSy
 
 Surfaced when adding the second integration file (the dailyReconciliation conversion). With `maxWorkers: 1` and multiple test files in one worker, the `beforeEach` TRUNCATE in file B deadlocks against pg.Pool connections that file A's last test was still releasing. Fix: per-file Jest invocation via `scripts/run-integration-tests.sh` — each file gets its own pool. Don't merge files into one Jest invocation.
 
+`npm run test:all` used to be a bare `jest` with no `--selectProjects`, which is exactly the multi-file invocation this gotcha forbids — a documented deadlock, shipped as a script. It now chains `test:unit` then `test:integration` (the per-file runner), so every documented way to run the tests is a way that works.
+
 ### PrismaPg pool size
 
 `PrismaPg` passes config to `pg.Pool`, which honors `max` (not `connection_limit`). The URL query string `?connection_limit=1` is ignored by the pg driver. To override pool size, set `PG_POOL_MAX` in env — `lib/prisma.ts` reads it at adapter init.
