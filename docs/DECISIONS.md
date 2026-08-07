@@ -280,6 +280,58 @@ surprising the first time you see it.
 
 ---
 
+## 14. The sale always wins; the discrepancy becomes back-office work
+
+**Rejected:** blocking a sale when stock is short, and requiring a manager
+override to oversell.
+
+**Why:** a furniture store sells floor models, special orders, and things
+arriving next week. Inventory is also routinely wrong in small ways — a
+mis-tagged item, a mis-counted bin. If a cashier has scanned it, it is in front
+of them and the customer is standing there. Refusing the sale to protect a
+number is the wrong trade every time. So `allocate` commits whatever exists,
+records the shortfall, and never throws.
+
+But "never block" is only half the rule. The discrepancy is real and somebody
+should see it, so it lands in `InventoryException` with an admin queue rather
+than a toast the cashier dismisses. Made-to-order lines are excluded, because a
+queue full of the normal case is a queue nobody reads — the same reasoning that
+rate-limits error alerts in `errorRecorder.ts`.
+
+**Cost accepted:** on-hand can go negative in effect, and the queue needs
+somebody to actually work it. Both are better than a register that argues with
+a customer.
+
+**Source:** [`docs/domains/inventory.md`](domains/inventory.md)
+
+---
+
+## 15. It has to start, and CI has to prove it
+
+**Rejected:** trusting lint, typecheck and 2,985 unit tests as evidence that
+the application works.
+
+**Why:** none of them ever started the app. A missing env var, a bad migration,
+or a module that throws on import passed green. Separately, a clone could not
+reach a running system at all — four independent walls, each discoverable only
+by hitting it. `npm run setup` collapses the path to one command and
+`scripts/smoke.sh` proves it end to end: boot, ready, a real NextAuth login as
+a seeded user, an authenticated page, and an API read that fails if the
+database is migrated but not seeded.
+
+The smoke test earned this entry immediately: enabling a production build to
+boot over http surfaced that `NODE_ENV=production` sets a `__Secure-` cookie
+while `getToken` reads the plain name from the http scheme — valid session,
+307 from every guarded page. A build-only check calls that green.
+
+**Cost accepted:** a slower CI job, and a documented `ALLOW_INSECURE_NEXTAUTH_URL`
+escape hatch — narrowed to loopback so it cannot become "we turned the check
+off in prod".
+
+**Source:** [`app/scripts/smoke.sh`](../app/scripts/smoke.sh)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was
