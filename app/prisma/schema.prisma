@@ -2200,6 +2200,12 @@ model DailyReconciliationLog {
   journalCost    Decimal @default(0)
   journalCash    Decimal @default(0)
 
+  // The Over/Short plug the JE generator posted to force the day's entry into
+  // balance. Its own column, never folded into journalRevenue: a plug is not
+  // sales. No drift* counterpart, because there is nothing in the source data
+  // for it to drift against -- that is exactly what makes it a plug.
+  journalOverShort Decimal @default(0)
+
   // Drift = source - journal, per category
   driftRevenue Decimal @default(0)
   driftTax     Decimal @default(0)

@@ -19,6 +19,9 @@ interface PerDayResult {
   date: string;
   status: ReconStatus;
   drift: { revenue: number; tax: number; cost: number; cash: number };
+  /** Over/Short plug the day's JE needed to balance. Its own column, never
+   * inside a drift figure — a plug has no source side to drift from. */
+  overShort: number;
   warnings: string[];
   journalEntryId: number | null;
   logId: number;
@@ -42,6 +45,7 @@ interface RecentLogRow {
   driftTax: number;
   driftCost: number;
   driftCash: number;
+  journalOverShort: number;
   warnings: string[];
   journalEntryId: number | null;
   created: string;
@@ -208,6 +212,7 @@ export function DailyReconciliationView() {
                 <th className="px-2 py-1 text-right">Δ Tax</th>
                 <th className="px-2 py-1 text-right">Δ Cost</th>
                 <th className="px-2 py-1 text-right">Δ Cash</th>
+                <th className="px-2 py-1 text-right">Plug</th>
                 <th className="px-2 py-1 text-left">JE</th>
               </tr>
             </thead>
@@ -224,6 +229,14 @@ export function DailyReconciliationView() {
                   <td className="px-2 py-1 text-right">{formatMoney(r.drift.tax)}</td>
                   <td className="px-2 py-1 text-right">{formatMoney(r.drift.cost)}</td>
                   <td className="px-2 py-1 text-right">{formatMoney(r.drift.cash)}</td>
+                  <td
+                    className={`px-2 py-1 text-right ${
+                      Math.abs(r.overShort) > 0.01 ? "font-semibold text-red-700" : ""
+                    }`}
+                    title="Over/Short plug — the amount the journal had to invent to balance. Not revenue."
+                  >
+                    {formatMoney(r.overShort)}
+                  </td>
                   <td className="px-2 py-1">{r.journalEntryId ? `#${r.journalEntryId}` : "—"}</td>
                 </tr>
               ))}
@@ -254,6 +267,7 @@ export function DailyReconciliationView() {
                 <th className="px-2 py-1 text-left">Date</th>
                 <th className="px-2 py-1 text-left">Balanced</th>
                 <th className="px-2 py-1 text-right">Drift (max abs $)</th>
+                <th className="px-2 py-1 text-right">Plug</th>
                 <th className="px-2 py-1 text-left">JE</th>
                 <th className="px-2 py-1 text-left">When</th>
               </tr>
@@ -279,6 +293,14 @@ export function DailyReconciliationView() {
                       </span>
                     </td>
                     <td className="px-2 py-1 text-right">{formatMoney(maxAbs)}</td>
+                    <td
+                      className={`px-2 py-1 text-right ${
+                        Math.abs(r.journalOverShort) > 0.01 ? "font-semibold text-red-700" : ""
+                      }`}
+                      title="Over/Short plug — the amount the journal had to invent to balance. Not revenue."
+                    >
+                      {formatMoney(r.journalOverShort)}
+                    </td>
                     <td className="px-2 py-1">{r.journalEntryId ? `#${r.journalEntryId}` : "—"}</td>
                     <td className="px-2 py-1 text-xs text-sh-gray">
                       {new Date(r.created).toLocaleString()}

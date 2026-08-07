@@ -39,6 +39,9 @@ interface ReconciliationSummary {
     date: string;
     status: "BALANCED" | "DRIFT" | "ERROR";
     drift: { revenue: number; tax: number; cost: number; cash: number };
+    /** Over/Short plug the day's JE needed to balance. Reported alongside
+     * drift, never inside it — a plug has no source-side counterpart. */
+    overShort: number;
     warnings: string[];
     journalEntryId: number | null;
     logId: number;
@@ -170,6 +173,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             journalTax: result.journal.tax,
             journalCost: result.journal.cost,
             journalCash: result.journal.cash,
+            journalOverShort: result.journal.overShort,
             driftRevenue: result.drift.revenue,
             driftTax: result.drift.tax,
             driftCost: result.drift.cost,
@@ -191,6 +195,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           date: dateIso,
           status,
           drift: result.drift,
+          overShort: result.journal.overShort,
           warnings: result.warnings,
           journalEntryId: result.journalEntryId,
           logId: log.id,
@@ -218,6 +223,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           date: dateIso,
           status: "ERROR",
           drift: { revenue: 0, tax: 0, cost: 0, cash: 0 },
+          overShort: 0,
           warnings: [`ERROR: ${msg}`],
           journalEntryId: null,
           logId: errorLog.id,

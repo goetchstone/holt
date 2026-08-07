@@ -2,6 +2,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { reportOpsAlert } from "@/lib/opsAlert";
+import {
+  POS_PAYMENTS_SECTION,
+  POS_TRANSACTIONS_SECTION,
+  SALES_TAX_MAPPING_LABEL,
+  OVER_SHORT_MAPPING_LABEL,
+  OVER_SHORT_ALERT_THRESHOLD,
+} from "@/lib/glMapping";
 
 type Decimal = Prisma.Decimal;
 
@@ -39,6 +47,20 @@ export interface SalesPayment {
   glAccountId: number;
   glCode: string;
   order: SalesOrderForJournal | null;
+  /**
+   * `Payment.originalPaymentId` -- set only by `paymentService.processRefund`,
+   * which writes a refund row pointing at the ORIGINAL SalesOrder. A payment
+   * carrying this must not re-recognize that order's line items: they were
+   * already booked on the day the sale posted. See the guard in
+   * `buildJournalLines` and docs/domains/accounting.md "Native refunds".
+   *
+   * Deliberately NOT `isRefund`. Imported POS returns also set `isRefund`, but
+   * they hang off their own return-order whose OrderLineItems are negative and
+   * have never been booked -- those must still flow through the B3
+   * sale-in-reverse path. `originalPaymentId` is the recorded fact that
+   * separates the two (CLAUDE.md rule 60).
+   */
+  reversesPaymentId?: number | null;
 }
 
 export interface SalesOrderForJournal {
@@ -203,8 +225,35 @@ export interface BuildResult {
   totalDebits: number;
   totalCredits: number;
   warnings: string[];
+  /**
+   * The imbalance the Over/Short plug absorbed, signed the same way the
+   * builder computes it: `totalDebits - totalCredits` BEFORE the plug line
+   * was appended. Positive = debits exceeded credits (plug is a credit);
+   * negative = credits exceeded debits (plug is a debit). 0 when no plug
+   * fired, including when the journal was already balanced.
+   *
+   * Exposed because `assertBalanced` cannot see this: once the plug is in,
+   * the entry balances perfectly. This number is the only evidence left that
+   * it did not balance on its own.
+   */
+  overShort: number;
 }
 
+// KNOWN GAP (CLAUDE.md rule 61) -- these three arrays are Holt's own chart of
+// accounts hardcoded in product source, the same class of bug that was just
+// removed from lib/dailyReconciliation.ts. A deployment numbering its cash
+// account anything other than "1-1006" gets every tender treated as the
+// generic `else` branch below: cash receipts still post, but the deposit
+// offset for an un-invoiced order and the gift-card liability debit both stop
+// happening, silently.
+//
+// NOT fixed here, deliberately. Unlike the reconciliation's read-only
+// classification, these decide what the generator WRITES to the books:
+// re-deriving them from SystemGLMapping changes which tender is treated as
+// cash vs. deposit vs. liability, which is a behavioural change to journal
+// generation and wants its own change with its own before/after on real
+// production tenders. Tracked rather than promised verbally (rule 50).
+//
 // GL codes that receive debits when cash is received
 const CASH_GL_CODES = ["1-1006"];
 // GL codes that receive credits when deposits are received
@@ -370,6 +419,8 @@ export function buildJournalLines(
   payments: SalesPayment[],
   overShortGlId: number | null,
   depositGlId: number | null,
+  /** Names the journal in plug warnings, e.g. "SJ20260501". */
+  journalLabel: string = "this journal",
 ): BuildResult {
   const warnings: string[] = [];
 
@@ -419,6 +470,23 @@ export function buildJournalLines(
       }
       continue;
     }
+
+    // A native ERP refund (paymentService.processRefund) points at the
+    // ORIGINAL SalesOrder, whose line items are the original POSITIVE sale
+    // lines. Recognizing them here booked the whole sale a SECOND time -- same
+    // direction as the original, so revenue was credited twice for one sale,
+    // COGS debited twice, inventory relieved twice. The resulting imbalance
+    // then vanished into the Over/Short plug.
+    //
+    // The cash leg above is the entire correct effect of a native refund. The
+    // reversing revenue/COGS/tax legs, when they exist, come from return-shaped
+    // (negative) OrderLineItems on a return order -- the B3 path -- which is
+    // why this is keyed on `reversesPaymentId` and not on `isRefund`.
+    //
+    // Note this deliberately does NOT mark the order processed: a normal
+    // payment for the same order on the same day must still recognize it,
+    // whichever order the two rows happen to arrive in.
+    if (payment.reversesPaymentId != null) continue;
 
     processedOrders.add(order.id);
 
@@ -545,8 +613,18 @@ export function buildJournalLines(
   let totalDebits = round2(lines.reduce((sum, l) => sum + l.debit, 0));
   let totalCredits = round2(lines.reduce((sum, l) => sum + l.credit, 0));
 
+  // The plug is never silent.
+  //
+  // It used to be: when an Over/Short GL was configured the builder pushed a
+  // balancing line and NOTHING to `warnings`, so a $50,000 discrepancy came
+  // back as a journal that "balanced." Configuring the account made the system
+  // quieter rather than safer -- the only warning in the whole function fired
+  // when Over/Short was ABSENT. `assertBalanced` cannot catch this either,
+  // because after the plug the entry genuinely balances.
   const diff = round2(totalDebits - totalCredits);
+  let overShort = 0;
   if (diff !== 0 && overShortGlId) {
+    overShort = diff;
     if (diff > 0) {
       lines.push({
         glAccountId: overShortGlId,
@@ -566,13 +644,21 @@ export function buildJournalLines(
       });
       totalDebits = round2(totalDebits + round2(-diff));
     }
+    const magnitude = Math.abs(diff);
+    const side = diff > 0 ? "credit" : "debit";
+    warnings.push(
+      `Over/Short plug of $${magnitude.toFixed(2)} (${side}) was added to ${journalLabel} to force it into balance. ` +
+        (magnitude > OVER_SHORT_ALERT_THRESHOLD
+          ? `That is above the $${OVER_SHORT_ALERT_THRESHOLD.toFixed(2)} review threshold — a payment or a line item is probably missing. Do not export until it is explained.`
+          : `Within the $${OVER_SHORT_ALERT_THRESHOLD.toFixed(2)} rounding threshold.`),
+    );
   } else if (diff !== 0) {
     warnings.push(
       `Journal is out of balance by $${diff.toFixed(2)} and no Over/Short GL is configured`,
     );
   }
 
-  return { lines, totalDebits, totalCredits, warnings };
+  return { lines, totalDebits, totalCredits, warnings, overShort };
 }
 
 export async function generateSalesJournal(
@@ -605,7 +691,7 @@ export async function generateSalesJournal(
 
   // Load system GL mappings for payment types
   const paymentMappings = await prisma.systemGLMapping.findMany({
-    where: { section: "POS_PAYMENTS" },
+    where: { section: POS_PAYMENTS_SECTION },
     include: { glAccount: { select: { id: true, code: true, name: true } } },
   });
 
@@ -621,14 +707,24 @@ export async function generateSalesJournal(
 
   // Load fallback tax GL (Sales Tax from POS_TRANSACTIONS)
   const taxMapping = await prisma.systemGLMapping.findUnique({
-    where: { section_label: { section: "POS_TRANSACTIONS", label: "Sales Tax" } },
+    where: {
+      section_label: {
+        section: POS_TRANSACTIONS_SECTION,
+        label: SALES_TAX_MAPPING_LABEL,
+      },
+    },
     include: { glAccount: { select: { id: true, code: true, name: true } } },
   });
   const fallbackTaxGlId = taxMapping?.glAccount?.id || null;
 
   // Load Over/Short GL for balancing
   const overShortMapping = await prisma.systemGLMapping.findUnique({
-    where: { section_label: { section: "POS_TRANSACTIONS", label: "Over/Short" } },
+    where: {
+      section_label: {
+        section: POS_TRANSACTIONS_SECTION,
+        label: OVER_SHORT_MAPPING_LABEL,
+      },
+    },
     include: { glAccount: { select: { id: true, code: true, name: true } } },
   });
   const overShortGlId = overShortMapping?.glAccount?.id || null;
@@ -746,6 +842,10 @@ export async function generateSalesJournal(
       memo: payment.paymentType || "Unknown",
       glAccountId: mapping.glAccountId,
       glCode: mapping.code,
+      // Recorded fact, not inference: only processRefund sets this, and it
+      // means "the order this points at was already recognized." See the
+      // guard in buildJournalLines.
+      reversesPaymentId: payment.originalPaymentId,
       order: payment.salesOrder
         ? {
             id: payment.salesOrder.id,
@@ -786,8 +886,35 @@ export async function generateSalesJournal(
     });
   }
 
-  const result = buildJournalLines(mappedPayments, overShortGlId, depositGlId);
+  const result = buildJournalLines(mappedPayments, overShortGlId, depositGlId, journalNumber);
   warnings.push(...result.warnings);
+
+  // A plug big enough to be a missing payment escalates out-of-band rather
+  // than waiting for someone to read `warnings` on the generate response.
+  // It is NOT a hard failure: the JE is created as DRAFT and never
+  // auto-POSTED, and refusing to write it would deny the accountant the one
+  // artifact that shows WHERE the money went missing. `JournalStatus` has no
+  // "needs review" state to park it in (DRAFT | POSTED | EXPORTED), and
+  // inventing one is a schema + state-machine + UI change well past the fix
+  // for this symptom (CLAUDE.md rule 18).
+  if (Math.abs(result.overShort) > OVER_SHORT_ALERT_THRESHOLD) {
+    await reportOpsAlert({
+      title: `Sales journal ${journalNumber} required a $${Math.abs(result.overShort).toFixed(2)} Over/Short plug`,
+      detail:
+        `${journalNumber} (${dayStart.toISOString().slice(0, 10)}) did not balance on its own. ` +
+        `A plug of $${Math.abs(result.overShort).toFixed(2)} was posted to the Over/Short account to force it into balance, ` +
+        `which almost always means a payment or a line item is missing from the day. ` +
+        `The entry is DRAFT — review it before posting or exporting to QuickBooks.`,
+      context: {
+        journalNumber,
+        journalDate: dayStart.toISOString().slice(0, 10),
+        overShort: result.overShort,
+        threshold: OVER_SHORT_ALERT_THRESHOLD,
+        paymentsConsidered: mappedPayments.length,
+        storeLocation: storeLocation ?? null,
+      },
+    });
+  }
 
   // #138: never persist an unbalanced entry. Assert before the write so a builder
   // bug surfaces with context here, not as a raw DB constraint error later.

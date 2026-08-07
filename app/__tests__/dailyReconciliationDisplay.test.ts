@@ -9,6 +9,7 @@ import {
   reconciliationHeader,
   reconciliationPanelClass,
   driftCellClass,
+  plugNotice,
   RECONCILIATION_TOLERANCE,
 } from "../src/lib/dailyReconciliationDisplay";
 
@@ -24,6 +25,31 @@ describe("RECONCILIATION_CATEGORIES", () => {
     expect(Object.isFrozen(RECONCILIATION_CATEGORIES)).toBe(false); // `as const` doesn't freeze, but it's read-only by type
     // Length stays at 4 -- if a new category is added, more places need updating.
     expect(RECONCILIATION_CATEGORIES).toHaveLength(4);
+  });
+});
+
+describe("plugNotice", () => {
+  it("stays quiet when no material plug was posted", () => {
+    expect(plugNotice(0)).toBeNull();
+    expect(plugNotice(0.005)).toBeNull();
+  });
+
+  it("names the amount, the side, and that it is not revenue", () => {
+    const notice = plugNotice(12000);
+    expect(notice).toContain("$12000.00");
+    expect(notice).toContain("credit");
+    expect(notice).toContain("not revenue");
+  });
+
+  it("reports a debit-side plug as a debit", () => {
+    expect(plugNotice(-250)).toContain("$250.00 (debit)");
+  });
+
+  it("is deliberately not one of RECONCILIATION_CATEGORIES", () => {
+    // A plug has no source-side counterpart, so it can never be a
+    // source-vs-journal drift row. Rendering it as one is what made a
+    // plugged day read as a revenue discrepancy in the first place.
+    expect(RECONCILIATION_CATEGORIES).not.toContain("overShort");
   });
 });
 
