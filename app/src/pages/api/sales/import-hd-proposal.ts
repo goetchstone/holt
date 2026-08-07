@@ -3,6 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { parseHDProposal } from "@/lib/pricing/hdProposalParser";
+import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
 
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
@@ -139,27 +140,18 @@ export default requireAuthWithRole(
           }
         }
 
-        // Resolve default tax district (CT) and rate unless customer is exempt
-        let taxRate = 0;
-        let taxDistrictId: number | null = null;
-        const defaultDistrict = await tx.taxDistrict.findFirst({
-          where: { shortName: "CT", isActive: true },
-          include: {
-            rules: {
-              where: { isActive: true },
-              orderBy: { sortOrder: "asc" },
-              take: 1,
-            },
-          },
+        // Resolve the tax district + its active rules once for this order.
+        // An HD proposal import has no store -- the PDF carries no location
+        // -- so resolution here only ever reaches the customer's own
+        // district override or the deployment's configured default; see
+        // resolveTaxRate.ts's file header for the full resolution order and
+        // why this used to hardcode `shortName: "CT"` (charging zero tax to
+        // every deployment outside Connecticut).
+        const taxDistrict = await resolveTaxDistrict(tx, {
+          customerId: customer.id,
+          storeLocationId: null,
+          contextLabel: `HD proposal import (${orderno})`,
         });
-        if (defaultDistrict && defaultDistrict.rules.length > 0) {
-          taxDistrictId = defaultDistrict.id;
-          taxRate = Number(defaultDistrict.rules[0].taxRate);
-        }
-
-        if (customer.taxExemptReasonId) {
-          taxRate = 0;
-        }
 
         // Check for existing order
         const existingOrder = await tx.salesOrder.findUnique({ where: { orderno } });
@@ -184,7 +176,7 @@ export default requireAuthWithRole(
             data: {
               customerId: customer.id,
               salesperson: proposal.salesperson || undefined,
-              taxDistrictId,
+              taxDistrictId: taxDistrict.taxDistrictId,
               orderNotes,
               updatedBy: userEmail,
             },
@@ -199,7 +191,7 @@ export default requireAuthWithRole(
               status: "QUOTE",
               customerId: customer.id,
               salesperson: proposal.salesperson || undefined,
-              taxDistrictId,
+              taxDistrictId: taxDistrict.taxDistrictId,
               orderNotes,
               createdBy: userEmail,
             },
@@ -211,6 +203,10 @@ export default requireAuthWithRole(
         let lineNumber = 1;
         for (const item of proposal.items) {
           const sellingPrice = item.extended || item.each * item.qty;
+          // Banded per line against its own selling price (resolveTaxRate.ts
+          // rateForLineAmount) -- an HD proposal carries no item-level
+          // discount, so sellingPrice IS the taxable line amount.
+          const lineRate = rateForLineAmount(taxDistrict.rules, sellingPrice).rate;
           await tx.orderLineItem.create({
             data: {
               salesOrderId: orderId,
@@ -220,8 +216,8 @@ export default requireAuthWithRole(
               netPrice: sellingPrice,
               cost: 0,
               orderedQuantity: item.qty,
-              vatRate: taxRate,
-              vatAmount: Math.round(sellingPrice * taxRate * 100) / 100,
+              vatRate: lineRate,
+              vatAmount: Math.round(sellingPrice * lineRate * 100) / 100,
             },
           });
         }

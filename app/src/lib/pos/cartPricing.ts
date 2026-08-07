@@ -101,17 +101,25 @@ export function computeOrderDiscount(
  *
  * `taxRate` is a fraction (0.0635), resolved by the caller from the order's
  * tax district and the customer's exemption — this module decides arithmetic,
- * not policy.
+ * not policy. It may also be an array, one rate per input item, for a
+ * district whose TaxRule rows band the rate by price (resolveTaxRate.ts's
+ * `rateForLineAmount`) — a flat rate charges every line the same, so a
+ * scalar stays the common case and is exactly backward compatible; an array
+ * shorter than `items` falls back to 0 for the missing tail.
  *
  * Tax is charged on the DISCOUNTED amount. Taxing the pre-discount figure
  * overcharges the customer on every discounted sale and overstates the tax
- * liability owed to the state.
+ * liability owed to the state. That's also what "the line amount" means for
+ * banded-rate lookups: callers resolving a per-line rate should band against
+ * the post-discount netPrice, not the list price — see resolveTaxRate.ts.
  */
 export function priceCart(
   items: PricedCartItemInput[],
-  opts: { taxRate?: number; orderDiscount?: CartDiscount | null } = {},
+  opts: { taxRate?: number | number[]; orderDiscount?: CartDiscount | null } = {},
 ): PricedCart {
-  const taxRate = opts.taxRate ?? 0;
+  const taxRateOpt = opts.taxRate ?? 0;
+  const rateForIndex = (index: number): number =>
+    Array.isArray(taxRateOpt) ? (taxRateOpt[index] ?? 0) : taxRateOpt;
 
   const base = items.map((item) => {
     const unit = discountedUnitPrice(item.unitPrice, item.discounts);
@@ -151,7 +159,7 @@ export function priceCart(
       lineSubtotal: l.lineSubtotal,
       orderDiscountShare: shares[i],
       netPrice,
-      vatAmount: round2(netPrice * taxRate),
+      vatAmount: round2(netPrice * rateForIndex(i)),
     };
   });
 

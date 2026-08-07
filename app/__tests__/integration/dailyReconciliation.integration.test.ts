@@ -75,12 +75,93 @@ async function seedPayment(amount: number) {
  * tests within a single test body we may need to create the same
  * code more than once — guarded by a findFirst.
  */
-async function ensureGlAccount(code: string, name: string) {
+async function ensureGlAccount(code: string, name: string, accountType = "ASSET") {
   const existing = await prisma.gLAccount.findFirst({ where: { code } });
   if (existing) return existing;
-  return prisma.gLAccount.create({
-    data: { code, name, accountType: code.startsWith("4-") ? "REVENUE" : "ASSET" },
+  return prisma.gLAccount.create({ data: { code, name, accountType } });
+}
+
+/**
+ * The chart of accounts under test, expressed as ROLES rather than codes.
+ *
+ * This is the whole point of the change these tests cover. The reconciliation
+ * used to identify buckets with `code.startsWith("4-")`, `code === "2-2120"`,
+ * `code.startsWith("5-52")` and `code === "1-1006"` — four facts about one
+ * business's numbering, hardcoded in product source (CLAUDE.md rule 61). It
+ * now reads AccountGroup / TaxDistrict / SystemGLMapping instead, so the codes
+ * below are arbitrary. The "alien chart" suite at the bottom of this file
+ * proves that by running the identical scenario through a scheme with no `4-`
+ * anywhere in it.
+ */
+interface ChartCodes {
+  cash: string;
+  sales: string;
+  tax: string;
+  cogs: string;
+  inventory: string;
+  overShort: string;
+}
+
+/** Holt's own chart — the codes the old hardcoded classifier understood. */
+const HOLT_CHART: ChartCodes = {
+  cash: "1-1006",
+  sales: "4-4080",
+  tax: "2-2120",
+  cogs: "5-5280",
+  inventory: "1-1380",
+  overShort: "5-5900",
+};
+
+/**
+ * A chart that shares NOTHING with Holt's numbering: no leading digit-dash
+ * segment, nothing starting with "4-", no "2-2120", no "1-1006". Under the
+ * old code-prefix classifier every bucket here reads $0.00 — which against
+ * $0.00 of nothing looks exactly like a clean day.
+ */
+const ALIEN_CHART: ChartCodes = {
+  cash: "BANK-001",
+  sales: "SALES-100",
+  tax: "TAX-PAYABLE",
+  cogs: "COGS-500",
+  inventory: "STOCK-900",
+  overShort: "SUSPENSE-001",
+};
+
+/**
+ * Wires a chart into the configuration the reconciliation actually reads:
+ * an AccountGroup naming the sales + COGS accounts (per-department, which is
+ * precisely why they cannot be single SystemGLMapping rows), a TaxDistrict
+ * naming the tax account, and SystemGLMapping rows for the two genuine
+ * singletons.
+ */
+async function seedChart(codes: ChartCodes) {
+  const cash = await ensureGlAccount(codes.cash, "Cash", "ASSET");
+  const sales = await ensureGlAccount(codes.sales, "Sales", "REVENUE");
+  const tax = await ensureGlAccount(codes.tax, "Sales Tax Payable", "LIABILITY");
+  const cogs = await ensureGlAccount(codes.cogs, "COGS", "EXPENSE");
+  const inventory = await ensureGlAccount(codes.inventory, "Inventory", "ASSET");
+  const overShort = await ensureGlAccount(codes.overShort, "Cash Over/Short", "EXPENSE");
+
+  await prisma.accountGroup.create({
+    data: {
+      name: "Furniture",
+      salesAccountId: sales.id,
+      cogsAccountId: cogs.id,
+      inventoryAccountId: inventory.id,
+    },
   });
+  await prisma.taxDistrict.create({
+    data: { shortName: "CT", state: "CT", name: "Connecticut", glAccountId: tax.id },
+  });
+  await prisma.systemGLMapping.createMany({
+    data: [
+      { section: "POS_PAYMENTS", label: "Cash", glAccountId: cash.id },
+      { section: "POS_TRANSACTIONS", label: "Sales Tax", glAccountId: tax.id },
+      { section: "POS_TRANSACTIONS", label: "Over/Short", glAccountId: overShort.id },
+    ],
+  });
+
+  return { cash, sales, tax, cogs, inventory, overShort };
 }
 
 /**
@@ -134,6 +215,7 @@ describe("computeDailyReconciliation (real DB)", () => {
   });
 
   it("hasJournalEntry=false + warning when no JE exists for the day", async () => {
+    await seedChart(HOLT_CHART);
     const customer = await seedCustomer();
     await seedOrder({
       orderno: "T1",
@@ -151,6 +233,7 @@ describe("computeDailyReconciliation (real DB)", () => {
   });
 
   it("balanced=true when source and JE match", async () => {
+    await seedChart(HOLT_CHART);
     const customer = await seedCustomer();
     await seedOrder({
       orderno: "T1",
@@ -175,6 +258,7 @@ describe("computeDailyReconciliation (real DB)", () => {
   });
 
   it("revenue drift flagged when JE missed line items", async () => {
+    await seedChart(HOLT_CHART);
     const customer = await seedCustomer();
     await seedOrder({
       orderno: "T1",
@@ -196,6 +280,7 @@ describe("computeDailyReconciliation (real DB)", () => {
   });
 
   it("return-day shape: negative source amounts balance against negative JE", async () => {
+    await seedChart(HOLT_CHART);
     const customer = await seedCustomer();
     await seedOrder({
       orderno: "RET1",
@@ -218,26 +303,65 @@ describe("computeDailyReconciliation (real DB)", () => {
     expect(result.balanced).toBe(true);
   });
 
-  it("classifies GL accounts by code prefix correctly", async () => {
+  it("sums revenue and COGS across EVERY department's AccountGroup", async () => {
+    // Revenue and COGS are per-department: one sales account and one COGS
+    // account per AccountGroup, which is exactly why a single
+    // SystemGLMapping row cannot name them. Both departments' accounts must
+    // land in the bucket, and the department's inventory account must not.
+    await seedChart(HOLT_CHART);
+    const homeSales = await ensureGlAccount("4-4010", "Sales: Home Acc", "REVENUE");
+    const homeCogs = await ensureGlAccount("5-5210", "COGS: Home Acc", "EXPENSE");
+    const homeInventory = await ensureGlAccount("1-1310", "Inventory: Home Acc", "ASSET");
+    await prisma.accountGroup.create({
+      data: {
+        name: "Home Acc",
+        salesAccountId: homeSales.id,
+        cogsAccountId: homeCogs.id,
+        inventoryAccountId: homeInventory.id,
+      },
+    });
+
     await seedJournalEntry([
       { code: "1-1006", debit: 100 }, // cash
       { code: "4-4010", credit: 50 }, // home acc revenue
       { code: "4-4080", credit: 50 }, // furniture revenue
       { code: "2-2120", credit: 6.35 }, // CT tax
       { code: "5-5210", debit: 20 }, // home acc COGS
-      { code: "1-1310", credit: 20 }, // home acc inventory (not classified into the 4 buckets)
+      { code: "1-1310", credit: 20 }, // home acc inventory — in no bucket
     ]);
 
     const result = await computeDailyReconciliation({ date: DAY, client: prisma });
-    expect(result.journal.cash).toBe(100); // 1-1006 only
-    expect(result.journal.revenue).toBe(100); // 4-4010 + 4-4080
-    expect(result.journal.tax).toBe(6.35); // 2-2120
-    expect(result.journal.cost).toBe(20); // 5-5210
+    expect(result.journal.cash).toBe(100);
+    expect(result.journal.revenue).toBe(100); // both departments
+    expect(result.journal.tax).toBe(6.35);
+    expect(result.journal.cost).toBe(20);
+    expect(result.journal.overShort).toBe(0);
+  });
+
+  it("sums tax across EVERY TaxDistrict, not just the one the code literal named", async () => {
+    // The old classifier tested `code === "2-2120"` with a comment reading
+    // "CT Sales Tax Payable". A second state's district was silently dropped.
+    await seedChart(HOLT_CHART);
+    const nyTax = await ensureGlAccount("2-2121", "NY Sales Tax Payable", "LIABILITY");
+    await prisma.taxDistrict.create({
+      data: { shortName: "NY", state: "NY", name: "New York", glAccountId: nyTax.id },
+    });
+
+    await seedJournalEntry([
+      { code: "1-1006", debit: 116.35 },
+      { code: "4-4080", credit: 100 },
+      { code: "2-2120", credit: 6.35 }, // CT
+      { code: "2-2121", credit: 10 }, // NY — dropped entirely before this change
+    ]);
+
+    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    expect(result.journal.tax).toBe(16.35);
   });
 
   // === Real-DB-only scenarios mocks couldn't catch ===
 
   it("(REAL-DB) excludes CANCELLED line items from source revenue (rule 33)", async () => {
+    await seedChart(HOLT_CHART);
     // The mocked test asserted the function CALLED findMany with the
     // cancelled-line filter. This asserts the filter actually works
     // against real Postgres data — including the typo guard
@@ -260,6 +384,7 @@ describe("computeDailyReconciliation (real DB)", () => {
   });
 
   it("(REAL-DB) excludes orders outside the date window", async () => {
+    await seedChart(HOLT_CHART);
     // Source-side date filter: only orders with orderDate in the
     // requested day should count. Mocked tests can't verify this
     // because the mock just returns whatever you hand it.
@@ -298,6 +423,7 @@ describe("computeDailyReconciliation (real DB)", () => {
   });
 
   it("(REAL-DB) excludes CANCELLED-status orders from source", async () => {
+    await seedChart(HOLT_CHART);
     // Beyond the line-item filter: the order itself must be in
     // ORDER/FULFILLED/RETURNED. A CANCELLED order with active line
     // items must not contribute.
@@ -311,5 +437,214 @@ describe("computeDailyReconciliation (real DB)", () => {
 
     const result = await computeDailyReconciliation({ date: DAY, client: prisma });
     expect(result.source.revenue).toBe(0);
+  });
+
+  // ─── The plug is not revenue ────────────────────────────────────
+
+  describe("Over/Short plug", () => {
+    /** A day whose JE only balances because a `plug` was posted to Over/Short. */
+    async function seedPluggedDay(plug: number) {
+      const customer = await seedCustomer();
+      await seedOrder({
+        orderno: "T1",
+        customerId: customer.id,
+        lines: [{ netPrice: 1000, vatAmount: 63.5, cost: 400 }],
+      });
+      await seedPayment(1063.5);
+      await seedJournalEntry([
+        { code: HOLT_CHART.cash, debit: 1063.5 },
+        { code: HOLT_CHART.sales, credit: 1000 },
+        { code: HOLT_CHART.tax, credit: 63.5 },
+        { code: HOLT_CHART.cogs, debit: 400 },
+        { code: HOLT_CHART.inventory, credit: 400 },
+        { code: HOLT_CHART.overShort, credit: plug },
+      ]);
+    }
+
+    it("reports the plug as its own figure and keeps it out of revenue", async () => {
+      await seedChart(HOLT_CHART);
+      await seedPluggedDay(12000);
+
+      const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+
+      // The whole point: a human reads "plug: $12,000", not "revenue drift".
+      expect(result.journal.overShort).toBe(12000);
+      expect(result.journal.revenue).toBe(1000);
+      expect(result.drift.revenue).toBe(0);
+      expect(result.balanced).toBe(false);
+      expect(result.warnings.some((w) => w.includes("Over/Short plug $12000.00"))).toBe(true);
+      // ...and nothing points the operator at the orders, where the problem
+      // is not. Before this change the $12,000 landed in journal.revenue
+      // (Over/Short was a "4-" account, seeded as type REVENUE), producing a
+      // $12,000 revenue drift and a fruitless hunt through the day's sales.
+      expect(result.warnings.some((w) => w.includes("Revenue drift"))).toBe(false);
+    });
+
+    it("does not turn the day amber for a rounding-sized plug", async () => {
+      await seedChart(HOLT_CHART);
+      await seedPluggedDay(0.02);
+
+      const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+      // Reported, so it is on the record and in the log column...
+      expect(result.journal.overShort).toBe(0.02);
+      // ...but $0.02 of rounding is not an incident.
+      expect(result.balanced).toBe(true);
+      expect(result.warnings).toEqual([]);
+    });
+  });
+
+  // ─── Missing configuration is never a clean day ─────────────────
+
+  describe("missing GL configuration", () => {
+    it("warns per missing mapping instead of silently reporting zero", async () => {
+      // No AccountGroup, no TaxDistrict, no SystemGLMapping. Every bucket
+      // resolves to $0.00 — which against a day with no source rows drifts
+      // by nothing at all. Reporting "balanced" here is the exact silent
+      // success this control exists to prevent.
+      await seedJournalEntry([{ code: "SOMETHING-1", debit: 500, credit: 0 }]);
+
+      const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+
+      expect(result.balanced).toBe(false);
+      expect(result.warnings.some((w) => w.includes("sales GL account"))).toBe(true);
+      expect(result.warnings.some((w) => w.includes("COGS GL account"))).toBe(true);
+      expect(result.warnings.some((w) => w.includes("tax GL account"))).toBe(true);
+      expect(result.warnings.some((w) => w.includes('POS_PAYMENTS/"Cash"'))).toBe(true);
+    });
+
+    it("names the Over/Short account doubling as a sales account", async () => {
+      // The misconfiguration that started all this: a plug account wired
+      // where revenue is recognized launders plugs into the P&L.
+      const sales = await ensureGlAccount("4-4080", "Sales", "REVENUE");
+      const cogs = await ensureGlAccount("5-5280", "COGS", "EXPENSE");
+      const cash = await ensureGlAccount("1-1006", "Cash", "ASSET");
+      const tax = await ensureGlAccount("2-2120", "Tax", "LIABILITY");
+      await prisma.accountGroup.create({
+        data: { name: "Furniture", salesAccountId: sales.id, cogsAccountId: cogs.id },
+      });
+      await prisma.systemGLMapping.createMany({
+        data: [
+          { section: "POS_PAYMENTS", label: "Cash", glAccountId: cash.id },
+          { section: "POS_TRANSACTIONS", label: "Sales Tax", glAccountId: tax.id },
+          // Same account as the department's revenue GL.
+          { section: "POS_TRANSACTIONS", label: "Over/Short", glAccountId: sales.id },
+        ],
+      });
+      await seedJournalEntry([{ code: "4-4080", credit: 500 }]);
+
+      const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+
+      expect(result.warnings.some((w) => w.includes("also configured as a department"))).toBe(true);
+      // Over/Short is tested first, so the amount reports as a plug rather
+      // than being laundered into revenue.
+      expect(result.journal.overShort).toBe(500);
+      expect(result.journal.revenue).toBe(0);
+      expect(result.balanced).toBe(false);
+    });
+  });
+});
+
+// ─── The inversion: a chart with none of Holt's numbering ─────────
+//
+// This is the proof that the code literals are really gone. Every scenario
+// below is byte-for-byte the same as one run against HOLT_CHART above; only
+// the account CODES differ, and none of them starts with "4-", equals
+// "2-2120", starts with "5-52", or equals "1-1006". Under the previous
+// classifier all four buckets would read $0.00 and — against $0.00 of
+// journal — the day would report perfectly balanced.
+
+describe("computeDailyReconciliation — alien chart of accounts (real DB)", () => {
+  beforeEach(async () => {
+    await resetTestDb();
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  /** The shared scenario, run against whichever chart is passed in. */
+  async function runSaleDay(chart: ChartCodes) {
+    await seedChart(chart);
+    const customer = await seedCustomer();
+    await seedOrder({
+      orderno: "T1",
+      customerId: customer.id,
+      lines: [{ netPrice: 1000, vatAmount: 63.5, cost: 400 }],
+    });
+    await seedPayment(1063.5);
+    await seedJournalEntry([
+      { code: chart.cash, debit: 1063.5 },
+      { code: chart.sales, credit: 1000 },
+      { code: chart.tax, credit: 63.5 },
+      { code: chart.cogs, debit: 400 },
+      { code: chart.inventory, credit: 400 },
+    ]);
+    return computeDailyReconciliation({ date: DAY, client: prisma });
+  }
+
+  it("reconciles a sale day identically to Holt's own chart", async () => {
+    const alien = await runSaleDay(ALIEN_CHART);
+
+    expect(alien.balanced).toBe(true);
+    expect(alien.warnings).toEqual([]);
+    expect(alien.journal).toMatchObject({
+      revenue: 1000,
+      tax: 63.5,
+      cost: 400,
+      cash: 1063.5,
+      overShort: 0,
+    });
+    expect(alien.drift).toEqual({ revenue: 0, tax: 0, cost: 0, cash: 0 });
+  });
+
+  it("produces figures equal to Holt's chart for the same journal", async () => {
+    // Equivalence stated as an assertion rather than as two hand-copied
+    // literal sets: same scenario, two charts, identical numbers.
+    const alien = await runSaleDay(ALIEN_CHART);
+    await resetTestDb();
+    const holt = await runSaleDay(HOLT_CHART);
+
+    expect(alien.journal).toEqual(holt.journal);
+    expect(alien.source).toEqual(holt.source);
+    expect(alien.drift).toEqual(holt.drift);
+    expect(alien.balanced).toBe(holt.balanced);
+  });
+
+  it("still catches drift on an alien chart", async () => {
+    // A classifier that matched nothing would also report zero drift. Prove
+    // the buckets are genuinely populated by breaking one.
+    await seedChart(ALIEN_CHART);
+    const customer = await seedCustomer();
+    await seedOrder({
+      orderno: "T1",
+      customerId: customer.id,
+      lines: [{ netPrice: 1000, vatAmount: 63.5, cost: 400 }],
+    });
+    await seedPayment(1063.5);
+    await seedJournalEntry([
+      { code: ALIEN_CHART.cash, debit: 1063.5 },
+      { code: ALIEN_CHART.sales, credit: 950 }, // $50 short
+      { code: ALIEN_CHART.tax, credit: 63.5 },
+      { code: ALIEN_CHART.cogs, debit: 400 },
+    ]);
+
+    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    expect(result.drift.revenue).toBe(50);
+    expect(result.balanced).toBe(false);
+    expect(result.warnings.some((w) => w.includes("Revenue drift"))).toBe(true);
+  });
+
+  it("reports an alien chart's plug as a plug, not as revenue", async () => {
+    await seedChart(ALIEN_CHART);
+    await seedJournalEntry([
+      { code: ALIEN_CHART.cash, debit: 1063.5 },
+      { code: ALIEN_CHART.sales, credit: 1000 },
+      { code: ALIEN_CHART.overShort, credit: 5000 },
+    ]);
+
+    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    expect(result.journal.overShort).toBe(5000);
+    expect(result.journal.revenue).toBe(1000);
+    expect(result.balanced).toBe(false);
   });
 });

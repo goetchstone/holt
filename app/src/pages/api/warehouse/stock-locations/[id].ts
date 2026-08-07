@@ -34,7 +34,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         locationType,
         squareFootage,
         locationAliases,
+        holdsCommittedStock,
       } = req.body;
+
+      // Validated rather than coerced -- see the POST route. Flipping this
+      // on an existing location moves its whole on-hand quantity between
+      // "available to sell" and "already spoken for".
+      if (holdsCommittedStock !== undefined && typeof holdsCommittedStock !== "boolean") {
+        return res.status(400).json({ error: "holdsCommittedStock must be a boolean." });
+      }
 
       const stockLocation = await prisma.stockLocation.update({
         where: { id: stockLocationId },
@@ -54,6 +62,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           ...(locationAliases !== undefined && {
             locationAliases: Array.isArray(locationAliases) ? locationAliases : [],
           }),
+          ...(holdsCommittedStock !== undefined && { holdsCommittedStock }),
           updatedBy: session.user?.email || null,
         },
       });

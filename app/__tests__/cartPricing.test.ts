@@ -7,11 +7,7 @@
 // The headline case is `charges and records the same number`, which is the
 // property that was violated in production.
 
-import {
-  computeOrderDiscount,
-  discountedUnitPrice,
-  priceCart,
-} from "@/lib/pos/cartPricing";
+import { computeOrderDiscount, discountedUnitPrice, priceCart } from "@/lib/pos/cartPricing";
 
 const CT_TAX = 0.0635;
 
@@ -24,10 +20,12 @@ describe("item discounts", () => {
   it("stacks discounts sequentially, not additively", () => {
     // Two 10% discounts are 19% off, not 20%. This is how staff read a stacked
     // discount on a receipt, and changing it would silently reprice every sale.
-    expect(discountedUnitPrice(100, [
-      { type: "PERCENT", value: 10 },
-      { type: "PERCENT", value: 10 },
-    ])).toBe(81);
+    expect(
+      discountedUnitPrice(100, [
+        { type: "PERCENT", value: 10 },
+        { type: "PERCENT", value: 10 },
+      ]),
+    ).toBe(81);
   });
 
   it("clamps at zero instead of going negative", () => {
@@ -55,10 +53,10 @@ describe("priceCart", () => {
     // $1,000 with $100 off at 6.35%. The old POS charged $900 (its own
     // subtotal minus discount, no tax) while the server recorded $1,063.50
     // (full price plus tax, no discount), leaving $163.50 outstanding forever.
-    const priced = priceCart(
-      [{ unitPrice: 1000, quantity: 1 }],
-      { taxRate: CT_TAX, orderDiscount: { type: "AMOUNT", value: 100 } },
-    );
+    const priced = priceCart([{ unitPrice: 1000, quantity: 1 }], {
+      taxRate: CT_TAX,
+      orderDiscount: { type: "AMOUNT", value: 100 },
+    });
 
     expect(priced.netSubtotal).toBe(900);
     expect(priced.taxAmount).toBe(57.15); // 900 * 0.0635 — on the DISCOUNTED amount
@@ -72,9 +70,12 @@ describe("priceCart", () => {
   it("taxes the discounted amount, not the list price", () => {
     // Taxing pre-discount overcharges the customer AND overstates the tax
     // owed to the state.
-    const priced = priceCart([{ unitPrice: 100, quantity: 1, discounts: [{ type: "PERCENT", value: 50 }] }], {
-      taxRate: 0.1,
-    });
+    const priced = priceCart(
+      [{ unitPrice: 100, quantity: 1, discounts: [{ type: "PERCENT", value: 50 }] }],
+      {
+        taxRate: 0.1,
+      },
+    );
     expect(priced.items[0].netPrice).toBe(50);
     expect(priced.items[0].vatAmount).toBe(5);
     expect(priced.total).toBe(55);
@@ -148,5 +149,58 @@ describe("priceCart", () => {
     expect(priced.total).toBe(0);
     expect(priced.subtotal).toBe(0);
     expect(priced.taxAmount).toBe(0);
+  });
+
+  describe("per-line tax rates (resolveTaxRate.ts banding)", () => {
+    it("accepts an array of rates, one per line, instead of a single flat rate", () => {
+      const priced = priceCart(
+        [
+          { unitPrice: 100, quantity: 1 },
+          { unitPrice: 200, quantity: 1 },
+        ],
+        { taxRate: [0.05, 0.1] },
+      );
+      expect(priced.items[0].vatAmount).toBe(5); // 100 * 5%
+      expect(priced.items[1].vatAmount).toBe(20); // 200 * 10%
+      expect(priced.taxAmount).toBe(25);
+    });
+
+    it("falls back to 0 for a line past the end of a short rate array", () => {
+      const priced = priceCart(
+        [
+          { unitPrice: 100, quantity: 1 },
+          { unitPrice: 100, quantity: 1 },
+        ],
+        { taxRate: [0.1] },
+      );
+      expect(priced.items[0].vatAmount).toBe(10);
+      expect(priced.items[1].vatAmount).toBe(0);
+    });
+
+    it("bands the rate against the DISCOUNTED netPrice, not the list price -- caller's job, verified here", () => {
+      // A caller resolving per-line rates from TaxRule bands must band
+      // against netPrice (post item + order discount), matching the scalar
+      // case's "tax the discounted amount" rule. This test locks that
+      // netPrice is what's available to band against and that vatAmount is
+      // computed from netPrice, not from unitPrice.
+      const priced = priceCart([{ unitPrice: 1000, quantity: 1 }], {
+        orderDiscount: { type: "AMOUNT", value: 100 },
+        taxRate: [0.0635],
+      });
+      expect(priced.items[0].netPrice).toBe(900);
+      expect(priced.items[0].vatAmount).toBe(57.15); // banded on 900, not 1000
+    });
+
+    it("a scalar rate still applies uniformly -- exact backward compatibility", () => {
+      const priced = priceCart(
+        [
+          { unitPrice: 100, quantity: 1 },
+          { unitPrice: 200, quantity: 1 },
+        ],
+        { taxRate: 0.1 },
+      );
+      expect(priced.items[0].vatAmount).toBe(10);
+      expect(priced.items[1].vatAmount).toBe(20);
+    });
   });
 });

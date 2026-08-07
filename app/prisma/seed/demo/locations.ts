@@ -2,6 +2,16 @@
 //
 // StoreLocations (two showrooms + one warehouse), their StockLocations, and
 // the Registers each showroom runs its POS on.
+//
+// `taxDistrictId` (optional) wires every seeded store to the CT district
+// seedAccounting() creates -- this seed's whole deployment is Connecticut,
+// so every store shares the one district. A real multi-state deployment
+// would set each store's own district per docs/domains/config-presets.md
+// or the admin UI; this seed has no second state to demonstrate that with.
+// Passing it (or not) is a fresh `npm run setup`'s only lever for keeping
+// resolveTaxRate.ts's "store's district" tier populated -- leaving it unset
+// still works (falls through to AppSettings.defaultTaxDistrictId, wired in
+// index.ts), but setting it here exercises the more common real-world path.
 
 import type { PrismaClient } from "@prisma/client";
 
@@ -19,6 +29,8 @@ export interface StoreSetup {
 export interface LocationsSetup {
   stores: StoreSetup[];
   warehouseStockLocationId: number;
+  /** The warehouse bay flagged `holdsCommittedStock` -- on hand, already sold. */
+  warehouseCommittedStockLocationId: number;
 }
 
 const STORE_DEFS = [
@@ -40,10 +52,13 @@ const STORE_DEFS = [
   },
 ] as const;
 
-export async function seedLocations(prisma: PrismaClient): Promise<LocationsSetup> {
+export async function seedLocations(
+  prisma: PrismaClient,
+  taxDistrictId?: number,
+): Promise<LocationsSetup> {
   const warehouse = await prisma.storeLocation.upsert({
     where: { code: "CDW" },
-    update: {},
+    update: { taxDistrictId },
     create: {
       name: "Central Distribution Warehouse",
       code: "CDW",
@@ -53,6 +68,7 @@ export async function seedLocations(prisma: PrismaClient): Promise<LocationsSetu
       state: "CT",
       zip: "06070",
       sortOrder: 0,
+      taxDistrictId,
       createdBy: SEED_ACTOR,
     },
   });
@@ -72,11 +88,33 @@ export async function seedLocations(prisma: PrismaClient): Promise<LocationsSetu
     },
   });
 
+  // A staging bay for goods that are on hand but already sold. The flag --
+  // not the name -- is what keeps this stock out of available-to-sell
+  // quantities (lib/inventory/allocation.ts) and puts it in the Buyers
+  // Report's Cust Stock column. Named without the word "Customer" on
+  // purpose: the shipped seed should demonstrate that holt no longer cares
+  // what the location is called (see CLAUDE.md rule 61).
+  const warehouseCommitted = await prisma.stockLocation.upsert({
+    where: { storeLocationId_code: { storeLocationId: warehouse.id, code: "HOLD" } },
+    update: {},
+    create: {
+      storeLocationId: warehouse.id,
+      code: "HOLD",
+      name: "Central Warehouse — Sold Goods Staging",
+      locationType: "STOCK",
+      isActive: true,
+      sortOrder: 1,
+      holdsCommittedStock: true,
+      locationAliases: ["Sold Goods Staging"],
+      createdBy: SEED_ACTOR,
+    },
+  });
+
   const stores: StoreSetup[] = [];
   for (const [i, def] of STORE_DEFS.entries()) {
     const store = await prisma.storeLocation.upsert({
       where: { code: def.code },
-      update: {},
+      update: { taxDistrictId },
       create: {
         name: def.name,
         code: def.code,
@@ -86,6 +124,7 @@ export async function seedLocations(prisma: PrismaClient): Promise<LocationsSetu
         state: def.state,
         zip: def.zip,
         sortOrder: i + 1,
+        taxDistrictId,
         createdBy: SEED_ACTOR,
       },
     });
@@ -150,5 +189,9 @@ export async function seedLocations(prisma: PrismaClient): Promise<LocationsSetu
     });
   }
 
-  return { stores, warehouseStockLocationId: warehouseStock.id };
+  return {
+    stores,
+    warehouseStockLocationId: warehouseStock.id,
+    warehouseCommittedStockLocationId: warehouseCommitted.id,
+  };
 }
