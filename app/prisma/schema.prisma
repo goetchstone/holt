@@ -1416,6 +1416,18 @@ model StoreLocation {
   // Maps to the POS's stock location strings for linking imported data
   externalLocationName String? @unique
 
+  // Second tier of resolveTaxRate.ts's resolution order (customer override,
+  // then this, then AppSettings.defaultTaxDistrictId): the tax jurisdiction
+  // this store's sales fall under. Nullable and unbackfilled on purpose --
+  // a store with no district set falls through to the deployment default
+  // rather than failing the sale. A chain with stores in two states is the
+  // ordinary case this FK exists for; it did not exist before this field
+  // was added, which is how a deployment outside Connecticut charged zero
+  // tax (create-from-cart.ts / import-hd-proposal.ts hardcoded `shortName:
+  // "CT"` instead of asking the store).
+  taxDistrictId Int?
+  taxDistrict   TaxDistrict? @relation(fields: [taxDistrictId], references: [id])
+
   // Traffic-counter (Axper and friends) labels for this store's doors. A
   // counter names each door in its own scheme, which rarely matches the POS
   // or this record's `name`; one store may own several (two co-located
@@ -2269,11 +2281,19 @@ model TaxDistrict {
   glAccount   GLAccount? @relation(fields: [glAccountId], references: [id])
   isActive    Boolean    @default(true)
 
-  zipCodes    TaxDistrictZipCode[]
-  rules       TaxRule[]
-  customers   Customer[]
-  salesOrders SalesOrder[]
-  lineItems   OrderLineItem[]
+  zipCodes              TaxDistrictZipCode[]
+  rules                 TaxRule[]
+  customers             Customer[]
+  salesOrders           SalesOrder[]
+  lineItems             OrderLineItem[]
+  // The store's own jurisdiction -- see StoreLocation.taxDistrictId. Second
+  // in resolveTaxRate.ts's resolution order, behind a customer override.
+  storeLocations        StoreLocation[]
+  // AppSettings.defaultTaxDistrictId: the deployment-wide fallback, used
+  // when neither the customer nor the store resolves a district. At most
+  // one row today (single-org-per-deployment, docs/TENANCY.md), so this is
+  // realistically 0-or-1 long, but it's a real relation, not a hardcoded id.
+  defaultForAppSettings AppSettings[]
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
@@ -4678,6 +4698,17 @@ model AppSettings {
 
   bookingConfig Json? // { windowDays, startHour, endHour, slotMinutes }
 
+  // Last-resort tax jurisdiction: resolveTaxRate.ts's fallback when a sale's
+  // customer has no district override and the selling store has no
+  // taxDistrictId of its own. Replaces the `shortName: "CT"` literal that
+  // used to live in create-from-cart.ts / import-hd-proposal.ts (CLAUDE.md
+  // rule 61 -- a deployment fact does not belong in source). Nullable: a
+  // deployment that sets neither this nor any store/customer district
+  // charges zero tax and logs a warning naming the store, rather than
+  // guessing -- see resolveTaxRate.ts's file header.
+  defaultTaxDistrictId Int?
+  defaultTaxDistrict   TaxDistrict? @relation(fields: [defaultTaxDistrictId], references: [id])
+
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
   createdBy String?
@@ -5350,10 +5381,10 @@ model ImportFieldMapping {
   // The uploaded file's column header, verbatim.
   sourceColumn String
   // The entity field key this column feeds (ImportFieldDef.key).
-  targetField String
-  transform   ImportTransform?
-  required    Boolean          @default(false)
-  sortOrder   Int              @default(0)
+  targetField  String
+  transform    ImportTransform?
+  required     Boolean          @default(false)
+  sortOrder    Int              @default(0)
 
   @@unique([definitionId, targetField])
   @@index([definitionId])

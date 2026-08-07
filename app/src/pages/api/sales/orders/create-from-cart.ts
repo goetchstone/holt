@@ -13,6 +13,7 @@ import { logError, logger } from "@/lib/logger";
 import { priceCart, type CartDiscount } from "@/lib/pos/cartPricing";
 import { allocate, type AllocationLine } from "@/lib/inventory/allocation";
 import { resolveOrderStoreLocationId, recordShortfalls } from "@/lib/inventory/orderInventorySync";
+import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
 
 interface CartItem {
   type?: "PRODUCT" | "CONFIGURED" | "CUSTOM";
@@ -110,34 +111,23 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         select: { displayName: true },
       });
 
-      // Resolve default tax district (CT) and rate unless customer is exempt
-      let taxRate = 0;
-      let taxDistrictId: number | null = null;
-      const defaultDistrict = await tx.taxDistrict.findFirst({
-        where: { shortName: "CT", isActive: true },
-        include: {
-          rules: {
-            where: { isActive: true },
-            orderBy: { sortOrder: "asc" },
-            take: 1,
-          },
-        },
-      });
-      if (defaultDistrict && defaultDistrict.rules.length > 0) {
-        taxDistrictId = defaultDistrict.id;
-        taxRate = Number(defaultDistrict.rules[0].taxRate);
-      }
+      // Resolve the store this sale belongs to BEFORE pricing -- tax
+      // resolution needs its taxDistrictId, and inventory allocation
+      // (further down) needs its id too, so one lookup now replaces what
+      // used to be a second, separate one there.
+      const storeLocationId = await resolveOrderStoreLocationId(storeLocation, tx);
 
-      // Check if customer has a tax exemption
-      if (customerId) {
-        const customer = await tx.customer.findUnique({
-          where: { id: customerId },
-          select: { taxExemptReasonId: true },
-        });
-        if (customer?.taxExemptReasonId) {
-          taxRate = 0;
-        }
-      }
+      // Resolve the tax district + its active rules once for the whole
+      // order: customer exemption, then the customer's own district
+      // override, then this store's district, then the deployment's
+      // configured default -- see resolveTaxRate.ts's file header for why
+      // the old `shortName: "CT"` hardcode here charged zero tax to every
+      // deployment outside Connecticut.
+      const taxDistrict = await resolveTaxDistrict(tx, {
+        customerId,
+        storeLocationId,
+        contextLabel: storeLocation || "(no store on order)",
+      });
 
       // Price the whole cart through the shared module so this order's
       // numbers can never diverge from what the POS charged the customer.
@@ -146,15 +136,27 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       // `isReturn` itself -- feeding it a pre-negated quantity would negate
       // twice, so it's normalized to a magnitude first. `orderedQuantity`
       // below still stores the signed value; only the money math changes.
-      const priced = priceCart(
-        items.map((item) => ({
-          unitPrice: item.unitPrice,
-          quantity: Math.abs(item.quantity),
-          discounts: item.discounts,
-          isReturn: item.isReturn,
-        })),
-        { taxRate, orderDiscount },
+      //
+      // Tax is banded per line (TaxRule.triggerPrice/startPrice/stopPrice
+      // against the DISCOUNTED line amount), and a line's own band can only
+      // be known once item + order discounts are applied to it -- so this
+      // prices the cart once untaxed to learn each line's netPrice, resolves
+      // that line's rate against it, then prices it again with per-line
+      // rates. netPrice never depends on tax, so both passes agree on every
+      // field except vatAmount/taxAmount; this is the one pricing function
+      // called twice, not a second pricing path (cartPricing.ts's own header
+      // is exactly the "don't reintroduce a second implementation" rule).
+      const cartItems = items.map((item) => ({
+        unitPrice: item.unitPrice,
+        quantity: Math.abs(item.quantity),
+        discounts: item.discounts,
+        isReturn: item.isReturn,
+      }));
+      const untaxed = priceCart(cartItems, { orderDiscount });
+      const lineRates = untaxed.items.map(
+        (line) => rateForLineAmount(taxDistrict.rules, line.netPrice).rate,
       );
+      const priced = priceCart(cartItems, { taxRate: lineRates, orderDiscount });
 
       // Build line items, creating products as needed
       const lineItemData = [];
@@ -245,7 +247,10 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           // OrderLineItem.cost stores the LINE total, like netPrice.
           cost: itemCost * item.quantity,
           barcode: "",
-          vatRate: taxRate,
+          // This line's own resolved rate, not a single order-wide figure --
+          // a banded district can legitimately tax two lines on the same
+          // order differently (see resolveTaxRate.ts's rateForLineAmount).
+          vatRate: lineRates[idx],
           vatAmount: priced.items[idx].vatAmount,
           selectedGrade: item.description || null,
           source: item.source || null,
@@ -260,7 +265,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           quoteDate: now,
           status: "QUOTE",
           customerId: customerId || null,
-          taxDistrictId: taxDistrictId,
+          taxDistrictId: taxDistrict.taxDistrictId,
           salesperson: staff?.displayName || session.user?.email || null,
           storeLocation: storeLocation || null,
           orderNotes: orderNotes || null,
@@ -292,7 +297,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       // negative here, and allocate() already skips non-positive
       // quantities, so a return never allocates. Never fails the sale --
       // if the store location can't be resolved, skip and log instead.
-      const storeLocationId = await resolveOrderStoreLocationId(storeLocation, tx);
+      // (storeLocationId was already resolved above, for tax purposes.)
       if (storeLocationId != null) {
         const allocationLines: AllocationLine[] = lineItemData
           // CONFIGURED and CUSTOM lines mint a brand-new Product a few lines
