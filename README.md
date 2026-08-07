@@ -1,6 +1,10 @@
 # Holt
 
-_An [Akritos](https://akritos.com) product — technology small businesses own._
+> **Use at your own risk.** Holt is an independent project under active
+> development. It is not affiliated with, endorsed by, or supported by any
+> other company, and it is provided **as is, without warranty of any kind**
+> (see [LICENSE](LICENSE)). It handles money, inventory and tax. Evaluate it
+> against your own books before you trade on it.
 
 Holt is a business management platform for furniture and home-goods retailers.
 It covers the whole operation in one system: product catalog and multi-dimensional
