@@ -239,18 +239,5 @@ export function resolveViewerPermissions(
  * Nothing reads it to decide what a viewer sees any more. DELETE THIS with
  * those two files; it is not a fallback and must never become one.
  */
-const DEFAULT_NAV_PERMISSIONS: Record<string, string[]> = {
-  Sales: ["SUPER_ADMIN", "ADMIN", "MANAGER", "DESIGNER", "REGISTER", "MARKETING"],
-  Service: ["SUPER_ADMIN", "ADMIN", "MANAGER", "WAREHOUSE"],
-  Purchasing: ["SUPER_ADMIN", "ADMIN", "MANAGER", "WAREHOUSE"],
-  Warehouse: ["SUPER_ADMIN", "ADMIN", "MANAGER", "WAREHOUSE"],
-  Inventory: ["SUPER_ADMIN", "ADMIN", "MANAGER", "WAREHOUSE"],
-  Reports: ["SUPER_ADMIN", "ADMIN", "MANAGER", "DESIGNER", "MARKETING"],
-  Helpdesk: ["SUPER_ADMIN", "ADMIN", "MANAGER"],
-  Time: ["SUPER_ADMIN", "ADMIN", "MANAGER", "DESIGNER"],
-  Admin: ["SUPER_ADMIN", "ADMIN", "MANAGER"],
-  Tools: ["SUPER_ADMIN", "ADMIN", "MANAGER", "DESIGNER"],
-};
-
-export { NAV_ITEMS, NAV_FEATURE_KEYS, DEFAULT_NAV_PERMISSIONS };
+export { NAV_ITEMS, NAV_FEATURE_KEYS };
 export type { NavItem };

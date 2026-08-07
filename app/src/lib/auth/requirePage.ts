@@ -11,6 +11,7 @@ import { cookies, headers } from "next/headers";
 import { getToken } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { decideRoleAccess } from "@/lib/auth/roleDecision";
+import { resolvePermissionAccess } from "@/lib/auth/permissionResolver";
 import { isModuleEnabled } from "@/lib/modules/requireModule";
 
 export interface RequirePageOptions {
@@ -18,6 +19,18 @@ export interface RequirePageOptions {
    *  AppSettings.features for this page; redirects home when disabled. Mirrors
    *  the Pages-Router withAuth `feature` option. */
   feature?: string;
+  /**
+   * Gate on a capability instead of a role list.
+   *
+   * Use this on any page whose nav entry is derived from a permission
+   * (lib/auth/navPermissions.ts). The thing that shows the link then IS the
+   * thing that admits the request -- otherwise the two drift and the menu grows
+   * entries that bounce you straight back to /app, which is a worse experience
+   * than no entry at all.
+   *
+   * Takes precedence over `allowedRoles` when both are given.
+   */
+  permission?: string;
 }
 
 export interface PageSession {
@@ -59,6 +72,24 @@ export async function requirePage(
     redirect("/app");
   }
 
+  const impersonateCookie = cookieStore.get("sh-impersonate")?.value ?? null;
+
+  // Capability gate. Shares resolvePermissionAccess with requirePermission, so
+  // a page and its API routes cannot disagree about who may be here, and the
+  // impersonation + bootstrap rules are the ones argued for once elsewhere
+  // rather than a second copy (rule 42).
+  if (options?.permission) {
+    const access = await resolvePermissionAccess({
+      userId,
+      permission: options.permission,
+      impersonate: impersonateCookie,
+    });
+    if (!access.allowed) {
+      redirect("/app");
+    }
+    return { userId, role: access.effectiveUserRole };
+  }
+
   if (!allowedRoles || allowedRoles.length === 0) {
     return { userId, role: (token?.role as string | undefined) ?? "DESIGNER" };
   }
@@ -74,12 +105,10 @@ export async function requirePage(
       userId: { not: null },
     },
   });
-  const impersonate = cookieStore.get("sh-impersonate")?.value ?? null;
-
   const decision = decideRoleAccess({
     allowedRoles,
     realRole: staff?.role || "DESIGNER",
-    impersonate,
+    impersonate: impersonateCookie,
     privilegedCount,
   });
 

@@ -1,7 +1,7 @@
 // /app/src/server/trpc/routers/reports.ts
 //
 // Reports domain router. Read-only queries gated to the roles that can see the
-// Reports nav (mirrors DEFAULT_NAV_PERMISSIONS.Reports). Each procedure defers
+// Reports nav (mirrors the Reports nav item in lib/auth/navPermissions.ts). Each procedure defers
 // to a lib/reports/* function so the data logic stays framework-agnostic and
 // shared with any legacy REST shim during the migration.
 
