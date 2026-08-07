@@ -12,6 +12,13 @@ ALTER TABLE "AppSettings" ADD COLUMN "sourceAdapterId" TEXT NOT NULL DEFAULT 'no
 -- route. Carrying it across is the guarantee that an existing deployment's
 -- nightly import keeps running -- without it, Saybrook's cron would start
 -- reporting "nothing to import" and every report would quietly go stale.
+--
+-- Matches BOTH the JSON boolean `true` and the JSON string `"true"`. Every
+-- writer in the codebase coerces with Boolean() so it is always a real
+-- boolean, but this backfill decides whether a live deployment's 06:10 cron
+-- keeps importing, and one hand-edited row would silently stop it. Verified
+-- against Postgres: boolean true matches, `false` does not, absent and NULL
+-- `features` do not (NULL -> not matched, which is the correct outcome).
 UPDATE "AppSettings"
 SET "sourceAdapterId" = 'ordorite'
-WHERE ("features" -> 'legacyPosImport')::text = 'true';
+WHERE ("features" -> 'legacyPosImport') IN ('true'::jsonb, '"true"'::jsonb);
