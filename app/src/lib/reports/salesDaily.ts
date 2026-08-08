@@ -8,6 +8,7 @@
 
 import type { PrismaClient, Prisma } from "@prisma/client";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { businessDayKey, businessDayRange, getBusinessTimeZone } from "@/lib/reports/businessDay";
 
 export interface SalesDailyParams {
   startDate?: string; // YYYY-MM-DD
@@ -28,18 +29,24 @@ export async function getSalesDaily(
 ): Promise<SalesDailyRow[]> {
   const { startDate, endDate, departments = [] } = params;
 
+  // The deployment's business timezone, not UTC and not the viewer's. See
+  // lib/reports/businessDay.ts for why this exists at all; the short version is
+  // that a sale at 8pm Eastern is stored as 00:00Z the next day, so reading the
+  // date off the instant reported it on the wrong day.
+  const timeZone = await getBusinessTimeZone();
+
   const orderWhere: Prisma.SalesOrderWhereInput = {
     status: { in: [...SALES_REVENUE_STATUSES] },
   };
-  if (startDate && endDate) {
+  // Half-open bounds derived from the business day, replacing the literal
+  // `T00:00:00.000Z` / `T23:59:59.999Z` UTC edges. The end bound is the START of
+  // the day after endDate, so the last second of the range cannot be missed and
+  // a DST day (23 or 25 hours) is still covered exactly.
+  if (startDate || endDate) {
     orderWhere.orderDate = {
-      gte: new Date(`${startDate}T00:00:00.000Z`),
-      lte: new Date(`${endDate}T23:59:59.999Z`),
+      ...(startDate ? { gte: businessDayRange(startDate, timeZone).gte } : {}),
+      ...(endDate ? { lt: businessDayRange(endDate, timeZone).lt } : {}),
     };
-  } else if (startDate) {
-    orderWhere.orderDate = { gte: new Date(`${startDate}T00:00:00.000Z`) };
-  } else if (endDate) {
-    orderWhere.orderDate = { lte: new Date(`${endDate}T23:59:59.999Z`) };
   }
 
   const lineItemWhere: Prisma.OrderLineItemWhereInput = {
@@ -65,7 +72,9 @@ export async function getSalesDaily(
     if (order.lineItems.length === 0) continue;
     if (!order.orderDate) continue;
 
-    const dateKey = order.orderDate.toISOString().slice(0, 10);
+    // Was `order.orderDate.toISOString().slice(0, 10)` — the UTC calendar date,
+    // which put an 8pm Eastern sale on the following day.
+    const dateKey = businessDayKey(order.orderDate, timeZone);
     const store = order.storeLocation || "Unknown";
     const key = `${dateKey}|${store}`;
 
