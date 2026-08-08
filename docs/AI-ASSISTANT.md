@@ -1,10 +1,27 @@
 # AI Assistant — where the work lives
 
-**The design and coordination for the AI assistant are NOT on `main`.** This
-file is the only thing about it that is, and it exists solely so nobody has to
-already know where to look.
+The AI assistant feature spans several branches, and **none of it is on `main`
+yet**. This file is the only thing about it that is, and it exists solely so
+nobody has to already know where to look.
 
-## The two documents
+**Ownership is split across branches — check who authored one before rebasing
+or force-pushing it.** The lineage below is verified: each branch contains the
+one above it.
+
+## The branches
+
+- **Prototype (superseded):** `ai-chatbot` (@ `8d99c61`) — the text-to-SQL PoC.
+  Reuse its ChatPanel, the `/app/assistant` page, and the `ai` module entry;
+  drop the SQL path.
+- **Authoritative design + hardening:** `feat/ai-chatbot-guardrails` — branched
+  off the prototype; adds the credentials fix, the design document, and the
+  "supersede the guard, don't harden it" finding. Source of truth for the
+  architecture.
+- **Provider routing seam:** `feat/ai-provider-seam` — built on the design
+  branch; the §5 `route()` seam plus the local (openai-compatible / Ollama)
+  provider.
+- **Review + coordination log:** `docs/ai-assistant-review` — the branch index
+  and ownership record.
 
 ```sh
 # Authoritative design — architecture, security findings, phasing
@@ -12,28 +29,19 @@ git show feat/ai-chatbot-guardrails:docs/ai-assistant-design.md
 
 # Index, review, sign-off and the coordination log between agents
 git show docs/ai-assistant-review:docs/ai-assistant-review.md
-```
 
-Start with the **review/coordination log** — it opens with a "Where everything
-lives" index covering every branch. The design document is the reference.
-
-## The branches
-
-```sh
+# See every AI branch
 git branch -a | grep -E 'ai-chatbot|ai-assistant|ai-provider'
 ```
 
-| Branch | Holds |
-|---|---|
-| `feat/ai-chatbot-guardrails` | The design document, plus the security work on the original prototype |
-| `docs/ai-assistant-review` | The index, review, sign-off and coordination log |
-| `feat/ai-provider-seam` | Provider-seam work |
-| `ai-chatbot` | The original text-to-SQL prototype |
+Start with the **coordination log** — it opens with a "Where everything lives"
+index. The design document is the reference.
 
 ## Three things that change what gets built
 
-Read the design before writing code — these each overturned an earlier draft,
-and two of them were errors in the design document's own first version.
+Read the design before writing code. Each of these overturned an earlier draft,
+and two were errors in the design document's *own* first version — which is why
+they are repeated here rather than left to be rediscovered.
 
 1. **Text-to-SQL is rejected, not hardened.** The guard on
    `feat/ai-chatbot-guardrails` has fourteen verified bypasses, including staff
