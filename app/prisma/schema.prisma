@@ -2713,14 +2713,6 @@ model Payment {
 // NAV PERMISSIONS
 // ---------------------------------------------------------------------------
 
-model NavPermission {
-  id      Int       @id @default(autoincrement())
-  navItem String
-  role    StaffRole
-
-  @@unique([navItem, role])
-}
-
 // ---------------------------------------------------------------------------
 // ROLES & PERMISSIONS
 // ---------------------------------------------------------------------------

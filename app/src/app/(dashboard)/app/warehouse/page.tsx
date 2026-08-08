@@ -67,6 +67,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function WarehouseHubPage() {
-  await requirePage(["MANAGER", "ADMIN", "WAREHOUSE"], { feature: "warehousing" });
+  await requirePage(undefined, { permission: "warehouse.read", feature: "warehousing" });
   return <CardGrid title="Warehouse" items={ITEMS} />;
 }

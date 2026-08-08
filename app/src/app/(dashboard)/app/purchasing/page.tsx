@@ -38,6 +38,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function PurchasingHubPage() {
-  await requirePage(["MANAGER", "ADMIN", "WAREHOUSE"], { feature: "purchasing" });
+  await requirePage(undefined, { permission: "purchasing.read", feature: "purchasing" });
   return <CardGrid title="Purchasing" items={ITEMS} />;
 }
