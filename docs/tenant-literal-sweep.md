@@ -9,6 +9,48 @@ Blast radius: **18 money**, 21 data-correctness, 22 feature-dead, 6 cosmetic.
 > Spot-verified by hand before publishing: the return-detection regex, the freight
 > exclusion list, and the hardcoded CT tax rate. All three confirmed as described.
 
+## How to read this — native vs import
+
+Not all 67 cost the same. A finding on the **import path** is a one-time migration
+concern: an operator maps it once when history is loaded, and holt is the system of
+record thereafter. A finding on the **native path** is wrong on every transaction, in
+every deployment, forever.
+
+| | money | data | feature-dead | cosmetic | total |
+|---|---:|---:|---:|---:|---:|
+| **Native** — every deployment, forever | **13** | 14 | 17 | 5 | **49** |
+| Import — one-time, per migration | 5 | 7 | 5 | 1 | 18 |
+
+**Start with the native money tier.** These bite before anyone imports anything:
+
+- `lib/commissionSales.ts:67`
+- `lib/commissionTiers.ts:36`
+- `lib/dateUtils.ts:8`
+- `lib/goalsConfig.ts:31`
+- `lib/homeAccessoryOrders.ts:297`
+- `lib/journalEntry.ts:258`
+- `lib/orderLineItemLinker.ts:200`
+- `lib/payPeriod.ts:27`
+- `lib/salesBySalesperson.ts:34`
+- `lib/tillVariance.ts:38`
+- `lib/tillVariance.ts:44`
+- `pages/api/pricing/products.ts:279`
+- `pages/api/proposals/[id]/convert-to-order.ts:90`
+
+They cluster more tightly than the list suggests: **pay-period anchor, commission tiers,
+bonus rate, split ratio, till thresholds** are one payroll-and-cash-policy group. That is a
+coherent first piece of work — the settings a deployment must fix before it can pay anyone
+correctly — rather than picking off literals one file at a time.
+
+The import 18 are `apply-preset` material. Worth doing before an outside deployment migrates
+history; not before one opens its doors.
+
+> **A caveat on severity, learned the hard way in this session.** Every finding below was
+> refuted by a second agent, and the three I then re-checked by hand were all real — but two
+> had their blast radius overstated. `isReturnOrder` is the middle of three signals (an explicit
+> status column runs first, a negative-total check after), so it is a false-*positive* risk
+> rather than the revenue hole it reads as. Open the file before acting on a severity.
+
 ---
 
 ## money (18)
