@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Justifications for entries in package.json `overrides`. package.json is JSON",
+    "and cannot carry comments, so the reasoning lives here and scripts/audit-overrides.mjs",
+    "enforces that it exists.",
+    "",
+    "Two rules, both checked mechanically:",
+    "",
+    "  1. An override whose package is absent from the resolved tree is DEAD and must",
+    "     be deleted. A dead override protects nothing and outlives the reason it was",
+    "     added, which is how this block reached 29 entries.",
+    "",
+    "  2. An EXACT pin (no ^ or ~) must be justified here. Exact pins are the",
+    "     dangerous kind: an override added to fix one CVE becomes the thing blocking",
+    "     the fix for the next one. `semver` sat pinned at 7.6.3 while 7.8.5 shipped —",
+    "     nine releases of fixes we had opted out of without deciding to.",
+    "",
+    "Default to a caret range. Reach for an exact pin only when a newer in-major",
+    "release is known to break something, and say what."
+  ],
+
+  "exactPins": {
+    "sanitize-html": {
+      "pinnedTo": "2.17.6",
+      "reason": "Coupled to the htmlparser2 CJS hold. sanitize-html >= 2.17.6 delegates to htmlparser2, and the 10.x line is ESM-only; Jest cannot parse it ('Cannot use import statement outside a module') and the whole cmsSanitize suite dies. The `htmlparser2: ^9.1.0` override keeps the CJS 9.x line, and these two must move together. Lifting this means adding a Babel transform to the test toolchain, which is a deliberate piece of work, not a dependency chore. See PR #60.",
+      "review": "2026-11-01"
+    }
+  }
+}
