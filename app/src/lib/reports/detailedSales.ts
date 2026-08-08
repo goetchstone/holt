@@ -19,6 +19,7 @@ import type { PrismaClient } from "@prisma/client";
 // `Prisma` is imported as a VALUE (not type-only): the Uncategorized drilldown
 // branch uses `Prisma.sql` / `Prisma.empty` to build a parameterized raw query.
 import { Prisma } from "@prisma/client";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 // ----------------------------------------------------------------------------
 // Summary (formerly detailed-sales.ts)
@@ -62,7 +63,7 @@ export async function getDetailedSales(
 
   // Step 1: Find qualifying sales order IDs by date range + store filter.
   const orderWhere: Prisma.SalesOrderWhereInput = {
-    status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+    status: { in: [...SALES_REVENUE_STATUSES] },
   };
   if (startDate && endDate) {
     orderWhere.orderDate = {
@@ -260,7 +261,7 @@ export async function getDetailedSalesItems(
   const endDate = params.endDate ?? null;
 
   const orderWhere: Prisma.SalesOrderWhereInput = {
-    status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+    status: { in: [...SALES_REVENUE_STATUSES] },
   };
   if (store) orderWhere.storeLocation = store;
   if (startDate) {

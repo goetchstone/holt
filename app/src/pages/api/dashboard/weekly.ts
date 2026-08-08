@@ -25,8 +25,13 @@ import {
 import { visitorsByStoreLocation } from "@/lib/storeTraffic";
 import { buildRows } from "@/lib/weeklySummaryRows";
 import { logError } from "@/lib/logger";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
-const SALES_STATUSES = ["ORDER", "FULFILLED", "RETURNED"] as const;
+// Canonical revenue scope. Was a local literal with the same three values;
+// salesOrderRevenue.ts allows an inline copy only when deliberately NARROWER
+// with a comment saying why, so a grep audit can tell that apart from
+// "forgot RETURNED". This one was identical, so it was drift waiting to happen.
+const SALES_STATUSES = SALES_REVENUE_STATUSES;
 
 const getMonthName = (monthIndex: number) => {
   const months = [

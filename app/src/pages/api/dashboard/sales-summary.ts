@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requireAuth } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 interface StoreSalesData {
   items: number;
@@ -29,7 +30,7 @@ async function sumSalesByStore(from: Date, to: Date): Promise<Record<string, Sto
   const orders = await prisma.salesOrder.findMany({
     where: {
       orderDate: { gte: from, lt: to },
-      status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+      status: { in: [...SALES_REVENUE_STATUSES] },
     },
     select: {
       storeLocation: true,
