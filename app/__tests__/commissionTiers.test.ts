@@ -14,33 +14,33 @@ import {
 
 describe("resolveTier (current bracket)", () => {
   it("$0 → tier 1 (Up to $750k)", () => {
-    expect(resolveTier(0).label).toBe("Up to $750k");
+    expect(resolveTier(0, DEFAULT_COMMISSION_TIERS)?.label).toBe("Up to $750k");
   });
 
   it("$749,999 → tier 1", () => {
-    expect(resolveTier(749_999).label).toBe("Up to $750k");
+    expect(resolveTier(749_999, DEFAULT_COMMISSION_TIERS)?.label).toBe("Up to $750k");
   });
 
   it("$750,000 → tier 2 ($750k - $1M) (exact threshold)", () => {
-    expect(resolveTier(750_000).label).toBe("$750k – $1M");
+    expect(resolveTier(750_000, DEFAULT_COMMISSION_TIERS)?.label).toBe("$750k – $1M");
   });
 
   it("$1,000,000 → tier 3 ($1M - $1.5M)", () => {
-    expect(resolveTier(1_000_000).label).toBe("$1M – $1.5M");
+    expect(resolveTier(1_000_000, DEFAULT_COMMISSION_TIERS)?.label).toBe("$1M – $1.5M");
   });
 
   it("$10,000,000 → top tier (Over $2M)", () => {
-    expect(resolveTier(10_000_000).label).toBe("Over $2M");
+    expect(resolveTier(10_000_000, DEFAULT_COMMISSION_TIERS)?.label).toBe("Over $2M");
   });
 
   it("negative input clamps to tier 1", () => {
-    expect(resolveTier(-500).label).toBe("Up to $750k");
+    expect(resolveTier(-500, DEFAULT_COMMISSION_TIERS)?.label).toBe("Up to $750k");
   });
 });
 
 describe("calculateMarginalCommission — single-tier windows", () => {
   it("window entirely inside tier 1: 3% × $500k = $15,000", () => {
-    const r = calculateMarginalCommission(0, 500_000);
+    const r = calculateMarginalCommission(0, 500_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(15_000);
     expect(r.breakdown).toHaveLength(1);
     expect(r.breakdown[0]).toEqual({
@@ -52,7 +52,7 @@ describe("calculateMarginalCommission — single-tier windows", () => {
   });
 
   it("window entirely inside tier 2: 4% × $200k = $8,000", () => {
-    const r = calculateMarginalCommission(800_000, 1_000_000);
+    const r = calculateMarginalCommission(800_000, 1_000_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(8_000);
     expect(r.breakdown).toHaveLength(1);
     expect(r.breakdown[0].tierLabel).toBe("$750k – $1M");
@@ -60,7 +60,7 @@ describe("calculateMarginalCommission — single-tier windows", () => {
   });
 
   it("window entirely inside top tier: 7% × $500k = $35,000", () => {
-    const r = calculateMarginalCommission(3_000_000, 3_500_000);
+    const r = calculateMarginalCommission(3_000_000, 3_500_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(35_000);
     expect(r.breakdown[0].tierLabel).toBe("Over $2M");
   });
@@ -74,7 +74,7 @@ describe("calculateMarginalCommission — multi-tier windows", () => {
   //   Total: $10,500
 
   it("crosses one boundary: $800k → $1.05M = $10,500", () => {
-    const r = calculateMarginalCommission(800_000, 1_050_000);
+    const r = calculateMarginalCommission(800_000, 1_050_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(10_500);
     expect(r.breakdown).toEqual([
       { tierLabel: "$750k – $1M", rate: 0.04, salesInTier: 200_000, commission: 8_000 },
@@ -88,7 +88,7 @@ describe("calculateMarginalCommission — multi-tier windows", () => {
     // $1M-$1.5M = $500k at 5% = $25,000
     // $1.5M-$1.6M = $100k at 6% = $6,000
     // Total: $42,500
-    const r = calculateMarginalCommission(700_000, 1_600_000);
+    const r = calculateMarginalCommission(700_000, 1_600_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(42_500);
     expect(r.breakdown).toHaveLength(4);
   });
@@ -100,7 +100,7 @@ describe("calculateMarginalCommission — multi-tier windows", () => {
     // $1.5M-$2M:     $500k × 6% = $30,000
     // $2M-$2.5M:     $500k × 7% = $35,000
     // Total: $122,500
-    const r = calculateMarginalCommission(0, 2_500_000);
+    const r = calculateMarginalCommission(0, 2_500_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(122_500);
     expect(r.breakdown).toHaveLength(5);
   });
@@ -113,7 +113,7 @@ describe("calculateMarginalCommission — period-over-period (the real use case)
   // marginal slice between those two YTD values.
 
   it("designer started Q1 with $0, finished Q1 with $300k — all in tier 1", () => {
-    const r = calculateMarginalCommission(0, 300_000);
+    const r = calculateMarginalCommission(0, 300_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(9_000);
   });
 
@@ -124,13 +124,13 @@ describe("calculateMarginalCommission — period-over-period (the real use case)
     //   $750k → $1M = $250k × 4% = $10,000
     //   $1M → $1.2M = $200k × 5% = $10,000
     //   Total: $21,500
-    const r = calculateMarginalCommission(700_000, 1_200_000);
+    const r = calculateMarginalCommission(700_000, 1_200_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(21_500);
   });
 
   it("top designer already over $2M before window — entire window at 7%", () => {
     // Start: $2.3M, End: $2.55M -> $250k × 7% = $17,500
-    const r = calculateMarginalCommission(2_300_000, 2_550_000);
+    const r = calculateMarginalCommission(2_300_000, 2_550_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(17_500);
     expect(r.breakdown).toHaveLength(1);
     expect(r.breakdown[0].rate).toBe(0.07);
@@ -139,24 +139,28 @@ describe("calculateMarginalCommission — period-over-period (the real use case)
 
 describe("calculateMarginalCommission — defensive inputs", () => {
   it("ytdAtEnd <= ytdAtStart → $0 commission (e.g. designer's YTD shrank from returns)", () => {
-    const r = calculateMarginalCommission(500_000, 500_000);
+    const r = calculateMarginalCommission(500_000, 500_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(0);
     expect(r.breakdown).toEqual([]);
   });
 
   it("ytdAtEnd strictly below ytdAtStart → $0", () => {
-    const r = calculateMarginalCommission(500_000, 450_000);
+    const r = calculateMarginalCommission(500_000, 450_000, DEFAULT_COMMISSION_TIERS);
     expect(r.commission).toBe(0);
     expect(r.breakdown).toEqual([]);
   });
 
   it("NaN ytdAtStart → treated as 0 (clean window)", () => {
     // sanitize(NaN) = 0, so (NaN, 100k) becomes the same as (0, 100k) → 3% × 100k
-    expect(calculateMarginalCommission(Number.NaN, 100_000).commission).toBe(3_000);
+    expect(
+      calculateMarginalCommission(Number.NaN, 100_000, DEFAULT_COMMISSION_TIERS).commission,
+    ).toBe(3_000);
   });
 
   it("NaN ytdAtEnd → $0 (defensive: window collapses)", () => {
-    expect(calculateMarginalCommission(100_000, Number.NaN).commission).toBe(0);
+    expect(
+      calculateMarginalCommission(100_000, Number.NaN, DEFAULT_COMMISSION_TIERS).commission,
+    ).toBe(0);
   });
 
   it("empty tiers array → $0", () => {
@@ -200,5 +204,41 @@ describe("DEFAULT_COMMISSION_TIERS shape", () => {
         DEFAULT_COMMISSION_TIERS[i].rate,
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// No commission plan configured
+//
+// DEFAULT_COMMISSION_TIERS used to be the runtime fallback when a deployment
+// had configured no plan at all, so an unconfigured business was silently
+// commissioned on one employer's 3%-to-7% schedule -- and runCommissionPayouts
+// PERSISTED those numbers. Nothing failed and nothing warned; the wrong figure
+// was simply the one that got paid.
+//
+// Owner's direction: "if there is no commission plan then there is nothing to
+// report on." Empty tiers are now a legitimate answer rather than an error, and
+// these assert the two shapes that answer takes.
+// ---------------------------------------------------------------------------
+describe("no plan configured — empty tiers are an answer, not a crash", () => {
+  it("resolveTier returns null rather than undefined wearing a tier's type", () => {
+    // Was `return tiers.at(-1) as CommissionTier`, which on an empty array
+    // handed back undefined typed as a real tier. The crash then landed a
+    // frame or two later, with nothing pointing at the missing plan.
+    expect(resolveTier(0, [])).toBeNull();
+    expect(resolveTier(5_000_000, [])).toBeNull();
+  });
+
+  it("calculateMarginalCommission pays zero rather than guessing a rate", () => {
+    const result = calculateMarginalCommission(0, 1_000_000, []);
+    expect(result.commission).toBe(0);
+    expect(result.breakdown).toEqual([]);
+  });
+
+  it("a configured plan is unaffected — the equivalence that matters", () => {
+    // Saybrook's numbers must not move. Same inputs, same output as before.
+    const result = calculateMarginalCommission(0, 1_000_000, DEFAULT_COMMISSION_TIERS);
+    expect(result.commission).toBeGreaterThan(0);
+    expect(resolveTier(1_000_000, DEFAULT_COMMISSION_TIERS)?.label).toBe("$1M – $1.5M");
   });
 });

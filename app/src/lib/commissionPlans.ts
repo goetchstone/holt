@@ -64,10 +64,26 @@ function dbTierToHelper(row: DbTierRow): PlanTier {
 }
 
 /**
- * The fallback tiers used when a staff member has no assigned plan and no
- * default plan exists: the legacy CommissionTier table, else the built-in
- * defaults. This IS the pre-plans loadTiers() behavior, preserved so a
- * restored legacy dataset keeps computing identical payouts.
+ * The tiers used when a staff member has no assigned plan and no default plan
+ * exists: the legacy CommissionTier table, else NOTHING.
+ *
+ * This used to fall through to DEFAULT_COMMISSION_TIERS -- one employer's
+ * 3%-to-7% schedule, compiled into source. A deployment that had configured no
+ * plan at all was therefore silently commissioned on somebody else's rates, and
+ * `runCommissionPayouts` then PERSISTED those numbers into payout rows. Nothing
+ * failed, nothing warned, and the wrong figure was the one that got paid.
+ *
+ * Owner's direction: "if there is no commission plan then there is nothing to
+ * report on." So an unconfigured deployment now returns an empty tier set,
+ * which is a legitimate answer and not an error -- callers render "no
+ * commission plan configured" rather than a number nobody chose. Guessing is
+ * the one option that was never acceptable.
+ *
+ * DEFAULT_COMMISSION_TIERS survives as the SEED's reference values
+ * (prisma/seed/demo/commissionPlan.ts scales them for the demo dataset) and as
+ * fixture data for the rule-engine equivalence tests. It is no longer reachable
+ * at runtime, which is the point: the seed puts data into config, and config is
+ * what the runtime reads.
  */
 export async function loadLegacyOrDefaultTiers(): Promise<ResolvedPlanTiers> {
   const dbTiers = await prisma.commissionTier.findMany({ orderBy: { sortOrder: "asc" } });
@@ -78,11 +94,7 @@ export async function loadLegacyOrDefaultTiers(): Promise<ResolvedPlanTiers> {
       tiers: dbTiers.map((t) => dbTierToHelper(t as unknown as DbTierRow)),
     };
   }
-  return {
-    planId: null,
-    planName: LEGACY_PLAN_NAME,
-    tiers: DEFAULT_COMMISSION_TIERS.map((t, i) => ({ ...t, sortOrder: i })),
-  };
+  return { planId: null, planName: LEGACY_PLAN_NAME, tiers: [] };
 }
 
 /**
