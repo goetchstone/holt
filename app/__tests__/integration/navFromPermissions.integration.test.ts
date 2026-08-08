@@ -188,7 +188,26 @@ describe("built-in roles, resolved from the seeded rows", () => {
     expect(staff?.roleId).toBeNull();
 
     const menu = await menuFor("unlinked");
-    expect(menu).toEqual(["Sales", "Purchasing", "Warehouse", "Inventory", "Time", "Tools"]);
+    // Service and Helpdesk belong here: WAREHOUSE holds service.read AND
+    // service.write in permissionCatalog.ts, and both nav entries gate on
+    // service.read. The person unwrapping a damaged delivery is the person who
+    // raises the ticket. Mirrors the unit expectation in
+    // __tests__/navPermissions.test.ts -- keep the two in step.
+    //
+    // Do NOT trim this back to make it pass. Hiding a link to a page the role
+    // can actually open is the NavPermission bug this branch exists to remove.
+    // If WAREHOUSE should not reach service, drop the grant in
+    // permissionCatalog.ts and the menu follows on its own.
+    expect(menu).toEqual([
+      "Sales",
+      "Service",
+      "Purchasing",
+      "Warehouse",
+      "Inventory",
+      "Helpdesk",
+      "Time",
+      "Tools",
+    ]);
   });
 });
 
