@@ -20,7 +20,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { aggregateCurrentInventory, summarizeInventoryAggregate } from "@/lib/inventory/snapshot";
 import { logger, logError } from "@/lib/logger";
@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
-  return requireAuthWithRole(["MANAGER", "ADMIN"], handlePost)(req, res);
+  return requirePermission("inventory.adjust", handlePost)(req, res);
 }
 
 function startOfToday(): Date {

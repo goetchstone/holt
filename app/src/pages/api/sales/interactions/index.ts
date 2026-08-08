@@ -2,7 +2,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
 interface CreateInteractionBody {
@@ -70,4 +70,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(201).json(interaction);
 }
 
-export default requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"], handler);
+export default requirePermission("customer.write", handler);

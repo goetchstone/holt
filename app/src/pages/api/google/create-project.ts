@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { google } from "googleapis";
 import { logError } from "@/lib/logger";
 
@@ -99,4 +99,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
 // Design-consultation project folders (Windows, Rugs, Fabrics, Furniture...)
 // -- a designer's tool; register/warehouse/marketing have no use for it.
-export default requireAuthWithRole(["DESIGNER", "MANAGER", "ADMIN"], handler);
+export default requirePermission("sales.lead", handler);

@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -80,4 +80,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["ADMIN"], handler);
+export default requirePermission("admin.settings", handler);

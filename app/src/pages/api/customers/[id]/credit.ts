@@ -1,7 +1,7 @@
 // /app/src/pages/api/customers/[id]/credit.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
@@ -56,7 +56,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
-  handler,
-);
+export default requirePermission("customer.read", handler);

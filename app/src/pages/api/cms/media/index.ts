@@ -8,7 +8,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import path from "path";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { createSecureForm, assertUploadedFileInRoot } from "@/lib/secureUpload";
@@ -18,8 +18,8 @@ import { logError } from "@/lib/logger";
 // formidable parses the body; disable Next's parser.
 export const config = { api: { bodyParser: false } };
 
-export default requireAuthWithRole(
-  ["ADMIN"],
+export default requirePermission(
+  "admin.settings",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method === "GET") {
       const media = await prisma.mediaAsset.findMany({

@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -119,4 +119,4 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
   }
 }
 
-export default requireAuthWithRole(["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"], handler);
+export default requirePermission("warehouse.operate", handler);

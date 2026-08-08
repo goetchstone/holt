@@ -28,15 +28,15 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { parsePresetBundle } from "@/lib/config/presetSchema";
 import { MAX_PRESET_BYTES } from "@/lib/config/presetSerialize";
 import { applyBundle } from "@/lib/config/applyPreset";
 import type { ApplyRequestBody, ApplyResponse } from "@/lib/config/presetApiTypes";
 
-export default requireAuthWithRole(
-  ["ADMIN"],
+export default requirePermission(
+  "admin.config",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", "POST");

@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { onPaymentReceived } from "@/lib/paymentService";
 import { badRequest, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
@@ -39,4 +39,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"], handler);
+export default requirePermission("sales.write", handler);

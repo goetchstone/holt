@@ -9,7 +9,7 @@
 // CSV-click) so the log stays honest.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { getTileById } from "@/lib/opportunityTiles";
@@ -26,8 +26,8 @@ export interface LogSendResponse {
   sentAt: string;
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "MARKETING", "ADMIN"],
+export default requirePermission(
+  "marketing.write",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

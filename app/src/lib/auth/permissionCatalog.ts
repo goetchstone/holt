@@ -114,6 +114,20 @@ export const PERMISSIONS: PermissionDef[] = [
     sensitive: true,
   },
 
+  {
+    key: "sales.lead",
+    domain: "sales",
+    label: "Work leads",
+    description: "Create and work leads and the sales pipeline, before there is an order.",
+  },
+  {
+    key: "sales.return",
+    domain: "sales",
+    label: "Take returns",
+    description:
+      "Start a return and bring the goods back in. Giving the money back is Refund payment.",
+  },
+
   // --- Point of sale -----------------------------------------------------
   {
     key: "pos.operate",
@@ -544,6 +558,8 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "sales.discount",
       "sales.cancel",
       "sales.reassign",
+      "sales.lead",
+      "sales.return",
       "pos.operate",
       "pos.till.manage",
       "pos.till.adjust",
@@ -586,6 +602,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     permissions: [
       "sales.read",
       "sales.write",
+      "sales.lead",
       "customer.read",
       "customer.write",
       "catalog.read",
@@ -599,10 +616,12 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
   {
     key: "REGISTER",
     name: "Register",
-    description: "Counter staff: rings sales and takes payment, cannot refund.",
+    description:
+      "Counter staff: rings sales, takes payment, brings returned goods back in. Handing the money back is a Manager job by default.",
     permissions: [
       "sales.read",
       "sales.write",
+      "sales.return",
       "pos.operate",
       "pos.till.manage",
       "payment.take",
@@ -626,6 +645,10 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "purchasing.receive",
       "warehouse.read",
       "warehouse.operate",
+      "sales.return",
+      "customer.read",
+      "service.read",
+      "service.write",
     ],
   },
   {

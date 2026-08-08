@@ -5,7 +5,7 @@
 // home page per org.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { parsePageInput } from "@/lib/cms/requestBody";
@@ -13,8 +13,8 @@ import { getErrorMessage } from "@/lib/toastError";
 import { getErrorCode } from "@/lib/errorCode";
 import { logError } from "@/lib/logger";
 
-export default requireAuthWithRole(
-  ["ADMIN"],
+export default requirePermission(
+  "admin.settings",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const id = Number(req.query.id);
     if (!Number.isInteger(id)) {

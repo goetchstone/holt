@@ -8,7 +8,7 @@
 // default; ?includeResolved=true also returns handled ones.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -34,8 +34,8 @@ export interface InventoryExceptionsResponse {
   exceptions: InventoryExceptionRow[];
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "inventory.adjust",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       res.setHeader("Allow", ["GET"]);

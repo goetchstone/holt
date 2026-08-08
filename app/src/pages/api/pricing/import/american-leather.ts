@@ -22,7 +22,7 @@ import {
 import type { ALStandardFeatures } from "@/lib/pricing/americanLeatherExtractor";
 import type { SurchargeType } from "@prisma/client";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 export const config = {
   api: {
     bodyParser: {
@@ -144,8 +144,8 @@ interface ImportBody {
   };
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "catalog.pricing",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });

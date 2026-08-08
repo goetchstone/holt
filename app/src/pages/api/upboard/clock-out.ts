@@ -8,7 +8,7 @@
 // 3. Compacts positions so there are no gaps
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { compactAndPromote } from "@/lib/upboard";
 import { logError } from "@/lib/logger";
@@ -51,7 +51,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 }
 
 // Self-service: any staff role clocks themselves out.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
-  handler,
-);
+export default requirePermission("staff.self", handler);

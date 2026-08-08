@@ -7,7 +7,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { Prisma } from "@prisma/client";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import {
@@ -24,7 +24,7 @@ import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
 
 const THEME_KEYS = Object.keys(DEFAULT_THEME) as ThemeKey[];
 
-export default requireAuthWithRole(["ADMIN"], async (req, res, session) => {
+export default requirePermission("admin.settings", async (req, res, session) => {
   if (req.method === "GET") return handleGet(res);
   if (req.method === "PUT") return handlePut(req, res, session);
   res.setHeader("Allow", "GET, PUT");

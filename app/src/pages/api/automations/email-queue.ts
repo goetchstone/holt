@@ -5,7 +5,7 @@
 // AUTO_IMPORT_API_KEY), mirroring the other /api/automations/* endpoints.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { processEmailQueue } from "@/lib/email/queue";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
@@ -32,5 +32,5 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
   if (authorizedByApiKey(req)) return drain(req, res);
-  return requireAuthWithRole(["SUPER_ADMIN", "ADMIN"], drain)(req, res);
+  return requirePermission("admin.integrations", drain)(req, res);
 }

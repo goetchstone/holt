@@ -25,7 +25,7 @@ import type { Session } from "next-auth";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditLog } from "@/lib/audit";
 import { logError, logger } from "@/lib/logger";
 import { getErrorMessage } from "@/lib/toastError";
@@ -95,4 +95,4 @@ export async function handlePost(
   }
 }
 
-export default requireAuthWithRole(["ADMIN"], handlePost);
+export default requirePermission("admin.data", handlePost);

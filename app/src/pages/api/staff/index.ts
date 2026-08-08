@@ -4,7 +4,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
@@ -54,4 +54,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).json({ error: "Method not allowed" });
 }
 
-export default requireAuthWithRole(["ADMIN"], handler);
+export default requirePermission("staff.manage", handler);

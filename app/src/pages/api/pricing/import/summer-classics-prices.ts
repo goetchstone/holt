@@ -13,7 +13,7 @@ import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import type { SurchargeType } from "@prisma/client";
 import type { ParsedSCProduct, ParsedSCCollection } from "@/lib/pricing/summerClassicsParser";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 export const config = {
   api: {
     bodyParser: {
@@ -88,8 +88,8 @@ async function seedSCOptions(vendorId: number) {
 
 // ─── Handler ─────────────────────────────────────────────────────
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "catalog.pricing",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });

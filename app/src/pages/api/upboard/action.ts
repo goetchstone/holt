@@ -11,7 +11,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
 import { logError } from "@/lib/logger";
@@ -192,7 +192,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
 // Self-service: the up-board is visible to every role on the home dashboard,
 // and any clocked-in staff member can move themselves through the rotation.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
-  handler,
-);
+export default requirePermission("staff.self", handler);

@@ -17,7 +17,7 @@
 // is a no-op (0 created, 0 updated, all notes already exist by GUID).
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { createSecureForm } from "@/lib/secureUpload";
 import { runServiceCaseSheetImport } from "@/lib/runServiceCaseSheetImport";
 import { logger, logError } from "@/lib/logger";
@@ -46,8 +46,8 @@ async function parseUploadedFile(
   });
 }
 
-export default requireAuthWithRole(
-  ["ADMIN", "SUPER_ADMIN"],
+export default requirePermission(
+  "admin.data",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     // GET: return last-sync status for the admin page header. Reads
     // straight from ServiceCase.externalSourceLastSeen — no separate

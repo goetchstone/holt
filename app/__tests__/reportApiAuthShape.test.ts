@@ -56,7 +56,7 @@ describe("report API auth shape", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("every endpoint protects with `requireAuthWithRole` OR `requireAuth` OR is explicitly public", () => {
+  it("every endpoint protects with `requirePermission` OR `requireAuthWithRole` OR `requireAuth` OR is explicitly public", () => {
     const exemptions = new Set<string>([
       // Add exemptions here ONLY for explicitly public endpoints
       // (none currently exist in /api/reports). Format: relative
@@ -68,6 +68,10 @@ describe("report API auth shape", () => {
       if (exemptions.has(rel)) continue;
       const src = fs.readFileSync(file, "utf8");
       const guarded =
+        // requirePermission is the capability guard routes are moving onto.
+        // It has to count here or the sweep reads as "every report endpoint
+        // lost its guard", which is the opposite of what happened.
+        /requirePermission\s*\(/.test(src) ||
         /requireAuthWithRole\s*\(/.test(src) ||
         /requireAuth\s*\(/.test(src) ||
         /withAuth\s*\(/.test(src) ||

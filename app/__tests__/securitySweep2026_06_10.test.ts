@@ -14,7 +14,12 @@ function src(rel: string): string {
 describe("security sweep 2026-06-10 tripwires", () => {
   it("vendors/[id] stays role-gated (was session-only)", () => {
     const code = src("pages/api/vendors/[id].ts");
-    expect(code).toMatch(/requireAuthWithRole\(\s*\["MANAGER",\s*"ADMIN"\]/);
+    // The point of this tripwire is that the route never regresses to
+    // session-only. It used to name the exact role list; the route now gates on
+    // a capability instead (catalog.pricing — it edits pricing behaviour, which
+    // is why it is not catalog.write), and pinning the old spelling would make
+    // the guard swap look like a security regression.
+    expect(code).toMatch(/requirePermission\(\s*"catalog\.pricing"|requireAuthWithRole\(/);
     expect(code).not.toMatch(/getServerSession/);
   });
 

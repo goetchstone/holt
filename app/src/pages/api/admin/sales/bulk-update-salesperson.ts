@@ -4,7 +4,7 @@
 // Manager-only. All changes are logged to OrderChangeLog.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { loadActiveConfirmations } from "@/lib/payPeriodLockGuard";
@@ -18,8 +18,8 @@ interface UpdateRow {
   splitWithId?: number | null;
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "sales.reassign",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });

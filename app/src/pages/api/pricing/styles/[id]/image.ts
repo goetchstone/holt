@@ -4,7 +4,7 @@
 // Saves to /data/uploads/line-drawings/{vendor-slug}/ and updates imageUrl.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import fs from "fs";
 import path from "path";
@@ -39,7 +39,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return res.status(405).json({ error: "Method not allowed" });
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("catalog.pricing", handler);
 
 async function handleUpload(
   req: NextApiRequest,

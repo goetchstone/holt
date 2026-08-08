@@ -12,13 +12,13 @@
 // integration settings, which is not something to hand to any signed-in user.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { getActiveSourceAdapter } from "@/lib/adapters";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN", "ADMIN"],
+export default requirePermission(
+  "admin.integrations",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       res.setHeader("Allow", ["GET"]);

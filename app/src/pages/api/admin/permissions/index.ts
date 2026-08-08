@@ -1,7 +1,7 @@
 // /app/src/pages/api/admin/permissions/index.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { NAV_ITEMS, DEFAULT_NAV_PERMISSIONS } from "@/lib/auth/navPermissions";
 import { StaffRole } from "@prisma/client";
@@ -9,7 +9,7 @@ import { StaffRole } from "@prisma/client";
 const VALID_ROLES: string[] = Object.values(StaffRole);
 const VALID_NAV_ITEMS = NAV_ITEMS.map((item) => item.label);
 
-export default requireAuthWithRole(["ADMIN"], async (req, res) => {
+export default requirePermission("staff.manage", async (req, res) => {
   if (req.method === "GET") {
     return handleGet(res);
   }

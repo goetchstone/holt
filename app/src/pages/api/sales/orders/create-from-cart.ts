@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError, logger } from "@/lib/logger";
 import { priceCart, type CartDiscount } from "@/lib/pos/cartPricing";
@@ -342,7 +342,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   }
 }
 
-export default requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"], handler);
+export default requirePermission("sales.write", handler);
 
 // Finds or creates a default "Uncategorized" department or category
 async function getOrCreateDefault(

@@ -4,7 +4,7 @@
 // grouping by month/week/day and filtering by summary card clicks.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -27,8 +27,8 @@ export interface InboundPO {
   departments: string[];
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN", "WAREHOUSE"],
+export default requirePermission(
+  "purchasing.receive",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       return res.status(405).json({ error: "Method not allowed" });
