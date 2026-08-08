@@ -10,12 +10,14 @@
 //   2. the isDefault plan
 //   3. the legacy CommissionTier table  — a restored legacy backup lands its
 //      tier rows here and computes IDENTICALLY until plans are created
-//   4. DEFAULT_COMMISSION_TIERS          — fresh dev DB / first boot
-// Steps 3+4 are exactly the old loadTiers() behavior.
+//   4. nothing — an empty tier set, meaning no commission
+// The chain used to end in DEFAULT_COMMISSION_TIERS; it no longer does, so an
+// unconfigured deployment reports no commission rather than inheriting one
+// employer's rates. See loadLegacyOrDefaultTiers below for the full reasoning.
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_COMMISSION_TIERS, type CommissionTier } from "@/lib/commissionTiers";
+import type { CommissionTier } from "@/lib/commissionTiers";
 import { LEGACY_MIRROR_RULE_LABEL } from "@/lib/commissionRuleEngine";
 
 export interface PlanTier extends CommissionTier {
@@ -23,7 +25,7 @@ export interface PlanTier extends CommissionTier {
 }
 
 export interface ResolvedPlanTiers {
-  /** NULL when resolved from the legacy table or built-in defaults. */
+  /** NULL when resolved from the legacy table, or when no plan is configured. */
   planId: number | null;
   planName: string;
   tiers: ReadonlyArray<PlanTier>;

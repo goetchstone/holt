@@ -12,11 +12,12 @@
 //   and ytdAtEnd, with each subslice paid at its tier's rate.
 //
 // Tiers resolve PER DESIGNER through lib/commissionPlans.ts (assigned plan ->
-// default plan -> legacy CommissionTier table -> built-in defaults), the same
-// resolution the payout generator uses, so the live view and locked payouts
-// can never price a designer differently. Each row reports which plan priced
-// it; the top-level `tiers` is the default-resolution set (what an unassigned
-// designer gets).
+// default plan -> legacy CommissionTier table -> nothing), the same resolution
+// the payout generator uses, so the live view and locked payouts can never
+// price a designer differently. Each row reports which plan priced it; the
+// top-level `tiers` is the default-resolution set (what an unassigned designer
+// gets), and it is EMPTY when the deployment has configured no plan — rows
+// then report "No plan configured" rather than a rate nobody chose.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";

@@ -767,7 +767,7 @@ export function computeRuleEnginePayout(input: EngineInput): EnginePayoutResult 
 // (conceptually — the migration itself is SQL) and by
 // lib/commissionRules.ts's on-the-fly derivation for a plan that hasn't
 // gotten real CommissionPlanRule rows (or the bare legacy CommissionTier
-// table / DEFAULT_COMMISSION_TIERS). This is THE function that makes
+// table). This is THE function that makes
 // backwards compatibility provable: run it over any existing tier set and
 // the resulting rule, fed through computeRuleEnginePayout, must match
 // calculateMarginalCommission's output exactly (pinned by the equivalence
