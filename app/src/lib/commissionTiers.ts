@@ -77,7 +77,10 @@ export interface MarginalCommissionResult {
 export function calculateMarginalCommission(
   ytdAtStart: number,
   ytdAtEnd: number,
-  tiers: readonly CommissionTier[] = DEFAULT_COMMISSION_TIERS,
+  // No default: a caller that omitted this used to be silently commissioned on
+  // one employer's schedule. Empty tiers (no plan configured) already return
+  // zero commission below, which is the correct answer rather than a guess.
+  tiers: readonly CommissionTier[],
 ): MarginalCommissionResult {
   const safeStart = sanitize(ytdAtStart);
   const safeEnd = sanitize(ytdAtEnd);
@@ -125,18 +128,28 @@ export function calculateMarginalCommission(
  */
 export function resolveTier(
   ytdSales: number,
-  tiers: readonly CommissionTier[] = DEFAULT_COMMISSION_TIERS,
-): CommissionTier {
+  tiers: readonly CommissionTier[],
+): CommissionTier | null {
   const safe = Math.max(0, sanitize(ytdSales));
   for (const tier of tiers) {
     const tierMax = tier.maxYtdSalesExclusive ?? Number.POSITIVE_INFINITY;
     if (safe >= tier.minYtdSales && safe < tierMax) return tier;
   }
-  // Caller invariant: `tiers` is non-empty (DEFAULT_COMMISSION_TIERS always
-  // has 5 rows; the editor enforces >=1 row in validateTiers). The last
-  // tier is the unbounded ceiling, so any `safe` above all min/max bounds
-  // falls here.
-  return tiers.at(-1) as CommissionTier;
+  // No tiers means no commission plan is configured, which is a real answer --
+  // see loadLegacyOrDefaultTiers. This used to read
+  // `return tiers.at(-1) as CommissionTier`, resting on a "caller invariant:
+  // tiers is non-empty" that was only true because an unconfigured deployment
+  // silently inherited DEFAULT_COMMISSION_TIERS. With that fallback gone the
+  // cast would hand callers `undefined` wearing a CommissionTier's type, and
+  // the crash would land a frame or two later with no hint of the cause.
+  //
+  // The `tiers` parameter also lost its default for the same reason: a default
+  // meant a caller could omit the argument and be quietly commissioned on one
+  // employer's schedule. Passing it is now the only option.
+  if (tiers.length === 0) return null;
+  // Otherwise `safe` is above every bound, so the last tier is the unbounded
+  // ceiling and the right answer.
+  return tiers[tiers.length - 1];
 }
 
 function sanitize(n: number): number {
