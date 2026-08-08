@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
-import { requireAuth, requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requireAuth, requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return requireAuth(handleGet)(req, res);
   }
   if (req.method === "DELETE") {
-    return requireAuthWithRole(["MANAGER", "ADMIN"], handleDelete)(req, res);
+    return requirePermission("inventory.adjust", handleDelete)(req, res);
   }
   res.setHeader("Allow", "GET, DELETE");
   return res.status(405).json({ error: "Method not allowed" });

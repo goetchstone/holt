@@ -8,6 +8,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { visitorsByStoreLocation } from "@/lib/storeTraffic";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 interface StorePeriodData {
   netSales: number;
@@ -58,7 +59,7 @@ async function sumByStore(
   const orders = await prisma.salesOrder.findMany({
     where: {
       orderDate: { gte: from, lt: to },
-      status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+      status: { in: [...SALES_REVENUE_STATUSES] },
     },
     select: {
       id: true,

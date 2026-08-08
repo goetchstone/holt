@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -30,10 +30,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
 // GET is open to designers too (they follow their customer's appointment);
 // PUT narrows further inline to warehouse/installer/manager/admin.
-export default requireAuthWithRole(
-  ["DESIGNER", "WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"],
-  handler,
-);
+export default requirePermission("service.write", handler);
 
 async function handleGet(id: number, res: NextApiResponse) {
   try {

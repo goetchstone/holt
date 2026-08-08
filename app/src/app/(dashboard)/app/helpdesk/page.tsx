@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { HelpdeskQueueView } from "./HelpdeskQueueView";
 
 export default async function HelpdeskPage() {
-  await requirePage(["SUPER_ADMIN", "ADMIN", "MANAGER"], { feature: "helpdesk" });
+  await requirePage(undefined, { permission: "service.read", feature: "helpdesk" });
   return <HelpdeskQueueView />;
 }

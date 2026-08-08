@@ -14,7 +14,7 @@
 // Uses Poppler's `pdfimages` CLI for fast extraction (~2s for 100+ pages).
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { createSecureForm } from "@/lib/secureUpload";
 import fs from "fs";
@@ -503,4 +503,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("catalog.pricing", handler);

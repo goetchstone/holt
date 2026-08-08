@@ -124,7 +124,11 @@ export default requireAuthWithRole(
           ytdAtStart,
           windowSales,
           ytdAtEnd,
-          currentTierLabel: currentTier.label,
+          // null when this deployment has no commission plan configured --
+          // loadLegacyOrDefaultTiers no longer invents one. The row still
+          // carries real sales figures; only the commission is unknowable, so
+          // name that rather than showing a tier nobody chose.
+          currentTierLabel: currentTier?.label ?? "No plan configured",
           commission: result.commission,
           breakdown: result.breakdown,
         });

@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
-import { requireAuth, requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requireAuth, requirePermission } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { aggregateCurrentInventory } from "@/lib/inventory/snapshot";
 
@@ -11,7 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return requireAuth(handleGet)(req, res);
   }
   if (req.method === "POST") {
-    return requireAuthWithRole(["MANAGER", "ADMIN"], handlePost)(req, res);
+    return requirePermission("inventory.adjust", handlePost)(req, res);
   }
   res.setHeader("Allow", "GET, POST");
   return res.status(405).json({ error: "Method not allowed" });

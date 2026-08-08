@@ -18,7 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { previewPayoutsForPeriod, commitPayoutsForPeriod } from "@/lib/runCommissionPayouts";
 import { createPlan, resolvePlanTiersForStaff, LEGACY_PLAN_NAME } from "@/lib/commissionPlans";
-import { calculateMarginalCommission, DEFAULT_COMMISSION_TIERS } from "@/lib/commissionTiers";
+import { calculateMarginalCommission } from "@/lib/commissionTiers";
 import type { CommissionTier } from "@/lib/commissionTiers";
 
 const PERIOD_START = new Date("2026-05-16T00:00:00Z");
@@ -274,7 +274,17 @@ describe("FC-restore compatibility (the parity tripwire)", () => {
     expect(draft.commissionPlanName).toBe("Standard");
   });
 
-  it("with NO plans and NO legacy tiers, DEFAULT_COMMISSION_TIERS price the draft", async () => {
+  it("with NO plans and NO legacy tiers, nothing is commissioned", async () => {
+    // This test used to assert the opposite: that DEFAULT_COMMISSION_TIERS —
+    // one employer's 3%-to-7% schedule, compiled into commissionTiers.ts —
+    // priced the draft at $3,000. It was the contract, so nothing failed and
+    // nothing warned; an unconfigured deployment was simply commissioned on
+    // somebody else's rates, and runCommissionPayouts persisted the result.
+    //
+    // Owner's direction: "if there is no commission plan then there is nothing
+    // to report on." The draft is still produced with its real sales figures —
+    // only the commission is unknowable, because nobody has said what it should
+    // be. An empty tier set is a legitimate answer, not an error.
     const customer = await seedCustomer();
     const alice = await seedDesigner({ displayName: "Alice" });
 
@@ -289,9 +299,8 @@ describe("FC-restore compatibility (the parity tripwire)", () => {
     const drafts = await previewPayoutsForPeriod(PERIOD_START, PERIOD_END);
     expect(drafts).toHaveLength(1);
 
-    const reference = calculateMarginalCommission(0, 100_000, DEFAULT_COMMISSION_TIERS);
-    expect(drafts[0].commissionAmount).toBe(reference.commission);
-    expect(drafts[0].commissionAmount).toBe(3_000); // 100k × 3% bottom tier
+    expect(drafts[0].commissionAmount).toBe(0);
+    // The sales are real and still reported; only the rate is unknown.
     expect(drafts[0].commissionPlanId).toBeNull();
     expect(drafts[0].commissionPlanName).toBe(LEGACY_PLAN_NAME);
   });

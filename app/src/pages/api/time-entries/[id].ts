@@ -6,7 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { parseTimeEntryUpdateInput } from "@/lib/timeEntries/requestBody";
@@ -18,8 +18,8 @@ const CAN_SEE_ALL = new Set(["SUPER_ADMIN", "ADMIN", "MANAGER"]);
 // Self-service: every staff role can own time entries, so the gate is "any
 // active staff member" -- the isOwner/CAN_SEE_ALL check below narrows who
 // can change someone else's entries.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+export default requirePermission(
+  "staff.self",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const id = Number(req.query.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });

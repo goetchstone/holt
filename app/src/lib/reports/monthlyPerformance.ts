@@ -15,6 +15,7 @@ import {
   evenMonthlyWeights,
   resolveMonthlyWeights,
 } from "@/lib/goalsConfig";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 export interface MonthRow {
   month: number;
@@ -54,7 +55,11 @@ export interface MonthlyPerformanceParams {
   year?: number;
 }
 
-const REVENUE_STATUSES = ["ORDER", "FULFILLED", "RETURNED"];
+// Canonical revenue scope. Was a local literal with the same three values;
+// salesOrderRevenue.ts allows an inline copy only when deliberately NARROWER
+// with a comment saying why, so a grep audit can tell that apart from
+// "forgot RETURNED". This one was identical, so it was drift waiting to happen.
+const REVENUE_STATUSES: readonly string[] = SALES_REVENUE_STATUSES;
 
 export async function getMonthlyPerformance(
   prisma: PrismaClient,

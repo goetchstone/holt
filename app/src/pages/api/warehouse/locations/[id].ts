@@ -3,7 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -127,4 +127,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
 // GET is open to warehouse staff too (they work within these locations
 // daily); PUT/DELETE narrow further inline to MANAGER/ADMIN.
-export default requireAuthWithRole(["WAREHOUSE", "MANAGER", "ADMIN"], handler);
+export default requirePermission("inventory.transfer", handler);

@@ -5,7 +5,7 @@
 // Supports multiple vendors via the "vendor" form field.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import fs from "fs";
 import { createSecureForm } from "@/lib/secureUpload";
 import { extractWholesalePricing, extractFabricCatalog } from "@/lib/pricing/pdfTableExtractor";
@@ -190,4 +190,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("catalog.pricing", handler);

@@ -16,7 +16,7 @@ import type { ParsedGatCreekProduct } from "@/lib/pricing/gatCreekExtractor";
 import type { SurchargeType } from "@prisma/client";
 import { auditLog } from "@/lib/audit";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 // ─── Gat Creek vendor-level options ──────────────────────────────
 // Seeded on every import. Uses upsert so manual edits are preserved.
@@ -112,8 +112,8 @@ const SPECIES_TIERS = [
 
 // ─── Handler ─────────────────────────────────────────────────────
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "catalog.pricing",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });

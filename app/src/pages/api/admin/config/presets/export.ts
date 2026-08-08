@@ -14,36 +14,39 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { loadDbConfigState } from "@/lib/config/dbConfigState";
 import { serializePresetBundle, type PresetFormat } from "@/lib/config/presetSerialize";
 
 const VALID_FORMATS: PresetFormat[] = ["yaml", "json"];
 
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+export default requirePermission(
+  "admin.config",
+  async (req: NextApiRequest, res: NextApiResponse) => {
+    if (req.method !== "GET") {
+      res.setHeader("Allow", "GET");
+      return res.status(405).json({ error: "Method not allowed" });
+    }
 
-  const formatParam = typeof req.query.format === "string" ? req.query.format : "yaml";
-  if (!VALID_FORMATS.includes(formatParam as PresetFormat)) {
-    return res.status(400).json({ error: `format must be one of: ${VALID_FORMATS.join(", ")}` });
-  }
-  const format = formatParam as PresetFormat;
+    const formatParam = typeof req.query.format === "string" ? req.query.format : "yaml";
+    if (!VALID_FORMATS.includes(formatParam as PresetFormat)) {
+      return res.status(400).json({ error: `format must be one of: ${VALID_FORMATS.join(", ")}` });
+    }
+    const format = formatParam as PresetFormat;
 
-  try {
-    const { bundle } = await loadDbConfigState();
-    const text = serializePresetBundle(bundle, format);
-    const filename = `holt-config.${format === "json" ? "json" : "yaml"}`;
-    const contentType = format === "json" ? "application/json" : "application/yaml";
+    try {
+      const { bundle } = await loadDbConfigState();
+      const text = serializePresetBundle(bundle, format);
+      const filename = `holt-config.${format === "json" ? "json" : "yaml"}`;
+      const contentType = format === "json" ? "application/json" : "application/yaml";
 
-    res.setHeader("Content-Type", `${contentType}; charset=utf-8`);
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    return res.status(200).send(text);
-  } catch (err) {
-    logError("GET /api/admin/config/presets/export failed", err, { format });
-    return res.status(500).json({ error: "Export failed. Check the server logs for details." });
-  }
-});
+      res.setHeader("Content-Type", `${contentType}; charset=utf-8`);
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      return res.status(200).send(text);
+    } catch (err) {
+      logError("GET /api/admin/config/presets/export failed", err, { format });
+      return res.status(500).json({ error: "Export failed. Check the server logs for details." });
+    }
+  },
+);

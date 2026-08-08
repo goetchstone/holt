@@ -18,6 +18,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
+import { businessDayKey, businessDayStart, getBusinessTimeZone } from "@/lib/reports/businessDay";
 import {
   computeDailyReconciliation,
   type DailyReconciliationResult,
@@ -63,25 +64,26 @@ function isAuthorized(
 }
 
 /**
- * Default date when nothing is passed: yesterday in America/New_York.
- * Matches the "Prior_Day" semantics of the POS import reports —
- * the cron fires after midnight ET and reconciles the day that just
- * closed.
+ * Default date when nothing is passed: yesterday in the DEPLOYMENT'S business
+ * timezone. Matches the "Prior_Day" semantics of the POS import reports — the
+ * cron fires after local midnight and reconciles the day that just closed.
+ *
+ * This used to hardcode "America/New_York". It was the only money path that
+ * got the timezone right, which is precisely the problem: lib/reports/
+ * salesDaily.ts read its dates off the UTC calendar, so the two could not tie
+ * out for any store trading past 7-8pm. Both now read AppSettings.timezone
+ * through the same helper, so they agree by construction rather than by
+ * coincidence.
  */
-function defaultYesterday(): Date {
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = fmt.formatToParts(new Date());
-  const y = parts.find((p) => p.type === "year")!.value;
-  const m = parts.find((p) => p.type === "month")!.value;
-  const d = parts.find((p) => p.type === "day")!.value;
-  const today = new Date(`${y}-${m}-${d}T00:00:00Z`);
-  // Yesterday at UTC midnight (the helper internally takes startOfDay/endOfDay)
-  return new Date(today.getTime() - 24 * 60 * 60 * 1000);
+async function defaultYesterday(): Promise<Date> {
+  const timeZone = await getBusinessTimeZone();
+  const todayKey = businessDayKey(new Date(), timeZone);
+  const [y, m, d] = todayKey.split("-").map(Number);
+  // One day back on the calendar, then re-resolved to that business day's
+  // start. Stepping the calendar rather than subtracting 24h keeps a DST
+  // boundary from landing on the wrong day.
+  const yesterdayKey = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+  return businessDayStart(yesterdayKey, timeZone);
 }
 
 function parseRange(body: unknown): DateRange | null {
@@ -132,12 +134,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const range =
-    parseRange(req.body) ??
-    (() => {
-      const d = defaultYesterday();
-      return { start: d, end: d };
-    })();
+  const explicitRange = parseRange(req.body);
+  let range: DateRange;
+  if (explicitRange) {
+    range = explicitRange;
+  } else {
+    const d = await defaultYesterday();
+    range = { start: d, end: d };
+  }
 
   const runId = `daily-recon-${Date.now()}`;
   const createdBy = session?.user?.email || "auto-import";

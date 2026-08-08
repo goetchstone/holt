@@ -123,11 +123,11 @@ in-process is visible immediately.
 
 ### Not done yet (each is its own change)
 
-- Sweeping the other 334 routes onto `requirePermission`.
-- Deriving nav and card filtering from permissions instead of `NavPermission`
-  rows (which, per the catalog header, still gate nothing).
-- The custom-role admin GUI — and with it, the write path that sets
-  `grantsCustomized` and calls `invalidateRoleGrantCache()`.
+- Sweeping the last 129 routes onto `requirePermission`. Each is blocked on the
+  same thing: no capability names what the route does (the buyer-drafts
+  workbench is purchasing work behind an ADMIN-only guard, and every
+  `purchasing.*` key admits MANAGER, so none is admissible).
+- **Card** filtering inside a hub still uses `roles` arrays. Nav no longer does.
 - Dropping the `StaffRole` enum.
 
 ## Roles
@@ -260,7 +260,7 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `pages/api/admin/impersonate.ts` -- set/clear impersonation cookie
 - `lib/upboard.ts` -- up-board rotation logic
 - `components/onboarding/WelcomeTour.tsx` -- designer onboarding
-- `pages/admin/setup/permissions.tsx` -- permission management UI
+- `app/admin/setup/roles/` -- build and edit roles
 
 ## Verification Checklist
 
@@ -273,7 +273,9 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 
 ## Test Coverage
 
-Covered: `navPermissions.test.ts` (role filtering, DB overrides, defaults, ADMIN bypass),
+Covered: `navPermissions.test.ts` (each built-in role's exact menu derived from
+its grants, a custom role's menu, feature gating being orthogonal, impersonation
+narrowing only),
 `roleDecision.test.ts` + `permissionDecision.test.ts` (impersonation cannot escalate,
 bootstrap safeguard, the wildcard covering a permission no row mentions),
 `permissionResolver.test.ts` (grant-table build, rank floor, cache TTL +

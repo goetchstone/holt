@@ -32,6 +32,7 @@ import { prisma as defaultPrisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import {
   BUILT_IN_ROLES,
+  PERMISSION_KEYS,
   permissionsForBuiltInRole,
   withBaselinePermissions,
 } from "@/lib/auth/permissionCatalog";
@@ -297,6 +298,54 @@ export function logPermissionDenial(
     noActiveStaff: result.noActiveStaff,
     viaEnumFallback: result.viaEnumFallback,
   });
+}
+
+// ---------------------------------------------------------------------------
+// "What does this person hold" — the DISPLAY question
+// ---------------------------------------------------------------------------
+//
+// resolvePermissionAccess above answers "may this user do X", and it is the only
+// thing any guard may ask. The two functions below answer the different, weaker
+// question "which capabilities does this user hold", which exists so the NAV can
+// decide what is worth putting in a menu (lib/auth/navPermissions.ts).
+//
+// Nothing on an enforcement path may consume this list. It is snapshotted into
+// the session token, so it can be seconds stale and says nothing about isActive
+// after it was minted — which is fine for showing a link and disqualifying for
+// anything else. Same rule the catalog header states: the grant table is
+// authoritative, the token is a display convenience.
+
+/**
+ * Expand a role KEY to every permission it holds. Wildcard roles get the whole
+ * catalog (which is what makes SUPER_ADMIN see every nav item without a special
+ * case anywhere), a key the grant table has not heard of falls back to the
+ * built-in definitions, and the baseline floor is unioned in exactly as
+ * buildRoleGrantTable does — so a role with no RolePermission rows at all still
+ * comes back holding the floor.
+ */
+export function grantsForRoleKey(table: RoleGrantTable, roleKey: string): string[] {
+  if (table.wildcardRoles.includes(roleKey)) return withBaselinePermissions(PERMISSION_KEYS);
+  return withBaselinePermissions(table.grantsByRole[roleKey] ?? permissionsForBuiltInRole(roleKey));
+}
+
+/**
+ * Every permission key a staff row's role holds. The caller supplies the row it
+ * already fetched (the NextAuth jwt callback reads one anyway) so this costs no
+ * extra staff query — only the grant table, which is cached.
+ *
+ * An inactive or missing staff row holds NOTHING, not even the baseline: the
+ * floor is a floor under a role, and someone who has been deactivated has no
+ * role. That matches resolvePermissionAccess, which denies outright when there
+ * is no active staff row.
+ */
+export async function resolveGrantedPermissions(
+  staff: { role: string; roleId: number | null; isActive: boolean } | null,
+  client: PrismaClient = defaultPrisma,
+): Promise<string[]> {
+  if (!staff?.isActive) return [];
+  const table = await getRoleGrantTable(client);
+  const linkedKey = staff.roleId != null ? table.keyById[staff.roleId] : undefined;
+  return grantsForRoleKey(table, linkedKey ?? staff.role);
 }
 
 /** Shared bootstrap-bypass logging, matching requireAuthWithRole's warning. */

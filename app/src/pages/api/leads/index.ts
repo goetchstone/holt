@@ -2,7 +2,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { calculateLeadScore } from "@/lib/leadScore";
@@ -382,4 +382,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 // leads auto-assign to a customer's primary designer. Matching that real
 // access pattern here instead of the generic bucket. canSeeWealth /
 // canSeeNumericScore below still further restrict wealth-tier fields.
-export default requireAuthWithRole(["DESIGNER", "MANAGER", "ADMIN"], handler);
+export default requirePermission("sales.lead", handler);

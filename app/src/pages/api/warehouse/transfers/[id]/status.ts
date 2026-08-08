@@ -8,7 +8,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -157,4 +157,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 }
 
-export default requireAuthWithRole(["WAREHOUSE", "MANAGER", "ADMIN"], handler);
+export default requirePermission("inventory.transfer", handler);

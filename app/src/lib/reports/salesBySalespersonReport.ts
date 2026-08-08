@@ -36,6 +36,7 @@ import {
   applySalesPersonFilter,
   customerLabel,
 } from "@/lib/salesBySalesperson";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 export type { GroupBy } from "@/lib/salesBySalesperson";
 
@@ -336,7 +337,7 @@ export async function getSalesBySalesperson(
   }
 
   const orderWhere: Prisma.SalesOrderWhereInput = {
-    status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+    status: { in: [...SALES_REVENUE_STATUSES] },
   };
   const dateFilter = buildOrderDateFilter(startDate, endDate);
   if (dateFilter) orderWhere.orderDate = dateFilter;
@@ -724,7 +725,7 @@ function buildBaseOrderWhere(
   endDate: string,
 ): Prisma.SalesOrderWhereInput {
   const orderWhere: Prisma.SalesOrderWhereInput = {
-    status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+    status: { in: [...SALES_REVENUE_STATUSES] },
   };
   const dateFilter = buildOrderDateFilter(startDate, endDate);
   if (dateFilter) orderWhere.orderDate = dateFilter;

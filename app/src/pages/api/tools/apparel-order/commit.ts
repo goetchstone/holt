@@ -17,7 +17,7 @@
 // this tool feeds is ADMIN-only per docs/domains/buyer-drafts.md).
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { buildItemCreateData, buildPoCreateData } from "@/lib/buyerDraftRequestBody";
@@ -51,8 +51,8 @@ function isFiniteRow(row: unknown): row is ApparelOrderRow {
   );
 }
 
-export default requireAuthWithRole(
-  ["ADMIN"],
+export default requirePermission(
+  "admin.data",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

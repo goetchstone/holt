@@ -35,6 +35,7 @@ import {
   listPeriodConfirmationStatus,
   type PeriodConfirmationStatusRow,
 } from "@/lib/payPeriodConfirmationService";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 export interface PayPeriodStatementOrderRow {
   orderId: number;
@@ -145,7 +146,7 @@ export async function getPayPeriodSales(
     prisma.salesOrder.findMany({
       where: {
         orderDate: { gte: period.start, lt: period.endExclusive },
-        status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+        status: { in: [...SALES_REVENUE_STATUSES] },
         OR: [
           ...matchNames.map((name) => ({
             salesperson: { equals: name, mode: "insensitive" as const },

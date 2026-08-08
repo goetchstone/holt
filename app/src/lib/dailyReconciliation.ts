@@ -26,6 +26,7 @@ import {
   OVER_SHORT_MAPPING_LABEL,
   OVER_SHORT_ALERT_THRESHOLD,
 } from "./glMapping";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 export const RECONCILIATION_TOLERANCE = 0.01;
 
@@ -337,7 +338,7 @@ export async function computeDailyReconciliation(opts: {
       lineItemStatus: { not: "CANCELLED" },
       salesOrder: {
         orderDate: { gte: dayStart, lte: dayEnd },
-        status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+        status: { in: [...SALES_REVENUE_STATUSES] },
       },
     },
     select: { netPrice: true, vatAmount: true, cost: true },
