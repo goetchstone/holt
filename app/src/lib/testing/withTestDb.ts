@@ -139,7 +139,6 @@ const ALL_TABLES = [
   "MediaAsset",
   "Menu",
   "MonthlySalesPercentage",
-  "NavPermission",
   "OrderChangeLog",
   "OrderLineItem",
   "Organization",
