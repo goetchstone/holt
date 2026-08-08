@@ -4,12 +4,12 @@
 // page. Read-only. MANAGER/ADMIN gated.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/money";
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "accounting.read",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       res.setHeader("Allow", ["GET"]);

@@ -1,10 +1,10 @@
 // /app/src/pages/api/consignment/po-management/purchase-orders.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res) => {
+export default requirePermission("purchasing.write", async (req, res) => {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).json({ error: "Method not allowed" });

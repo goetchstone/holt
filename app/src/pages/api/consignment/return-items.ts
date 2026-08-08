@@ -1,11 +1,11 @@
 // /app/src/pages/api/consignment/return-items.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], async (req, res, session) => {
+export default requirePermission("inventory.transfer", async (req, res, session) => {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

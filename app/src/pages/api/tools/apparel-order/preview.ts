@@ -14,7 +14,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "node:fs";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { createSecureForm } from "@/lib/secureUpload";
 import { parseNuOrderPDF } from "@/lib/pricing/nuorderParser";
 import { parseNuOrderPrintoutPDF } from "@/lib/pricing/nuorderPrintoutParser";
@@ -63,34 +63,37 @@ async function parseFor(
   }
 }
 
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  try {
-    const form = createSecureForm("PDF");
-    const [fields, files] = await form.parse(req);
-    const format = Array.isArray(fields.format) ? fields.format[0] : fields.format;
-    const file = Array.isArray(files.file) ? files.file[0] : files.file;
-
-    const entry = APPAREL_VENDOR_FORMATS.find((f) => f.id === format && f.parser !== null);
-    if (!entry) {
-      return res.status(400).json({ error: `Unknown PDF format "${format ?? ""}"` });
-    }
-    if (!file) {
-      return res.status(400).json({ error: "No file uploaded" });
+export default requirePermission(
+  "admin.data",
+  async (req: NextApiRequest, res: NextApiResponse) => {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", ["POST"]);
+      return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const draft = await parseFor(entry, fs.readFileSync(file.filepath));
-    if (!draft?.rows.length) {
-      return res.status(400).json({ error: "No line items found in PDF" });
+    try {
+      const form = createSecureForm("PDF");
+      const [fields, files] = await form.parse(req);
+      const format = Array.isArray(fields.format) ? fields.format[0] : fields.format;
+      const file = Array.isArray(files.file) ? files.file[0] : files.file;
+
+      const entry = APPAREL_VENDOR_FORMATS.find((f) => f.id === format && f.parser !== null);
+      if (!entry) {
+        return res.status(400).json({ error: `Unknown PDF format "${format ?? ""}"` });
+      }
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const draft = await parseFor(entry, fs.readFileSync(file.filepath));
+      if (!draft?.rows.length) {
+        return res.status(400).json({ error: "No line items found in PDF" });
+      }
+      return res.status(200).json(draft);
+    } catch (err) {
+      logError("Apparel order preview parse failed", err);
+      const message = err instanceof Error ? err.message : "Parse failed";
+      return res.status(500).json({ error: message });
     }
-    return res.status(200).json(draft);
-  } catch (err) {
-    logError("Apparel order preview parse failed", err);
-    const message = err instanceof Error ? err.message : "Parse failed";
-    return res.status(500).json({ error: message });
-  }
-});
+  },
+);

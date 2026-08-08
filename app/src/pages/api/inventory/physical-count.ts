@@ -3,7 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
@@ -35,4 +35,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler);
+export default requirePermission("inventory.count", handler);

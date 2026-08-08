@@ -5,7 +5,7 @@
 // department (and type belongs to the category) before updating.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { success, badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
@@ -19,8 +19,8 @@ interface Body {
 
 const MAX_IDS = 500;
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "catalog.write",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
 

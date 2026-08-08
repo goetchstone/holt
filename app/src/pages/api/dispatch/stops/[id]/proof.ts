@@ -1,7 +1,7 @@
 // /app/src/pages/api/dispatch/stops/[id]/proof.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { createSecureForm } from "@/lib/secureUpload";
 import { logError } from "@/lib/logger";
@@ -16,8 +16,8 @@ export const config = {
 // staff who actually run deliveries. A designer or marketing user has no
 // legitimate workflow reason to upload proof for a stop and doing so
 // would corrupt audit trail.
-export default requireAuthWithRole(
-  ["INSTALLER", "WAREHOUSE", "MANAGER", "ADMIN"],
+export default requirePermission(
+  "warehouse.operate",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

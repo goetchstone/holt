@@ -4,7 +4,7 @@
 // DELETE /api/staff/[id] — soft-delete (set isActive: false)
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -29,7 +29,7 @@ async function resolveCommissionPlanPatch(
 // only the role-change branch inside PATCH checked anything -- GET, PATCH of
 // non-role fields, and DELETE (deactivation) were reachable by any signed-in
 // session with no role check at all.
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res, session) => {
+export default requirePermission("staff.manage", async (req: NextApiRequest, res, session) => {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
 

@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { parseTimeEntryCreateInput } from "@/lib/timeEntries/requestBody";
@@ -24,8 +24,8 @@ async function resolveStaff(userId: string | undefined) {
 // Self-service: every staff role logs their own time, so the gate is "any
 // active staff member" -- the CAN_SEE_ALL check below narrows who can see or
 // attribute someone else's entries.
-export default requireAuthWithRole(
-  ["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "MARKETING", "REGISTER", "INSTALLER"],
+export default requirePermission(
+  "staff.self",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const staff = await resolveStaff((session.user as { id?: string }).id);
     if (!staff) return res.status(403).json({ error: "Only staff can track time" });

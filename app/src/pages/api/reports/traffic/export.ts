@@ -9,7 +9,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { fetchAxperTraffic } from "@/lib/axperClient";
 import { rollupByDayAndStore, type TrafficRowForSummary } from "@/lib/trafficSummary";
 import { getTrafficStoreMap } from "@/lib/trafficStoreMap";
@@ -53,8 +53,8 @@ function csvCell(v: string | number | null | undefined): string {
   return s;
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN", "SUPER_ADMIN"],
+export default requirePermission(
+  "reporting.export",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       res.setHeader("Allow", ["GET"]);

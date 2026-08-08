@@ -27,7 +27,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError, logger } from "@/lib/logger";
 import { auditLog } from "@/lib/audit";
 
@@ -99,8 +99,8 @@ async function readEdges(
   }
 }
 
-export default requireAuthWithRole(
-  ["ADMIN"],
+export default requirePermission(
+  "admin.data",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

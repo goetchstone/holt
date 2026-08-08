@@ -2,7 +2,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { calculateRugPricing } from "@/lib/consignment";
 import { logError } from "@/lib/logger";
@@ -115,4 +115,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).json({ error: "Method not allowed" });
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler);
+export default requirePermission("purchasing.receive", handler);

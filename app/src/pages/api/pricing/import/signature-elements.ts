@@ -12,7 +12,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import type { ParsedSEProduct } from "@/lib/pricing/wesleyHallParser";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 export const config = {
   api: { bodyParser: { sizeLimit: "20mb" } },
@@ -104,8 +104,8 @@ const SE_COMPONENT_SEEDS: {
   },
 ];
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "catalog.pricing",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });

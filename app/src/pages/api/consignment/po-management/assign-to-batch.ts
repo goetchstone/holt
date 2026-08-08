@@ -5,11 +5,11 @@
 // is what gets written on the check to Marjan.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, session) => {
+export default requirePermission("purchasing.write", async (req, res, session) => {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });

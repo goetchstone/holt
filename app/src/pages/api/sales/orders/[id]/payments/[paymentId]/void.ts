@@ -16,7 +16,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { voidPendingPayment, calculateOrderBalance } from "@/lib/paymentService";
 import { badRequest, methodNotAllowed, notFound, handleError } from "@/lib/apiResponse";
@@ -60,4 +60,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("payment.void", handler);

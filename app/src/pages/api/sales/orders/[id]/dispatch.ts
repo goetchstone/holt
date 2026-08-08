@@ -3,7 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { success, badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
 import { consume, release } from "@/lib/inventory/allocation";
 import { getActiveOrderLines } from "@/lib/inventory/orderInventorySync";
@@ -92,4 +92,4 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   }
 }
 
-export default requireAuthWithRole(["DESIGNER", "REGISTER", "MANAGER", "ADMIN"], handler);
+export default requirePermission("sales.write", handler);

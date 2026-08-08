@@ -13,35 +13,38 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { parsePresetText, type PresetFormat } from "@/lib/config/presetSerialize";
 import type { ValidateRequestBody, ValidateResponse } from "@/lib/config/presetApiTypes";
 
 const VALID_FORMATS: PresetFormat[] = ["yaml", "json"];
 
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+export default requirePermission(
+  "admin.config",
+  async (req: NextApiRequest, res: NextApiResponse) => {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST");
+      return res.status(405).json({ error: "Method not allowed" });
+    }
 
-  const { text, format } = (req.body ?? {}) as Partial<ValidateRequestBody>;
-  if (typeof text !== "string") {
-    return res.status(400).json({ error: "text is required" });
-  }
-  if (format !== undefined && !VALID_FORMATS.includes(format)) {
-    return res.status(400).json({ error: `format must be one of: ${VALID_FORMATS.join(", ")}` });
-  }
+    const { text, format } = (req.body ?? {}) as Partial<ValidateRequestBody>;
+    if (typeof text !== "string") {
+      return res.status(400).json({ error: "text is required" });
+    }
+    if (format !== undefined && !VALID_FORMATS.includes(format)) {
+      return res.status(400).json({ error: `format must be one of: ${VALID_FORMATS.join(", ")}` });
+    }
 
-  try {
-    const result: ValidateResponse = parsePresetText(text, format);
-    return res.status(200).json(result);
-  } catch (err) {
-    logError("POST /api/admin/config/presets/validate failed", err);
-    return res.status(500).json({ error: "Validation failed unexpectedly" });
-  }
-});
+    try {
+      const result: ValidateResponse = parsePresetText(text, format);
+      return res.status(200).json(result);
+    } catch (err) {
+      logError("POST /api/admin/config/presets/validate failed", err);
+      return res.status(500).json({ error: "Validation failed unexpectedly" });
+    }
+  },
+);
 
 // 1mb, not MAX_PRESET_BYTES (512KB): a little headroom over the preset
 // ceiling so a document right at the limit still reaches parsePresetText's

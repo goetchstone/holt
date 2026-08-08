@@ -110,12 +110,23 @@ describe("built-in roles get the menu their grants earn", () => {
     expect(labelsForBuiltInRole("REGISTER")).toEqual(["Sales", "Inventory", "Time", "Tools"]);
   });
 
-  it("WAREHOUSE sees stock movement, and no Reports or Admin", () => {
+  it("WAREHOUSE sees stock movement and service, and no Reports or Admin", () => {
+    // Service and Helpdesk are here on purpose. WAREHOUSE holds service.read
+    // AND service.write (permissionCatalog.ts), which is right -- the person
+    // unwrapping a damaged delivery is the person who raises the ticket. Both
+    // nav entries gate on service.read, so the menu shows them.
+    //
+    // Do NOT "fix" this by trimming the expectation: that would put the link
+    // and the page back out of step, which is the whole NavPermission bug this
+    // file exists to prevent. If WAREHOUSE should not reach service, remove the
+    // grant in permissionCatalog.ts and the menu follows.
     expect(labelsForBuiltInRole("WAREHOUSE")).toEqual([
       "Sales",
+      "Service",
       "Purchasing",
       "Warehouse",
       "Inventory",
+      "Helpdesk",
       "Time",
       "Tools",
     ]);

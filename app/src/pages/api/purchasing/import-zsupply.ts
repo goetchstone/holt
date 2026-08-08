@@ -11,7 +11,7 @@ import { parseZSupplyPDF } from "@/lib/pricing/zSupplyParser";
 import type { File as FormidableFile } from "formidable";
 import fs from "fs";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { createSecureForm } from "@/lib/secureUpload";
 import { logError } from "@/lib/logger";
 export const config = { api: { bodyParser: false } };
@@ -34,8 +34,8 @@ async function parseForm(
   });
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "purchasing.write",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 

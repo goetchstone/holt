@@ -4,7 +4,7 @@
 // the response is binary. MANAGER/ADMIN; 404 when the billing feature is off.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { getAppSettings } from "@/lib/appSettings";
 import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { getInvoiceDetail } from "@/lib/billing/invoiceService";
@@ -70,4 +70,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+export default requirePermission("accounting.read", handler);

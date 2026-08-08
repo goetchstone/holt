@@ -2,14 +2,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 export const config = {
   api: { bodyParser: { sizeLimit: "10mb" } },
 };
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "catalog.write",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

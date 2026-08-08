@@ -14,29 +14,32 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { loadDbConfigState } from "@/lib/config/dbConfigState";
 import { loadAllPresets } from "@/lib/config/presetFiles";
 import type { PresetsGetResponse } from "@/lib/config/presetApiTypes";
 
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+export default requirePermission(
+  "admin.config",
+  async (req: NextApiRequest, res: NextApiResponse) => {
+    if (req.method !== "GET") {
+      res.setHeader("Allow", "GET");
+      return res.status(405).json({ error: "Method not allowed" });
+    }
 
-  try {
-    const [state, diskReport] = await Promise.all([loadDbConfigState(), loadAllPresets()]);
-    const body: PresetsGetResponse = {
-      bundle: state.bundle,
-      storeLocations: state.storeLocations,
-      unmappedTrafficSourceNames: state.unmappedTrafficSourceNames,
-      diskReport: { errors: diskReport.errors, overrides: diskReport.overrides },
-    };
-    return res.status(200).json(body);
-  } catch (err) {
-    logError("GET /api/admin/config/presets failed", err);
-    return res.status(500).json({ error: "Failed to load configuration state" });
-  }
-});
+    try {
+      const [state, diskReport] = await Promise.all([loadDbConfigState(), loadAllPresets()]);
+      const body: PresetsGetResponse = {
+        bundle: state.bundle,
+        storeLocations: state.storeLocations,
+        unmappedTrafficSourceNames: state.unmappedTrafficSourceNames,
+        diskReport: { errors: diskReport.errors, overrides: diskReport.overrides },
+      };
+      return res.status(200).json(body);
+    } catch (err) {
+      logError("GET /api/admin/config/presets failed", err);
+      return res.status(500).json({ error: "Failed to load configuration state" });
+    }
+  },
+);

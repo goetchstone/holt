@@ -2,10 +2,10 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, session) => {
+export default requirePermission("catalog.pricing", async (req, res, session) => {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) {
     return res.status(400).json({ error: "Invalid tier ID" });

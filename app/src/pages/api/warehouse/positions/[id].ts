@@ -2,14 +2,14 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { success, badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
 // Mutating inventory positions (quantity changes, moves, deletes) is a
 // warehouse task. Outside of warehouse / manager / admin, no role has a
 // legitimate workflow reason to edit a position directly.
-export default requireAuthWithRole(
-  ["WAREHOUSE", "MANAGER", "ADMIN"],
+export default requirePermission(
+  "inventory.transfer",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const positionId = Number.parseInt(req.query.id as string);
     if (Number.isNaN(positionId)) return badRequest(res, "Invalid position ID");

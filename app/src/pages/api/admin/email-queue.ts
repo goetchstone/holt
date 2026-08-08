@@ -4,13 +4,13 @@
 // configured, for the admin Email viewer. ADMIN-gated.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { isEmailConfigured } from "@/lib/email/config";
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN", "ADMIN"],
+export default requirePermission(
+  "admin.integrations",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "GET") {
       res.setHeader("Allow", ["GET"]);

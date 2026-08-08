@@ -233,11 +233,17 @@ export function resolveViewerPermissions(
 }
 
 /**
- * LEGACY — the retired `NavPermission` role table, kept ONLY so the two
- * surfaces still being torn down compile: `pages/api/admin/permissions/index.ts`
- * (which seeds this as its GET default) and the admin Nav Permissions page.
- * Nothing reads it to decide what a viewer sees any more. DELETE THIS with
- * those two files; it is not a fallback and must never become one.
+ * The nav vocabulary itself: what the menu contains, and which module flag (if
+ * any) each entry needs. `getVisibleNavItems` is the only thing that should
+ * decide visibility; these are exported for it and for the tests that assert
+ * every entry names a real permission and a real module.
+ *
+ * Both surfaces that once depended on the retired `NavPermission` role table
+ * are gone: the admin Nav Permissions page, and
+ * `pages/api/admin/permissions/index.ts` (deleted here — main had only swapped
+ * its guard). Nothing reads a role table to decide what a viewer sees any more,
+ * and nothing should: the thing that shows the link is the thing that grants
+ * the page.
  */
 export { NAV_ITEMS, NAV_FEATURE_KEYS };
 export type { NavItem };

@@ -2,7 +2,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -114,4 +114,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
 // Same deviation as leads/[id].ts and leads/index.ts: the leads board this
 // feeds is DESIGNER/MANAGER/ADMIN, not the generic Marketing policy bucket.
-export default requireAuthWithRole(["DESIGNER", "MANAGER", "ADMIN"], handler);
+export default requirePermission("sales.lead", handler);

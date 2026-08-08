@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import {
   ARCHIVE_REASONS,
@@ -124,4 +124,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 // Quotes are a designer/manager concern (register and warehouse have no
 // ownership stake in the pipeline), matching this file's own isManager
 // ownership check above.
-export default requireAuthWithRole(["DESIGNER", "MANAGER", "ADMIN"], handler);
+export default requirePermission("sales.lead", handler);

@@ -4,7 +4,7 @@
 // PUT replaces them. ADMIN-gated.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { parseMenuInput } from "@/lib/cms/requestBody";
@@ -16,8 +16,8 @@ function isMenuLocation(value: unknown): value is MenuLocation {
   return typeof value === "string" && (MENU_LOCATIONS as readonly string[]).includes(value);
 }
 
-export default requireAuthWithRole(
-  ["ADMIN"],
+export default requirePermission(
+  "admin.settings",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     const location = req.query.location;
     if (!isMenuLocation(location)) {
