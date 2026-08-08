@@ -1,5 +1,25 @@
 // /app/src/lib/ai/sql.ts
 //
+// ##########################################################################
+// # SUPERSEDED -- DO NOT SHIP. See docs/ai-assistant-design.md 2.1 and 7.   #
+// #                                                                        #
+// # This guard does NOT hold. Fourteen bypasses, verified by running the    #
+// # real isReadOnly below, are ALLOWED -- including staff password hashes   #
+// # (they live on StaffMember, not User), customer and ticket capability    #
+// # tokens, pg_shadow / pg_authid unqualified, pg_read_file, a WRITE via    #
+// # lo_import, and IntegrationCredential itself via query_to_xml -- the     #
+// # literal-stripping that keeps a customer named 'Session' from breaking   #
+// # the assistant IS that last bypass.                                      #
+// #                                                                        #
+// # The lesson is not "patch those fourteen". This is a denylist over an    #
+// # unbounded grammar, so the next bypass is a function nobody enumerated.  #
+// # The replacement deletes the grammar: the model picks an id from a fixed #
+// # catalog and fills typed args, and no SQL is ever generated.             #
+// #                                                                        #
+// # Kept only so the finding stays in history. Delete with the text-to-SQL  #
+// # path when the catalog lands.                                            #
+// ##########################################################################
+//
 // The read-only SQL boundary for the AI chatbot. Everything a model-generated
 // query has to pass through before it touches the tenant's database lives here,
 // in one file, so the safety story is auditable in one place (CLAUDE.md rule

