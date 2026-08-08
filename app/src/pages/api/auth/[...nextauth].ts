@@ -6,6 +6,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { LAST_SEEN_THROTTLE_MS } from "@/lib/loginActivity";
 import { buildAuthProviders, buildAuthProvidersAsync } from "@/lib/auth/authProviders";
+import { resolveGrantedPermissions } from "@/lib/auth/permissionResolver";
 import { checkRateLimit } from "@/lib/rateLimit";
 
 export const authOptions: NextAuthOptions = {
@@ -87,17 +88,27 @@ export const authOptions: NextAuthOptions = {
           // Never block sign-in
         }
       }
-      // Attach staff role so it's available in session
+      // Attach staff role + granted permissions so they're available in session.
+      //
+      // The permission keys are for PRESENTATION ONLY — the nav uses them to
+      // decide which menu items are worth showing (lib/auth/navPermissions.ts).
+      // The Role/RolePermission grant table read per request by
+      // permissionResolver.ts is authoritative; every guard goes through it and
+      // none of them ever reads this list. A stale token can therefore only show
+      // or hide a link, and can never grant anything.
       if (token.id) {
         try {
           const staff = await prisma.staffMember.findFirst({
             where: { userId: token.id as string },
-            select: { role: true },
+            select: { role: true, roleId: true, isActive: true },
           });
           token.role = staff?.role || "DESIGNER";
+          token.permissions = await resolveGrantedPermissions(staff);
         } catch {
           // Default to DESIGNER if lookup fails
           if (!token.role) token.role = "DESIGNER";
+          // Show nothing rather than a stale menu when the lookup failed.
+          token.permissions = [];
         }
       }
       // Bump lastSeenAt for non-sign-in requests (the jwt callback fires on
@@ -134,6 +145,9 @@ export const authOptions: NextAuthOptions = {
       }
       if (token.role) {
         (session as any).role = token.role;
+      }
+      if (token.permissions) {
+        (session as any).permissions = token.permissions;
       }
       return session;
     },

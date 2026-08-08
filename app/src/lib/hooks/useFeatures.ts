@@ -11,7 +11,14 @@
 import { useEffect, useState } from "react";
 import { isFeatureEnabled } from "@/lib/featureCatalog";
 
-export function useFeatures() {
+/**
+ * `refreshKey` re-runs the fetch whenever its value changes. The App Router nav
+ * passes the pathname: it lives in the persistent (dashboard) layout, so without
+ * this a Settings -> Modules toggle wouldn't reach the menu until a full page
+ * reload. setFeatures only fires on success, so the previous map stays in place
+ * during the re-fetch and nothing flickers.
+ */
+export function useFeatures(refreshKey?: unknown) {
   const [features, setFeatures] = useState<Record<string, boolean> | null>(null);
 
   useEffect(() => {
@@ -27,7 +34,7 @@ export function useFeatures() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshKey]);
 
   // null = not loaded yet -> treat as enabled (no flash); else resolve via the
   // catalog so an unset key still honors its default.
