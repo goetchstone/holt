@@ -6,6 +6,7 @@ import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { AsyncParser } from "@json2csv/node";
 import { logger, logError } from "@/lib/logger";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
@@ -28,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const orders = await prisma.salesOrder.findMany({
       where: {
         orderDate: { gte: startDate, lte: endDate },
-        status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+        status: { in: [...SALES_REVENUE_STATUSES] },
       },
       select: {
         orderno: true,

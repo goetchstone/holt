@@ -7,6 +7,7 @@
 // Revenue statuses include RETURNED so negative return lines net correctly.
 
 import type { PrismaClient, Prisma } from "@prisma/client";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 export interface SalesDailyParams {
   startDate?: string; // YYYY-MM-DD
@@ -28,7 +29,7 @@ export async function getSalesDaily(
   const { startDate, endDate, departments = [] } = params;
 
   const orderWhere: Prisma.SalesOrderWhereInput = {
-    status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+    status: { in: [...SALES_REVENUE_STATUSES] },
   };
   if (startDate && endDate) {
     orderWhere.orderDate = {

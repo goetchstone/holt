@@ -20,6 +20,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { buildLineItemWhere } from "@/lib/salesBySalesperson";
 import { getDateRanges, type PeriodRange } from "@/lib/reports/dateRanges";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 const CATEGORY_DEPARTMENT_MAP: Record<string, string[]> = {
   Furniture: ["furniture", "outdoor furniture"],
@@ -33,8 +34,14 @@ const EXCLUDED_DEPARTMENTS = ["apparel", "mens apparel", "womens apparel", "acce
 const CATEGORIES = ["Furniture", "Window Treatments", "Rugs", "Home Shop"];
 
 // Sales: ORDER, FULFILLED, or RETURNED (returns have negative line items that
-// must reduce the salesperson's total to match FileMaker reporting).
-const REVENUE_STATUSES = ["ORDER", "FULFILLED", "RETURNED"];
+// must reduce the salesperson's total). This used to be a local literal with
+// the same three values as SALES_REVENUE_STATUSES. salesOrderRevenue.ts's own
+// header allows an inline copy ONLY when it is deliberately NARROWER, with a
+// comment saying why -- so a grep audit can tell "intentionally narrower" from
+// "forgot RETURNED". This copy was byte-identical, so it was not an exception;
+// it was a duplicate that would drift the first time the canonical list moved,
+// and nothing would have failed. Import it.
+const REVENUE_STATUSES: readonly string[] = SALES_REVENUE_STATUSES;
 
 // Revenue attribution window + conversion threshold for house calls.
 const HC_BEFORE_DAYS = 30;
@@ -436,7 +443,7 @@ export async function getDesignerDashboard(
     const followUpOrders = await prisma.salesOrder.findMany({
       where: {
         customerId: { in: hcCustomerIds },
-        status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+        status: { in: [...SALES_REVENUE_STATUSES] },
         OR: orderMatch,
       },
       include: {

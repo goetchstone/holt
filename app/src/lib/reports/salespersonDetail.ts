@@ -10,6 +10,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { buildLineItemWhere } from "@/lib/salesBySalesperson";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 export interface LineItemDetail {
   partNo: string;
@@ -134,7 +135,7 @@ export async function getSalespersonDetail(
   const orders = await prisma.salesOrder.findMany({
     where: {
       orderDate: { gte: startDate, lt: endDate },
-      status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+      status: { in: [...SALES_REVENUE_STATUSES] },
       OR: [
         ...matchNames.map((name) => ({
           salesperson: { equals: name, mode: "insensitive" as const },

@@ -44,7 +44,7 @@ export async function sumDesignerSales(
   const orders = await prisma.salesOrder.findMany({
     where: {
       orderDate: { gte: fromDate, lt: toDateExclusive },
-      status: { in: ["ORDER", "FULFILLED", "RETURNED"] },
+      status: { in: [...SALES_REVENUE_STATUSES] },
       OR: [
         ...matchNames.map((name) => ({
           salesperson: { equals: name, mode: "insensitive" as const },

@@ -29,6 +29,7 @@ import {
 } from "@/lib/buyPerformance";
 import { deriveSalesWindow, type BuyPoForWindow } from "@/lib/buyPerformanceWindow";
 import { computeBuyLinkCutoff } from "@/lib/buyerDraftBuyLinkCutoff";
+import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 const MARJAN_VENDOR_NAMES = ["Marjan", "Marjan International Corp"];
 
@@ -205,9 +206,9 @@ export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: N
     // proposals that may or may not convert. WH-660 was reporting 31
     // sold for the Spring 2026 buy; net of quotes the real number is
     // 12. We follow the canonical `detailed-sales.ts` filter:
-    // `status: { in: ["ORDER", "FULFILLED", "RETURNED"] }`. Returns
+    // `status: { in: [...SALES_REVENUE_STATUSES] }`. Returns
     // STAY in (their negative qty subtracts net-sold correctly).
-    const SOLD_STATUSES = ["ORDER", "FULFILLED", "RETURNED"] as const;
+    const SOLD_STATUSES = SALES_REVENUE_STATUSES;
     const saleLines =
       productIdsInScope.length === 0
         ? []
