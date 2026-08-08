@@ -11,9 +11,10 @@
 // already-earned portion stays at its original rate.
 //
 // Tiers are stored in the `CommissionTier` table and edited by
-// SUPER_ADMIN on the commission-tiers report page. `DEFAULT_COMMISSION_TIERS`
-// below is a starter template used only when the table is empty; edit the
-// tiers in-app to match the business.
+// SUPER_ADMIN on the commission-tiers report page. A deployment that has
+// configured no tiers gets NO commission, not a built-in schedule — see
+// loadLegacyOrDefaultTiers in lib/commissionPlans.ts for why guessing was
+// the one unacceptable option.
 
 export interface CommissionTier {
   /** Inclusive lower bound of YTD sales. */
@@ -27,10 +28,14 @@ export interface CommissionTier {
 }
 
 /**
- * Default tier set — used as a fallback when no DB rows exist (e.g.
- * fresh dev DBs) and as the reference values for the seed migration.
- * The DB row in `CommissionTier` is the authoritative source at
- * runtime.
+ * Reference tier values — NOT a runtime fallback and NOT reachable from any
+ * request path. Two consumers only:
+ *   - prisma/seed/demo/commissionPlan.ts, which scales these for the demo
+ *     dataset (the seed writes config; the runtime then reads that config)
+ *   - fixture data for the rule-engine equivalence tests
+ *
+ * These numbers are one employer's 3%-to-7% schedule. Treat them as sample
+ * data, not as a default any deployment should inherit.
  */
 export const DEFAULT_COMMISSION_TIERS: readonly CommissionTier[] = [
   { minYtdSales: 0, maxYtdSalesExclusive: 750_000, rate: 0.03, label: "Up to $750k" },

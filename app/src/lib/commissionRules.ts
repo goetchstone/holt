@@ -20,9 +20,10 @@
 //      second source of truth that can disagree with the first" concern.
 //   3. else the same two-step lookup against the isDefault plan.
 //   4. else the legacy global CommissionTier table, derived.
-//   5. else DEFAULT_COMMISSION_TIERS, derived.
+//   5. else no rule at all — an unconfigured deployment earns no commission.
 //
-// Steps 4+5 are exactly loadLegacyOrDefaultTiers' behavior, generalized.
+// Steps 4+5 are exactly loadLegacyOrDefaultTiers' behavior, generalized: it
+// used to end in DEFAULT_COMMISSION_TIERS and now ends in an empty set.
 
 import { prisma } from "@/lib/prisma";
 import type { CommissionCountsWhen } from "@prisma/client";
