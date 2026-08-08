@@ -7,11 +7,14 @@
 // would otherwise dominate. Ranked in the DB (GROUP BY + ORDER BY + LIMIT); dates
 // and departments are bound params, metric and direction are validated enums so
 // the dynamic ORDER BY is composed via Prisma.raw safely. Rule 33: cancelled
-// OrderLineItem rows (SalesOrder.lineItems) excluded; netPrice/cost are LINE
-// totals, summed directly.
+// OrderLineItem rows (SalesOrder.lineItems) excluded. Revenue scope:
+// revenueStatusSql() — this ranking used to constrain the LINE status and
+// nothing else, so a product quoted but never sold could outrank one that
+// actually sold. netPrice/cost are LINE totals, summed directly.
 
 import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import { revenueStatusSql } from "@/lib/reports/revenueScope";
 
 export const TOP_SELLERS_METRICS = ["revenue", "units", "margin"] as const;
 export type TopSellersMetric = (typeof TOP_SELLERS_METRICS)[number];
@@ -121,7 +124,8 @@ export async function getTopSellers(
     JOIN "Product" p ON p.id = li."productId"
     LEFT JOIN "Department" d ON d.id = p."departmentId"
     LEFT JOIN "Vendor" v ON v.id = p."vendorId"
-    WHERE so."orderDate" >= ${startDate}::date
+    WHERE ${revenueStatusSql()}
+      AND so."orderDate" >= ${startDate}::date
       AND so."orderDate" < (${endDate}::date + INTERVAL '1 day')
       AND li."lineItemStatus" <> 'CANCELLED'
       ${deptFilter}
