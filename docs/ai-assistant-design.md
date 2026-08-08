@@ -1,6 +1,6 @@
 # AI Assistant — Design
 
-**Status:** design agreed, not yet built. Supersedes the *architecture* of
+**Status:** design agreed, not yet built. Supersedes the _architecture_ of
 `docs/ai-chatbot-plan.md`; that document's coordination, file-ownership and
 phasing conventions still stand and are reused below.
 
@@ -43,7 +43,7 @@ Confabulation here is not the model inventing prose. It is the model returning
 **a number that is wrong and looks authoritative**. In holt that happens by
 omitting a filter, and the filters are not guessable from the schema.
 
-`CLAUDE.md` rule 33: *exclude cancelled lines from every sum and count.* That
+`CLAUDE.md` rule 33: _exclude cancelled lines from every sum and count._ That
 rule is enforced by hand, in every report, one literal at a time:
 
 ```
@@ -70,7 +70,7 @@ applied in `commissionSales.ts:102`, `poSellThru.ts:302`,
 
 Now consider the most obvious question a user will ask:
 
-> *"What did we sell last month?"*
+> _"What did we sell last month?"_
 
 A model writing SQL against this schema writes, correctly-looking:
 
@@ -106,7 +106,7 @@ answer — this is a back-office tool whose output people will act on.
 ### 2.1 And the guard on `feat/ai-chatbot-guardrails` does not hold
 
 The correctness argument settles it on its own, but the security argument is
-worse — and it is worth writing down because that guard is *mine* and I believed
+worse — and it is worth writing down because that guard is _mine_ and I believed
 it was adequate. Every string below was run through the real `isReadOnly` from
 `app/src/lib/ai/sql.ts`. **All fourteen are ALLOWED:**
 
@@ -136,18 +136,18 @@ Three are individually decisive:
   That is what a table-shaped deny list does to a column-shaped problem across
   163 models that grow every release.
 - **`query_to_xml` executes SQL inside a string literal**, and
-  `referencesDeniedTable` strips single-quoted literals *before* checking — a
+  `referencesDeniedTable` strips single-quoted literals _before_ checking — a
   deliberate choice, so a customer named `'Session'` does not break the
   assistant for the whole shop. **The false-positive mitigation is the bypass**,
   and it reaches `IntegrationCredential`, the exact table the list was written
   to protect.
 - **Functions are not tables.** `pg_read_file`, `lo_import`, `dblink` and
-  `pg_sleep` are unchecked by construction, and `lo_import` is a *write* the
+  `pg_sleep` are unchecked by construction, and `lo_import` is a _write_ the
   keyword gate cannot see because "read-only" was defined as "contains no DML
   keyword". The app connects as `POSTGRES_USER` (`docker-compose.yml:66`), which
   `postgres:17.9-alpine` creates as a **superuser**, so this is not theoretical.
-  *(Confirm with `SELECT usesuper FROM pg_user WHERE usename = current_user;`
-  before repeating the superuser claim in a security note.)*
+  _(Confirm with `SELECT usesuper FROM pg_user WHERE usename = current_user;`
+  before repeating the superuser claim in a security note.)_
 
 Each is individually patchable. **That is not the lesson.** The guard is a
 denylist over an unbounded grammar: every fix is a thing someone thought of, and
@@ -174,15 +174,15 @@ was not given.
 
 Every property we need falls out of this:
 
-| Requirement | How this delivers it |
-|---|---|
-| Never confabulate | The model cannot invent a number; numbers come from code. When no catalog entry matches, the only representable output is `unsupported`, and the UI says "I can't answer that — here's what I can answer." |
-| Correct numbers | Answers reuse the same report logic the UI uses, which already carries rule 33, `SALES_REVENUE_STATUSES`, and every documented exception — via a caller-scoped wrapper, **not** by importing `lib/reports/` directly (§4.2). The assistant is *by construction* consistent with the reports page. |
-| "A specific set of data" | The catalog *is* the specific set. It is a file you can read in one sitting. |
-| Injection-proof | No generated SQL means no SQL to escape from. The `IntegrationCredential` exfiltration class disappears rather than being filtered. |
-| Cheap on metered APIs | The request is a stable catalog + one short question. Cacheable prefix, tiny completion. See §6. |
-| Works on a 7B local model | "Pick an id from a numbered list and fill two fields" is within reach of small models in a way that "write correct PostgreSQL over 150 tables" is not. |
-| Permission-aware | Each entry carries the gate its report already has; entries the caller lacks are filtered out **before** the prompt is built, so the model cannot offer what the user may not see — and the gate is re-checked server-side **after** routing, because the model's choice is a hint, never an authorization. Read §4.1: the substrate for this is thinner than it looks. |
+| Requirement               | How this delivers it                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Never confabulate         | The model cannot invent a number; numbers come from code. When no catalog entry matches, the only representable output is `unsupported`, and the UI says "I can't answer that — here's what I can answer."                                                                                                                                                              |
+| Correct numbers           | Answers reuse the same report logic the UI uses, which already carries rule 33, `SALES_REVENUE_STATUSES`, and every documented exception — via a caller-scoped wrapper, **not** by importing `lib/reports/` directly (§4.2). The assistant is _by construction_ consistent with the reports page.                                                                       |
+| "A specific set of data"  | The catalog _is_ the specific set. It is a file you can read in one sitting.                                                                                                                                                                                                                                                                                            |
+| Injection-proof           | No generated SQL means no SQL to escape from. The `IntegrationCredential` exfiltration class disappears rather than being filtered.                                                                                                                                                                                                                                     |
+| Cheap on metered APIs     | The request is a stable catalog + one short question. Cacheable prefix, tiny completion. See §6.                                                                                                                                                                                                                                                                        |
+| Works on a 7B local model | "Pick an id from a numbered list and fill two fields" is within reach of small models in a way that "write correct PostgreSQL over 150 tables" is not.                                                                                                                                                                                                                  |
+| Permission-aware          | Each entry carries the gate its report already has; entries the caller lacks are filtered out **before** the prompt is built, so the model cannot offer what the user may not see — and the gate is re-checked server-side **after** routing, because the model's choice is a hint, never an authorization. Read §4.1: the substrate for this is thinner than it looks. |
 
 ### The tradeoff, stated honestly
 
@@ -208,9 +208,15 @@ the vocabulary (rule 37).
 ```ts
 export interface CatalogParam {
   name: string;
-  type: "dateRange" | "storeId" | "salespersonId" | "productId" | "customerId" | "limit";
+  type:
+    | "dateRange"
+    | "storeId"
+    | "salespersonId"
+    | "productId"
+    | "customerId"
+    | "limit";
   required: boolean;
-  description: string;   // shown to the model; keep it one line
+  description: string; // shown to the model; keep it one line
 }
 
 export interface CatalogEntry {
@@ -244,7 +250,7 @@ privilege escalation.** Three verified facts:
    `protectedProcedure`.
 2. **There are only two reporting permissions in the entire catalog** —
    `reporting.read` (`permissionCatalog.ts:308`) and `reporting.export` (`:314`,
-   `sensitive: true`, *"Download report data and customer lists"*).
+   `sensitive: true`, _"Download report data and customer lists"_).
 3. So mapping every entry to `reporting.read` — which **DESIGNER** and
    **MARKETING** hold — hands a Designer `grossMargin` (MANAGER_ADMIN),
    `balanceAging` (ADMIN_ONLY), `customersReport` and `wealthInsights`
@@ -252,8 +258,8 @@ privilege escalation.** Three verified facts:
    `dormantCustomers.ts:91` returns `firstName, lastName, email, phone` per row
    — precisely the customer list `reporting.export` exists to withhold.
 
-**The rule that follows:** an entry's gate is *the role set its tRPC procedure
-uses today*, carried over verbatim, until a real report→permission mapping
+**The rule that follows:** an entry's gate is _the role set its tRPC procedure
+uses today_, carried over verbatim, until a real report→permission mapping
 exists. Widening a gate is a separate, deliberate PR — never a side effect of
 adding an assistant entry.
 
@@ -287,10 +293,10 @@ lib/reports/opportunities.ts:5        "Role-aware wealth visibility is decided b
 ```
 
 `reports.ts:420-435` is the concrete case: non-managers are locked to **their
-own** staff record, resolved from `ctx.userId`, *never from client input* — and
+own** staff record, resolved from `ctx.userId`, _never from client input_ — and
 that logic lives in the **procedure body**, not the lib function. An entry that
 calls `getSalespersonDetail(prisma, { salesperson })` hands any signed-in
-salesperson any colleague's year. That is an escalation the assistant *creates*,
+salesperson any colleague's year. That is an escalation the assistant _creates_,
 not one it inherits. Likewise an entry that defaults `canSeeWealth` to `true`
 silently un-gates wealth profiling.
 
@@ -315,7 +321,7 @@ ${storeId ? `AND ip."storeLocationId" = ${storeId}` : ""}
 Safe **today** only because line 235 hand-narrows it
 (`typeof params.storeId === "number" && params.storeId > 0`). There is no shared
 guard and no tripwire. The property being sold is "no raw SQL"; the property
-actually obtained is *"raw SQL written by a human, parameterised by a model"*,
+actually obtained is _"raw SQL written by a human, parameterised by a model"_,
 resting on 36 functions each independently re-narrowing their own inputs,
 forever.
 
@@ -326,18 +332,18 @@ template in `lib/reports/`.
 
 ### 4.4 The seed entries
 
-| id | answer wraps | gate (copied from `reports.ts`) | names people |
-|---|---|---|---|
-| `sales.daily` | `salesDaily` | `REPORT_ROLES` | no |
-| `sales.byPeriod` | `comparativeSales` | `REPORT_ROLES` | no |
-| `sales.topSellers` | `topSellers` | `REPORT_ROLES` | no |
-| `orders.open` | `openOrders` | `REPORT_ROLES` | no |
-| `orders.staleQuotes` | `staleQuotes` | `PIPELINE_ROLES` | no |
-| `inventory.health` | `inventoryHealth` | `MANAGER_ADMIN` | no |
-| `margin.gross` | `grossMargin` | `MANAGER_ADMIN` | no |
-| `ar.balanceAging` | `balanceAging` | `ADMIN_ONLY` | no |
-| `sales.bySalesperson` | `salesBySalespersonReport` | `MANAGER_ADMIN` + self-scoping per `reports.ts:420` | staff |
-| `customers.dormant` | `dormantCustomers` | `MANAGER_ADMIN` **+ `reporting.export`** | **yes** |
+| id                    | answer wraps               | gate (copied from `reports.ts`)                     | names people |
+| --------------------- | -------------------------- | --------------------------------------------------- | ------------ |
+| `sales.daily`         | `salesDaily`               | `REPORT_ROLES`                                      | no           |
+| `sales.byPeriod`      | `comparativeSales`         | `REPORT_ROLES`                                      | no           |
+| `sales.topSellers`    | `topSellers`               | `REPORT_ROLES`                                      | no           |
+| `orders.open`         | `openOrders`               | `REPORT_ROLES`                                      | no           |
+| `orders.staleQuotes`  | `staleQuotes`              | `PIPELINE_ROLES`                                    | no           |
+| `inventory.health`    | `inventoryHealth`          | `MANAGER_ADMIN`                                     | no           |
+| `margin.gross`        | `grossMargin`              | `MANAGER_ADMIN`                                     | no           |
+| `ar.balanceAging`     | `balanceAging`             | `ADMIN_ONLY`                                        | no           |
+| `sales.bySalesperson` | `salesBySalespersonReport` | `MANAGER_ADMIN` + self-scoping per `reports.ts:420` | staff        |
+| `customers.dormant`   | `dormantCustomers`         | `MANAGER_ADMIN` **+ `reporting.export`**            | **yes**      |
 
 Confirm each gate against `reports.ts` at implementation time rather than
 trusting this table — it is a snapshot, and the router is the source of truth.
@@ -353,6 +359,71 @@ that is the cheaper correct answer.
 > MUST NOT contain a `$queryRaw`. If an answer needs a query that does not exist
 > yet, write it in `lib/reports/` with its own test first. This is what keeps
 > the assistant and the reports from becoming two different truths.
+
+### 4.5 ⚠ "Excluding cash sales" cannot be answered today — the tender column is empty
+
+Answering the request to confirm whether cash means `PaymentMethod.CASH`, and
+whether cash/revenue are code constants or per-deployment config.
+
+**The vocabulary answer**: yes, `PaymentMethod.CASH` is the bounded enum
+(`schema.prisma:2629`, nine values), and `lib/paymentMethodDisplay.ts` is its
+single owner under rule 37 — it maps the enum to the display strings stored on
+`Payment.paymentType`.
+
+**The data answer**: that enum is not populated. Measured against
+`holt_saybrook` (47,880 `Payment` rows):
+
+| `method` | `paymentType`     | rows   |
+| -------- | ----------------- | ------ |
+| `NULL`   | Card Connect      | 34,027 |
+| `NULL`   | Card Not Present  | 5,506  |
+| `NULL`   | Cash              | 3,387  |
+| `NULL`   | Refund            | 2,317  |
+| `NULL`   | Store Credit      | 885    |
+| `NULL`   | Gift Card         | 723    |
+| `NULL`   | Check             | 629    |
+| `NULL`   | ACH               | 327    |
+| `NULL`   | …8 more spellings | 77     |
+| `CARD`   | Card - Stripe     | **2**  |
+
+`Payment.method` is set on **2 of 47,880 rows**. An entry filtering on it
+returns essentially everything or nothing — and because the column is nullable,
+a naked `not:` also silently drops every NULL (rule 51). The populated column is
+`paymentType`: free text, 16 distinct spellings, none of which the code
+enumerates.
+
+**So: constant or config?** Both, at different layers, and this is the general
+shape for every vocabulary question the catalog will hit:
+
+- the **enum** is a code constant — a bounded vocabulary with one owner file;
+- the **mapping from a deployment's tender strings into that enum** is config.
+
+That config already exists as `config/presets/ordorite-payment-modes.yaml`
+(`paymentType: { "Card Connect": CARD, "Credit Note": STORE_CREDIT, … }`). It
+ships `isActive: false` because `targetEntity: "payment"` has no entry in
+`IMPORT_ENTITIES` yet, which is exactly why `method` is NULL everywhere.
+
+**Recommendation: cut the entry from phase 1.** Not because ranking customers by
+revenue is hard, but because the "excluding cash sales" clause cannot be
+computed correctly from current data, and an answer that silently ignores the
+clause is worse than no answer. Ship `customers.topByRevenue` **without** a
+tender filter if it is wanted, and let the tender clause land after the payment
+entity is wired (tracked separately).
+
+If a tender filter is built later it must resolve through the same value mapping
+the ledger uses — never a second literal list, or the assistant and the journal
+will disagree about what "cash" means.
+
+**The same lookup is already dropping money.** `journalEntry.ts:832-838` keys
+its GL map on `paymentType.toLowerCase()` and does
+`warnings.push("Unmapped payment type"); continue` on a miss. The
+`POS_PAYMENTS` mapping rows in `holt_saybrook` are AMEX, Cash, Check, Deposit,
+Discover, Finance, Gift Card, MC, On Account, Visa — of which AMEX, Visa, MC and
+Discover match **zero** rows, while the dominant real value "Card Connect"
+matches nothing. Roughly 43,100 of 47,880 payments are skipped from the sales
+journal. That is a reporting-correctness bug in its own right, and it is the
+best argument that this vocabulary belongs in config rather than in whichever
+file needs it next.
 
 ---
 
@@ -390,11 +461,11 @@ path, it is a first-class answer.
 
 ### Provider implementations
 
-| Provider id | Transport | Notes |
-|---|---|---|
-| `anthropic` | `@anthropic-ai/sdk` (add dependency) | Official SDK — do not use an OpenAI-compatible shim. |
-| `openai` | OpenAI-compatible `/v1/chat/completions` | |
-| `google` | `@google/genai` or REST | Distinct wire format; own file. |
+| Provider id         | Transport                                    | Notes                                                    |
+| ------------------- | -------------------------------------------- | -------------------------------------------------------- |
+| `anthropic`         | `@anthropic-ai/sdk` (add dependency)         | Official SDK — do not use an OpenAI-compatible shim.     |
+| `openai`            | OpenAI-compatible `/v1/chat/completions`     |                                                          |
+| `google`            | `@google/genai` or REST                      | Distinct wire format; own file.                          |
 | `openai-compatible` | same as `openai`, operator-supplied base URL | **Covers Ollama, LM Studio, vLLM, LiteLLM, OpenRouter.** |
 
 The last row is worth calling out: Ollama and LM Studio both serve an
@@ -456,7 +527,7 @@ prefix.
   prefix.
 - **Permission filtering happens before caching.** Filtering the catalog per
   user changes the prefix and gives each role its own cache entry. That is
-  fine — roles are few and stable. Do **not** filter per *user*.
+  fine — roles are few and stable. Do **not** filter per _user_.
 - **Completion is tiny** — an id and two args, tens of tokens.
 - **Narration is opt-in.** `narrate()` doubles the round trips and sends result
   rows to the provider. Default it **off** for metered providers and **on** for
@@ -464,8 +535,8 @@ prefix.
   off, the UI renders the table plus a deterministic caption built in code —
   which is also strictly safer, since a narration step is the one place a model
   could still restate a number wrongly.
-- **When narration is on**, constrain it: *"Restate only values present in the
-  table. Do not compute new figures. Do not add context you were not given."*
+- **When narration is on**, constrain it: _"Restate only values present in the
+  table. Do not compute new figures. Do not add context you were not given."_
   And keep the table small — narrate over the capped result, never the raw set.
 
 Rough shape on Anthropic with caching and narration off: a few hundred cached
@@ -497,7 +568,7 @@ confidence**, which is the most expensive kind of security control.
 - `lib/ai/tableAccess.ts` — **not** as an assistant control (under the catalog
   there is no table access to deny), but as a **tripwire**: a test asserting no
   file under `lib/ai/` reaches a denied table or contains `$queryRaw`. It stops
-  being a filter on model output and becomes a filter on *our* code, which is a
+  being a filter on model output and becomes a filter on _our_ code, which is a
   bounded grammar and therefore a thing a denylist can actually cover.
 - The `SET LOCAL statement_timeout` in `runSelect` — see §7.1. Do not lose it.
 
@@ -509,7 +580,7 @@ design.
 
 **Also fix on that branch, independent of the assistant:**
 `server/trpc/routers/chat.ts` calls `permissionProcedure("reporting.read")` but
-**never** calls `isModuleEnabled`/`requireModule`. Only the *page* gates on the
+**never** calls `isModuleEnabled`/`requireModule`. Only the _page_ gates on the
 `ai` module. So `/api/trpc/chat.ask` is reachable with the module switched off
 — the same UI-gate-is-not-a-control failure `permissionCatalog.ts`'s own header
 describes about `NavPermission` ("an operator who unchecked 'Sales' for DESIGNER
@@ -528,15 +599,15 @@ Two facts make this urgent:
 - `getFactSalesDay(prisma)` (`lib/reports/factSalesDay.ts:33`) takes **no
   parameters** and aggregates every order ever written. `getSalesDaily(prisma, {})`
   applies no range when dates are absent.
-- Today the rate limiter is *human friction* — you navigate to a page and pick
+- Today the rate limiter is _human friction_ — you navigate to a page and pick
   filters. The assistant deletes that friction, on the same Postgres container
   that serves the POS on a NAS.
 
 **So:** every `run()` executes inside a transaction with `SET LOCAL
 statement_timeout` and `SET LOCAL lock_timeout` — **3s, not 10** — plus a
 per-deployment concurrency cap of 1–2 in-flight asks. The question to answer
-before phase 1 ships is: *what does the cashier taking a payment see when three
-managers simultaneously ask "how did we do this year?"*
+before phase 1 ships is: _what does the cashier taking a payment see when three
+managers simultaneously ask "how did we do this year?"_
 
 Note also that `lib/rateLimit.ts` **cannot be used here**: it takes
 `NextApiRequest`/`NextApiResponse` and keys on client IP via `X-Real-IP`. This
@@ -552,7 +623,7 @@ Keep it — but do not mistake it for an accuracy control. `dormantCustomers.ts`
 hard-excludes `d.name NOT IN ('Freight','MRC','Hardware')` **inside its SQL**,
 and that appears in no parameter and no caption. Someone who cannot audit
 `SUM("netPrice")` cannot audit `{tool: "dormantCustomers", minSpend: 2000}`
-either. The provenance line's real job is *navigational* — it tells the user
+either. The provenance line's real job is _navigational_ — it tells the user
 which page to open to see the full definition. Say that in the UI copy rather
 than implying the answer has been shown its work.
 
@@ -563,7 +634,7 @@ than implying the answer has been shown its work.
 Each phase ships independently and is separately reviewable.
 
 **Phase 0a — centralise rule 33 first.** The shared line-item scope helper from
-§9.1. Sequencing it ahead is what lets catalog entries *compose* the rule rather
+§9.1. Sequencing it ahead is what lets catalog entries _compose_ the rule rather
 than trust that each report remembered it. It has its own exact test
 (every report's numbers unchanged) and its own value with or without this
 feature.
@@ -595,7 +666,7 @@ which already computes "what matters".
 It is also a far better accuracy programme than a golden question set: a wrong
 number in front of the owner every morning gets reported within a day. Build the
 answers layer (§4.2) for the digest, then phase 1 is a question box on top of a
-proven layer rather than a new surface *and* a new safety story at once.
+proven layer rather than a new surface _and_ a new safety story at once.
 
 **Phase 1 — the catalog and the seam (the real work)**
 
@@ -606,18 +677,18 @@ proven layer rather than a new surface *and* a new safety story at once.
 4. `lib/ai/answer.ts` — resolve entry → **re-check gate server-side** → validate
    args with zod → run inside a timeout-scoped transaction (§7.1) → cap rows →
    return `AnswerTable`. Replaces `askData.ts`.
-4. `lib/ai/providers/openaiCompatible.ts` + keep `ollama.ts` as a preset.
-5. `server/trpc/routers/chat.ts` — swap to the new call; keep the permission
+5. `lib/ai/providers/openaiCompatible.ts` + keep `ollama.ts` as a preset.
+6. `server/trpc/routers/chat.ts` — swap to the new call; keep the permission
    procedure.
-6. `providers/anthropic.ts` and `providers/google.ts` ship **in phase 1**, not
-   later. The stated requirement is *"work with the top 3 and local"*; a phase 1
+7. `providers/anthropic.ts` and `providers/google.ts` ship **in phase 1**, not
+   later. The stated requirement is _"work with the top 3 and local"_; a phase 1
    that ships only a local runtime has not met it, and deferring the cloud
    providers hides the awkward parts (keys, caching, structured-output
    differences) until after the seam has hardened around one implementation.
    Keys go through `lib/integrationCatalog.ts` + `resolveCredential` — encrypted
    at rest, same path as Stripe and SMTP — **not** env vars. That means
    `AppSettings.aiProviderId` + its migration is phase 1 too.
-7. Tests: every entry resolves; a made-up id is `unsupported`; a caller lacking
+8. Tests: every entry resolves; a made-up id is `unsupported`; a caller lacking
    an entry's gate never sees it in the prompt **and** is refused if it is
    requested anyway; the §4.2 import tripwire; the §4.3 interpolation tripwire.
 
@@ -628,7 +699,7 @@ per §7.2, not as proof.
 
 **Phase 3 — coverage**
 Grow the catalog based on what real users ask. Log every `unsupported` with the
-question text (behind a setting) — that log *is* the backlog, and it is the
+question text (behind a setting) — that log _is_ the backlog, and it is the
 only honest way to decide what to build next.
 
 **Explicitly out of scope — as decisions, not omissions**
@@ -637,7 +708,7 @@ only honest way to decide what to build next.
   PoC's framing rather than argued, so state it: the daily pain in a back office
   is data entry, and "draft this quote / tag this return / receive this PO" is
   the obviously valuable next thing. It is deliberately not in scope because
-  every guarantee in §3 depends on the output being a *table the user reads*.
+  every guarantee in §3 depends on the output being a _table the user reads_.
   A write turns a routing mistake from "wrong answer on screen" into "wrong row
   in the ledger", and it needs its own confirmation, audit and undo story.
   Revisit as a separate feature with a separate design — not as a phase of this
@@ -647,7 +718,7 @@ only honest way to decide what to build next.
   foundation for it later, but do not conflate the two.
 - An MCP server. One deployment = one tenant = one database
   (`docs/TENANCY.md`); the tools are in-process `lib/` functions. MCP exposes
-  tools to *external* clients, which is a different product. Revisit only if
+  tools to _external_ clients, which is a different product. Revisit only if
   someone wants to drive holt from Claude Desktop.
 - Free-form SQL for admins. If it is ever wanted, it is a separate,
   separately-gated feature that is not called "the assistant".
@@ -678,7 +749,7 @@ someone adds the 20th.
 **The better fix, independent of this feature:** a shared line-item scope
 helper — something like `lib/salesLineScope.ts` exporting
 `revenueLineWhere()` / `allLineWhere()` — so the rule lives in one place, the
-exceptions are named rather than implicit, and a new report opts *out*
+exceptions are named rather than implicit, and a new report opts _out_
 explicitly instead of forgetting to opt in.
 
 This should be done **whether or not the assistant ships**, and doing it first
@@ -689,15 +760,15 @@ report must produce identical numbers before and after.
 
 ### 9.2 Simpler alternatives, and why they lose
 
-| Alternative | Why not |
-|---|---|
-| **Keep text-to-SQL, add more guards** | Guards catch *dangerous* queries. They cannot catch a *wrong* one — a query missing the CANCELLED filter is perfectly safe and perfectly incorrect. No amount of guarding reaches the actual risk. |
-| **Text-to-SQL over a curated set of views** | Better — views could bake in rule 33. But it moves holt's accounting semantics into SQL views that duplicate `lib/reports/`, creating a second source of truth that will drift. The drift is invisible until two numbers disagree. |
-| **No LLM: a search box over the reports** | Genuinely good, and **should exist regardless** — most of what people ask is "which report shows me X", which is a routing problem a search box solves with no model, no tokens, and no failure mode. Recommend building it; it is a day of work and reduces assistant load. It does not cover parameter extraction ("…for the Danbury store, last quarter"), which is the part an LLM is actually good at. |
-| **Buy it** (Metabase/Looker-style embedded BI) | Solves the general case, but cannot know rule 33 either, and adds a dependency plus a second auth model to a product whose selling point is that it runs from one clone. |
+| Alternative                                    | Why not                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Keep text-to-SQL, add more guards**          | Guards catch _dangerous_ queries. They cannot catch a _wrong_ one — a query missing the CANCELLED filter is perfectly safe and perfectly incorrect. No amount of guarding reaches the actual risk.                                                                                                                                                                                                          |
+| **Text-to-SQL over a curated set of views**    | Better — views could bake in rule 33. But it moves holt's accounting semantics into SQL views that duplicate `lib/reports/`, creating a second source of truth that will drift. The drift is invisible until two numbers disagree.                                                                                                                                                                          |
+| **No LLM: a search box over the reports**      | Genuinely good, and **should exist regardless** — most of what people ask is "which report shows me X", which is a routing problem a search box solves with no model, no tokens, and no failure mode. Recommend building it; it is a day of work and reduces assistant load. It does not cover parameter extraction ("…for the Danbury store, last quarter"), which is the part an LLM is actually good at. |
+| **Buy it** (Metabase/Looker-style embedded BI) | Solves the general case, but cannot know rule 33 either, and adds a dependency plus a second auth model to a product whose selling point is that it runs from one clone.                                                                                                                                                                                                                                    |
 
 The catalog design is the smallest thing that answers parameterised questions
-correctly. Combined with §9.1 it is also *simpler than what exists today*,
+correctly. Combined with §9.1 it is also _simpler than what exists today_,
 because the correctness rule stops being ambient.
 
 ### 9.3 Is this the most secure shape?
@@ -733,3 +804,53 @@ test rather than by reviewer attention.
   fixtures. Keep model calls out of unit tests entirely.
 - A single opt-in integration test per provider, skipped unless the relevant
   key or a reachable local endpoint is present.
+
+---
+
+## 11. Open reconciliations (answers to the seam author)
+
+Answering the items raised in `docs/ai-assistant-review.md`. Where the answer is
+"your call", it genuinely is — these are not all mine to decide.
+
+**`CatalogEntry` / `CatalogParam` home (rule 37).** One vocabulary, one owner:
+put both in `lib/ai/catalog.ts` and have `routing.ts` import them. Routing
+consumes the catalog; the catalog does not depend on routing, so the dependency
+runs the right way and there is no cycle.
+
+**`AnswerContext`.** Mine to define, per §4.2. It carries the caller's identity
+and nothing else — the session's staff id, role set, permission set, and store
+scope. It must NOT carry a Prisma client or a pre-built `where` clause: the
+whole point of §4.2 is that each answer re-derives its own scoping from identity
+rather than trusting a filter someone else assembled.
+
+**`RoutingProvider` vs `AiProvider`.** Keep `RoutingProvider`. It is the more
+honest name — the interface routes and does not generate answers, which is the
+entire architectural claim. §5 is what should change; treat this doc as amended.
+
+**`dateRange` as a bare string ("yesterday").** Correct, and design for it: the
+model emits a _label_, the code resolves it. Resolution belongs in one helper
+over `lib/reports/businessDay.ts`, so "yesterday" means yesterday in the
+deployment's configured business timezone — not UTC, and not the model's guess.
+Never let a model emit resolved dates; that is arithmetic, and §3's rule is that
+the code computes.
+
+**Doc staleness (ask 3).** `docs/domains/reporting.md` was spot-checked as
+current and I agree with that read. Two corrections found elsewhere while
+answering ask 2, both now fixed on `fix/commission-fallback-comments` (PR #94):
+`docs/domains/commission.md` documented the removed `DEFAULT_COMMISSION_TIERS`
+fallback in three places, one of which described a `loadTiers()` helper that no
+longer exists anywhere in `src`. If an entry ever reports commission, read that
+runbook _after_ #94 merges.
+
+**Branch drift — act on this before building the catalog.** Both AI branches
+were 8 commits behind `main`. This branch has now merged `main`;
+`feat/ai-provider-seam` has not. What you are missing that matters:
+
+- `lib/reports/businessDay.ts` — the timezone-correct day helpers the
+  `dateRange` answer above depends on. Building your own date resolution before
+  merging will duplicate it.
+- The commission fallback removal — `resolveTier` can now return `null`, so any
+  commission-shaped answer must render "No plan configured" rather than assume a
+  tier exists.
+- Two new tripwire tests, which will fail your branch on merge if the catalog
+  reintroduces a tenant literal or a second spelling of the revenue statuses.
