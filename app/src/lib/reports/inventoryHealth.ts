@@ -88,7 +88,15 @@ export async function getInventoryHealth(
             SELECT li."productId", MAX(so."orderDate") AS last_sold
             FROM "OrderLineItem" li
             JOIN "SalesOrder" so ON so.id = li."salesOrderId"
-            WHERE li."lineItemStatus" <> 'CANCELLED'
+            -- Deliberately NARROWER than SALES_REVENUE_STATUSES, per
+            -- lib/salesOrderRevenue.ts's "when NOT to use this constant":
+            -- last_sold answers "when did this product last MOVE", so an
+            -- accounting return (status RETURNED) must not refresh it, and a
+            -- QUOTE must not either. Without any status filter at all -- which
+            -- is what this was -- a quoted-but-never-sold product looked freshly
+            -- sold and dropped out of the dead-stock count.
+            WHERE so.status IN ('ORDER', 'FULFILLED')
+              AND li."lineItemStatus" <> 'CANCELLED'
             GROUP BY li."productId"
           )
           SELECT COALESCE(v.name, 'No Vendor') AS key,
@@ -116,7 +124,15 @@ export async function getInventoryHealth(
             SELECT li."productId", MAX(so."orderDate") AS last_sold
             FROM "OrderLineItem" li
             JOIN "SalesOrder" so ON so.id = li."salesOrderId"
-            WHERE li."lineItemStatus" <> 'CANCELLED'
+            -- Deliberately NARROWER than SALES_REVENUE_STATUSES, per
+            -- lib/salesOrderRevenue.ts's "when NOT to use this constant":
+            -- last_sold answers "when did this product last MOVE", so an
+            -- accounting return (status RETURNED) must not refresh it, and a
+            -- QUOTE must not either. Without any status filter at all -- which
+            -- is what this was -- a quoted-but-never-sold product looked freshly
+            -- sold and dropped out of the dead-stock count.
+            WHERE so.status IN ('ORDER', 'FULFILLED')
+              AND li."lineItemStatus" <> 'CANCELLED'
             GROUP BY li."productId"
           )
           SELECT COALESCE(d.name, 'Uncategorized') AS key,
