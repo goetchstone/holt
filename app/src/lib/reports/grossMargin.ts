@@ -4,11 +4,15 @@
 // Aggregated in the DB (GROUP BY) to stay under Postgres's 65k bind-param limit
 // (P2029) at scale; dates are bound params and the pivot picks server-controlled
 // SQL fragments (no injection). Rule 33: cancelled OrderLineItem rows
-// (SalesOrder.lineItems) excluded. netPrice/cost are LINE totals — summed
-// directly, never multiplied. Query + row-shaping split so summarizeGrossMargin is
-// unit-tested without a DB.
+// (SalesOrder.lineItems) excluded. Revenue scope: revenueStatusSql() — this
+// query used to constrain the LINE status and nothing else, so QUOTE and DRAFT
+// orders were summed as margin and the report did not reconcile against
+// Detailed Sales. netPrice/cost are LINE totals — summed directly, never
+// multiplied. Query + row-shaping split so summarizeGrossMargin is unit-tested
+// without a DB.
 
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { revenueStatusSql } from "@/lib/reports/revenueScope";
 
 export const GROSS_MARGIN_PIVOTS = ["department", "vendor"] as const;
 export type GrossMarginPivot = (typeof GROSS_MARGIN_PIVOTS)[number];
@@ -147,7 +151,8 @@ export async function getGrossMargin(
     JOIN "SalesOrder" so ON so.id = li."salesOrderId"
     LEFT JOIN "Product" p ON p.id = li."productId"
     ${dimJoin}
-    WHERE so."orderDate" >= ${startDate}::date
+    WHERE ${revenueStatusSql()}
+      AND so."orderDate" >= ${startDate}::date
       AND so."orderDate" < (${endDate}::date + INTERVAL '1 day')
       AND li."lineItemStatus" <> 'CANCELLED'
     GROUP BY 1

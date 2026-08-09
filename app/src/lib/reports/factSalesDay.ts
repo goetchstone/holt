@@ -4,14 +4,18 @@
 // date and department (total sales, transaction count, average sale).
 // Extracted from the Pages API handler so the App Router server component and
 // the tRPC procedure share one source of truth. CLAUDE.md rule 33: cancelled
-// lines are excluded so they never inflate totals.
+// lines are excluded so they never inflate totals. Revenue scope:
+// revenueStatusSql() — this query used to constrain the LINE status and nothing
+// else, so every QUOTE and DRAFT order was reported as a sale on its order
+// date, in a table named "fact".
 //
 // Aggregation runs in the DB (GROUP BY), NOT by loading rows into JS. The prior
 // `findMany` pulled every order + line item + product; Prisma's relation IN-lists
 // then exceeded Postgres's 65535 bind-parameter limit on real-scale data (P2029).
 // A GROUP BY has no such limit and is far cheaper.
 
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { revenueStatusSql } from "@/lib/reports/revenueScope";
 
 export interface FactSalesDayRow {
   date: string;
@@ -32,9 +36,10 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export async function getFactSalesDay(prisma: PrismaClient): Promise<FactSalesDayRow[]> {
   // orderDate is stored UTC (Prisma timestamp), so to_char gives the same Y-M-D
-  // the prior `orderDate.toISOString().slice(0,10)` produced. No bind params /
-  // user input -> $queryRawUnsafe with a constant string is safe.
-  const rows = await prisma.$queryRawUnsafe<RawRow[]>(`
+  // the prior `orderDate.toISOString().slice(0,10)` produced. Moved off
+  // $queryRawUnsafe: the revenue-status predicate binds its statuses as
+  // parameters, so this is now an ordinary parameterized $queryRaw.
+  const rows = await prisma.$queryRaw<RawRow[]>(Prisma.sql`
     SELECT to_char(so."orderDate", 'YYYY-MM-DD') AS date,
            COALESCE(d.name, 'Uncategorized') AS department,
            SUM(li."netPrice")::float8 AS total_sales,
@@ -43,7 +48,8 @@ export async function getFactSalesDay(prisma: PrismaClient): Promise<FactSalesDa
     JOIN "SalesOrder" so ON so.id = li."salesOrderId"
     LEFT JOIN "Product" p ON p.id = li."productId"
     LEFT JOIN "Department" d ON d.id = p."departmentId"
-    WHERE so."orderDate" IS NOT NULL
+    WHERE ${revenueStatusSql()}
+      AND so."orderDate" IS NOT NULL
       AND li."lineItemStatus" != 'CANCELLED'
     GROUP BY 1, 2
   `);
