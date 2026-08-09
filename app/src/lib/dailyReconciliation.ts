@@ -27,6 +27,7 @@ import {
   OVER_SHORT_ALERT_THRESHOLD,
 } from "./glMapping";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { businessDayRange, getBusinessTimeZone } from "@/lib/reports/businessDay";
 
 export const RECONCILIATION_TOLERANCE = 0.01;
 
@@ -151,20 +152,18 @@ export function compareReconciliation(
   return { drift, balanced: warnings.length === 0, warnings };
 }
 
+/**
+ * Normalizes a date marker to UTC midnight of its own calendar day. Callers
+ * already pass markers, but a caller that passed an instant would otherwise
+ * silently miss the journal; this makes the marker convention explicit at the
+ * one place it is matched.
+ */
+function markerUtcMidnight(d: Date): Date {
+  return new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000Z`);
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
-}
-
-function startOfDay(d: Date): Date {
-  const out = new Date(d);
-  out.setUTCHours(0, 0, 0, 0);
-  return out;
-}
-
-function endOfDay(d: Date): Date {
-  const out = new Date(d);
-  out.setUTCHours(23, 59, 59, 999);
-  return out;
 }
 
 function dateStr(d: Date): string {
@@ -329,15 +328,29 @@ export async function computeDailyReconciliation(opts: {
   client: PrismaClient | Prisma.TransactionClient;
 }): Promise<DailyReconciliationResult> {
   const { date, client } = opts;
-  const dayStart = startOfDay(date);
-  const dayEnd = endOfDay(date);
+  // `date` is a DATE MARKER (UTC midnight of a calendar day) -- that is what
+  // parseRange, enumerateDays and JournalEntry.journalDate all carry.
+  // businessDayRange turns it into the half-open instant window the deployment
+  // actually traded over.
+  //
+  // This used to be startOfDay/endOfDay, i.e. setUTCHours(0..) / (23:59:59.999)
+  // on the marker, which reconciled the UTC calendar day no matter what
+  // AppSettings.timezone said. For America/New_York that shifted the window 4-5
+  // hours off the trading day; for any zone EAST of UTC the caller's
+  // businessDayStart anchor landed on the previous UTC date and the whole
+  // reconciliation ran on the wrong day.
+  const timeZone = await getBusinessTimeZone();
+  const { gte: dayStart, lt: dayEndExclusive } = businessDayRange(
+    date.toISOString().slice(0, 10),
+    timeZone,
+  );
 
   // Source-side queries
   const lineItems = await client.orderLineItem.findMany({
     where: {
       lineItemStatus: { not: "CANCELLED" },
       salesOrder: {
-        orderDate: { gte: dayStart, lte: dayEnd },
+        orderDate: { gte: dayStart, lt: dayEndExclusive },
         status: { in: [...SALES_REVENUE_STATUSES] },
       },
     },
@@ -346,7 +359,7 @@ export async function computeDailyReconciliation(opts: {
 
   const payments = await client.payment.findMany({
     where: {
-      paymentDate: { gte: dayStart, lte: dayEnd },
+      paymentDate: { gte: dayStart, lt: dayEndExclusive },
       status: "COMPLETED",
     },
     select: { paymentAmount: true },
@@ -362,10 +375,17 @@ export async function computeDailyReconciliation(opts: {
   // Which account is which, per this deployment's configuration.
   const accounts = await resolveReconciliationAccounts(client);
 
-  // Load the day's JE (if any)
+  // Load the day's JE (if any).
+  //
+  // Matched on the DATE MARKER, deliberately NOT on the business-day instant
+  // window above. `JournalEntry.journalDate` stores UTC midnight of the
+  // calendar day (see generateSalesJournal), so for any timezone west of UTC
+  // the marker sits BEFORE dayStart -- filtering it by the trading window would
+  // find no journal at all and report every day as unreconciled. Sources are
+  // instants and get the window; the journal is a date and gets the marker.
   const je = await client.journalEntry.findFirst({
     where: {
-      journalDate: { gte: dayStart, lte: dayEnd },
+      journalDate: markerUtcMidnight(date),
       status: { in: ["POSTED", "EXPORTED"] },
     },
     include: { lines: true },
