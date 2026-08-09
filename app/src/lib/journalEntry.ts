@@ -10,7 +10,8 @@ import {
   OVER_SHORT_MAPPING_LABEL,
   OVER_SHORT_ALERT_THRESHOLD,
 } from "@/lib/glMapping";
-import { businessDayRange, getBusinessTimeZone } from "@/lib/reports/businessDay";
+import { businessDayRange } from "@/lib/reports/businessDay";
+import { getBusinessTimeZone } from "@/lib/appSettings";
 
 type Decimal = Prisma.Decimal;
 

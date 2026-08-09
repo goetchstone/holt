@@ -27,7 +27,7 @@ import {
   OVER_SHORT_ALERT_THRESHOLD,
 } from "./glMapping";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
-import { businessDayRange, getBusinessTimeZone } from "@/lib/reports/businessDay";
+import { businessDayRange } from "@/lib/reports/businessDay";
 
 export const RECONCILIATION_TOLERANCE = 0.01;
 
@@ -325,9 +325,21 @@ export async function resolveReconciliationAccounts(
  */
 export async function computeDailyReconciliation(opts: {
   date: Date;
+  /**
+   * The deployment's business timezone, resolved by the CALLER.
+   *
+   * Deliberately a parameter and not a getBusinessTimeZone() call in here.
+   * dailyReconciliationDisplay.ts imports this module and is itself reached
+   * from JournalEntriesView, a "use client" component; any import that
+   * transitively reaches lib/prisma pulls the Postgres driver into a browser
+   * bundle and `next build` dies on node-only modules. Reading settings inside
+   * this function did exactly that. tsc and jest both pass regardless -- only
+   * the build catches it -- so the constraint is written down here.
+   */
+  timeZone: string;
   client: PrismaClient | Prisma.TransactionClient;
 }): Promise<DailyReconciliationResult> {
-  const { date, client } = opts;
+  const { date, timeZone, client } = opts;
   // `date` is a DATE MARKER (UTC midnight of a calendar day) -- that is what
   // parseRange, enumerateDays and JournalEntry.journalDate all carry.
   // businessDayRange turns it into the half-open instant window the deployment
@@ -339,7 +351,6 @@ export async function computeDailyReconciliation(opts: {
   // hours off the trading day; for any zone EAST of UTC the caller's
   // businessDayStart anchor landed on the previous UTC date and the whole
   // reconciliation ran on the wrong day.
-  const timeZone = await getBusinessTimeZone();
   const { gte: dayStart, lt: dayEndExclusive } = businessDayRange(
     date.toISOString().slice(0, 10),
     timeZone,

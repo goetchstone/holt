@@ -248,3 +248,18 @@ export function themeToCssVars(theme: Theme): string {
   }
   return declarations.length ? `:root{${declarations.join(";")}}` : "";
 }
+
+/**
+ * The deployment's business timezone -- the one every "what happened on this
+ * day" question must resolve against. Cached 60s inside getAppSettings, and it
+ * falls back to defaults rather than throwing, so a report never fails because
+ * settings were unreadable.
+ *
+ * Lives here rather than beside the date helpers in lib/reports/businessDay.ts
+ * so that those stay pure: they are imported transitively by client components,
+ * and a settings read drags Prisma into the browser bundle.
+ */
+export async function getBusinessTimeZone(): Promise<string> {
+  const settings = await getAppSettings();
+  return settings.timezone;
+}

@@ -8,7 +8,8 @@
 
 import type { PrismaClient, Prisma } from "@prisma/client";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
-import { businessDayKey, businessDayRange, getBusinessTimeZone } from "@/lib/reports/businessDay";
+import { businessDayKey, businessDayRange } from "@/lib/reports/businessDay";
+import { getBusinessTimeZone } from "@/lib/appSettings";
 
 export interface SalesDailyParams {
   startDate?: string; // YYYY-MM-DD

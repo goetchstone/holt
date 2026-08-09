@@ -18,7 +18,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
-import { businessDayKey, getBusinessTimeZone } from "@/lib/reports/businessDay";
+import { businessDayKey } from "@/lib/reports/businessDay";
+import { getBusinessTimeZone } from "@/lib/appSettings";
 import {
   computeDailyReconciliation,
   type DailyReconciliationResult,
@@ -165,13 +166,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     errors: [],
   };
 
+  const timeZone = await getBusinessTimeZone();
+
   try {
     for (const day of enumerateDays(range)) {
       const startedAt = new Date();
       const dateIso = day.toISOString().slice(0, 10);
 
       try {
-        const result = await computeDailyReconciliation({ date: day, client: prisma });
+        const result = await computeDailyReconciliation({ date: day, timeZone, client: prisma });
         const finishedAt = new Date();
         const durationMs = finishedAt.getTime() - startedAt.getTime();
 
