@@ -22,7 +22,7 @@ Those were honest placeholders, not leaked tenant data — but the shape is the
 problem, not the values. Adding a store meant editing TypeScript and shipping a
 release. Every deployment that added a store forked that file. And the same
 pattern recurred: Ordorite payment codes, department translations, vendor
-category maps. Each one a fact about *a* deployment, compiled into *the*
+category maps. Each one a fact about _a_ deployment, compiled into _the_
 product.
 
 The rule this establishes:
@@ -43,13 +43,13 @@ config file's clothes.
 
 ## Two doors, one store
 
-| | GitOps | GUI |
-|---|---|---|
-| Surface | `config/**/*.{yaml,yml,json}` | Admin → Settings → Configuration |
-| Applied by | `node app/scripts/apply-preset.mjs` | the form's save action |
-| Reviewable | yes — it is a diff in a PR | no |
-| Needs a deploy | no (apply runs against a live DB) | no |
-| Good for | reproducible environments, multi-tenant fleets | an operator adding one store |
+|                | GitOps                                         | GUI                              |
+| -------------- | ---------------------------------------------- | -------------------------------- |
+| Surface        | `config/{presets,local}/*.{yaml,yml,json}`     | Admin → Settings → Configuration |
+| Applied by     | `node app/scripts/apply-preset.mjs`            | the form's save action           |
+| Reviewable     | yes — it is a diff in a PR                     | no                               |
+| Needs a deploy | no (apply runs against a live DB)              | no                               |
+| Good for       | reproducible environments, multi-tenant fleets | an operator adding one store     |
 
 Both validate against the **same zod schema** (`lib/config/presetSchema.ts`)
 and write the **same rows**. The GUI exports back to YAML or JSON, so a change
@@ -61,11 +61,11 @@ ignore the GUI; a shop with no engineers can ignore the files.
 
 ## The three config sets
 
-| Directory | Committed | Purpose |
-|---|---|---|
-| `config/presets/` | **yes** | White-box defaults, tuned to the demo seed so a fresh clone works out of the box. |
-| `config/local/` | **no** (gitignored) | One deployment's real mappings — `saybrook.yaml`, `akritos.json`. |
-| `$HOLT_CONFIG_DIR` | n/a | Override for config kept in a private repo or a mounted volume. |
+| Directory          | Committed           | Purpose                                                                           |
+| ------------------ | ------------------- | --------------------------------------------------------------------------------- |
+| `config/presets/`  | **yes**             | White-box defaults, tuned to the demo seed so a fresh clone works out of the box. |
+| `config/local/`    | **no** (gitignored) | One deployment's real mappings — `saybrook.yaml`, `akritos.json`.                 |
+| `$HOLT_CONFIG_DIR` | n/a                 | Override for config kept in a private repo or a mounted volume.                   |
 
 `config/local/` is gitignored because a tenant's store names and vendor payment
 codes are deployment data, not product code — the same reasoning as
@@ -89,7 +89,7 @@ document in both spellings and asserts deep equality — so the claim stays true
 as the schema grows.
 
 Pick on team preference. YAML gets you comments, which in a mapping file
-(*"why does Marketing map to OTHER?"*) usually earn their keep.
+(_"why does Marketing map to OTHER?"_) usually earn their keep.
 
 Parser safety is not left to defaults:
 
@@ -109,7 +109,7 @@ Parser safety is not left to defaults:
 - **512 KB ceiling**, enforced at every entry point (disk read, HTTP upload) —
   a real mapping file is tens of KB; a megabyte is a mistake or a probe.
 - **Path traversal** is blocked at one choke point (`safeJoin`), belt and
-  braces: the name is pattern-checked *and* the resolved path is verified to
+  braces: the name is pattern-checked _and_ the resolved path is verified to
   still sit under the config root. Only the CLI turns user input into a path
   today — the GUI reads uploaded text and never names a file — but the check
   lives in the loader rather than in the CLI so a future caller inherits it.
@@ -137,12 +137,16 @@ left no trace would be indistinguishable from never having run. For
 store" across every preset of that kind, not just the one being applied —
 see "Ownership" under that kind, below. Without that, two presets naming the
 same store would each report `APPLIED` forever, trading it back and forth
-depending on which file happened to apply last — the opposite of idempotent.
+depending on which preset name sorted last — the opposite of idempotent.
 
-**Declarative.** A preset is desired state, not an append. Delete a line from
-the YAML, re-apply, and the corresponding row goes away. This is what makes
-GitOps actually work — without it, the file drifts from the database the first
-time someone removes a mapping and nothing happens.
+**Declarative, for the mappings.** A preset is desired state, not an append.
+Delete a field mapping or a value mapping from the YAML, re-apply, and the row
+goes away; drop a store and its `trafficSourceNames` are cleared. This is what
+makes GitOps actually work — without it, the file drifts from the database the
+first time someone removes a mapping and nothing happens. It stops at the
+mappings: `applyPreset()` deletes mapping rows only and never the parent row
+one hangs off — not an `ImportDefinition`, a `StoreLocation` or a `Role` — so
+anything that drops out of the file entirely stays in the database.
 
 Each definition's reconcile runs in a single transaction, so a partial apply
 cannot leave a definition with half its mappings updated.
@@ -162,7 +166,7 @@ one is not optional:
    `COPY` at all. Without a mount, `resolveConfigRoot()` resolves to
    `/app/../config` = `/config`, which does not exist, and every preset
    silently resolves to nothing. The loader treats a missing directory as
-   normal (a fresh clone has no `config/local/`), so this fails *quietly* —
+   normal (a fresh clone has no `config/local/`), so this fails _quietly_ —
    which is exactly why it is called out here.
 2. Changing a mapping should not require an image rebuild. That is the point
    of config-as-data.
@@ -182,7 +186,7 @@ its own interpretation rules is a bigger blast radius than one that cannot.
 
 ## Audit trail
 
-Applying a preset changes how holt *interprets* data — which payment string
+Applying a preset changes how holt _interprets_ data — which payment string
 means `CARD`, and therefore which GL account the money lands in. "Who changed
 this mapping, when, and from which file" has to be answerable months later,
 during a reconciliation dispute.
@@ -222,7 +226,10 @@ depend on server-side catalogs:
 - An unknown `targetEntity` is **saved but forced inactive**, with the reason
   recorded. This is not sloppiness — it is how a preset documents an intended
   mapping before the entity exists. `ordorite-payment-modes` ships exactly this
-  way: `targetEntity: payment` has no entry in `IMPORT_ENTITIES` yet.
+  way: `targetEntity: payment` has no entry in `IMPORT_ENTITIES` yet. One
+  exception: if the definition already exists and is currently active, the
+  apply is a hard failure instead, because forcing it inactive would switch off
+  a live importer over a typo while still reporting success.
 - An unknown `runnerKey` is a **hard failure**. A runnerKey names executable
   behaviour; accepting a name that resolves to nothing would let a `RECONCILE`
   definition look configured while doing nothing at all. Different risk,
@@ -241,8 +248,9 @@ shape: `NB` and `SB` are two doors of one showroom, and reading either alone
 computes conversion against half the store's traffic.
 
 An unmapped label is **never dropped**. It flows through under its raw name and
-is logged once per unique name, so a newly-installed door shows up as something
-to fix rather than as missing visitors.
+is logged once per unique name per resolver rebuild (the map is cached for
+60s), so a newly-installed door shows up as something to fix rather than as
+missing visitors.
 
 A preset maps onto stores that already exist; it never creates one. Creating a
 store has downstream effects on registers, stock locations and receiving
@@ -261,13 +269,13 @@ entry per successful (`APPLIED` or `UNCHANGED`) apply, keyed by that preset's
 `name`. Without a rule enforcing single ownership, two differently-named
 presets that both list the same store would reclaim it from each other on
 every apply: both permanently report `APPLIED`, and the "winner" is whichever
-one ran last — for the CLI's file-order loop, whichever file happens to sort
+one ran last — for a whole-directory CLI run, whichever preset name sorts
 last. That is not idempotent by any definition worth having.
 
 So: `applyPreset()` looks up each store's current owner across **every**
 `traffic-store-mapping` preset's history (`currentTrafficStoreOwners()` in
 `applyPreset.ts`), not just the applying preset's own. A store already owned
-by a *different* name is a **`FAILED`** apply for the preset trying to claim
+by a _different_ name is a **`FAILED`** apply for the preset trying to claim
 it, naming the current owner. That failure is stable on re-apply — it does
 not flip back and forth — which is what makes it idempotent: the same input
 produces the same result every time, even though that result is "no."
@@ -281,7 +289,7 @@ not fall out of applying a file that happens to mention it.
 
 **Renaming** a preset is a special case of this: the renamed file has no
 `ConfigChangeLog` history of its own, but if it still claims a store the
-*old* name owns, the ownership check above catches it — the store's current
+_old_ name owns, the ownership check above catches it — the store's current
 owner is the old name, which does not match the new one, so the apply fails
 loudly and names the old preset. That is deliberate: silently reporting "no
 changes" while the old name's stores sit unreleased is the orphaned-ownership
@@ -298,7 +306,7 @@ The admin GUI is just another `traffic-store-mapping` preset as far as this
 rule is concerned — it applies under the fixed name
 `TRAFFIC_STORE_MAPPING_PRESET_NAME` ("traffic-stores"). `loadDbConfigState()`
 (the GET-route/export read path) renders the live database back out grouped
-by each store's *real* current owner rather than collapsing every store
+by each store's _real_ current owner rather than collapsing every store
 under that one fixed name — otherwise an export from a deployment whose CLI
 preset uses a different name would be unusable: re-importing it would try to
 reclaim stores that preset never actually owns and fail the whole
