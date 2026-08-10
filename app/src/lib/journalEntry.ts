@@ -10,6 +10,8 @@ import {
   OVER_SHORT_MAPPING_LABEL,
   OVER_SHORT_ALERT_THRESHOLD,
 } from "@/lib/glMapping";
+import { businessDayRange } from "@/lib/reports/businessDay";
+import { getBusinessTimeZone } from "@/lib/appSettings";
 
 type Decimal = Prisma.Decimal;
 
@@ -273,9 +275,17 @@ export function toNum(d: Decimal | number | null | undefined): number {
 export function formatJournalNumber(date: Date): string {
   // Format: SJ + YYYYMMDD (e.g. SJ20260501). 4-digit year by user
   // direction 2026-04-28 -- removes century-boundary ambiguity.
-  const yyyy = date.getFullYear().toString();
-  const mm = (date.getMonth() + 1).toString().padStart(2, "0");
-  const dd = date.getDate().toString().padStart(2, "0");
+  //
+  // UTC getters, deliberately. `date` here is a DATE MARKER -- UTC midnight of
+  // a calendar day, which is how parseRange, enumerateDays and journalDate all
+  // carry a business date. Reading a marker with getFullYear/getMonth/getDate
+  // reads it in the SERVER's timezone, so on any host west of UTC
+  // `new Date("2026-06-09T00:00:00Z").getDate()` is 8, and the June 9 journal
+  // is numbered SJ20260608. That was invisible only because the containers set
+  // no TZ and default to UTC; it broke on a developer's machine.
+  const yyyy = date.getUTCFullYear().toString();
+  const mm = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+  const dd = date.getUTCDate().toString().padStart(2, "0");
   return `SJ${yyyy}${mm}${dd}`;
 }
 
@@ -683,11 +693,20 @@ export async function generateSalesJournal(
     await prisma.journalEntry.delete({ where: { id: existing.id } });
   }
 
-  // Date range for the target day (midnight to midnight UTC)
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
+  // The BUSINESS day this journal covers, not a UTC day and not a server-local
+  // one. `date` arrives as a UTC-midnight marker; businessDayRange turns that
+  // calendar date into the half-open instant window the deployment actually
+  // traded over (lib/reports/businessDay.ts).
+  //
+  // This was `setHours(0,0,0,0)` under a comment claiming UTC. setHours is
+  // SERVER-LOCAL, so the journal's window depended on the host's TZ; it matched
+  // the comment only because the containers set no TZ and default to UTC. The
+  // reconciliation compared that window against its own UTC-day window, so the
+  // two could agree only on a UTC deployment -- and Saybrook is
+  // America/New_York.
+  const timeZone = await getBusinessTimeZone();
+  const dayKey = date.toISOString().slice(0, 10);
+  const { gte: dayStart, lt: dayEndExclusive } = businessDayRange(dayKey, timeZone);
 
   // Load system GL mappings for payment types
   const paymentMappings = await prisma.systemGLMapping.findMany({
@@ -735,7 +754,7 @@ export async function generateSalesJournal(
 
   // Query all payments for the date
   const paymentWhere: Record<string, unknown> = {
-    paymentDate: { gte: dayStart, lte: dayEnd },
+    paymentDate: { gte: dayStart, lt: dayEndExclusive },
   };
   if (storeLocation) {
     paymentWhere.storeLocation = storeLocation;
@@ -901,13 +920,13 @@ export async function generateSalesJournal(
     await reportOpsAlert({
       title: `Sales journal ${journalNumber} required a $${Math.abs(result.overShort).toFixed(2)} Over/Short plug`,
       detail:
-        `${journalNumber} (${dayStart.toISOString().slice(0, 10)}) did not balance on its own. ` +
+        `${journalNumber} (${dayKey}) did not balance on its own. ` +
         `A plug of $${Math.abs(result.overShort).toFixed(2)} was posted to the Over/Short account to force it into balance, ` +
         `which almost always means a payment or a line item is missing from the day. ` +
         `The entry is DRAFT — review it before posting or exporting to QuickBooks.`,
       context: {
         journalNumber,
-        journalDate: dayStart.toISOString().slice(0, 10),
+        journalDate: dayKey,
         overShort: result.overShort,
         threshold: OVER_SHORT_ALERT_THRESHOLD,
         paymentsConsidered: mappedPayments.length,
@@ -928,7 +947,10 @@ export async function generateSalesJournal(
     const je = await tx.journalEntry.create({
       data: {
         journalNumber,
-        journalDate: dayStart,
+        // The DATE MARKER (UTC midnight of the calendar day), not the business
+        // day's opening instant -- so reading it back with UTC getters recovers
+        // the same calendar date in every timezone.
+        journalDate: date,
         journalType: "SALES",
         status: "DRAFT",
         storeLocation: storeLocation || null,

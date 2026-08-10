@@ -25,10 +25,23 @@ import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { generateSalesJournal } from "@/lib/journalEntry";
 
+// The DATE MARKER handed to generateSalesJournal: UTC midnight of the calendar
+// day. This is the journal's identity, not an instant on the clock.
 const DAY = new Date("2026-04-28T00:00:00Z");
 // Used by the native-refund scenarios: the sale posts on this day, the refund
 // lands on DAY, so the refund's journal is a different journal from the sale's.
 const PRIOR_DAY = new Date("2026-04-27T00:00:00Z");
+
+// The INSTANTS that timestamp fields (orderDate / invoiceDate / paymentDate)
+// are seeded at: noon Eastern, i.e. squarely inside the business day.
+//
+// These used to be DAY / PRIOR_DAY themselves, which quietly assumed a journal
+// covers a UTC calendar day. It does not -- it covers the deployment's business
+// day, and DEFAULT_APP_SETTINGS.timezone is America/New_York, so 00:00Z on the
+// 28th is 8pm on the 27th and belongs to the PREVIOUS journal. Seeding a marker
+// where an instant belongs is the exact confusion this suite now guards.
+const DAY_AT = new Date("2026-04-28T16:00:00Z");
+const PRIOR_DAY_AT = new Date("2026-04-27T16:00:00Z");
 
 // ─── Fixture builder ─────────────────────────────────────────────────
 //
@@ -163,7 +176,7 @@ async function seedSale(opts: {
     data: {
       orderno: `SO-1-${Math.floor(Math.random() * 100000)}`,
       status: "ORDER",
-      orderDate: DAY,
+      orderDate: DAY_AT,
       customerId: customer.id,
       lineItems: {
         create: [
@@ -201,7 +214,7 @@ async function seedSale(opts: {
     await prisma.invoice.create({
       data: {
         invoiceNo: `INV-${order.id}`,
-        invoiceDate: DAY,
+        invoiceDate: DAY_AT,
         taxAmount: opts.vatAmount,
         salesOrderId: order.id,
       },
@@ -210,7 +223,7 @@ async function seedSale(opts: {
   await prisma.payment.create({
     data: {
       paymentAmount: opts.paymentAmount,
-      paymentDate: DAY,
+      paymentDate: DAY_AT,
       status: "COMPLETED",
       paymentType: opts.paymentType ?? "Cash",
       salesOrderId: order.id,
@@ -430,7 +443,7 @@ describe("generateSalesJournal (real DB)", () => {
       data: {
         orderno: `SO-MIXED-${Date.now()}`,
         status: "ORDER",
-        orderDate: DAY,
+        orderDate: DAY_AT,
         customerId: customer.id,
         lineItems: {
           create: [
@@ -463,7 +476,7 @@ describe("generateSalesJournal (real DB)", () => {
     await prisma.invoice.create({
       data: {
         invoiceNo: `INV-MIXED-${order.id}`,
-        invoiceDate: DAY,
+        invoiceDate: DAY_AT,
         taxAmount: 19.05,
         salesOrderId: order.id,
       },
@@ -471,7 +484,7 @@ describe("generateSalesJournal (real DB)", () => {
     await prisma.payment.create({
       data: {
         paymentAmount: 319.05, // net cash in
-        paymentDate: DAY,
+        paymentDate: DAY_AT,
         status: "COMPLETED",
         paymentType: "Cash",
         salesOrderId: order.id,
@@ -606,7 +619,7 @@ describe("generateSalesJournal (real DB)", () => {
       return prisma.payment.create({
         data: {
           paymentAmount: opts.paymentAmount,
-          paymentDate: DAY,
+          paymentDate: DAY_AT,
           status: "COMPLETED",
           paymentType: opts.paymentType ?? "Cash",
           isRefund: opts.isRefund ?? false,
@@ -735,7 +748,7 @@ describe("generateSalesJournal (real DB)", () => {
       });
       await prisma.payment.update({
         where: { id: salePayment.id },
-        data: { paymentDate: PRIOR_DAY },
+        data: { paymentDate: PRIOR_DAY_AT },
       });
       // processRefund's exact output shape: positive amount, isRefund true,
       // originalPaymentId pointing back at the sale payment.
@@ -743,7 +756,7 @@ describe("generateSalesJournal (real DB)", () => {
         data: {
           salesOrderId: order.id,
           paymentAmount: 1063.5,
-          paymentDate: DAY,
+          paymentDate: DAY_AT,
           status: "COMPLETED",
           paymentType: "Cash",
           isRefund: true,
@@ -790,7 +803,7 @@ describe("generateSalesJournal (real DB)", () => {
         data: {
           salesOrderId: order.id,
           paymentAmount: 400,
-          paymentDate: DAY,
+          paymentDate: DAY_AT,
           status: "COMPLETED",
           paymentType: "Cash",
           isRefund: true,

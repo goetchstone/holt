@@ -18,7 +18,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
-import { businessDayKey, businessDayStart, getBusinessTimeZone } from "@/lib/reports/businessDay";
+import { businessDayKey } from "@/lib/reports/businessDay";
+import { getBusinessTimeZone } from "@/lib/appSettings";
 import {
   computeDailyReconciliation,
   type DailyReconciliationResult,
@@ -83,7 +84,16 @@ async function defaultYesterday(): Promise<Date> {
   // start. Stepping the calendar rather than subtracting 24h keeps a DST
   // boundary from landing on the wrong day.
   const yesterdayKey = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
-  return businessDayStart(yesterdayKey, timeZone);
+  // A DATE MARKER, matching what parseRange() and enumerateDays() produce.
+  //
+  // This used to return businessDayStart(yesterdayKey, timeZone) -- the INSTANT
+  // the business day opened. That made this the only caller handing
+  // computeDailyReconciliation something other than a marker, and for any
+  // timezone east of UTC the anchor falls on the PREVIOUS UTC date, so both the
+  // reconciliation and its log row landed a day early. The timezone still
+  // decides WHICH date is "yesterday" (businessDayKey above); it does not
+  // belong in the marker itself.
+  return new Date(`${yesterdayKey}T00:00:00.000Z`);
 }
 
 function parseRange(body: unknown): DateRange | null {
@@ -156,13 +166,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     errors: [],
   };
 
+  const timeZone = await getBusinessTimeZone();
+
   try {
     for (const day of enumerateDays(range)) {
       const startedAt = new Date();
       const dateIso = day.toISOString().slice(0, 10);
 
       try {
-        const result = await computeDailyReconciliation({ date: day, client: prisma });
+        const result = await computeDailyReconciliation({ date: day, timeZone, client: prisma });
         const finishedAt = new Date();
         const durationMs = finishedAt.getTime() - startedAt.getTime();
 
