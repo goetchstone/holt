@@ -446,7 +446,12 @@ Closes Phase 0 control C1. Daily check that the JE generated for a day matches t
 
 ### Operator workflow
 
-1. **Cron fires** nightly via Synology Task Scheduler running `auto-daily-reconciliation.sh` (`scripts/install-cron.sh` installs it at 22:30, the script's own header recommends 02:00 local, and `install-cron.sh` flags that conflict as unresolved). With no date in the request body it picks **yesterday's date in the deployment's business timezone** — `AppSettings.timezone` via `getBusinessTimeZone()`, not a hardcoded America/New_York. Only the date choice is timezone-aware: `computeDailyReconciliation` then reconciles that date's UTC midnight-to-midnight window (`startOfDay`/`endOfDay` use `setUTCHours`).
+1. **Cron fires** nightly via Synology Task Scheduler running `auto-daily-reconciliation.sh` (`scripts/install-cron.sh` installs it at 22:30, the script's own header recommends 02:00 local, and `install-cron.sh` flags that conflict as unresolved). With no date in the request body it picks **yesterday's date in the deployment's business timezone** — `AppSettings.timezone` via `getBusinessTimeZone()`, not a hardcoded America/New_York — and hands it on as a UTC-midnight **date marker**.
+
+   `computeDailyReconciliation` then reconciles that date's **business day**: the caller passes `timeZone` and the source queries (`SalesOrder.orderDate`, `Payment.paymentDate`) use the half-open window from `businessDayRange()`. The journal is matched differently and deliberately — `JournalEntry.journalDate` is a date marker, not an instant, so it is matched exactly rather than by that window. West of UTC the marker sits hours before the window opens, and a range match would report every reconciled day as missing its entry.
+
+   This previously read "only the date choice is timezone-aware": `startOfDay`/`endOfDay` did `setUTCHours` on the marker and reconciled the UTC calendar day, so an America/New_York store had its evening counted into the next day and any deployment east of UTC reconciled the wrong date outright.
+
 2. **Result lands in `DailyReconciliationLog`** with `balanced=true|false` + per-category drift values.
 3. **Operator opens** `/app/admin/automations/daily-reconciliation` next morning — sees last-30-days table at the bottom. Any row with `balanced=false` is flagged amber.
 4. **If drift > $0.01** → investigate before exporting that day's JE to QuickBooks. Common causes: cancelled-line filter miss, missing JE for the day, JE state still DRAFT, late-arriving payments not in the JE window.
