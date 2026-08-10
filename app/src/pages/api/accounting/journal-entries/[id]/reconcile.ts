@@ -13,6 +13,7 @@ import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { computeDailyReconciliation } from "@/lib/dailyReconciliation";
+import { getBusinessTimeZone } from "@/lib/appSettings";
 import { logError, logger } from "@/lib/logger";
 
 /**
@@ -55,6 +56,7 @@ export async function handleReconcile(
     const startedAt = Date.now();
     const result = await computeDailyReconciliation({
       date: je.journalDate,
+      timeZone: await getBusinessTimeZone(),
       client,
     });
     const durationMs = Date.now() - startedAt;

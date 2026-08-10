@@ -224,7 +224,7 @@ describe("computeDailyReconciliation (real DB)", () => {
     });
     await seedPayment(106.35);
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.hasJournalEntry).toBe(false);
     expect(result.balanced).toBe(false);
     expect(result.warnings[0]).toContain("No POSTED/EXPORTED journal entry");
@@ -249,7 +249,7 @@ describe("computeDailyReconciliation (real DB)", () => {
       { code: "1-1380", credit: 400 }, // inventory (not summed in any of the 4 buckets)
     ]);
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.hasJournalEntry).toBe(true);
     expect(result.balanced).toBe(true);
     expect(result.warnings).toEqual([]);
@@ -273,7 +273,7 @@ describe("computeDailyReconciliation (real DB)", () => {
       { code: "5-5280", debit: 400 },
     ]);
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.balanced).toBe(false);
     expect(result.drift.revenue).toBe(50);
     expect(result.warnings.some((w) => w.includes("Revenue drift"))).toBe(true);
@@ -296,7 +296,7 @@ describe("computeDailyReconciliation (real DB)", () => {
       { code: "5-5280", credit: 200 }, // COGS reversed
     ]);
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.source).toMatchObject({ revenue: -500, tax: -31.75, cost: -200, cash: -531.75 });
     expect(result.journal.revenue).toBe(-500);
     expect(result.journal.cash).toBe(-531.75);
@@ -330,7 +330,7 @@ describe("computeDailyReconciliation (real DB)", () => {
       { code: "1-1310", credit: 20 }, // home acc inventory — in no bucket
     ]);
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.journal.cash).toBe(100);
     expect(result.journal.revenue).toBe(100); // both departments
     expect(result.journal.tax).toBe(6.35);
@@ -354,7 +354,7 @@ describe("computeDailyReconciliation (real DB)", () => {
       { code: "2-2121", credit: 10 }, // NY — dropped entirely before this change
     ]);
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.journal.tax).toBe(16.35);
   });
 
@@ -376,7 +376,7 @@ describe("computeDailyReconciliation (real DB)", () => {
       ],
     });
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.source.revenue).toBe(1000);
     expect(result.source.cost).toBe(400);
     // The cancelled $9999 / $5000 cost line was excluded — exactly
@@ -417,7 +417,7 @@ describe("computeDailyReconciliation (real DB)", () => {
       },
     });
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.source.revenue).toBe(100);
     // The yesterday order's $9999 didn't leak in.
   });
@@ -435,7 +435,7 @@ describe("computeDailyReconciliation (real DB)", () => {
       lines: [{ netPrice: 9999, vatAmount: 600, cost: 5000 }],
     });
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.source.revenue).toBe(0);
   });
 
@@ -465,7 +465,11 @@ describe("computeDailyReconciliation (real DB)", () => {
       await seedChart(HOLT_CHART);
       await seedPluggedDay(12000);
 
-      const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+      const result = await computeDailyReconciliation({
+        date: DAY,
+        timeZone: "UTC",
+        client: prisma,
+      });
 
       // The whole point: a human reads "plug: $12,000", not "revenue drift".
       expect(result.journal.overShort).toBe(12000);
@@ -484,7 +488,11 @@ describe("computeDailyReconciliation (real DB)", () => {
       await seedChart(HOLT_CHART);
       await seedPluggedDay(0.02);
 
-      const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+      const result = await computeDailyReconciliation({
+        date: DAY,
+        timeZone: "UTC",
+        client: prisma,
+      });
       // Reported, so it is on the record and in the log column...
       expect(result.journal.overShort).toBe(0.02);
       // ...but $0.02 of rounding is not an incident.
@@ -503,7 +511,11 @@ describe("computeDailyReconciliation (real DB)", () => {
       // success this control exists to prevent.
       await seedJournalEntry([{ code: "SOMETHING-1", debit: 500, credit: 0 }]);
 
-      const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+      const result = await computeDailyReconciliation({
+        date: DAY,
+        timeZone: "UTC",
+        client: prisma,
+      });
 
       expect(result.balanced).toBe(false);
       expect(result.warnings.some((w) => w.includes("sales GL account"))).toBe(true);
@@ -532,7 +544,11 @@ describe("computeDailyReconciliation (real DB)", () => {
       });
       await seedJournalEntry([{ code: "4-4080", credit: 500 }]);
 
-      const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+      const result = await computeDailyReconciliation({
+        date: DAY,
+        timeZone: "UTC",
+        client: prisma,
+      });
 
       expect(result.warnings.some((w) => w.includes("also configured as a department"))).toBe(true);
       // Over/Short is tested first, so the amount reports as a plug rather
@@ -579,7 +595,7 @@ describe("computeDailyReconciliation — alien chart of accounts (real DB)", () 
       { code: chart.cogs, debit: 400 },
       { code: chart.inventory, credit: 400 },
     ]);
-    return computeDailyReconciliation({ date: DAY, client: prisma });
+    return computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
   }
 
   it("reconciles a sale day identically to Holt's own chart", async () => {
@@ -628,7 +644,7 @@ describe("computeDailyReconciliation — alien chart of accounts (real DB)", () 
       { code: ALIEN_CHART.cogs, debit: 400 },
     ]);
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.drift.revenue).toBe(50);
     expect(result.balanced).toBe(false);
     expect(result.warnings.some((w) => w.includes("Revenue drift"))).toBe(true);
@@ -642,7 +658,7 @@ describe("computeDailyReconciliation — alien chart of accounts (real DB)", () 
       { code: ALIEN_CHART.overShort, credit: 5000 },
     ]);
 
-    const result = await computeDailyReconciliation({ date: DAY, client: prisma });
+    const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
     expect(result.journal.overShort).toBe(5000);
     expect(result.journal.revenue).toBe(1000);
     expect(result.balanced).toBe(false);

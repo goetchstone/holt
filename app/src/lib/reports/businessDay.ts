@@ -40,17 +40,15 @@
 // lib/reports/ reads app settings at all, which is also why so many deployment
 // facts ended up as literals in those files. This is the first one to ask.
 
-import { getAppSettings } from "@/lib/appSettings";
-
-/**
- * The deployment's business timezone. Cached 60s inside getAppSettings, and it
- * falls back to defaults rather than throwing, so a report never fails because
- * settings were unreadable.
- */
-export async function getBusinessTimeZone(): Promise<string> {
-  const settings = await getAppSettings();
-  return settings.timezone;
-}
+// PURE. No imports, no I/O -- deliberately.
+//
+// getBusinessTimeZone used to live here, which meant importing any date helper
+// also imported appSettings -> prisma -> pg. dailyReconciliation.ts is reached
+// from a CLIENT component (JournalEntriesView -> dailyReconciliationDisplay),
+// so that pulled the Postgres driver into a browser bundle and `next build`
+// failed with module-not-found on `dns`. tsc cannot see that; only the build
+// can. The timezone READ now lives with the other settings accessors in
+// lib/appSettings.ts; the date MATH stays here and stays client-safe.
 
 /**
  * The wall-clock offset of `timeZone` at a given instant, in milliseconds.
