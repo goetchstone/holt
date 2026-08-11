@@ -116,7 +116,7 @@ The $1,109 delta = lounges + extra delivery (base lines 4 & 5). the POS never re
 
 **Fix** (`lib/adapters/ordorite/sameDayRewriteCleanup.ts` + post-import sweep in `runSalesImport`):
 
-After every sales import, find every rewrite whose `orderDate` matches its base's `orderDate`. For each such pair, **also look up the same-day return-prefixed accounting return** (prefix-swap: the sale prefix→the return prefix, the sale prefix→the return prefix, the sale prefix→the return prefix). Apply the combined heuristic below to decide which base lines to cancel.
+After every sales import, find every rewrite whose `orderDate` matches its base's `orderDate`. For each such pair, **also look up the same-day accounting return** for the same customer. A return's order number is the sale's store code carrying the return marker — the `RETURN_STORE_SUFFIX` pattern in `lib/adapters/ordorite/shared.ts`, which is where the store codes themselves live. Apply the combined heuristic below to decide which base lines to cancel.
 
 **Combined heuristic** (recalibrated 2026-05-15 after the SO-39618 over-cancellation incident — single-axis lineNumber-only was too aggressive):
 

@@ -35,24 +35,24 @@ npm run seed:demo -- --reset         # wipe an existing seeded DB and reseed
 
 ## What it generates, in dependency order
 
-| Step | Module | What lands in the DB |
-|---|---|---|
-| 1 | `org.ts` | `Organization` + `AppSettings` (branding, currency/timezone, feature flags on) |
-| 2 | `accounting.ts` | Full chart of accounts (`GLAccount`), `AccountGroup` per department, **every** `SystemGLMapping` row the journal generator can look up, CT `TaxDistrict`/`TaxGroup`/`TaxRule`/`TaxExemptReason` |
-| 3 | `locations.ts` | 2 `StoreLocation`s + 1 warehouse, their `StockLocation`s (incl. one `holdsCommittedStock` staging bay, deliberately not named "Customer…"), 2 `Register`s per store |
-| 4 | `staff.ts` | `StaffMember` + linked `User` across all 6 real roles, with working local-login passwords |
-| 5 | `catalog.ts` | `Department` → `Category` → `Type` taxonomy, invented `Vendor`s, `Product`s with cost AND retail |
-| 6 | `customers.ts` | `Customer` + `CustomerAddress`, a trade/tax-exempt slice |
-| 7 | `commissionPlan.ts` | `CommissionPlan` + `CommissionPlanTier` (two plans — see "Commission model" below) |
-| 8 | `salesOrders.ts` | `SalesOrder` + `OrderLineItem` + `Invoice` + `Payment` + `Till`/`TillCount`, ~18 months |
-| 9 | `purchasing.ts` | `PurchaseOrder` + `PurchaseOrderItem` + `ReceivingRecord` |
-| 10 | `consignment.ts` | A GENERIC consignment `Vendor` + `ConsignmentReceipt`/`ConsignmentItem`/`ConsignmentPaymentBatch` |
-| 11 | `commissionPayouts.ts` | Real `CommissionPayout` rows via `lib/runCommissionPayouts.ts`'s `commitPayoutsForPeriod` |
-| 12 | `journal.ts` | Real `JournalEntry`/`JournalEntryLine` rows via `lib/journalEntry.ts`'s `generateSalesJournal` |
+| Step | Module                 | What lands in the DB                                                                                                                                                                            |
+| ---- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `org.ts`               | `Organization` + `AppSettings` (branding, currency/timezone, feature flags on)                                                                                                                  |
+| 2    | `accounting.ts`        | Full chart of accounts (`GLAccount`), `AccountGroup` per department, **every** `SystemGLMapping` row the journal generator can look up, CT `TaxDistrict`/`TaxGroup`/`TaxRule`/`TaxExemptReason` |
+| 3    | `locations.ts`         | 2 `StoreLocation`s + 1 warehouse, their `StockLocation`s (incl. one `holdsCommittedStock` staging bay, deliberately not named "Customer…"), 2 `Register`s per store                             |
+| 4    | `staff.ts`             | `StaffMember` + linked `User` across all 6 real roles, with working local-login passwords                                                                                                       |
+| 5    | `catalog.ts`           | `Department` → `Category` → `Type` taxonomy, invented `Vendor`s, `Product`s with cost AND retail                                                                                                |
+| 6    | `customers.ts`         | `Customer` + `CustomerAddress`, a trade/tax-exempt slice                                                                                                                                        |
+| 7    | `commissionPlan.ts`    | `CommissionPlan` + `CommissionPlanTier` (two plans — see "Commission model" below)                                                                                                              |
+| 8    | `salesOrders.ts`       | `SalesOrder` + `OrderLineItem` + `Invoice` + `Payment` + `Till`/`TillCount`, ~18 months                                                                                                         |
+| 9    | `purchasing.ts`        | `PurchaseOrder` + `PurchaseOrderItem` + `ReceivingRecord`                                                                                                                                       |
+| 10   | `consignment.ts`       | A GENERIC consignment `Vendor` + `ConsignmentReceipt`/`ConsignmentItem`/`ConsignmentPaymentBatch`                                                                                               |
+| 11   | `commissionPayouts.ts` | Real `CommissionPayout` rows via `lib/runCommissionPayouts.ts`'s `commitPayoutsForPeriod`                                                                                                       |
+| 12   | `journal.ts`           | Real `JournalEntry`/`JournalEntryLine` rows via `lib/journalEntry.ts`'s `generateSalesJournal`                                                                                                  |
 
 Everything is realistic-but-clearly-fake: invented names, `@example.com` emails, made-up
 CT-area addresses, invented furniture-trade vendor names. No real people, no real
-vendors, no data copied from any real dataset — only the *shape* of a real furniture
+vendors, no data copied from any real dataset — only the _shape_ of a real furniture
 retailer's numbers (see "Distribution choices" below).
 
 ## Commission model: tiers, not rules
@@ -84,7 +84,7 @@ If/when the rule-engine branch merges, `commissionPlan.ts` (and the "senior plan
 ## Distribution choices
 
 All shaped by a single seeded PRNG (mulberry32, see `rng.ts`) — no `Math.random()`
-anywhere in the seed. Measured *shape only* from a real furniture retailer; no actual
+anywhere in the seed. Measured _shape only_ from a real furniture retailer; no actual
 data is copied.
 
 ### Order value — heavily right-skewed
@@ -117,7 +117,7 @@ February), applied per calendar month regardless of which year it falls in withi
 Target: 85% card, 4% cash, 3% gift card, 2% store credit, 6% refunds (of all Payment
 rows, not orders). Achieved by drawing the base tender independently per order from
 `{CARD:85, CASH:4, GIFT_CARD:3, STORE_CREDIT:2}` (sum 94), then flagging a refund on
-`INVOICED_SHARE × REFUND_PROBABILITY_GIVEN_INVOICED = 0.70 × 0.0911 ≈ 6.38%` of *orders*
+`INVOICED_SHARE × REFUND_PROBABILITY_GIVEN_INVOICED = 0.70 × 0.0911 ≈ 6.38%` of _orders_
 — which, once refund rows are added on top of one row per order, lands refund ROWS at
 `0.0638 / 1.0638 ≈ 6.0%` of all payment rows (see `orderPlan.ts` for the derivation).
 Measured at ci scale: 85.3% / 3.6% / 2.5% / 2.5% / 6.25% (N=448 payment rows). Measured
@@ -145,7 +145,7 @@ row (`isRefund: true`, positive `paymentAmount` — `processRefund`'s real sign
 convention). Restricting refunds to invoiced orders is deliberate: an un-invoiced order's
 line items never reach `buildJournalLines` (they take the deposit-only branch), so a
 mirrored negative line there would be inert. This is what keeps the generated journal
-genuinely balanced on refund days *without* leaning on the Over/Short line to paper over
+genuinely balanced on refund days _without_ leaning on the Over/Short line to paper over
 an un-reversed sale — which is the exact failure mode this seed exists to avoid (see
 "Target: no unmapped payment types" below).
 
@@ -158,11 +158,11 @@ directly from the CASH-tender payments/refunds created for that session (mirrors
 except three DELIBERATELY forced sessions spread through the timeline that each land
 above one of `lib/tillVariance.ts`'s three thresholds:
 
-| Tier | Threshold | Seeded variance |
-|---|---|---|
-| NOTE | > $5 | −$12.50 |
-| MANAGER | > $20 | +$47.20 |
-| ESCALATION | > $100 | −$162.40 |
+| Tier       | Threshold | Seeded variance |
+| ---------- | --------- | --------------- |
+| NOTE       | > $5      | −$12.50         |
+| MANAGER    | > $20     | +$47.20         |
+| ESCALATION | > $100    | −$162.40        |
 
 The ESCALATION session is placed near the END of the window (second-to-last till
 session) and its register is left blocked as of the seed's reference date — calling the
@@ -173,9 +173,9 @@ yet.
 
 ## Target-database safety (rule 59)
 
-CLAUDE.md rule 59: *"`fbc_test_db` is the only database tests may write. `saybrook`,
+CLAUDE.md rule 59: _"`fbc_test_db` is the only database tests may write. `saybrook`,
 `holt_saybrook`, and `akritos` hold restored or seeded data and must never be written by
-a test or script."* This seed writes thousands of rows outside a transaction — more
+a test or script."_ This seed writes thousands of rows outside a transaction — more
 dangerous than a test run against the wrong database, since there's no
 TRUNCATE-and-retry safety net. `guard.ts`'s `assertSafeSeedTarget()` enforces:
 
@@ -225,27 +225,34 @@ and 1 open, identical journal totals to the penny for all 6 sampled days.
 
 ## Timezone
 
-`generateSalesJournal(date, ...)` computes its day window via `date.setHours(0,0,0,0)` /
-`setHours(23,59,59,999)` — **local** time, not UTC. Every payment timestamp this seed
-writes is constructed with `Date.UTC(...)`. Running under any timezone other than UTC
-risks the local-time day window clipping payments near midnight into the wrong journal.
+`generateSalesJournal(date, ...)` computes its day window from `businessDayRange()`
+against `AppSettings.timezone` — the deployment's **business** day. Every payment
+timestamp this seed writes is constructed with `Date.UTC(...)`, so a seeded payment near
+either end of a UTC day can land in the adjacent journal whenever the configured
+timezone is not UTC. `DEFAULT_APP_SETTINGS.timezone` is `America/New_York`, so that is
+the default case, not the exotic one.
+
 `npm run seed:demo` sets `TZ=UTC` at the process-env level in the script itself, and
-`index.ts` also sets `process.env.TZ = "UTC"` as its first statement (belt and
-suspenders — the npm-script env var is what actually matters, since it's set before the
-Node process even starts).
+`index.ts` also sets `process.env.TZ = "UTC"` as its first statement. Note what that
+does and does not buy now: it pins the seed's own `Date` construction, but it no longer
+governs the journal window, which reads app settings rather than the process timezone.
+
+This section previously said the window used `setHours` — **local** process time. That
+was true until the business-day fix, and it was why `TZ=UTC` mattered so much: the
+journal silently followed whatever timezone the host happened to have.
 
 ## Volume knob
 
-| | `ci` (default) | `demo` |
-|---|---|---|
-| Flag / env | `--scale=ci` / `HOLT_SEED_SCALE=ci` | `--scale=demo` / `HOLT_SEED_SCALE=demo` |
-| Orders | 420 | 6,000 |
-| Customers | 180 | 1,400 |
-| Products | 160 | 500 |
-| Designers | 6 | 10 |
-| Purchase orders | 40 | 260 |
-| Consignment items | 30 | 140 |
-| Measured runtime (local Docker Postgres) | ~4s | ~40s |
+|                                          | `ci` (default)                      | `demo`                                  |
+| ---------------------------------------- | ----------------------------------- | --------------------------------------- |
+| Flag / env                               | `--scale=ci` / `HOLT_SEED_SCALE=ci` | `--scale=demo` / `HOLT_SEED_SCALE=demo` |
+| Orders                                   | 420                                 | 6,000                                   |
+| Customers                                | 180                                 | 1,400                                   |
+| Products                                 | 160                                 | 500                                     |
+| Designers                                | 6                                   | 10                                      |
+| Purchase orders                          | 40                                  | 260                                     |
+| Consignment items                        | 30                                  | 140                                     |
+| Measured runtime (local Docker Postgres) | ~4s                                 | ~40s                                    |
 
 `ci` is sized for fast, disposable runs in CI or local iteration. `demo` is sized so
 dashboards, reports, and the commission tier ladder all have enough volume to look real,
@@ -276,10 +283,10 @@ Then check:
       `Card`, `Check`, `Gift Card`, `Store Credit`, `Wire`, `ACH`, `Finance`, `Other`.
 - [ ] At least one `Till` with `|variance|` above each of the three thresholds (see
       table above) — `SELECT id, variance, notes FROM "Till" WHERE variance IS NOT NULL
-      AND abs(variance) > 5 ORDER BY abs(variance) DESC;`
+    AND abs(variance) > 5 ORDER BY abs(variance) DESC;`
 - [ ] At least one `CommissionPayout` with `lockedAt IS NOT NULL`.
 - [ ] `npx tsc --noEmit` clean, `npx jest --selectProjects unit` green, `npm run
-      validate` 0 errors (note: `npm run lint`/`format:check` only scan `src/`, not
+    validate` 0 errors (note: `npm run lint`/`format:check` only scan `src/`, not
       `prisma/` — the seed's own tsconfig, `prisma/seed/tsconfig.seed.json`, is what
       `npx tsc --noEmit -p` that file checks; the root `npx tsc --noEmit` also picks up
       everything under `prisma/seed/demo/` via its `**/*.ts` include pattern).
@@ -301,12 +308,12 @@ keep around.
   `createMany`. See "Invoiced vs. deposit-only orders" above.
 - **`Return` records.** Every refund in this seed takes the
   `UNCLASSIFIED_DEFAULT_RESTOCK` booking path (no `Return` row), matching how every
-  *imported* historical return looks today — see `docs/domains/returns.md`. Generating
+  _imported_ historical return looks today — see `docs/domains/returns.md`. Generating
   classified `RESTOCKED`/`WRITTEN_OFF` `Return` rows to exercise the B3 write-off branch
   would be a reasonable follow-up but wasn't in scope here.
 - **`prisma/seed/tax.ts` was not reused directly.** Its `new PrismaClient()` (no driver
   adapter) throws under Prisma 7 — `PrismaClientInitializationError: PrismaClient needs
-  to be constructed with a non-empty, valid PrismaClientOptions` — a pre-existing issue
+to be constructed with a non-empty, valid PrismaClientOptions` — a pre-existing issue
   unrelated to this change (confirmed by running it standalone against a live database).
   `accounting.ts` seeds the same CT/6.35%/3-exempt-reason data directly through this
   seed's adapter-backed client instead of importing a script that currently can't run.

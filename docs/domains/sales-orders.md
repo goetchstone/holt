@@ -1,6 +1,6 @@
 # Sales & Orders
 
-Sales orders are imported from the POS daily via `Prior_Day_Sales_Data_Export`. the POS does not send order statuses -- they are derived during import.
+Sales orders are imported from the POS daily via `Prior_Day_Sales_Data_Export`. Status is derived during import -- but the CSV's optional `Status`/`Orderstatus` column IS read first, and two of its values are load-bearing (see Status Derivation).
 
 ## Order Number Convention
 
@@ -26,7 +26,7 @@ Orders with `- A`, `- B` after the number (e.g., `SO-38549 - A`) are **order rew
 
 **Invoice matching**: Invoice Memo references the base order number, not the rewrite. The invoice import tries suffixes `- D` through `- A` before falling back to the base. This is necessary because the active order in the system is the latest rewrite.
 
-**All three orders in a rewrite chain stay ACTIVE.** When the POS creates a rewrite it also records an accounting RETURN (`the return prefix`/`the return prefix`/`the return prefix` prefix) that negates the base, plus a payment row on the rewrite with `paymentType = "Gift Card"` representing the internal credit-note transfer of the base's deposit. The base, the return, and the rewrite all remain in ACTIVE statuses (ORDER/FULFILLED/RETURNED) in our DB -- daily sales totals then match the POS on every date:
+**All three orders in a rewrite chain stay ACTIVE.** When the POS creates a rewrite it also records an accounting RETURN under the store's A-suffix prefix (`SBOA`/`GTOA`/`CHOA`/`BBOA`/`WSOA`/`RSOA` -- the base's `..OM` prefix with `M` swapped for `A`, `sameDayReturnPrefixFor()` at `lib/adapters/ordorite/runners.ts:886`) that negates the base, plus a payment row on the rewrite with `paymentType = "Gift Card"` representing the internal credit-note transfer of the base's deposit. The base, the return, and the rewrite all remain in ACTIVE statuses (ORDER/FULFILLED/RETURNED) in our DB -- daily sales totals then match the POS on every date:
 
 - Base: +$base_total on its original date
 - Return: −$base_total on its own date (nets on same-period reports)
@@ -36,23 +36,24 @@ For balance/payment math, the "Gift Card" row on the rewrite is phantom (it's th
 
 Detection helpers:
 
-- Rewrite pattern: `isRewriteOrder()` matches `/\s*-\s*[A-D]$/`
+- Rewrite pattern: `isRewriteOrder()` matches `/\s{0,8}-\s{0,8}([A-D])$/` (`lib/adapters/ordorite/shared.ts:168`)
 - Base extraction: `rewriteBaseOrderno()` strips the suffix
 
 **Do NOT cancel rewrite bases or returns.** The 2026-04-21 `cancelSupersededBases()` approach (and the `20260421_cancel_rewrite_bases` migration) were REVERTED on 2026-04-23 via `20260423_uncancel_rewrite_bases` -- the cancellation was fixing the phantom-payment symptom at the wrong layer and broke daily-sales date distribution across all store reports. CLAUDE.md rule 40 captures the general principle: status is a broad hammer; fix imports at the import boundary, not by mutating data after the fact.
 
 ## Status Derivation
 
-`deriveSalesOrderStatus()` in `lib/importHelpers.ts` determines status using these checks in order:
+`deriveSalesOrderStatus()` in `lib/adapters/ordorite/shared.ts` determines status using these checks in order:
 
 1. Explicit "cancelled" in Status CSV field -> CANCELLED
 2. Explicit "return"/"returned" in Status CSV field -> RETURNED
-3. Order number has R/CR prefix -> RETURNED
-4. Order number has A-suffix store code (return prefixes) -> RETURNED
-5. Negative net total across all line items -> RETURNED
-6. Default -> ORDER
+3. `isReturnOrder(orderno)` -> RETURNED. One call covering three shapes: R/CR prefix, bare RS prefix, and A-suffix store code (`shared.ts:208-212`)
+4. Negative net total across all line items -> RETURNED
+5. Default -> ORDER
 
-**the POS does not send statuses.** Do not look for or expect a status field in the CSV.
+**The status field in steps 1-2 is real but optional.** The runner reads `safeString(firstRow.Status) || safeString(firstRow.Orderstatus)` (`lib/adapters/ordorite/runners.ts:273`). Only "cancelled" and "return"/"returned" mean anything; every other value, and its absence, falls through to the order-number and net-total heuristics.
+
+**The derived status does not always win.** The runner refuses to downgrade an existing order (`runners.ts:300-311`): an existing FULFILLED or CANCELLED order keeps its status outright, and an existing RETURNED order keeps RETURNED whenever the derivation says ORDER. In every other case the derived value is written.
 
 ## Orphan Line Cleanup
 
@@ -62,7 +63,7 @@ When an order is reimported with fewer line items than a prior import, the sales
 
 **Gap: same-day-rewrite drops also read as "orphan-cancelled" — found + fixed 2026-07-24.** The `!cancelReason` test above can't distinguish this section's genuine orphan-cancel from a deliberate same-day-rewrite-drop cancellation (`cleanupOneRewriteChain` in `docs/domains/import-pipeline.md` "Same-day rewrites"), because both used to write `lineItemStatus = CANCELLED` with no `cancelReason`. A base-only re-import (rewrite not in the same batch) silently reactivated dropped lines, reintroducing a double-count. Fixed by stamping `cancelReason = SAME_DAY_REWRITE_DROP_CANCEL_REASON` (`lib/adapters/ordorite/shared.ts`) on rewrite-drops so this reactivation guard treats them as deliberate, same as a user-cancel. This section's own orphan-cleanup (above) and the quote-runner's orphan-cleanup were audited and correctly left `cancelReason`-less — see `docs/domains/import-pipeline.md` "Same-day rewrites — the dropped-line edge case" for the full incident and the backfill decision (none — historical NULL-reason cancellations aren't blindly reclassified).
 
-**Rewrite-freeze exception** (2026-05-05; tightened 2026-05-07): Orphan-cleanup is **skipped entirely** for any order whose sibling rewrite (`<orderno> - A` / `- B` / `- C` / `- D`) already exists in the DB. After the POS splits an order into base + rewrite, the daily CSV permanently exports only the lines that "stayed" on the base — the items that "moved" now appear in the rewrite's CSV section. Without the freeze, every subsequent re-import would silently re-cancel the moved lines, dropping the base order's value from daily-by-store reports (the POS's own daily report still attributes the full pre-rewrite value to the original date because the rewrite chain is netted on the rewrite's date by the the return prefix accounting return). The check: `!isRewriteOrder(orderno) && (await tx.salesOrder.findFirst({ where: { orderno: { startsWith: \`${orderno} - \` } } })) !== null`. Per-line UPDATE still runs, so a manual re-import of a corrected CSV refreshes values; the reactivation guard from the 2026-05-02 fix still brings back any line the new CSV provides. See failure-log entries 2026-05-05 and 2026-05-07 (SO-39275 first and second hits — the second was caused by the QUOTE runner having its own un-frozen orphan-cleanup; both runners now have the freeze).
+**Rewrite-freeze exception** (2026-05-05; tightened 2026-05-07): Orphan-cleanup is **skipped entirely** for any order whose sibling rewrite (`<orderno> - A` / `- B` / `- C` / `- D`) already exists in the DB. After the POS splits an order into base + rewrite, the daily CSV permanently exports only the lines that "stayed" on the base — the items that "moved" now appear in the rewrite's CSV section. Without the freeze, every subsequent re-import would silently re-cancel the moved lines, dropping the base order's value from daily-by-store reports (the POS's own daily report still attributes the full pre-rewrite value to the original date because the rewrite chain is netted on the rewrite's date by the A-suffix accounting return). The check: `!isRewriteOrder(orderno) && (await tx.salesOrder.findFirst({ where: { orderno: { startsWith: \`${orderno} - \` } } })) !== null`. Per-line UPDATE still runs, so a manual re-import of a corrected CSV refreshes values; the reactivation guard from the 2026-05-02 fix still brings back any line the new CSV provides. See failure-log entries 2026-05-05 and 2026-05-07 (SO-39275 first and second hits — the second was caused by the QUOTE runner having its own un-frozen orphan-cleanup; both runners now have the freeze).
 
 **Quote runner — promoted-order guard** (post-failure log 2026-05-07): the Daily Quote Report from the POS includes EVERY order that ever had a quoteCode, including ones that have since been promoted to `status=ORDER`. Before 2026-05-07, `reconcileExistingQuoteOrder` reconciled line items for any order in the quote CSV regardless of status — and the quote CSV's `Sellingprice Exvat` column is a UNIT price (not a line total). This produced two bugs simultaneously: (1) multi-qty line totals on promoted orders got overwritten with unit prices, and (2) the quote runner's orphan-cleanup ran without the rewrite-freeze, re-cancelling lines on rewrite-base orders every auto-import. SO-39275's $7,819 OS gap recurred because of this. Fix: `runQuotesImport` now skips `reconcileExistingQuoteOrder` when `existing.status !== "QUOTE"`. The Sales runner is authoritative for promoted orders; the quote runner stays out. The freeze guard was also added to `reconcileExistingQuoteOrder` itself as defense in depth.
 
@@ -79,7 +80,7 @@ The status derivation logic handles the daily feed going forward. The one-time r
 
 ## Salesperson Correction Preservation
 
-If `SalesOrder.salesPersonId` is set (manual correction from split import or reassignment), the daily sales import skips updating the `salesperson` string field to avoid overwriting the correction. Detected via `correctedOrders` set in `runSalesImport()`.
+If `SalesOrder.salesPersonId` is set (manual correction from split import or reassignment), the daily sales import skips updating the `salesperson` string field to avoid overwriting the correction. Detected via the `correctedOrders` set in `runSalesImport()` (`lib/adapters/ordorite/runners.ts:177`). A second set, `lockedOrders` (`runners.ts:190`), suppresses the same write for existing orders dated inside a confirmed (not reopened) commission period, matched by salesperson NAME or FK; either set is enough (`runners.ts:330`).
 
 ## Per-line-item salesperson splits — NOT SUPPORTED (manual workaround required)
 
@@ -93,7 +94,7 @@ If `SalesOrder.salesPersonId` is set (manual correction from split import or rea
 
 Line items inherit the order's salesperson(s). A single order is owned by one person OR split 50/50 between two — that's the whole envelope, not per-line.
 
-### The the POS case that broke this assumption
+### The Ordorite case that broke this assumption
 
 SO-39837: managers in the POS have started splitting **a single line item** within an order (e.g. "only the live edge table is split between David and Julia, the rest of the order is David's"). the POS allows this. Our schema does not.
 
@@ -118,29 +119,30 @@ There's no automated detection for this pattern on our side — the import has n
 
 **Every query that sums line item amounts MUST filter `lineItemStatus: { not: "CANCELLED" }`.** Cancelled lines from orphan cleanup or manual cancellation must never inflate totals.
 
-Files that currently enforce this: `sales-summary.ts`, `salesperson-detail.ts`, `monthly-performance.ts`, `designer-dashboard.ts`, `sales-performance.ts`, `windfall-sales.ts`.
+This is CLAUDE.md rule 33. Do not maintain the enforcing-file list by hand -- the report logic now lives in `src/lib/reports/*` and `__tests__/reports.cancelledLineFilter.test.ts` auto-discovers each file there whose source mentions both `salesOrder` and `lineItems` (`reports.cancelledLineFilter.test.ts:153`), accepting a Prisma clause, a raw-SQL `<>`/`!=` guard, or the shared `buildLineItemWhere` helper. That predicate leaves a hole: a raw-SQL report that never spells `lineItems` -- e.g. `lib/reports/buyersReport.ts`, whose own `lineItemStatus != 'CANCELLED'` guards sit at `buyersReport.ts:325`, `:329` and `:441` -- is never discovered, so nothing fails if its guards are deleted. The same test separately pins `pages/api/reports/factsalesday.ts`, `lib/salesBySalesperson.ts`, `lib/reports/factSalesDay.ts` and `lib/journalEntry.ts`; `__tests__/integration/cancelledLineFilter.integration.test.ts` proves the exclusion against real Postgres.
 
 ## Key Files
 
-- `lib/importHelpers.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`
-- `lib/importRunners.ts` lines 47-362 -- `runSalesImport()`
-- `lib/paymentService.ts` -- `computeBalance()`, `postPayment()`
-- `pages/api/sales/` -- 18 API endpoints
+- `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`
+- `lib/adapters/ordorite/runners.ts` lines 134-723 -- `runSalesImport()`
+- `lib/importHelpers.ts` -- source-agnostic helpers only (`safeString`/`safeFloat`/`safeDate`, `splitCustomerName`, `findOrCreateCustomer`). The sales-order logic above is no longer here
+- `lib/paymentService.ts` -- `computeBalance()`, `recordPayment()`, `processRefund()` (there is no `postPayment()`)
+- `pages/api/sales/` -- 19 API endpoints
 
 ## B2B Proposals
 
-`Proposal`, `ProposalLineItem`, `ProposalItemImage` models. Builder at `/sales/proposals` (MANAGER/ADMIN only). User-entered cost + retail pricing. Image upload per line item. PDF generation via jsPDF. Convert to SalesOrder via `/api/proposals/[id]/convert-to-order`. Proposal number format: `BP-YYMMDD-NNN`.
+`Proposal`, `ProposalLineItem`, `ProposalItemImage` models. List at `/app/sales/proposals`, builder at `/app/sales/proposals/[id]` (MANAGER/ADMIN only). User-entered cost + retail pricing. Image upload per line item. PDF generation via jsPDF. Convert to SalesOrder via `/api/proposals/[id]/convert-to-order`. Proposal number format: `BP-YYMMDD-NNN`.
 
 ## Pipeline Page
 
 Quote cards show:
 
-- Customer name + **Lead Score badge** (all roles — HOT/WARM/COOL/NEW) + Wealth Tier badge (ADMIN/MARKETING only)
+- Customer name + **Lead Score badge** (all roles — HOT/WARM/COOL/NEW) + Wealth Tier badge (ADMIN/SUPER_ADMIN/MARKETING only)
 - Order number, store, salesperson, quote date
 - Urgency badge (days since last contact or quote creation)
 - Line item summary and last interaction
 
-`daysBetween()` uses `Intl.DateTimeFormat.formatToParts` for Eastern timezone. Null dates default to 0 ("Today"). Payment links and Customer Portal hidden from designers (MANAGER/ADMIN only).
+`daysBetween()` (`pages/api/sales/pipeline/index.ts:88`) uses `Intl.DateTimeFormat.formatToParts` with a hardcoded `America/New_York`. Null dates default to 0 ("Today"). There are no payment links or Customer Portal controls on these cards.
 
 Pipeline API (`api/sales/pipeline/index.ts`) computes lead score per customer and conditionally includes/omits `wealthTier` in the response based on session role (server-side enforcement — never leak wealth even if client hides it).
 
@@ -152,13 +154,13 @@ Managers can add `MANAGER_NOTE` source interactions to quotes from the Pipeline 
 
 `SalesOrder.pipelineArchivedAt`, `pipelineNote`, `archiveReason`, and `replacedByOrderId` work together to remove duplicate/outdated quotes from pipeline counts and conversion denominators without deleting them.
 
-Archive via `PATCH /api/sales/pipeline/[id]` with `{ archived: true, reason, replacedByOrderId?, note? }`. Reasons: Updated Quote, Duplicate, Customer Passed, Stale, Lost to competitor, Customer unresponsive, Other. When `reason` is "Updated Quote" or "Duplicate" the UI presents a dropdown of other active quotes on the same customer; the selected one is stored in `replacedByOrderId`.
+Archive via `PATCH /api/sales/pipeline/[id]` with `{ archived: true, reason, replacedByOrderId?, note? }`. Reasons are `ARCHIVE_REASONS` in `lib/quoteArchive.ts` -- the single list both the ArchiveModal and the endpoint import: Updated Quote, Duplicate, Customer Passed, Stale, Lost to competitor, Customer unresponsive, Budget constraint, No longer interested, Converted to order, Other. When `reason` is "Updated Quote" or "Duplicate" the UI presents a dropdown of other active quotes on the same customer; the selected one is stored in `replacedByOrderId`, and it is **required** for those two reasons -- `validateArchiveReplacementRequirement()` returns a 400 without it.
 
 Archived quotes:
 
-- Default-hidden on pipeline (toggle "Include archived" to see them)
+- Default-hidden on pipeline (an "Archived" tab next to "Active" switches the view)
 - Excluded from `quoteCount` / `totalValue` staff metrics
-- Show as greyed cards with "Replaced by SO-1234 →" pill when the link is set
+- Show as greyed cards with a "Replaced by SO-1234" link when the link is set
 
 Designers can archive their own quotes. Managers/Admins can archive any.
 
@@ -169,7 +171,9 @@ Pipeline API flags probable duplicates via `lib/duplicateQuotes.ts`. Two active 
 - 50%+ of distinct part numbers overlap (Jaccard-style: shared / max)
 - Totals within 10% of each other AND both ≥ $100
 
-Response includes `possibleDuplicateOf: { id, orderno }[]` per quote. UI shows a yellow "Possible duplicate of …" badge on cards. Archived quotes are excluded from detection (intentional — once you've decided something is a duplicate, stop flagging it).
+**Salesperson exclusion**: when both quotes have a `salesPersonId` set AND those IDs differ, the pair is skipped before either test runs — same-customer-different-designer is a customer transfer, not a duplicate (Issue #129).
+
+Response includes `possibleDuplicateOf: { id, orderno }[]` per quote. UI shows an amber "Possible duplicate of …" line on cards. Archived quotes are excluded from detection (intentional — once you've decided something is a duplicate, stop flagging it).
 
 ## OrderLineItem.netPrice Invariant
 
@@ -187,11 +191,11 @@ Response includes `possibleDuplicateOf: { id, orderno }[]` per quote. UI shows a
 
 **Why this matters**: the AR ledger backfill (`POST /api/admin/customer-ledger/backfill`) re-derives every customer's balance from the source-of-truth Payment + SalesOrder + OrderLineItem rows. Before this wiring, every new payment recorded after the backfill ran would silently desync `Customer.openArBalance` from the ledger (the backfill catches up, the live writes drift). The daily AR-drift cron (Phase 0.5.5, next up) would then surface noise that wasn't a real bug — just a missing wire.
 
-**Tests** (B-grade integration, `__tests__/integration/paymentServiceLedger.integration.test.ts`): 7 cases covering payment + ledger atomic, customerId resolution from order, walk-in skip, refund REFUND_ISSUED positive sign, full-refund status transition, payment failure rolls back Payment row too.
+**Tests** (B-grade integration, `__tests__/integration/paymentServiceLedger.integration.test.ts`): 7 cases: `recordPayment` writes a negative PAYMENT entry and bumps `openArBalance`; `recordPayment` falls back to `SalesOrder.customerId`; `recordPayment` skips the ledger for a true walk-in; a throw after `Payment.create` rolls the Payment row back too; `processRefund` writes a positive REFUND_ISSUED entry; `processRefund` resolves the customer from the original payment; `processRefund` skips the ledger when neither Payment nor SalesOrder has a customer.
 
 ## Verification Checklist
 
-- [ ] `npm test -- importHelpers` passes
+- [ ] `npm test -- ordoriteShared` passes (no test file matches `importHelpers`; the status/return/rewrite helpers moved to `ordoriteShared.test.ts`, which also covers the `lib/importHelpers.ts` coercion helpers)
 - [ ] Any line item aggregation filters `lineItemStatus: { not: "CANCELLED" }`
 - [ ] Return detection handles return-prefixed patterns (not just R/CR prefix)
 - [ ] Order rewrite suffixes (`- A`, `- B`) are not mistakenly treated as returns
@@ -200,9 +204,9 @@ Response includes `possibleDuplicateOf: { id, orderno }[]` per quote. UI shows a
 
 ## Test Coverage
 
-Covered: `deriveSalesOrderStatus`, `isReturnOrder` (R/CR prefix), `isRefundPayment`
+Covered in `__tests__/ordoriteShared.test.ts`: `deriveSalesOrderStatus`, `isReturnOrder` (R/CR prefix AND the A-suffix store codes SBOA/GTOA/CHOA/BBOA/WSOA, plus negative cases for M-suffix codes and rewrite suffixes), `isRewriteOrder`, `rewriteBaseOrderno`, `isRefundPayment`
 
-Gaps: `isReturnOrder` for return-prefixed patterns (RETURN_STORE_SUFFIX regex)
+Gaps: no `RS`-prefixed order number is tested at all, so neither the `RETURN_STORE_SUFFIX` RS branch nor the bare-`RS` check in `isReturnOrder` has coverage
 
 ---
 
