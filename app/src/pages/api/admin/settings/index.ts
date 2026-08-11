@@ -21,6 +21,7 @@ import {
 import { isValidFeatureKey } from "@/lib/featureCatalog";
 import { parseBookingConfig } from "@/lib/booking/config";
 import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
+import { isValidTimeZone } from "@/lib/reports/businessDay";
 
 const THEME_KEYS = Object.keys(DEFAULT_THEME) as ThemeKey[];
 
@@ -106,7 +107,19 @@ function parseLocaleFields(body: Body, data: SettingsData): ParseError {
     if (typeof body[field] !== "string" || (body[field] as string).trim() === "") {
       return { error: `${field} must be a non-empty string` };
     }
-    data[field] = (body[field] as string).trim();
+    const value = (body[field] as string).trim();
+    // Reject a timezone the runtime cannot format with, at the point of entry.
+    // Non-empty was the only check here, so "Eastern" or "America/New_york"
+    // saved fine and then threw a RangeError inside every report, the sales
+    // journal and the daily reconciliation. getAppSettings falls back on a bad
+    // stored value so nothing stays broken, but the operator should be told
+    // here rather than discovering it from an empty report tomorrow.
+    if (field === "timezone" && !isValidTimeZone(value)) {
+      return {
+        error: `timezone must be an IANA zone name such as "America/New_York" or "UTC" — ${JSON.stringify(value)} is not one this server recognises`,
+      };
+    }
+    data[field] = value;
   }
   return null;
 }

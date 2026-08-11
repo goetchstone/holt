@@ -189,7 +189,7 @@ function LocalizationSection({
     <section className="space-y-4">
       <h2 className="font-serif text-lg text-sh-blue">Localization</h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {(["currency", "locale", "timezone"] as const).map((key) => (
+        {(["currency", "locale"] as const).map((key) => (
           <div key={key}>
             <label htmlFor={`loc-${key}`} className="mb-1 block text-sm capitalize text-sh-gray">
               {key}
@@ -203,10 +203,48 @@ function LocalizationSection({
             />
           </div>
         ))}
+        {/* Timezone is a picker, not free text. It decides which day a sale,
+            a journal entry and the daily reconciliation each belong to, and a
+            value Intl cannot parse breaks all three at once. The server
+            rejects an unknown zone too -- this just stops it being typed. */}
+        <div>
+          <label htmlFor="loc-timezone" className="mb-1 block text-sm text-sh-gray">
+            Timezone
+          </label>
+          <select
+            id="loc-timezone"
+            value={settings.timezone}
+            onChange={(e) => onChange("timezone", e.target.value)}
+            className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+          >
+            {!TIME_ZONES.includes(settings.timezone) && (
+              <option value={settings.timezone}>{settings.timezone} (not recognised)</option>
+            )}
+            {TIME_ZONES.map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-sh-gray">
+            The business day every report, journal and reconciliation is measured against.
+          </p>
+        </div>
       </div>
     </section>
   );
 }
+
+/**
+ * Zones offered in the picker. `Intl.supportedValuesOf` omits "UTC" (it lists
+ * "Etc/UTC"), so it is added explicitly -- it is the neutral answer and the one
+ * a deployment that does not care should be able to pick without hunting.
+ */
+const TIME_ZONES: string[] = (() => {
+  const supported =
+    typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+  return ["UTC", ...supported.filter((z) => z !== "UTC")];
+})();
 
 type BookingField = {
   key: keyof ResolvedAppSettings["bookingConfig"];

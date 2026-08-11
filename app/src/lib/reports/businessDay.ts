@@ -130,3 +130,34 @@ export function businessDayKey(instant: Date, timeZone: string): string {
     day: "2-digit",
   }).format(instant);
 }
+
+/**
+ * Is `timeZone` a zone the runtime actually understands?
+ *
+ * Every function above feeds `timeZone` to `Intl.DateTimeFormat`, which throws
+ * a RangeError on anything it does not recognise. The settings field behind it
+ * is free text, so "Eastern", "America/Nowhere" or a value with a stray space
+ * used to be stored happily and then break salesDaily, the sales journal and
+ * the daily reconciliation at once -- every money path, from one typo in an
+ * admin form.
+ *
+ * Intl is more forgiving than it looks, and the guard inherits that on purpose:
+ * zone names match case-insensitively ("america/new_york" is fine) and legacy
+ * aliases still resolve ("EST", "GMT", "US/Eastern"). Surrounding whitespace
+ * does NOT resolve, which is why callers trim before validating.
+ *
+ * A try/catch probe rather than a membership test against
+ * `Intl.supportedValuesOf("timeZone")`, deliberately: that list has 418 entries
+ * and does NOT contain "UTC" (it spells it "Etc/UTC"), so an allow-list would
+ * reject the single most obviously-valid answer. The probe accepts anything the
+ * runtime can actually format with, which is exactly the property callers need.
+ */
+export function isValidTimeZone(timeZone: string): boolean {
+  if (!timeZone || typeof timeZone !== "string") return false;
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone }).format(new Date(0));
+    return true;
+  } catch {
+    return false;
+  }
+}
