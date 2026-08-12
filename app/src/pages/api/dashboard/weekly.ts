@@ -11,8 +11,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { getMonth, getYear, getDaysInMonth, differenceInDays, addDays } from "date-fns";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import {
   startOfRetailWeek,
   lastCompleteWeekStart,
@@ -221,10 +220,7 @@ function buildWowExtras(wow: boolean, win: WeekWindow, cmp: Comparisons) {
   };
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const typeParam = (req.query.type as string)?.toLowerCase() || "company";
     const departmentsQuery = (req.query.departments as string)?.split(",").filter(Boolean);
@@ -300,3 +296,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: "Dashboard query failed" });
   }
 }
+
+// Report data read on screen — net sales, goal attainment and margin-adjacent
+// figures for both /reports/dashboard and /reports/weekly-summary, which is
+// `reporting.read` (the Reports hub's own gate, navPermissions.ts). Downloading
+// it is the separate, sensitive `reporting.export`; gating the on-screen read on
+// that would lock out Designers and Marketing, who run this report today.
+export default requirePermission("reporting.read", handler);

@@ -3,15 +3,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -124,3 +120,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to fetch sales orders" });
   }
 }
+
+// GET-only order list. The write half of this family (./[id].ts, line-items,
+// dispatch, create-from-cart) is `sales.write`; the read half is `sales.read` —
+// verbatim "See quotes, orders and proposals", and the key the Sales nav entry
+// is derived from. Not sales.write: warehouse and installer staff hold only the
+// read grant and reach this list through the service-case and return screens
+// that look an order up.
+export default requirePermission("sales.read", handler);

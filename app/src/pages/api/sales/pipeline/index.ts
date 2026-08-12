@@ -1,8 +1,8 @@
 // /app/src/pages/api/sales/pipeline/index.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { calculateLeadScore, type LeadTier } from "@/lib/leadScore";
 import { detectPossibleDuplicates } from "@/lib/duplicateQuotes";
@@ -276,13 +276,13 @@ function mapQuote(
   };
 }
 
-export default async function handler(
+async function handler(
   req: NextApiRequest,
   res: NextApiResponse<PipelineResponse | { error: string }>,
+  session: Session,
 ) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
-  const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.email) return res.status(401).json({ error: "Unauthorized" });
 
   const staff = await prisma.staffMember.findUnique({
@@ -560,3 +560,10 @@ export default async function handler(
     showingArchived,
   });
 }
+
+// Same permission as ./[id].ts, which archives and restores the quotes this
+// board lists: the pipeline is a designer/manager concern. It matches the Sales
+// hub's own Pipeline card (ADMIN/MANAGER/DESIGNER), which is the only link to
+// this board. The per-scope and per-field visibility checks inside the handler
+// (canViewAll, wealth, lead score) are unchanged and still narrow further.
+export default requirePermission("sales.lead", handler);

@@ -2,21 +2,10 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import {
-  success,
-  unauthorized,
-  badRequest,
-  notFound,
-  methodNotAllowed,
-  handleError,
-} from "@/lib/apiResponse";
+import { requirePermission } from "@/lib/auth/requireAuth";
+import { success, badRequest, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   const transferId = Number.parseInt(req.query.id as string);
   if (Number.isNaN(transferId)) return badRequest(res, "Invalid transfer ID");
 
@@ -66,3 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return methodNotAllowed(res, ["GET"]);
 }
+
+// Detail read of the transfer rows transfers/index.ts lists and
+// transfers/[id]/status.ts advances — same capability as both.
+export default requirePermission("inventory.transfer", handler);

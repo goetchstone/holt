@@ -1,22 +1,17 @@
 // /app/src/pages/api/inventory/scan-history.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const session = await getServerSession(req, res, authOptions);
-  const userId = (session?.user as any)?.id;
-
-  if (!userId) {
-    return res.status(401).json({ error: "Not authenticated." });
-  }
+  const userId = (session.user as any)?.id;
 
   const { location, cursor } = req.query;
   const limit = 25; // Fetch 25 scans at a time
@@ -49,3 +44,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: "Failed to fetch scan history." });
   }
 }
+
+export default requirePermission("inventory.count", handler);

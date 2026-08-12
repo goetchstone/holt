@@ -7,22 +7,13 @@
 // see ALL products.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
-import { success, unauthorized, forbidden, methodNotAllowed, handleError } from "@/lib/apiResponse";
+import { success, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return unauthorized(res);
-
-  const role = (session as { role?: string }).role;
-  if (role !== "MANAGER" && role !== "ADMIN") {
-    return forbidden(res, "Manager or Admin role required");
-  }
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
 
   try {
@@ -88,3 +79,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return handleError(res, err, "GET /admin/uncategorized-products");
   }
 }
+
+export default requirePermission("catalog.write", handler);

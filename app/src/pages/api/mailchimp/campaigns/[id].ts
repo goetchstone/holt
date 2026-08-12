@@ -7,8 +7,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import {
   computeCampaignAttribution,
   type EngagementEvent,
@@ -32,10 +31,7 @@ export interface CampaignDetailAttribution extends CampaignAttributionResult {
   }>;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).end();
 
   const { id } = req.query;
@@ -200,3 +196,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: "Failed to load campaign" });
   }
 }
+
+// Campaign detail read on screen: stats plus the attribution block -- revenue,
+// revenue-per-send, department rollup and top purchasers. That is report data,
+// and it is the same class of payload dashboard/weekly.ts gates on
+// `reporting.read` ("net sales, goal attainment and margin-adjacent figures").
+// Its only live caller is CampaignDetailView under /app/reports/mailchimp,
+// a bare requirePage(), so the Reports nav entry is the audience signal.
+// (components/dashboard/MarketingDashboard.tsx also calls this but is imported
+// nowhere -- it is dead code and does not widen the audience.)
+export default requirePermission("reporting.read", handler);

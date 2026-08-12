@@ -1,16 +1,13 @@
 // /app/src/pages/api/exports/windfall-sales.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { AsyncParser } from "@json2csv/node";
 import { logger, logError } from "@/lib/logger";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   const { start, end } = req.query;
@@ -109,3 +106,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Export failed" });
   }
 }
+
+// Line-item sales CSV (net price, salesperson, customer code) for a date range.
+// Same download capability as its sibling on the same admin export page and as
+// the Traffic CSV (reports/traffic/export.ts).
+export default requirePermission("reporting.export", handler);

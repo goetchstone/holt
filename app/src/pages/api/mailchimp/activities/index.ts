@@ -2,14 +2,10 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).end();
 
   try {
@@ -66,3 +62,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: "Failed to load activity" });
   }
 }
+
+// Per-customer email engagement, joined to customer name/email. TWO surfaces
+// read this, and the gate has to serve the wider of them: the Reports activity
+// log (/app/reports/mailchimp/activity) AND the Email Activity panel on
+// customer detail (/app/sales/customers/[id]), which calls it with
+// `search=<email>`. That panel sits behind the Sales hub, whose floor is
+// `customer.read` (navPermissions.ts) -- Register, Warehouse and Installer
+// reach it and do NOT hold `reporting.read`, so gating this on the Reports
+// permission would blank the panel for them. `customer.read` is also what the
+// sibling that does this exact job uses: customers/[id]/email-stats.ts reads
+// the same mailchimpActivity rows for one customer's email.
+export default requirePermission("customer.read", handler);

@@ -2,13 +2,10 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
   const { id } = req.query;
   const campaignId = id as string;
 
@@ -63,4 +60,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default handler;
+// Bulk customer-list read: every Customer row that engaged the campaign, whole
+// record, with `addresses` and `externalIds` included -- name, email, phone and
+// street address for the segment. The sibling that hands out the customer book
+// with those same relations is exports/windfall-customers.ts, gated on
+// `reporting.export`, which is verbatim "Download report data and customer
+// lists" and is flagged sensitive in the catalog. Choosing the sensitive
+// permission costs no working surface here: nothing in the app calls this
+// endpoint -- it has no UI, so there is no page audience to over-gate.
+export default requirePermission("reporting.export", handler);

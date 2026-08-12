@@ -6,8 +6,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import {
   computeCampaignAttribution,
   type EngagementEvent,
@@ -38,10 +37,7 @@ function toDate(v: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).end();
 
   try {
@@ -212,3 +208,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: "Failed to load campaigns" });
   }
 }
+
+// The Campaign Impact list read on screen -- per-campaign purchasers, revenue
+// and revenue-per-send. Same payload class as dashboard/weekly.ts, which gates
+// on `reporting.read`. Both callers (MailchimpView at /app/reports/mailchimp
+// and MailchimpImportView at /app/reports/mailchimp/import) are bare
+// requirePage() pages under the Reports hub, whose nav gate is `reporting.read`.
+// The sync buttons on those pages keep their own `marketing.write`.
+export default requirePermission("reporting.read", handler);
