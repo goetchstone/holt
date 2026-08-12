@@ -13,6 +13,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { isValidTimeZone } from "@/lib/reports/businessDay";
 import type { Branding } from "@/lib/branding";
 import { parseBookingConfig, BOOKING_DEFAULTS, type BookingConfig } from "@/lib/booking/config";
 
@@ -156,7 +157,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     themeMode,
     currency: row.currency?.trim() || DEFAULT_APP_SETTINGS.currency,
     locale: row.locale?.trim() || DEFAULT_APP_SETTINGS.locale,
-    timezone: row.timezone?.trim() || DEFAULT_APP_SETTINGS.timezone,
+    timezone: safeTimeZone(row.timezone),
     features,
     bookingConfig: parseBookingConfig(row.bookingConfig),
     // An unknown id resolves in the registry, not here -- this layer reports
@@ -259,6 +260,29 @@ export function themeToCssVars(theme: Theme): string {
  * so that those stay pure: they are imported transitively by client components,
  * and a settings read drags Prisma into the browser bundle.
  */
+/**
+ * A stored timezone the date helpers can actually use.
+ *
+ * This used to be `row.timezone?.trim() || DEFAULT`, which only guarded EMPTY.
+ * A non-empty but invalid value -- the settings form is free text -- passed
+ * straight through to Intl.DateTimeFormat and threw a RangeError inside
+ * salesDaily, generateSalesJournal and computeDailyReconciliation alike.
+ *
+ * Falling back is the right failure mode here rather than throwing: this
+ * function's whole contract is that reads never fail on unreadable settings.
+ * The row is still wrong and an operator has to fix it, so it is logged.
+ */
+function safeTimeZone(stored: string | null): string {
+  const trimmed = stored?.trim();
+  if (!trimmed) return DEFAULT_APP_SETTINGS.timezone;
+  if (isValidTimeZone(trimmed)) return trimmed;
+  logError(
+    "AppSettings.timezone is not a timezone this runtime recognises; falling back",
+    new Error(`invalid timezone ${JSON.stringify(trimmed)}`),
+  );
+  return DEFAULT_APP_SETTINGS.timezone;
+}
+
 export async function getBusinessTimeZone(): Promise<string> {
   const settings = await getAppSettings();
   return settings.timezone;
