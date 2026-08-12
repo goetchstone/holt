@@ -4,10 +4,10 @@ Customer returns processing. **Two parallel realities** must be understood befor
 
 ## The dual reality
 
-| Path | Where the data lives | Completeness |
-|---|---|---|
-| **Imported the POS returns** | Negative line items on a `SalesOrder` with status `RETURNED` (e.g. orderno `SR-13252` is the accounting-return shape) PLUS a negative `Payment` row for the refund tender | **Gappy** — no return reason, no link to original the sale prefix, no restock/writeoff flag |
-| **ERP-native returns** | Populated `Return` model with reason, condition, pickup address, inspection notes, restock flag | **Complete** |
+| Path                         | Where the data lives                                                                                                                                                                                                                        | Completeness                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Imported the POS returns** | Negative line items on a `SalesOrder` with status `RETURNED` (e.g. orderno `SBOA013491` — the store-code + `A` shape matched by `isReturnOrder()` in `lib/adapters/ordorite/shared.ts`) PLUS a negative `Payment` row for the refund tender | **Gappy** — no return reason, no link to the original sale, no restock/writeoff flag |
+| **ERP-native returns**       | Populated `Return` model with reason, condition, pickup address, inspection notes, restock/write-off disposition                                                                                                                            | **Complete**                                                                         |
 
 Reports must understand both. The `Return` table is empty for 12K+ historical the POS returns; data lives on the SalesOrder side instead.
 
@@ -15,40 +15,44 @@ Reports must understand both. The `Return` table is empty for 12K+ historical th
 
 Fields driving the workflow:
 
-| Field | Notes |
-|---|---|
-| `returnNumber` | `RET-YYMMDD-NNN` autogen on create |
-| `status` | `INITIATED` → `INSPECTED` → `APPROVED` → `RESTOCKED`/`WRITTEN_OFF`/`REFUNDED`/`EXCHANGED` |
-| `reason` | enum: DEFECTIVE, DAMAGED_IN_DELIVERY, WRONG_ITEM, CUSTOMER_CHANGED_MIND, NOT_AS_DESCRIBED, DUPLICATE_ORDER, OTHER |
-| `inspectionCondition` | LIKE_NEW, MINOR_DAMAGE, MAJOR_DAMAGE, UNSALVAGEABLE — drives restock-vs-writeoff |
-| `salesOrderId` + `lineItemId` | Direct FK to the original sale (NOT available for imported returns) |
-| `pickupRequired` + `pickupAddressId` | Optional pickup scheduling — feeds the dispatch board if true |
-| `restockingFeePct` | Optional fee retained |
-| `exchangeOrderId` | If the return triggers a replacement order, this links to it |
+| Field                                | Notes                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `returnNumber`                       | `RET-YYMMDD-NNN` autogen on create                                                                                                                                                                                                                                                                                                                                |
+| `status`                             | `INITIATED` → `PICKUP_SCHEDULED` → `PICKUP_COMPLETED` → `RECEIVED` → `INSPECTED` → `RESTOCKED`/`WRITTEN_OFF`/`CLOSED`; `INITIATED` may also go straight to `RECEIVED`, and `CANCELLED` is reachable from every state before `INSPECTED`. Legal edges are `VALID_TRANSITIONS` in `lib/returnService.ts` — there is no `APPROVED`, `REFUNDED` or `EXCHANGED` status |
+| `reason`                             | enum: DEFECTIVE, DAMAGED_IN_DELIVERY, WRONG_ITEM, CUSTOMER_CHANGED_MIND, NOT_AS_DESCRIBED, DUPLICATE_ORDER, OTHER                                                                                                                                                                                                                                                 |
+| `inspectionCondition`                | LIKE_NEW, MINOR_DAMAGE, MAJOR_DAMAGE, UNSALVAGEABLE — drives restock-vs-writeoff                                                                                                                                                                                                                                                                                  |
+| `salesOrderId` + `lineItemId`        | Direct FK to the original sale (NOT available for imported returns)                                                                                                                                                                                                                                                                                               |
+| `pickupRequired` + `pickupAddressId` | Optional pickup scheduling — feeds the warehouse returns queue's pickup tab and the pickup schedule at `/app/warehouse/pickups` if true                                                                                                                                                                                                                           |
+| `exchangeOrderId`                    | If the return triggers a replacement order, this links to it                                                                                                                                                                                                                                                                                                      |
+| `refundPaymentId` + `refundAmount`   | Stamped by the refund endpoint once a refund `Payment` is issued                                                                                                                                                                                                                                                                                                  |
+| `portalToken` + `portalRequestedAt`  | Set when staff mint a customer-portal return link; the portal routes key off them                                                                                                                                                                                                                                                                                 |
 
 ## UI + API
 
-| Surface | Endpoint |
-|---|---|
-| Returns list | `pages/sales/returns/index.tsx` → `GET /api/returns` |
-| New return | `pages/sales/returns/new.tsx` → `POST /api/returns` |
-| Return detail | `pages/sales/returns/[id].tsx` → `GET /api/returns/[id]` |
-| State transitions | `POST /api/returns/[id]/[action]` (inspect, approve, restock, etc.) |
-| Exchange | `POST /api/returns/[id]/exchange` — creates an exchange `SalesOrder` linked via `exchangeOrderId`, mirrors the original storeLocation + salesperson + customer |
-| Pickup planning | dispatch board reads `pickupRequired = true && status IN INITIATED/INSPECTED` |
+| Surface           | Endpoint                                                                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Returns list      | `/app/sales/returns` (`app/(dashboard)/app/sales/returns/page.tsx`) → `GET /api/returns`                                                                                                   |
+| New return        | `/app/sales/returns/new` → `POST /api/returns`                                                                                                                                             |
+| Return detail     | `/app/sales/returns/[id]` → `GET /api/returns/[id]`; `PUT /api/returns/[id]` edits pickup fields + `reasonNotes` only                                                                      |
+| Returns queue     | `/app/warehouse/returns` → `GET /api/warehouse/returns/queue` (pickup / inspection / decision tabs)                                                                                        |
+| State transitions | `PUT /api/returns/[id]/status` with the target status in the body — rejected unless `isValidTransition` allows the edge                                                                    |
+| Refund            | `POST /api/returns/[id]/refund` → `processRefund` in `lib/paymentService.ts`, then stamps `refundPaymentId` + `refundAmount`                                                               |
+| Exchange          | `POST /api/returns/[id]/exchange` — creates an exchange `SalesOrder` linked via `exchangeOrderId`, mirrors the original storeLocation + salesperson + customer                             |
+| Pickup planning   | `/app/warehouse/pickups` → `GET /api/warehouse/returns/pickups` reads `pickupRequired = true && status IN INITIATED/PICKUP_SCHEDULED`                                                      |
+| Customer portal   | `GET /api/portal/returns/[token]` + `POST /api/portal/returns/request` — token-only, no staff session; staff mint the token with `POST /api/sales/orders/[id]/return-link` (`sales.write`) |
 
-Auth: `roles: ["ADMIN", "MANAGER", "REGISTER", "WAREHOUSE"]` per `pages/api/returns/[id]/exchange.ts` and similar.
+Auth is mixed. `/api/returns`, `/api/returns/[id]` and `/api/returns/[id]/exchange` gate on `requirePermission("sales.return")`, which MANAGER, REGISTER and WAREHOUSE hold by default (`lib/auth/permissionCatalog.ts`) on top of ADMIN/SUPER_ADMIN. `/api/returns/[id]/status` is still `requireAuthWithRole(["REGISTER", "MANAGER", "ADMIN"])` and `/api/returns/[id]/refund` is `requireAuthWithRole(["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"])`. The list/new/detail pages require only a signed-in user. The warehouse queue and pickup PAGES are MANAGER/ADMIN/WAREHOUSE, but the endpoints behind them are not: `/api/warehouse/returns/queue` and `/api/warehouse/returns/pickups` are bare `getServerSession` with no role check, so any signed-in user can read the customer names, phone numbers and pickup addresses they return.
 
 ## Accounting view — returns are sales-in-reverse
 
-User direction 2026-04-28: *"returns aren't shrinkage — they're sales in reverse."*
+User direction 2026-04-28: _"returns aren't shrinkage — they're sales in reverse."_
 
 The JE shape (per `docs/domains/accounting.md`):
 
-| Event | JE shape |
-|---|---|
-| Return | Debit Sales (reverse the credit), debit Sales-Tax-Payable (reverse the tax), credit Cash/Card (refund tender), then EITHER debit Inventory + credit COGS (restock) OR debit the department's shrinkage/write-off GL + credit COGS (writeoff). The "Returns" GL account in the schema is mostly informational — actual lines hit Sales / Tax / Cash. |
-| Shrinkage | Debit Shrinkage, credit Inventory. No cash movement. **Separate from returns.** |
+| Event     | JE shape                                                                                                                                                                                                                                                                                                                                            |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Return    | Debit Sales (reverse the credit), debit Sales-Tax-Payable (reverse the tax), credit Cash/Card (refund tender), then EITHER debit Inventory + credit COGS (restock) OR debit the department's shrinkage/write-off GL + credit COGS (writeoff). The "Returns" GL account in the schema is mostly informational — actual lines hit Sales / Tax / Cash. |
+| Shrinkage | Debit Shrinkage, credit Inventory. No cash movement. **Separate from returns.**                                                                                                                                                                                                                                                                     |
 
 **B3 shipped 2026-07-24**: the restock-vs-writeoff decision is now wired into the JE generator (`resolveReturnBookingPath()` in `lib/journalEntry.ts`), not just modeled in the schema. Three named paths:
 
@@ -61,70 +65,64 @@ The JE shape (per `docs/domains/accounting.md`):
 
 What we can't get from any current the POS export:
 
-| Data hole | Impact | Recovery |
-|---|---|---|
-| No link to original sale (accounting returns) | Limits return-rate analytics | Heuristic (orderno pattern + customer + date proximity + line-item overlap) — reconstructible as a one-off if needed |
-| No return reason | Can't categorize for vendor scorecards | Imported returns lump under "Customer Return — reason not captured." Document in runbook. |
-| No restock-vs-writeoff flag per item | All imported returns take the `UNCLASSIFIED_DEFAULT_RESTOCK` path (owner rule) — visible on the "Unclassified Returns" report | Manual transfer-out, OR classify a `Return` record to `WRITTEN_OFF`, for any item actually written off |
-| Tax computed at return-date rate, not sale-date rate | Small edge case (CT rate hasn't changed in years) | Accept the POS's value |
-| Refund tender doesn't reference line items | OK for JE (sum at order level); gap for partial-refund analytics | Native ERP path captures this |
-| `Return` model never populated by import | Two parallel realities | Document the duality (this runbook) |
+| Data hole                                            | Impact                                                                                                                        | Recovery                                                                                                             |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| No link to original sale (accounting returns)        | Limits return-rate analytics                                                                                                  | Heuristic (orderno pattern + customer + date proximity + line-item overlap) — reconstructible as a one-off if needed |
+| No return reason                                     | Can't categorize for vendor scorecards                                                                                        | Imported returns lump under "Customer Return — reason not captured." Document in runbook.                            |
+| No restock-vs-writeoff flag per item                 | All imported returns take the `UNCLASSIFIED_DEFAULT_RESTOCK` path (owner rule) — visible on the "Unclassified Returns" report | Manual transfer-out, OR classify a `Return` record to `WRITTEN_OFF`, for any item actually written off               |
+| Tax computed at return-date rate, not sale-date rate | Small edge case (CT rate hasn't changed in years)                                                                             | Accept the POS's value                                                                                               |
+| Refund tender doesn't reference line items           | OK for JE (sum at order level); gap for partial-refund analytics                                                              | Native ERP path captures this                                                                                        |
+| `Return` model never populated by import             | Two parallel realities                                                                                                        | Document the duality (this runbook)                                                                                  |
 
 ## Same-day rewrite edge case
 
-Per CLAUDE.md gotcha "Same-day rewrites drop dangling lines in the base" (post-failure 2026-05-12, recalibrated 2026-05-15):
+Per `docs/domains/import-pipeline.md` "Same-day rewrites — the dropped-line edge case" (post-failure 2026-05-12, recalibrated 2026-05-15):
 
-When the POS same-day-rewrites an order, dropped lines get left ACTIVE on the base order with no offsetting return. Detection + cancellation happens in `lib/sameDayRewriteCleanup.ts` (combined 3-axis heuristic) — runs post-import in `runSalesImport`. See the gotcha in CLAUDE.md for the full pattern.
-
-## Restocking fees
-
-Native ERP returns: `restockingFeePct` on `Return` reduces the refund amount; the difference is retained as a fee. Visible on the return detail page.
-
-Imported the POS returns: math falls out of the line-item totals (return total < original sale total = fee retained). No extra data needed beyond what's already imported.
+When the POS same-day-rewrites an order, dropped lines get left ACTIVE on the base order with no offsetting return. Detection is `findDroppedBaseLineIds` in `lib/adapters/ordorite/sameDayRewriteCleanup.ts` (combined 3-axis heuristic); the cancellation runs post-import inside `runSalesImport` (`lib/adapters/ordorite/runners.ts`), stamping `lineItemStatus = CANCELLED` plus `SAME_DAY_REWRITE_DROP_CANCEL_REASON`. See that section for the full pattern.
 
 ## Exchange orders
 
-`POST /api/returns/[id]/exchange` creates a new `SalesOrder` with prefix `EX-YYMMDD-NNN`, status `QUOTE`, linked to the return via `exchangeOrderId`. Inherits the original's customer + storeLocation + salesperson. The original return's status moves toward `EXCHANGED` once the new order is fulfilled.
+`POST /api/returns/[id]/exchange` creates a new `SalesOrder` with prefix `EX-YYMMDD-NNN`, status `QUOTE`, linked to the return via `exchangeOrderId`. Inherits the original's customer + storeLocation + salesperson. The call is refused if `exchangeOrderId` is already set, and it does not touch the return's own status — there is no `EXCHANGED` status.
 
 The exchange order is a regular sales order from that point — runs through the normal sales flow.
 
 ## Audit trail
 
-Every state transition writes to `OrderChangeLog` for the linked `salesOrderId`:
+Every state transition writes to `OrderChangeLog` for the linked `salesOrderId`. `changeType` is a free-text `String` column, and the status route builds it as `RETURN_` + the new status — so the transition set is every `ReturnStatus` value that is a legal transition TARGET, prefixed (`INITIATED` is never a target; `RETURN_INITIATED` only comes from the create paths):
 
-| Action | changeType |
-|---|---|
-| Exchange created | `RETURN_EXCHANGE_CREATED` |
-| Inspection complete | `RETURN_INSPECTED` |
-| Approved for refund | `RETURN_APPROVED` |
-| Restocked | `RETURN_RESTOCKED` |
-| Written off | `RETURN_WRITTEN_OFF` |
+| Action                                             | changeType                                                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Return created (also when a portal link is minted) | `RETURN_INITIATED`                                                                                           |
+| Any status transition                              | `RETURN_<NEW_STATUS>` — e.g. `RETURN_RECEIVED`, `RETURN_INSPECTED`, `RETURN_RESTOCKED`, `RETURN_WRITTEN_OFF` |
+| Refund issued                                      | `RETURN_REFUND_ISSUED`                                                                                       |
+| Exchange created                                   | `RETURN_EXCHANGE_CREATED`                                                                                    |
 
 ## Verification checklist (before touching returns code)
 
 - [ ] Read this runbook + `docs/domains/sales-orders.md` (RETURNED status, A-suffix detection)
-- [ ] Read the RETURNED-status NULL-trap rule (CLAUDE.md rule 51 / canonical `SALES_REVENUE_STATUSES`)
+- [ ] Read the RETURNED-status revenue rule (CLAUDE.md rule 47 / canonical `SALES_REVENUE_STATUSES`)
 - [ ] If touching JE math for returns, read `docs/domains/accounting.md` "returns are sales-in-reverse"
-- [ ] Confirm role gates: `roles: ["ADMIN", "MANAGER", "REGISTER", "WAREHOUSE"]`
+- [ ] Confirm the gate on the exact route you are touching — most `/api/returns` routes are `requirePermission("sales.return")`, but `status` and `refund` are `requireAuthWithRole`
 - [ ] If touching the imported-returns path, remember the `Return` model is empty for historical data — read from `SalesOrder` + `OrderLineItem` instead
 
 ## Test coverage
 
-| Surface | Coverage |
-|---|---|
-| `returnService.ts` state transitions | Unit tests TBD |
-| `reports.salesRevenueStatusFilter.test.ts` | Source-text tripwire ensuring RETURNED is included in revenue aggregations |
-| `integration/mailchimpAttributionRewriteChain.integration.test.ts` | Real-DB test of the rewrite + return net-out math |
+| Surface                                                                                                          | Coverage                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `returnService.ts` state transitions                                                                             | `__tests__/returnTransitions.test.ts` (pure: `isValidTransition`, `getValidTransitions`, `isTerminalState`, `suggestDisposition`)                                                                |
+| `reports.salesRevenueStatusFilter.test.ts`                                                                       | Source-text tripwire ensuring RETURNED is included in revenue aggregations                                                                                                                       |
+| `integration/mailchimpAttributionRewriteChain.integration.test.ts`                                               | Real-DB test of the rewrite + return net-out math                                                                                                                                                |
 | B3 restock/writeoff JE branching (`resolveReturnBookingPath`, `matchReturnForLine`, `classifyReturnDisposition`) | `__tests__/journalEntry.test.ts` (pure, 21 scenarios) + `__tests__/integration/generateSalesJournal.integration.test.ts` (2 real-DB scenarios: classified `WRITTEN_OFF`, classified `RESTOCKED`) |
-| Unclassified Returns exception report | `__tests__/unclassifiedReturns.test.ts` (pure, row selection + reason text + invariants) |
-| Exchange order creation | None — gap |
-| Inspection workflow | None — gap |
+| Unclassified Returns exception report                                                                            | `__tests__/unclassifiedReturns.test.ts` (pure, row selection + reason text + invariants)                                                                                                         |
+| Exchange order creation                                                                                          | None — gap                                                                                                                                                                                       |
+| Inspection workflow                                                                                              | None — gap                                                                                                                                                                                       |
 
 ## Known gaps (master plan)
 
 - **Native pickup scheduling integration** with dispatch board — `pickupRequired` flag exists but the dispatch UI doesn't yet pull return-pickups into the run-planner
 - **Vendor return path** for damaged items (consignment-specific in `docs/domains/consignment.md`; non-consignment vendor returns have no formal workflow)
-- **Restocking-fee policy table** — currently per-return manual entry; no store-wide default
+- **Restocking fees** — not modelled at all: no field on `Return`, and nothing in `app/src` computes one
 
 ---
+
 Last verified: 2026-07-24 (B3 — restock/writeoff JE branching + Unclassified Returns report)

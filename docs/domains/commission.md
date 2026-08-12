@@ -1,8 +1,13 @@
 # Commission Payouts
 
-Owner-confidential. Every page and endpoint described here is gated to
-**SUPER_ADMIN** at both the API layer (`requireAuthWithRole(["SUPER_ADMIN"], …)`)
-and the UI layer.
+Owner-confidential. Every COMMISSION page and endpoint described here is
+gated to **SUPER_ADMIN** at both the API layer (`requireAuthWithRole(["SUPER_ADMIN"], …)`
+on REST routes, `roleProcedure(SUPER_ADMIN_ONLY)` on tRPC procedures) and the
+UI layer (`requirePage(["SUPER_ADMIN"])` on App Router pages).
+
+Two surfaces described below are the exception, and deliberately so: plan
+assignment and the `isDesigner` toggle live on the MANAGER/ADMIN staff-admin
+page, which carries a plan id but never a rate, a tier or a payout figure.
 
 Origin: owner direction 2026-05-27 — _"they are currently using a
 google sheet that someone is hand entering in the data so we can
@@ -19,12 +24,16 @@ marginal YTD tiers in the exact `CommissionTier` row shape
 by the same bracket rules (contiguous, ascending, only the last tier
 unbounded). `StaffMember.commissionPlanId` assigns one; NULL means default.
 
-**Tier resolution chain** (`lib/commissionPlans.ts:resolvePlanTiersForStaff`),
-used identically by payout generation AND the live calculator so the two can
-never price a designer differently:
+**Tier resolution chain** (`lib/commissionPlans.ts:resolvePlanTiersForStaff`).
+Since Stage 1 this chain backs the **Live Calculator only**
+(`pages/api/admin/reports/commission-tiers.ts`); payout generation resolves
+through the parallel RULE chain
+(`lib/commissionRules.ts:resolvePlanRulesForStaff`, called from
+`runCommissionPayouts.ts:previewPayoutsForPeriod`), which generalizes these
+same steps but does not order them identically (see "The engine" below):
 
 1. the staff member's assigned plan (if it has tier rows)
-2. the `isDefault` plan
+2. the `isDefault` plan (same tier-rows condition)
 3. the **legacy `CommissionTier` table** — a restored legacy dataset lands its
    tier rows here and computes IDENTICALLY until plans are created (this is
    the compatibility guarantee; pinned by the parity test in
@@ -73,8 +82,11 @@ never _who gets generated_.
 commission-tiers page (Live Calculator tab); assignment is a dropdown on
 Admin → Staff (the staff PATCH carries `commissionPlanId`). Plans endpoint:
 `/api/admin/reports/commission-tiers/tiers` (GET list / POST create / PUT
-replace-tiers / PATCH rename-or-setDefault / DELETE — refuses for the default
-plan or while staff are assigned).
+replace-tiers / PATCH rename-describe-setDefault-or-(de)activate / DELETE —
+refuses for the default plan or while staff are assigned). Note that
+(de)activation, unlike DELETE, is NOT refused while staff are assigned, and an
+assigned-but-inactive plan silently re-resolves those designers to the default
+plan.
 
 ## Rule model (Stage 1, 2026-08-01)
 
@@ -272,15 +284,15 @@ window), derives an equivalent `CommissionRuleDef` via
 `computeRuleEnginePayout` (the NEW engine), and asserts the commission
 dollar amount matches EXACTLY and the breakdown — projected down to
 `{tierLabel, rate, sliceAmount ↔ salesInTier, sliceCommission ↔
-commission}` — matches EXACTLY, in the same order. The new engine's
-breakdown entries are a strict superset (additional fields like `ruleId`,
-`basis`, `accumulator`, `tierMode` for the richer cases); for a migrated
-legacy plan those extra fields are simply absent (`undefined`, which
-`toEqual` treats as equivalent to absent), so this is genuinely the SAME
-shape for the case that matters, not a coincidental subset match. A parallel
-real-DB integration test (`runCommissionPayouts.integration.test.ts`'s
-existing 22 scenarios, re-run unchanged through the new engine) pins the
-same dollar figures end to end.
+commission}` — matches EXACTLY, in the same order. The equivalence asserted
+is on that PROJECTION, not on the raw entries: the new engine's breakdown
+entries are a strict superset, and `ruleId`/`ruleKey`/`ruleLabel`/
+`scopeDescription`/`basis`/`accumulator`/`tierMode` are spread from the
+rule's metadata onto EVERY entry in `applyTierMode`, and `perUnitAmount` is
+carried from the tier (`null` on a migrated legacy plan's rate tiers, never
+absent). A parallel real-DB integration
+test (`runCommissionPayouts.integration.test.ts`'s 28 scenarios, re-run
+unchanged through the new engine) pins the same dollar figures end to end.
 
 ### MARGIN's cost source — reused, not reinvented
 
@@ -306,10 +318,15 @@ definition of margin, three call sites.
 periodContext)` is a pure function (rule 14 — no Prisma inside it). The
 DB-touching orchestration —
 `lib/commissionRules.ts:resolvePlanRulesForStaff` (loads + resolves a
-designer's rules, generalizing `resolvePlanTiersForStaff`'s 4-step chain to
-5 steps: assigned plan's rules → assigned plan's tiers derived on the fly →
-default plan (same two-step) → legacy `CommissionTier` table, derived → no
-rule at all) and
+designer's rules, generalizing `resolvePlanTiersForStaff`'s 4-step chain:
+assigned plan's rules → assigned plan's tiers derived on the fly → the legacy
+`CommissionTier` table, derived → an empty tier set; the `isDefault` plan is
+tried (same three-way) only when the staff member has no assigned ACTIVE plan
+— unlike the tier chain, an assigned plan holding neither rules nor tiers does
+not fall through to the default plan. Note the last step still returns ONE
+catch-all rule, derived from an EMPTY tier set — so every line matches it and
+earns $0, and `unmatchedAmount` stays 0 rather than reporting the whole
+period) and
 `lib/commissionSales.ts:loadDesignerSaleRows` (row-level sale data: revenue,
 margin, units, and every scope dimension, per line item — the row-level
 sibling of the pre-existing `sumDesignerSales`, sharing its exact matching
@@ -339,8 +356,8 @@ naive "frozen start + this period's own slice" implementation would MISS a
 return/rewrite dated inside an already-locked prior period that lands after
 the lock (this was caught by
 `runCommissionPayouts.integration.test.ts`'s existing late-return scenario
-during Stage 1 development and is now an explicit doc comment on
-`computeRuleForYtdOrPeriod`). A prior lock from BEFORE the rule engine
+during Stage 1 development and is now an explicit comment inside
+`computeRuleForYtdOrPeriod`'s `YTD` branch). A prior lock from BEFORE the rule engine
 shipped (`ruleEngineVersion = 1`, no `ruleState` to read) bridges via
 `lib/commissionPayout.ts:bridgeLegacyLockToRuleState`, mapping the old
 row's scalar `ytdSalesAtEnd`/`commissionAmount` onto the designer's current
@@ -353,10 +370,10 @@ SAME two JSON columns (rule 4's "preserve the snapshot/lock/audit
 machinery" — untouched structurally). `ruleEngineVersion` (default `1`)
 discriminates their shape:
 
-|                          | `ruleEngineVersion = 1` (every pre-existing row)                                       | `ruleEngineVersion = 2` (rows generated by the rule engine)                                                                                                                                                                                                                                                   |
-| ------------------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tierBreakdown`          | bare `PayoutBreakdownEntry[]` array: `{tierLabel, rate, sliceAmount, sliceCommission}` | `{schemaVersion: 2, entries: RuleBreakdownEntry[], unmatchedAmount}` — richer entries carry `ruleId`, `basis`, `accumulator`, `tierMode`, and (RETROACTIVE/THRESHOLD only) `priorRecognized`/`cumulativeRecognizedAfter`/`isCatchUp`/the qualifying window dates                                              |
-| `tierDefinitionSnapshot` | bare `TierDefinitionSnapshot[]` array                                                  | `{schemaVersion: 2, rules: RuleDefSnapshot[], ruleState: RulePriorState[]}` — `ruleState` is the NEW carry-forward chain-continuity data the old scalar-column model didn't need (one implicit rule needed only `ytdSalesAtEnd`; N rules each need their own `basisAtEnd` + `cumulativeRecognizedCommission`) |
+|                          | `ruleEngineVersion = 1` (every pre-existing row)                                       | `ruleEngineVersion = 2` (rows generated by the rule engine)                                                                                                                                                                                                                                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tierBreakdown`          | bare `PayoutBreakdownEntry[]` array: `{tierLabel, rate, sliceAmount, sliceCommission}` | `{schemaVersion: 2, entries: RuleBreakdownEntry[], unmatchedAmount}` — richer entries carry `ruleId`, `basis`, `accumulator`, `tierMode`, and (RETROACTIVE only — `applyTierMode` sets them on the RETROACTIVE branch, not the shared MARGINAL/THRESHOLD one) `priorRecognized`/`cumulativeRecognizedAfter`/`isCatchUp`/the qualifying window dates |
+| `tierDefinitionSnapshot` | bare `TierDefinitionSnapshot[]` array                                                  | `{schemaVersion: 2, rules: RuleDefSnapshot[], ruleState: RulePriorState[]}` — `ruleState` is the NEW carry-forward chain-continuity data the old scalar-column model didn't need (one implicit rule needed only `ytdSalesAtEnd`; N rules each need their own `basisAtEnd` + `cumulativeRecognizedCommission`)                                       |
 
 Type guards `isRuleSnapshotEnvelope`/`isRuleBreakdownEnvelope`/
 `isLegacyArrayShape` (`lib/commissionPayout.ts`) let any reader branch on
@@ -432,39 +449,49 @@ Stated plainly, per the owner's request, rather than left implicit:
 
 ### Files (Stage 1 additions)
 
-| File                                                             | Role                                                                                                                                                                                                            |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/commissionRuleEngine.ts`                                    | Pure engine: types, scope matching (`matchRule`/`scopeMatches`), tier validation, `marginalOverlapSum`/`retroactiveOwedAt`/`tierContaining`, `computeRuleEnginePayout`, `deriveRuleFromLegacyTiers`. No Prisma. |
-| `lib/commissionRules.ts`                                         | DB layer: `resolvePlanRulesForStaff` (the 5-step resolution chain).                                                                                                                                             |
-| `lib/commissionSales.ts`                                         | Extended with `loadDesignerSaleRows` (row-level sibling of `sumDesignerSales`).                                                                                                                                 |
-| `lib/commissionPayout.ts`                                        | Extended with `computeRulePayoutForRange`, the snapshot envelope types, `bridgeLegacyLockToRuleState`, and the shape-guard functions. `computePayoutForRange` (the old function) is untouched.                  |
-| `lib/commissionPlans.ts`                                         | `replacePlanTiers`/`createPlan` extended with `syncLegacyMirrorRule`.                                                                                                                                           |
-| `lib/marginMath.ts`                                              | Extended with the extracted `resolveLineCost` (the shared cost-fallback cascade).                                                                                                                               |
-| `lib/runCommissionPayouts.ts`                                    | `previewPayoutsForPeriod` now resolves + computes via rules; `computeDesignerYtdSums` is untouched; `computeDesignerRuleState` is new.                                                                          |
-| `src/components/commission/PayoutsTab.tsx`                       | Renders both `tierBreakdown` shapes.                                                                                                                                                                            |
-| `prisma/migrations/20260801_commission_rule_engine/`             | Schema + data migration.                                                                                                                                                                                        |
-| `__tests__/commissionRuleEngine.test.ts`                         | Pure-engine unit tests, including the golden-path equivalence suite.                                                                                                                                            |
-| `__tests__/integration/commissionRuleEngine.integration.test.ts` | Real-DB tests: department scope, MARGIN basis, RETROACTIVE catch-up (asserts the locked row is byte-identical before/after), THRESHOLD deferred, sync-on-write, unmatched-rule zero.                            |
+| File                                                             | Role                                                                                                                                                                                                                                                        |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/commissionRuleEngine.ts`                                    | Pure engine: types, scope matching (`matchRule`/`scopeMatches`), tier validation, `marginalOverlapSum`/`retroactiveOwedAt`/`tierContaining`, `computeRuleEnginePayout`, `deriveRuleFromLegacyTiers`. No Prisma.                                             |
+| `lib/commissionRules.ts`                                         | DB layer: `resolvePlanRulesForStaff` (the rule resolution chain).                                                                                                                                                                                           |
+| `lib/commissionSales.ts`                                         | Extended with `loadDesignerSaleRows` (row-level sibling of `sumDesignerSales`).                                                                                                                                                                             |
+| `lib/commissionPayout.ts`                                        | Extended with `computeRulePayoutForRange`, the snapshot envelope types, `bridgeLegacyLockToRuleState`, and the shape-guard functions. `computePayoutForRange` (the old function) is untouched — and now has NO production callers, only its own unit tests. |
+| `lib/commissionPlans.ts`                                         | `replacePlanTiers`/`createPlan` extended with `syncLegacyMirrorRule`.                                                                                                                                                                                       |
+| `lib/marginMath.ts`                                              | Extended with the extracted `resolveLineCost` (the shared cost-fallback cascade).                                                                                                                                                                           |
+| `lib/runCommissionPayouts.ts`                                    | `previewPayoutsForPeriod` now resolves + computes via rules; `computeDesignerYtdSums` is untouched; `computeDesignerRuleState` is new.                                                                                                                      |
+| `src/components/commission/PayoutsTab.tsx`                       | Renders both `tierBreakdown` shapes.                                                                                                                                                                                                                        |
+| `prisma/migrations/20260801_commission_rule_engine/`             | Schema + data migration.                                                                                                                                                                                                                                    |
+| `__tests__/commissionRuleEngine.test.ts`                         | Pure-engine unit tests, including the golden-path equivalence suite.                                                                                                                                                                                        |
+| `__tests__/integration/commissionRuleEngine.integration.test.ts` | Real-DB tests: department scope, MARGIN basis, RETROACTIVE catch-up (asserts the locked row is byte-identical before/after), THRESHOLD deferred, sync-on-write, unmatched-rule zero.                                                                        |
 
 ## What this domain owns
 
-Two surfaces, both at `/admin/reports/commission-tiers`:
+Three tabs, all at `/app/admin/reports/commission-tiers`:
 
-1. **Live preview** (`Live Preview` tab). Pre-existing. Picks any
+1. **Live calculator** (`Live Calculator` tab). Pre-existing. Picks any
    date range, computes per-designer YTD + marginal commission in
    memory, never writes to the DB. Used for "what does this period
-   look like right now?" exploration. Backed by
+   look like right now?" exploration. Also hosts the commission-plans
+   manager. Backed by
    `GET /api/admin/reports/commission-tiers` (still in place).
-2. **Locked payouts** (`Locked Payouts` tab, added 2026-05-27). Same
-   math, but the operator presses _Generate Payouts_ with a custom
-   pay-period range, reviews a preview, and commits the row set. Once
+2. **Draft payouts** (`Draft Payouts` tab — the DEFAULT tab, and the
+   work surface). The operator picks a set bi-weekly pay period (raw
+   dates behind a "Custom range" toggle), presses _Generate payouts_,
+   reviews the preview, then _Confirm & Lock_ or _Save as draft
+   instead_.
+3. **Locked payouts** (`Locked Payouts` tab, added 2026-05-27). The
+   frozen archive plus the Drift banner. Once
    `lockedAt` is set, the row is frozen — re-running the period
    doesn't overwrite it; only an explicit SUPER_ADMIN edit (with an
    audit reason) can change a locked row.
 
+Tabs 2 and 3 are the SAME `PayoutsTab` component rendered with
+`view="drafts"` / `view="locked"`.
+
 ## Schema
 
-Two tables (migration `20260527_commission_payouts`):
+Two tables. The original `20260527_commission_payouts` migration no longer
+exists as its own directory — both tables are now created by the squashed
+baseline `prisma/migrations/0_init/migration.sql`.
 
 ### `CommissionPayout`
 
@@ -472,19 +499,19 @@ One row per `(staffMemberId, periodStart, periodEnd)` — the unique
 constraint lets the orchestrator upsert idempotently when an operator
 re-previews + re-commits the same period.
 
-| Column                                | Type               | Notes                                                                                                                                                                                   |
-| ------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `staffMemberId`                       | Int FK             | Designer/manager the payout is for.                                                                                                                                                     |
-| `periodStart`, `periodEnd`            | DateTime           | Inclusive endpoints; pay periods are not necessarily month-aligned.                                                                                                                     |
-| `periodSalesAmount`                   | Decimal            | `max(0, ytdAtEnd − ytdAtStart)`. Stored so historical math is auditable even if SalesOrder data shifts later.                                                                           |
-| `ytdSalesAtStart`, `ytdSalesAtEnd`    | Decimal            | YTD-before and YTD-through the period (Jan 1 anchor).                                                                                                                                   |
-| `tierBreakdown`                       | JSONB              | Array of `{tierLabel, rate, sliceAmount, sliceCommission}` — which tiers the slice spanned.                                                                                             |
-| `commissionAmount`                    | Decimal            | Total commission paid; operator can override before commit.                                                                                                                             |
-| `tierDefinitionSnapshot`              | JSONB              | Frozen copy of `CommissionTier` rows at generation time. Re-rendering a locked payout reads THIS, not the live `CommissionTier` table, so retroactive tier edits never rewrite history. |
-| `lockedAt`, `lockedBy`                | DateTime?, String? | Both null while draft; both set the instant the row is locked.                                                                                                                          |
-| `paidOn`                              | DateTime?          | When the check actually cut. Editable.                                                                                                                                                  |
-| `notes`                               | String?            | Free-form operator note (e.g. _"Year-end true-up"_).                                                                                                                                    |
-| `created/updated/createdBy/updatedBy` | audit              | Standard.                                                                                                                                                                               |
+| Column                                | Type               | Notes                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `staffMemberId`                       | Int FK             | Designer/manager the payout is for.                                                                                                                                                                                                                                                                                                                                                       |
+| `periodStart`, `periodEnd`            | DateTime           | Inclusive endpoints; pay periods are not necessarily month-aligned.                                                                                                                                                                                                                                                                                                                       |
+| `periodSalesAmount`                   | Decimal            | `max(0, ytdAtEnd − ytdAtStart)`. Stored so historical math is auditable even if SalesOrder data shifts later.                                                                                                                                                                                                                                                                             |
+| `ytdSalesAtStart`, `ytdSalesAtEnd`    | Decimal            | YTD-before and YTD-through the period (Jan 1 anchor).                                                                                                                                                                                                                                                                                                                                     |
+| `tierBreakdown`                       | JSONB              | Which tiers the slice spanned. `ruleEngineVersion = 1`: bare array of `{tierLabel, rate, sliceAmount, sliceCommission}`. `ruleEngineVersion = 2`: the `{schemaVersion: 2, entries, unmatchedAmount}` envelope.                                                                                                                                                                            |
+| `commissionAmount`                    | Decimal            | Total commission paid; operator can override before commit.                                                                                                                                                                                                                                                                                                                               |
+| `tierDefinitionSnapshot`              | JSONB              | Frozen copy of the RESOLVED pricing definition at generation time — for `ruleEngineVersion = 1` rows the tier set the chain resolved to (plan tiers or `CommissionTier` rows), for `ruleEngineVersion = 2` rows the `{schemaVersion: 2, rules, ruleState}` envelope. Re-rendering a locked payout reads THIS, not live tier/plan/rule config, so retroactive edits never rewrite history. |
+| `lockedAt`, `lockedBy`                | DateTime?, String? | Both null while draft; both set the instant the row is locked.                                                                                                                                                                                                                                                                                                                            |
+| `paidOn`                              | DateTime?          | When the check actually cut. Editable.                                                                                                                                                                                                                                                                                                                                                    |
+| `notes`                               | String?            | Free-form operator note (e.g. _"Year-end true-up"_).                                                                                                                                                                                                                                                                                                                                      |
+| `created/updated/createdBy/updatedBy` | audit              | Standard.                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ### `CommissionPayoutEdit`
 
@@ -501,24 +528,24 @@ inside the DB, not a user-facing operation).
 
 ## Files
 
-| File                                                                 | Role                                                                                                                                                                                                                                                                                                                   |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/prisma/schema.prisma`                                           | Both new models live at the bottom of the file with a doc comment.                                                                                                                                                                                                                                                     |
-| `app/prisma/migrations/20260527_commission_payouts/migration.sql`    | Schema + indexes.                                                                                                                                                                                                                                                                                                      |
-| `app/src/lib/commissionTiers.ts`                                     | Pre-existing. `calculateMarginalCommission()` does the slice-by-slice math; reused by both surfaces.                                                                                                                                                                                                                   |
-| `app/src/lib/commissionSales.ts`                                     | Pre-existing (extracted from the live-preview endpoint). `sumDesignerSales(staffId, matchNames, from, toExclusive)` — shared between live and locked. Aliases + FK + the POS-string OR; 0.5× for splits; ORDER/FULFILLED/RETURNED.                                                                                     |
-| `app/src/lib/commissionPayout.ts`                                    | Pure helper `computePayoutForRange(input)` — caller hands in pre-summed YTD-start + YTD-end + tier list; returns the row-shape draft. Used by both preview and commit.                                                                                                                                                 |
-| `app/src/lib/runCommissionPayouts.ts`                                | Orchestrator. Three entry points: `previewPayoutsForPeriod`, `commitPayoutsForPeriod`, `editPayout`. **Chain continuity**: when a prior LOCKED payout exists for the same designer with `periodEnd < periodStart`, this period's `ytdAtStart` reads from THAT row's frozen `ytdSalesAtEnd`, not from a live recompute. |
-| `app/src/lib/commissionDrift.ts`                                     | `computeLockedPayoutDrift({staffMemberId?, includeClean?})` — for each locked payout, compares the frozen `ytdSalesAtEnd` against a live recompute. Non-zero results are surfaced on the UI Drift banner so SUPER_ADMIN can decide whether to claw back via edit or accept the variance.                               |
-| `app/src/lib/commissionPeriodOverlap.ts`                             | Pure helper `findOverlappingPayoutPeriods(start, end, existing)` — date-range overlap detection that allows exact-match re-runs but refuses partial / contained / containing / boundary-touch overlaps. Backs the period-overlap guard in `commitPayoutsForPeriod`.                                                    |
-| `app/src/pages/api/admin/reports/commission-payouts/index.ts`        | GET (list with filters) + POST (`?action=preview` and `?action=commit`).                                                                                                                                                                                                                                               |
-| `app/src/pages/api/admin/reports/commission-payouts/[id].ts`         | GET (single + audit log) + PATCH (edit-with-audit).                                                                                                                                                                                                                                                                    |
-| `app/src/pages/api/admin/reports/commission-payouts/drift.ts`        | GET — returns drift rows for every locked payout (or one designer's). SUPER_ADMIN only.                                                                                                                                                                                                                                |
-| `app/src/components/commission/LockedPayoutsTab.tsx`                 | UI for the Locked Payouts tab — date pickers, generate flow, preview panel, payout history table, expandable rows, edit drawer, **DriftBanner** (quiet when clean, loud-red when not).                                                                                                                                 |
-| `app/src/pages/admin/reports/commission-tiers.tsx`                   | Wraps the existing live-preview content into a `LivePreviewSection` sub-component and adds the tab switcher.                                                                                                                                                                                                           |
-| `app/__tests__/commissionPayout.test.ts`                             | 6 pure unit tests for `computePayoutForRange`.                                                                                                                                                                                                                                                                         |
-| `app/__tests__/integration/runCommissionPayouts.integration.test.ts` | 22 real-DB tests covering preview + commit + edit + lock semantics + chain continuity (5 scenarios: late-return inside next period, late-return inside locked period, no-prior-lock fallback, ignores-DRAFT, year-boundary reset).                                                                                     |
-| `app/__tests__/integration/commissionDrift.integration.test.ts`      | 8 real-DB tests covering drift detection (no-lock empty, no-drift empty, late-the return prefix-inside-period flagged, cancellation flagged, backdated-sale positive drift, designer filter, includeClean, DRAFT-rows-ignored).                                                                                        |
+| File                                                                                              | Role                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/prisma/schema.prisma`                                                                        | Each model carries its own doc comment (`model CommissionPayout` at schema.prisma:4356, `model CommissionPayoutEdit` at 4430).                                                                                                                                                                                         |
+| `app/prisma/migrations/0_init/migration.sql`                                                      | Schema + indexes (squashed baseline).                                                                                                                                                                                                                                                                                  |
+| `app/src/lib/commissionTiers.ts`                                                                  | Pre-existing. `calculateMarginalCommission()` + `resolveTier()` do the slice-by-slice math. Now reached only from the Live Calculator endpoint (and the dead `computePayoutForRange`) — payout generation goes through the rule engine. Also holds `DEFAULT_COMMISSION_TIERS`, which no request path reads.            |
+| `app/src/lib/commissionSales.ts`                                                                  | Pre-existing (extracted from the live-preview endpoint). `sumDesignerSales(staffId, matchNames, from, toExclusive)` — shared between live and locked. Aliases + FK + the POS-string OR; 0.5× for splits; ORDER/FULFILLED/RETURNED.                                                                                     |
+| `app/src/lib/commissionPayout.ts`                                                                 | Pure snapshot builders. `computeRulePayoutForRange(input)` is the live one — preview and commit both go through it (`runCommissionPayouts.ts:244`). `computePayoutForRange(input)` is the pre-Stage-1 helper and has NO production callers; only `__tests__/commissionPayout.test.ts` still calls it.                  |
+| `app/src/lib/runCommissionPayouts.ts`                                                             | Orchestrator. Three entry points: `previewPayoutsForPeriod`, `commitPayoutsForPeriod`, `editPayout`. **Chain continuity**: when a prior LOCKED payout exists for the same designer with `periodEnd < periodStart`, this period's `ytdAtStart` reads from THAT row's frozen `ytdSalesAtEnd`, not from a live recompute. |
+| `app/src/lib/commissionDrift.ts`                                                                  | `computeLockedPayoutDrift({staffMemberId?, includeClean?})` — for each locked payout, compares the frozen `ytdSalesAtEnd` against a live recompute. Non-zero results are surfaced on the UI Drift banner so SUPER_ADMIN can decide whether to claw back via edit or accept the variance.                               |
+| `app/src/lib/commissionPeriodOverlap.ts`                                                          | Pure helper `findOverlappingPayoutPeriods(start, end, existing)` — date-range overlap detection that allows exact-match re-runs but refuses partial / contained / containing / boundary-touch overlaps. Backs the period-overlap guard in `commitPayoutsForPeriod`.                                                    |
+| `app/src/pages/api/admin/reports/commission-payouts/index.ts`                                     | GET (list with filters) + POST (`?action=preview` and `?action=commit`).                                                                                                                                                                                                                                               |
+| `app/src/pages/api/admin/reports/commission-payouts/[id].ts`                                      | GET (single + audit log) + PATCH (edit-with-audit).                                                                                                                                                                                                                                                                    |
+| `app/src/pages/api/admin/reports/commission-payouts/drift.ts`                                     | GET — returns drift rows for every locked payout (or one designer's). SUPER_ADMIN only.                                                                                                                                                                                                                                |
+| `app/src/components/commission/PayoutsTab.tsx`                                                    | UI for BOTH the Draft Payouts and Locked Payouts tabs (`view="drafts"` / `view="locked"`) — pay-period picker, generate flow, preview panel, payout history table, expandable rows, edit drawer, and (locked view only) **DriftBanner** (quiet when clean, loud-red when not).                                         |
+| `app/src/app/(dashboard)/app/admin/reports/commission-tiers/page.tsx` + `CommissionTiersView.tsx` | App Router page (`requirePage(["SUPER_ADMIN"])`) + the client view holding the three-tab switcher, the live-calculator content, and the plans manager.                                                                                                                                                                 |
+| `app/__tests__/commissionPayout.test.ts`                                                          | 6 pure unit tests for `computePayoutForRange`.                                                                                                                                                                                                                                                                         |
+| `app/__tests__/integration/runCommissionPayouts.integration.test.ts`                              | 28 real-DB tests covering preview + commit + edit + lock semantics + chain continuity (5 scenarios: late-return inside next period, late-return inside locked period, no-prior-lock fallback, ignores-DRAFT, year-boundary reset) + the pay-period overlap guard (6 scenarios).                                        |
+| `app/__tests__/integration/commissionDrift.integration.test.ts`                                   | 8 real-DB tests covering drift detection (no-lock empty, no-drift empty, late-return-inside-period flagged, cancellation flagged, backdated-sale positive drift, designer filter, includeClean, DRAFT-rows-ignored).                                                                                                   |
 
 ## Chain continuity — why this matters
 
@@ -541,7 +568,7 @@ Without protection, the next period's preview would re-read live data for its `y
 | --------------------------------------------------------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Period 1 (5/1–5/15): Alice sells $750k                    | 750k     | —          | LOCK → frozen `ytdSalesAtEnd = 750k`, commission = $22,500                                                                                                                                                                           |
 | Period 2 starts. Alice sells $100k on 5/20                | 850k     | 750k       | (no preview yet)                                                                                                                                                                                                                     |
-| 5/22: customer returns $50k (5/3 sale, the return prefix) | 800k     | 750k       | Live recompute of period-1 range now shows 700k — but the lock still says 750k                                                                                                                                                       |
+| 5/22: customer returns $50k (5/3 sale, accounting return) | 800k     | 750k       | Live recompute of period-1 range now shows 700k — but the lock still says 750k                                                                                                                                                       |
 | Period 2 preview/commit (5/16–5/31)                       |          |            | `ytdAtStart = 750k` (FROM LOCK, not 700k from live), `ytdAtEnd = 800k` live → $50k slice × 4% = $2,000 commission. Total YTD commission = $22,500 + $2,000 = $24,500 — matches marginal-on-cumulative-YTD against current $800k YTD. |
 | Drift report                                              |          |            | Period 1 row shows `lockedYtdAtEnd = 750k, liveYtdAtEnd = 700k, drift = -$50k`. Operator reviews.                                                                                                                                    |
 
@@ -584,7 +611,7 @@ The check is GLOBAL (every active designer's row scanned), runs **server-side** 
 **UI flow**:
 
 - Preview computes the overlap report alongside the drafts. The preview panel shows a red banner listing each conflicting row (designer + dates + draft/LOCKED badge) whenever there's a collision.
-- The "Save as Draft" and "Save & Lock" buttons are DISABLED while a collision is visible. Hover tooltip says "Resolve the overlapping payout(s) above first."
+- The "Confirm & Lock" and "Save as draft instead" buttons are DISABLED while a collision is visible. Hover tooltip says "Resolve the overlapping payout(s) above first."
 - The operator's options: pick a different range, delete the conflicting draft row, or unlock-and-edit-with-audit the conflicting locked row.
 
 **Why this matters**: without the guard, an overlapping range would write a NEW row that double-counts the overlap days AND breaks the chain-continuity lookup (which expects "most recent locked period BEFORE this one" to be unambiguous). The `@@unique([staffMemberId, periodStart, periodEnd])` index only catches EXACT duplicates — date-range overlap was a separate hole this closes.
@@ -602,7 +629,8 @@ Returns `{ payouts: [...] }` sorted by `periodEnd DESC` then
 ### `POST /api/admin/reports/commission-payouts?action=preview`
 
 Body: `{ startDate, endDate }` (both YYYY-MM-DD). No DB writes.
-Returns `{ payouts: PreviewedPayout[] }`. Each row carries the
+Returns `{ payouts: PreviewedPayout[], overlappingPayouts: [...] }`.
+Each row carries the
 computed `commissionAmount`, `periodSalesAmount`, `ytdSalesAtStart`,
 `ytdSalesAtEnd`, and `tierBreakdown` + `tierDefinitionSnapshot` so
 the UI can render the per-row drilldown without a second roundtrip.
@@ -648,11 +676,18 @@ cycle is fully traceable — `lockedBy` is automatically stamped from
 ## How the math reuses the existing engine
 
 `runCommissionPayouts.ts` resolves pricing through
-`resolvePlanRulesForStaff` (`lib/commissionRules.ts`), the 5-step rule chain
-documented above — it yields no rule at all when nothing is configured, with
-no built-in fallback. Same resolution the live-preview tab reads, so the two
-tabs cannot diverge as long as the operator hasn't edited tiers between
-previewing live and committing locked.
+`resolvePlanRulesForStaff` (`lib/commissionRules.ts`), the rule chain
+documented above — when nothing is configured it yields a catch-all rule with
+an empty tier set (i.e. $0), with no built-in rate fallback. The Live
+Calculator tab reads the parallel TIER chain
+(`lib/commissionPlans.ts:resolvePlanTiersForStaff`) instead — the two are no
+longer one call site. They agree only for a plan whose rules are the flat-tier
+mirror (`deriveRuleFromLegacyTiers` equivalence plus the sync-on-write in
+"Backwards compatibility" above). A plan carrying any genuinely
+multi-dimensional rule prices differently on the two surfaces by construction:
+the calculator only ever runs flat marginal tiers, and its chain falls through
+an empty assigned plan to the default plan while the rule chain falls straight
+to the legacy/empty fallback.
 
 > Superseded: this section used to describe a `loadTiers()` helper on
 > `runCommissionPayouts.ts` reading `CommissionTier` directly. That function
@@ -660,11 +695,15 @@ previewing live and committing locked.
 > `resolvePlanRulesForStaff`.
 
 `computeDesignerYtdSums(staff, periodStart, periodEndExclusive)` calls
-`sumDesignerSales` twice in parallel: once with `[YearStart, periodStart)`
-for the YTD-at-start, once with `[YearStart, periodEndExclusive)`
-for the YTD-at-end. The slice between them is the period's revenue;
-`calculateMarginalCommission` walks that slice tier-by-tier and
-returns the breakdown.
+`sumDesignerSales` with `[YearStart, periodStart)`
+for the YTD-at-start — skipped entirely when a prior lock supplies it — and
+then with `[YearStart, periodEndExclusive)`
+for the YTD-at-end. The slice between them is the period's revenue.
+The commission itself is NOT computed from that slice: the rule engine
+(`computeRuleEnginePayout`, fed by `loadDesignerSaleRows`) computes it
+per rule, and these two columns stay REVENUE-basis display values.
+The Live Calculator endpoint is the surface that still runs
+`calculateMarginalCommission` over the slice.
 
 The period is "expanded by one day" inside `previewPayoutsForPeriod`
 because the UI date picker treats the end date as INCLUSIVE
@@ -684,7 +723,7 @@ times as they like before locking. On each commit:
 | Existing LOCKED row   | SKIP. Result counts it in `payoutIds` but doesn't touch the row. Operator must unlock-via-PATCH first. |
 
 This is the safety net for the operator: a forgotten import, a late
-return, an the return prefix backdated to inside the period — all the operator
+return, an accounting return backdated to inside the period — all the operator
 has to do is press _Generate Payouts_ again and the draft rows pick
 up the new data. Locked rows stay frozen.
 
@@ -693,7 +732,7 @@ up the new data. Locked rows stay frozen.
 Before changing any commission-payout code:
 
 - [ ] Read this file + `staff-auth.md` (SUPER_ADMIN gating)
-- [ ] Confirm `requireAuthWithRole(["SUPER_ADMIN"], …)` is on every endpoint touched
+- [ ] Confirm `requireAuthWithRole(["SUPER_ADMIN"], …)` is on every REST endpoint touched, and `roleProcedure(SUPER_ADMIN_ONLY)` on every tRPC procedure touched
 - [ ] If touching the math, the same diff must update both `commissionPayout.test.ts` (pure) AND `runCommissionPayouts.integration.test.ts` (real-DB)
 - [ ] Edit-with-audit invariants: `reason` empty → 400; every changed field → one `CommissionPayoutEdit` row; no-op edit → 0 audit rows + no row mutation
 - [ ] Lock semantics: re-commit on locked row SKIPs without overwriting; lock/unlock both write audit rows; lockedBy follows editedBy on every lock transition
@@ -705,7 +744,7 @@ Before changing any commission-payout code:
 
 - **No historical backfill.** Owner direction 2026-05-27: _"Fuck no."_ The Google Sheet history doesn't move into the ERP. Going forward only.
 - **No SUPER_ADMIN scope below SUPER_ADMIN.** Managers cannot view this tab at all. If a workflow case ever requires manager visibility (read-only), add an explicit role parameter to the API and a separate read-only tab variant — don't expand `requireAuthWithRole` casually.
-- **No printable payslip view.** Operator copies numbers into the existing payroll-export process by hand. If/when payroll automates, the row data + audit history is all the input needed. **Partially addressed 2026-05-29**: designers now have a self-service `/reports/pay-period-sales` statement (sales only, bi-weekly, CSV export) so they stop hand-copying into Google Sheets. Commission $ still SUPER_ADMIN-only.
+- **No printable payslip view.** Operator copies numbers into the existing payroll-export process by hand. If/when payroll automates, the row data + audit history is all the input needed. **Partially addressed 2026-05-29**: designers now have a self-service `/app/reports/pay-period-sales` statement (sales only, bi-weekly, CSV export) so they stop hand-copying into Google Sheets. Commission $ still SUPER_ADMIN-only.
 
 ## Pay-period confirmation + attribution lock (Slice 2)
 
@@ -730,19 +769,19 @@ Unique on `(staffMemberId, periodStart, periodEnd)` — re-confirm after reopen 
 
 ### The lock — ONE guard, FIVE enforcement points
 
-Pure helper `lib/payPeriodLock.ts`: `isAttributionLocked(orderDate, designerIds, activeConfirmations)` → true when any of the given designers has an active confirmation whose `[periodStart, periodEnd]` contains `orderDate`. Every attribution-mutation path calls the SAME guard (rule 42 — a guard on one runner but not another is how SO-39275 recurred):
+Pure helper `lib/payPeriodLock.ts`: `isAttributionLocked(orderDate, designerIds, activeConfirmations)` → true when any of the given designers has an active confirmation whose `[periodStart, periodEnd]` contains `orderDate`. Four of the five call the shared pure helpers in `lib/payPeriodLock.ts`; `backfillSalesPersonFk` re-states the same predicate as inline SQL inside its UPDATE (it is a single raw statement, so it cannot call the helper) — the one place where rule 42's "same guard everywhere" is honoured by duplication rather than reuse:
 
 1. `pages/api/sales/orders/[id]/salesperson.ts` — single-order reassign. Refuses 409 if the order's current OR target designer is locked for the order's date.
 2. `pages/api/admin/sales/bulk-update-salesperson.ts` — bulk reassign. Same guard per row.
 3. `pages/api/reports/pipeline-reassign.ts` — pipeline reassign. Same guard.
-4. `runSalesImport` (`lib/importRunners.ts`) — preserves the `salesperson` STRING for orders dated in a locked period. Uses `isOrderLockedByNameOrFk` so it matches by the `salesperson` STRING **or** the FK.
+4. `runSalesImport` (`lib/adapters/ordorite/runners.ts` — `lib/importRunners.ts` no longer exists) — preserves the `salesperson` STRING for orders dated in a locked period. Uses `isOrderLockedByNameOrFk` so it matches by the `salesperson` STRING **or** the FK.
 5. `backfillSalesPersonFk` (`lib/salesPersonFkBackfill.ts`) — skips setting the FK on locked-period orders so a name that now resolves differently can't move a locked order.
 
-**Honest layering note (verified 2026-05-29 with a real-DB test).** The pre-existing `correctedOrders` preserve in `runSalesImport` (any order with a non-null `salesPersonId` keeps its `salesperson` string on re-import) ALREADY protects the realistic case: after the post-import FK-backfill sweep runs, confirmed-period orders almost always have their FK set, so the import won't re-attribute them regardless of this lock. The NEW import lock (#4) is therefore **belt-and-suspenders** — its incremental coverage is FK-NULL orders matched by NAME to a confirmed designer (orders the sweep never resolved, e.g. an ambiguous name). The genuinely load-bearing NEW enforcement is the three reassignment-endpoint guards (#1–#3), which let a manager ACTIVELY change a locked order — something `correctedOrders` does not stop. Tests pin both: `payPeriodConfirmationLock.integration.test.ts` forces the FK NULL to prove the name-based import lock fires in isolation, and asserts the guard throws-while-locked / passes-after-reopen.
+**Honest layering note.** The pre-existing `correctedOrders` preserve in `runSalesImport` (any order with a non-null `salesPersonId` keeps its `salesperson` string on re-import) ALREADY protects the realistic case: after the post-import FK-backfill sweep runs, confirmed-period orders almost always have their FK set, so the import won't re-attribute them regardless of this lock. The NEW import lock (#4) is therefore **belt-and-suspenders** — its incremental coverage is FK-NULL orders matched by NAME to a confirmed designer (orders the sweep never resolved, e.g. an ambiguous name). The genuinely load-bearing NEW enforcement is the three reassignment-endpoint guards (#1–#3), which let a manager ACTIVELY change a locked order — something `correctedOrders` does not stop. **There is currently NO real-DB test for any of the five enforcement points.** What exists is `__tests__/payPeriodLock.test.ts` (pure tests of `isAttributionLocked` / `isOrderLockedByNameOrFk` / `periodContainsOrderDate`) and two source-shape assertions in `__tests__/ordoriteImportRunners.regression.test.ts` that grep the runner for the import-lock wiring.
 
 ### Manager / designer surfaces
 
-- Designer statement (`/reports/pay-period-sales`): "Confirm these numbers" button — enabled only when the period has ended and the designer hasn't already confirmed. Confirmed badge + timestamp after.
+- Designer statement (`/app/reports/pay-period-sales`): "Confirm these numbers" button — enabled only when the period has ended and the designer hasn't already confirmed. Confirmed badge + timestamp after.
 - Manager section (privileged, same page): per-designer confirmed/not grid for the period + "ready for review" banner when all active designers have confirmed + a reopen action (audit reason required).
 - Commission $ stays on the SUPER_ADMIN commission-tiers surface — NOT exposed here.
 
@@ -767,7 +806,7 @@ Indexes on `(staffMemberId, periodStart, periodEnd)` and `(resolvedAt)`. No uniq
 
 ### Behavior
 
-- **Designer** (`/reports/pay-period-sales`): when the period is NOT confirmed and has no open issue, the statement shows a "Report an issue" button beside "Confirm these numbers". Reporting is allowed **at any time** (no period-ended gate — unlike confirm — so a designer can flag a problem mid-period). After reporting, the banner shows "issue pending review" + the note; the Confirm/Report buttons hide until the manager resolves it.
+- **Designer** (`/app/reports/pay-period-sales`): when the period is NOT confirmed and has no open issue, the statement shows a "Report an issue" button beside "Confirm these numbers". Reporting is allowed **at any time** (no period-ended gate — unlike confirm — so a designer can flag a problem mid-period). After reporting, the banner shows "issue pending review" + the note; the Confirm/Report buttons hide until the manager resolves it.
 - **Manager** (privileged grid, same page): a row with an open issue shows "⚠ issue reported" + the note in red and a "Resolve issue" action. Resolving clears the flag (optional resolution note); the designer can then confirm. An open issue **blocks** the grid's "ready for review" all-clear even if every other designer has confirmed.
 - Resolving does NOT itself lock — confirming still does. The manager's job on an issue is to fix the underlying numbers (rewrite / reassignment) and resolve, then the designer confirms.
 
@@ -775,7 +814,7 @@ Indexes on `(staffMemberId, periodStart, periodEnd)` and `(resolvedAt)`. No uniq
 
 - `lib/payPeriodIssue.ts` — pure helpers (`isIssueOpen`, `findOpenIssue`, `summarizeOpenIssues`); unit-tested in `__tests__/payPeriodIssue.test.ts`.
 - `lib/payPeriodConfirmationService.ts` — `reportPayPeriodIssue`, `resolvePayPeriodIssue`, `getOpenIssueSummary`; `listPeriodConfirmationStatus` extended to attach `openIssue` per row and gate `readyForReview` on zero open issues.
-- `pages/api/reports/pay-period-sales/report-issue.ts` (designer, self or privileged-on-behalf), `pages/api/admin/reports/pay-period-confirmations/resolve-issue.ts` (MANAGER / ADMIN / SUPER_ADMIN).
+- `pages/api/reports/pay-period-sales/report-issue.ts` (designer, self or privileged-on-behalf), `pages/api/admin/reports/pay-period-confirmations/resolve-issue.ts`. Both are gated `requireAuthWithRole(["SUPER_ADMIN"])` today — `report-issue.ts`'s privileged-on-behalf branch is unreachable past that gate, and `resolve-issue.ts` has no role branch at all (only the gate; its header comment still describes the intended manager/ADMIN audience).
 - Real-DB test: `__tests__/integration/payPeriodIssue.integration.test.ts` (report idempotency, grid surfacing + ready-for-review block, resolve clears).
 
 ### Team scope (deferred)
@@ -786,22 +825,22 @@ The manager grid currently shows **all** active designers to any MANAGER / ADMIN
 
 Built as a manager view-only surface, then **re-gated to SUPER_ADMIN-only the same day** (owner: "gate all the commission shit to super-admin only, no one sees the recent work on the pay week reports or any of that… tabled until management discovers oh wait you were right"). The code is intact and parked — to restore broader access later, widen the `roles` on the page/card/endpoint.
 
-- **Page** `/reports/commission` ("Team Commission") — **SUPER_ADMIN only**. Read-only grid of LOCKED payouts per designer per period (designer, pay period, period sales, commission $, paid date + total). No tier config, no preview/commit/edit — those stay on the SUPER_ADMIN `/admin/reports/commission-tiers` surface.
-- **Endpoint** `GET /api/reports/commission-payouts` — **SUPER_ADMIN only**. Calls the shared `listCommissionPayouts({ designersOnly: true, includeDrafts: false })` so it returns only **locked** payouts for **flagged designers** (never drafts, never non-designers). Decimals serialized to numbers.
+- **Page** `/app/reports/commission` ("Team Commission") — **SUPER_ADMIN only** (`requirePage(["SUPER_ADMIN"])`). Read-only grid of LOCKED payouts per designer per period (designer, pay period, period sales, commission $, paid date + total). No tier config, no preview/commit/edit — those stay on the SUPER_ADMIN `/app/admin/reports/commission-tiers` surface.
+- **Query** the tRPC procedure `reports.commissionPayouts` (`roleProcedure(SUPER_ADMIN_ONLY)`), backed by `lib/reports/commissionPayouts.ts:getCommissionPayouts`. The old REST `GET /api/reports/commission-payouts` no longer exists. It calls the shared `listCommissionPayouts({ designersOnly: true, includeDrafts: false })` so it returns only **locked** payouts for **flagged designers** (never drafts, never non-designers). Decimals serialized to numbers.
 - **Shared query** `lib/commissionPayoutList.ts` — one `findMany` used by BOTH this endpoint AND the SUPER_ADMIN `handleList` (the commission-tiers Locked Payouts tab), so the two surfaces can't diverge on filtering. Real-DB test: `__tests__/integration/commissionPayoutList.integration.test.ts`.
 
 ### Pay-period statement + confirm/issue ledger — also TABLED (SUPER_ADMIN-only)
 
-The whole pay-period statement surface (`/reports/pay-period-sales`, the confirm/lock + report-an-issue ledger, and the manager confirmation grid) is **SUPER_ADMIN-only as of 2026-05-29** — page AND every API (`pay-period-sales`, `confirm`, `report-issue`, and the `pay-period-confirmations/{index,reopen,resolve-issue}` endpoints). Hidden until management adopts it.
+The whole pay-period statement surface (`/app/reports/pay-period-sales`, the confirm/lock + report-an-issue ledger, and the manager confirmation grid) is **SUPER_ADMIN-only as of 2026-05-29** — page AND every read/write path. The statement read is the tRPC procedure `reports.payPeriodSales` and the manager confirmation grid is the separate tRPC procedure `reports.payPeriodConfirmations` (both `roleProcedure(SUPER_ADMIN_ONLY)`); the mutations stay REST and are each `requireAuthWithRole(["SUPER_ADMIN"])`: `pay-period-sales/{confirm,report-issue}` and `pay-period-confirmations/{reopen,resolve-issue}`. There is no `pay-period-confirmations/index` endpoint. Hidden until management adopts it.
 
 **The attribution-LOCK enforcement is unaffected** — `runSalesImport`'s preserve, the reassignment guards, and `backfillSalesPersonFk`'s skip all still honor any ACTIVE `PayPeriodConfirmation` regardless of who can view the report. In practice no NEW confirmations form while tabled (only SUPER_ADMIN can confirm), but any that already exist keep enforcing. Restoring the report is a `roles` widen on the pages + endpoints — no data/migration change.
 
 ## The `isDesigner` staff flag (2026-05-29)
 
-`StaffMember.isDesigner` (Boolean, default false; migration `20260529c_staff_is_designer` backfills true for existing role=DESIGNER) controls who appears on **designer-based** sales + commission reports — independent of the auth `role`, so a selling MANAGER can be included and an ex-designer excluded. Toggle on the staff admin page (`/admin/staff`). Surfaces filtering on it:
+`StaffMember.isDesigner` (Boolean, default false) controls who appears on **designer-based** sales + commission reports — independent of the auth `role`, so a selling MANAGER can be included and an ex-designer excluded. Its `20260529c_staff_is_designer` migration was folded into the squashed `0_init` baseline, which declares the column directly. Toggle on the staff admin page (`/app/admin/staff`). Surfaces filtering on it:
 
 - `listPeriodConfirmationStatus` (pay-period confirm/issue grid) → `where: { isDesigner: true, isActive: true }`.
-- The designer pickers on `/reports/pay-period-sales` + `/reports/sales-by-salesperson` → `GET /api/staff?isDesigner=true`.
+- The designer pickers on `/app/reports/pay-period-sales` + `/app/reports/sales-by-salesperson` → `GET /api/staff?isDesigner=true`.
 - The manager team-commission view → `designersOnly: true`.
 
-Integration-test seeds that expect a designer on these surfaces must set `isDesigner: true` (not just `role: "DESIGNER"`) — see `payPeriodIssue` / `payPeriodConfirmationLock` seeds.
+Integration-test seeds that expect a designer on these surfaces must set `isDesigner: true` (not just `role: "DESIGNER"`) — see the `payPeriodIssue` / `commissionPayoutList` integration-test seeds.

@@ -34,14 +34,14 @@ Valid transitions enforced by `isValidConsignmentTransition()` in `lib/consignme
 
 ## Automation
 
-| Trigger | What happens | Code location |
-|---------|-------------|---------------|
-| Sales import detects Marjan rug on ORDER | ConsignmentItem marked SOLD | `importRunners.ts` after batch transaction |
-| Sales import detects RETURNED order (accounting returns) | ConsignmentItem reverted to ON_FLOOR | `paymentService.ts` `syncConsignmentReturns()` |
-| PO import sees Marjan PO become RECEIVED_FULL | Payment batch created, SOLD items → PAID, ON_FLOOR items → PAID + creditOwed | `importRunners.ts` consignment sync block |
-| Return of PAID item | ON_FLOOR + `creditOwed=true` | `paymentService.ts` `syncConsignmentReturns()` |
-| Same-batch sell+return (wash) | Revert to ON_FLOOR instead of marking SOLD | `importRunners.ts` wash reconciliation |
-| Re-sale of PAID+creditOwed item | Clear `creditOwed` on SOLD transition | `importRunners.ts` consignment sync |
+| Trigger                                                  | What happens                                                                 | Code location                                  |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------- |
+| Sales import detects Marjan rug on ORDER                 | ConsignmentItem marked SOLD                                                  | `importRunners.ts` after batch transaction     |
+| Sales import detects RETURNED order (accounting returns) | ConsignmentItem reverted to ON_FLOOR                                         | `paymentService.ts` `syncConsignmentReturns()` |
+| PO import sees Marjan PO become RECEIVED_FULL            | Payment batch created, SOLD items → PAID, ON_FLOOR items → PAID + creditOwed | `importRunners.ts` consignment sync block      |
+| Return of PAID item                                      | ON_FLOOR + `creditOwed=true`                                                 | `paymentService.ts` `syncConsignmentReturns()` |
+| Same-batch sell+return (wash)                            | Revert to ON_FLOOR instead of marking SOLD                                   | `importRunners.ts` wash reconciliation         |
+| Re-sale of PAID+creditOwed item                          | Clear `creditOwed` on SOLD transition                                        | `importRunners.ts` consignment sync            |
 
 ## Pricing
 
@@ -77,7 +77,7 @@ Page at `/inventory/consignment/credits-owed` shows PAID consignment items where
 
 ## Wash Reconciliation
 
-When the sales import processes a batch of orders and the same rug appears on both a sale order (the sale prefix) and a return order (accounting returns) in the same import batch, the net effect is zero. Instead of marking the item SOLD and then reverting it, the import detects this "wash" scenario and reverts the item to ON_FLOOR directly. This prevents transient status flicker and incorrect payment batch creation.
+When the sales import processes a batch of orders and the same rug appears on both a sale order and an accounting return in the same import batch, the net effect is zero. Instead of marking the item SOLD and then reverting it, the import detects this "wash" scenario and reverts the item to ON_FLOOR directly. This prevents transient status flicker and incorrect payment batch creation.
 
 ## creditOwed Clearing on Re-sale
 
@@ -122,4 +122,5 @@ Walked the doc against current code:
 No new code paths since last verification need adding. Refresh below is just a date stamp.
 
 ---
+
 Last verified: 2026-05-20
