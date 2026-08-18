@@ -2,14 +2,10 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).end();
 
   const { campaignId } = req.query;
@@ -49,3 +45,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: "Failed to load activity" });
   }
 }
+
+// The engagement log on the campaign detail report
+// (/app/reports/mailchimp/campaigns/[id]), read on screen. That page is a bare
+// requirePage(), so the Reports nav entry is the audience signal:
+// `reporting.read` (navPermissions.ts). Same call as dashboard/weekly.ts, the
+// other on-screen report read. NOT `marketing.read` -- the mailchimp surfaces
+// live under Reports, there is no Marketing nav entry, and marketing.read would
+// drop Designer, who runs these reports today.
+export default requirePermission("reporting.read", handler);

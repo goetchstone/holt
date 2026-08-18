@@ -1,0 +1,71 @@
+# Pages Router API routes with no authorization control. DECLARED DEBT.
+# See __tests__/apiReadRouteAuthorization.test.ts. Its companion,
+# apiRouteAuthorization.test.ts, covers MUTATING routes and their own
+# reasoned UNGATED_BY_DESIGN allowlist.
+#
+# automations/* carry a Bearer AUTO_IMPORT_API_KEY check for cron, but
+# their session fallback admits any signed-in user — worth tightening.
+src/pages/api/automations/axper-traffic-sync.ts
+src/pages/api/automations/customer-ar-drift-check.ts
+src/pages/api/automations/daily-reconciliation.ts
+src/pages/api/automations/expire-stale-pending-payments.ts
+src/pages/api/automations/gmail-import.ts
+src/pages/api/automations/import-health.ts
+src/pages/api/automations/import-history.ts
+src/pages/api/automations/lead-housekeeping.ts
+src/pages/api/automations/mailchimp-customer-sync.ts
+src/pages/api/automations/mailchimp-health.ts
+src/pages/api/automations/mailchimp-history.ts
+src/pages/api/automations/mailchimp-sync.ts
+src/pages/api/axper/traffic/index.ts
+src/pages/api/bookings/[id]/ics.ts
+src/pages/api/bookings/availability.ts
+src/pages/api/bookings/feed.ics.ts
+src/pages/api/client-portal/pay.ts
+src/pages/api/comments/index.ts
+src/pages/api/health.ts
+src/pages/api/inventory/export-variance.ts
+src/pages/api/inventory/locations.ts
+src/pages/api/inventory/onhand-by-department.ts
+src/pages/api/inventory/onhand-by-location.ts
+src/pages/api/inventory/product-variance/[externalId].ts
+src/pages/api/inventory/summary-details.ts
+src/pages/api/lead-magnet.ts
+src/pages/api/mailchimp/campaigns/index.ts
+src/pages/api/notifications/issues.ts
+src/pages/api/portal/order.ts
+src/pages/api/portal/pay.ts
+src/pages/api/portal/returns/[token].ts
+src/pages/api/portal/returns/request.ts
+src/pages/api/pricing/dimensions.ts
+src/pages/api/pricing/products.ts
+src/pages/api/pricing/se-components.ts
+src/pages/api/printers/list.ts
+src/pages/api/products/check-duplicate.ts
+src/pages/api/products/index.ts
+src/pages/api/purchasing/orders/index.ts
+src/pages/api/purchasing/receiving/index.ts
+src/pages/api/reports/factsalesday.ts
+src/pages/api/reports/get-departments.ts
+src/pages/api/reports/open-orders.ts
+src/pages/api/reports/sales-by-salesperson/export.ts
+src/pages/api/sales/orders/[id]/changelog.ts
+src/pages/api/services/public.ts
+src/pages/api/settings/features.ts
+src/pages/api/square/webhook.ts
+src/pages/api/staff/me.ts
+src/pages/api/stripe/session-status.ts
+src/pages/api/stripe/webhook.ts
+src/pages/api/templates/index.ts
+src/pages/api/tickets/public/[token].ts
+src/pages/api/tickets/public/[token]/attachment.ts
+src/pages/api/tills/[id].ts
+src/pages/api/tills/[id]/summary.ts
+src/pages/api/tills/index.ts
+src/pages/api/tools/dmarc-check.ts
+src/pages/api/types/by-category/[id].ts
+src/pages/api/upboard/[store].ts
+src/pages/api/uploads/[...path].ts
+src/pages/api/vendors/vendor-list.ts
+src/pages/api/warehouse/dashboard/inbound.ts
+src/pages/api/warehouse/dashboard/summary.ts

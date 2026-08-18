@@ -5,15 +5,12 @@
 // Manager-only.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return res.status(401).json({ error: "Unauthorized" });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const role = (session as any)?.role;
@@ -88,3 +85,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })),
   });
 }
+
+export default requirePermission("purchasing.write", handler);

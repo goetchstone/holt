@@ -4,14 +4,10 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { success, unauthorized, methodNotAllowed, handleError } from "@/lib/apiResponse";
+import { requirePermission } from "@/lib/auth/requireAuth";
+import { success, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return unauthorized(res);
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
 
   try {
@@ -56,3 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return handleError(res, err, "GET /warehouse/dispatch/ready");
   }
 }
+
+// The ready half of the dispatch queue's working list — same capability as
+// the rest of dispatch (dispatch/unassigned.ts, dispatch/pick-lists, runs).
+export default requirePermission("warehouse.operate", handler);

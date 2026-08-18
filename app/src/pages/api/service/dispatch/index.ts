@@ -1,16 +1,13 @@
 // /app/src/pages/api/service/dispatch/index.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import type { ServiceAppointmentStatus } from "@prisma/client";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") {
     const mutationRole = (session as unknown as { role?: string })?.role;
     if (!["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"].includes(mutationRole ?? "")) {
@@ -84,3 +81,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to fetch appointments" });
   }
 }
+
+// The list behind the same dispatch board as ./[id].ts, and gated the same way:
+// `service.write` admits the board's audience (designers follow their
+// customer's install), while the inline check above keeps every non-GET method
+// to the crews who work the appointment. The inline check is retained, not
+// replaced — it is narrower than this gate, so removing it would widen who may
+// hit the mutation path.
+export default requirePermission("service.write", handler);

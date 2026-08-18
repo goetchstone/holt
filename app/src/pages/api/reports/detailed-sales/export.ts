@@ -13,12 +13,14 @@
 // Data loading delegates to the shared report lib
 // (src/lib/reports/detailedSales.ts) — the same source of truth the App Router
 // page + tRPC procedures use. This endpoint stays a REST download (a browser
-// file download can't ride tRPC), so it owns its own session read + query
-// parsing here.
+// file download can't ride tRPC), so it owns its own query parsing here.
+//
+// Gated on `reporting.export`, matching reports/traffic/export.ts: reading a
+// report on screen is `reporting.read`, downloading its rows is the separate
+// sensitive grant (see lib/auth/navPermissions.ts on the Reports item).
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { csvRow } from "@/lib/csvExport";
@@ -150,9 +152,7 @@ function buildFilename(level: Level, startDate: string, endDate: string): string
   return `${base}.csv`;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end("Method Not Allowed");
@@ -198,3 +198,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: message });
   }
 }
+
+export default requirePermission("reporting.export", handler);

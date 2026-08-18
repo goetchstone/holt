@@ -1,15 +1,16 @@
 // /app/src/pages/api/print/order/[id].ts
+//
+// Order payload behind the receipt and invoice print views. It is the same
+// read as GET /api/sales/orders/[id] (customer + addresses, line items,
+// invoices, payments), reached from the same order-detail page, so it carries
+// that route's gate: `sales.write`.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -125,3 +126,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to fetch order details." });
   }
 }
+
+export default requirePermission("sales.write", handler);
