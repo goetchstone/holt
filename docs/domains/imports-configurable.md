@@ -315,6 +315,24 @@ The decisions below are unchanged; only step 4 has an easier answer now.
    table, and a read-only endpoint should not query data it has no reason to.
    Rows are capped at 500 and truncation is reported, never silent.
 
+7. Activate it and run it: `POST /api/admin/imports/run` with
+   `{ definitionId, rows }` dispatches through the runner registry and writes.
+   Gated MANAGER/ADMIN — the same gate as the hand-coded import routes, because
+   this moves the same data through a different door. `admin.config` governs
+   AUTHORING a definition; running one is a data import.
+
+   Where it deliberately differs from preview: it REFUSES an inactive
+   definition (otherwise `isActive` is decorative), and it REFUSES a definition
+   with no `runnerKey` rather than falling back to the engine — the engine is a
+   planner and writes nothing, so importing "through" it would report
+   `imported: N` for rows nothing persisted, which looks like success. An
+   oversized file is refused rather than truncated, for the same reason in
+   reverse: a truncated import drops data and reports success for the rest.
+
+   Every run is logged with the definition, row counts and the operator's
+   email. The hand-coded routes leave no such trace, so a configured import is
+   now more accountable than the code it replaces.
+
 ## The honest boundary — what config can and cannot express
 
 **Config handles delta sources; full-state sources need a reconciler.**
