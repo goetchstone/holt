@@ -135,6 +135,37 @@ revenue on a typical day. `InvoiceLineItem` rows are deliberately NOT created:
 skipping them lets `OrderLineItem` rows batch through `createMany` instead of one round
 trip per line (meaningful at demo scale — 6,000 orders × ~2.5 lines each).
 
+### On-hand stock
+
+`InventoryPosition` was empty until this was added, which left the Inventory
+Health report rendering nothing, the Buyers report with no on-hand column, and
+the committed-stock split with no rows to split.
+
+The distribution is shaped to give those surfaces signal rather than a uniform
+pile — a uniform pile makes every report look right and tests nothing:
+
+| where                                | what it exercises                                                                                                     |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Showroom floor + back stock          | the normal case, spread across both showrooms                                                                         |
+| Warehouse bulk (~⅓ of catalog)       | depth, the "held in quantity" case                                                                                    |
+| Committed staging (25 positions)     | sold-but-undelivered stock on the bay whose `holdsCommittedStock` is true, carrying the `salesOrderId` it is held for |
+| ~15% of products, no position at all | keeps "never stocked" distinguishable from "stocked but zero"                                                         |
+
+The committed slice matters beyond filling a table. `lib/inventory/allocation.ts`
+and `reports/buyersReport.ts` must exclude that stock from AVAILABLE, and the
+**flag** is how they should find it — not by matching a location name against
+`Customer%`, which is one deployment's naming convention
+(`docs/tenant-literal-sweep.md`). Seeded data now makes the correct behaviour
+observable and the literal-matching behaviour visibly wrong.
+
+Measured on a seeded database: 261 positions, 1,178 units — 1,122 available and
+56 committed across 25 orders, with 70 units qualifying as dead stock.
+
+**Deliberately not modelled:** uncosted units. Inventory Health buckets stock
+whose product has a null or zero `baseCost`, and this catalog costs every
+product, so that KPI reads zero. Seeding a fake uncosted product to make a tile
+non-empty would invent a data-quality problem the demo does not have.
+
 ### Refunds — sales-in-reverse, not a hand-waved Payment row
 
 Refunds are modeled on invoiced orders only, as a same-day mirrored NEGATIVE
@@ -309,10 +340,10 @@ Then check:
       `Card`, `Check`, `Gift Card`, `Store Credit`, `Wire`, `ACH`, `Finance`, `Other`.
 - [ ] At least one `Till` with `|variance|` above each of the three thresholds (see
       table above) — `SELECT id, variance, notes FROM "Till" WHERE variance IS NOT NULL
-  AND abs(variance) > 5 ORDER BY abs(variance) DESC;`
+AND abs(variance) > 5 ORDER BY abs(variance) DESC;`
 - [ ] At least one `CommissionPayout` with `lockedAt IS NOT NULL`.
 - [ ] `npx tsc --noEmit` clean, `npx jest --selectProjects unit` green, `npm run
-  validate` 0 errors (note: `npm run lint`/`format:check` only scan `src/`, not
+validate` 0 errors (note: `npm run lint`/`format:check` only scan `src/`, not
       `prisma/` — the seed's own tsconfig, `prisma/seed/tsconfig.seed.json`, is what
       `npx tsc --noEmit -p` that file checks; the root `npx tsc --noEmit` also picks up
       everything under `prisma/seed/demo/` via its `**/*.ts` include pattern).
