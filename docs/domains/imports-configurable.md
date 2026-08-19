@@ -88,11 +88,11 @@ knows how to receive.
 
 `importMode` governs whether `runnerKey` is required:
 
-| importMode | runnerKey | naturalKeyFields | Who owns row processing |
-|---|---|---|---|
-| `INSERT_ONLY` | optional | unused | the generic engine |
-| `UPSERT` | optional | **required**, ≥1 entry | the generic engine (or a runner, if one is set — see "customer/product" below) |
-| `RECONCILE` | **required** | optional (documentation only) | the registered runner |
+| importMode    | runnerKey    | naturalKeyFields              | Who owns row processing                                                        |
+| ------------- | ------------ | ----------------------------- | ------------------------------------------------------------------------------ |
+| `INSERT_ONLY` | optional     | unused                        | the generic engine                                                             |
+| `UPSERT`      | optional     | **required**, ≥1 entry        | the generic engine (or a runner, if one is set — see "customer/product" below) |
+| `RECONCILE`   | **required** | optional (documentation only) | the registered runner                                                          |
 
 Enforced twice, on purpose:
 
@@ -111,21 +111,21 @@ place from a real need rather than a hypothetical one. Add a seventh only
 for a concrete importer that needs it, with the justification recorded next
 to it in `app/src/lib/imports/transforms.ts`.
 
-| Transform | What it does | Why it earns its place |
-|---|---|---|
-| `TRIM` | strips leading/trailing whitespace | Every hand-exported CSV this codebase has seen pads or misaligns at least one column; stray whitespace silently breaks exact-match value mapping and natural-key equality. |
-| `UPPERCASE` | uppercases (after trimming) | Canonicalizes casing for state codes, SKUs, or status-like strings before they're used as a natural key or compared elsewhere. |
-| `LOWERCASE` | lowercases (after trimming) | Same, the other direction — emails, slugs. |
-| `NUMBER` | generic numeric coercion | The declarative-config analogue of `importHelpers.safeFloat` — quantities, counts, plain numeric fields. |
-| `DATE` | generic date coercion → ISO string | The declarative-config analogue of `importHelpers.safeDate`. ISO output keeps a JSON preview payload safe and hands straight to a Prisma `DateTime` field. |
-| `CURRENCY` | money-specific numeric coercion: strips `$` and thousands separators, treats `(50.00)` as `-50` | Kept **separate from `NUMBER`** deliberately: applying parenthesis-as-negative to an ordinary quantity or count column would be wrong, and `NUMBER` staying naive keeps its behavior predictable for non-money fields. |
+| Transform   | What it does                                                                                    | Why it earns its place                                                                                                                                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TRIM`      | strips leading/trailing whitespace                                                              | Every hand-exported CSV this codebase has seen pads or misaligns at least one column; stray whitespace silently breaks exact-match value mapping and natural-key equality.                                             |
+| `UPPERCASE` | uppercases (after trimming)                                                                     | Canonicalizes casing for state codes, SKUs, or status-like strings before they're used as a natural key or compared elsewhere.                                                                                         |
+| `LOWERCASE` | lowercases (after trimming)                                                                     | Same, the other direction — emails, slugs.                                                                                                                                                                             |
+| `NUMBER`    | generic numeric coercion                                                                        | The declarative-config analogue of `importHelpers.safeFloat` — quantities, counts, plain numeric fields.                                                                                                               |
+| `DATE`      | generic date coercion → ISO string                                                              | The declarative-config analogue of `importHelpers.safeDate`. ISO output keeps a JSON preview payload safe and hands straight to a Prisma `DateTime` field.                                                             |
+| `CURRENCY`  | money-specific numeric coercion: strips `$` and thousands separators, treats `(50.00)` as `-50` | Kept **separate from `NUMBER`** deliberately: applying parenthesis-as-negative to an ordinary quantity or count column would be wrong, and `NUMBER` staying naive keeps its behavior predictable for non-money fields. |
 
 Order of operations is fixed and is the whole contract of
 `runImportEngine` (`app/src/lib/imports/engine.ts`):
 
 1. **field mapping** — pick the raw source column value off the row
 2. **value mapping** — translate a raw source value onto the target's
-   bounded vocabulary, *if* this field has any value mappings configured
+   bounded vocabulary, _if_ this field has any value mappings configured
 3. **transform** — trim/case/number/date/currency coercion
 4. **required check** — once per row, after every field is resolved
 
@@ -156,7 +156,7 @@ nothing, so calling it against a sample of rows produces the exact
 `would-create` / `would-update` / `skipped` / `error` breakdown an operator
 would see before an import actually commits, plus the unmapped-value
 summary above. There's no separate "preview" function — the pure engine's
-only output *is* a preview until some caller decides to act on it.
+only output _is_ a preview until some caller decides to act on it.
 
 Row classification:
 
@@ -213,7 +213,7 @@ rather than returning `undefined`.
 delegate. **Behavior is byte-for-byte unchanged**: this is an adapter, not a
 rewrite, and `genericImportRunner.ts` itself was not modified.
 
-Worth being precise about *why* these two carry a `runnerKey`: they are
+Worth being precise about _why_ these two carry a `runnerKey`: they are
 `UPSERT`-mode (delta sources, matched by external id / name+email), **not**
 `RECONCILE`. A `runnerKey` isn't required for `UPSERT` — but it's allowed,
 and customer/product show why an operator would still want one:
@@ -223,12 +223,12 @@ email+name, then name alone, with late-hydration of stub records) and
 predate this model, and reusing them through the escape hatch is cheaper
 right now than reimplementing that logic as pure config. **`runnerKey` is
 available to any `importMode`, not only `RECONCILE`** — `RECONCILE` is just
-the one mode that can't function *without* it.
+the one mode that can't function _without_ it.
 
 Note: these two adapters do **not** apply value mappings before delegating
 — none of the customer/product entity fields (`genericImport.ts`) are
 configured with a bounded target vocabulary today, so there's nothing to
-translate. A future runner whose fields *do* need value-mapping should call
+translate. A future runner whose fields _do_ need value-mapping should call
 `lib/imports/engine.ts`'s value-mapping step explicitly rather than
 skipping it the way these two do.
 
@@ -239,15 +239,15 @@ the value-mapping set for the eight payment modes named in the Stage 1
 brief:
 
 | Ordorite display string (`resolvePaymentMode` output) | → holt `PaymentMethod` |
-|---|---|
-| Card Connect | `CARD` |
-| Card Not Present | `CARD` |
-| Debit | `CARD` |
-| Credit Note | `STORE_CREDIT` |
-| Marketing | `OTHER` |
-| Refund | `OTHER` |
-| Charity | `OTHER` |
-| Other | `OTHER` |
+| ----------------------------------------------------- | ---------------------- |
+| Card Connect                                          | `CARD`                 |
+| Card Not Present                                      | `CARD`                 |
+| Debit                                                 | `CARD`                 |
+| Credit Note                                           | `STORE_CREDIT`         |
+| Marketing                                             | `OTHER`                |
+| Refund                                                | `OTHER`                |
+| Charity                                               | `OTHER`                |
+| Other                                                 | `OTHER`                |
 
 `__tests__/imports/ordoritePaymentMode.test.ts` runs this exact data
 through `runImportEngine` and asserts every one of the eight rows lands on
@@ -281,8 +281,8 @@ importers onto the engine, is still outstanding.
 The decisions below are unchanged; only step 4 has an easier answer now.
 
 1. Decide the `importMode` by asking: does the source file describe
-   *changes* (delta / one-time dump) or does it describe *everything as of
-   now* (full-state re-export)? The former is `INSERT_ONLY`/`UPSERT`; the
+   _changes_ (delta / one-time dump) or does it describe _everything as of
+   now_ (full-state re-export)? The former is `INSERT_ONLY`/`UPSERT`; the
    latter is `RECONCILE`.
 2. For `UPSERT`, decide which mapped target field(s) uniquely identify an
    existing record — that's `naturalKeyFields`.
@@ -300,8 +300,38 @@ The decisions below are unchanged; only step 4 has an easier answer now.
 5. Call `validateImportDefinition` before writing — it rejects a
    `RECONCILE` definition with no `runnerKey` and an `UPSERT` definition
    with no `naturalKeyFields`.
-6. Run `runImportEngine` against a sample of parsed rows to preview
-   would-create/would-update/skipped/error before committing anything.
+6. Preview it: `POST /api/admin/imports/preview` with `{ definitionId, rows }`
+   returns the would-create/would-update/skipped/error breakdown and the
+   unmapped-value summary for a sample, writing nothing. That endpoint is
+   `runImportEngine`'s caller — until it existed, step 6 was a thing the design
+   described and nobody could do, which is the difference between "holt is
+   configurable" and "someone other than its author can configure it".
+
+   It previews an INACTIVE definition too, deliberately: a definition ships
+   inactive precisely while its mappings are still being worked out, so
+   refusing would withhold the tool exactly when it is most needed. It does not
+   supply `existingNaturalKeys`, so every valid UPSERT/RECONCILE row previews as
+   `would-create` — answering "do my mappings work" does not need the target
+   table, and a read-only endpoint should not query data it has no reason to.
+   Rows are capped at 500 and truncation is reported, never silent.
+
+7. Activate it and run it: `POST /api/admin/imports/run` with
+   `{ definitionId, rows }` dispatches through the runner registry and writes.
+   Gated MANAGER/ADMIN — the same gate as the hand-coded import routes, because
+   this moves the same data through a different door. `admin.config` governs
+   AUTHORING a definition; running one is a data import.
+
+   Where it deliberately differs from preview: it REFUSES an inactive
+   definition (otherwise `isActive` is decorative), and it REFUSES a definition
+   with no `runnerKey` rather than falling back to the engine — the engine is a
+   planner and writes nothing, so importing "through" it would report
+   `imported: N` for rows nothing persisted, which looks like success. An
+   oversized file is refused rather than truncated, for the same reason in
+   reverse: a truncated import drops data and reports success for the rest.
+
+   Every run is logged with the definition, row counts and the operator's
+   email. The hand-coded routes leave no such trace, so a configured import is
+   now more accountable than the code it replaces.
 
 ## The honest boundary — what config can and cannot express
 
@@ -325,7 +355,7 @@ Config **cannot** express, and Stage 1 does not pretend it can:
   lines against consignment items across two different tables.
 - **Domain rules that redefine what a row means** — zero-quantity-means-
   cancelled isn't a transform on one field, it's a rule about what the
-  *absence* of a positive quantity means for the record's lifecycle status.
+  _absence_ of a positive quantity means for the record's lifecycle status.
 - **Diffing against prior state** — "this file is everything as of now, so
   anything missing from it must have been removed" requires querying what
   currently exists and comparing, which is exactly what `RECONCILE` +
@@ -334,7 +364,7 @@ Config **cannot** express, and Stage 1 does not pretend it can:
 If a genuinely delta-shaped source (one that always describes changes, not
 full state) turns out to need a runner anyway, that's a real gap in the
 config surface worth reporting — Stage 1's design bet is that it shouldn't
-happen, and customer/product's runners exist for a *different* reason
+happen, and customer/product's runners exist for a _different_ reason
 (reusing pre-existing complex write-side logic), not because `UPSERT` is
 secretly insufficient.
 
@@ -375,4 +405,5 @@ secretly insufficient.
   cross-entity reconciliation example the config surface can't express)
 
 ---
+
 Last verified: 2026-08-01
