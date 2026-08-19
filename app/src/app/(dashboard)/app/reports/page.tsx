@@ -89,6 +89,13 @@ const ITEMS: CardGridItem[] = [
     roles: ["MANAGER", "ADMIN"],
   },
   {
+    title: "Unmapped Payments",
+    description:
+      "Tender types with no GL mapping, so the sales journal drops them with only a warning — how much money is off the books, and the exact mapping rows to add.",
+    href: "/app/reports/unmapped-payments",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
     title: "Open PO Gaps",
     description:
       "Purchase orders missing expected delivery dates or vendor acknowledgement numbers.",
