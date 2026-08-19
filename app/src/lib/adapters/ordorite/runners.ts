@@ -30,6 +30,7 @@ import {
   ensureUnknownVendorId,
   ordoriteHoldsCommittedStock,
   SAME_DAY_REWRITE_DROP_CANCEL_REASON,
+  resolvePaymentMethod,
 } from "@/lib/adapters/ordorite/shared";
 import { buildLocationMap } from "@/lib/storeLocationResolver";
 import { syncConsignmentReturns } from "@/lib/paymentService";
@@ -2293,6 +2294,11 @@ export async function runPaymentsImport(
         salesOrderId,
         paymentDate: safeDate(row["Payment Date"]) || new Date(),
         paymentType,
+        // The bounded enum alongside the source's own string. Both are derived
+        // from the same resolved value, so they cannot disagree. Left NULL when
+        // this adapter cannot classify the mode -- an honest gap that shows up
+        // in the Unmapped Payments report rather than a guess that reconciles.
+        method: resolvePaymentMethod(paymentType),
         paymentAmount: amount,
         isRefund,
         storeLocation: storeLocationStr,
