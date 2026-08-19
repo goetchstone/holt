@@ -178,7 +178,7 @@ async function main(): Promise<void> {
   console.log(`Products: ${catalog.products.length}, Customers: ${customers.length}`);
   console.log(`Orders: ${salesResult.ordersCreated}, Invoices: ${salesResult.invoicesCreated}`);
   console.log(
-    `Payments: ${salesResult.paymentsCreated} (refunds: ${salesResult.refundPaymentsCreated}), method mix:`,
+    `Payments: ${salesResult.paymentsCreated} (refunds: ${salesResult.refundPaymentsCreated}, returns: ${salesResult.returnsCreated}), method mix:`,
     salesResult.methodCounts,
   );
   console.log(`Gift cards issued: ${salesResult.giftCardsCreated}`);

@@ -139,10 +139,36 @@ trip per line (meaningful at demo scale — 6,000 orders × ~2.5 lines each).
 
 Refunds are modeled on invoiced orders only, as a same-day mirrored NEGATIVE
 `OrderLineItem` (the exact "sales-in-reverse" shape `lib/journalEntry.ts`'s
-`resolveReturnBookingPath` books as `UNCLASSIFIED_DEFAULT_RESTOCK` — no `Return` record
-is created, matching how every imported historical return looks) plus a second `Payment`
-row (`isRefund: true`, positive `paymentAmount` — `processRefund`'s real sign
-convention). Restricting refunds to invoiced orders is deliberate: an un-invoiced order's
+`resolveReturnBookingPath` books) plus a second `Payment` row (`isRefund: true`, positive
+`paymentAmount` — `processRefund`'s real sign convention) **and a native `Return`
+record**.
+
+That last part changed. This seed originally created no `Return` row, deliberately,
+"matching how every imported historical return looks". That contradicted the seed's own
+purpose: it generates data that looks like it was created NATIVELY through the
+application, and a native refund without a `Return` is the IMPORTED shape. The
+consequence was that the entire returns domain — the warehouse queue, the pickup
+schedule, the return detail pages — was empty on a freshly seeded database, and
+`lib/journalEntry.ts`'s B3 classified-return path was never exercised by any seeded row.
+
+Returns are now seeded with a deliberate disposition mix, roughly 50% `RESTOCKED`
+(`LIKE_NEW`), 20% `WRITTEN_OFF` (`MAJOR_DAMAGE`), 30% `RECEIVED` and uninspected. The
+mix is the point: `RESTOCKED` and `WRITTEN_OFF` are decided facts that book differently
+(a write-off debits the department's shrinkage GL instead of inventory), while an
+uninspected return falls through to the default-restock ASSUMPTION. Seeding only
+classified returns would leave that default path untested.
+
+Verified on a seeded database: 28 returns (12 restocked, 8 written off, 8 uninspected),
+journal entries still balanced, and one journal line landing on a shrinkage account —
+the B3 write-off path, previously unreachable from seeded data.
+
+**What this does NOT light up**, stated because it is the obvious assumption: the
+Unclassified Returns report (`lib/reports/unclassifiedReturns.ts`) queries orders with
+`status = "RETURNED"` and finds their negative lines. This seed models a refund as a
+negative line on the ORIGINAL order, so it produces zero `RETURNED` orders and that
+report stays empty — before and after this change. A native uninspected `Return` is
+unclassified in every sense that matters, and that report cannot see it; whether the
+report should is a question about the report, not the seed. Restricting refunds to invoiced orders is deliberate: an un-invoiced order's
 line items never reach `buildJournalLines` (they take the deposit-only branch), so a
 mirrored negative line there would be inert. This is what keeps the generated journal
 genuinely balanced on refund days _without_ leaning on the Over/Short line to paper over
@@ -283,10 +309,10 @@ Then check:
       `Card`, `Check`, `Gift Card`, `Store Credit`, `Wire`, `ACH`, `Finance`, `Other`.
 - [ ] At least one `Till` with `|variance|` above each of the three thresholds (see
       table above) — `SELECT id, variance, notes FROM "Till" WHERE variance IS NOT NULL
-    AND abs(variance) > 5 ORDER BY abs(variance) DESC;`
+  AND abs(variance) > 5 ORDER BY abs(variance) DESC;`
 - [ ] At least one `CommissionPayout` with `lockedAt IS NOT NULL`.
 - [ ] `npx tsc --noEmit` clean, `npx jest --selectProjects unit` green, `npm run
-    validate` 0 errors (note: `npm run lint`/`format:check` only scan `src/`, not
+  validate` 0 errors (note: `npm run lint`/`format:check` only scan `src/`, not
       `prisma/` — the seed's own tsconfig, `prisma/seed/tsconfig.seed.json`, is what
       `npx tsc --noEmit -p` that file checks; the root `npx tsc --noEmit` also picks up
       everything under `prisma/seed/demo/` via its `**/*.ts` include pattern).
