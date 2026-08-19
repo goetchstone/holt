@@ -87,6 +87,26 @@ Indexed by `(section, label)` — a flat config table for "this label maps to th
 
 Used by `generateSalesJournal()` to resolve payment-type strings to the right GL account at runtime, matched as `payment.paymentType.toLowerCase()`. The two POS section constants and their labels live in `lib/glMapping.ts`; the `AR_TRANSACTIONS` keys are string literals in `lib/billing/invoiceService.ts` and `lib/billing/billingReadiness.ts`, and `INVENTORY_TRANSACTIONS` is only a schema comment and an admin-UI label — no code reads it. Edit via the admin UI at `/app/admin/setup/accounting`.
 
+**A payment whose type is not in this map is dropped from the journal.**
+`generateSalesJournal` pushes an `Unmapped payment type "X"` warning and
+`continue`s — the money simply is not in the entry. The warning goes back to
+whoever generated that one day, and nowhere else, so a deployment whose tender
+vocabulary drifts from its GL mapping loses money from the books quietly.
+
+That drift is the normal case after an import, not an edge case: the mapping
+labels are authored by hand while `paymentType` arrives verbatim from the source
+system. On the restored Saybrook dataset, 43,139 of 47,880 payments — a net
+$31.7M across 12 tender types — had no mapping row, while six configured labels
+(Visa, MC, Discover, AMEX, On Account, Deposit) matched no payment at all. The
+dominant real value, `Card Connect`, mapped to nothing.
+
+The **Unmapped Payments** report (`/app/reports/unmapped-payments`,
+`lib/reports/unmappedPayments.ts`) is the standing version of that warning: every
+unmapped tender type, its payment count, the money involved, and when it was last
+seen — plus the configured labels matching nothing, which is usually the other
+half of the same rename. It reports and does not guess: inferring a GL account
+from a tender string is how money lands in the wrong account.
+
 ### `TaxDistrict`
 
 Has its own `glAccountId` field. `2-2120` for CT. New districts get their own account when added.
