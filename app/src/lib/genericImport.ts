@@ -27,6 +27,22 @@ export interface ImportEntityDef {
 
 export const IMPORT_ENTITIES: readonly ImportEntityDef[] = [
   {
+    key: "department",
+    label: "Departments",
+    description:
+      "Import your catalog's top-level departments from your previous system. Matched by name, so re-importing an existing department leaves it alone rather than duplicating it.",
+    fields: [
+      {
+        key: "name",
+        label: "Department Name",
+        type: "string",
+        aliases: ["department", "dept", "division", "group"],
+        required: true,
+        help: "The department name exactly as it should appear in the catalog. Rows with a blank name are skipped.",
+      },
+    ],
+  },
+  {
     key: "customer",
     label: "Customers",
     description:

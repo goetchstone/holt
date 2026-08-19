@@ -30,6 +30,54 @@ function rowError(result: GenericImportResult, index: number, err: unknown, cont
   result.skipped++;
 }
 
+/**
+ * Departments: upsert by name, which is the model's own unique key.
+ *
+ * The ONE writer for departments. `pages/api/departments/import.ts` (the
+ * fixed-shape REST route the admin Import page posts to) and the `department`
+ * runner in lib/imports/runnerRegistry.ts (the configurable path, where an
+ * operator maps whatever their file calls the column) both call this. Two
+ * import doors, one implementation -- rule 6/7's "don't invent a second source
+ * of truth that can disagree with the first."
+ *
+ * `update: {}` on purpose: a department that already exists is left exactly as
+ * it is. Re-importing a taxonomy must not silently rewrite names an operator
+ * has since corrected in-app.
+ */
+async function importDepartments(
+  mapping: ColumnMapping,
+  rows: RawRow[],
+  _userEmail: string,
+): Promise<GenericImportResult> {
+  const result: GenericImportResult = { imported: 0, skipped: 0, errors: [] };
+  const nameColumn = mapping.name;
+  if (!nameColumn) {
+    result.errors.push("No source column is mapped to Department Name.");
+    return result;
+  }
+
+  for (const [index, row] of rows.entries()) {
+    const name = String(row[nameColumn] ?? "").trim();
+    if (!name) {
+      // A blank name is a trailing CSV line far more often than an error.
+      result.skipped++;
+      continue;
+    }
+    try {
+      await prisma.department.upsert({
+        where: { name },
+        update: {},
+        create: { name },
+      });
+      result.imported++;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      result.errors.push(`Row ${index + 1} ("${name}"): ${message}`);
+    }
+  }
+  return result;
+}
+
 export async function runGenericImport(
   entityKey: string,
   mapping: ColumnMapping,
@@ -41,6 +89,7 @@ export async function runGenericImport(
   }
   if (entityKey === "customer") return importCustomers(mapping, rows, userEmail);
   if (entityKey === "product") return importProducts(mapping, rows, userEmail);
+  if (entityKey === "department") return importDepartments(mapping, rows, userEmail);
   return { imported: 0, skipped: 0, errors: [`Import for "${entityKey}" is not implemented yet.`] };
 }
 
