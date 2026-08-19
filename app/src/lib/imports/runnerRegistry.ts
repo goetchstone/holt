@@ -15,10 +15,12 @@
 import type { ImportRunner } from "@/lib/imports/types";
 import { runCustomerRunner } from "@/lib/imports/runners/customerRunner";
 import { runProductRunner } from "@/lib/imports/runners/productRunner";
+import { runDepartmentRunner } from "@/lib/imports/runners/departmentRunner";
 
 const RUNNERS: Record<string, ImportRunner> = {
   customer: runCustomerRunner,
   product: runProductRunner,
+  department: runDepartmentRunner,
 };
 
 export function isRegisteredRunnerKey(key: string): boolean {

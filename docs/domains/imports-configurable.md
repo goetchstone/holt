@@ -272,6 +272,17 @@ definition's mappings, exactly the pattern customer/product already prove.
 
 ## How someone adds a definition
 
+**Stage 3 has started.** `department` is the first entity migrated onto the
+configurable path, and it is the proof that adding one is small: an entry in
+`IMPORT_ENTITIES`, a writer in `genericImportRunner.ts`, and a three-line runner
+in `lib/imports/runners/`. The fixed-shape REST route
+(`pages/api/departments/import.ts`) now DELEGATES to that same writer instead of
+carrying its own upsert, so both doors import a department identically — the
+point of migrating rather than adding. A test asserts neither door can grow its
+own `prisma.department` write again.
+
+The remaining hand-coded importers follow the same three steps.
+
 **Stage 2 update:** definitions no longer have to be written as Prisma calls
 in a seed script. A definition is now authored either as a `config/` preset
 (YAML or JSON, reviewable in a pull request) or in the admin UI, and applied

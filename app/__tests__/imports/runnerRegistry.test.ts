@@ -15,10 +15,14 @@ import { runCustomerRunner } from "@/lib/imports/runners/customerRunner";
 import { runProductRunner } from "@/lib/imports/runners/productRunner";
 
 describe("registered runners", () => {
-  test("customer and product are registered, proving the escape hatch with a real consumer", () => {
-    expect(listRegisteredRunnerKeys().sort()).toEqual(["customer", "product"]);
+  test("every registered runner is listed, so the registry stays the one place they are declared", () => {
+    // Pinned exactly rather than loosely: the registry is the single place a
+    // runner is declared (rule 37), and a runner appearing here without a
+    // deliberate edit to this line is a runner nobody reviewed.
+    expect(listRegisteredRunnerKeys().sort()).toEqual(["customer", "department", "product"]);
     expect(isRegisteredRunnerKey("customer")).toBe(true);
     expect(isRegisteredRunnerKey("product")).toBe(true);
+    expect(isRegisteredRunnerKey("department")).toBe(true);
   });
 
   test("getImportRunner resolves a registered key to its implementation", () => {
@@ -34,7 +38,7 @@ describe("unknown runner keys", () => {
 
   test("getImportRunner throws a readable error for an unknown key", () => {
     expect(() => getImportRunner("ordoriteSales")).toThrow(
-      /Import runner "ordoriteSales" is not registered\. Registered runners: customer, product\./,
+      /Import runner "ordoriteSales" is not registered\. Registered runners: customer, product, department\./,
     );
   });
 

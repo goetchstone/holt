@@ -56,6 +56,7 @@ export interface SalesOrdersResult {
   invoicesCreated: number;
   paymentsCreated: number;
   refundPaymentsCreated: number;
+  returnsCreated: number;
   giftCardsCreated: number;
   tillsClosed: number;
   tillsOpen: number;
@@ -147,6 +148,7 @@ export async function seedSalesOrdersAndTills(
     invoicesCreated: 0,
     paymentsCreated: 0,
     refundPaymentsCreated: 0,
+    returnsCreated: 0,
     giftCardsCreated: 0,
     tillsClosed: 0,
     tillsOpen: 0,
@@ -431,7 +433,7 @@ export async function seedSalesOrdersAndTills(
           });
         }
 
-        await prisma.payment.create({
+        const refundPayment = await prisma.payment.create({
           data: {
             salesOrderId: salesOrder.id,
             paymentDate: refundTime,
@@ -450,6 +452,58 @@ export async function seedSalesOrdersAndTills(
             createdBy: SEED_ACTOR,
           },
         });
+
+        // The ERP-native Return record behind the refund.
+        //
+        // Without this the seed produced refund PAYMENTS and negative lines
+        // with no Return row at all -- which is the shape of an IMPORTED
+        // return (docs/domains/returns.md "the dual reality"), not a native
+        // one. The consequence was that the whole returns domain, and the
+        // Unclassified Returns exception report built on it, had nothing to
+        // show on a freshly seeded database.
+        //
+        // The classification mix is deliberate, not decorative. B3 books a
+        // return by its disposition (lib/journalEntry.ts:classifyReturnDisposition):
+        // RESTOCKED and WRITTEN_OFF are decided facts, while a return nobody
+        // has inspected falls through to the default-restock ASSUMPTION and is
+        // exactly what the exception report exists to surface. Seeding only
+        // classified returns would leave that report empty and its default
+        // path unexercised.
+        const dispositionRoll = randFloat(cashFlowRng, 0, 1);
+        const returnStatus =
+          dispositionRoll < 0.5 ? "RESTOCKED" : dispositionRoll < 0.7 ? "WRITTEN_OFF" : "RECEIVED";
+        const inspected = returnStatus !== "RECEIVED";
+        const refundProduct = productById.get(refundLine.productId)!;
+
+        await prisma.return.create({
+          data: {
+            returnNumber: `RET-${salesOrder.orderno}`,
+            status: returnStatus,
+            reason:
+              returnStatus === "WRITTEN_OFF" ? "DAMAGED_IN_DELIVERY" : "CUSTOMER_CHANGED_MIND",
+            salesOrderId: salesOrder.id,
+            customerId: order.customerId,
+            productId: refundLine.productId,
+            productName: refundProduct.name,
+            partNo: refundProduct.productNumber,
+            quantity: refundLine.quantity,
+            receivedAt: refundTime,
+            receivedById: order.designer.id,
+            receivedLocationId: storeId,
+            inspectedAt: inspected ? refundTime : null,
+            inspectedById: inspected ? order.designer.id : null,
+            inspectionCondition: inspected
+              ? returnStatus === "RESTOCKED"
+                ? "LIKE_NEW"
+                : "MAJOR_DAMAGE"
+              : null,
+            restockedAt: returnStatus === "RESTOCKED" ? refundTime : null,
+            refundPaymentId: refundPayment.id,
+            refundAmount,
+            createdBy: SEED_ACTOR,
+          },
+        });
+        result.returnsCreated++;
         result.paymentsCreated += 1;
         result.refundPaymentsCreated += 1;
         result.refundCount += 1;
