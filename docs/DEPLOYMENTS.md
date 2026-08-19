@@ -102,6 +102,20 @@ Akritos runs its own site + back-office on Holt. Its deployment layer is the
 - **Apply it:** with `DATABASE_URL` loaded, `node scripts/seed-akritos.mjs`
   (idempotent — sets branding + theme + menus + pages + posts).
 
+The kit is the BRAND AND CONTENT half and stays gitignored on purpose
+(`docs/TENANCY.md`: tenant data out of the white box). The CONFIGURATION half no
+longer lives in it — `config/local/akritos.json` is in the repo and carries
+Akritos's import definitions and feature configuration through the preset
+system, applied with the same idempotent `apply` CLI every other deployment
+uses. It is deliberately JSON where `config/local/saybrook.yaml` is YAML: the two
+formats are interchangeable and keeping one of each in regular use is what keeps
+that claim honest.
+
+So a reader without the kit can reproduce Akritos's _configuration_ today, but
+not its content or brand. Closing that — tenant identity as presets plus a
+compose profile with its own port and database — is Phase 5 in `ROADMAP.md`, and
+until it lands the deployment steps below assume you hold the kit.
+
 To revert any instance to the generic white-box demo: `npm run seed:cms`.
 
 ## Rebasing the `simplerms` repo onto Holt (owner-driven cutover)
@@ -186,7 +200,7 @@ files).
    ties out from day one. Then run the drift check to prove it.
 
 2. **Verify SEO parity** against the staging instance with the akritos seed
-   + migrated data loaded:
+   - migrated data loaded:
 
    ```
    node scripts/sitemap-diff.mjs https://akritos.com http://localhost:3000
