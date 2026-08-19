@@ -17,6 +17,7 @@ import { getPoSellThru } from "@/lib/reports/poSellThru";
 import { getTopSellers } from "@/lib/reports/topSellers";
 import { getReturnsAnalysis } from "@/lib/reports/returnsAnalysis";
 import { getUnclassifiedReturns } from "@/lib/reports/unclassifiedReturns";
+import { getUnmappedPayments } from "@/lib/reports/unmappedPayments";
 import { getSalesDaily } from "@/lib/reports/salesDaily";
 import { getBalanceAging } from "@/lib/reports/balanceAging";
 import { getStaleQuotes } from "@/lib/reports/staleQuotes";
@@ -149,6 +150,14 @@ const returnsInput = z.object({
 // Unclassified Returns (B3 exception report): required date range + optional
 // store filter. Dates required (like Gross Margin / Top Sellers) so the UI
 // commits a bounded window before running against 12K+ historical returns.
+// Dates OPTIONAL and defaulted to all-time, unlike every other exception
+// report here. The question is "how much money is missing from the ledger",
+// which a bounded window answers wrongly by construction — a tender that
+// stopped being used last year is still absent from last year's books.
+const unmappedPaymentsInput = z
+  .object({ startDate: z.string().nullish(), endDate: z.string().nullish() })
+  .nullish();
+
 const unclassifiedReturnsInput = z.object({
   startDate: z.string(),
   endDate: z.string(),
@@ -412,6 +421,17 @@ export const reportsRouter = router({
   unclassifiedReturns: roleProcedure(MANAGER_ADMIN)
     .input(unclassifiedReturnsInput)
     .query(({ input }) => getUnclassifiedReturns(prisma, input)),
+  // Unmapped Payments: tender strings with no POS_PAYMENTS GL mapping, so
+  // generateSalesJournal drops them from the journal with only a warning.
+  // Same MANAGER_ADMIN gate as the other financial exception lists.
+  unmappedPayments: roleProcedure(MANAGER_ADMIN)
+    .input(unmappedPaymentsInput)
+    .query(({ input }) =>
+      getUnmappedPayments(prisma, {
+        startDate: input?.startDate ?? undefined,
+        endDate: input?.endDate ?? undefined,
+      }),
+    ),
   // Visible to any signed-in user (matches the legacy session-only gate).
   salesPerformance: protectedProcedure
     .input(salesPerformanceInput)
