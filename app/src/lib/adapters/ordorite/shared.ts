@@ -17,6 +17,7 @@ export {
   findOrCreateCustomer,
 } from "@/lib/importHelpers";
 import { safeString, safeFloat } from "@/lib/importHelpers";
+import type { PaymentMethod } from "@prisma/client";
 // ---------------------------------------------------------------------------
 // Tax label parsing (Ordorite "Tax Amount" column values)
 // ---------------------------------------------------------------------------
@@ -131,6 +132,65 @@ const PAYMENT_MODE_MAP: Record<string, string> = {
   "33": "Other",
   Refund: "Refund",
 };
+
+/**
+ * Ordorite's tender vocabulary translated into holt's bounded `PaymentMethod`.
+ *
+ * This is the adapter doing its job, not a tenant literal. `PAYMENT_MODE_MAP`
+ * above already decodes Ordorite's numeric codes into Ordorite's own display
+ * strings; those strings then landed verbatim in `Payment.paymentType` and
+ * `Payment.method` was left NULL — on 47,878 of 47,880 rows in the restored
+ * dataset. A bounded enum nothing populates is not a vocabulary, it is a column.
+ *
+ * Translating a source's vocabulary into holt's is precisely what a source
+ * adapter is for (`lib/adapters/index.ts`). A different POS brings a different
+ * adapter with its own map; holt's side of the contract stays this enum.
+ *
+ * The target values are the ones reviewed in
+ * `config/presets/ordorite-payment-modes.yaml`, kept identical on purpose so
+ * the shipped preset and this map cannot disagree about what a tender means.
+ * Two of those decisions are worth repeating here because they look wrong at a
+ * glance:
+ *
+ *   - All three card rails collapse to CARD. Ordorite distinguishes the
+ *     processor and the card-present split; holt's ledger does not, and they
+ *     settle to the same GL account.
+ *   - Marketing / Charity / Refund / Other are deliberately OTHER rather than
+ *     something truer-looking. Each is a real settlement with no cash movement
+ *     holt can attribute, so calling them CASH or CARD would overstate both.
+ *
+ * A mode absent from this map resolves to `null`, which is the honest answer
+ * and leaves the payment visible in the Unmapped Payments report
+ * (`lib/reports/unmappedPayments.ts`) rather than guessed into a bucket that
+ * looks reconciled.
+ */
+const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
+  Finance: "FINANCE",
+  "Wire Transfer": "WIRE",
+  Check: "CHECK",
+  Cash: "CASH",
+  "Gift Card": "GIFT_CARD",
+  "Store Credit": "STORE_CREDIT",
+  ACH: "ACH",
+  Debit: "CARD",
+  "Card Connect": "CARD",
+  "Card Not Present": "CARD",
+  "Credit Note": "STORE_CREDIT",
+  Charity: "OTHER",
+  Marketing: "OTHER",
+  Other: "OTHER",
+  Refund: "OTHER",
+};
+
+/**
+ * The bounded `PaymentMethod` for an Ordorite payment mode, or null when this
+ * adapter cannot classify it. Takes the RESOLVED display string (what
+ * `resolvePaymentMode` returns and what lands in `Payment.paymentType`), so the
+ * two columns are always derived from the same value.
+ */
+export function resolvePaymentMethod(paymentType: string): PaymentMethod | null {
+  return PAYMENT_METHOD_MAP[paymentType] ?? null;
+}
 
 export function resolvePaymentMode(mode: unknown): string {
   const s = safeString(mode);

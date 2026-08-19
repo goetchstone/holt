@@ -67,6 +67,31 @@ the POS lets a store "rewrite" an existing order to correct line items, swap pro
 - Return: −$base_total on its own date (nets the base in same-period reports)
 - Rewrite: +$rewrite_total on its own date
 
+### Tender vocabulary: `paymentType` and `method`
+
+An imported payment carries both, derived from the same value.
+`resolvePaymentMode()` decodes Ordorite's numeric mode into its own display
+string, which lands verbatim in `Payment.paymentType`;
+`resolvePaymentMethod()` translates that string into holt's bounded
+`PaymentMethod` enum for `Payment.method`. Both live in
+`lib/adapters/ordorite/shared.ts`, because translating a source's vocabulary
+into holt's is what a source adapter is for — a different POS brings a
+different adapter and the same enum.
+
+`method` used to be left NULL. On the restored dataset that meant 47,878 of
+47,880 rows had no bounded tender, so any query filtering on it returned
+essentially nothing — and because the column is nullable, a naked `not:` filter
+dropped everything too (rule 51).
+
+A mode this adapter cannot classify leaves `method` NULL deliberately rather
+than guessing. It stays visible in the Unmapped Payments report
+(`/app/reports/unmapped-payments`), which is also where a `paymentType` with no
+`SystemGLMapping` row shows up — a separate gap with the same symptom, money
+missing from the journal.
+
+The target values match `config/presets/ordorite-payment-modes.yaml`, where
+they were reviewed, and a test asserts the two cannot drift.
+
 The one place this goes wrong is **payments**. the POS's payment CSV includes a row on the rewrite with `paymentType = "Gift Card"` for the exact amount of the base's original card deposit, and **no `Gift Card Barcode` / `Gift Card Code` fields**. That row is the POS's export of an _internal credit-note transfer_ -- the base's deposit becoming a credit note on the return, then applied to the rewrite. We do not import credit notes as their own record; the transfer shows up only through the rewrite's "Gift Card" row.
 
 **`runPaymentsImport` skips that phantom row.** Detection: `isRewriteOrder(orderno)` + `paymentType === "Gift Card"` + no gift-card barcode/code. Real POS gift-card redemptions always carry a barcode or code, so they are unaffected. The `phantomTransfersSkipped` counter on the result surfaces how many were skipped per import.
