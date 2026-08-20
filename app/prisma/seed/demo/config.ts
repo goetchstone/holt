@@ -26,6 +26,7 @@ export interface VolumeConfig {
   /** Purchase orders raised against vendors (separate from sales-driven ones). */
   purchaseOrderCount: number;
   consignmentItemCount: number;
+  serviceCaseCount: number;
   /** DESIGNER-role staff (the commissioned sales floor). */
   designerCount: number;
 }
@@ -41,6 +42,7 @@ const VOLUME_PRESETS: Record<SeedScale, VolumeConfig> = {
     productCount: 160,
     purchaseOrderCount: 40,
     consignmentItemCount: 30,
+    serviceCaseCount: 24,
     designerCount: 6,
   },
   // Demo-sized -- enough volume that dashboards, reports, and the
@@ -53,6 +55,7 @@ const VOLUME_PRESETS: Record<SeedScale, VolumeConfig> = {
     productCount: 500,
     purchaseOrderCount: 260,
     consignmentItemCount: 140,
+    serviceCaseCount: 90,
     designerCount: 10,
   },
 };

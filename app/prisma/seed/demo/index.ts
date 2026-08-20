@@ -55,6 +55,8 @@ async function main(): Promise<void> {
   const { seedSalesOrdersAndTills } = await import("./salesOrders");
   const { seedPurchasing } = await import("./purchasing");
   const { seedConsignment } = await import("./consignment");
+  const { seedInventory } = await import("./inventory");
+  const { seedService } = await import("./service");
   const { seedCommissionPayouts } = await import("./commissionPayouts");
   const { seedJournalEntries } = await import("./journal");
   const { ORG_SLUG } = await import("./org");
@@ -162,10 +164,47 @@ async function main(): Promise<void> {
     volume.consignmentItemCount,
   );
 
+  // On-hand stock. After purchasing, so the catalog and locations both exist,
+  // and the committed-stock positions can hang off real sales orders.
+  const committedOrders = await prisma.salesOrder.findMany({
+    where: { status: "ORDER" },
+    select: { id: true, storeLocationId: true },
+    take: 25,
+    orderBy: { id: "desc" },
+  });
+  const inventoryResult = await seedInventory(
+    prisma,
+    rng,
+    catalog.products,
+    locations.stores,
+    locations.warehouseStockLocationId,
+    locations.warehouseCommittedStockLocationId,
+    locations.warehouseStoreLocationId,
+    committedOrders,
+  );
+
+  const serviceResult = await seedService(
+    prisma,
+    rng,
+    customers,
+    staff,
+    locations.stores,
+    volume.serviceCaseCount,
+  );
+
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 
   const journalResult = await seedJournalEntries(prisma);
 
+  console.log(
+    `Inventory: ${inventoryResult.positionsCreated} positions, ${inventoryResult.unitsOnHand} units on hand ` +
+      `(${inventoryResult.committedPositions} committed to orders, ` +
+      `${inventoryResult.productsWithNoStock} products never stocked)`,
+  );
+  console.log(
+    `Service: ${serviceResult.casesCreated} cases (${serviceResult.openCases} open), ` +
+      `${serviceResult.notesCreated} notes, ${serviceResult.typesCreated} case types`,
+  );
   console.log("");
   console.log("=== Seed complete ===");
   console.log(`Organization: ${org.organizationId} (${ORG_SLUG})`);

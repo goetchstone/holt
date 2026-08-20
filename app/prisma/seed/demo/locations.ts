@@ -28,6 +28,8 @@ export interface StoreSetup {
 
 export interface LocationsSetup {
   stores: StoreSetup[];
+  /** The warehouse StoreLocation itself — inventory positions need it. */
+  warehouseStoreLocationId: number;
   warehouseStockLocationId: number;
   /** The warehouse bay flagged `holdsCommittedStock` -- on hand, already sold. */
   warehouseCommittedStockLocationId: number;
@@ -191,6 +193,7 @@ export async function seedLocations(
 
   return {
     stores,
+    warehouseStoreLocationId: warehouse.id,
     warehouseStockLocationId: warehouseStock.id,
     warehouseCommittedStockLocationId: warehouseCommitted.id,
   };
