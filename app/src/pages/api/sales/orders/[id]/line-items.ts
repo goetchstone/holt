@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
+import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -29,7 +30,6 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         quantity,
         unitPrice,
         cost: explicitCost,
-        taxRate,
         source,
         fulfillment,
         productId,
@@ -63,9 +63,27 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
       const nextLineNumber = (order.lineItems[0]?.lineNumber || 0) + 1;
       const netPrice = Number(quantity) * Number(unitPrice);
-      const vatAmount = taxRate ? Math.round(netPrice * Number(taxRate) * 100) / 100 : 0;
 
       const result = await prisma.$transaction(async (tx) => {
+        // Tax is resolved SERVER-SIDE from the order's customer and store.
+        //
+        // It used to be `taxRate` off the request body: the client told the
+        // server what tax to charge. Two failures in one. A caller could send
+        // any rate, and a caller that simply omitted it got `taxRate || 0` --
+        // a line silently added at ZERO tax to an otherwise-taxed order, with
+        // nothing anywhere reporting a problem.
+        //
+        // Resolved per line rather than per order because a TaxRule can band by
+        // amount (triggerPrice / startPrice), so a $9,000 line and a $90 line
+        // on the same order can legitimately differ.
+        const taxDistrict = await resolveTaxDistrict(tx, {
+          customerId: order.customerId,
+          storeLocationId: order.storeLocationId,
+          contextLabel: `order ${order.orderno ?? orderId}`,
+        });
+        const lineRate = rateForLineAmount(taxDistrict.rules, netPrice).rate;
+        const vatAmount = Math.round(netPrice * lineRate * 100) / 100;
+
         const lineItem = await tx.orderLineItem.create({
           data: {
             salesOrderId: orderId,
@@ -78,7 +96,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             // OrderLineItem.cost stores the LINE total, like netPrice.
             cost: itemCost * Number(quantity),
             barcode: "",
-            vatRate: taxRate || 0,
+            vatRate: lineRate,
             vatAmount,
             source: source || null,
             fulfillment: fulfillment || null,

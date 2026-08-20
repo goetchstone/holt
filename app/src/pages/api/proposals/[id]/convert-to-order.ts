@@ -7,6 +7,9 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
+import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 export default requireAuthWithRole(
   ["MANAGER", "ADMIN"],
@@ -56,13 +59,30 @@ export default requireAuthWithRole(
         }
         const orderno = `${prefix}${String(seq).padStart(3, "0")}`;
 
-        const isTaxExempt = proposal.customer?.taxExempt ?? false;
+        // Tax comes from the configured district, never a literal. A B2B
+        // proposal has no selling store, so this resolves through the
+        // customer's own district and then the deployment default -- see
+        // lib/tax/resolveTaxRate.ts for the full order. This used to be a bare
+        // rate written twice: one deployment's Connecticut rate compiled into
+        // the product, charging every other deployment's customers CT tax.
+        const taxDistrict = await resolveTaxDistrict(tx, {
+          customerId: proposal.customerId,
+          storeLocationId: null,
+          contextLabel: `B2B proposal ${proposal.proposalNumber}`,
+        });
+        // Customer.taxExempt (boolean) and Customer.taxExemptReasonId are two
+        // separate columns for the same question. resolveTaxDistrict reads the
+        // reason id; this path historically read the boolean. Honouring EITHER
+        // keeps both readings exempt rather than letting one silently tax a
+        // customer the other considers exempt.
+        const isTaxExempt = (proposal.customer?.taxExempt ?? false) || taxDistrict.isExempt;
 
         const order = await tx.salesOrder.create({
           data: {
             orderno,
             status: "ORDER",
             orderDate: now,
+            taxDistrictId: taxDistrict.taxDistrictId,
             customerId: proposal.customerId,
             salesPersonId: proposal.salesPersonId,
             storeLocation: "B2B",
@@ -76,6 +96,10 @@ export default requireAuthWithRole(
         // Create line items from proposal
         for (let i = 0; i < proposal.lineItems.length; i++) {
           const item = proposal.lineItems[i];
+          const lineTotal = round2(Number(item.retailPrice) * item.quantity);
+          // Banded against this line's own amount: a TaxRule may gate on
+          // triggerPrice/startPrice, so the rate is per line, not per order.
+          const lineRate = isTaxExempt ? 0 : rateForLineAmount(taxDistrict.rules, lineTotal).rate;
           await tx.orderLineItem.create({
             data: {
               salesOrderId: order.id,
@@ -85,10 +109,18 @@ export default requireAuthWithRole(
               productName: item.itemName,
               partNo: item.partNumber,
               orderedQuantity: item.quantity,
-              netPrice: item.retailPrice,
-              cost: item.cost,
-              vatRate: isTaxExempt ? 0 : 0.0635,
-              vatAmount: isTaxExempt ? 0 : Number(item.retailPrice) * item.quantity * 0.0635,
+              // LINE totals, not unit prices. ProposalLineItem.retailPrice and
+              // .cost are per-unit ("$X each x N" in the proposal PDF), while
+              // OrderLineItem.netPrice/cost are line totals summed directly by
+              // every report (lib/pos/cartPricing.ts: "netPrice is the LINE
+              // total, never the unit price"). Writing the unit price here
+              // understated revenue and COGS by (quantity - 1) x unit on every
+              // multi-quantity line, while tax was computed on the full line --
+              // so the two disagreed on the same row.
+              netPrice: lineTotal,
+              cost: round2(Number(item.cost ?? 0) * item.quantity),
+              vatRate: lineRate,
+              vatAmount: round2(lineTotal * lineRate),
               selectedGrade: item.selectedGrade,
               selectedFinish: item.selectedFinish,
               selectedOptions: item.selectedOptions,
