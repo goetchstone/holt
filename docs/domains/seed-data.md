@@ -135,6 +135,28 @@ revenue on a typical day. `InvoiceLineItem` rows are deliberately NOT created:
 skipping them lets `OrderLineItem` rows batch through `createMany` instead of one round
 trip per line (meaningful at demo scale — 6,000 orders × ~2.5 lines each).
 
+### Service cases
+
+The Service nav section is six pages and every one was empty on a fresh clone,
+because `ServiceCase` and its three lookup tables had no rows. A furniture
+retailer's after-sale problems are not a side feature; a demo that cannot show
+one is not showing the product.
+
+The lookup tables are seeded as **config, not constants**. `ServiceCaseType`,
+`ServiceCaseStatus` and `ServiceCasePriority` are operator-editable rows with
+`isActive`/`sortOrder`, so the seeded vocabulary (Warranty Claim, Delivery
+Damage, Missing Parts, …) is a starting point a deployment edits — nothing in
+`src/` references any of those names.
+
+The status mix is shaped, ~65% closed: a queue where every case is New exercises
+no filter, and one where every case is Closed shows an empty default view.
+Measured on a seeded database: 24 cases — 7 New, 1 In Progress, 4 Waiting on
+Vendor, 5 Resolved, 7 Closed — with 48 internal notes, because a case detail page
+is mostly a timeline and a timeline with one row does not look like one.
+
+Still dark after this: Helpdesk (`Ticket`) and Time (`TimeEntry`, `StaffShift`)
+are each their own nav section with no seeded rows.
+
 ### On-hand stock
 
 `InventoryPosition` was empty until this was added, which left the Inventory

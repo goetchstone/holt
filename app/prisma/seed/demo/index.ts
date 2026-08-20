@@ -56,6 +56,7 @@ async function main(): Promise<void> {
   const { seedPurchasing } = await import("./purchasing");
   const { seedConsignment } = await import("./consignment");
   const { seedInventory } = await import("./inventory");
+  const { seedService } = await import("./service");
   const { seedCommissionPayouts } = await import("./commissionPayouts");
   const { seedJournalEntries } = await import("./journal");
   const { ORG_SLUG } = await import("./org");
@@ -182,6 +183,15 @@ async function main(): Promise<void> {
     committedOrders,
   );
 
+  const serviceResult = await seedService(
+    prisma,
+    rng,
+    customers,
+    staff,
+    locations.stores,
+    volume.serviceCaseCount,
+  );
+
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 
   const journalResult = await seedJournalEntries(prisma);
@@ -190,6 +200,10 @@ async function main(): Promise<void> {
     `Inventory: ${inventoryResult.positionsCreated} positions, ${inventoryResult.unitsOnHand} units on hand ` +
       `(${inventoryResult.committedPositions} committed to orders, ` +
       `${inventoryResult.productsWithNoStock} products never stocked)`,
+  );
+  console.log(
+    `Service: ${serviceResult.casesCreated} cases (${serviceResult.openCases} open), ` +
+      `${serviceResult.notesCreated} notes, ${serviceResult.typesCreated} case types`,
   );
   console.log("");
   console.log("=== Seed complete ===");
