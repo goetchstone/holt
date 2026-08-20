@@ -29,7 +29,19 @@ Source of truth for the ERP-native `Payment` writes — POS tender, refund proce
 
 Key invariants enforced by `recordPayment()`:
 
-- One `Payment` row per call. **No split-tender per call** today — each tender slice needs its own `POST /api/sales/orders/[id]/payments`, the only caller of `recordPayment`. Schema supports multiple payments per order.
+- One `Payment` row per call. Each tender slice is its own
+  `POST /api/sales/orders/[id]/payments`; the schema has always supported
+  multiple payments per order, and `recordPayment` has always accepted any
+  positive amount.
+
+  **The register now takes partial payments.** It used to send the full order
+  total on every payment, so a deposit — a furniture store's normal transaction —
+  could not be rung up at all, and a customer splitting across two tenders needed
+  two orders. The POS screen now offers an amount (defaulting to the balance
+  due), refuses more than the balance, and stays on the payment screen while a
+  balance remains so the next tender can be taken. Nothing changed on the money
+  path: the limitation was entirely in the screen.
+
 - Payment status follows the function that wrote the row, not the tender type. `recordPayment()` always writes `COMPLETED`. Processor checkouts go through `recordPendingPayment()`, which writes `PENDING` and posts NO ledger entry; `completePayment()` flips it to `COMPLETED` and posts the ledger entry when the webhook confirms. An unpaid `PENDING` row ends as `FAILED` via `expirePendingPayment()` (webhook expiry event, or the `sweepStalePendingPayments` backstop after 24h), or as `VOIDED` via `voidPendingPayment()` — either a `force` re-checkout replacing it, or the operator escape hatch at `POST /api/sales/orders/[id]/payments/[paymentId]/void` (`payment.void`).
 - `Payment.method` enum: `CASH`, `CARD`, `CHECK`, `GIFT_CARD`, `STORE_CREDIT`, `WIRE`, `ACH`, `FINANCE`, `OTHER`. Both `status` and `method` are nullable on the model, for imported rows. The string `paymentType` is denormalized for legacy reports (`lib/paymentMethodDisplay.ts`).
 - **Customer-ledger atomic update** (Phase 0.5): every `recordPayment` runs inside a `$transaction` that ALSO appends a `CustomerLedgerEntry` and bumps `Customer.openArBalance`. The append is skipped only when there is no customer to ledger against (a walk-in on an unlinked order). Never skip the transaction wrap — drift detection (`lib/customerArDrift.ts`) will fire if the ledger and balance diverge.

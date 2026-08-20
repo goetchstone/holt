@@ -95,6 +95,8 @@ interface PaymentSummary {
 type PaymentMethodType = "CASH" | "CHECK" | "CARD" | "GIFT_CARD";
 type DeliveryMethod = "TAKEN" | "PICKUP" | "DELIVERY";
 
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
 const PAYMENT_METHODS: PaymentMethodType[] = ["CASH", "CHECK", "CARD", "GIFT_CARD"];
 
 const PAYMENT_METHOD_LABELS: Record<PaymentMethodType, string> = {
@@ -165,6 +167,16 @@ export function PosView() {
   const [giftCardError, setGiftCardError] = useState("");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
+  // Deposits and split tender. The register used to send createdOrder.total on
+  // every payment, so a furniture store's NORMAL transaction -- take a deposit
+  // now, the balance on delivery -- could not be rung up at all, and a customer
+  // paying half on a card and half in cash needed two orders.
+  //
+  // recordPayment already accepted any positive amount; only the UI insisted on
+  // the full total. paidSoFar tracks this session's tenders so the panel can
+  // show what is left and offer it as the default.
+  const [paidSoFar, setPaidSoFar] = useState(0);
+  const [payAmount, setPayAmount] = useState("");
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
 
   // Order-level discount
@@ -540,7 +552,7 @@ export function PosView() {
     if (method === "CASH") {
       const tendered = Number.parseFloat(tenderedAmount);
       if (Number.isNaN(tendered) || tendered < amount) {
-        return "Tendered amount must be at least the order total";
+        return "Tendered amount must be at least the amount being paid";
       }
     }
     return null;
@@ -548,7 +560,17 @@ export function PosView() {
 
   const handleRecordPayment = async () => {
     if (!createdOrder || !paymentMethod) return;
-    const amount = createdOrder.total;
+    const balanceDue = round2(createdOrder.total - paidSoFar);
+    const requested = payAmount.trim() === "" ? balanceDue : Number.parseFloat(payAmount);
+    if (Number.isNaN(requested) || requested <= 0) {
+      toast.error("Enter a payment amount greater than zero");
+      return;
+    }
+    if (requested > balanceDue + 0.005) {
+      toast.error(`Payment cannot exceed the ${fmt(balanceDue)} balance due`);
+      return;
+    }
+    const amount = round2(requested);
     if (amount <= 0) return;
 
     const validationError = validatePayment(paymentMethod, amount);
@@ -583,6 +605,20 @@ export function PosView() {
           ? Math.round((Number.parseFloat(tenderedAmount) - amount) * 100) / 100
           : undefined;
 
+      const newPaid = round2(paidSoFar + amount);
+      setPaidSoFar(newPaid);
+      const remaining = round2(createdOrder.total - newPaid);
+
+      if (remaining > 0.005) {
+        // A deposit, or the first half of a split tender. Clear the tender
+        // selection and stay on this screen so the next one can be taken --
+        // jumping to the receipt here is what made partial payment impossible.
+        resetPaymentFlow();
+        setPayAmount("");
+        toast.success(`${fmt(amount)} recorded — ${fmt(remaining)} still due`);
+        return;
+      }
+
       setPaymentComplete(true);
       setPaymentSummary({
         method: PAYMENT_METHOD_LABELS[paymentMethod],
@@ -614,6 +650,8 @@ export function PosView() {
     setDeliveryMethod("TAKEN");
     setDiscountIdx(null);
     setCreatedOrder(null);
+    setPaidSoFar(0);
+    setPayAmount("");
     resetPaymentFlow();
     setPaymentComplete(false);
     setPaymentSummary(null);
@@ -651,6 +689,10 @@ export function PosView() {
       <TakePaymentPanel
         order={createdOrder}
         fmt={fmt}
+        balanceDue={round2(createdOrder.total - paidSoFar)}
+        paidSoFar={paidSoFar}
+        payAmount={payAmount}
+        setPayAmount={setPayAmount}
         paymentMethod={paymentMethod}
         setPaymentMethod={setPaymentMethod}
         tenderedAmount={tenderedAmount}
@@ -1133,6 +1175,10 @@ function PaymentCompletePanel({
 }
 
 function TakePaymentPanel({
+  balanceDue,
+  paidSoFar,
+  payAmount,
+  setPayAmount,
   order,
   fmt,
   paymentMethod,
@@ -1165,6 +1211,10 @@ function TakePaymentPanel({
   setGiftCardBarcode: Dispatch<SetStateAction<string>>;
   giftCardInfo: GiftCardInfo | null;
   setGiftCardInfo: Dispatch<SetStateAction<GiftCardInfo | null>>;
+  balanceDue: number;
+  paidSoFar: number;
+  payAmount: string;
+  setPayAmount: Dispatch<SetStateAction<string>>;
   giftCardError: string;
   setGiftCardError: Dispatch<SetStateAction<string>>;
   paymentProcessing: boolean;
@@ -1173,9 +1223,12 @@ function TakePaymentPanel({
   onResetFlow: () => void;
   onSkip: () => void;
 }>) {
+  // Everything on this panel is against the amount being tendered NOW, which
+  // is the balance due unless the operator is taking a deposit.
+  const payingNow = payAmount.trim() === "" ? balanceDue : Number.parseFloat(payAmount) || 0;
   const cashChange =
-    tenderedAmount && Number.parseFloat(tenderedAmount) >= order.total
-      ? Math.round((Number.parseFloat(tenderedAmount) - order.total) * 100) / 100
+    tenderedAmount && Number.parseFloat(tenderedAmount) >= payingNow
+      ? Math.round((Number.parseFloat(tenderedAmount) - payingNow) * 100) / 100
       : null;
 
   return (
@@ -1186,7 +1239,14 @@ function TakePaymentPanel({
             <h2 className="text-xl font-semibold text-sh-blue">Take Payment</h2>
             <p className="text-sm text-sh-gray mt-1">Order {order.orderno}</p>
           </div>
-          <span className="text-2xl font-semibold text-sh-black">{fmt(order.total)}</span>
+          <div className="text-right">
+            <span className="text-2xl font-semibold text-sh-black">{fmt(balanceDue)}</span>
+            {paidSoFar > 0 && (
+              <p className="text-xs text-sh-gray mt-0.5">
+                {fmt(paidSoFar)} paid of {fmt(order.total)}
+              </p>
+            )}
+          </div>
         </div>
         {/* Breakdown from the server's authoritative pricing -- the tax line
             the cart screen couldn't show, now that the rate is known. */}
@@ -1207,6 +1267,38 @@ function TakePaymentPanel({
           </div>
         </div>
       </div>
+
+      {paymentMethod && (
+        <div className="bg-white border border-sh-gray/20 rounded-lg p-4 mb-4">
+          <label htmlFor="pay-amount" className="mb-1 block text-sm text-sh-gray">
+            Amount to take now
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              id="pay-amount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              max={balanceDue}
+              value={payAmount}
+              onChange={(e) => setPayAmount(e.target.value)}
+              placeholder={balanceDue.toFixed(2)}
+              className="w-40 rounded-md border border-sh-brand-gray px-3 py-2 text-right text-sh-black focus:border-sh-blue focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setPayAmount(balanceDue.toFixed(2))}
+              className="rounded-md border border-sh-brand-gray px-3 py-2 text-sm"
+            >
+              Pay in full
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-sh-gray">
+            Leave blank to take the full {fmt(balanceDue)} balance. Enter less to take a deposit or
+            split across tenders — the order stays open until it is paid off.
+          </p>
+        </div>
+      )}
 
       {!paymentMethod ? (
         <div className="grid grid-cols-2 gap-4">
@@ -1244,10 +1336,10 @@ function TakePaymentPanel({
                   id="pos-tendered"
                   type="number"
                   step="0.01"
-                  min={order.total}
+                  min={payingNow}
                   value={tenderedAmount}
                   onChange={(e) => setTenderedAmount(e.target.value)}
-                  placeholder={order.total.toFixed(2)}
+                  placeholder={payingNow.toFixed(2)}
                   className="w-full border border-sh-gray/30 rounded px-3 py-3 text-lg focus:outline-none focus:border-sh-blue"
                   autoFocus
                   onKeyDown={(e) => {
@@ -1329,9 +1421,9 @@ function TakePaymentPanel({
                   <p className="text-sm font-medium text-sh-black">
                     Balance: {fmt(giftCardInfo.currentBalance)}
                   </p>
-                  {giftCardInfo.currentBalance < order.total && (
+                  {giftCardInfo.currentBalance < payingNow && (
                     <p className="text-xs text-red-600 mt-1">
-                      Insufficient balance for {fmt(order.total)} order total
+                      Insufficient balance for the {fmt(payingNow)} being tendered
                     </p>
                   )}
                 </div>
@@ -1347,7 +1439,7 @@ function TakePaymentPanel({
           >
             {paymentProcessing
               ? "Processing..."
-              : `Record ${PAYMENT_METHOD_LABELS[paymentMethod]} Payment -- ${fmt(order.total)}`}
+              : `Record ${PAYMENT_METHOD_LABELS[paymentMethod]} Payment -- ${fmt(payingNow)}`}
           </Button>
         </div>
       )}
