@@ -47,8 +47,11 @@ npm run seed:demo -- --reset         # wipe an existing seeded DB and reseed
 | 8    | `salesOrders.ts`       | `SalesOrder` + `OrderLineItem` + `Invoice` + `Payment` + `Till`/`TillCount`, ~18 months                                                                                                         |
 | 9    | `purchasing.ts`        | `PurchaseOrder` + `PurchaseOrderItem` + `ReceivingRecord`                                                                                                                                       |
 | 10   | `consignment.ts`       | A GENERIC consignment `Vendor` + `ConsignmentReceipt`/`ConsignmentItem`/`ConsignmentPaymentBatch`                                                                                               |
-| 11   | `commissionPayouts.ts` | Real `CommissionPayout` rows via `lib/runCommissionPayouts.ts`'s `commitPayoutsForPeriod`                                                                                                       |
-| 12   | `journal.ts`           | Real `JournalEntry`/`JournalEntryLine` rows via `lib/journalEntry.ts`'s `generateSalesJournal`                                                                                                  |
+| 11   | `inventory.ts`         | `InventoryPosition` across floor / back stock / warehouse bulk / committed staging                                                                                                              |
+| 12   | `service.ts`           | `ServiceCase` + `ServiceCaseNote` and the three operator-editable lookup tables                                                                                                                 |
+| 13   | `operations.ts`        | `Ticket` + `TicketMessage` (Helpdesk), `TimeEntry` + `StaffShift` (Time)                                                                                                                        |
+| 14   | `commissionPayouts.ts` | Real `CommissionPayout` rows via `lib/runCommissionPayouts.ts`'s `commitPayoutsForPeriod`                                                                                                       |
+| 15   | `journal.ts`           | Real `JournalEntry`/`JournalEntryLine` rows via `lib/journalEntry.ts`'s `generateSalesJournal`                                                                                                  |
 
 Everything is realistic-but-clearly-fake: invented names, `@example.com` emails, made-up
 CT-area addresses, invented furniture-trade vendor names. No real people, no real
@@ -134,6 +137,31 @@ revenue on a typical day. `InvoiceLineItem` rows are deliberately NOT created:
 `generateSalesJournal` only checks `invoices.length > 0`, never their contents, and
 skipping them lets `OrderLineItem` rows batch through `createMany` instead of one round
 trip per line (meaningful at demo scale — 6,000 orders × ~2.5 lines each).
+
+### Helpdesk tickets and time
+
+The last two dark nav sections. Both are small domains with their own top-level
+entry that rendered an empty screen on a fresh clone, seeded together because
+neither justifies its own module and both answer the same question — does this
+part of the product do anything?
+
+**Tickets** are the no-login customer support surface, and every seeded ticket
+carries a `publicToken`, because that token IS the authorization for
+`pages/api/tickets/public/[token].ts`. Seeding tickets without tokens would
+leave that whole path unexercised while looking populated. Messages are seeded
+**both internal and customer-visible** in equal number: the public endpoint
+filters internal notes out, and a ticket with only public messages cannot
+demonstrate that it does.
+
+**Time entries** are billable-consultancy shaped (`isBillable`, `billedAt`) —
+the Akritos deployment's case rather than the furniture one. A mix of billed and
+unbilled is what makes a "what can I invoice" view non-empty.
+
+**Shifts** include exactly one still open (`clockOut: null`). A board where
+nobody is clocked in cannot show its own primary state.
+
+Measured: 18 tickets (13 open) with 18 internal / 18 public messages, 60 time
+entries with 2,895 unbilled minutes, 9 shifts with 1 open.
 
 ### Service cases
 
