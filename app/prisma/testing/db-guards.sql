@@ -26,6 +26,8 @@ BEGIN
       'Cannot DELETE Payment id=% with status=% -- payments in terminal states are append-only. Refunds must be recorded as new INSERT rows with originalPaymentId set. See SOR plan Phase 0 B6 + docs/domains/accounting.md.',
       OLD.id, OLD.status
       USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
 

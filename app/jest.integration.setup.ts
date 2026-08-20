@@ -119,9 +119,13 @@ function applySchema(testDbUrl: string): void {
 function applyDbGuards(testDbUrl: string): void {
   const guardsPath = join(__dirname, "prisma", "testing", "db-guards.sql");
   if (!existsSync(guardsPath)) return;
-  execSync(`npx prisma db execute --url "${testDbUrl}" --file "${guardsPath}"`, {
+  // DATABASE_URL by env, not --url: Prisma 7 removed that flag from
+  // `db execute` and reads the datasource from prisma.config.ts. Same shape as
+  // the `db push` call above, which is why that one worked and this did not.
+  execSync(`npx prisma db execute --file "${guardsPath}"`, {
     cwd: __dirname,
     stdio: "inherit",
+    env: { ...process.env, DATABASE_URL: testDbUrl },
   });
 }
 

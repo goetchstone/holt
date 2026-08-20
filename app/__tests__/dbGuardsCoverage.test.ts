@@ -87,6 +87,25 @@ describe("database guards reach the integration test DB", () => {
     expect(setup).toContain("db-guards.sql");
   });
 
+  it("carries the trigger body VERBATIM from its migration", () => {
+    // Names are not enough. My first version of the guards file had the right
+    // NAMES and a hand-retyped function body that had lost `END IF;` and
+    // `RETURN OLD;` -- valid-looking, and a syntax error the moment Postgres
+    // parsed it. The name checks above passed the whole time.
+    //
+    // Comparing the block verbatim means the guards file can only be produced
+    // by copying, not by retyping.
+    const migration = readFileSync(
+      join(MIGRATIONS, "20260428_payment_delete_immutability_trigger", "migration.sql"),
+      "utf8",
+    );
+    const block = migration.match(
+      /CREATE OR REPLACE FUNCTION enforce_payment_delete_immutability[\s\S]*?EXECUTE FUNCTION enforce_payment_delete_immutability\(\);/,
+    );
+    expect(block).not.toBeNull();
+    expect(readFileSync(GUARDS, "utf8")).toContain(block![0]);
+  });
+
   it("finds the guards it was written for, so the scan is not silently empty", () => {
     // If the regexes stop matching, every "missing" list is empty and all the
     // assertions above pass while covering nothing.
