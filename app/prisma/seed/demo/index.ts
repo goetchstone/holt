@@ -57,6 +57,7 @@ async function main(): Promise<void> {
   const { seedConsignment } = await import("./consignment");
   const { seedInventory } = await import("./inventory");
   const { seedService } = await import("./service");
+  const { seedOperations } = await import("./operations");
   const { seedCommissionPayouts } = await import("./commissionPayouts");
   const { seedJournalEntries } = await import("./journal");
   const { ORG_SLUG } = await import("./org");
@@ -192,6 +193,17 @@ async function main(): Promise<void> {
     volume.serviceCaseCount,
   );
 
+  const operationsResult = await seedOperations(
+    prisma,
+    rng,
+    org.organizationId,
+    customers,
+    staff,
+    locations.stores,
+    volume.ticketCount,
+    volume.timeEntryCount,
+  );
+
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 
   const journalResult = await seedJournalEntries(prisma);
@@ -204,6 +216,14 @@ async function main(): Promise<void> {
   console.log(
     `Service: ${serviceResult.casesCreated} cases (${serviceResult.openCases} open), ` +
       `${serviceResult.notesCreated} notes, ${serviceResult.typesCreated} case types`,
+  );
+  console.log(
+    `Helpdesk: ${operationsResult.ticketsCreated} tickets (${operationsResult.openTickets} open), ` +
+      `${operationsResult.ticketMessages} messages`,
+  );
+  console.log(
+    `Time: ${operationsResult.timeEntries} entries (${operationsResult.unbilledMinutes} unbilled minutes), ` +
+      `${operationsResult.shiftsCreated} shifts (${operationsResult.openShifts} open)`,
   );
   console.log("");
   console.log("=== Seed complete ===");
