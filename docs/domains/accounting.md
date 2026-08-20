@@ -109,7 +109,43 @@ from a tender string is how money lands in the wrong account.
 
 ### `TaxDistrict`
 
-Has its own `glAccountId` field. `2-2120` for CT. New districts get their own account when added.
+Has its own `glAccountId` field. `2-2120` for CT in the Saybrook chart. New districts get
+their own account when added.
+
+**How a rate is chosen.** Never from a literal, and never from the client.
+`lib/tax/resolveTaxRate.ts` owns it:
+
+`resolveTaxDistrict()` walks most-specific-first — customer exemption
+(`Customer.taxExemptReasonId`), then the customer's own
+`defaultTaxDistrictId`, then the selling store's `taxDistrictId`, then
+`AppSettings.defaultTaxDistrictId`, and finally rate 0 **with a warning naming the
+store**, because silently charging no tax is how the original bug survived so long.
+
+`rateForLineAmount()` then bands per LINE against that line's own amount, evaluating
+`TaxRule`'s `triggerPrice`/`triggerStop` gates and `startPrice`/`stopPrice` band. A
+$9,000 line and a $90 line on one order can legitimately carry different rates, so the
+rate is resolved per line rather than per order.
+
+Every write path that sets `OrderLineItem.vatRate` goes through those two functions, and
+`__tests__/taxResolutionSingleSource.test.ts` enforces it. Two bypasses it was written
+after finding:
+
+- The B2B proposal-conversion path wrote a bare Connecticut rate — one deployment's rate
+  compiled into the product, charging every other deployment's customers CT tax.
+- The add-line-item route read `taxRate` **off the request body**. A caller could send any
+  rate, and one that omitted it got `taxRate || 0` — a line silently added at zero tax to
+  an otherwise-taxed order.
+
+The guard distinguishes **configuring** a rate from **applying** one: `pages/api/tax/rules/*`
+legitimately takes `taxRate` from the body, because that is an operator editing a
+`TaxRule`, which is the entire point of the config system.
+
+**Two exemption columns exist.** `Customer.taxExempt` (boolean) and
+`Customer.taxExemptReasonId` answer the same question, and they can disagree. The resolver
+reads the reason id; the proposal path historically read the boolean, and now honours
+either, so neither reading can silently tax a customer the other considers exempt. They do
+not diverge in any current dataset — this is a latent second source of truth, not a live
+bug, and collapsing them is worth doing before it becomes one.
 
 ### `JournalEntry` + `JournalEntryLine`
 
