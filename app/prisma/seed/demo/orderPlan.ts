@@ -72,6 +72,24 @@ const INVOICED_SHARE = 0.7;
 const REFUND_PROBABILITY_GIVEN_INVOICED = 0.0911;
 /** Most tickets in a considered-purchase furniture store capture a real
  * customer record; a minority are anonymous counter sales. */
+/**
+ * How far through the history the departed designers were still selling, and
+ * what share of orders they took while there. 0.45 x 0.12 lands at ~5% of all
+ * orders, matching the reference dataset's 1,840 of 35,831 attributed orders.
+ */
+const DEPARTED_ACTIVE_UNTIL = 0.45;
+const DEPARTED_SHARE_WHILE_ACTIVE = 0.12;
+
+/**
+ * Share of orders written by non-designer floor staff (Apparel, Home Shop).
+ *
+ * 22% matches the reference dataset's 7,813 of 35,831 attributed orders. It
+ * matters that this is not zero: a seed where only designers sell reproduces the
+ * exact assumption that left those sellers without staff records for years,
+ * and nothing downstream would notice a report that silently drops them.
+ */
+const FLOOR_SELLER_SHARE = 0.22;
+
 const CUSTOMER_ASSIGNMENT_PROBABILITY = 0.9;
 
 export function buildOrderPlans(
@@ -136,7 +154,39 @@ export function buildOrderPlans(
       d,
       pool.includes(d) ? 3 : 1,
     ]);
-    const designer = weightedPick(detailRng, designerWeights);
+    // A share of the OLDER history belongs to designers who have since left.
+    // Real deployments always carry this: the reference dataset attributes 1,840
+    // orders (~5% of attributed sales) to archived staff. Without it nothing
+    // exercises a departed designer keeping their historical attribution and
+    // commission history while being absent from every current-staff picker.
+    //
+    // They stop appearing partway through the range because that is what
+    // leaving means -- a departed designer with orders last week would be a
+    // worse fixture than none at all.
+    const historyPosition = dates.length > 1 ? i / (dates.length - 1) : 1;
+    const departedPool = staff.departedDesigners;
+    const attributeToDeparted =
+      departedPool.length > 0 &&
+      historyPosition < DEPARTED_ACTIVE_UNTIL &&
+      chance(detailRng, DEPARTED_SHARE_WHILE_ACTIVE);
+
+    // Non-designer floor staff take their share first: they are a different kind
+    // of seller, not a designer variant, so they are picked before the designer
+    // weighting rather than folded into it.
+    // Archived floor staff obey the same rule as archived designers: they stop
+    // selling partway through the window. Leaving them in the whole range put a
+    // departed seller's last order on the final day of history.
+    const floorPool = staff.floorSellers.filter(
+      (f) => f.isActive || historyPosition < DEPARTED_ACTIVE_UNTIL,
+    );
+    const attributeToFloor =
+      !attributeToDeparted && floorPool.length > 0 && chance(detailRng, FLOOR_SELLER_SHARE);
+
+    const designer = attributeToDeparted
+      ? pick(detailRng, departedPool)
+      : attributeToFloor
+        ? pick(detailRng, floorPool)
+        : weightedPick(detailRng, designerWeights);
 
     const hasCustomer = chance(detailRng, CUSTOMER_ASSIGNMENT_PROBABILITY);
     const customer = hasCustomer ? pick(detailRng, customers) : null;

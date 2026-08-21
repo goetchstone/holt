@@ -87,6 +87,41 @@ The highest-consequence cluster in the codebase. Detail and worked examples:
     the processor from the payment's stored `processorType`, never from whichever
     provider is active now.
 
+65. **Anything countable gets a manifest and a tripwire.** When the repo has a
+    set of things that must stay covered — every model seeded, every migration
+    guard applied, every route gated — do not rely on noticing. Write down the
+    complete set with each item classified, and add a check that fails when
+    reality disagrees. The pattern is always the same three parts:
+
+    - **A manifest that is exhaustive.** Every member of the set appears, with a
+      status. An item that is deliberately excluded carries a **reason**, and
+      the check enforces that the reason exists. "Skipped" without a reason is
+      indistinguishable from "forgotten", which is the failure this prevents.
+    - **A check that fails in BOTH directions.** Something claimed covered that
+      isn't is a regression. Something covered that the manifest still lists as
+      outstanding is a stale manifest, and it lies about how much work is left.
+      Both must fail, or the manifest drifts in whichever direction is unwatched.
+    - **A gate that runs unattended.** In CI, on a real artifact. A check nobody
+      runs is a comment.
+
+    Prove the tripwire in both directions before trusting it: reintroduce the
+    problem, watch it fail, restore, watch it pass. A tripwire only ever seen
+    passing is not evidence — see rule 56.
+
+    Existing instances to copy: `prisma/seed/coverage.ts` +
+    `__tests__/seedCoverage.test.ts` + `npm run seed:coverage`;
+    `prisma/testing/db-guards.sql` + `__tests__/dbGuardsCoverage.test.ts`;
+    `__tests__/schemaNormalization.test.ts` (text-beside-its-own-FK columns, each
+    accepted pair carrying the measurement that justified it);
+    `__tests__/fixtures/ungated-read-api-routes.txt`.
+
+    A ratchet beats a cleanup. Where the debt is real but removing it is not
+    worth it today, freeze the set and require a written argument to grow it —
+    the schema-normalization test accepts thirteen existing pairs and fails on
+    the fourteenth. Where a set is split into
+    units of work, name them — a named unit is delegable; "the rest of the gap"
+    is not.
+
 ### Imports and legacy data
 
 → `docs/domains/import-pipeline.md`, `docs/domains/imports-overview.md`,

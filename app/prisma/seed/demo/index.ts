@@ -269,6 +269,80 @@ async function main(): Promise<void> {
     console.log("Journal warnings: none — every payment type and account-group leg mapped.");
   }
 
+  // Departed-designer invariants, checked rather than assumed.
+  //
+  // Table-level coverage (prisma/seed/coverage.ts) cannot see this: StaffMember
+  // is populated either way. What matters is the STATE mix -- a roster where
+  // everyone is active exercises none of the departed-staff paths, and it would
+  // regress silently, because the seed would still look fine.
+  // EVERY archived staff member, not just designers. The first version of this
+  // check looked only at departedDesigners, and an archived floor seller sailed
+  // straight past it selling on the final day of the window.
+  const departedIds = staff.all.filter((m) => !m.isActive).map((m) => m.id);
+  if (departedIds.length === 0) {
+    throw new Error("seed invariant: expected archived staff, found none");
+  }
+  const departedOrders = await prisma.salesOrder.findMany({
+    where: { salesPersonId: { in: departedIds } },
+    select: { orderDate: true },
+    orderBy: { orderDate: "desc" },
+  });
+  if (departedOrders.length === 0) {
+    throw new Error(
+      "seed invariant: archived staff carry no orders — archived staff with no " +
+        "history exercise nothing. Check DEPARTED_ACTIVE_UNTIL in orderPlan.ts.",
+    );
+  }
+  const latestActive = await prisma.salesOrder.aggregate({
+    where: { salesPerson: { isActive: true } },
+    _max: { orderDate: true },
+  });
+  const departedLatest = departedOrders[0]?.orderDate ?? null;
+  const activeLatest = latestActive._max.orderDate ?? null;
+  // A real gap, not merely "not the very last order". With 15 active designers
+  // against 2 departed, the newest order almost always belongs to an active one
+  // by chance alone -- so `departedLatest < activeLatest` passes even when the
+  // departed are still selling right to the end, and the check proves nothing.
+  // Requiring a wide gap makes it deterministic for a given DEPARTED_ACTIVE_UNTIL.
+  const DEPARTED_MIN_GAP_DAYS = 60;
+  if (departedLatest && activeLatest) {
+    const gapDays = (activeLatest.getTime() - departedLatest.getTime()) / 86_400_000;
+    if (gapDays < DEPARTED_MIN_GAP_DAYS) {
+      throw new Error(
+        `seed invariant: archived staff sold until ${departedLatest.toISOString().slice(0, 10)}, ` +
+          `only ${Math.round(gapDays)} days before active staff stop at ` +
+          `${activeLatest.toISOString().slice(0, 10)}. Someone who left does not sell last week — ` +
+          "check DEPARTED_ACTIVE_UNTIL in orderPlan.ts.",
+      );
+    }
+  }
+  // Non-designer sellers must actually sell. A seed where only designers write
+  // orders reproduces the assumption that left Apparel and Home Shop staff
+  // without records for years -- and every report would look fine.
+  const floorIds = staff.floorSellers.map((f) => f.id);
+  const floorOrders = floorIds.length
+    ? await prisma.salesOrder.count({ where: { salesPersonId: { in: floorIds } } })
+    : 0;
+  const attributed = await prisma.salesOrder.count({ where: { salesPersonId: { not: null } } });
+  if (floorOrders === 0) {
+    throw new Error(
+      "seed invariant: non-designer floor staff wrote no orders — the seed is back to " +
+        "designers-only. Check FLOOR_SELLER_SHARE in orderPlan.ts.",
+    );
+  }
+  console.log(
+    `Floor sellers (non-designer): ${floorIds.length} staff, ${floorOrders} orders ` +
+      `(${((floorOrders / Math.max(attributed, 1)) * 100).toFixed(1)}% of attributed)`,
+  );
+
+  console.log(
+    `Archived staff: ${departedIds.length} archived, ${departedOrders.length} historical ` +
+      `orders, last sale ${departedLatest?.toISOString().slice(0, 10) ?? "n/a"} ` +
+      `(active staff sell through ${activeLatest?.toISOString().slice(0, 10) ?? "n/a"})`,
+  );
+  {
+  }
+
   await prisma.$disconnect();
 }
 
