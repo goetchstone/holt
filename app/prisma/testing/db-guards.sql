@@ -56,7 +56,7 @@ EXECUTE FUNCTION enforce_payment_delete_immutability();
 -- silently change what the test asserts. Left out here rather than rushed, with
 -- the constraint named so this is a tracked gap and not a quiet omission.
 -- __tests__/dbGuardsCoverage.test.ts enforces that this exclusion carries a
--- reason.
+-- reason. Tracked in issue #115.
 
 -- 20260801120000_add_configurable_imports
 -- A RECONCILE definition needs a registered runner; the engine cannot
