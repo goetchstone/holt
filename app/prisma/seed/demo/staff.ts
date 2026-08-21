@@ -33,6 +33,18 @@ export interface SeededStaffMember {
 export interface StaffSetup {
   all: SeededStaffMember[];
   /**
+   * Sellers who are not designers -- the Apparel and Home Shop floor. They write
+   * real orders (~22% of attributed sales in the reference dataset, from 11 of
+   * 18 non-designers) but must never appear in designer commission reporting.
+   *
+   * This group exists because assuming only designers sell is what created the
+   * problem it models: reporting was designer-only, so these people were never
+   * entered as staff at all while their names went on every order they wrote.
+   * A seed where only designers sell reproduces that blind spot exactly.
+   */
+  floorSellers: SeededStaffMember[];
+
+  /**
    * Designers who have left. Real deployments always have them -- 4 of 42 staff
    * (~10%) in the reference dataset, still carrying 1,840 historical orders --
    * and a roster where everyone is active never exercises the paths that matter:
@@ -202,6 +214,21 @@ export async function seedStaff(
     isActive: false,
   }));
 
+  // Apparel and Home Shop sellers. REGISTER with isDesigner false: they earn
+  // attribution without landing in designer commission reports. One has left,
+  // so the departed path is exercised for non-designers too.
+  const floorSellerEntries: RosterEntry[] = [
+    { displayName: "Rosalind Achebe", emailLocal: "floor.apparel1", isActive: true },
+    { displayName: "Emmett Nakagawa", emailLocal: "floor.apparel2", isActive: true },
+    { displayName: "Priscilla Vantongeren", emailLocal: "floor.homeshop1", isActive: true },
+    { displayName: "Horace Lindenbaum", emailLocal: "floor.homeshop2", isActive: false },
+  ].map((e, i) => ({
+    ...e,
+    role: "REGISTER" as StaffRole,
+    isDesigner: false,
+    homeStoreId: i % 2 === 0 ? storeA : storeB,
+  }));
+
   const registerEntries: RosterEntry[] = ["Kai Ohara", "Selah Danforth", "Bram Ivory"].map(
     (name, i) => ({
       displayName: name,
@@ -226,6 +253,8 @@ export async function seedStaff(
   for (const e of managerEntries) managers.push(await upsertStaff(prisma, e, passwordHash));
   const designers: SeededStaffMember[] = [];
   for (const e of designerEntries) designers.push(await upsertStaff(prisma, e, passwordHash));
+  const floorSellers: SeededStaffMember[] = [];
+  for (const e of floorSellerEntries) floorSellers.push(await upsertStaff(prisma, e, passwordHash));
   const departedDesigners: SeededStaffMember[] = [];
   for (const e of departedEntries)
     departedDesigners.push(await upsertStaff(prisma, e, passwordHash));
@@ -240,6 +269,7 @@ export async function seedStaff(
       admin,
       ...managers,
       ...designers,
+      ...floorSellers,
       ...departedDesigners,
       ...registerStaff,
       ...warehouseStaff,
@@ -248,6 +278,7 @@ export async function seedStaff(
     admin,
     managers,
     designers,
+    floorSellers,
     departedDesigners,
     registerStaff,
     warehouseStaff,

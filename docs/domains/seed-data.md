@@ -35,6 +35,27 @@ npm run seed:coverage
 Pass `--without cms` when the CMS seeder did not run (CI seeds `--no-cms`). The
 check reports what it skipped rather than quietly passing.
 
+### Seller states, not just seller rows
+
+Table-level coverage cannot see this: `StaffMember` is populated whether or not
+the roster is realistic. What matters is the **state matrix**, and the seed
+covers all four corners because each one exercises different code:
+
+| | Active | Archived |
+| --- | --- | --- |
+| **Designer** | the common case | historical attribution and commission must survive |
+| **Non-designer** (Apparel, Home Shop) | earns attribution without entering designer reporting | both at once |
+
+The seed asserts this rather than hoping. It fails if archived staff carry no
+orders, or if they sold within 60 days of active staff — someone who left does
+not sell last week.
+
+Non-designer sellers take ~22% of orders, matching the reference dataset's 7,813
+of 35,831. **That number must not be zero.** A seed where only designers sell
+reproduces the exact assumption that left real Apparel and Home Shop staff with
+no records at all for years, while their names went on every order they wrote —
+and every report would still have looked fine.
+
 ### Taking a tranche
 
 A **tranche is the unit of delegation**: one self-contained piece of work, and

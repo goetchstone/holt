@@ -275,9 +275,12 @@ async function main(): Promise<void> {
   // is populated either way. What matters is the STATE mix -- a roster where
   // everyone is active exercises none of the departed-staff paths, and it would
   // regress silently, because the seed would still look fine.
-  const departedIds = staff.departedDesigners.map((d) => d.id);
+  // EVERY archived staff member, not just designers. The first version of this
+  // check looked only at departedDesigners, and an archived floor seller sailed
+  // straight past it selling on the final day of the window.
+  const departedIds = staff.all.filter((m) => !m.isActive).map((m) => m.id);
   if (departedIds.length === 0) {
-    throw new Error("seed invariant: expected departed designers, found none");
+    throw new Error("seed invariant: expected archived staff, found none");
   }
   const departedOrders = await prisma.salesOrder.findMany({
     where: { salesPersonId: { in: departedIds } },
@@ -286,7 +289,7 @@ async function main(): Promise<void> {
   });
   if (departedOrders.length === 0) {
     throw new Error(
-      "seed invariant: departed designers carry no orders — archived staff with no " +
+      "seed invariant: archived staff carry no orders — archived staff with no " +
         "history exercise nothing. Check DEPARTED_ACTIVE_UNTIL in orderPlan.ts.",
     );
   }
@@ -306,15 +309,34 @@ async function main(): Promise<void> {
     const gapDays = (activeLatest.getTime() - departedLatest.getTime()) / 86_400_000;
     if (gapDays < DEPARTED_MIN_GAP_DAYS) {
       throw new Error(
-        `seed invariant: departed designers sold until ${departedLatest.toISOString().slice(0, 10)}, ` +
+        `seed invariant: archived staff sold until ${departedLatest.toISOString().slice(0, 10)}, ` +
           `only ${Math.round(gapDays)} days before active staff stop at ` +
           `${activeLatest.toISOString().slice(0, 10)}. Someone who left does not sell last week — ` +
           "check DEPARTED_ACTIVE_UNTIL in orderPlan.ts.",
       );
     }
   }
+  // Non-designer sellers must actually sell. A seed where only designers write
+  // orders reproduces the assumption that left Apparel and Home Shop staff
+  // without records for years -- and every report would look fine.
+  const floorIds = staff.floorSellers.map((f) => f.id);
+  const floorOrders = floorIds.length
+    ? await prisma.salesOrder.count({ where: { salesPersonId: { in: floorIds } } })
+    : 0;
+  const attributed = await prisma.salesOrder.count({ where: { salesPersonId: { not: null } } });
+  if (floorOrders === 0) {
+    throw new Error(
+      "seed invariant: non-designer floor staff wrote no orders — the seed is back to " +
+        "designers-only. Check FLOOR_SELLER_SHARE in orderPlan.ts.",
+    );
+  }
   console.log(
-    `Departed designers: ${departedIds.length} archived, ${departedOrders.length} historical ` +
+    `Floor sellers (non-designer): ${floorIds.length} staff, ${floorOrders} orders ` +
+      `(${((floorOrders / Math.max(attributed, 1)) * 100).toFixed(1)}% of attributed)`,
+  );
+
+  console.log(
+    `Archived staff: ${departedIds.length} archived, ${departedOrders.length} historical ` +
       `orders, last sale ${departedLatest?.toISOString().slice(0, 10) ?? "n/a"} ` +
       `(active staff sell through ${activeLatest?.toISOString().slice(0, 10) ?? "n/a"})`,
   );
