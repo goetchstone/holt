@@ -32,6 +32,10 @@ export function CrossSellView() {
 
   const run = () => setCommitted({ target: target || null, minSpend });
 
+  // The anchor department is configured per deployment (Department.crossSellAnchor),
+  // so every label naming it has to come from the data, not from a literal.
+  const anchor = data?.anchorDepartment ?? "Anchor";
+
   const columns: ReportColumn<CrossSellRow>[] = [
     {
       key: "lastName",
@@ -42,18 +46,18 @@ export function CrossSellView() {
     { key: "phone", label: "Phone", format: (r) => r.phone ?? "—" },
     { key: "email", label: "Email", format: (r) => r.email ?? "—" },
     {
-      key: "furnitureSpend",
-      label: "Furniture Spend",
+      key: "anchorSpend",
+      label: `${anchor} Spend`,
       align: "right",
       sortable: true,
-      format: (r) => c(r.furnitureSpend),
-      csvFormat: (r) => r.furnitureSpend,
+      format: (r) => c(r.anchorSpend),
+      csvFormat: (r) => r.anchorSpend,
     },
     {
-      key: "lastFurnitureOrder",
-      label: "Last Furniture",
+      key: "lastAnchorOrder",
+      label: `Last ${anchor}`,
       sortable: true,
-      format: (r) => r.lastFurnitureOrder ?? "—",
+      format: (r) => r.lastAnchorOrder ?? "—",
     },
     {
       key: "departmentsNotBought",
@@ -132,12 +136,24 @@ export function CrossSellView() {
         </button>
       </div>
 
-      {data && (
+      {data && data.anchorDepartment === null && (
+        <p className="rounded border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          No department is set as the cross-sell anchor, so no customer can qualify. Set{" "}
+          <code>crossSellAnchor</code> on the department whose spend should qualify a customer, and{" "}
+          <code>crossSellTarget</code> on the departments to offer them.
+        </p>
+      )}
+
+      {data && data.anchorDepartment !== null && (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <KpiCard label="Furniture Customers" value={data.totals.totalFurnCustomers} />
-            <KpiCard label="Never Bought Rugs" value={data.totals.neverRugs} />
-            <KpiCard label="Never Bought Curtains" value={data.totals.neverCurtains} />
+            <KpiCard label={`${anchor} Customers`} value={data.totals.totalAnchorCustomers} />
+            {Object.entries(data.totals.deptCounts)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 2)
+              .map(([dept, count]) => (
+                <KpiCard key={dept} label={`Never Bought ${dept}`} value={count} />
+              ))}
             <KpiCard label="Opportunities" value={data.totals.total} />
           </div>
           <ReportSection

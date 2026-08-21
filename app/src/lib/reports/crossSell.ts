@@ -1,11 +1,19 @@
 // /app/src/lib/reports/crossSell.ts
 //
-// Cross-sell opportunity report: furniture buyers who haven't purchased from
-// high-value complementary departments. Extracted from the Pages API so the App
-// Router page + tRPC procedure share one source of truth. CLAUDE.md rule 33:
-// cancelled lines excluded. netPrice is the LINE TOTAL, not unit price.
+// Cross-sell opportunity report: buyers in the ANCHOR department who have not
+// purchased from the departments flagged as cross-sell targets. Extracted from
+// the Pages API so the App Router page + tRPC procedure share one source of
+// truth. CLAUDE.md rule 33: cancelled lines excluded. netPrice is the LINE
+// TOTAL, not unit price.
+//
+// The anchor and the target list used to be literals here -- 'Furniture' in
+// three places in the SQL, and an eight-name TARGET_DEPTS array. Both are now
+// Department.crossSellAnchor / Department.crossSellTarget, so a deployment that
+// sells something other than furniture gets a report rather than an empty one
+// (CLAUDE.md rule 61).
 
 import type { PrismaClient } from "@prisma/client";
+import { loadReportTaxonomy } from "@/lib/reports/reportTaxonomy";
 
 export interface CrossSellRow {
   id: number;
@@ -13,8 +21,8 @@ export interface CrossSellRow {
   lastName: string | null;
   email: string | null;
   phone: string | null;
-  furnitureSpend: number;
-  lastFurnitureOrder: string | null;
+  anchorSpend: number;
+  lastAnchorOrder: string | null;
   departmentsBought: string[];
   departmentsNotBought: string[];
 }
@@ -23,11 +31,16 @@ export interface CrossSellResult {
   rows: CrossSellRow[];
   totals: {
     total: number;
-    totalFurnCustomers: number;
-    neverRugs: number;
-    neverCurtains: number;
+    totalAnchorCustomers: number;
+    /** How many qualifying customers have never bought each target department. */
     deptCounts: Record<string, number>;
   };
+  /**
+   * The configured anchor, so the UI can label its columns. Null means no
+   * department is flagged `crossSellAnchor` -- the report cannot qualify
+   * anyone, and says so instead of rendering a confident zero.
+   */
+  anchorDepartment: string | null;
 }
 
 export interface CrossSellParams {
@@ -35,25 +48,14 @@ export interface CrossSellParams {
   minSpend?: number;
 }
 
-const TARGET_DEPTS = [
-  "Rugs",
-  "Curtains",
-  "Outdoor Furniture",
-  "Lamps",
-  "Bedding",
-  "Womens Apparel",
-  "Mens Apparel",
-  "Home Acc",
-];
-
 interface RawRow {
   id: number;
   firstName: string | null;
   lastName: string | null;
   email: string | null;
   phone: string | null;
-  furnitureSpend: number;
-  lastFurnitureOrder: Date | null;
+  anchorSpend: number;
+  lastAnchorOrder: Date | null;
   departments: string;
 }
 
@@ -64,6 +66,20 @@ export async function getCrossSell(
   const target = params.target ?? null;
   const minSpend = params.minSpend ?? 1000;
 
+  const taxonomy = await loadReportTaxonomy(prisma);
+  const anchor = taxonomy.crossSellAnchor;
+
+  // No anchor department means nothing qualifies a customer. Returning an empty
+  // report with the anchor null lets the UI say "not configured" rather than
+  // showing a zero that reads like a finding.
+  if (anchor === null) {
+    return {
+      rows: [],
+      totals: { total: 0, totalAnchorCustomers: 0, deptCounts: {} },
+      anchorDepartment: null,
+    };
+  }
+
   const customers = await prisma.$queryRaw<RawRow[]>`
     WITH customer_depts AS (
       SELECT
@@ -73,8 +89,8 @@ export async function getCrossSell(
         c.email,
         c.phone,
         d.name AS dept,
-        SUM(CASE WHEN d.name = 'Furniture' THEN li."netPrice"::float ELSE 0 END) AS furn_spend,
-        MAX(CASE WHEN d.name = 'Furniture' THEN so."orderDate" ELSE NULL END) AS last_furn
+        SUM(CASE WHEN d.name = ${anchor} THEN li."netPrice"::float ELSE 0 END) AS anchor_spend,
+        MAX(CASE WHEN d.name = ${anchor} THEN so."orderDate" ELSE NULL END) AS last_anchor
       FROM "Customer" c
       JOIN "SalesOrder" so ON so."customerId" = c.id
       JOIN "OrderLineItem" li ON li."salesOrderId" = so.id
@@ -87,16 +103,16 @@ export async function getCrossSell(
     )
     SELECT
       id, "firstName", "lastName", email, phone,
-      SUM(furn_spend)::float AS "furnitureSpend",
-      MAX(last_furn) AS "lastFurnitureOrder",
+      SUM(anchor_spend)::float AS "anchorSpend",
+      MAX(last_anchor) AS "lastAnchorOrder",
       STRING_AGG(DISTINCT dept, ',' ORDER BY dept) AS departments
     FROM customer_depts
     WHERE id IN (
-      SELECT id FROM customer_depts WHERE dept = 'Furniture' GROUP BY id HAVING SUM(furn_spend) >= ${minSpend}
+      SELECT id FROM customer_depts WHERE dept = ${anchor} GROUP BY id HAVING SUM(anchor_spend) >= ${minSpend}
     )
     GROUP BY id, "firstName", "lastName", email, phone
-    HAVING SUM(furn_spend) >= ${minSpend}
-    ORDER BY SUM(furn_spend) DESC
+    HAVING SUM(anchor_spend) >= ${minSpend}
+    ORDER BY SUM(anchor_spend) DESC
   `;
 
   const rows: CrossSellRow[] = [];
@@ -104,7 +120,7 @@ export async function getCrossSell(
 
   for (const c of customers) {
     const bought = (c.departments || "").split(",").filter(Boolean);
-    const notBought = TARGET_DEPTS.filter((d) => !bought.includes(d));
+    const notBought = taxonomy.crossSellTargets.filter((d) => !bought.includes(d));
 
     if (target && bought.includes(target)) continue;
     if (notBought.length === 0) continue;
@@ -119,10 +135,8 @@ export async function getCrossSell(
       lastName: c.lastName,
       email: c.email,
       phone: c.phone,
-      furnitureSpend: Math.round(c.furnitureSpend),
-      lastFurnitureOrder: c.lastFurnitureOrder
-        ? c.lastFurnitureOrder.toISOString().slice(0, 10)
-        : null,
+      anchorSpend: Math.round(c.anchorSpend),
+      lastAnchorOrder: c.lastAnchorOrder ? c.lastAnchorOrder.toISOString().slice(0, 10) : null,
       departmentsBought: bought,
       departmentsNotBought: notBought,
     });
@@ -132,10 +146,9 @@ export async function getCrossSell(
     rows,
     totals: {
       total: rows.length,
-      totalFurnCustomers: customers.length,
-      neverRugs: deptCounts["Rugs"] || 0,
-      neverCurtains: deptCounts["Curtains"] || 0,
+      totalAnchorCustomers: customers.length,
       deptCounts,
     },
+    anchorDepartment: anchor,
   };
 }

@@ -104,10 +104,20 @@ export async function seedCatalog(
   const typeIdByKey = new Map<string, number>(); // `${dept}::${category}::${type}`
 
   for (const dept of DEPARTMENTS) {
+    // Reporting roles are written on update too, not just create. The demo seed
+    // owns this database (prisma/seed/demo/guard.ts refuses anything else), and
+    // a clone seeded before these columns existed would otherwise keep the
+    // migration's backfilled values -- which reproduce the OLD hardcoded
+    // taxonomy, the thing these columns exist to replace.
+    const reportRoles = {
+      reportGroup: dept.reportGroup ?? null,
+      crossSellTarget: dept.crossSellTarget ?? false,
+      crossSellAnchor: dept.crossSellAnchor ?? false,
+    };
     const row = await prisma.department.upsert({
       where: { name: dept.name },
-      update: {},
-      create: { name: dept.name, createdBy: SEED_ACTOR },
+      update: reportRoles,
+      create: { name: dept.name, createdBy: SEED_ACTOR, ...reportRoles },
     });
     departmentIdByName.set(dept.name, row.id);
 

@@ -791,6 +791,24 @@ model Department {
   id              Int              @id @default(autoincrement())
   name            String           @unique
   categories      Category[]
+
+  // Reporting roles. These replace hardcoded department NAMES that used to sit
+  // in report code -- one retailer's taxonomy that produced empty or wrong
+  // buckets for everyone else (CLAUDE.md rule 61: deployment facts are config).
+  //
+  // reportGroup    -- which column this department rolls up into on the
+  //                   designer dashboard. NULL means "not merchandise the
+  //                   dashboard reports on" and the department is excluded.
+  // crossSellTarget -- offer this department as a cross-sell opportunity to
+  //                   customers who have not bought from it.
+  // crossSellAnchor -- the department whose spend qualifies a customer for the
+  //                   cross-sell report at all.
+  //
+  // Migration 20260821120000_department_report_roles backfilled all three from the
+  // literals the reports previously carried, so existing numbers are unchanged.
+  reportGroup     String?
+  crossSellTarget Boolean          @default(false)
+  crossSellAnchor Boolean          @default(false)
   products        Product[]
   vendorStyles    VendorStyle[]
   buyerDraftItems BuyerDraftItem[]

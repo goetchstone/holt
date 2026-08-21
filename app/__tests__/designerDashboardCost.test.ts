@@ -12,6 +12,18 @@ import {
   type CategoryMetrics,
   type DashboardLineItem,
 } from "@/lib/reports/designerDashboard";
+import type { ReportTaxonomy } from "@/lib/reports/reportTaxonomy";
+
+// Department -> report-group mapping used to live in designerDashboard.ts as a
+// hardcoded keyword map. It is now Department.reportGroup, loaded per request,
+// so these unit tests supply it directly.
+const TAXONOMY: ReportTaxonomy = {
+  groupByDepartment: new Map([["furniture", "Furniture"]]),
+  groups: ["Furniture"],
+  excludedDepartments: [],
+  crossSellTargets: [],
+  crossSellAnchor: null,
+};
 
 function emptyResult(): Record<string, CategoryMetrics> {
   return {
@@ -33,27 +45,27 @@ function line(overrides: Partial<DashboardLineItem> = {}): DashboardLineItem {
 describe("accumulateLineItem cost invariant (line total, never x qty)", () => {
   it("uses cost as the line total — does NOT multiply by orderedQuantity", () => {
     const result = emptyResult();
-    accumulateLineItem(result, line(), 1);
+    accumulateLineItem(result, line(), 1, TAXONOMY);
     expect(result.All.cost).toBe(200); // pre-fix behavior produced 800
     expect(result.All.revenue).toBe(400);
   });
 
   it("applies only the split multiplier to cost", () => {
     const result = emptyResult();
-    accumulateLineItem(result, line(), 0.5);
+    accumulateLineItem(result, line(), 0.5, TAXONOMY);
     expect(result.All.cost).toBe(100);
     expect(result.All.revenue).toBe(200);
   });
 
   it("qty=1 lines are unaffected either way (the case that hid the bug)", () => {
     const result = emptyResult();
-    accumulateLineItem(result, line({ netPrice: 100, cost: 50, orderedQuantity: 1 }), 1);
+    accumulateLineItem(result, line({ netPrice: 100, cost: 50, orderedQuantity: 1 }), 1, TAXONOMY);
     expect(result.All.cost).toBe(50);
   });
 
   it("accumulates into the matched category and the All bucket", () => {
     const result = emptyResult();
-    accumulateLineItem(result, line(), 1);
+    accumulateLineItem(result, line(), 1, TAXONOMY);
     expect(result.Furniture.cost).toBe(200);
     expect(result.Furniture.count).toBe(1);
     expect(result.All.count).toBe(1);

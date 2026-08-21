@@ -12,17 +12,36 @@ export interface DepartmentDef {
   name: string;
   /** Two-digit suffix: inventory=1-13{suffix}, sales=4-40{suffix}, cogs=5-52{suffix}. */
   glSuffix: string;
+  /**
+   * Which column this department rolls up into on the designer dashboard.
+   * Undefined means the dashboard excludes it.
+   */
+  reportGroup?: string;
+  /** Offer this department to customers who have not bought from it. */
+  crossSellTarget?: boolean;
+  /** The department whose spend qualifies a customer for the cross-sell report. */
+  crossSellAnchor?: boolean;
 }
 
+// The reporting roles matter for a fresh clone. Both report taxonomies used to
+// be hardcoded to a different retailer's department names, none of which appear
+// below -- so on the demo data the designer dashboard swept almost everything
+// into one fallback column, and the cross-sell report anchored on a "Furniture"
+// department that does not exist here and returned zero rows every time.
 export const DEPARTMENTS: readonly DepartmentDef[] = [
-  { name: "Living Room", glSuffix: "10" },
-  { name: "Bedroom", glSuffix: "20" },
-  { name: "Dining", glSuffix: "30" },
-  { name: "Rugs", glSuffix: "40" },
-  { name: "Outdoor", glSuffix: "50" },
-  { name: "Lighting", glSuffix: "60" },
-  { name: "Accessories & Decor", glSuffix: "70" },
-  { name: "Mattresses", glSuffix: "80" },
+  { name: "Living Room", glSuffix: "10", reportGroup: "Furniture", crossSellAnchor: true },
+  { name: "Bedroom", glSuffix: "20", reportGroup: "Furniture" },
+  { name: "Dining", glSuffix: "30", reportGroup: "Furniture" },
+  { name: "Rugs", glSuffix: "40", reportGroup: "Rugs", crossSellTarget: true },
+  { name: "Outdoor", glSuffix: "50", reportGroup: "Outdoor", crossSellTarget: true },
+  { name: "Lighting", glSuffix: "60", reportGroup: "Lighting", crossSellTarget: true },
+  {
+    name: "Accessories & Decor",
+    glSuffix: "70",
+    reportGroup: "Accessories",
+    crossSellTarget: true,
+  },
+  { name: "Mattresses", glSuffix: "80", reportGroup: "Furniture", crossSellTarget: true },
 ];
 
 export interface CategoryDef {

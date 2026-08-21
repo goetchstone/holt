@@ -1214,5 +1214,12 @@ All rename-only; the columns themselves are reasonable retail signals.
 
 **Test for every rename in #28.** These are refactors, so the bar is *byte-identical output*: for each, snapshot the affected report/tile values before the migration, run migration + backfill, and diff. Specifically — all ten opportunity-tile counts and every Wealth Insights signal count (Windfall); lead counts by source for 24 months (Mailchimp); consignment item counts, `vendorItemRef` values and computed payables per vendor (rugNumber/fmRecordId); the full SE component list and every priced SE configuration (SEComponent). Plus, for each: a scratch-DB run with a second provider/vendor registered, proving the feature is now reachable without a migration. Confirm the backfill is re-runnable (rule 63) before merging.
 
+### Report taxonomies — DONE (migration `20260821120000_department_report_roles`)
+`lib/reports/crossSell.ts` and `lib/reports/designerDashboard.ts` no longer carry department names. Three columns on `Department` hold the facts: `reportGroup` (which dashboard column a department rolls up into; `NULL` excludes it), `crossSellTarget`, and `crossSellAnchor` (the department whose spend qualifies a customer — it was `'Furniture'`, hardcoded three times in raw SQL). `lib/reports/reportTaxonomy.ts` loads them once per request.
+
+The backfill reproduces the old classifiers exactly, so existing numbers are unchanged, and `__tests__/integration/departmentReportRoles.integration.test.ts` proves it by running the migration's own UPDATE statements — read from the file, not retyped — against a real database and diffing against the old logic.
+
+Worth recording why this mattered more than it looked: **none of the hardcoded names exist in the demo seed.** On a fresh clone the designer dashboard swept almost every department into one fallback column, and the cross-sell report anchored on a `Furniture` department that is not there and returned zero rows every time, silently. Two behaviour changes are deliberate: a department with no `reportGroup` is excluded rather than falling through to a default bucket, and both reports now say when nothing is configured instead of rendering a confident zero.
+
 ### Also on the backlog, unchanged (KNOWN)
-`lib/reports/crossSell.ts` and `lib/reports/designerDashboard.ts` report taxonomies; `lib/consignment.ts` (`isMarjanRug`, `/^MAR-\d/`, `MARJAN_VENDOR_NAMES`) — the latter is retired by #10's `Vendor.isConsignment`, so schedule it immediately after that PR rather than as separate work.
+`lib/consignment.ts` (`isMarjanRug`, `/^MAR-\d/`, `MARJAN_VENDOR_NAMES`) — retired by #10's `Vendor.isConsignment`, so schedule it immediately after that PR rather than as separate work.
