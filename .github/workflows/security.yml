@@ -3,16 +3,19 @@
 # Runs on every PR (only the cheap checks):
 #   1. semgrep        -- static analysis on app/src + scripts (~2 min, always).
 #
-# Runs path-conditionally on PR:
-#   2. osv-scanner    -- only when app/package-lock.json changes.
+#   2. osv-scanner    -- npm deps vs the OSV.dev CVE database.
+#   3. npm audit      -- npm deps vs GitHub's advisory database. Both run
+#                        because they disagree: npm audit caught
+#                        GHSA-ggr8-5vv4-36mx and osv-scanner did not.
+#   4. semgrep-upload -- publishes semgrep's SARIF to the Security tab.
 #
 # Runs weekly on main (Monday 06:00 UTC):
-#   3. trivy          -- Docker image OS-level CVEs. Was running on every
+#   5. trivy          -- Docker image OS-level CVEs. Was running on every
 #                        PR; the 2026-05-09 audit found this was the
 #                        single largest minute-burner (~5 min/PR for low
 #                        added value when neither Dockerfile nor
 #                        lockfile changed).
-#   4. osv-scanner    -- catches newly-disclosed CVEs in unchanged deps.
+#   6. osv-scanner    -- catches newly-disclosed CVEs in unchanged deps.
 #
 # CodeQL is intentionally NOT in this file. The repo has GitHub-managed
 # default-setup CodeQL running on its own schedule (separate Actions
@@ -25,6 +28,8 @@
 #   - Inline PR diff annotations (workflow commands)
 #   - Workflow run summary tables
 #   - SARIF + text artifacts uploaded per run
+#   - Semgrep findings in the Security tab (code scanning is free for
+#     public repos; this repo is public)
 # No GitHub Advanced Security or Semgrep Cloud needed.
 
 name: Security
@@ -173,10 +178,95 @@ jobs:
           echo "'semgrep-findings' artifact for the full SARIF + text report."
           exit 1
 
-  # OSV scans npm dependencies against the OSV.dev CVE database. Runs
-  # only when the lockfile or the OSV config changes (path filter at
-  # workflow level), AND on the weekly schedule (catches newly-disclosed
-  # CVEs in unchanged deps).
+  # Publishes the SARIF that the semgrep job already produces to GitHub code
+  # scanning, so findings land in the Security tab with per-finding triage,
+  # dismissal-with-reason, and history -- instead of vanishing with the run log.
+  #
+  # This is a SEPARATE job on purpose. The semgrep job runs inside the
+  # `semgrep/semgrep` container, which is Python-based and has no Node; the
+  # upload-sarif action is a Node action and would execute inside that
+  # container. Downloading the artifact onto a plain runner sidesteps that.
+  #
+  # `if: always()` because the semgrep job exits 1 when it finds anything --
+  # which is exactly when there is something worth uploading.
+  semgrep-upload:
+    name: Publish Semgrep results to code scanning
+    runs-on: ubuntu-latest
+    needs: semgrep
+    if: always() && needs.semgrep.result != 'skipped'
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Download findings from the semgrep job
+        uses: actions/download-artifact@v7
+        with:
+          name: semgrep-findings
+
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  # npm audit reads GitHub's own advisory database. It runs ALONGSIDE
+  # osv-scanner rather than instead of it because the two disagree: during the
+  # #103 audit, npm audit reported GHSA-ggr8-5vv4-36mx and osv-scanner did not.
+  # Two scanners with different sources means a blind spot each; running both
+  # is cheap insurance.
+  #
+  # Scoped to production dependencies (`--omit=dev`): a devDependency advisory
+  # does not ship to users, and failing PRs on those trains people to ignore
+  # the gate.
+  npm-audit:
+    name: npm advisory audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Audit production dependencies
+        working-directory: app
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=high --json > audit.json
+          RC=$?
+          set -e
+          python3 - <<'PY'
+          import json, os, pathlib
+          data = json.loads(pathlib.Path("audit.json").read_text() or "{}")
+          vulns = data.get("vulnerabilities", {})
+          counts = data.get("metadata", {}).get("vulnerabilities", {})
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          lines = ["## npm advisory audit\n"]
+          if not vulns:
+              lines.append("No production advisories at **high** or above.\n")
+          else:
+              lines.append("| Package | Severity | Advisory |\n|---|---|---|\n")
+              for name, v in sorted(vulns.items()):
+                  urls = [x.get("url", "") for x in v.get("via", []) if isinstance(x, dict)]
+                  lines.append(f"| `{name}` | {v.get('severity','?')} | {urls[0] if urls else ''} |\n")
+              lines.append(f"\nTotals: `{counts}`\n")
+          if summary:
+              with open(summary, "a") as out:
+                  out.writelines(lines)
+          print("".join(lines))
+          PY
+          # npm audit exits non-zero only when something at or above
+          # --audit-level is found, which is exactly the failure we want.
+          exit $RC
+
+  # OSV scans npm dependencies against the OSV.dev CVE database. Runs on
+  # every PR (the `on:` block has no path filter, so this can be a REQUIRED
+  # check) and on the weekly schedule, which catches newly-disclosed CVEs in
+  # unchanged deps.
   osv-scanner:
     name: Dependency CVE scan
     runs-on: ubuntu-latest
