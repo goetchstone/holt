@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -16,7 +17,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     // Narrower than the outer gate: designers see the dispatch board (they
     // want to know when their customer's install is scheduled) but the crews
     // who actually work the appointment are the only ones who update it.
-    const mutationRole = (session as unknown as { role?: string })?.role;
+    const mutationRole = await activeStaffRole(session as { user?: { id?: string | null } | null });
     if (!["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"].includes(mutationRole ?? "")) {
       return res.status(403).json({ error: "Insufficient role for this action" });
     }

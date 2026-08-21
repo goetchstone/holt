@@ -5,6 +5,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { computeNeedsAttention } from "@/lib/leadHousekeeping";
 
@@ -13,7 +14,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session?.user?.email) return res.status(401).json({ error: "Unauthorized" });
   if (req.method !== "GET") return res.status(405).end();
 
-  const role = (session as { role?: string }).role;
+  // Read from the database, not the token: a demoted or deactivated user kept
+  // this until their JWT expired.
+  const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
   if (role !== "MANAGER" && role !== "ADMIN") {
     return res.status(403).json({ error: "Manager or Admin role required" });
   }

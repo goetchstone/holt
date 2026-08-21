@@ -3,6 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
@@ -126,7 +127,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   if (req.method === "DELETE") {
     // Narrower than the outer gate: any of the leads-board roles can edit a
     // lead, but only managers/admins can delete one outright.
-    const role = (session as any)?.role;
+    const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
     if (role !== "MANAGER" && role !== "ADMIN") {
       return res.status(403).json({ error: "Only managers can delete leads" });
     }

@@ -42,6 +42,32 @@ export function requireAuth(handler: AuthenticatedHandler) {
   };
 }
 
+/**
+ * The signed-in user's role RIGHT NOW, read from the database.
+ *
+ * Use this instead of `session.role` or `session.user.role`. Those come off the
+ * JWT, which is minted at sign-in and not revisited: a staff member who is
+ * demoted, or deactivated entirely, keeps whatever the token says until it
+ * expires. That is the same hole requireAuthWithRole documents below --
+ * offboarding that does not actually revoke anything -- and reading the role
+ * off the session reopens it one route at a time.
+ *
+ * Returns null when there is no ACTIVE staff record, so callers deny by default.
+ * Exists for routes that cannot simply wrap in requireAuthWithRole because they
+ * also accept a machine Bearer token for cron.
+ */
+export async function activeStaffRole(
+  session: { user?: { id?: string | null } | null } | null,
+): Promise<string | null> {
+  const userId = session?.user?.id;
+  if (!userId) return null;
+  const staff = await prisma.staffMember.findFirst({
+    where: { userId, isActive: true },
+    select: { role: true },
+  });
+  return staff?.role ?? null;
+}
+
 export function requireAuthWithRole(roles: string[], handler: AuthenticatedHandler) {
   return requireAuth(async (req, res, session) => {
     const userId = (session.user as any)?.id;

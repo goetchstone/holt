@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import {
   success,
   created,
@@ -40,7 +41,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   if (req.method === "POST") {
     // Narrower than the outer gate (GET stays open to any staff): case tasks
     // are a service-team action, register/marketing have no reason to add one.
-    const mutationRole = (session as unknown as { role?: string })?.role;
+    const mutationRole = await activeStaffRole(session as { user?: { id?: string | null } | null });
     if (!["DESIGNER", "MANAGER", "ADMIN", "WAREHOUSE", "INSTALLER"].includes(mutationRole ?? "")) {
       return res.status(403).json({ error: "Insufficient role for this action" });
     }

@@ -3,6 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { calculateLeadScore } from "@/lib/leadScore";
@@ -11,7 +12,7 @@ import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const userEmail = session.user.email!;
-  const role = (session as { role?: string }).role;
+  const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
   const canSeeWealth = role === "ADMIN" || role === "SUPER_ADMIN" || role === "MARKETING";
   const canSeeNumericScore =
     role === "ADMIN" || role === "SUPER_ADMIN" || role === "MANAGER" || role === "MARKETING";

@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { consume, release } from "@/lib/inventory/allocation";
 import { getActiveOrderLines } from "@/lib/inventory/orderInventorySync";
@@ -94,7 +95,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   if (req.method === "DELETE") {
     // Deleting a whole order is narrower than the general sales-order gate
     // this file is wrapped in -- MANAGER/ADMIN only, not DESIGNER/REGISTER.
-    const role = (session as any)?.role;
+    const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
     if (role !== "MANAGER" && role !== "ADMIN") {
       return res.status(403).json({ error: "Manager role required to delete orders" });
     }

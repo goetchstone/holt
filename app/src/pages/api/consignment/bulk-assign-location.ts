@@ -8,12 +8,13 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 export default requirePermission(
   "inventory.adjust",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const role = (session as any)?.role;
+    const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
     if (role !== "MANAGER" && role !== "ADMIN")
       return res.status(403).json({ error: "Manager role required" });
 
