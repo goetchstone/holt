@@ -6,7 +6,7 @@
 // app exactly as that role would.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logger } from "@/lib/logger";
 
 const COOKIE_NAME = "sh-impersonate";
@@ -16,8 +16,8 @@ const VALID_ROLES = ["DESIGNER", "REGISTER", "MANAGER", "WAREHOUSE", "INSTALLER"
 // SUPER_ADMIN implicitly and already does the fresh DB role lookup that used
 // to live here by hand (session role goes stale after a role change, and
 // wouldn't reflect isActive).
-export default requireAuthWithRole(
-  ["ADMIN"],
+export default requirePermission(
+  "admin.settings",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

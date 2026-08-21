@@ -4,15 +4,15 @@
 // SPAM. Approving stamps approvedAt + approvedBy.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { parseCommentModerationInput } from "@/lib/comments/requestBody";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
-export default requireAuthWithRole(
-  ["SUPER_ADMIN", "ADMIN"],
+export default requirePermission(
+  "admin.settings",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "PATCH") {
       res.setHeader("Allow", ["PATCH"]);

@@ -12,7 +12,7 @@
 //           404 { error: "Not found" } when no Product owns this UPC
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { buildDraftBodyFromProduct, type ProductForDraft } from "@/lib/buyerDraftFromProduct";
@@ -24,79 +24,82 @@ import {
 import { stripLastSegment } from "@/lib/frameRollup";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", ["GET"]);
-    return res.status(405).end();
-  }
-
-  const barcode = typeof req.query.barcode === "string" ? req.query.barcode.trim() : "";
-  if (!barcode) {
-    return res.status(400).json({ error: "barcode query param is required" });
-  }
-
-  try {
-    // Match by UPC — one Product can carry multiple UPCs (Marjan
-    // rugs etc.), so we go via the join table.
-    const upc = await prisma.upc.findFirst({
-      where: { upc: barcode },
-      select: {
-        product: {
-          select: {
-            id: true,
-            productNumber: true,
-            name: true,
-            vendorId: true,
-            vendor: { select: { name: true } },
-            departmentId: true,
-            categoryId: true,
-            typeId: true,
-            baseCost: true,
-            baseRetail: true,
-            mapPrice: true,
-            width: true,
-            depth: true,
-            height: true,
-            isActive: true,
-            isDiscontinued: true,
-          },
-        },
-      },
-    });
-
-    if (!upc?.product) {
-      return res.status(404).json({ error: "No product found for that barcode" });
+export default requirePermission(
+  "admin.settings",
+  async (req: NextApiRequest, res: NextApiResponse) => {
+    if (req.method !== "GET") {
+      res.setHeader("Allow", ["GET"]);
+      return res.status(405).end();
     }
 
-    const product = upc.product;
-    const draftBody = buildDraftBodyFromProduct(product as ProductForDraft);
+    const barcode = typeof req.query.barcode === "string" ? req.query.barcode.trim() : "";
+    if (!barcode) {
+      return res.status(400).json({ error: "barcode query param is required" });
+    }
 
-    // Slice 6.12 (2026-05-14) — frame-aware L12M sales history. Helps
-    // the buyer make an informed qty decision at the scan-and-add
-    // moment: "this frame sold 14 units last year" → order 12.
-    const salesHistory = await computeFrameSalesHistoryForProduct(product.id, product.vendorId);
+    try {
+      // Match by UPC — one Product can carry multiple UPCs (Marjan
+      // rugs etc.), so we go via the join table.
+      const upc = await prisma.upc.findFirst({
+        where: { upc: barcode },
+        select: {
+          product: {
+            select: {
+              id: true,
+              productNumber: true,
+              name: true,
+              vendorId: true,
+              vendor: { select: { name: true } },
+              departmentId: true,
+              categoryId: true,
+              typeId: true,
+              baseCost: true,
+              baseRetail: true,
+              mapPrice: true,
+              width: true,
+              depth: true,
+              height: true,
+              isActive: true,
+              isDiscontinued: true,
+            },
+          },
+        },
+      });
 
-    return res.status(200).json({
-      product: {
-        id: product.id,
-        productNumber: product.productNumber,
-        name: product.name,
-        vendorName: product.vendor.name,
-        // Surface so the modal can warn the buyer if they're about
-        // to re-order something the vendor has discontinued.
-        isActive: product.isActive,
-        isDiscontinued: product.isDiscontinued,
-        cost: product.baseCost?.toString() ?? null,
-        retail: product.baseRetail?.toString() ?? null,
-      },
-      draftBody,
-      salesHistory,
-    });
-  } catch (err) {
-    logError("buyer-drafts barcode lookup failed", err);
-    return res.status(500).json({ error: "Lookup failed" });
-  }
-});
+      if (!upc?.product) {
+        return res.status(404).json({ error: "No product found for that barcode" });
+      }
+
+      const product = upc.product;
+      const draftBody = buildDraftBodyFromProduct(product as ProductForDraft);
+
+      // Slice 6.12 (2026-05-14) — frame-aware L12M sales history. Helps
+      // the buyer make an informed qty decision at the scan-and-add
+      // moment: "this frame sold 14 units last year" → order 12.
+      const salesHistory = await computeFrameSalesHistoryForProduct(product.id, product.vendorId);
+
+      return res.status(200).json({
+        product: {
+          id: product.id,
+          productNumber: product.productNumber,
+          name: product.name,
+          vendorName: product.vendor.name,
+          // Surface so the modal can warn the buyer if they're about
+          // to re-order something the vendor has discontinued.
+          isActive: product.isActive,
+          isDiscontinued: product.isDiscontinued,
+          cost: product.baseCost?.toString() ?? null,
+          retail: product.baseRetail?.toString() ?? null,
+        },
+        draftBody,
+        salesHistory,
+      });
+    } catch (err) {
+      logError("buyer-drafts barcode lookup failed", err);
+      return res.status(500).json({ error: "Lookup failed" });
+    }
+  },
+);
 
 /**
  * Slice 6.12 — pull frame-mate Products for the same SKU stem +

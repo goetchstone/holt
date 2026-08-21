@@ -7,22 +7,25 @@
 // per CLAUDE.md rule 14; this file is the thin Prisma + HTTP wrapper.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { buildItemUpdateData } from "@/lib/buyerDraftRequestBody";
 import { isCompatiblePoForItem } from "@/lib/buyerDraftValidation";
 
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: NextApiResponse) => {
-  const id = Number.parseInt(String(req.query.id), 10);
-  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+export default requirePermission(
+  "admin.settings",
+  async (req: NextApiRequest, res: NextApiResponse) => {
+    const id = Number.parseInt(String(req.query.id), 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
 
-  if (req.method === "GET") return getOne(id, res);
-  if (req.method === "PATCH") return update(id, req, res);
-  if (req.method === "DELETE") return remove(id, res);
-  res.setHeader("Allow", ["GET", "PATCH", "DELETE"]);
-  return res.status(405).end();
-});
+    if (req.method === "GET") return getOne(id, res);
+    if (req.method === "PATCH") return update(id, req, res);
+    if (req.method === "DELETE") return remove(id, res);
+    res.setHeader("Allow", ["GET", "PATCH", "DELETE"]);
+    return res.status(405).end();
+  },
+);
 
 async function getOne(id: number, res: NextApiResponse) {
   try {

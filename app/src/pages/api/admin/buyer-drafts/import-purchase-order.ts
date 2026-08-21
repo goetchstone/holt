@@ -18,7 +18,7 @@
 // ADMIN-only.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import {
@@ -33,188 +33,191 @@ interface RequestBody {
   purchaseOrderId?: number;
 }
 
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
-    return res.status(405).end();
-  }
+export default requirePermission(
+  "admin.settings",
+  async (req: NextApiRequest, res: NextApiResponse) => {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", ["POST"]);
+      return res.status(405).end();
+    }
 
-  const body = req.body as RequestBody;
-  const buyId = Number.parseInt(String(body.buyId ?? ""), 10);
-  const purchaseOrderId = Number.parseInt(String(body.purchaseOrderId ?? ""), 10);
-  if (!Number.isInteger(buyId) || buyId <= 0) {
-    return res.status(400).json({ error: "buyId is required" });
-  }
-  if (!Number.isInteger(purchaseOrderId) || purchaseOrderId <= 0) {
-    return res.status(400).json({ error: "purchaseOrderId is required" });
-  }
+    const body = req.body as RequestBody;
+    const buyId = Number.parseInt(String(body.buyId ?? ""), 10);
+    const purchaseOrderId = Number.parseInt(String(body.purchaseOrderId ?? ""), 10);
+    if (!Number.isInteger(buyId) || buyId <= 0) {
+      return res.status(400).json({ error: "buyId is required" });
+    }
+    if (!Number.isInteger(purchaseOrderId) || purchaseOrderId <= 0) {
+      return res.status(400).json({ error: "purchaseOrderId is required" });
+    }
 
-  const userEmail = (req as unknown as { user?: { email?: string } }).user?.email ?? null;
+    const userEmail = (req as unknown as { user?: { email?: string } }).user?.email ?? null;
 
-  try {
-    // Pre-flight: is this PO already linked to a draft PO anywhere?
-    // Single indexed lookup against BuyerDraftPoRealPoLink.realPoId
-    // (@unique). Same idempotency invariant as before — just queried
-    // against the join table now that we're M:N (Slice 6.14).
-    const existing = await prisma.buyerDraftPoRealPoLink.findUnique({
-      where: { realPoId: purchaseOrderId },
-      select: {
-        draftPo: {
-          select: { id: true, buyId: true, buy: { select: { id: true, name: true } } },
-        },
-      },
-    });
-    if (existing) {
-      return res.status(409).json({
-        error: "This purchase order has already been linked to a draft PO.",
-        alreadyImported: {
-          draftPoId: existing.draftPo.id,
-          buyId: existing.draftPo.buyId ?? null,
-          buyName: existing.draftPo.buy?.name ?? null,
+    try {
+      // Pre-flight: is this PO already linked to a draft PO anywhere?
+      // Single indexed lookup against BuyerDraftPoRealPoLink.realPoId
+      // (@unique). Same idempotency invariant as before — just queried
+      // against the join table now that we're M:N (Slice 6.14).
+      const existing = await prisma.buyerDraftPoRealPoLink.findUnique({
+        where: { realPoId: purchaseOrderId },
+        select: {
+          draftPo: {
+            select: { id: true, buyId: true, buy: { select: { id: true, name: true } } },
+          },
         },
       });
-    }
+      if (existing) {
+        return res.status(409).json({
+          error: "This purchase order has already been linked to a draft PO.",
+          alreadyImported: {
+            draftPoId: existing.draftPo.id,
+            buyId: existing.draftPo.buyId ?? null,
+            buyName: existing.draftPo.buy?.name ?? null,
+          },
+        });
+      }
 
-    // Verify the buy exists.
-    const buy = await prisma.buyerDraftBuy.findUnique({
-      where: { id: buyId },
-      select: { id: true, name: true },
-    });
-    if (!buy) {
-      return res.status(404).json({ error: `BuyerDraftBuy ${buyId} not found` });
-    }
+      // Verify the buy exists.
+      const buy = await prisma.buyerDraftBuy.findUnique({
+        where: { id: buyId },
+        select: { id: true, name: true },
+      });
+      if (!buy) {
+        return res.status(404).json({ error: `BuyerDraftBuy ${buyId} not found` });
+      }
 
-    // Hydrate the real PO + line items + linked Products.
-    const po = await prisma.purchaseOrder.findUnique({
-      where: { id: purchaseOrderId },
-      select: {
-        id: true,
-        poNumber: true,
-        vendorId: true,
-        vendor: { select: { name: true } },
-        orderDate: true,
-        expectedDelivery: true,
-        estimatedShipDate: true,
-        status: true,
-        notes: true,
-        lineItems: {
-          select: {
-            id: true,
-            productId: true,
-            orderedQuantity: true,
-            unitCost: true,
-            partNo: true,
-            productName: true,
-            product: {
-              select: { id: true, productNumber: true, name: true, baseRetail: true },
+      // Hydrate the real PO + line items + linked Products.
+      const po = await prisma.purchaseOrder.findUnique({
+        where: { id: purchaseOrderId },
+        select: {
+          id: true,
+          poNumber: true,
+          vendorId: true,
+          vendor: { select: { name: true } },
+          orderDate: true,
+          expectedDelivery: true,
+          estimatedShipDate: true,
+          status: true,
+          notes: true,
+          lineItems: {
+            select: {
+              id: true,
+              productId: true,
+              orderedQuantity: true,
+              unitCost: true,
+              partNo: true,
+              productName: true,
+              product: {
+                select: { id: true, productNumber: true, name: true, baseRetail: true },
+              },
             },
           },
         },
-      },
-    });
-    if (!po) {
-      return res.status(404).json({ error: `PurchaseOrder ${purchaseOrderId} not found` });
-    }
-    if (po.status === "CANCELLED") {
-      return res
-        .status(400)
-        .json({ error: "Cannot import a CANCELLED purchase order — restore it first." });
-    }
-
-    // Slice 6.13.2 (2026-07-24) — double-count guard. Documented as a
-    // followup in docs/domains/buyer-drafts.md ("Linked-PO scoping")
-    // after the Spring 2026 audit: a buy that already has forward-flow
-    // drafts (buyer-typed items later linked to a catalog Product) AND
-    // gets a historical import of a real PO covering the SAME
-    // products ends up with two BuyerDraftItem rows counting the same
-    // purchase — the budget rollup (`GET /buys/[id]`) sums qty × cost
-    // across every item under the buy with no dedup. Refuse up front
-    // rather than silently create the duplicate; the doc's own
-    // resolution recipe is to cancel/delete the forward-flow drafts
-    // (or keep the paths on separate buys) and retry.
-    const existingBuyItemRows = await prisma.buyerDraftItem.findMany({
-      where: { draftPo: { buyId }, fulfilledProductId: { not: null } },
-      select: {
-        id: true,
-        draftPoId: true,
-        partNumber: true,
-        productName: true,
-        fulfilledProductId: true,
-        source: true,
-        status: true,
-      },
-    });
-    const existingBuyItems: ExistingBuyDraftItemForOverlapCheck[] = existingBuyItemRows;
-    const overlap = findForwardFlowOverlap(
-      po.lineItems.map((li) => ({
-        productId: li.productId,
-        partNo: li.partNo,
-        productName: li.productName,
-      })),
-      existingBuyItems,
-    );
-    if (overlap.length > 0) {
-      return res.status(409).json({
-        error:
-          `Cannot import PON ${po.poNumber} — ${overlap.length} product(s) on this PO already ` +
-          `have forward-flow drafts in "${buy.name}". Importing would double-count budget for ` +
-          `those products. Cancel or delete the existing forward-flow drafts, or keep this PO's ` +
-          `import on a separate buy, then retry.`,
-        poNumber: po.poNumber,
-        buyId,
-        buyName: buy.name,
-        overlappingProducts: overlap,
       });
-    }
+      if (!po) {
+        return res.status(404).json({ error: `PurchaseOrder ${purchaseOrderId} not found` });
+      }
+      if (po.status === "CANCELLED") {
+        return res
+          .status(400)
+          .json({ error: "Cannot import a CANCELLED purchase order — restore it first." });
+      }
 
-    // Build the create shapes.
-    const built = buildImportFromPurchaseOrder(po as unknown as PurchaseOrderForImport);
-
-    // Single transaction: create the draft PO + every draft item + the
-    // join-table row to the real PO (Slice 6.14 M:N).
-    const result = await prisma.$transaction(async (tx) => {
-      const createdDraftPo = await tx.buyerDraftPurchaseOrder.create({
-        data: {
-          ...built.draftPo,
-          buyId,
-          createdBy: userEmail,
-          updatedBy: userEmail,
+      // Slice 6.13.2 (2026-07-24) — double-count guard. Documented as a
+      // followup in docs/domains/buyer-drafts.md ("Linked-PO scoping")
+      // after the Spring 2026 audit: a buy that already has forward-flow
+      // drafts (buyer-typed items later linked to a catalog Product) AND
+      // gets a historical import of a real PO covering the SAME
+      // products ends up with two BuyerDraftItem rows counting the same
+      // purchase — the budget rollup (`GET /buys/[id]`) sums qty × cost
+      // across every item under the buy with no dedup. Refuse up front
+      // rather than silently create the duplicate; the doc's own
+      // resolution recipe is to cancel/delete the forward-flow drafts
+      // (or keep the paths on separate buys) and retry.
+      const existingBuyItemRows = await prisma.buyerDraftItem.findMany({
+        where: { draftPo: { buyId }, fulfilledProductId: { not: null } },
+        select: {
+          id: true,
+          draftPoId: true,
+          partNumber: true,
+          productName: true,
+          fulfilledProductId: true,
+          source: true,
+          status: true,
         },
-        select: { id: true },
       });
-      if (built.draftItems.length > 0) {
-        await tx.buyerDraftItem.createMany({
-          data: built.draftItems.map((item) => ({
-            ...item,
-            draftPoId: createdDraftPo.id,
-            createdBy: userEmail,
-            updatedBy: userEmail,
-          })),
+      const existingBuyItems: ExistingBuyDraftItemForOverlapCheck[] = existingBuyItemRows;
+      const overlap = findForwardFlowOverlap(
+        po.lineItems.map((li) => ({
+          productId: li.productId,
+          partNo: li.partNo,
+          productName: li.productName,
+        })),
+        existingBuyItems,
+      );
+      if (overlap.length > 0) {
+        return res.status(409).json({
+          error:
+            `Cannot import PON ${po.poNumber} — ${overlap.length} product(s) on this PO already ` +
+            `have forward-flow drafts in "${buy.name}". Importing would double-count budget for ` +
+            `those products. Cancel or delete the existing forward-flow drafts, or keep this PO's ` +
+            `import on a separate buy, then retry.`,
+          poNumber: po.poNumber,
+          buyId,
+          buyName: buy.name,
+          overlappingProducts: overlap,
         });
       }
-      await tx.buyerDraftPoRealPoLink.create({
-        data: {
-          draftPoId: createdDraftPo.id,
-          realPoId: built.realPoIdForLink,
-          linkSource: "HISTORICAL_IMPORT",
-          createdBy: userEmail,
-          updatedBy: userEmail,
-        },
-      });
-      return { draftPoId: createdDraftPo.id };
-    });
 
-    return res.status(201).json({
-      draftPoId: result.draftPoId,
-      buyId,
-      buyName: buy.name,
-      purchaseOrderId,
-      poNumber: po.poNumber,
-      itemsImported: built.draftItems.length,
-      skipped: built.skipped,
-    });
-  } catch (err) {
-    logError("[buyer-drafts/import-purchase-order] unexpected error", err);
-    return res.status(500).json({ error: "Import failed" });
-  }
-});
+      // Build the create shapes.
+      const built = buildImportFromPurchaseOrder(po as unknown as PurchaseOrderForImport);
+
+      // Single transaction: create the draft PO + every draft item + the
+      // join-table row to the real PO (Slice 6.14 M:N).
+      const result = await prisma.$transaction(async (tx) => {
+        const createdDraftPo = await tx.buyerDraftPurchaseOrder.create({
+          data: {
+            ...built.draftPo,
+            buyId,
+            createdBy: userEmail,
+            updatedBy: userEmail,
+          },
+          select: { id: true },
+        });
+        if (built.draftItems.length > 0) {
+          await tx.buyerDraftItem.createMany({
+            data: built.draftItems.map((item) => ({
+              ...item,
+              draftPoId: createdDraftPo.id,
+              createdBy: userEmail,
+              updatedBy: userEmail,
+            })),
+          });
+        }
+        await tx.buyerDraftPoRealPoLink.create({
+          data: {
+            draftPoId: createdDraftPo.id,
+            realPoId: built.realPoIdForLink,
+            linkSource: "HISTORICAL_IMPORT",
+            createdBy: userEmail,
+            updatedBy: userEmail,
+          },
+        });
+        return { draftPoId: createdDraftPo.id };
+      });
+
+      return res.status(201).json({
+        draftPoId: result.draftPoId,
+        buyId,
+        buyName: buy.name,
+        purchaseOrderId,
+        poNumber: po.poNumber,
+        itemsImported: built.draftItems.length,
+        skipped: built.skipped,
+      });
+    } catch (err) {
+      logError("[buyer-drafts/import-purchase-order] unexpected error", err);
+      return res.status(500).json({ error: "Import failed" });
+    }
+  },
+);
