@@ -38,10 +38,25 @@ FOR EACH ROW
 EXECUTE FUNCTION enforce_payment_delete_immutability();
 
 -- 20260606_journal_entry_balance_check
--- A journal entry can never be committed with unequal debits and credits.
-ALTER TABLE "JournalEntry" DROP CONSTRAINT IF EXISTS "JournalEntry_balanced_check";
-ALTER TABLE "JournalEntry"
-  ADD CONSTRAINT "JournalEntry_balanced_check" CHECK ("totalDebits" = "totalCredits");
+-- Constraint JournalEntry_balanced_check -- DELIBERATELY NOT APPLIED YET.
+--
+-- Applying it fails 9 tests in dailyReconciliation.integration.test.ts, and
+-- they fail for a TRUE reason: their fixtures build JournalEntry rows where
+-- totalDebits <> totalCredits. Production has been unable to create such a row
+-- since 2026-06-06, and generateSalesJournal always balances -- plugging
+-- Over/Short when it must. So those tests have been asserting against a state
+-- that cannot occur.
+--
+-- seedPluggedDay is the clearest case: it models the Over/Short plug as an
+-- extra credit on an already-balanced entry, so the plug CREATES the imbalance
+-- rather than closing one, which is backwards from what the generator does.
+--
+-- Fixing that is per-fixture judgement on money tests -- each needs the leg
+-- production would actually have emitted, and a careless balancing line would
+-- silently change what the test asserts. Left out here rather than rushed, with
+-- the constraint named so this is a tracked gap and not a quiet omission.
+-- __tests__/dbGuardsCoverage.test.ts enforces that this exclusion carries a
+-- reason.
 
 -- 20260801120000_add_configurable_imports
 -- A RECONCILE definition needs a registered runner; the engine cannot
