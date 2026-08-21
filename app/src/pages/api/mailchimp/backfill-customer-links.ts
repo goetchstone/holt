@@ -15,14 +15,17 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { logError, logger } from "@/lib/logger";
 
-function isAuthorized(req: NextApiRequest, session: unknown): boolean {
+async function isAuthorized(req: NextApiRequest, session: unknown): Promise<boolean> {
   const apiKey = process.env.AUTO_IMPORT_API_KEY;
   if (apiKey && req.headers.authorization === `Bearer ${apiKey}`) return true;
-  const role = (session as { role?: string } | null)?.role;
+  // Database, not the token. The Bearer path above is for cron; this branch is a
+  // human, and a demoted or deactivated one kept access until their JWT expired.
+  const role = await activeStaffRole(session as { user?: { id?: string | null } | null } | null);
   if (role === "ADMIN" || role === "SUPER_ADMIN" || role === "MANAGER") return true;
   return false;
 }
@@ -34,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const session = await getServerSession(req, res, authOptions);
-  if (!isAuthorized(req, session)) {
+  if (!(await isAuthorized(req, session))) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 

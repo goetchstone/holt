@@ -11,6 +11,6 @@ import { ReceivePOView } from "./ReceivePOView";
 
 export default async function ReceivePOPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage(["MANAGER", "ADMIN", "WAREHOUSE"]);
+  await requirePage(undefined, { permission: "purchasing.write" });
   return <ReceivePOView id={id} />;
 }

@@ -11,6 +11,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PosView } from "./PosView";
 
 export default async function PosPage() {
-  await requirePage(undefined, { feature: "pos" });
+  await requirePage(undefined, { permission: "pos.operate", feature: "pos" });
   return <PosView />;
 }

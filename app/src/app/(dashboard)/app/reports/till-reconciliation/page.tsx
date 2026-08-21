@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { TillReconciliationView } from "./TillReconciliationView";
 
 export default async function TillReconciliationPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "reporting.read" });
   return <TillReconciliationView />;
 }

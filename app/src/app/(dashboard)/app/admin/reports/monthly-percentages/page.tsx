@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { MonthlyPercentagesView } from "./MonthlyPercentagesView";
 
 export default async function MonthlyPercentagesPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <MonthlyPercentagesView />;
 }

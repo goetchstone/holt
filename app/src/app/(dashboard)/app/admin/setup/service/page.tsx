@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ServiceSetupView } from "./ServiceSetupView";
 
 export default async function ServiceSettingsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <ServiceSetupView />;
 }

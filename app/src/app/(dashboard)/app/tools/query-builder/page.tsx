@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { QueryBuilderView } from "./QueryBuilderView";
 
 export default async function QueryBuilderPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <QueryBuilderView />;
 }

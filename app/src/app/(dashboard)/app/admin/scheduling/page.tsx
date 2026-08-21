@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { SchedulingView } from "./SchedulingView";
 
 export default async function SchedulingPage() {
-  await requirePage(["SUPER_ADMIN", "ADMIN"], { feature: "booking" });
+  await requirePage(undefined, { permission: "admin.settings", feature: "booking" });
   return <SchedulingView />;
 }

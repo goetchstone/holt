@@ -13,7 +13,7 @@ import { OpenOrdersView } from "./OpenOrdersView";
 const REPORT_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "DESIGNER", "MARKETING"];
 
 export default async function OpenOrdersPage() {
-  await requirePage(REPORT_ROLES);
+  await requirePage(undefined, { permission: "reporting.read" });
   const data = await getOpenOrdersReport(prisma);
   return <OpenOrdersView data={data} />;
 }

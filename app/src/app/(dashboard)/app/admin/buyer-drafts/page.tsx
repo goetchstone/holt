@@ -12,7 +12,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { BuyerDraftsView } from "./BuyerDraftsView";
 
 export default async function BuyerDraftsPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return (
     <Suspense>
       <BuyerDraftsView />

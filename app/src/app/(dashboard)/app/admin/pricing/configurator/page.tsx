@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ConfiguratorView } from "./ConfiguratorView";
 
 export default async function PricingConfiguratorPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <ConfiguratorView />;
 }

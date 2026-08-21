@@ -11,7 +11,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { AccurateScansView } from "./AccurateScansView";
 
 export default async function AccurateScansPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.count" });
   return (
     <Suspense fallback={null}>
       <AccurateScansView />

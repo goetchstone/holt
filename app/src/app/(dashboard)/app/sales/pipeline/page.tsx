@@ -12,6 +12,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PipelineView } from "./PipelineView";
 
 export default async function PipelinePage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.read" });
   return <PipelineView />;
 }

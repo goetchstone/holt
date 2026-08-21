@@ -11,6 +11,6 @@ import { ReturnDetailView } from "./ReturnDetailView";
 
 export default async function ReturnDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.read" });
   return <ReturnDetailView id={id} />;
 }

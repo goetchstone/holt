@@ -9,7 +9,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PaymentSuccessView } from "./PaymentSuccessView";
 
 export default async function PaymentSuccessPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "payment.take" });
   return (
     <Suspense fallback={null}>
       <PaymentSuccessView />

@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ProductsListView } from "./ProductsListView";
 
 export default async function ProductsPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "catalog.read" });
   return <ProductsListView />;
 }

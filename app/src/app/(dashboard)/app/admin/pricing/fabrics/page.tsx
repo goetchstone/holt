@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { FabricsView } from "./FabricsView";
 
 export default async function PricingFabricsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <FabricsView />;
 }

@@ -26,6 +26,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function NewProductOptionsPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "catalog.write" });
   return <CardGrid title="Choose Product Type" items={ITEMS} />;
 }

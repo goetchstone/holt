@@ -11,6 +11,6 @@ import { GiftCardDetailView } from "./GiftCardDetailView";
 
 export default async function GiftCardDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <GiftCardDetailView id={id} />;
 }

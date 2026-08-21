@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ReturnsHistoryView } from "./ReturnsHistoryView";
 
 export default async function ReturnsHistoryPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   return <ReturnsHistoryView />;
 }

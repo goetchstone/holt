@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { LabelTemplatesView } from "./LabelTemplatesView";
 
 export default async function LabelTemplatesPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "admin.config" });
   return <LabelTemplatesView />;
 }

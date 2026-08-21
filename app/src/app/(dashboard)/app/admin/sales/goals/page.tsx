@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { SalesGoalsView } from "./SalesGoalsView";
 
 export default async function SalesGoalsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <SalesGoalsView />;
 }

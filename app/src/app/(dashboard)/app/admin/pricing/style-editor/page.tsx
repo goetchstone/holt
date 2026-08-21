@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { StyleEditorView } from "./StyleEditorView";
 
 export default async function PricingStyleEditorPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <StyleEditorView />;
 }

@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { DailyReconciliationView } from "./DailyReconciliationView";
 
 export default async function DailyReconciliationPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <DailyReconciliationView />;
 }

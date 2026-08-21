@@ -4,6 +4,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PageEditorView } from "../PageEditorView";
 
 export default async function NewCmsPage() {
-  await requirePage(["ADMIN"], { feature: "cms" });
+  await requirePage(undefined, { permission: "admin.settings", feature: "cms" });
   return <PageEditorView pageId={null} />;
 }

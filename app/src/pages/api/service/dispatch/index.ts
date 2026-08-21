@@ -3,13 +3,14 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import type { ServiceAppointmentStatus } from "@prisma/client";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") {
-    const mutationRole = (session as unknown as { role?: string })?.role;
+    const mutationRole = await activeStaffRole(session as { user?: { id?: string | null } | null });
     if (!["WAREHOUSE", "MANAGER", "ADMIN", "INSTALLER"].includes(mutationRole ?? "")) {
       return res.status(403).json({ error: "Insufficient role for this action" });
     }

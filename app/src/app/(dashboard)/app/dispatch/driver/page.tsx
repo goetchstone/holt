@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { DriverView } from "./DriverView";
 
 export default async function DriverPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "warehouse.operate" });
   return <DriverView />;
 }

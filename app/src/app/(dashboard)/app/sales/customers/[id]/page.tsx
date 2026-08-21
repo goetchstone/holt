@@ -13,6 +13,6 @@ import { CustomerDetailView } from "./CustomerDetailView";
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.read" });
   return <CustomerDetailView id={id} />;
 }

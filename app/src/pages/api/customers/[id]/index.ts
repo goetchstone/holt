@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 // Wealth enrichment data (net worth, wealth tier, lifestyle signals)
@@ -27,7 +28,8 @@ export default requirePermission(
 
     if (req.method === "GET") {
       try {
-        const role = (session as unknown as { role?: string })?.role ?? "";
+        const role =
+          (await activeStaffRole(session as { user?: { id?: string | null } | null })) ?? "";
         const canSeeWealth = WEALTH_ROLES.has(role);
 
         const customer = await prisma.customer.findUnique({

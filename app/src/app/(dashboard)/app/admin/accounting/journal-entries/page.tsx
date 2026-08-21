@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { JournalEntriesView } from "./JournalEntriesView";
 
 export default async function JournalEntriesPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "accounting.read" });
   return <JournalEntriesView />;
 }

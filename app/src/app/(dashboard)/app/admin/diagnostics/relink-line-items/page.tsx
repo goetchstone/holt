@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { RelinkLineItemsView } from "./RelinkLineItemsView";
 
 export default async function RelinkLineItemsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <RelinkLineItemsView />;
 }

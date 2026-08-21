@@ -127,6 +127,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function AdminLandingPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <CardGrid title="Admin Tools" items={ITEMS} />;
 }

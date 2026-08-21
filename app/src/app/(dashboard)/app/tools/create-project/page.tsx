@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { CreateProjectView } from "./CreateProjectView";
 
 export default async function CreateProjectPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "admin.settings" });
   return <CreateProjectView />;
 }

@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { LeadsView } from "./LeadsView";
 
 export default async function LeadsPage() {
-  await requirePage(["MANAGER", "ADMIN", "DESIGNER"]);
+  await requirePage(undefined, { permission: "sales.lead" });
   return <LeadsView />;
 }

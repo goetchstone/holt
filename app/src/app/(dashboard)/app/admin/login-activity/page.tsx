@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { LoginActivityView } from "./LoginActivityView";
 
 export default async function LoginActivityPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <LoginActivityView />;
 }

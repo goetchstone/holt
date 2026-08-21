@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { WindfallImportView } from "./WindfallImportView";
 
 export default async function WindfallImportPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.data" });
   return <WindfallImportView />;
 }

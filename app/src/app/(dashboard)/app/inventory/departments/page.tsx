@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { DepartmentsView } from "./DepartmentsView";
 
 export default async function DepartmentsPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "catalog.read" });
   return <DepartmentsView />;
 }

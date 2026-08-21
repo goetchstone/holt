@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { HomeAccessoryOrderView } from "./HomeAccessoryOrderView";
 
 export default async function HomeAccessoryOrderPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <HomeAccessoryOrderView />;
 }

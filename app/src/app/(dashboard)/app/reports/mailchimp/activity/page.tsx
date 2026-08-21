@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { MailchimpActivityView } from "./MailchimpActivityView";
 
 export default async function MailchimpActivityPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "reporting.read" });
   return <MailchimpActivityView />;
 }

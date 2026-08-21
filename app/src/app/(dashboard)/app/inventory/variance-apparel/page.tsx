@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { VarianceApparelView } from "./VarianceApparelView";
 
 export default async function VarianceApparelPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   return <VarianceApparelView />;
 }

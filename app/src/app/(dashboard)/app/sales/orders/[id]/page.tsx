@@ -12,6 +12,6 @@ import { OrderDetailView } from "./OrderDetailView";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.read" });
   return <OrderDetailView id={id} />;
 }

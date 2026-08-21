@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { CreateBasicView } from "./CreateBasicView";
 
 export default async function CreateBasicPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "catalog.write" });
   return <CreateBasicView />;
 }

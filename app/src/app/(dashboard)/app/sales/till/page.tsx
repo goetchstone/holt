@@ -11,6 +11,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { TillView } from "./TillView";
 
 export default async function TillPage() {
-  await requirePage(undefined, { feature: "tills" });
+  await requirePage(undefined, { permission: "sales.read", feature: "tills" });
   return <TillView />;
 }

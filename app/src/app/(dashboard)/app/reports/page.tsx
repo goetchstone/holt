@@ -215,6 +215,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function ReportsHubPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "reporting.read" });
   return <CardGrid title="Reports" items={ITEMS} />;
 }

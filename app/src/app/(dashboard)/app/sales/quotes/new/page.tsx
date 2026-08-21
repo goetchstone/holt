@@ -11,7 +11,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { NewQuoteView } from "./NewQuoteView";
 
 export default async function NewQuotePage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.write" });
   return (
     <Suspense fallback={null}>
       <NewQuoteView />

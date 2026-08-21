@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { VehiclesView } from "./VehiclesView";
 
 export default async function VehiclesPage() {
-  await requirePage(["MANAGER", "ADMIN", "WAREHOUSE"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <VehiclesView />;
 }

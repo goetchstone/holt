@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { UpcViewerView } from "./UpcViewerView";
 
 export default async function UpcViewerPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <UpcViewerView />;
 }

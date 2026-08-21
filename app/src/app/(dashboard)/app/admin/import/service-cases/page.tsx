@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ServiceCasesImportView } from "./ServiceCasesImportView";
 
 export default async function ImportServiceCasesPage() {
-  await requirePage(["ADMIN", "SUPER_ADMIN"]);
+  await requirePage(undefined, { permission: "admin.data" });
   return <ServiceCasesImportView />;
 }

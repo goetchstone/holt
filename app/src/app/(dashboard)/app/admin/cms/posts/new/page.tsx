@@ -4,6 +4,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PostEditorView } from "../PostEditorView";
 
 export default async function NewCmsPost() {
-  await requirePage(["ADMIN"], { feature: "cms" });
+  await requirePage(undefined, { permission: "admin.settings", feature: "cms" });
   return <PostEditorView postId={null} />;
 }

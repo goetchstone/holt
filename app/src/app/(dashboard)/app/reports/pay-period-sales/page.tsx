@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PayPeriodSalesView } from "./PayPeriodSalesView";
 
 export default async function PayPeriodSalesPage() {
-  await requirePage(["SUPER_ADMIN"]);
+  await requirePage(undefined, { permission: "reporting.read" });
   return <PayPeriodSalesView />;
 }

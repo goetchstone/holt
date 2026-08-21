@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { InventoryHubView } from "./InventoryHubView";
 
 export default async function InventoryHubPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   return <InventoryHubView />;
 }

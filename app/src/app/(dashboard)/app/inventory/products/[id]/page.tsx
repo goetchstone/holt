@@ -11,6 +11,6 @@ import { ProductDetailView } from "./ProductDetailView";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage();
+  await requirePage(undefined, { permission: "catalog.read" });
   return <ProductDetailView id={id} />;
 }

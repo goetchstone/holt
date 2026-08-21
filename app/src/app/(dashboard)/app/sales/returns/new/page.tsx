@@ -12,7 +12,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { NewReturnView } from "./NewReturnView";
 
 export default async function NewReturnPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.write" });
   return (
     <Suspense fallback={null}>
       <NewReturnView />

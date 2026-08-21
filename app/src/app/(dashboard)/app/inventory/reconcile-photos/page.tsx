@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ReconcilePhotosView } from "./ReconcilePhotosView";
 
 export default async function ReconcilePhotosPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.count" });
   return <ReconcilePhotosView />;
 }

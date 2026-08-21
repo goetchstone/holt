@@ -15,6 +15,6 @@ export default async function ConsignmentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   return <ConsignmentDetailView id={id} />;
 }

@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { IntegrationsView } from "./IntegrationsView";
 
 export default async function IntegrationsPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <IntegrationsView />;
 }

@@ -11,7 +11,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { VarianceReportView } from "./VarianceReportView";
 
 export default async function VarianceReportPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   return (
     <Suspense fallback={null}>
       <VarianceReportView />

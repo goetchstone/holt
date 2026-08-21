@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { DeliveryZonesView } from "./DeliveryZonesView";
 
 export default async function DeliveryZonesPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <DeliveryZonesView />;
 }

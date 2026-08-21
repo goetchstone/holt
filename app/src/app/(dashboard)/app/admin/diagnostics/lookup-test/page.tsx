@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { LookupTestView } from "./LookupTestView";
 
 export default async function LookupTestPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <LookupTestView />;
 }

@@ -12,6 +12,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import {
   confirmPayPeriod,
@@ -34,9 +35,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   // "Tabled 2026-05-29 (owner direction): SUPER_ADMIN-only" off a fresh DB
   // role, so isPrivileged is always true past the gate -- kept as-is
   // (unchanged business logic) rather than simplified away.
-  const role = (session as { role?: string }).role;
+  const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
   const userId = (session.user as { id?: string }).id;
-  const isPrivileged = role !== undefined && PRIVILEGED_ROLES.has(role);
+  const isPrivileged = role !== null && PRIVILEGED_ROLES.has(role);
   const email = session.user.email ?? "unknown";
 
   const period = periodFromStartParam(req.body?.periodStart);

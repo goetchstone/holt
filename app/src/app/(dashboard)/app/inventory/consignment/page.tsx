@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ConsignmentView } from "./ConsignmentView";
 
 export default async function ConsignmentPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   return <ConsignmentView />;
 }

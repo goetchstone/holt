@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { TaxSummaryView } from "./TaxSummaryView";
 
 export default async function TaxSummaryPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "reporting.read" });
   return <TaxSummaryView />;
 }

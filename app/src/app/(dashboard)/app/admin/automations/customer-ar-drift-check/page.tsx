@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { CustomerArDriftCheckView } from "./CustomerArDriftCheckView";
 
 export default async function CustomerArDriftCheckPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <CustomerArDriftCheckView />;
 }

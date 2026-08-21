@@ -11,7 +11,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ReconciledItemsView } from "./ReconciledItemsView";
 
 export default async function ReconciledItemsPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.count" });
   return (
     <Suspense fallback={null}>
       <ReconciledItemsView />

@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { VendorsView } from "./VendorsView";
 
 export default async function VendorsPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   return <VendorsView />;
 }

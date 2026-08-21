@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { EmailQueueView } from "./EmailQueueView";
 
 export default async function EmailPage() {
-  await requirePage(["SUPER_ADMIN", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <EmailQueueView />;
 }

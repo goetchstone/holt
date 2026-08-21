@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
@@ -62,7 +63,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   if (req.method === "POST") {
     // Narrower than the outer WAREHOUSE/MANAGER/ADMIN gate -- warehouse staff
     // can view store locations but not create them.
-    const role = (session as any)?.role;
+    const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
     if (role !== "MANAGER" && role !== "ADMIN") {
       return res.status(403).json({ error: "Manager role required" });
     }

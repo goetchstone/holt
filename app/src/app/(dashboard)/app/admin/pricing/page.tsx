@@ -41,6 +41,6 @@ const sections: CardGridItem[] = [
 ];
 
 export default async function PricingHubPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <CardGrid title="Vendor Pricing" items={sections} />;
 }

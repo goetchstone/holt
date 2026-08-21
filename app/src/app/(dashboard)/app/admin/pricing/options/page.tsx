@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { OptionsView } from "./OptionsView";
 
 export default async function PricingOptionsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <OptionsView />;
 }

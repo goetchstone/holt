@@ -34,6 +34,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function CmsHubPage() {
-  await requirePage(["ADMIN"], { feature: "cms" });
+  await requirePage(undefined, { permission: "admin.settings", feature: "cms" });
   return <CardGrid title="Content (CMS)" items={ITEMS} />;
 }

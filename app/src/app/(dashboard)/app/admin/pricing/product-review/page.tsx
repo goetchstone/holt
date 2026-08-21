@@ -11,6 +11,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ProductReviewView } from "./ProductReviewView";
 
 export default async function PricingProductReviewPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <ProductReviewView />;
 }

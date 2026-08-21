@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { SalespersonCorrectionsView } from "./SalespersonCorrectionsView";
 
 export default async function SalespersonCorrectionsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <SalespersonCorrectionsView />;
 }

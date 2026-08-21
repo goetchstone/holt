@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { GiftCardImportView } from "./GiftCardImportView";
 
 export default async function GiftCardImportPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <GiftCardImportView />;
 }

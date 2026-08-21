@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { LoadZipsView } from "./LoadZipsView";
 
 export default async function LoadTaxZipsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <LoadZipsView />;
 }

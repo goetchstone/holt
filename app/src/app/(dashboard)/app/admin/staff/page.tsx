@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { StaffView } from "./StaffView";
 
 export default async function StaffManagementPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "staff.manage" });
   return <StaffView />;
 }

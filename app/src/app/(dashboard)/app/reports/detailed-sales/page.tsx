@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { DetailedSalesView } from "./DetailedSalesView";
 
 export default async function DetailedSalesPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "reporting.read" });
   return <DetailedSalesView />;
 }

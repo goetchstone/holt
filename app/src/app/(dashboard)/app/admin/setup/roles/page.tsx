@@ -12,6 +12,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { RolesView } from "./RolesView";
 
 export default async function RolesPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <RolesView />;
 }

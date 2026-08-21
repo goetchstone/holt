@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { InventoryExceptionsView } from "./InventoryExceptionsView";
 
 export default async function InventoryExceptionsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <InventoryExceptionsView />;
 }

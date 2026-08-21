@@ -10,6 +10,6 @@ import { CampaignDetailView } from "./CampaignDetailView";
 
 export default async function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage();
+  await requirePage(undefined, { permission: "reporting.read" });
   return <CampaignDetailView id={id} />;
 }

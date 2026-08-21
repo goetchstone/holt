@@ -49,6 +49,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function ToolsHubPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "admin.settings" });
   return <CardGrid title="Tools" items={ITEMS} />;
 }

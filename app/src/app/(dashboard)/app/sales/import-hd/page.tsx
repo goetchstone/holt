@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ImportHdView } from "./ImportHdView";
 
 export default async function ImportHdPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.read" });
   return <ImportHdView />;
 }

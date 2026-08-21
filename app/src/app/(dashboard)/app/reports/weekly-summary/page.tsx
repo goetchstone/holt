@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { WeeklySummaryView } from "./WeeklySummaryView";
 
 export default async function WeeklySummaryPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "reporting.read" });
   return <WeeklySummaryView />;
 }

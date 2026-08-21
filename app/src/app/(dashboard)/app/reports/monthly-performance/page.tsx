@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { MonthlyPerformanceView } from "./MonthlyPerformanceView";
 
 export default async function MonthlyPerformancePage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "reporting.read" });
   return <MonthlyPerformanceView />;
 }

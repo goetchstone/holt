@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { TypesView } from "./TypesView";
 
 export default async function TypesPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "catalog.read" });
   return <TypesView />;
 }

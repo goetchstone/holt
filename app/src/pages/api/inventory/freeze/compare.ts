@@ -2,10 +2,10 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
-import { requireAuth } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 
-export default requireAuth(handleGet);
+export default requirePermission("inventory.count", handleGet);
 
 async function handleGet(req: NextApiRequest, res: NextApiResponse, _session: Session) {
   if (req.method !== "GET") {

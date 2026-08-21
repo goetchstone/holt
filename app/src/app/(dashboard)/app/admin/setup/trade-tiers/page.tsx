@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { TradeTiersView } from "./TradeTiersView";
 
 export default async function TradeTiersPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <TradeTiersView />;
 }

@@ -11,6 +11,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ExportDataView } from "./ExportDataView";
 
 export default async function ExportDataPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <ExportDataView />;
 }

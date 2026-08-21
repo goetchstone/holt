@@ -12,6 +12,6 @@ import { BuyPerformanceView } from "./BuyPerformanceView";
 
 export default async function BuyPerformancePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <BuyPerformanceView id={id} />;
 }
