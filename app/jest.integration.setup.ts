@@ -4,7 +4,10 @@
 // any integration test. Two responsibilities:
 //
 //   1. Ensure the test database exists (create if missing).
-//   2. Apply all migrations against it via `prisma migrate deploy`.
+//   2. Apply the current schema via `prisma db push`, then re-apply the
+//      database-level guards from prisma/testing/db-guards.sql (see
+//      applyDbGuards -- `db push` does not run migration SQL, so triggers
+//      and raw CHECKs would otherwise be missing from the test DB).
 //
 // After this runs, the test workers can import `prisma` from
 // `lib/prisma` and the connection points at the migrated test DB
@@ -17,6 +20,8 @@
 
 import { execSync } from "child_process";
 import { Client } from "pg";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 const TEST_DB_NAME = "fbc_test_db";
 
@@ -92,6 +97,32 @@ async function ensureTestDbExists(): Promise<void> {
  */
 function applySchema(testDbUrl: string): void {
   execSync("npx prisma db push --accept-data-loss", {
+    cwd: __dirname,
+    stdio: "inherit",
+    env: { ...process.env, DATABASE_URL: testDbUrl },
+  });
+  applyDbGuards(testDbUrl);
+}
+
+/**
+ * Re-apply the database-level guards `db push` cannot know about.
+ *
+ * `db push` applies schema.prisma and nothing else, so every trigger, function
+ * and raw-SQL CHECK -- all of which live in migration SQL -- was absent from the
+ * test database. That was not a theoretical gap: an integration test asserting
+ * the payment append-only trigger fires watched the DELETE succeed instead.
+ *
+ * prisma/testing/db-guards.sql carries those statements, idempotently, and
+ * __tests__/dbGuardsCoverage.test.ts fails if a migration grows a guard the file
+ * does not.
+ */
+function applyDbGuards(testDbUrl: string): void {
+  const guardsPath = join(__dirname, "prisma", "testing", "db-guards.sql");
+  if (!existsSync(guardsPath)) return;
+  // DATABASE_URL by env, not --url: Prisma 7 removed that flag from
+  // `db execute` and reads the datasource from prisma.config.ts. Same shape as
+  // the `db push` call above, which is why that one worked and this did not.
+  execSync(`npx prisma db execute --file "${guardsPath}"`, {
     cwd: __dirname,
     stdio: "inherit",
     env: { ...process.env, DATABASE_URL: testDbUrl },
