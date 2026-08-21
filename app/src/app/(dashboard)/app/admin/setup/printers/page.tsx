@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PrintersView } from "./PrintersView";
 
 export default async function PrintersPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "admin.config" });
   return <PrintersView />;
 }

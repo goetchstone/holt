@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { InventorySnapshotImportView } from "./InventorySnapshotImportView";
 
 export default async function InventorySnapshotImportPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "admin.data" });
   return <InventorySnapshotImportView />;
 }

@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { CommissionTiersView } from "./CommissionTiersView";
 
 export default async function CommissionTiersPage() {
-  await requirePage(["SUPER_ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <CommissionTiersView />;
 }

@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { DesignerDashboardView } from "./DesignerDashboardView";
 
 export default async function DesignerDashboardPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "reporting.read" });
   return <DesignerDashboardView />;
 }

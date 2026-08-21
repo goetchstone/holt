@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { DashboardView } from "./DashboardView";
 
 export default async function DashboardReportPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "reporting.read" });
   return <DashboardView />;
 }

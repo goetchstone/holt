@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ReceiveView } from "./ReceiveView";
 
 export default async function ReceiveShipmentPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   return <ReceiveView />;
 }

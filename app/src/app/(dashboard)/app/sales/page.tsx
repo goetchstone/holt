@@ -106,6 +106,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function SalesHubPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.read" });
   return <CardGrid title="Sales" items={ITEMS} />;
 }

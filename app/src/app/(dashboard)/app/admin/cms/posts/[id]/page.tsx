@@ -4,7 +4,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PostEditorView } from "../PostEditorView";
 
 export default async function EditCmsPost({ params }: { params: Promise<{ id: string }> }) {
-  await requirePage(["ADMIN"], { feature: "cms" });
+  await requirePage(undefined, { permission: "admin.settings", feature: "cms" });
   const { id } = await params;
   return <PostEditorView postId={Number(id)} />;
 }

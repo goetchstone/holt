@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PaymentCancelView } from "./PaymentCancelView";
 
 export default async function PaymentCancelPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "payment.take" });
   return <PaymentCancelView />;
 }

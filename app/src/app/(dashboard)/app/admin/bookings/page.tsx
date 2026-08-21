@@ -16,6 +16,6 @@ function resolveFeedUrl(): string | null {
 }
 
 export default async function AdminBookingsPage() {
-  await requirePage(["ADMIN"], { feature: "booking" });
+  await requirePage(undefined, { permission: "admin.settings", feature: "booking" });
   return <BookingsView feedUrl={resolveFeedUrl()} />;
 }

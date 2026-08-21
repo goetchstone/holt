@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { InteractionsView } from "./InteractionsView";
 
 export default async function InteractionsPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "customer.read" });
   return <InteractionsView />;
 }

@@ -13,6 +13,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ConsignmentReturnView } from "./ConsignmentReturnView";
 
 export default async function ConsignmentReturnPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   return <ConsignmentReturnView />;
 }

@@ -11,6 +11,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ApparelOrderView } from "./ApparelOrderView";
 
 export default async function ApparelOrderPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <ApparelOrderView />;
 }

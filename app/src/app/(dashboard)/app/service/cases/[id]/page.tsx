@@ -11,6 +11,6 @@ import { CaseDetailView } from "./CaseDetailView";
 
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage();
+  await requirePage(undefined, { permission: "service.read" });
   return <CaseDetailView id={id} />;
 }

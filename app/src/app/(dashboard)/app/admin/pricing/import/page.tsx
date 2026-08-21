@@ -12,7 +12,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PricingImportView } from "./PricingImportView";
 
 export default async function PricingImportPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return (
     <Suspense fallback={null}>
       <PricingImportView />

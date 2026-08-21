@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { CategoryImportView } from "./CategoryImportView";
 
 export default async function CategoryImportPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.data" });
   return <CategoryImportView />;
 }

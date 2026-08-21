@@ -9,7 +9,7 @@ import { requireModule } from "@/lib/modules/requireModule";
 import { LegacyArchiveView } from "./LegacyArchiveView";
 
 export default async function LegacyArchivePage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "admin.settings" });
   await requireModule("legacyArchive");
   return <LegacyArchiveView />;
 }

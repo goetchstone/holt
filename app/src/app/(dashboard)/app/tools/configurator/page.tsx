@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ConfiguratorView } from "./ConfiguratorView";
 
 export default async function ConfiguratorPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "admin.settings" });
   return <ConfiguratorView />;
 }

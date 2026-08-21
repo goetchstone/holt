@@ -12,7 +12,7 @@ import { FactSalesDayView } from "./FactSalesDayView";
 const REPORT_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "DESIGNER", "MARKETING"];
 
 export default async function FactSalesDayPage() {
-  await requirePage(REPORT_ROLES);
+  await requirePage(undefined, { permission: "reporting.read" });
   const rows = await getFactSalesDay(prisma);
   return <FactSalesDayView rows={rows} />;
 }

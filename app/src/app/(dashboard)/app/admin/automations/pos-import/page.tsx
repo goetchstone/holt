@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PosImportView } from "./PosImportView";
 
 export default async function PosImportPage() {
-  await requirePage(["MANAGER", "ADMIN"], { feature: "legacyPosImport" });
+  await requirePage(undefined, { permission: "admin.settings", feature: "legacyPosImport" });
   return <PosImportView />;
 }

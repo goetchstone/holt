@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { AxperTrafficView } from "./AxperTrafficView";
 
 export default async function AxperTrafficPage() {
-  await requirePage(["MANAGER", "ADMIN", "SUPER_ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <AxperTrafficView />;
 }

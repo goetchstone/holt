@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ProductPairingsView } from "./ProductPairingsView";
 
 export default async function ProductPairingsPage() {
-  await requirePage(["ADMIN", "MARKETING"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <ProductPairingsView />;
 }

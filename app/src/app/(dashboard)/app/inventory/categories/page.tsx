@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { CategoriesView } from "./CategoriesView";
 
 export default async function CategoriesPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "catalog.read" });
   return <CategoriesView />;
 }

@@ -12,7 +12,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { OrdersListView } from "./OrdersListView";
 
 export default async function SalesOrdersListPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.read" });
   return (
     <Suspense fallback={null}>
       <OrdersListView />

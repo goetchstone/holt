@@ -12,6 +12,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PhysicalCountView } from "./PhysicalCountView";
 
 export default async function PhysicalCountPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.count" });
   return <PhysicalCountView />;
 }

@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { MailchimpSyncView } from "./MailchimpSyncView";
 
 export default async function MailchimpSyncAdminPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <MailchimpSyncView />;
 }

@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { TypeImportView } from "./TypeImportView";
 
 export default async function TypeImportPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.data" });
   return <TypeImportView />;
 }

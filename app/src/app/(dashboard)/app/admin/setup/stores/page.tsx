@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { StoresView } from "./StoresView";
 
 export default async function StoreLocationsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <StoresView />;
 }

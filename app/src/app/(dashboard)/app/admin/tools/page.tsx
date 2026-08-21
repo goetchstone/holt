@@ -52,6 +52,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function AdminToolsHubPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <CardGrid title="System Tools" items={ITEMS} />;
 }

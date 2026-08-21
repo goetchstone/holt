@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { WesleyHallImportRedirect } from "./WesleyHallImportRedirect";
 
 export default async function WesleyHallImportRedirectPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <WesleyHallImportRedirect />;
 }

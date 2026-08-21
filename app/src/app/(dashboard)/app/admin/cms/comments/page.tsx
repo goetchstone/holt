@@ -7,6 +7,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { CommentsModerationView } from "./CommentsModerationView";
 
 export default async function CommentsPage() {
-  await requirePage(["ADMIN"], { feature: "cms" });
+  await requirePage(undefined, { permission: "admin.settings", feature: "cms" });
   return <CommentsModerationView />;
 }

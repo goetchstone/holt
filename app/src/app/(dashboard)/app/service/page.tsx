@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ServiceView } from "./ServiceView";
 
 export default async function ServiceCasesPage() {
-  await requirePage(undefined, { feature: "dispatch" });
+  await requirePage(undefined, { permission: "service.read", feature: "dispatch" });
   return <ServiceView />;
 }

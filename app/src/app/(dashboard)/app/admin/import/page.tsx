@@ -42,6 +42,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function ImportToolsHubPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.data" });
   return <CardGrid title="Import Tools" items={ITEMS} />;
 }

@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { InstallersView } from "./InstallersView";
 
 export default async function InstallersPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <InstallersView />;
 }

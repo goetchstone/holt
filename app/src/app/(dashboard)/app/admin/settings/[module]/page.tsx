@@ -16,7 +16,7 @@ import { ModuleSettingsView } from "./ModuleSettingsView";
 export default async function ModuleSettingsPage({
   params,
 }: Readonly<{ params: Promise<{ module: string }> }>) {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   const { module: moduleKey } = await params;
 
   const settings = await getAppSettings();

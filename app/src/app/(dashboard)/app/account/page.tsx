@@ -7,6 +7,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { AccountView } from "./AccountView";
 
 export default async function AccountPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "staff.self" });
   return <AccountView />;
 }

@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { GenericImportView } from "./GenericImportView";
 
 export default async function GenericImportPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.data" });
   return <GenericImportView />;
 }

@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { CustomerLedgerBackfillView } from "./CustomerLedgerBackfillView";
 
 export default async function CustomerLedgerBackfillPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <CustomerLedgerBackfillView />;
 }

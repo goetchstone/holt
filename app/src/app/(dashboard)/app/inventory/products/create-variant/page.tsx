@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { CreateVariantView } from "./CreateVariantView";
 
 export default async function CreateVariantPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "catalog.write" });
   return <CreateVariantView />;
 }

@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { SettingsOverviewView } from "./SettingsOverviewView";
 
 export default async function SettingsPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <SettingsOverviewView />;
 }

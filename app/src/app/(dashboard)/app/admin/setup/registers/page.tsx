@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { RegistersView } from "./RegistersView";
 
 export default async function RegistersPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <RegistersView />;
 }

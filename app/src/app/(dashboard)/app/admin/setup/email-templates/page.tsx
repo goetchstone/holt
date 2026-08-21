@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { EmailTemplatesView } from "./EmailTemplatesView";
 
 export default async function EmailTemplatesPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <EmailTemplatesView />;
 }

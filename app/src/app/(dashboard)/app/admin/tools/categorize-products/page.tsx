@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { CategorizeProductsView } from "./CategorizeProductsView";
 
 export default async function CategorizeProductsPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <CategorizeProductsView />;
 }

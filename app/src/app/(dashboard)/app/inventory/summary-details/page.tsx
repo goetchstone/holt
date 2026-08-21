@@ -12,7 +12,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { SummaryDetailsView } from "./SummaryDetailsView";
 
 export default async function SummaryDetailsPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   return (
     <Suspense fallback={null}>
       <SummaryDetailsView />

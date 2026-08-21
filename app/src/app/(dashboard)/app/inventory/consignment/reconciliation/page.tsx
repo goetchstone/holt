@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ReconciliationView } from "./ReconciliationView";
 
 export default async function ReconciliationPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "accounting.read" });
   return <ReconciliationView />;
 }

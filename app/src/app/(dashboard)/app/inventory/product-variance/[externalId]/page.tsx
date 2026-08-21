@@ -14,7 +14,7 @@ export default async function ProductVariancePage({
 }: {
   params: Promise<{ externalId: string }>;
 }) {
-  await requirePage();
+  await requirePage(undefined, { permission: "inventory.read" });
   const { externalId } = await params;
   return (
     <Suspense fallback={null}>

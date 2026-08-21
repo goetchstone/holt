@@ -10,6 +10,6 @@ import { SalesDailyView } from "./SalesDailyView";
 const REPORT_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "DESIGNER", "MARKETING"];
 
 export default async function SalesDailyPage() {
-  await requirePage(REPORT_ROLES);
+  await requirePage(undefined, { permission: "reporting.read" });
   return <SalesDailyView />;
 }

@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ConsignmentImportView } from "./ConsignmentImportView";
 
 export default async function ConsignmentImportPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.data" });
   return <ConsignmentImportView />;
 }

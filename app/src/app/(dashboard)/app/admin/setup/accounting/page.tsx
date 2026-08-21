@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { AccountingView } from "./AccountingView";
 
 export default async function AccountingAdminPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <AccountingView />;
 }

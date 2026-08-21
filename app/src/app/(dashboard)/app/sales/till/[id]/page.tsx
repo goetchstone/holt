@@ -13,6 +13,6 @@ import { TillDetailView } from "./TillDetailView";
 
 export default async function TillDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.read" });
   return <TillDetailView id={id} />;
 }

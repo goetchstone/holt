@@ -12,7 +12,7 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { GiftCardSaleView } from "./GiftCardSaleView";
 
 export default async function GiftCardSalePage() {
-  await requirePage(undefined, { feature: "giftCards" });
+  await requirePage(undefined, { permission: "sales.read", feature: "giftCards" });
   return (
     <Suspense fallback={null}>
       <GiftCardSaleView />

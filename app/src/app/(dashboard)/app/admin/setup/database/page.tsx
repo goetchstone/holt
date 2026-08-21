@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { DatabaseBackupView } from "./DatabaseBackupView";
 
 export default async function DatabaseBackupPage() {
-  await requirePage(["ADMIN"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <DatabaseBackupView />;
 }

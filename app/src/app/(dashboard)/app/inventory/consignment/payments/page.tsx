@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { PaymentsView } from "./PaymentsView";
 
 export default async function PaymentsPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "accounting.read" });
   return <PaymentsView />;
 }

@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { ReturnsListView } from "./ReturnsListView";
 
 export default async function ReturnsListPage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "sales.read" });
   return <ReturnsListView />;
 }

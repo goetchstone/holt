@@ -52,6 +52,6 @@ const ITEMS: CardGridItem[] = [
 ];
 
 export default async function InventoryIndexPage() {
-  await requirePage(undefined, { feature: "warehousing" });
+  await requirePage(undefined, { permission: "inventory.read", feature: "warehousing" });
   return <CardGrid title="Inventory" items={ITEMS} />;
 }

@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { NewServiceCaseView } from "./NewServiceCaseView";
 
 export default async function NewServiceCasePage() {
-  await requirePage();
+  await requirePage(undefined, { permission: "service.write" });
   return <NewServiceCaseView />;
 }

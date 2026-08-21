@@ -14,6 +14,6 @@ export default async function InteractionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requirePage();
+  await requirePage(undefined, { permission: "customer.read" });
   return <InteractionDetailView id={id} />;
 }

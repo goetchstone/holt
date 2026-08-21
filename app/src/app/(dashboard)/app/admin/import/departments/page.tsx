@@ -9,6 +9,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { DepartmentImportView } from "./DepartmentImportView";
 
 export default async function DepartmentImportPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.data" });
   return <DepartmentImportView />;
 }

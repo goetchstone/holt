@@ -8,6 +8,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { MergeCustomersView } from "./MergeCustomersView";
 
 export default async function MergeCustomersPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.settings" });
   return <MergeCustomersView />;
 }

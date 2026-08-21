@@ -10,6 +10,6 @@ import { requirePage } from "@/lib/auth/requirePage";
 import { TaxView } from "./TaxView";
 
 export default async function TaxAdminPage() {
-  await requirePage(["MANAGER", "ADMIN"]);
+  await requirePage(undefined, { permission: "admin.config" });
   return <TaxView />;
 }
