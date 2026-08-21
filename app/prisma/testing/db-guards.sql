@@ -38,25 +38,19 @@ FOR EACH ROW
 EXECUTE FUNCTION enforce_payment_delete_immutability();
 
 -- 20260606_journal_entry_balance_check
--- Constraint JournalEntry_balanced_check -- DELIBERATELY NOT APPLIED YET.
 --
--- Applying it fails 9 tests in dailyReconciliation.integration.test.ts, and
--- they fail for a TRUE reason: their fixtures build JournalEntry rows where
--- totalDebits <> totalCredits. Production has been unable to create such a row
--- since 2026-06-06, and generateSalesJournal always balances -- plugging
--- Over/Short when it must. So those tests have been asserting against a state
--- that cannot occur.
+-- An entry whose debits do not equal its credits is not an entry. Production
+-- has rejected them since 2026-06-06; the integration database could still
+-- create them, because db push does not apply migration SQL.
 --
--- seedPluggedDay is the clearest case: it models the Over/Short plug as an
--- extra credit on an already-balanced entry, so the plug CREATES the imbalance
--- rather than closing one, which is backwards from what the generator does.
---
--- Fixing that is per-fixture judgement on money tests -- each needs the leg
--- production would actually have emitted, and a careless balancing line would
--- silently change what the test asserts. Left out here rather than rushed, with
--- the constraint named so this is a tracked gap and not a quiet omission.
--- __tests__/dbGuardsCoverage.test.ts enforces that this exclusion carries a
--- reason. Tracked in issue #115.
+-- This was excluded when the guards file was written: applying it failed 9
+-- dailyReconciliation tests whose fixtures built exactly that impossible shape.
+-- Those fixtures are fixed (issue #115), so the constraint is live here now.
+ALTER TABLE "JournalEntry"
+  DROP CONSTRAINT IF EXISTS "JournalEntry_balanced_check";
+ALTER TABLE "JournalEntry"
+  ADD CONSTRAINT "JournalEntry_balanced_check"
+  CHECK ("totalDebits" = "totalCredits");
 
 -- 20260801120000_add_configurable_imports
 -- A RECONCILE definition needs a registered runner; the engine cannot
