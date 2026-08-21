@@ -27,6 +27,16 @@ import {
   type ReportTaxonomy,
 } from "@/lib/reports/reportTaxonomy";
 
+/**
+ * Bucket key for the grand total.
+ *
+ * Report groups are operator-named now, so a group called "All" would land in
+ * the same bucket as the total: every one of its lines counted twice, and the
+ * annualized-sales, average-order and margin KPIs all read from that bucket.
+ * The underscores put the key outside what a department group can be.
+ */
+export const TOTAL_KEY = "__all__";
+
 // Sales: ORDER, FULFILLED, or RETURNED (returns have negative line items that
 // must reduce the salesperson's total). This used to be a local literal with
 // the same three values as SALES_REVENUE_STATUSES. salesOrderRevenue.ts's own
@@ -44,6 +54,12 @@ const HC_CONVERSION_THRESHOLD = 1000;
 
 export interface CategoryRow {
   category: string;
+  /**
+   * The grand-total row. Explicit rather than inferred from the label: the UI
+   * used to test `category.startsWith("All")`, which a report group named
+   * "Alloy" or "All Weather" would have satisfied.
+   */
+  isTotal: boolean;
   mtdValue: number;
   prevMtdValue: number;
   mtdVar: number | null;
@@ -166,9 +182,9 @@ export function accumulateLineItem(
     result[category].cost += cost;
     result[category].count += 1;
   }
-  result["All"].revenue += revenue;
-  result["All"].cost += cost;
-  result["All"].count += 1;
+  result[TOTAL_KEY].revenue += revenue;
+  result[TOTAL_KEY].cost += cost;
+  result[TOTAL_KEY].count += 1;
 }
 
 function processOrders(
@@ -178,7 +194,7 @@ function processOrders(
 ): Record<string, CategoryMetrics> {
   const result: Record<string, CategoryMetrics> = {};
   taxonomy.groups.forEach((c) => (result[c] = emptyMetrics()));
-  result["All"] = emptyMetrics();
+  result[TOTAL_KEY] = emptyMetrics();
 
   for (const order of orders) {
     if (!isInPeriod(order.orderDate, period)) continue;
@@ -212,8 +228,9 @@ function buildCategoryRows(
   ytd: Record<string, CategoryMetrics>,
   prevYtd: Record<string, CategoryMetrics>,
 ): CategoryRow[] {
-  return ["All", ...taxonomy.groups].map((cat) => ({
-    category: cat === "All" ? (mtd === salesMtd ? "All Sales" : "All Quotes") : cat,
+  return [TOTAL_KEY, ...taxonomy.groups].map((cat) => ({
+    category: cat === TOTAL_KEY ? (mtd === salesMtd ? "All Sales" : "All Quotes") : cat,
+    isTotal: cat === TOTAL_KEY,
     mtdValue: mtd[cat]?.revenue || 0,
     prevMtdValue: prevMtd[cat]?.revenue || 0,
     mtdVar: variance(mtd[cat]?.revenue || 0, prevMtd[cat]?.revenue || 0),
@@ -356,13 +373,13 @@ export async function getDesignerDashboard(
     1,
     Math.ceil((ranges.ytd.end.getTime() - ranges.ytd.start.getTime()) / (1000 * 60 * 60 * 24)),
   );
-  const annualizedSales = (salesYtd["All"].revenue / daysElapsed) * 365;
+  const annualizedSales = (salesYtd[TOTAL_KEY].revenue / daysElapsed) * 365;
 
-  const avgOrderValue = orderCountYtd > 0 ? salesYtd["All"].revenue / orderCountYtd : 0;
+  const avgOrderValue = orderCountYtd > 0 ? salesYtd[TOTAL_KEY].revenue / orderCountYtd : 0;
 
   const avgMargin =
-    salesYtd["All"].revenue > 0
-      ? (salesYtd["All"].revenue - salesYtd["All"].cost) / salesYtd["All"].revenue
+    salesYtd[TOTAL_KEY].revenue > 0
+      ? (salesYtd[TOTAL_KEY].revenue - salesYtd[TOTAL_KEY].cost) / salesYtd[TOTAL_KEY].revenue
       : 0;
 
   // QUOTES panel — owner rule 2026-05-19: every sale counts as a converted quote
@@ -388,14 +405,14 @@ export async function getDesignerDashboard(
   const convertedCount = orderCountYtd;
   const conversionRate = quoteCountYtd > 0 ? convertedCount / quoteCountYtd : 0;
 
-  const avgQuoteValue = quoteCountYtd > 0 ? quotesYtd["All"].revenue / quoteCountYtd : 0;
+  const avgQuoteValue = quoteCountYtd > 0 ? quotesYtd[TOTAL_KEY].revenue / quoteCountYtd : 0;
 
   // Open Quotes Value — still strictly status=QUOTE (the in-flight set the
   // designer needs to close). Computed separately so this card remains
   // meaningful even with the broader QUOTES panel above.
   const openQuoteOrders = allOrders.filter((o) => o.status === "QUOTE");
   const openQuotesYtd = processOrders(openQuoteOrders, ranges.ytd, taxonomy);
-  const openQuoteValue = openQuotesYtd["All"].revenue;
+  const openQuoteValue = openQuotesYtd[TOTAL_KEY].revenue;
 
   // House calls: a DC250 line item on an order = one house call. Revenue
   // attribution: sales to that customer from 30 days before through 90 days

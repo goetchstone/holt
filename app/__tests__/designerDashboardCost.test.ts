@@ -9,6 +9,7 @@
 
 import {
   accumulateLineItem,
+  TOTAL_KEY,
   type CategoryMetrics,
   type DashboardLineItem,
 } from "@/lib/reports/designerDashboard";
@@ -27,7 +28,7 @@ const TAXONOMY: ReportTaxonomy = {
 
 function emptyResult(): Record<string, CategoryMetrics> {
   return {
-    All: { revenue: 0, cost: 0, count: 0 },
+    [TOTAL_KEY]: { revenue: 0, cost: 0, count: 0 },
     Furniture: { revenue: 0, cost: 0, count: 0 },
   };
 }
@@ -46,21 +47,21 @@ describe("accumulateLineItem cost invariant (line total, never x qty)", () => {
   it("uses cost as the line total — does NOT multiply by orderedQuantity", () => {
     const result = emptyResult();
     accumulateLineItem(result, line(), 1, TAXONOMY);
-    expect(result.All.cost).toBe(200); // pre-fix behavior produced 800
-    expect(result.All.revenue).toBe(400);
+    expect(result[TOTAL_KEY].cost).toBe(200); // pre-fix behavior produced 800
+    expect(result[TOTAL_KEY].revenue).toBe(400);
   });
 
   it("applies only the split multiplier to cost", () => {
     const result = emptyResult();
     accumulateLineItem(result, line(), 0.5, TAXONOMY);
-    expect(result.All.cost).toBe(100);
-    expect(result.All.revenue).toBe(200);
+    expect(result[TOTAL_KEY].cost).toBe(100);
+    expect(result[TOTAL_KEY].revenue).toBe(200);
   });
 
   it("qty=1 lines are unaffected either way (the case that hid the bug)", () => {
     const result = emptyResult();
     accumulateLineItem(result, line({ netPrice: 100, cost: 50, orderedQuantity: 1 }), 1, TAXONOMY);
-    expect(result.All.cost).toBe(50);
+    expect(result[TOTAL_KEY].cost).toBe(50);
   });
 
   it("accumulates into the matched category and the All bucket", () => {
@@ -68,6 +69,6 @@ describe("accumulateLineItem cost invariant (line total, never x qty)", () => {
     accumulateLineItem(result, line(), 1, TAXONOMY);
     expect(result.Furniture.cost).toBe(200);
     expect(result.Furniture.count).toBe(1);
-    expect(result.All.count).toBe(1);
+    expect(result[TOTAL_KEY].count).toBe(1);
   });
 });
