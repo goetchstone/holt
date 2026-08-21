@@ -5,6 +5,69 @@ created natively through the application — not imported from anywhere. This is
 fresh `holt` clone (or a test/demo database) gets instead of an empty schema or the real
 customer dataset (which can never ship in this public repo).
 
+## Coverage: what is seeded, what never will be, what is left
+
+`app/prisma/seed/coverage.ts` carries one row for **every model in
+`schema.prisma`**, with no exceptions. It exists because a demo seed rots
+silently: a module stops running, a model is added and never wired up, and
+nobody notices, because **an empty table looks exactly like a feature nobody
+clicked**. Declaring the intent is what makes the difference detectable.
+
+| Status | Meaning |
+| --- | --- |
+| `seeded` | The seed populates this. Coming back empty is a **regression** and fails the check. |
+| `skipped` | Deliberately never seeded, and `reason` says why — integration payloads, runtime logs, auth tokens, secrets, PII. |
+| `todo` | A known gap, assigned to a `tranche`. Coming back **populated** fails too: the work is done and the manifest is stale. |
+
+Two gates enforce it, and both fail in **either** direction:
+
+- `__tests__/seedCoverage.test.ts` — no database needed. A model added to
+  `schema.prisma` without a classification fails here, so a new table cannot
+  slip in unclassified. It also requires a real reason on every `skipped` and a
+  declared tranche on every `todo`.
+- `npm run seed:coverage` — measures a seeded database. CI runs it in the smoke
+  job, which already builds one, so it costs a query rather than a second seed.
+
+```bash
+npm run seed:coverage
+```
+
+Pass `--without cms` when the CMS seeder did not run (CI seeds `--no-cms`). The
+check reports what it skipped rather than quietly passing.
+
+### Taking a tranche
+
+A **tranche is the unit of delegation**: one self-contained piece of work, and
+"seed the `geography-delivery` tranche" is a complete brief on its own. Run
+`npm run seed:coverage` for the current list.
+
+1. `npm run seed:coverage` — read the models in your tranche.
+2. Write `app/prisma/seed/demo/<tranche>.ts` and call it from
+   `demo/index.ts`. Follow an existing module: `service.ts` and `operations.ts`
+   are the closest models for shape and size.
+3. **Derive the shape from real data, never the rows.** See below.
+4. Move those models to `{ status: "seeded" }` in `coverage.ts` and drop the
+   `tranche` field.
+5. Re-seed and run `npm run seed:coverage`. It must exit 0 — if a model you
+   claimed is still empty, it says so.
+
+### Deriving realistic data without copying any
+
+The restored databases (`holt_saybrook`, `saybrook`) are the reference for what
+real usage looks like. **Read them; never write them** (CLAUDE.md rule 59), and
+**never copy a row into the seed** — holt is a public repository, and the
+restored data is a real business's customers, prices and payroll.
+
+What travels is the *shape*, not the values: row counts and ratios, status
+mixes, date spreads, price ranges, how many children a parent typically has.
+Generate synthetic records matching those distributions. A seed built this way
+is anonymous by construction rather than by scrubbing, which is the only version
+that stays anonymous after someone adds a field.
+
+Where the product already has a mechanism, use it instead of writing rows
+directly — the journal seed calls `generateSalesJournal`, so its entries are
+produced by the same code production uses and balance for the same reason.
+
 ## Why this exists
 
 1. **holt is open-source.** A real customer's orders and payments cannot ship in a public
@@ -55,7 +118,7 @@ npm run seed:demo -- --reset         # wipe an existing seeded DB and reseed
 
 Everything is realistic-but-clearly-fake: invented names, `@example.com` emails, made-up
 CT-area addresses, invented furniture-trade vendor names. No real people, no real
-vendors, no data copied from any real dataset — only the _shape_ of a real furniture
+vendors, no data copied from any real dataset — only the *shape* of a real furniture
 retailer's numbers (see "Distribution choices" below).
 
 ## Commission model: tiers, not rules
@@ -87,7 +150,7 @@ If/when the rule-engine branch merges, `commissionPlan.ts` (and the "senior plan
 ## Distribution choices
 
 All shaped by a single seeded PRNG (mulberry32, see `rng.ts`) — no `Math.random()`
-anywhere in the seed. Measured _shape only_ from a real furniture retailer; no actual
+anywhere in the seed. Measured *shape only* from a real furniture retailer; no actual
 data is copied.
 
 ### Order value — heavily right-skewed
@@ -120,7 +183,7 @@ February), applied per calendar month regardless of which year it falls in withi
 Target: 85% card, 4% cash, 3% gift card, 2% store credit, 6% refunds (of all Payment
 rows, not orders). Achieved by drawing the base tender independently per order from
 `{CARD:85, CASH:4, GIFT_CARD:3, STORE_CREDIT:2}` (sum 94), then flagging a refund on
-`INVOICED_SHARE × REFUND_PROBABILITY_GIVEN_INVOICED = 0.70 × 0.0911 ≈ 6.38%` of _orders_
+`INVOICED_SHARE × REFUND_PROBABILITY_GIVEN_INVOICED = 0.70 × 0.0911 ≈ 6.38%` of *orders*
 — which, once refund rows are added on top of one row per order, lands refund ROWS at
 `0.0638 / 1.0638 ≈ 6.0%` of all payment rows (see `orderPlan.ts` for the derivation).
 Measured at ci scale: 85.3% / 3.6% / 2.5% / 2.5% / 6.25% (N=448 payment rows). Measured
@@ -252,7 +315,7 @@ unclassified in every sense that matters, and that report cannot see it; whether
 report should is a question about the report, not the seed. Restricting refunds to invoiced orders is deliberate: an un-invoiced order's
 line items never reach `buildJournalLines` (they take the deposit-only branch), so a
 mirrored negative line there would be inert. This is what keeps the generated journal
-genuinely balanced on refund days _without_ leaning on the Over/Short line to paper over
+genuinely balanced on refund days *without* leaning on the Over/Short line to paper over
 an un-reversed sale — which is the exact failure mode this seed exists to avoid (see
 "Target: no unmapped payment types" below).
 
@@ -280,9 +343,9 @@ yet.
 
 ## Target-database safety (rule 59)
 
-CLAUDE.md rule 59: _"`fbc_test_db` is the only database tests may write. `saybrook`,
+CLAUDE.md rule 59: *"`fbc_test_db` is the only database tests may write. `saybrook`,
 `holt_saybrook`, and `akritos` hold restored or seeded data and must never be written by
-a test or script."_ This seed writes thousands of rows outside a transaction — more
+a test or script."* This seed writes thousands of rows outside a transaction — more
 dangerous than a test run against the wrong database, since there's no
 TRUNCATE-and-retry safety net. `guard.ts`'s `assertSafeSeedTarget()` enforces:
 
@@ -415,7 +478,7 @@ keep around.
   `createMany`. See "Invoiced vs. deposit-only orders" above.
 - **`Return` records.** Every refund in this seed takes the
   `UNCLASSIFIED_DEFAULT_RESTOCK` booking path (no `Return` row), matching how every
-  _imported_ historical return looks today — see `docs/domains/returns.md`. Generating
+  *imported* historical return looks today — see `docs/domains/returns.md`. Generating
   classified `RESTOCKED`/`WRITTEN_OFF` `Return` rows to exercise the B3 write-off branch
   would be a reasonable follow-up but wasn't in scope here.
 - **`prisma/seed/tax.ts` was not reused directly.** Its `new PrismaClient()` (no driver

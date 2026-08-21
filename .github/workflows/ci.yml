@@ -152,6 +152,15 @@ jobs:
       - name: Setup (migrate + seed)
         run: npm run setup -- --scale=ci --no-cms
 
+      # The seed is the strongest asset in the repo and the easiest thing to
+      # break invisibly: a module stops running and an empty table looks exactly
+      # like a feature nobody clicked. This measures the database setup just
+      # built against prisma/seed/coverage.ts. --without cms because the setup
+      # above runs --no-cms; the check reports what it skipped rather than
+      # quietly passing.
+      - name: Seed coverage
+        run: npm run seed:coverage -- --without cms
+
       - name: Build
         run: npm run build
 
