@@ -65,8 +65,10 @@ const GUARDS = join(APP_DIR, "prisma", "testing", "db-guards.sql");
  * the file itself rather than only here.
  */
 const EXCLUDED: Record<string, string> = {
-  JournalEntry_balanced_check:
-    "Applying it fails 9 dailyReconciliation fixtures that build unbalanced journal entries -- a state production cannot create. Fixing those fixtures is per-test judgement on money tests and is tracked in issue #115.",
+  // Empty on purpose. JournalEntry_balanced_check lived here while the
+  // dailyReconciliation fixtures still built unbalanced entries (#115); those
+  // are fixed and the constraint is applied. Add an entry only with a reason,
+  // which the test below enforces.
 };
 
 /** Trigger names and CHECK-constraint names declared anywhere in migrations. */

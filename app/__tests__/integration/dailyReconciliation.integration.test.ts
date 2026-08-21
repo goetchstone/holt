@@ -271,6 +271,10 @@ describe("computeDailyReconciliation (real DB)", () => {
       { code: "4-4080", credit: 950 }, // $50 short
       { code: "2-2120", credit: 63.5 },
       { code: "5-5280", debit: 400 },
+      { code: "1-1380", credit: 400 }, // inventory relief for the COGS debit
+      // The $50 of revenue the entry failed to recognize still arrived as cash,
+      // so a real posted entry closes it to Over/Short rather than not balancing.
+      { code: "5-5900", credit: 50 },
     ]);
 
     const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
@@ -294,6 +298,7 @@ describe("computeDailyReconciliation (real DB)", () => {
       { code: "4-4080", debit: 500 }, // revenue reversed
       { code: "2-2120", debit: 31.75 }, // tax reversed
       { code: "5-5280", credit: 200 }, // COGS reversed
+      { code: "1-1380", debit: 200 }, // ...and the goods land back in inventory
     ]);
 
     const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
@@ -322,7 +327,7 @@ describe("computeDailyReconciliation (real DB)", () => {
     });
 
     await seedJournalEntry([
-      { code: "1-1006", debit: 100 }, // cash
+      { code: "1-1006", debit: 106.35 }, // cash: revenue + tax, as collected
       { code: "4-4010", credit: 50 }, // home acc revenue
       { code: "4-4080", credit: 50 }, // furniture revenue
       { code: "2-2120", credit: 6.35 }, // CT tax
@@ -331,7 +336,7 @@ describe("computeDailyReconciliation (real DB)", () => {
     ]);
 
     const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
-    expect(result.journal.cash).toBe(100);
+    expect(result.journal.cash).toBe(106.35);
     expect(result.journal.revenue).toBe(100); // both departments
     expect(result.journal.tax).toBe(6.35);
     expect(result.journal.cost).toBe(20);
@@ -456,7 +461,18 @@ describe("computeDailyReconciliation (real DB)", () => {
         { code: HOLT_CHART.sales, credit: 1000 },
         { code: HOLT_CHART.tax, credit: 63.5 },
         { code: HOLT_CHART.cogs, debit: 400 },
-        { code: HOLT_CHART.inventory, credit: 400 },
+        // The inventory relief came up `plug` short and nobody found the
+        // difference, so Over/Short was posted to force the entry to balance --
+        // which is what the docstring above claims and what these legs did not
+        // do: all six balanced on their own, so the plug CREATED an imbalance
+        // instead of closing one, and the entry could never have posted.
+        //
+        // The shortfall sits in inventory deliberately. Inventory is in none of
+        // the four reconciled buckets, so cash, revenue, tax and cost all still
+        // tie to source and the plug is graded only against
+        // OVER_SHORT_ALERT_THRESHOLD -- which is the distinction these two tests
+        // exist to draw.
+        { code: HOLT_CHART.inventory, credit: 400 - plug },
         { code: HOLT_CHART.overShort, credit: plug },
       ]);
     }
@@ -509,7 +525,10 @@ describe("computeDailyReconciliation (real DB)", () => {
       // resolves to $0.00 — which against a day with no source rows drifts
       // by nothing at all. Reporting "balanced" here is the exact silent
       // success this control exists to prevent.
-      await seedJournalEntry([{ code: "SOMETHING-1", debit: 500, credit: 0 }]);
+      await seedJournalEntry([
+        { code: "SOMETHING-1", debit: 500 },
+        { code: "SOMETHING-2", credit: 500 }, // also unmapped — every bucket stays $0.00
+      ]);
 
       const result = await computeDailyReconciliation({
         date: DAY,
@@ -542,7 +561,10 @@ describe("computeDailyReconciliation (real DB)", () => {
           { section: "POS_TRANSACTIONS", label: "Over/Short", glAccountId: sales.id },
         ],
       });
-      await seedJournalEntry([{ code: "4-4080", credit: 500 }]);
+      await seedJournalEntry([
+        { code: "1-1006", debit: 500 }, // the overage arrived as cash
+        { code: "4-4080", credit: 500 },
+      ]);
 
       const result = await computeDailyReconciliation({
         date: DAY,
@@ -642,6 +664,8 @@ describe("computeDailyReconciliation — alien chart of accounts (real DB)", () 
       { code: ALIEN_CHART.sales, credit: 950 }, // $50 short
       { code: ALIEN_CHART.tax, credit: 63.5 },
       { code: ALIEN_CHART.cogs, debit: 400 },
+      { code: ALIEN_CHART.inventory, credit: 400 },
+      { code: ALIEN_CHART.overShort, credit: 50 },
     ]);
 
     const result = await computeDailyReconciliation({ date: DAY, timeZone: "UTC", client: prisma });
@@ -653,7 +677,7 @@ describe("computeDailyReconciliation — alien chart of accounts (real DB)", () 
   it("reports an alien chart's plug as a plug, not as revenue", async () => {
     await seedChart(ALIEN_CHART);
     await seedJournalEntry([
-      { code: ALIEN_CHART.cash, debit: 1063.5 },
+      { code: ALIEN_CHART.cash, debit: 6000 }, // $1,000 of sales + a $5,000 overage
       { code: ALIEN_CHART.sales, credit: 1000 },
       { code: ALIEN_CHART.overShort, credit: 5000 },
     ]);
