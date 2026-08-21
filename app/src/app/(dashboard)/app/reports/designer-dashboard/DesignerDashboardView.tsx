@@ -13,16 +13,11 @@ import { useSession } from "next-auth/react";
 import { Loader2, Printer } from "lucide-react";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { api } from "@/lib/trpc/client";
-
-interface CategoryRow {
-  category: string;
-  mtdValue: number;
-  prevMtdValue: number;
-  mtdVar: number | null;
-  ytdValue: number;
-  prevYtdValue: number;
-  ytdVar: number | null;
-}
+// The row shape comes from the report that produces it, not a copy. This file
+// carried a byte-identical duplicate, which is how it missed `isTotal`
+// (CLAUDE.md rules 6/7). `import type` is erased at compile time, so pulling it
+// from the server-side report module costs the client bundle nothing.
+import type { CategoryRow } from "@/lib/reports/designerDashboard";
 
 interface StaffOption {
   id: number;
@@ -120,7 +115,7 @@ function SectionTable({
         </thead>
         <tbody>
           {rows.map((row, i) => {
-            const isAll = row.category.startsWith("All");
+            const isAll = row.isTotal;
             return (
               <tr
                 key={row.category}

@@ -283,11 +283,28 @@ ALL = visible to every signed-in user (Designer, Manager, Admin, Marketing). Des
 | `/api/reports/open-orders`                                       | Several pages                   | List of currently-open orders                     |
 | `/api/reports/get-departments`                                   | Filter dropdowns                | Distinct department names with line-item activity |
 | `/api/reports/dormant-customers`                                 | Opportunities tile + standalone | High-value customers who stopped buying           |
-| `/api/reports/cross-sell`                                        | Opportunities tile              | Furniture buyers missing complementary categories |
+| `/api/reports/cross-sell`                                        | Opportunities tile              | Anchor-department buyers missing target departments |
 | `/api/reports/pipeline-detail`, `/api/reports/pipeline-reassign` | Pipeline Opportunity drilldown  | Per-quote detail + manager reassign               |
 | `/api/reports/buyers/{positions,summary}`                        | Buyers Report                   | Per-vendor / per-dept rollup                      |
 
 ## Per-Report Notes
+
+### Department reporting roles (Designer Dashboard + Cross-Sell)
+
+Both reports read which departments they cover from `Department`, not from code:
+
+| Column | Meaning |
+| --- | --- |
+| `reportGroup` | The Designer Dashboard column this department rolls up into. `NULL` excludes it from the per-category buckets — it still counts toward **All**, so the total keeps reconciling to Sales by Salesperson. |
+| `crossSellTarget` | Offer this department to customers who have not bought from it. |
+| `crossSellAnchor` | The department whose spend qualifies a customer for the Cross-Sell report at all. Exactly one. |
+
+`lib/reports/reportTaxonomy.ts` loads these once per request. Before migration `20260821120000_department_report_roles` the names were hardcoded to one retailer's taxonomy, which meant any other deployment — **including the demo seed** — bucketed nearly everything into a single fallback column and got an empty Cross-Sell report with no error.
+
+Two consequences worth knowing when setting this up:
+
+- **A new department is excluded until it is given a `reportGroup`.** The old code sent unrecognised departments to a default bucket; new merchandise silently became revenue in a column nobody chose. `loadReportTaxonomy` returns `excludedDepartments` so the omission can be surfaced rather than dropped.
+- **With no `crossSellAnchor` set, the Cross-Sell report says so** instead of rendering a zero that reads like a finding.
 
 ### Designer Dashboard / Monthly Performance / Salesperson Detail / Sales by Salesperson
 

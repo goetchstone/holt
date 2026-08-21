@@ -21,17 +21,21 @@ import type { PrismaClient } from "@prisma/client";
 import { buildLineItemWhere } from "@/lib/salesBySalesperson";
 import { getDateRanges, type PeriodRange } from "@/lib/reports/dateRanges";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import {
+  groupForDepartment,
+  loadReportTaxonomy,
+  type ReportTaxonomy,
+} from "@/lib/reports/reportTaxonomy";
 
-const CATEGORY_DEPARTMENT_MAP: Record<string, string[]> = {
-  Furniture: ["furniture", "outdoor furniture"],
-  "Window Treatments": ["curtains", "window"],
-  Rugs: ["rugs", "rug"],
-  "Home Shop": [],
-};
-
-const EXCLUDED_DEPARTMENTS = ["apparel", "mens apparel", "womens apparel", "accessories"];
-
-const CATEGORIES = ["Furniture", "Window Treatments", "Rugs", "Home Shop"];
+/**
+ * Bucket key for the grand total.
+ *
+ * Report groups are operator-named now, so a group called "All" would land in
+ * the same bucket as the total: every one of its lines counted twice, and the
+ * annualized-sales, average-order and margin KPIs all read from that bucket.
+ * The underscores put the key outside what a department group can be.
+ */
+export const TOTAL_KEY = "__all__";
 
 // Sales: ORDER, FULFILLED, or RETURNED (returns have negative line items that
 // must reduce the salesperson's total). This used to be a local literal with
@@ -50,6 +54,12 @@ const HC_CONVERSION_THRESHOLD = 1000;
 
 export interface CategoryRow {
   category: string;
+  /**
+   * The grand-total row. Explicit rather than inferred from the label: the UI
+   * used to test `category.startsWith("All")`, which a report group named
+   * "Alloy" or "All Weather" would have satisfied.
+   */
+  isTotal: boolean;
   mtdValue: number;
   prevMtdValue: number;
   mtdVar: number | null;
@@ -118,19 +128,6 @@ function variance(current: number, previous: number): number | null {
   return (current - previous) / previous;
 }
 
-function getCategoryForDepartment(deptName: string | null): string {
-  if (!deptName) return "Home Shop";
-  const lower = deptName.toLowerCase();
-
-  if (EXCLUDED_DEPARTMENTS.some((ex) => lower.includes(ex))) return "__excluded__";
-
-  for (const [category, keywords] of Object.entries(CATEGORY_DEPARTMENT_MAP)) {
-    if (category === "Home Shop") continue;
-    if (keywords.some((kw) => lower.includes(kw))) return category;
-  }
-  return "Home Shop";
-}
-
 // netPrice AND cost are both extended LINE totals (already multiplied by qty)
 // -- the same invariant journalEntry.ts, grossMargin.ts, and every other reader
 // relies on. Never multiply either by orderedQuantity. Split orders credit 50%.
@@ -168,38 +165,42 @@ export function accumulateLineItem(
   result: Record<string, CategoryMetrics>,
   li: DashboardLineItem,
   multiplier: number,
+  taxonomy: ReportTaxonomy,
 ): void {
   const deptName = li.product?.department?.name || null;
-  const category = getCategoryForDepartment(deptName);
+  const category = groupForDepartment(deptName, taxonomy);
 
   const revenue = Number(li.netPrice) * multiplier;
   // cost is the LINE total (sister invariant to netPrice) -- multiplying by
   // orderedQuantity here double-counted COGS for every multi-qty line.
   const cost = Number(li.cost) * multiplier;
 
-  if (category !== "__excluded__" && result[category]) {
+  // A null category is an excluded or unassigned department. It still counts
+  // toward "All" so the total keeps reconciling to Sales by Salesperson.
+  if (category !== null && result[category]) {
     result[category].revenue += revenue;
     result[category].cost += cost;
     result[category].count += 1;
   }
-  result["All"].revenue += revenue;
-  result["All"].cost += cost;
-  result["All"].count += 1;
+  result[TOTAL_KEY].revenue += revenue;
+  result[TOTAL_KEY].cost += cost;
+  result[TOTAL_KEY].count += 1;
 }
 
 function processOrders(
   orders: DashboardOrder[],
   period: PeriodRange,
+  taxonomy: ReportTaxonomy,
 ): Record<string, CategoryMetrics> {
   const result: Record<string, CategoryMetrics> = {};
-  CATEGORIES.forEach((c) => (result[c] = emptyMetrics()));
-  result["All"] = emptyMetrics();
+  taxonomy.groups.forEach((c) => (result[c] = emptyMetrics()));
+  result[TOTAL_KEY] = emptyMetrics();
 
   for (const order of orders) {
     if (!isInPeriod(order.orderDate, period)) continue;
     const multiplier = creditMultiplier(order);
     for (const li of order.lineItems) {
-      accumulateLineItem(result, li, multiplier);
+      accumulateLineItem(result, li, multiplier, taxonomy);
     }
   }
   return result;
@@ -220,14 +221,16 @@ function buildOrderMatchClause(matchNames: string[], staffId: number | null) {
 }
 
 function buildCategoryRows(
+  taxonomy: ReportTaxonomy,
   salesMtd: Record<string, CategoryMetrics>,
   mtd: Record<string, CategoryMetrics>,
   prevMtd: Record<string, CategoryMetrics>,
   ytd: Record<string, CategoryMetrics>,
   prevYtd: Record<string, CategoryMetrics>,
 ): CategoryRow[] {
-  return ["All", ...CATEGORIES].map((cat) => ({
-    category: cat === "All" ? (mtd === salesMtd ? "All Sales" : "All Quotes") : cat,
+  return [TOTAL_KEY, ...taxonomy.groups].map((cat) => ({
+    category: cat === TOTAL_KEY ? (mtd === salesMtd ? "All Sales" : "All Quotes") : cat,
+    isTotal: cat === TOTAL_KEY,
     mtdValue: mtd[cat]?.revenue || 0,
     prevMtdValue: prevMtd[cat]?.revenue || 0,
     mtdVar: variance(mtd[cat]?.revenue || 0, prevMtd[cat]?.revenue || 0),
@@ -312,6 +315,11 @@ export async function getDesignerDashboard(
   const salesperson = params.salesperson;
   const ranges = getDateRanges(params.asOf);
 
+  // Which departments this deployment reports on, and how they roll up. Loaded
+  // once and passed down: the accumulators run per line item, and a lookup per
+  // line against the database would be thousands of round trips.
+  const taxonomy = await loadReportTaxonomy(prisma);
+
   // Resolve the salesperson to a StaffMember row (incl. aliases) so we can
   // OR-match across (FK + displayName + every alias). Issue #274 — Sandy's row
   // has displayName='Sandy' but her POS-imported orders carry
@@ -353,10 +361,10 @@ export async function getDesignerDashboard(
   });
 
   const salesOrders = allOrders.filter((o) => REVENUE_STATUSES.includes(o.status));
-  const salesMtd = processOrders(salesOrders, ranges.mtd);
-  const salesPrevMtd = processOrders(salesOrders, ranges.prevMtd);
-  const salesYtd = processOrders(salesOrders, ranges.ytd);
-  const salesPrevYtd = processOrders(salesOrders, ranges.prevYtd);
+  const salesMtd = processOrders(salesOrders, ranges.mtd, taxonomy);
+  const salesPrevMtd = processOrders(salesOrders, ranges.prevMtd, taxonomy);
+  const salesYtd = processOrders(salesOrders, ranges.ytd, taxonomy);
+  const salesPrevYtd = processOrders(salesOrders, ranges.prevYtd, taxonomy);
   const activeOrders = allOrders.filter((o) => o.status === "ORDER" || o.status === "FULFILLED");
   const orderCountYtd = countOrders(activeOrders, ranges.ytd);
 
@@ -365,13 +373,13 @@ export async function getDesignerDashboard(
     1,
     Math.ceil((ranges.ytd.end.getTime() - ranges.ytd.start.getTime()) / (1000 * 60 * 60 * 24)),
   );
-  const annualizedSales = (salesYtd["All"].revenue / daysElapsed) * 365;
+  const annualizedSales = (salesYtd[TOTAL_KEY].revenue / daysElapsed) * 365;
 
-  const avgOrderValue = orderCountYtd > 0 ? salesYtd["All"].revenue / orderCountYtd : 0;
+  const avgOrderValue = orderCountYtd > 0 ? salesYtd[TOTAL_KEY].revenue / orderCountYtd : 0;
 
   const avgMargin =
-    salesYtd["All"].revenue > 0
-      ? (salesYtd["All"].revenue - salesYtd["All"].cost) / salesYtd["All"].revenue
+    salesYtd[TOTAL_KEY].revenue > 0
+      ? (salesYtd[TOTAL_KEY].revenue - salesYtd[TOTAL_KEY].cost) / salesYtd[TOTAL_KEY].revenue
       : 0;
 
   // QUOTES panel — owner rule 2026-05-19: every sale counts as a converted quote
@@ -385,10 +393,10 @@ export async function getDesignerDashboard(
   const quoteOrders = allOrders.filter(
     (o) => o.status === "QUOTE" || o.status === "ORDER" || o.status === "FULFILLED",
   );
-  const quotesMtd = processOrders(quoteOrders, ranges.mtd);
-  const quotesPrevMtd = processOrders(quoteOrders, ranges.prevMtd);
-  const quotesYtd = processOrders(quoteOrders, ranges.ytd);
-  const quotesPrevYtd = processOrders(quoteOrders, ranges.prevYtd);
+  const quotesMtd = processOrders(quoteOrders, ranges.mtd, taxonomy);
+  const quotesPrevMtd = processOrders(quoteOrders, ranges.prevMtd, taxonomy);
+  const quotesYtd = processOrders(quoteOrders, ranges.ytd, taxonomy);
+  const quotesPrevYtd = processOrders(quoteOrders, ranges.prevYtd, taxonomy);
   const quoteCountYtd = countOrders(quoteOrders, ranges.ytd);
 
   // Conversion rate: closed sales / total quote-equivalent activity. Since
@@ -397,14 +405,14 @@ export async function getDesignerDashboard(
   const convertedCount = orderCountYtd;
   const conversionRate = quoteCountYtd > 0 ? convertedCount / quoteCountYtd : 0;
 
-  const avgQuoteValue = quoteCountYtd > 0 ? quotesYtd["All"].revenue / quoteCountYtd : 0;
+  const avgQuoteValue = quoteCountYtd > 0 ? quotesYtd[TOTAL_KEY].revenue / quoteCountYtd : 0;
 
   // Open Quotes Value — still strictly status=QUOTE (the in-flight set the
   // designer needs to close). Computed separately so this card remains
   // meaningful even with the broader QUOTES panel above.
   const openQuoteOrders = allOrders.filter((o) => o.status === "QUOTE");
-  const openQuotesYtd = processOrders(openQuoteOrders, ranges.ytd);
-  const openQuoteValue = openQuotesYtd["All"].revenue;
+  const openQuotesYtd = processOrders(openQuoteOrders, ranges.ytd, taxonomy);
+  const openQuoteValue = openQuotesYtd[TOTAL_KEY].revenue;
 
   // House calls: a DC250 line item on an order = one house call. Revenue
   // attribution: sales to that customer from 30 days before through 90 days
@@ -479,14 +487,21 @@ export async function getDesignerDashboard(
       },
     },
     sales: {
-      rows: buildCategoryRows(salesMtd, salesMtd, salesPrevMtd, salesYtd, salesPrevYtd),
+      rows: buildCategoryRows(taxonomy, salesMtd, salesMtd, salesPrevMtd, salesYtd, salesPrevYtd),
       annualizedSales,
       orderCount: orderCountYtd,
       avgOrderValue,
       avgMargin,
     },
     quotes: {
-      rows: buildCategoryRows(salesMtd, quotesMtd, quotesPrevMtd, quotesYtd, quotesPrevYtd),
+      rows: buildCategoryRows(
+        taxonomy,
+        salesMtd,
+        quotesMtd,
+        quotesPrevMtd,
+        quotesYtd,
+        quotesPrevYtd,
+      ),
       quoteCount: quoteCountYtd,
       convertedCount,
       conversionRate,
