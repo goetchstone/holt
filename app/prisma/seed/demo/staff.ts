@@ -26,10 +26,21 @@ export interface SeededStaffMember {
   role: StaffRole;
   isDesigner: boolean;
   homeStoreId: number | null;
+  /** False for staff who have left. Their historical orders stay attributed. */
+  isActive: boolean;
 }
 
 export interface StaffSetup {
   all: SeededStaffMember[];
+  /**
+   * Designers who have left. Real deployments always have them -- 4 of 42 staff
+   * (~10%) in the reference dataset, still carrying 1,840 historical orders --
+   * and a roster where everyone is active never exercises the paths that matter:
+   * a departed designer must keep their historical attribution and commission
+   * history, must not appear in an assignment picker, and must not be recreated
+   * by an import that meets their name again.
+   */
+  departedDesigners: SeededStaffMember[];
   superAdmin: SeededStaffMember;
   admin: SeededStaffMember;
   managers: SeededStaffMember[];
@@ -44,6 +55,8 @@ interface RosterEntry {
   role: StaffRole;
   isDesigner: boolean;
   homeStoreId: number | null;
+  /** Omit for current staff; false seeds someone who has left. */
+  isActive?: boolean;
 }
 
 async function upsertStaff(
@@ -80,7 +93,7 @@ async function upsertStaff(
       activeStoreLocationId: entry.homeStoreId,
       userId: user.id,
       passwordHash,
-      isActive: true,
+      isActive: entry.isActive ?? true,
     },
     create: {
       email,
@@ -91,13 +104,14 @@ async function upsertStaff(
       activeStoreLocationId: entry.homeStoreId,
       userId: user.id,
       passwordHash,
-      isActive: true,
+      isActive: entry.isActive ?? true,
     },
   });
 
   return {
     id: staff.id,
     userId: user.id,
+    isActive: entry.isActive ?? true,
     displayName: staff.displayName,
     role: staff.role,
     isDesigner: staff.isDesigner,
@@ -173,6 +187,21 @@ export async function seedStaff(
     };
   });
 
+  // Two designers who have left. The reference dataset runs 4 archived of 42
+  // staff (~10%) holding 1,840 orders (~5% of attributed sales), and this
+  // roster is proportionally smaller. Their orders are seeded onto older dates
+  // only -- someone who left does not sell something last week.
+  const departedEntries: RosterEntry[] = [
+    { displayName: "Marguerite Halloran", emailLocal: "designer.former1" },
+    { displayName: "Desmond Achterberg", emailLocal: "designer.former2" },
+  ].map((e) => ({
+    ...e,
+    role: "DESIGNER" as StaffRole,
+    isDesigner: true,
+    homeStoreId: storeA,
+    isActive: false,
+  }));
+
   const registerEntries: RosterEntry[] = ["Kai Ohara", "Selah Danforth", "Bram Ivory"].map(
     (name, i) => ({
       displayName: name,
@@ -197,17 +226,29 @@ export async function seedStaff(
   for (const e of managerEntries) managers.push(await upsertStaff(prisma, e, passwordHash));
   const designers: SeededStaffMember[] = [];
   for (const e of designerEntries) designers.push(await upsertStaff(prisma, e, passwordHash));
+  const departedDesigners: SeededStaffMember[] = [];
+  for (const e of departedEntries)
+    departedDesigners.push(await upsertStaff(prisma, e, passwordHash));
   const registerStaff: SeededStaffMember[] = [];
   for (const e of registerEntries) registerStaff.push(await upsertStaff(prisma, e, passwordHash));
   const warehouseStaff: SeededStaffMember[] = [];
   for (const e of warehouseEntries) warehouseStaff.push(await upsertStaff(prisma, e, passwordHash));
 
   return {
-    all: [superAdmin, admin, ...managers, ...designers, ...registerStaff, ...warehouseStaff],
+    all: [
+      superAdmin,
+      admin,
+      ...managers,
+      ...designers,
+      ...departedDesigners,
+      ...registerStaff,
+      ...warehouseStaff,
+    ],
     superAdmin,
     admin,
     managers,
     designers,
+    departedDesigners,
     registerStaff,
     warehouseStaff,
   };

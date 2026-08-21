@@ -111,7 +111,14 @@ The highest-consequence cluster in the codebase. Detail and worked examples:
     Existing instances to copy: `prisma/seed/coverage.ts` +
     `__tests__/seedCoverage.test.ts` + `npm run seed:coverage`;
     `prisma/testing/db-guards.sql` + `__tests__/dbGuardsCoverage.test.ts`;
-    `__tests__/fixtures/ungated-read-api-routes.txt`. Where a set is split into
+    `__tests__/schemaNormalization.test.ts` (text-beside-its-own-FK columns, each
+    accepted pair carrying the measurement that justified it);
+    `__tests__/fixtures/ungated-read-api-routes.txt`.
+
+    A ratchet beats a cleanup. Where the debt is real but removing it is not
+    worth it today, freeze the set and require a written argument to grow it —
+    the schema-normalization test accepts thirteen existing pairs and fails on
+    the fourteenth. Where a set is split into
     units of work, name them — a named unit is delegable; "the rest of the gap"
     is not.
 

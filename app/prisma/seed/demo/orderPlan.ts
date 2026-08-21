@@ -72,6 +72,14 @@ const INVOICED_SHARE = 0.7;
 const REFUND_PROBABILITY_GIVEN_INVOICED = 0.0911;
 /** Most tickets in a considered-purchase furniture store capture a real
  * customer record; a minority are anonymous counter sales. */
+/**
+ * How far through the history the departed designers were still selling, and
+ * what share of orders they took while there. 0.45 x 0.12 lands at ~5% of all
+ * orders, matching the reference dataset's 1,840 of 35,831 attributed orders.
+ */
+const DEPARTED_ACTIVE_UNTIL = 0.45;
+const DEPARTED_SHARE_WHILE_ACTIVE = 0.12;
+
 const CUSTOMER_ASSIGNMENT_PROBABILITY = 0.9;
 
 export function buildOrderPlans(
@@ -136,7 +144,25 @@ export function buildOrderPlans(
       d,
       pool.includes(d) ? 3 : 1,
     ]);
-    const designer = weightedPick(detailRng, designerWeights);
+    // A share of the OLDER history belongs to designers who have since left.
+    // Real deployments always carry this: the reference dataset attributes 1,840
+    // orders (~5% of attributed sales) to archived staff. Without it nothing
+    // exercises a departed designer keeping their historical attribution and
+    // commission history while being absent from every current-staff picker.
+    //
+    // They stop appearing partway through the range because that is what
+    // leaving means -- a departed designer with orders last week would be a
+    // worse fixture than none at all.
+    const historyPosition = dates.length > 1 ? i / (dates.length - 1) : 1;
+    const departedPool = staff.departedDesigners;
+    const attributeToDeparted =
+      departedPool.length > 0 &&
+      historyPosition < DEPARTED_ACTIVE_UNTIL &&
+      chance(detailRng, DEPARTED_SHARE_WHILE_ACTIVE);
+
+    const designer = attributeToDeparted
+      ? pick(detailRng, departedPool)
+      : weightedPick(detailRng, designerWeights);
 
     const hasCustomer = chance(detailRng, CUSTOMER_ASSIGNMENT_PROBABILITY);
     const customer = hasCustomer ? pick(detailRng, customers) : null;

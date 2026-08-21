@@ -269,6 +269,58 @@ async function main(): Promise<void> {
     console.log("Journal warnings: none — every payment type and account-group leg mapped.");
   }
 
+  // Departed-designer invariants, checked rather than assumed.
+  //
+  // Table-level coverage (prisma/seed/coverage.ts) cannot see this: StaffMember
+  // is populated either way. What matters is the STATE mix -- a roster where
+  // everyone is active exercises none of the departed-staff paths, and it would
+  // regress silently, because the seed would still look fine.
+  const departedIds = staff.departedDesigners.map((d) => d.id);
+  if (departedIds.length === 0) {
+    throw new Error("seed invariant: expected departed designers, found none");
+  }
+  const departedOrders = await prisma.salesOrder.findMany({
+    where: { salesPersonId: { in: departedIds } },
+    select: { orderDate: true },
+    orderBy: { orderDate: "desc" },
+  });
+  if (departedOrders.length === 0) {
+    throw new Error(
+      "seed invariant: departed designers carry no orders — archived staff with no " +
+        "history exercise nothing. Check DEPARTED_ACTIVE_UNTIL in orderPlan.ts.",
+    );
+  }
+  const latestActive = await prisma.salesOrder.aggregate({
+    where: { salesPerson: { isActive: true } },
+    _max: { orderDate: true },
+  });
+  const departedLatest = departedOrders[0]?.orderDate ?? null;
+  const activeLatest = latestActive._max.orderDate ?? null;
+  // A real gap, not merely "not the very last order". With 15 active designers
+  // against 2 departed, the newest order almost always belongs to an active one
+  // by chance alone -- so `departedLatest < activeLatest` passes even when the
+  // departed are still selling right to the end, and the check proves nothing.
+  // Requiring a wide gap makes it deterministic for a given DEPARTED_ACTIVE_UNTIL.
+  const DEPARTED_MIN_GAP_DAYS = 60;
+  if (departedLatest && activeLatest) {
+    const gapDays = (activeLatest.getTime() - departedLatest.getTime()) / 86_400_000;
+    if (gapDays < DEPARTED_MIN_GAP_DAYS) {
+      throw new Error(
+        `seed invariant: departed designers sold until ${departedLatest.toISOString().slice(0, 10)}, ` +
+          `only ${Math.round(gapDays)} days before active staff stop at ` +
+          `${activeLatest.toISOString().slice(0, 10)}. Someone who left does not sell last week — ` +
+          "check DEPARTED_ACTIVE_UNTIL in orderPlan.ts.",
+      );
+    }
+  }
+  console.log(
+    `Departed designers: ${departedIds.length} archived, ${departedOrders.length} historical ` +
+      `orders, last sale ${departedLatest?.toISOString().slice(0, 10) ?? "n/a"} ` +
+      `(active staff sell through ${activeLatest?.toISOString().slice(0, 10) ?? "n/a"})`,
+  );
+  {
+  }
+
   await prisma.$disconnect();
 }
 
