@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
 function toNum(d: any): number {
@@ -10,7 +10,7 @@ function toNum(d: any): number {
   return typeof d === "number" ? d : Number(d);
 }
 
-export default requireAuth(async (req, res) => {
+export default requirePermission("pos.operate", async (req, res) => {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
