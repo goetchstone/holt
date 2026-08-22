@@ -31,6 +31,90 @@ function rowError(result: GenericImportResult, index: number, err: unknown, cont
 }
 
 /**
+ * The ONE writer for vendors. `pages/api/vendors/import.ts` (the fixed-shape
+ * REST route) and the `vendor` runner both call this -- two import doors, one
+ * implementation, so they cannot disagree (rules 6/7).
+ *
+ * `update` fills only what the file actually carried: a vendor that already
+ * exists keeps every field the incoming row left blank. Re-importing a partial
+ * list must not blank out terms and account numbers somebody has since filled
+ * in, which a naive upsert would do.
+ *
+ * A `code` already held by a DIFFERENT vendor is reported rather than moved.
+ * The column is unique, so silently reassigning it would detach part numbers
+ * from the vendor they belong to.
+ */
+async function importVendors(
+  mapping: ColumnMapping,
+  rows: RawRow[],
+  _userEmail: string,
+): Promise<GenericImportResult> {
+  const result: GenericImportResult = { imported: 0, skipped: 0, errors: [] };
+  const nameColumn = mapping.name;
+  if (!nameColumn) {
+    result.errors.push("No source column is mapped to Vendor Name.");
+    return result;
+  }
+
+  const text = (row: RawRow, key: string): string | undefined => {
+    const column = mapping[key];
+    if (!column) return undefined;
+    const value = String(row[column] ?? "").trim();
+    return value === "" ? undefined : value;
+  };
+
+  for (const [index, row] of rows.entries()) {
+    const name = String(row[nameColumn] ?? "").trim();
+    if (!name) {
+      // A blank name is a trailing CSV line far more often than an error.
+      result.skipped++;
+      continue;
+    }
+    const code = text(row, "code");
+    try {
+      if (code) {
+        const clash = await prisma.vendor.findFirst({
+          where: { code, NOT: { name } },
+          select: { name: true },
+        });
+        if (clash) {
+          result.errors.push(
+            `Row ${index + 1} ("${name}"): vendor code "${code}" already belongs to "${clash.name}".`,
+          );
+          continue;
+        }
+      }
+      const optional = {
+        code,
+        accountNumber: text(row, "accountNumber"),
+        paymentTerms: text(row, "paymentTerms"),
+        website: text(row, "website"),
+        phone: text(row, "phone"),
+        email: text(row, "email"),
+        address: text(row, "address"),
+        city: text(row, "city"),
+        state: text(row, "state"),
+        zip: text(row, "zip"),
+      };
+      // Only the keys this row actually supplied, so blanks do not overwrite.
+      const update = Object.fromEntries(
+        Object.entries(optional).filter(([, v]) => v !== undefined),
+      );
+      await prisma.vendor.upsert({
+        where: { name },
+        update,
+        create: { name, ...update },
+      });
+      result.imported++;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      result.errors.push(`Row ${index + 1} ("${name}"): ${message}`);
+    }
+  }
+  return result;
+}
+
+/**
  * Departments: upsert by name, which is the model's own unique key.
  *
  * The ONE writer for departments. `pages/api/departments/import.ts` (the
@@ -90,6 +174,7 @@ export async function runGenericImport(
   if (entityKey === "customer") return importCustomers(mapping, rows, userEmail);
   if (entityKey === "product") return importProducts(mapping, rows, userEmail);
   if (entityKey === "department") return importDepartments(mapping, rows, userEmail);
+  if (entityKey === "vendor") return importVendors(mapping, rows, userEmail);
   return { imported: 0, skipped: 0, errors: [`Import for "${entityKey}" is not implemented yet.`] };
 }
 
