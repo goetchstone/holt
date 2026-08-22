@@ -13,7 +13,7 @@
 //     DB and pulls those too. Auto-self-heals when a previous cron
 //     run missed.
 //
-//   - resolveAxperStoreLocation(axperStoreName, storeMap)
+//   - resolveAxperStoreLocation(sourceStoreName, storeMap)
 //     Map an Axper store name to a StoreLocation FK using the shared
 //     `lib/trafficStoreMap.ts` resolver. Returns null when no mapping
 //     exists; the import still persists the row with FK=null so the
@@ -91,10 +91,10 @@ function parseLocalTime(s: string): Date | null {
  * only ever returned a name that still had to be looked up separately).
  */
 export function resolveAxperStoreLocation(
-  axperStoreName: string,
+  sourceStoreName: string,
   storeMap: TrafficStoreMap,
 ): number | null {
-  return storeMap.resolveStoreLocation(axperStoreName)?.id ?? null;
+  return storeMap.resolveStoreLocation(sourceStoreName)?.id ?? null;
 }
 
 interface UpsertOutcome {
@@ -115,16 +115,16 @@ async function upsertOneTrafficRow(
 ): Promise<UpsertOutcome> {
   const data = {
     intervalStart,
-    axperStoreName: row.store_name,
+    sourceStoreName: row.store_name,
     storeLocationId,
     visitors: row.entries,
     exits: row.exits ?? null,
   };
   const existing = await prisma.trafficSnapshot.findUnique({
     where: {
-      intervalStart_axperStoreName: {
+      intervalStart_sourceStoreName: {
         intervalStart,
-        axperStoreName: row.store_name,
+        sourceStoreName: row.store_name,
       },
     },
     select: { id: true },

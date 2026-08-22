@@ -4739,13 +4739,21 @@ model TrafficSnapshot {
   // and `GROUP BY DATE_TRUNC('day', intervalStart)` efficiently.
   intervalStart DateTime
 
-  // Raw Axper `store_name` — the source system's own label for the
-  // store (e.g. "Downtown", "Main St"). Kept on every row so we can audit
-  // back to the source and so rows still upsert correctly if a new
-  // Axper store appears before we map it. Mapping to StoreLocation
-  // lives in `StoreLocation.trafficSourceNames`, resolved via
-  // `lib/trafficStoreMap.ts`.
-  axperStoreName String
+  // The traffic source's own label for the store (e.g. "Downtown", "Main St"),
+  // exactly as it arrived. Kept on every row so a count can be audited back to
+  // what the counter reported, and so rows still upsert correctly when a new
+  // door appears before anyone maps it. Mapping to StoreLocation lives in
+  // `StoreLocation.trafficSourceNames`, resolved via `lib/trafficStoreMap.ts`.
+  //
+  // Was `axperStoreName` until 2026-08-22. Axper is one door-counter vendor
+  // with its own integration, and that integration is entitled to its own name
+  // -- but TrafficSnapshot is the PRODUCT's traffic model: reports/traffic,
+  // trafficSummary and the CSV export all read it directly, and it is written
+  // by lib/runTrafficImport.ts, not by the adapter. A deployment counting doors
+  // with anything else had to write its labels into a column named after a
+  // vendor it does not use. The mapping side was already generic
+  // (`trafficSourceNames`); this side was not.
+  sourceStoreName String
 
   // Optional FK — resolved at import time via the mapping above.
   // Null when a new Axper store appears before its StoreLocation
@@ -4766,7 +4774,7 @@ model TrafficSnapshot {
 
   // One row per (interval × store). Lets the import upsert idempotently
   // when re-running for the same day.
-  @@unique([intervalStart, axperStoreName])
+  @@unique([intervalStart, sourceStoreName])
   @@index([intervalStart])
   @@index([storeLocationId, intervalStart])
 }
