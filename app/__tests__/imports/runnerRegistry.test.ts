@@ -20,9 +20,11 @@ describe("registered runners", () => {
     // runner is declared (rule 37), and a runner appearing here without a
     // deliberate edit to this line is a runner nobody reviewed.
     expect(listRegisteredRunnerKeys().sort()).toEqual([
+      "category",
       "customer",
       "department",
       "product",
+      "type",
       "vendor",
     ]);
     expect(isRegisteredRunnerKey("customer")).toBe(true);
@@ -43,7 +45,7 @@ describe("unknown runner keys", () => {
 
   test("getImportRunner throws a readable error for an unknown key", () => {
     expect(() => getImportRunner("ordoriteSales")).toThrow(
-      /Import runner "ordoriteSales" is not registered\. Registered runners: customer, vendor, product, department\./,
+      /Import runner "ordoriteSales" is not registered\. Registered runners: customer, vendor, category, type, product, department\./,
     );
   });
 

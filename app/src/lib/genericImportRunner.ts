@@ -31,6 +31,150 @@ function rowError(result: GenericImportResult, index: number, err: unknown, cont
 }
 
 /**
+ * The ONE writer for categories. Shared by `pages/api/categories/import.ts` and
+ * the `category` runner (rules 6/7).
+ *
+ * The department is created when missing. A category cannot be filed without
+ * one, and departments are a short flat list an operator recognises at a glance
+ * -- so inventing one from a typo is visible rather than buried. Contrast
+ * importTypes below, which refuses to do the same thing for a reason.
+ *
+ * An existing category is UPDATED rather than left alone: unlike a department
+ * name, the account-group link is the kind of thing a re-import is meant to fix.
+ */
+async function importCategories(
+  mapping: ColumnMapping,
+  rows: RawRow[],
+  _userEmail: string,
+): Promise<GenericImportResult> {
+  const result: GenericImportResult = { imported: 0, skipped: 0, errors: [] };
+  const nameColumn = mapping.name;
+  const deptColumn = mapping.department;
+  if (!nameColumn) {
+    result.errors.push("No source column is mapped to Category Name.");
+    return result;
+  }
+  if (!deptColumn) {
+    result.errors.push("No source column is mapped to Department.");
+    return result;
+  }
+
+  for (const [index, row] of rows.entries()) {
+    const name = String(row[nameColumn] ?? "").trim();
+    const departmentName = String(row[deptColumn] ?? "").trim();
+    if (!name) {
+      result.skipped++;
+      continue;
+    }
+    if (!departmentName) {
+      result.errors.push(`Row ${index + 1} ("${name}"): no department given.`);
+      continue;
+    }
+    try {
+      const department = await prisma.department.upsert({
+        where: { name: departmentName },
+        update: {},
+        create: { name: departmentName },
+      });
+
+      let accountGroupId: number | undefined;
+      const groupColumn = mapping.accountGroup;
+      const groupName = groupColumn ? String(row[groupColumn] ?? "").trim() : "";
+      if (groupName) {
+        const group = await prisma.accountGroup.upsert({
+          where: { name: groupName },
+          update: {},
+          create: { name: groupName },
+        });
+        accountGroupId = group.id;
+      }
+
+      // Scoped by department: two departments may each have a "Chairs".
+      const existing = await prisma.category.findFirst({
+        where: { name, departmentId: department.id },
+        select: { id: true },
+      });
+      if (existing) {
+        await prisma.category.update({
+          where: { id: existing.id },
+          data: accountGroupId === undefined ? {} : { accountGroupId },
+        });
+      } else {
+        await prisma.category.create({
+          data: { name, departmentId: department.id, accountGroupId },
+        });
+      }
+      result.imported++;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      result.errors.push(`Row ${index + 1} ("${name}"): ${message}`);
+    }
+  }
+  return result;
+}
+
+/**
+ * The ONE writer for types. Shared by `pages/api/types/import.ts` and the `type`
+ * runner (rules 6/7).
+ *
+ * An unknown category is an ERROR, not a prompt to create one. Types are the
+ * most numerous level of the taxonomy, so a mistyped category name would
+ * silently create a near-duplicate and split a catalog in two -- with the
+ * products landing in whichever half they were imported against. Reporting the
+ * row is recoverable; a split taxonomy discovered months later is not.
+ */
+async function importTypes(
+  mapping: ColumnMapping,
+  rows: RawRow[],
+  _userEmail: string,
+): Promise<GenericImportResult> {
+  const result: GenericImportResult = { imported: 0, skipped: 0, errors: [] };
+  const nameColumn = mapping.name;
+  const categoryColumn = mapping.category;
+  if (!nameColumn) {
+    result.errors.push("No source column is mapped to Type Name.");
+    return result;
+  }
+  if (!categoryColumn) {
+    result.errors.push("No source column is mapped to Category.");
+    return result;
+  }
+
+  for (const [index, row] of rows.entries()) {
+    const name = String(row[nameColumn] ?? "").trim();
+    const categoryName = String(row[categoryColumn] ?? "").trim();
+    if (!name) {
+      result.skipped++;
+      continue;
+    }
+    try {
+      const category = await prisma.category.findFirst({
+        where: { name: categoryName },
+        select: { id: true },
+      });
+      if (!category) {
+        result.errors.push(
+          `Row ${index + 1} ("${name}"): no category named "${categoryName}". Import categories first.`,
+        );
+        continue;
+      }
+      const existing = await prisma.type.findFirst({
+        where: { name, categoryId: category.id },
+        select: { id: true },
+      });
+      if (!existing) {
+        await prisma.type.create({ data: { name, categoryId: category.id } });
+      }
+      result.imported++;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      result.errors.push(`Row ${index + 1} ("${name}"): ${message}`);
+    }
+  }
+  return result;
+}
+
+/**
  * The ONE writer for vendors. `pages/api/vendors/import.ts` (the fixed-shape
  * REST route) and the `vendor` runner both call this -- two import doors, one
  * implementation, so they cannot disagree (rules 6/7).
@@ -175,6 +319,8 @@ export async function runGenericImport(
   if (entityKey === "product") return importProducts(mapping, rows, userEmail);
   if (entityKey === "department") return importDepartments(mapping, rows, userEmail);
   if (entityKey === "vendor") return importVendors(mapping, rows, userEmail);
+  if (entityKey === "category") return importCategories(mapping, rows, userEmail);
+  if (entityKey === "type") return importTypes(mapping, rows, userEmail);
   return { imported: 0, skipped: 0, errors: [`Import for "${entityKey}" is not implemented yet.`] };
 }
 

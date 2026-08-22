@@ -116,6 +116,62 @@ export const IMPORT_ENTITIES: readonly ImportEntityDef[] = [
     ],
   },
   {
+    key: "category",
+    label: "Categories",
+    description:
+      "Import your catalog's categories. Each belongs to a department, matched by name -- so import departments first, or let this create them as it goes. Re-importing an existing category updates it rather than duplicating it.",
+    fields: [
+      {
+        key: "name",
+        label: "Category Name",
+        type: "string",
+        aliases: ["category", "category name", "subcategory", "class"],
+        required: true,
+        help: "Rows with a blank name are skipped.",
+      },
+      {
+        key: "department",
+        label: "Department",
+        type: "string",
+        aliases: ["department", "dept", "division", "group"],
+        required: true,
+        help: "The department this category belongs to, by name. A department that does not exist yet is created, because a category cannot be filed without one.",
+      },
+      {
+        key: "accountGroup",
+        label: "Account Group",
+        type: "string",
+        aliases: ["account group", "accountgroup", "gl group", "gl account group"],
+        required: false,
+        help: "Optional. Ties the category to the sales and COGS accounts it posts to.",
+      },
+    ],
+  },
+  {
+    key: "type",
+    label: "Types",
+    description:
+      "Import your catalog's product types. Each belongs to a category, which MUST already exist -- a type naming an unknown category is reported rather than filed under a category invented from a typo.",
+    fields: [
+      {
+        key: "name",
+        label: "Type Name",
+        type: "string",
+        aliases: ["type", "type name", "product type", "style"],
+        required: true,
+        help: "Rows with a blank name are skipped.",
+      },
+      {
+        key: "category",
+        label: "Category",
+        type: "string",
+        aliases: ["category", "category name", "class"],
+        required: true,
+        help: "The category this type belongs to, by name. Unlike departments on a category import, an unknown category is an ERROR: types are numerous, and a mistyped category would otherwise silently split a catalog in two.",
+      },
+    ],
+  },
+  {
     key: "department",
     label: "Departments",
     description:

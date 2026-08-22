@@ -1,6 +1,8 @@
 // /app/src/pages/api/categories/import.ts
 
 import { prisma } from "@/lib/prisma";
+import { runGenericImport } from "@/lib/genericImportRunner";
+import { getImportEntity } from "@/lib/genericImport";
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
@@ -23,55 +25,27 @@ export default requirePermission(
     }
 
     try {
-      const results = await Promise.all(
-        categories.map(async (cat) => {
-          if (!cat.name || !cat.department) {
-            throw new Error(`Missing name or department: ${JSON.stringify(cat)}`);
-          }
-
-          const dept = await prisma.department.upsert({
-            where: { name: cat.department },
-            update: {},
-            create: { name: cat.department },
-          });
-
-          const existing = await prisma.category.findFirst({
-            where: {
-              name: cat.name,
-              departmentId: dept.id,
-            },
-          });
-
-          let accountGroupId: number | null = null;
-          if (cat.accountGroup) {
-            const group = await prisma.accountGroup.upsert({
-              where: { name: cat.accountGroup },
-              update: {},
-              create: { name: cat.accountGroup },
-            });
-            accountGroupId = group.id;
-          }
-
-          const data = {
-            name: cat.name,
-            departmentId: dept.id,
-            trackInventory: cat.trackInventory?.toString().toLowerCase() === "false" ? false : true,
-            accountGroupId,
-            labelTemplateId: cat.labelTemplateId ? Number.parseInt(cat.labelTemplateId) : null,
-          };
-
-          if (existing) {
-            return prisma.category.update({
-              where: { id: existing.id },
-              data,
-            });
-          } else {
-            return prisma.category.create({ data });
-          }
-        }),
+      // One implementation, two doors. This route takes a JSON array; the
+      // configurable path takes a mapped CSV whose columns an operator chose.
+      // Both land in the shared category writer, so a fix here cannot apply to
+      // only one of them (CLAUDE.md rules 6/7). This payload already uses the
+      // entity's own field keys, so the mapping is the identity.
+      const rows = (categories as Record<string, unknown>[]).filter(
+        (r) => typeof r?.name === "string" && r.name.trim() !== "",
       );
-
-      return res.status(200).json({ success: true, count: results.length });
+      const identity: Record<string, string> = Object.fromEntries(
+        (getImportEntity("category")?.fields ?? []).map((f) => [f.key, f.key]),
+      );
+      const result = await runGenericImport("category", identity, rows, "api");
+      if (result.errors.length > 0) {
+        // Partial success is the honest answer: rows the writer refused must
+        // not be reported as imported.
+        return res.status(207).json({
+          message: `Imported ${result.imported}, ${result.errors.length} row(s) not imported`,
+          ...result,
+        });
+      }
+      return res.status(200).json({ message: "Categories imported successfully", ...result });
     } catch (err) {
       logError("Category import failed", err);
       return res.status(500).json({ error: "Internal server error" });
