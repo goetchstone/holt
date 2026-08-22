@@ -10,7 +10,7 @@
 // shows header KPIs + a per-frame table with status badges. Frame rows merge
 // multiple drafts on the same frame (different grades / fabrics of the same sofa)
 // into a single line. Sales attribution uses lib/frameRollup.ts to count variant
-// sales toward the same frame. Excludes Marjan vendors (no shared frame stems).
+// sales toward the same frame. Excludes consignment vendors (no shared frame stems).
 // Reads the shared /api/admin/buyer-drafts/buys/[id]/performance + /linked-pos
 // REST endpoints.
 
@@ -214,7 +214,7 @@ export function BuyPerformanceView({ id }: Readonly<{ id: string }>) {
           </h1>
           <p className="text-sm text-sh-gray mt-1">
             Frame-aware sell-through, margin, and status hints for each frame in this Buy. Excludes
-            Marjan consignment.
+            consignment.
           </p>
         </div>
       </div>
