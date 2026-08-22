@@ -592,3 +592,36 @@ For changes that affect cutover readiness (any Phase 0 BLOCKER work):
 - **Short-term (Phase 0):** B1, B3, B4, B5, B6 + C1 cron. Closes the rule-33 surface, makes returns balance correctly via sign-flip, guards JE balance pre-POST, protects audit trail at the DB layer, automates daily reconciliation. (B2 dropped — see gap list.)
 - **Mid-term (Phase 1-2):** Period close, cash variance alerts, receiving JE, QB Desktop format match against the user's sample.
 - **Long-term:** Cost-center separation per store (when the business is ready), shrinkage workflow, real-time reconciliation dashboard.
+
+## Handing the books to an accounting system
+
+Holt keeps the general ledger but does not close the books: there is no P&L,
+balance sheet, accounts payable or payroll here. `JournalEntry` carries an
+`EXPORTED` status for the handoff, and `GET /api/accounting/export-journal`
+produces the file.
+
+```bash
+/api/accounting/export-journal?from=2026-01-01&to=2026-01-31&format=standard
+```
+
+| Format | When |
+| --- | --- |
+| `standard` | **Reach for this by default.** A plain double-entry journal — ISO dates, explicit debit AND credit columns — which is the shape every accounting package understands, because it is what a journal _is_. |
+| `quickbooks` | The shape this export shipped with, and still the default so existing links keep working. Blank rather than `0.00` on the side that does not apply. |
+| `xero` | Xero takes ONE SIGNED amount per line, not debit/credit columns: positive debit, negative credit. `TaxRate` is `No Tax` because these entries already carry tax as its own line — letting Xero re-apply it would double the liability. |
+| `sage` | Nominal code in its own column, reference repeated on every line, which is how Sage groups lines back into one journal. |
+
+An unknown `format` is a **400 listing the valid ones**, never a silent fall back
+to the default: a file in the wrong shape imports _wrong_ rather than failing,
+and wrong-but-imported is the worse outcome.
+
+**Verify a vendor format before trusting it.** The named formats follow each
+product's published manual-journal import shape, but those templates change
+between versions and regions. Import one period into a sandbox company and
+reconcile the totals first. `standard` is not subject to that caveat, which is
+most of the reason it exists.
+
+Adding a format is a registry entry in `lib/accounting/journalFormats.ts` —
+headers plus a `toRows`. `__tests__/journalFormats.test.ts` asserts every format
+emits one row per journal line using only its own declared headers, so a new one
+cannot quietly emit a column nobody declared.
