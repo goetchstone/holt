@@ -20,6 +20,8 @@ so **this list is the real measure of how configurable imports actually are**:
 | `product` | Stage 1 | Runner handles the catalog joins |
 | `department` | Stage 1 | The proof the seam is small — one field |
 | `vendor` | 2026-08-22 | Supplier list; the JSON REST route delegates to the same writer |
+| `category` | 2026-08-22 | Scoped to a department, which is CREATED when missing |
+| `type` | 2026-08-22 | Scoped to a category, which must ALREADY EXIST |
 
 `__tests__/vendorImport.test.ts` fails if an entity is declared with no
 registered runner — an entity that shows in the admin UI and then fails at run
@@ -34,6 +36,24 @@ Four small pieces, and the department entity exists as the worked example:
 3. A runner in `lib/imports/runners/` — a thin adapter, no behaviour of its own.
 4. A line in `runnerRegistry.ts`. That list is **pinned by a test on purpose**:
    a runner appearing without a deliberate edit is a runner nobody reviewed.
+
+### The parent asymmetry is deliberate
+
+A category creates a department it cannot find. A type **refuses** a category it
+cannot find, and reports the row.
+
+That looks inconsistent and is not. Departments are a short flat list an
+operator recognises at a glance, so one invented from a typo is visible
+immediately — and a category cannot be filed without one. Types are the most
+numerous level of the taxonomy: a mistyped category there would silently create
+a near-duplicate and **split a catalog in two**, with products landing in
+whichever half they happened to be imported against. A reported row is
+recoverable that afternoon; a split taxonomy is discovered months later.
+
+Delegating the REST routes also changed one behaviour for the better. The old
+`types/import.ts` silently `continue`d past a row whose category was unknown, so
+a file could import "successfully" having written nothing. Those rows are now
+reported, and the route answers `207` rather than `200`.
 
 If a fixed-shape REST route already imports the same thing, point it at the
 writer rather than leaving two implementations that can disagree (rules 6/7).
