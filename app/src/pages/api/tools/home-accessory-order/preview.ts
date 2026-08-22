@@ -18,6 +18,7 @@
 // format rejects a CSV upload and vice versa.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { prisma } from "@/lib/prisma";
 import fs from "node:fs";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { createSecureForm } from "@/lib/secureUpload";
@@ -28,7 +29,7 @@ import { parseBrandWiseOrderPDF } from "@/lib/pricing/brandWiseOrderParser";
 import { parseAestheticMovementOrderPDF } from "@/lib/pricing/aestheticMovementOrderParser";
 import { parseSuperCatOrderPDF } from "@/lib/pricing/superCatOrderParser";
 import { parseSimblistCsvBuffer } from "@/lib/pricing/simblistCsvOrderParser";
-import { parseBeatrizBallOrderPDF } from "@/lib/pricing/beatrizBallOrderParser";
+import { buyerBoilerplate, parseBeatrizBallOrderPDF } from "@/lib/pricing/beatrizBallOrderParser";
 import {
   HOME_ACCESSORY_FORMATS,
   normalizeKKBundle,
@@ -45,6 +46,20 @@ import {
 import { logError } from "@/lib/logger";
 
 export const config = { api: { bodyParser: false } };
+
+/**
+ * How this deployment identifies itself on a vendor's paperwork.
+ *
+ * Drawn from the org's own settings and store names rather than a literal, so a
+ * second deployment's confirmations parse correctly without a code change.
+ */
+async function buyerIdentityLines(): Promise<string[]> {
+  const settings = await prisma.appSettings.findFirst({
+    select: { companyName: true, appName: true },
+  });
+  const stores = await prisma.storeLocation.findMany({ select: { name: true } });
+  return buyerBoilerplate(settings?.companyName, settings?.appName, ...stores.map((s) => s.name));
+}
 
 async function parseFor(
   entry: HomeAccessoryFormat,
@@ -72,7 +87,13 @@ async function parseFor(
     return normalizeSimblistOrder(parseSimblistCsvBuffer(buffer), entry);
   }
   if (entry.parser === "beatriz-ball") {
-    return normalizeBeatrizBallOrder(await parseBeatrizBallOrderPDF(buffer), entry);
+    // The confirmation repeats OUR name and address in its header. Give the
+    // parser this deployment's identity so it skips those lines instead of
+    // reading them as order lines -- it used to know one company's name.
+    return normalizeBeatrizBallOrder(
+      await parseBeatrizBallOrderPDF(buffer, await buyerIdentityLines()),
+      entry,
+    );
   }
   return null;
 }

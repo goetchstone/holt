@@ -54,6 +54,14 @@ const MONEY_TAIL = /^([\d,]+\.\d{2})([\d,]+\.\d{2})([\d,]+\.\d{2})(\d+)$/;
 
 // Header / footer / boilerplate line starts that must never be read as an item
 // or a description continuation (compared case-insensitively at line start).
+// The VENDOR's own letterhead. These are safe to hardcode in a vendor-specific
+// parser: every Beatriz Ball confirmation carries them, whoever the buyer is.
+//
+// What used to be here as well was OUR name -- "saybrook", "old saybrook" --
+// because the confirmation repeats the buyer's name and address in the header.
+// That made the parser correct for exactly one deployment: anyone else's name
+// appears in the same place and is read as an order line. Those come from
+// `buyerLines` now, resolved from the deployment's own identity.
 const BOILERPLATE_PREFIXES = [
   "sales order",
   "dept at",
@@ -61,8 +69,6 @@ const BOILERPLATE_PREFIXES = [
   "(888)",
   "sold to",
   "ship to",
-  "saybrook",
-  "old saybrook",
   "po #",
   "order number",
   "order date",
@@ -82,9 +88,10 @@ const BOILERPLATE_PATTERN = /^(?:\d+ MAIN|I0\d)/i;
 
 /** A header/footer line, or a bare numeric/date line — never an item nor a
  *  description continuation. */
-function isBoilerplate(line: string): boolean {
+function isBoilerplate(line: string, buyerLines: readonly string[]): boolean {
   const lower = line.toLowerCase();
   if (BOILERPLATE_PREFIXES.some((p) => lower.startsWith(p))) return true;
+  if (buyerLines.some((p) => p && lower.startsWith(p))) return true;
   return BOILERPLATE_PATTERN.test(line) || /^[\d/,.]+$/.test(line);
 }
 
@@ -161,10 +168,14 @@ function readHeader(rawLines: readonly string[], order: BeatrizBallOrder): void 
   if (total !== undefined) order.printedTotal = parseMoney(total);
 }
 
-function readItems(rawLines: readonly string[], order: BeatrizBallOrder): void {
+function readItems(
+  rawLines: readonly string[],
+  order: BeatrizBallOrder,
+  buyerLines: readonly string[],
+): void {
   let current: BeatrizBallItem | null = null;
   for (const line of rawLines) {
-    if (isBoilerplate(line)) {
+    if (isBoilerplate(line, buyerLines)) {
       current = null;
       continue;
     }
@@ -192,7 +203,25 @@ function reconcile(order: BeatrizBallOrder): void {
   }
 }
 
-export function parseBeatrizBallOrderText(text: string): BeatrizBallOrder {
+/**
+ * Lines identifying the BUYER, so the parser can skip them.
+ *
+ * A vendor confirmation repeats the buyer's name and address in its header.
+ * Those lines used to be hardcoded to one deployment's, which meant the parser
+ * silently mis-read every other deployment's confirmations: their own name sits
+ * in the same place and, unrecognised, is read as an order line.
+ *
+ * Lower-cased and blank-filtered here so callers can pass whatever they have --
+ * company name, store names, street -- without pre-cleaning it.
+ */
+export function buyerBoilerplate(...values: (string | null | undefined)[]): string[] {
+  return values.map((v) => (v ?? "").trim().toLowerCase()).filter((v) => v.length > 2);
+}
+
+export function parseBeatrizBallOrderText(
+  text: string,
+  buyerLines: readonly string[] = [],
+): BeatrizBallOrder {
   const order: BeatrizBallOrder = {
     vendorName: "Beatriz Ball",
     orderNumber: "",
@@ -209,12 +238,15 @@ export function parseBeatrizBallOrderText(text: string): BeatrizBallOrder {
     .filter((l) => l !== "");
 
   readHeader(rawLines, order);
-  readItems(rawLines, order);
+  readItems(rawLines, order, buyerLines);
   reconcile(order);
   return order;
 }
 
-export async function parseBeatrizBallOrderPDF(buffer: Buffer): Promise<BeatrizBallOrder> {
+export async function parseBeatrizBallOrderPDF(
+  buffer: Buffer,
+  buyerLines: readonly string[] = [],
+): Promise<BeatrizBallOrder> {
   const data = await pdfParse(buffer);
   return parseBeatrizBallOrderText(data.text);
 }
