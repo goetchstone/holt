@@ -764,7 +764,7 @@ HD_PROPOSAL // imported from Hunter Douglas Direct Connect proposal
 ### `app/prisma/schema.prisma:4697` *(already on the backlog)*
 
 ```
-  axperStoreName String
+  sourceStoreName String
 
 ```
 
@@ -1157,7 +1157,7 @@ An operator who fills in "API Base URL" sees it **silently ignored**; a regional
 
 **Test (equivalence).** With no `apiBase` credential set, assert the composed request URL is byte-identical to today's. Then set a scratch base URL and assert the request goes there. For hours: re-pull the last 90 days with the widened window and compare daily visitor counts — **diffs are expected and are the point**; publish the per-day delta and the recomputed conversion rate in the PR body, and confirm with the owner before the traffic report's history changes. If history must be preserved, gate the widening behind the store record so existing rows are untouched.
 
-**Also here (KNOWN).** `schema.prisma:4697` `axperStoreName` (NOT NULL, in the upsert key) → rename to `trafficSourceName` and repoint the unique key. The generalized half (`StoreLocation.trafficSourceNames`, preset-populated) is already in place, so this is rename-only — but it is a migration, so it rides in Wave 3.
+**Also here (KNOWN).** `schema.prisma:4697` `sourceStoreName` (NOT NULL, in the upsert key) → rename to `trafficSourceName` and repoint the unique key. The generalized half (`StoreLocation.trafficSourceNames`, preset-populated) is already in place, so this is rename-only — but it is a migration, so it rides in Wave 3.
 
 ---
 
@@ -1210,7 +1210,7 @@ All rename-only; the columns themselves are reasonable retail signals.
 | `app/prisma/schema.prisma:3923` (`rugNumber`), `:3973` (`fmRecordId`) | → `vendorItemRef` / `lotRef` with a config-supplied display label, and `externalSource` + `externalSourceId` replacing `fmRecordId`. Replace the literal workbook-header matching with `ImportDefinition.fieldMappings` (`schema.prisma:5448`, `5484`) so column names become preset data. Move the 7× / 7-over-2 cost multipliers to a per-vendor consignment pricing setting — config selects the multiplier, the pure calculation stays in code. Today a tenant consigning art or lighting must abuse `rugNumber`, and every row lacking `rugNumber`/`quality` is dropped. |
 | `app/prisma/schema.prisma:3021` (`model SEComponent`, + `notAvailableInLeather`/`notAvailableOnSleepers` at `3032-3033`) | The schema shape is already right — delete `SE_COMPONENT_SEEDS` from the import route and seed `SEComponent` rows from a vendor-scoped preset (`lib/config/presetFiles.ts`), with `componentType` a lookup rather than a comment-documented literal set. Register the PDF parser through the existing `ImportDefinition.runnerKey` escape hatch (`schema.prisma:5480`) so a second vendor's build-your-own program is a preset + registered runner, not a code edit. The two vendor rule columns become rows in a generic component-restriction table. Ship after #21's `VendorStyle.programId`. |
 | `app/prisma/schema.prisma:2464` `skipSameDayRewriteCleanup` — **KNOWN** | Move off `SalesOrder` into adapter-owned state keyed by order id, so the highest-traffic core table carries no import-runner concept. |
-| `app/prisma/schema.prisma:4697` `axperStoreName` — **KNOWN** | Rename to `trafficSourceName`, repoint the unique key; see #24. |
+| `TrafficSnapshot.axperStoreName` — **DONE** (migration `20260822120000_traffic_source_neutral`) | Renamed to `sourceStoreName`, unique key repointed. Axper keeps its own integration and its own name; TrafficSnapshot does not belong to it — `reports/traffic`, `trafficSummary` and the CSV export read it directly, and `lib/runTrafficImport.ts` writes it. The mapping side was already generic (`StoreLocation.trafficSourceNames`). |
 
 **Test for every rename in #28.** These are refactors, so the bar is *byte-identical output*: for each, snapshot the affected report/tile values before the migration, run migration + backfill, and diff. Specifically — all ten opportunity-tile counts and every Wealth Insights signal count (Windfall); lead counts by source for 24 months (Mailchimp); consignment item counts, `vendorItemRef` values and computed payables per vendor (rugNumber/fmRecordId); the full SE component list and every priced SE configuration (SEComponent). Plus, for each: a scratch-DB run with a second provider/vendor registered, proving the feature is now reachable without a migration. Confirm the backfill is re-runnable (rule 63) before merging.
 

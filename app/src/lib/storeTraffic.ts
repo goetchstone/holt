@@ -24,12 +24,12 @@ export async function visitorsByStoreLocation(
 ): Promise<Record<string, number>> {
   const snaps = await prisma.trafficSnapshot.findMany({
     where: { intervalStart: { gte: from, lt: to } },
-    select: { axperStoreName: true, visitors: true },
+    select: { sourceStoreName: true, visitors: true },
   });
   const storeMap = await getTrafficStoreMap();
   const result: Record<string, number> = {};
   for (const s of snaps) {
-    const loc = storeMap.resolveDisplayName(s.axperStoreName);
+    const loc = storeMap.resolveDisplayName(s.sourceStoreName);
     result[loc] = (result[loc] ?? 0) + s.visitors;
   }
   return result;

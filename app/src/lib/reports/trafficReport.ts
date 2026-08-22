@@ -81,11 +81,11 @@ export async function getTrafficReport(prisma: PrismaClient, params: TrafficRepo
   const snapshots = await prisma.trafficSnapshot.findMany({
     where: {
       intervalStart: { gte: dateFrom, lt: persistedUpperBound },
-      ...(storeFilter ? { axperStoreName: { in: storeFilter } } : {}),
+      ...(storeFilter ? { sourceStoreName: { in: storeFilter } } : {}),
     },
     select: {
       intervalStart: true,
-      axperStoreName: true,
+      sourceStoreName: true,
       storeLocationId: true,
       visitors: true,
       exits: true,
@@ -94,7 +94,7 @@ export async function getTrafficReport(prisma: PrismaClient, params: TrafficRepo
 
   const persistedRows: TrafficRowForSummary[] = snapshots.map((s) => ({
     intervalStart: s.intervalStart,
-    axperStoreName: s.axperStoreName,
+    sourceStoreName: s.sourceStoreName,
     storeLocationId: s.storeLocationId,
     visitors: s.visitors,
     exits: s.exits,
@@ -114,7 +114,7 @@ export async function getTrafficReport(prisma: PrismaClient, params: TrafficRepo
         );
         return {
           intervalStart: parsed,
-          axperStoreName: r.store_name,
+          sourceStoreName: r.store_name,
           storeLocationId: null,
           visitors: r.entries ?? 0,
           exits: r.exits ?? null,
@@ -128,11 +128,11 @@ export async function getTrafficReport(prisma: PrismaClient, params: TrafficRepo
   const storeMap = await getTrafficStoreMap();
   const byStore = rollupByStore(allRows).map((s) => ({
     ...s,
-    displayName: storeMap.resolveDisplayName(s.axperStoreName),
+    displayName: storeMap.resolveDisplayName(s.sourceStoreName),
   }));
   const byDayAndStore = rollupByDayAndStore(allRows).map((d) => ({
     ...d,
-    displayName: storeMap.resolveDisplayName(d.axperStoreName),
+    displayName: storeMap.resolveDisplayName(d.sourceStoreName),
   }));
 
   const totals = totalVisitors(allRows);

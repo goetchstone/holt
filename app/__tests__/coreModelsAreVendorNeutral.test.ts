@@ -27,13 +27,21 @@ const CORE_MODELS = [
   "JournalEntry",
   "StaffMember",
   "InventoryPosition",
+  // Added 2026-08-22 with the axperStoreName -> sourceStoreName rename. This
+  // model is fed by an integration but READ by the product: reports/traffic,
+  // trafficSummary and the CSV export all use it directly, and
+  // lib/runTrafficImport.ts writes it. That makes it the product's table, and
+  // it may not carry one counter vendor's name -- least of all in a unique key.
+  "TrafficSnapshot",
 ];
 
 /**
  * Vendor and source-system words that must not appear in a core model's fields.
  *
- * `axper` is listed and TrafficSnapshot is not a core model, which is the point:
- * the column is still there and still wrong, just not on this list's tables yet.
+ * When this list was written, `axper` was here but TrafficSnapshot was not a
+ * core model -- the note said the column was "still there and still wrong, just
+ * not on this list's tables yet". It has since been renamed to sourceStoreName
+ * and the model is on the list, which is what a ratchet is supposed to do.
  */
 const VENDOR_WORDS = [
   "ordorite",

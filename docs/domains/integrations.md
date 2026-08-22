@@ -17,8 +17,8 @@ The two share the same `lib/axperClient.ts` for the actual HTTP call. The on-dem
 
 **Persistence**:
 
-- Model: `TrafficSnapshot` — one row per (15-min interval × Axper store × day). Fields: `intervalStart` (DateTime, store-local), `axperStoreName` (raw Axper value), `storeLocationId` (FK, nullable when unmapped), `visitors` (= Axper `entries`), `exits` (nullable).
-- Unique key: `(intervalStart, axperStoreName)` → the cron upserts idempotently. Re-running the same day is a no-op.
+- Model: `TrafficSnapshot` — one row per (15-min interval × Axper store × day). Fields: `intervalStart` (DateTime, store-local), `sourceStoreName` (raw Axper value), `storeLocationId` (FK, nullable when unmapped), `visitors` (= Axper `entries`), `exits` (nullable).
+- Unique key: `(intervalStart, sourceStoreName)` → the cron upserts idempotently. Re-running the same day is a no-op.
 - 3 stores × ~36 intervals/day × 365 days = ~40k rows/year. Small.
 - Audit: `TrafficSyncLog` — one row per cron / Run-Now invocation with counters (rowsFetched/Inserted/Updated, daysScanned, daysBackfilled, errors, triggeredBy).
 
