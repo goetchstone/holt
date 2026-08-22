@@ -17,7 +17,7 @@
 // store this preset owns would be cleared on apply. buildBundle() below
 // always maps over the complete `stores` state, not just the edited row.
 //
-// Unmapped source names (TrafficSnapshot.axperStoreName values with no
+// Unmapped source names (TrafficSnapshot.sourceStoreName values with no
 // owning store) are shown as one-click "assign to store" suggestions, so an
 // operator does not need to already know a raw counter label exists to map
 // it -- they see it and pick a store from a dropdown.

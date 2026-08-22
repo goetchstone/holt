@@ -88,7 +88,7 @@ export function TrafficReportView() {
     window.open(`/api/reports/traffic/export?${params.toString()}`, "_blank");
   }
 
-  const allStores = useMemo(() => (data ? data.byStore.map((s) => s.axperStoreName) : []), [data]);
+  const allStores = useMemo(() => (data ? data.byStore.map((s) => s.sourceStoreName) : []), [data]);
 
   function toggleStore(name: string) {
     setStoreFilter((prev) => {
@@ -102,16 +102,16 @@ export function TrafficReportView() {
   const dailyTrendChart = useMemo(() => {
     if (!data) return null;
     const dates = data.byDay.map((d) => d.date);
-    const storeNames = data.byStore.map((s) => s.axperStoreName);
+    const storeNames = data.byStore.map((s) => s.sourceStoreName);
     return {
       labels: dates,
       datasets: storeNames.map((name, i) => {
         const dataMap = new Map<string, number>();
         for (const row of data.byDayAndStore) {
-          if (row.axperStoreName === name) dataMap.set(row.date, row.visitors);
+          if (row.sourceStoreName === name) dataMap.set(row.date, row.visitors);
         }
         return {
-          label: data.byStore.find((s) => s.axperStoreName === name)?.displayName ?? name,
+          label: data.byStore.find((s) => s.sourceStoreName === name)?.displayName ?? name,
           data: dates.map((d) => dataMap.get(d) ?? 0),
           borderColor: getStoreColor(i, "solid"),
           backgroundColor: getStoreColor(i, "light"),
@@ -270,7 +270,7 @@ export function TrafficReportView() {
             <span className="text-xs font-medium text-sh-navy">Stores:</span>
             {allStores.map((name) => {
               const display =
-                data?.byStore.find((s) => s.axperStoreName === name)?.displayName ?? name;
+                data?.byStore.find((s) => s.sourceStoreName === name)?.displayName ?? name;
               const checked = storeFilter === null || storeFilter.has(name);
               return (
                 <label key={name} className="flex cursor-pointer items-center gap-1 text-xs">
@@ -438,8 +438,8 @@ export function TrafficReportView() {
                       ? `${((s.visitors / data.totals.visitors) * 100).toFixed(1)}%`
                       : "—";
                   return (
-                    <tr key={s.axperStoreName} className="border-t border-sh-stripe">
-                      <td className="p-2 font-mono text-xs">{s.axperStoreName}</td>
+                    <tr key={s.sourceStoreName} className="border-t border-sh-stripe">
+                      <td className="p-2 font-mono text-xs">{s.sourceStoreName}</td>
                       <td className="p-2">{s.displayName}</td>
                       <td className="p-2 text-right tabular-nums">{s.visitors.toLocaleString()}</td>
                       <td className="p-2 text-right tabular-nums">

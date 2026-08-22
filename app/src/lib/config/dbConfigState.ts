@@ -91,9 +91,9 @@ export async function loadDbConfigState(db: PrismaClient = defaultPrisma): Promi
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     }),
     db.trafficSnapshot.findMany({
-      distinct: ["axperStoreName"],
-      select: { axperStoreName: true },
-      orderBy: { axperStoreName: "asc" },
+      distinct: ["sourceStoreName"],
+      select: { sourceStoreName: true },
+      orderBy: { sourceStoreName: "asc" },
     }),
   ]);
 
@@ -187,7 +187,7 @@ export async function loadDbConfigState(db: PrismaClient = defaultPrisma): Promi
     storeLocations.flatMap((s) => s.trafficSourceNames.map(normalizeSourceName)),
   );
   const unmappedTrafficSourceNames = distinctTraffic
-    .map((r) => r.axperStoreName)
+    .map((r) => r.sourceStoreName)
     .filter((name) => !claimed.has(normalizeSourceName(name)))
     .sort((a, b) => a.localeCompare(b));
 

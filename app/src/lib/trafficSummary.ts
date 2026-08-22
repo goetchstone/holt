@@ -10,7 +10,7 @@
 /** Minimal shape needed for rollups — accepts any row with these fields. */
 export interface TrafficRowForSummary {
   intervalStart: Date;
-  axperStoreName: string;
+  sourceStoreName: string;
   /** FK on the persisted row; null when no StoreLocation mapping exists. */
   storeLocationId: number | null;
   visitors: number;
@@ -26,7 +26,7 @@ export interface DayRollup {
 
 export interface StoreRollup {
   /** The traffic-counter-side name (e.g. "Main Showroom", "West Showroom"). */
-  axperStoreName: string;
+  sourceStoreName: string;
   /** Resolved StoreLocation FK, or null when unmapped. */
   storeLocationId: number | null;
   visitors: number;
@@ -35,7 +35,7 @@ export interface StoreRollup {
 
 export interface DayStoreRollup {
   date: string;
-  axperStoreName: string;
+  sourceStoreName: string;
   storeLocationId: number | null;
   visitors: number;
   exits: number | null;
@@ -83,14 +83,14 @@ export function rollupByDay(rows: ReadonlyArray<TrafficRowForSummary>): DayRollu
 export function rollupByStore(rows: ReadonlyArray<TrafficRowForSummary>): StoreRollup[] {
   const m = new Map<string, StoreRollup>();
   for (const r of rows) {
-    const k = r.axperStoreName;
+    const k = r.sourceStoreName;
     const existing = m.get(k);
     if (existing) {
       existing.visitors += r.visitors;
       existing.exits = sumNullable(existing.exits, r.exits);
     } else {
       m.set(k, {
-        axperStoreName: k,
+        sourceStoreName: k,
         storeLocationId: r.storeLocationId,
         visitors: r.visitors,
         exits: r.exits ?? null,
@@ -109,7 +109,7 @@ export function rollupByDayAndStore(rows: ReadonlyArray<TrafficRowForSummary>): 
   const m = new Map<string, DayStoreRollup>();
   for (const r of rows) {
     const d = dayKey(r.intervalStart);
-    const k = `${d}|${r.axperStoreName}`;
+    const k = `${d}|${r.sourceStoreName}`;
     const existing = m.get(k);
     if (existing) {
       existing.visitors += r.visitors;
@@ -117,7 +117,7 @@ export function rollupByDayAndStore(rows: ReadonlyArray<TrafficRowForSummary>): 
     } else {
       m.set(k, {
         date: d,
-        axperStoreName: r.axperStoreName,
+        sourceStoreName: r.sourceStoreName,
         storeLocationId: r.storeLocationId,
         visitors: r.visitors,
         exits: r.exits ?? null,
