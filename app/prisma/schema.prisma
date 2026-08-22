@@ -2401,7 +2401,44 @@ enum DispatchStatus {
   CANCELLED
 }
 
+/// Per-order state owned by a SOURCE ADAPTER, not by holt.
+///
+/// An import runner sometimes needs to remember something about ONE order --
+/// "the operator checked this rewrite, leave it alone". That is a fact about a
+/// source system's quirks, not about the sale, and it does not belong on
+/// SalesOrder: the highest-traffic table in the product should not carry a
+/// column that only one vendor's importer has ever read.
+///
+/// Keyed by (salesOrderId, adapter, flag) so a second adapter needs no schema
+/// change to remember its own thing. Rows are written by adapters and by the
+/// operator UI that surfaces them; nothing in shared code reads this table.
+///
+/// Replaced SalesOrder.skipSameDayRewriteCleanup (migration
+/// 20260822_adapter_order_flags), which was set on 1 order in 49,769.
+model AdapterOrderFlag {
+  id           Int        @id @default(autoincrement())
+  salesOrderId Int
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  /// Adapter key from lib/adapters/index.ts, e.g. "ordorite".
+  adapter String
+  /// The adapter's own name for the flag, e.g. "skipSameDayRewriteCleanup".
+  flag    String
+  value   Boolean @default(true)
+  /// Why an operator set it -- these are manual overrides and age badly without one.
+  note    String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([salesOrderId, adapter, flag])
+  @@index([adapter, flag])
+}
+
 model SalesOrder {
+  adapterFlags AdapterOrderFlag[]
   id         Int              @id @default(autoincrement())
   orderno    String           @unique
   orderDate  DateTime?
@@ -2470,16 +2507,6 @@ model SalesOrder {
   replacedByOrderId Int?
   replacedByOrder   SalesOrder?  @relation("OrderReplacement", fields: [replacedByOrderId], references: [id], onDelete: SetNull)
   replacementFor    SalesOrder[] @relation("OrderReplacement")
-
-  // When TRUE, runSalesImport's same-day-rewrite cleanup heuristic is
-  // skipped for this base order. Used when the rewrite is a price-tweak
-  // (customer kept all base items; rewrite only contains the line whose
-  // price changed) — the heuristic can't distinguish that case from a
-  // genuine drop (the drop-case shape) and would over-cancel base lines.
-  // Operator sets this manually when they've verified the order is
-  // correct as-is. Added after an OS sales-gap incident.
-  // See `lib/sameDayRewriteCleanup.ts` doc-comment for the full pattern.
-  skipSameDayRewriteCleanup Boolean @default(false)
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt

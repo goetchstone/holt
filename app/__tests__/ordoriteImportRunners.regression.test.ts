@@ -31,10 +31,7 @@ import path from "path";
 const RUNNER_PATH = path.resolve(__dirname, "../src/lib/adapters/ordorite/runners.ts");
 const SHARED_PATH = path.resolve(__dirname, "../src/lib/adapters/ordorite/shared.ts");
 const IMPORT_HELPERS_PATH = path.resolve(__dirname, "../src/lib/importHelpers.ts");
-const ORCHESTRATOR_PATH = path.resolve(
-  __dirname,
-  "../src/lib/adapters/ordorite/orchestrator.ts",
-);
+const ORCHESTRATOR_PATH = path.resolve(__dirname, "../src/lib/adapters/ordorite/orchestrator.ts");
 
 const RUNNER_SRC = readFileSync(RUNNER_PATH, "utf8");
 const SHARED_SRC = readFileSync(SHARED_PATH, "utf8");
@@ -124,22 +121,27 @@ describe("ordorite adapter runners regression guards", () => {
   // a penny-only price-tweak on one line; customer kept everything;
   // heuristic couldn't tell the difference between this case and the
   // CHOM1726 drop case (data shapes are identical). Fix: add an operator
-  // override `SalesOrder.skipSameDayRewriteCleanup`. When TRUE, the
+  // override, held in AdapterOrderFlag as this adapter's own state rather
+  // than on SalesOrder. When TRUE, the
   // cleanup short-circuits for that base order.
   //
   // Tripwire: the guard must be present in cleanupOneRewriteChain. If a
   // refactor accidentally drops it, the same over-cancellation pattern
   // recurs.
-  it("cleanupOneRewriteChain respects SalesOrder.skipSameDayRewriteCleanup flag", () => {
+  it("cleanupOneRewriteChain respects the adapter's skipSameDayRewriteCleanup flag", () => {
     // Find the cleanupOneRewriteChain function body
     const fnBody = RUNNER_SRC.match(/async function cleanupOneRewriteChain[\s\S]*?\n\}/);
     expect(fnBody).not.toBeNull();
     if (!fnBody) return;
     const body = fnBody[0];
     // Must select the flag from the base order
-    expect(body).toMatch(/skipSameDayRewriteCleanup:\s*true/);
+    // Moved off SalesOrder on 2026-08-22: the flag is adapter-owned state in
+    // AdapterOrderFlag, so the guard is a lookup rather than a selected column.
+    expect(body).toMatch(
+      /hasOrderFlag\(\s*prisma,\s*base\.id,\s*SKIP_SAME_DAY_REWRITE_CLEANUP\s*\)/,
+    );
     // Must short-circuit when the flag is set
-    expect(body).toMatch(/base\.skipSameDayRewriteCleanup/);
+    expect(body).toMatch(/SKIP_SAME_DAY_REWRITE_CLEANUP/);
   });
 
   // 2026-05-22 (second incident, same day): the OS sales gap that FC
@@ -204,7 +206,7 @@ describe("ordorite adapter runners regression guards", () => {
   // 1-kept). Owner-reported OS 5/1-5/20 = $1,100 over Ordorite, traced
   // to SBOM39006's BAT-MU01 wrongly uncancelled. The price-tweak shape
   // is now handled solely by the operator flag
-  // (SalesOrder.skipSameDayRewriteCleanup). FC migration
+  // (the adapter's skipSameDayRewriteCleanup flag). FC migration
   // 20260522d_recancel_wrongly_restored_drops re-cancelled the 12
   // wrongly-restored drop cases.
   //
@@ -243,9 +245,7 @@ describe("ordorite adapter runners regression guards", () => {
     // Without this filter the sweep would attempt to re-link every real
     // PO on every run and rely on the unique constraint to bounce
     // duplicates — wasteful + noisy in logs.
-    const fnBody = RUNNER_SRC.match(
-      /async function autoLinkBuyerDraftPosToRealPos[\s\S]*?\n\}/,
-    );
+    const fnBody = RUNNER_SRC.match(/async function autoLinkBuyerDraftPosToRealPos[\s\S]*?\n\}/);
     expect(fnBody).not.toBeNull();
     if (!fnBody) return;
     expect(fnBody[0]).toMatch(/buyerDraftLink:\s*null/);
