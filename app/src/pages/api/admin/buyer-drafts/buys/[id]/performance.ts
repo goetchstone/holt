@@ -16,7 +16,7 @@
 // ADMIN-only. GET only.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { buildFrameDecisions, type FrameInput } from "@/lib/frameRollup";
@@ -33,327 +33,333 @@ import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 const MARJAN_VENDOR_NAMES = ["Marjan", "Marjan International Corp"];
 
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", ["GET"]);
-    return res.status(405).end();
-  }
+export default requirePermission(
+  "admin.settings",
+  async (req: NextApiRequest, res: NextApiResponse) => {
+    if (req.method !== "GET") {
+      res.setHeader("Allow", ["GET"]);
+      return res.status(405).end();
+    }
 
-  const id = Number.parseInt(String(req.query.id), 10);
-  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+    const id = Number.parseInt(String(req.query.id), 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
 
-  try {
-    // 1) The Buy + its drafts (including the linked Product and that
-    // Product's vendor — needed for frame-rollup classification + Marjan
-    // exclusion).
-    const buy = await prisma.buyerDraftBuy.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        name: true,
-        season: true,
-        year: true,
-        status: true,
-        budget: true,
-        kickoff: true,
-        created: true,
-        pos: {
-          select: {
-            id: true,
-            // Slice 6.2 — pull ETA fields so deriveSalesWindow can anchor
-            // the sales window. expectedShipMonth is "YYYY-MM"; precise
-            // expectedDeliveryDate wins when both are set on a PO.
-            expectedShipMonth: true,
-            expectedDeliveryDate: true,
-            // Slice 6.8 — vendorId on the draft PO lets us match against
-            // real ReceivingRecord rows (joined through PurchaseOrder)
-            // so actualReceivedDate can anchor the sales window.
-            vendorId: true,
-            // Slice 6.14 (2026-05-22) — M:N links to real POs. Replaces
-            // the prior 1:1 importedFromPurchaseOrderId field. Drives
-            // the explicit-link precedence (when set, the empirical
-            // productId join is skipped).
-            realPoLinks: { select: { realPoId: true } },
-            items: {
-              select: {
-                id: true,
-                qty: true,
-                cost: true,
-                retail: true,
-                fulfilledProductId: true,
-                vendorId: true,
-                vendor: { select: { name: true } },
-                fulfilledProduct: {
-                  select: {
-                    id: true,
-                    productNumber: true,
-                    vendorId: true,
-                    vendor: { select: { name: true } },
+    try {
+      // 1) The Buy + its drafts (including the linked Product and that
+      // Product's vendor — needed for frame-rollup classification + Marjan
+      // exclusion).
+      const buy = await prisma.buyerDraftBuy.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          season: true,
+          year: true,
+          status: true,
+          budget: true,
+          kickoff: true,
+          created: true,
+          pos: {
+            select: {
+              id: true,
+              // Slice 6.2 — pull ETA fields so deriveSalesWindow can anchor
+              // the sales window. expectedShipMonth is "YYYY-MM"; precise
+              // expectedDeliveryDate wins when both are set on a PO.
+              expectedShipMonth: true,
+              expectedDeliveryDate: true,
+              // Slice 6.8 — vendorId on the draft PO lets us match against
+              // real ReceivingRecord rows (joined through PurchaseOrder)
+              // so actualReceivedDate can anchor the sales window.
+              vendorId: true,
+              // Slice 6.14 (2026-05-22) — M:N links to real POs. Replaces
+              // the prior 1:1 importedFromPurchaseOrderId field. Drives
+              // the explicit-link precedence (when set, the empirical
+              // productId join is skipped).
+              realPoLinks: { select: { realPoId: true } },
+              items: {
+                select: {
+                  id: true,
+                  qty: true,
+                  cost: true,
+                  retail: true,
+                  fulfilledProductId: true,
+                  vendorId: true,
+                  vendor: { select: { name: true } },
+                  fulfilledProduct: {
+                    select: {
+                      id: true,
+                      productNumber: true,
+                      vendorId: true,
+                      vendor: { select: { name: true } },
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-    });
-
-    if (!buy) return res.status(404).json({ error: "Buy not found" });
-
-    // 2) Build frame decisions for the linked Products we have.
-    // Drafts without a linked Product can't participate in rollup yet —
-    // they show as "no-link" status.
-    const draftRows = buy.pos.flatMap((p) => p.items);
-
-    // We need to include FRAME-MATE products (other Products in
-    // the same vendor's catalog that share a frame stem) so that sales
-    // of variants count toward the same frame. Pull the vendor's full
-    // product universe for any linked vendor. The classification works
-    // off the full set; per-draft linkage is checked separately below.
-    const linkedVendorIds = Array.from(
-      new Set(
-        draftRows
-          .map((d) => d.fulfilledProduct?.vendorId)
-          .filter((v): v is number => v !== undefined && v !== null),
-      ),
-    );
-
-    const allVendorProducts =
-      linkedVendorIds.length === 0
-        ? []
-        : await prisma.product.findMany({
-            where: {
-              vendorId: { in: linkedVendorIds },
-              vendor: { name: { notIn: MARJAN_VENDOR_NAMES } },
-            },
-            select: { id: true, productNumber: true, vendorId: true },
-          });
-
-    const frameInputs: FrameInput[] = allVendorProducts.map((p) => ({
-      productId: p.id,
-      productNumber: p.productNumber ?? null,
-      vendorId: p.vendorId,
-    }));
-
-    const frameDecisions = buildFrameDecisions(frameInputs, true);
-
-    // Build the ProductFrameIndex (productId -> frameKey)
-    const productToFrame: ProductFrameIndex = new Map(
-      Array.from(frameDecisions.entries()).map(([pid, dec]) => [pid, dec.frameKey]),
-    );
-
-    // 3) Build the draft rows with frame attribution
-    const drafts: PerformanceDraft[] = draftRows
-      .filter((d) => {
-        const vendorName = d.fulfilledProduct?.vendor?.name ?? d.vendor?.name ?? "";
-        return !MARJAN_VENDOR_NAMES.includes(vendorName);
-      })
-      .map((d) => {
-        const frame =
-          d.fulfilledProductId === null ? null : (frameDecisions.get(d.fulfilledProductId) ?? null);
-        return {
-          draftId: d.id,
-          qty: d.qty,
-          costPerUnit: Number(d.cost.toString()),
-          retailPerUnit: Number(d.retail.toString()),
-          fulfilledProductId: d.fulfilledProductId,
-          frameKey: frame?.frameKey ?? null,
-          frameLabel: frame?.frameLabel ?? "(no link yet)",
-        };
       });
 
-    // 3.5) Slice 6.2/6.8 — derive the sales window. Precedence:
-    //   actualReceivedDate > expectedDeliveryDate > expectedShipMonth >
-    //   fallback-full-history. The actual receivedDate is queried below
-    //   from receivings on the linked-real-PO set (see step 3.6).
-    const productIdsInScope = Array.from(productToFrame.keys());
+      if (!buy) return res.status(404).json({ error: "Buy not found" });
 
-    // 3.6) Slice 6.8 — load receiving data SCOPED TO THE LINKED REAL POs.
-    // User feedback 2026-05-14: the previous implementation pulled
-    // every ReceivingRecord for products in scope, regardless of which
-    // PO they were on. That gave qtyReceived an all-time count
-    // (years of catalog receivings for the same product appeared) AND
-    // anchored the sales window to an ancient receivedDate, making
-    // qtySold effectively all-time too.
-    //
-    // Fix: scope receivings to the real POs that the linked-POs panel
-    // (slice 6.7) identifies as covering this buy — i.e., POs with at
-    // least one line whose productId matches a draft's
-    // fulfilledProductId. Both qtyReceived and actualReceivedDate are
-    // now bounded to receivings on THESE PONs only. Same productId
-    // join used by `lib/buyerDraftRealPoLink.ts`.
-    // Resolve the buy's real-PO scope. Extracted helper because the
-    // explicit-vs-empirical branching pushed the handler's cognitive
-    // complexity over the threshold; see resolveLinkedPoScope below.
-    const scope = await resolveLinkedPoScope(buy, productIdsInScope);
-    const { linkedRealPoIds, draftPoToLinkedPoIds } = scope;
-    const { receipts, earliestReceivedByPoId, earliestReceivedByProductId } =
-      await loadReceivings(linkedRealPoIds);
-    const posForWindow: BuyPoForWindow[] = buy.pos.map((p) => ({
-      expectedShipMonth: p.expectedShipMonth ?? null,
-      expectedDeliveryDate: p.expectedDeliveryDate ?? null,
-      actualReceivedDate: earliestReceivedDateForDraftPo(
-        draftPoToLinkedPoIds.get(p.id) ?? new Set(),
-        earliestReceivedByPoId,
-      ),
-    }));
-    const salesWindow = deriveSalesWindow({ pos: posForWindow, now: new Date() });
+      // 2) Build frame decisions for the linked Products we have.
+      // Drafts without a linked Product can't participate in rollup yet —
+      // they show as "no-link" status.
+      const draftRows = buy.pos.flatMap((p) => p.items);
 
-    // 4) Pull sales for every product in any frame we're tracking. Apply
-    // the window's start as a gte on salesOrder.orderDate when set.
-    // Bug-fix 2026-05-13 (user-reported): the prior filter `not: "CANCELLED"`
-    // included QUOTE-status orders. Quotes are NOT sales — they're open
-    // proposals that may or may not convert. WH-660 was reporting 31
-    // sold for the Spring 2026 buy; net of quotes the real number is
-    // 12. We follow the canonical `detailed-sales.ts` filter:
-    // `status: { in: [...SALES_REVENUE_STATUSES] }`. Returns
-    // STAY in (their negative qty subtracts net-sold correctly).
-    const SOLD_STATUSES = SALES_REVENUE_STATUSES;
-    const saleLines =
-      productIdsInScope.length === 0
-        ? []
-        : await prisma.orderLineItem.findMany({
-            where: {
-              productId: { in: productIdsInScope },
-              lineItemStatus: { not: "CANCELLED" },
-              salesOrder:
-                salesWindow.start === null
-                  ? { status: { in: [...SOLD_STATUSES] } }
-                  : {
-                      status: { in: [...SOLD_STATUSES] },
-                      orderDate: { gte: salesWindow.start },
-                    },
-            },
-            select: {
-              productId: true,
-              orderedQuantity: true,
-              netPrice: true,
-              cost: true,
-              // Phase 6.8.1 — orderDate for per-frame window filtering
-              // in `computePerformance`. The buy-wide gte filter above
-              // is the broad SQL scope; the helper tightens each frame
-              // to its OWN earliest receivedDate from the linked POs.
-              salesOrder: { select: { orderDate: true } },
-            },
-          });
+      // We need to include FRAME-MATE products (other Products in
+      // the same vendor's catalog that share a frame stem) so that sales
+      // of variants count toward the same frame. Pull the vendor's full
+      // product universe for any linked vendor. The classification works
+      // off the full set; per-draft linkage is checked separately below.
+      const linkedVendorIds = Array.from(
+        new Set(
+          draftRows
+            .map((d) => d.fulfilledProduct?.vendorId)
+            .filter((v): v is number => v !== undefined && v !== null),
+        ),
+      );
 
-    const sales: PerformanceSaleLine[] = saleLines.map((s) => ({
-      productId: s.productId!,
-      qty: Number(s.orderedQuantity.toString()),
-      netPrice: Number(s.netPrice.toString()),
-      cost: s.cost === null ? null : Number(s.cost.toString()),
-      orderDate: s.salesOrder?.orderDate ?? null,
-    }));
+      const allVendorProducts =
+        linkedVendorIds.length === 0
+          ? []
+          : await prisma.product.findMany({
+              where: {
+                vendorId: { in: linkedVendorIds },
+                vendor: { name: { notIn: MARJAN_VENDOR_NAMES } },
+              },
+              select: { id: true, productNumber: true, vendorId: true },
+            });
 
-    // 5) Compute. daysSinceBuyExported = days since buy.created. Could
-    // refine to use a per-draft exportedAt timestamp in a later iteration.
-    const daysSinceBuyExported = Math.max(
-      0,
-      Math.floor((Date.now() - buy.created.getTime()) / (24 * 60 * 60 * 1000)),
-    );
+      const frameInputs: FrameInput[] = allVendorProducts.map((p) => ({
+        productId: p.id,
+        productNumber: p.productNumber ?? null,
+        vendorId: p.vendorId,
+      }));
 
-    // Phase 6.3 (2026-05-13) — STOCK product set = the buyer's drafted
-    // (linked) products for this Buy. Sales of these productIds count
-    // as STOCK sold (came off the planned shelf); other frame-mate
-    // variant sales count as SPECIAL orders. Status logic uses STOCK
-    // sell-through only — special orders don't consume inventory.
-    const stockProductIds = new Set<number>(
-      drafts
-        .map((d) => d.fulfilledProductId)
-        .filter((id): id is number => id !== null && id !== undefined),
-    );
+      const frameDecisions = buildFrameDecisions(frameInputs, true);
 
-    // Phase 6.8.1 — build the per-frame sales window map from the
-    // linked-PO receipts. For each frame, the window starts at the
-    // EARLIEST receivedDate of any of its products. Frames not
-    // received yet are absent from the map → no per-frame filter
-    // (the buy-wide SQL window still bounds them).
-    const frameWindowStartByKey = buildFrameWindowStartByKey(
-      earliestReceivedByProductId,
-      productToFrame,
-    );
+      // Build the ProductFrameIndex (productId -> frameKey)
+      const productToFrame: ProductFrameIndex = new Map(
+        Array.from(frameDecisions.entries()).map(([pid, dec]) => [pid, dec.frameKey]),
+      );
 
-    const rows = computePerformance(
-      drafts,
-      sales,
-      productToFrame,
-      {
-        daysSinceBuyExported,
-        stockProductIds,
-        frameWindowStartByKey,
-      },
-      receipts,
-    );
+      // 3) Build the draft rows with frame attribution
+      const drafts: PerformanceDraft[] = draftRows
+        .filter((d) => {
+          const vendorName = d.fulfilledProduct?.vendor?.name ?? d.vendor?.name ?? "";
+          return !MARJAN_VENDOR_NAMES.includes(vendorName);
+        })
+        .map((d) => {
+          const frame =
+            d.fulfilledProductId === null
+              ? null
+              : (frameDecisions.get(d.fulfilledProductId) ?? null);
+          return {
+            draftId: d.id,
+            qty: d.qty,
+            costPerUnit: Number(d.cost.toString()),
+            retailPerUnit: Number(d.retail.toString()),
+            fulfilledProductId: d.fulfilledProductId,
+            frameKey: frame?.frameKey ?? null,
+            frameLabel: frame?.frameLabel ?? "(no link yet)",
+          };
+        });
 
-    // 6) Header rollups
-    const totalSpent = rows.reduce((acc, r) => acc + r.totalCost, 0);
-    const totalRevenue = rows.reduce((acc, r) => acc + r.revenue, 0);
-    const totalCostOfSold = rows.reduce((acc, r) => acc + r.costOfSold, 0);
-    const totalGrossProfit = Math.max(0, totalRevenue - totalCostOfSold);
-    const overallMargin = totalRevenue === 0 ? 0 : totalGrossProfit / totalRevenue;
-    const totalQtyOrdered = rows.reduce((acc, r) => acc + r.qtyOrdered, 0);
-    const totalQtyReceived = rows.reduce((acc, r) => acc + r.qtyReceived, 0);
-    const totalQtyStockReceived = rows.reduce((acc, r) => acc + r.qtyStockReceived, 0);
-    const totalQtySpecialReceived = rows.reduce((acc, r) => acc + r.qtySpecialReceived, 0);
-    const totalQtySold = rows.reduce((acc, r) => acc + r.qtySold, 0);
-    const totalQtyStockSold = rows.reduce((acc, r) => acc + r.qtyStockSold, 0);
-    const totalQtySpecialSold = rows.reduce((acc, r) => acc + r.qtySpecialSold, 0);
-    const overallSellThrough = totalQtyOrdered === 0 ? 0 : totalQtySold / totalQtyOrdered;
-    const overallStockSellThrough = totalQtyOrdered === 0 ? 0 : totalQtyStockSold / totalQtyOrdered;
+      // 3.5) Slice 6.2/6.8 — derive the sales window. Precedence:
+      //   actualReceivedDate > expectedDeliveryDate > expectedShipMonth >
+      //   fallback-full-history. The actual receivedDate is queried below
+      //   from receivings on the linked-real-PO set (see step 3.6).
+      const productIdsInScope = Array.from(productToFrame.keys());
 
-    // 7) Find the compare-to candidate (same season, prior year, ADMIN-visible)
-    const compareToCandidate =
-      buy.season && buy.year
-        ? await prisma.buyerDraftBuy.findFirst({
-            where: {
-              season: buy.season,
-              year: { lt: buy.year },
-              id: { not: buy.id },
-            },
-            orderBy: { year: "desc" },
-            select: { id: true, name: true, year: true, season: true },
-          })
-        : null;
+      // 3.6) Slice 6.8 — load receiving data SCOPED TO THE LINKED REAL POs.
+      // User feedback 2026-05-14: the previous implementation pulled
+      // every ReceivingRecord for products in scope, regardless of which
+      // PO they were on. That gave qtyReceived an all-time count
+      // (years of catalog receivings for the same product appeared) AND
+      // anchored the sales window to an ancient receivedDate, making
+      // qtySold effectively all-time too.
+      //
+      // Fix: scope receivings to the real POs that the linked-POs panel
+      // (slice 6.7) identifies as covering this buy — i.e., POs with at
+      // least one line whose productId matches a draft's
+      // fulfilledProductId. Both qtyReceived and actualReceivedDate are
+      // now bounded to receivings on THESE PONs only. Same productId
+      // join used by `lib/buyerDraftRealPoLink.ts`.
+      // Resolve the buy's real-PO scope. Extracted helper because the
+      // explicit-vs-empirical branching pushed the handler's cognitive
+      // complexity over the threshold; see resolveLinkedPoScope below.
+      const scope = await resolveLinkedPoScope(buy, productIdsInScope);
+      const { linkedRealPoIds, draftPoToLinkedPoIds } = scope;
+      const { receipts, earliestReceivedByPoId, earliestReceivedByProductId } =
+        await loadReceivings(linkedRealPoIds);
+      const posForWindow: BuyPoForWindow[] = buy.pos.map((p) => ({
+        expectedShipMonth: p.expectedShipMonth ?? null,
+        expectedDeliveryDate: p.expectedDeliveryDate ?? null,
+        actualReceivedDate: earliestReceivedDateForDraftPo(
+          draftPoToLinkedPoIds.get(p.id) ?? new Set(),
+          earliestReceivedByPoId,
+        ),
+      }));
+      const salesWindow = deriveSalesWindow({ pos: posForWindow, now: new Date() });
 
-    return res.status(200).json({
-      buy: {
-        id: buy.id,
-        name: buy.name,
-        season: buy.season,
-        year: buy.year,
-        status: buy.status,
-        budget: buy.budget?.toString() ?? null,
-        daysSinceExported: daysSinceBuyExported,
-      },
-      rollup: {
-        totalSpent,
-        totalRevenue,
-        totalGrossProfit,
-        overallMargin,
-        totalQtyOrdered,
-        totalQtyReceived,
-        totalQtyStockReceived,
-        totalQtySpecialReceived,
-        totalQtySold,
-        totalQtyStockSold,
-        totalQtySpecialSold,
-        overallSellThrough,
-        overallStockSellThrough,
-      },
-      frames: rows,
-      compareTo: compareToCandidate,
-      salesWindow: {
-        start: salesWindow.start === null ? null : salesWindow.start.toISOString(),
-        end: salesWindow.end.toISOString(),
-        source: salesWindow.source,
-        message: salesWindow.message,
-      },
-    });
-  } catch (err) {
-    logError("buyer-drafts buy performance failed", err);
-    return res.status(500).json({ error: "Failed to compute performance" });
-  }
-});
+      // 4) Pull sales for every product in any frame we're tracking. Apply
+      // the window's start as a gte on salesOrder.orderDate when set.
+      // Bug-fix 2026-05-13 (user-reported): the prior filter `not: "CANCELLED"`
+      // included QUOTE-status orders. Quotes are NOT sales — they're open
+      // proposals that may or may not convert. WH-660 was reporting 31
+      // sold for the Spring 2026 buy; net of quotes the real number is
+      // 12. We follow the canonical `detailed-sales.ts` filter:
+      // `status: { in: [...SALES_REVENUE_STATUSES] }`. Returns
+      // STAY in (their negative qty subtracts net-sold correctly).
+      const SOLD_STATUSES = SALES_REVENUE_STATUSES;
+      const saleLines =
+        productIdsInScope.length === 0
+          ? []
+          : await prisma.orderLineItem.findMany({
+              where: {
+                productId: { in: productIdsInScope },
+                lineItemStatus: { not: "CANCELLED" },
+                salesOrder:
+                  salesWindow.start === null
+                    ? { status: { in: [...SOLD_STATUSES] } }
+                    : {
+                        status: { in: [...SOLD_STATUSES] },
+                        orderDate: { gte: salesWindow.start },
+                      },
+              },
+              select: {
+                productId: true,
+                orderedQuantity: true,
+                netPrice: true,
+                cost: true,
+                // Phase 6.8.1 — orderDate for per-frame window filtering
+                // in `computePerformance`. The buy-wide gte filter above
+                // is the broad SQL scope; the helper tightens each frame
+                // to its OWN earliest receivedDate from the linked POs.
+                salesOrder: { select: { orderDate: true } },
+              },
+            });
+
+      const sales: PerformanceSaleLine[] = saleLines.map((s) => ({
+        productId: s.productId!,
+        qty: Number(s.orderedQuantity.toString()),
+        netPrice: Number(s.netPrice.toString()),
+        cost: s.cost === null ? null : Number(s.cost.toString()),
+        orderDate: s.salesOrder?.orderDate ?? null,
+      }));
+
+      // 5) Compute. daysSinceBuyExported = days since buy.created. Could
+      // refine to use a per-draft exportedAt timestamp in a later iteration.
+      const daysSinceBuyExported = Math.max(
+        0,
+        Math.floor((Date.now() - buy.created.getTime()) / (24 * 60 * 60 * 1000)),
+      );
+
+      // Phase 6.3 (2026-05-13) — STOCK product set = the buyer's drafted
+      // (linked) products for this Buy. Sales of these productIds count
+      // as STOCK sold (came off the planned shelf); other frame-mate
+      // variant sales count as SPECIAL orders. Status logic uses STOCK
+      // sell-through only — special orders don't consume inventory.
+      const stockProductIds = new Set<number>(
+        drafts
+          .map((d) => d.fulfilledProductId)
+          .filter((id): id is number => id !== null && id !== undefined),
+      );
+
+      // Phase 6.8.1 — build the per-frame sales window map from the
+      // linked-PO receipts. For each frame, the window starts at the
+      // EARLIEST receivedDate of any of its products. Frames not
+      // received yet are absent from the map → no per-frame filter
+      // (the buy-wide SQL window still bounds them).
+      const frameWindowStartByKey = buildFrameWindowStartByKey(
+        earliestReceivedByProductId,
+        productToFrame,
+      );
+
+      const rows = computePerformance(
+        drafts,
+        sales,
+        productToFrame,
+        {
+          daysSinceBuyExported,
+          stockProductIds,
+          frameWindowStartByKey,
+        },
+        receipts,
+      );
+
+      // 6) Header rollups
+      const totalSpent = rows.reduce((acc, r) => acc + r.totalCost, 0);
+      const totalRevenue = rows.reduce((acc, r) => acc + r.revenue, 0);
+      const totalCostOfSold = rows.reduce((acc, r) => acc + r.costOfSold, 0);
+      const totalGrossProfit = Math.max(0, totalRevenue - totalCostOfSold);
+      const overallMargin = totalRevenue === 0 ? 0 : totalGrossProfit / totalRevenue;
+      const totalQtyOrdered = rows.reduce((acc, r) => acc + r.qtyOrdered, 0);
+      const totalQtyReceived = rows.reduce((acc, r) => acc + r.qtyReceived, 0);
+      const totalQtyStockReceived = rows.reduce((acc, r) => acc + r.qtyStockReceived, 0);
+      const totalQtySpecialReceived = rows.reduce((acc, r) => acc + r.qtySpecialReceived, 0);
+      const totalQtySold = rows.reduce((acc, r) => acc + r.qtySold, 0);
+      const totalQtyStockSold = rows.reduce((acc, r) => acc + r.qtyStockSold, 0);
+      const totalQtySpecialSold = rows.reduce((acc, r) => acc + r.qtySpecialSold, 0);
+      const overallSellThrough = totalQtyOrdered === 0 ? 0 : totalQtySold / totalQtyOrdered;
+      const overallStockSellThrough =
+        totalQtyOrdered === 0 ? 0 : totalQtyStockSold / totalQtyOrdered;
+
+      // 7) Find the compare-to candidate (same season, prior year, ADMIN-visible)
+      const compareToCandidate =
+        buy.season && buy.year
+          ? await prisma.buyerDraftBuy.findFirst({
+              where: {
+                season: buy.season,
+                year: { lt: buy.year },
+                id: { not: buy.id },
+              },
+              orderBy: { year: "desc" },
+              select: { id: true, name: true, year: true, season: true },
+            })
+          : null;
+
+      return res.status(200).json({
+        buy: {
+          id: buy.id,
+          name: buy.name,
+          season: buy.season,
+          year: buy.year,
+          status: buy.status,
+          budget: buy.budget?.toString() ?? null,
+          daysSinceExported: daysSinceBuyExported,
+        },
+        rollup: {
+          totalSpent,
+          totalRevenue,
+          totalGrossProfit,
+          overallMargin,
+          totalQtyOrdered,
+          totalQtyReceived,
+          totalQtyStockReceived,
+          totalQtySpecialReceived,
+          totalQtySold,
+          totalQtyStockSold,
+          totalQtySpecialSold,
+          overallSellThrough,
+          overallStockSellThrough,
+        },
+        frames: rows,
+        compareTo: compareToCandidate,
+        salesWindow: {
+          start: salesWindow.start === null ? null : salesWindow.start.toISOString(),
+          end: salesWindow.end.toISOString(),
+          source: salesWindow.source,
+          message: salesWindow.message,
+        },
+      });
+    } catch (err) {
+      logError("buyer-drafts buy performance failed", err);
+      return res.status(500).json({ error: "Failed to compute performance" });
+    }
+  },
+);
 
 // Slice 6.8 (revised 2026-05-14 per user feedback) — load receivings
 // SCOPED to a specific set of real PO ids.

@@ -6,6 +6,7 @@
 // conventions that future refactors might accidentally drop.
 
 import fs from "fs";
+import { permissionsForBuiltInRole } from "@/lib/auth/permissionCatalog";
 import path from "path";
 
 const HANDLER_SRC = fs.readFileSync(
@@ -33,13 +34,31 @@ const SIBLINGS_HELPER_SRC = fs.readFileSync(
   "utf8",
 );
 
+/**
+ * Roles that hold `admin.settings`, ignoring SUPER_ADMIN.
+ *
+ * These handlers moved from requireAuthWithRole(["ADMIN"]) to
+ * requirePermission("admin.settings"). That is the same access, not a
+ * relaxation: roleDecision.ts documents that SUPER_ADMIN auto-satisfies any
+ * check listing ADMIN, so it was already admitted, and ADMIN is the only other
+ * holder. Asserting the GRANT rather than the call shape means this still fails
+ * if admin.settings is ever handed to another role.
+ */
+function adminSettingsHolders(): string[] {
+  return ["ADMIN", "MANAGER", "DESIGNER", "REGISTER", "WAREHOUSE", "INSTALLER", "MARKETING"].filter(
+    (r) => (permissionsForBuiltInRole(r) ?? []).includes("admin.settings"),
+  );
+}
+
 describe("historicalPoImport handlers — source-text tripwires", () => {
   it("import handler is ADMIN-gated", () => {
-    expect(HANDLER_SRC).toMatch(/requireAuthWithRole\(\["ADMIN"\]/);
+    expect(HANDLER_SRC).toMatch(/requirePermission\(\s*\n?\s*"admin\.settings"/);
+    expect(adminSettingsHolders()).toEqual(["ADMIN"]);
   });
 
   it("search handler is ADMIN-gated", () => {
-    expect(SEARCH_SRC).toMatch(/requireAuthWithRole\(\["ADMIN"\]/);
+    expect(SEARCH_SRC).toMatch(/requirePermission\(\s*\n?\s*"admin\.settings"/);
+    expect(adminSettingsHolders()).toEqual(["ADMIN"]);
   });
 
   it("import handler pre-checks idempotency via the @unique realPoId on the M:N join", () => {
@@ -122,7 +141,8 @@ describe("historicalPoImport handlers — source-text tripwires", () => {
 
 describe("historicalPoSiblings — source-text tripwires", () => {
   it("siblings API is ADMIN-gated", () => {
-    expect(SIBLINGS_API_SRC).toMatch(/requireAuthWithRole\(\["ADMIN"\]/);
+    expect(SIBLINGS_API_SRC).toMatch(/requirePermission\(\s*\n?\s*"admin\.settings"/);
+    expect(adminSettingsHolders()).toEqual(["ADMIN"]);
   });
 
   it("siblings API scopes the candidate window by vendor + ± WINDOW_DAYS", () => {

@@ -11,7 +11,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { computeDailyReconciliation } from "@/lib/dailyReconciliation";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { logError, logger } from "@/lib/logger";
@@ -100,6 +100,6 @@ export async function handleReconcile(
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, session) => {
+export default requirePermission("accounting.read", async (req, res, session) => {
   await handleReconcile(req, res, session, prisma);
 });

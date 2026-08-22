@@ -1,0 +1,109 @@
+# API routes still gated by a ROLE ARRAY rather than a permission.
+#
+# These are NOT a security hole. requireAuthWithRole re-reads StaffMember with
+# isActive on every request, so they revoke correctly; what they cannot do is
+# answer "what can a DESIGNER do?" without a grep, which is the whole reason the
+# permission layer exists.
+#
+# Each one is listed because the semantically correct permission would CHANGE who
+# may call it -- in one direction or the other. Both are wrong to do silently:
+#   widens   the permission admits a role the route excludes today
+#   tightens the permission excludes a role the route admits today
+#
+# Converting one is a deliberate decision about access, not a refactor. Make it,
+# adjust the grant or pick a different permission, and delete the line.
+#
+# __tests__/apiRolePermissionRatchet.test.ts holds the count: this list may
+# shrink, never grow.
+#
+src/pages/api/accounting/account-groups/[id].ts  roles=[MANAGER,ADMIN]  proposed=accounting.post   tightens: -MANAGER
+src/pages/api/accounting/account-groups/index.ts  roles=[MANAGER,ADMIN]  proposed=accounting.post   tightens: -MANAGER
+src/pages/api/accounting/gl-accounts/[id].ts  roles=[MANAGER,ADMIN]  proposed=accounting.post   tightens: -MANAGER
+src/pages/api/accounting/gl-accounts/index.ts  roles=[MANAGER,ADMIN]  proposed=accounting.post   tightens: -MANAGER
+src/pages/api/accounting/journal-entries/[id].ts  roles=[MANAGER,ADMIN]  proposed=accounting.post   tightens: -MANAGER
+src/pages/api/accounting/system-gl-mappings.ts  roles=[MANAGER,ADMIN]  proposed=accounting.post   tightens: -MANAGER
+src/pages/api/admin/automations/axper-traffic/recent.ts  roles=[MANAGER,ADMIN,SUPER_ADMIN]  proposed=admin.settings   tightens: -MANAGER
+src/pages/api/admin/imports/run.ts  roles=[MANAGER,ADMIN]  proposed=admin.settings   tightens: -MANAGER
+src/pages/api/admin/product-pairings/[id].ts  roles=[ADMIN,MARKETING]  proposed=admin.settings   tightens: -MARKETING
+src/pages/api/admin/product-pairings/index.ts  roles=[ADMIN,MARKETING]  proposed=admin.settings   tightens: -MARKETING
+src/pages/api/admin/relink-line-items.ts  roles=[MANAGER,ADMIN]  proposed=admin.settings   tightens: -MANAGER
+src/pages/api/admin/reports/commission-payouts/[id].ts  roles=[SUPER_ADMIN]  proposed=admin.settings  widens: +ADMIN
+src/pages/api/admin/reports/commission-payouts/drift.ts  roles=[SUPER_ADMIN]  proposed=admin.settings  widens: +ADMIN
+src/pages/api/admin/reports/commission-payouts/index.ts  roles=[SUPER_ADMIN]  proposed=admin.settings  widens: +ADMIN
+src/pages/api/admin/reports/commission-tiers.ts  roles=[SUPER_ADMIN]  proposed=admin.settings  widens: +ADMIN
+src/pages/api/admin/reports/commission-tiers/tiers.ts  roles=[SUPER_ADMIN]  proposed=admin.settings  widens: +ADMIN
+src/pages/api/admin/reports/pay-period-confirmations/reopen.ts  roles=[SUPER_ADMIN]  proposed=admin.settings  widens: +ADMIN
+src/pages/api/admin/reports/pay-period-confirmations/resolve-issue.ts  roles=[SUPER_ADMIN]  proposed=admin.settings  widens: +ADMIN
+src/pages/api/bookings/index.ts  roles=[ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,MANAGER,WAREHOUSE
+src/pages/api/consignment/import/consignment-items.ts  roles=[MANAGER,ADMIN]  proposed=inventory.read  widens: +DESIGNER,REGISTER,WAREHOUSE
+src/pages/api/consignment/import/sales-lines.ts  roles=[MANAGER,ADMIN]  proposed=inventory.read  widens: +DESIGNER,REGISTER,WAREHOUSE
+src/pages/api/consignment/import/sales.ts  roles=[MANAGER,ADMIN]  proposed=inventory.read  widens: +DESIGNER,REGISTER,WAREHOUSE
+src/pages/api/consignment/items/[id].ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=inventory.adjust   tightens: -WAREHOUSE
+src/pages/api/consignment/items/mark-sold.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=inventory.read  widens: +DESIGNER,REGISTER
+src/pages/api/customers/[id]/addresses.ts  roles=[DESIGNER,MANAGER,ADMIN,WAREHOUSE,MARKETING]  proposed=customer.write  widens: +REGISTER tightens: -MARKETING,WAREHOUSE
+src/pages/api/customers/[id]/trade.ts  roles=[MANAGER,ADMIN]  proposed=customer.read  widens: +DESIGNER,INSTALLER,MARKETING,REGISTER,WAREHOUSE
+src/pages/api/customers/recalculate-levels.ts  roles=[MANAGER,ADMIN]  proposed=customer.read  widens: +DESIGNER,INSTALLER,MARKETING,REGISTER,WAREHOUSE
+src/pages/api/diagnostics/lookup-test.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
+src/pages/api/dispatch/assign-order.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.read  widens: +DESIGNER,INSTALLER
+src/pages/api/dispatch/delivery-planner.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.write  widens: +DESIGNER,INSTALLER
+src/pages/api/dispatch/orders-by-zone.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.write  widens: +DESIGNER,INSTALLER
+src/pages/api/dispatch/pencil-in.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.write  widens: +DESIGNER,INSTALLER
+src/pages/api/dispatch/pick-lists/[id]/items.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.read  widens: +DESIGNER,INSTALLER
+src/pages/api/dispatch/ready-to-deliver.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.write  widens: +DESIGNER,INSTALLER
+src/pages/api/dispatch/runs/[id]/status.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.read  widens: +DESIGNER,INSTALLER
+src/pages/api/dispatch/stops/[id].ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.read  widens: +DESIGNER,INSTALLER
+src/pages/api/goals/index.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
+src/pages/api/import/generic.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
+src/pages/api/import/inventory-snapshot.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
+src/pages/api/portal/generate-link.ts  roles=[DESIGNER,REGISTER,MANAGER,ADMIN]  proposed=(none)  no domain rule
+src/pages/api/print-label.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=(none)  no domain rule
+src/pages/api/print-label/batch.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=(none)  no domain rule
+src/pages/api/products/basic.ts  roles=[MANAGER,ADMIN]  proposed=catalog.read  widens: +DESIGNER,MARKETING,REGISTER,WAREHOUSE
+src/pages/api/products/import-basic.ts  roles=[MANAGER,ADMIN]  proposed=catalog.read  widens: +DESIGNER,MARKETING,REGISTER,WAREHOUSE
+src/pages/api/products/quick-create.ts  roles=[MANAGER,ADMIN]  proposed=catalog.read  widens: +DESIGNER,MARKETING,REGISTER,WAREHOUSE
+src/pages/api/proposals/[id]/convert-to-order.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
+src/pages/api/proposals/[id]/generate-pdf.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
+src/pages/api/proposals/[id]/index.ts  roles=[MANAGER,ADMIN]  proposed=sales.write  widens: +DESIGNER,REGISTER
+src/pages/api/proposals/[id]/line-items/[lineId]/images/[imgId].ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
+src/pages/api/proposals/[id]/line-items/[lineId]/images/index.ts  roles=[MANAGER,ADMIN]  proposed=sales.write  widens: +DESIGNER,REGISTER
+src/pages/api/proposals/[id]/line-items/[lineId]/index.ts  roles=[MANAGER,ADMIN]  proposed=sales.write  widens: +DESIGNER,REGISTER
+src/pages/api/proposals/[id]/line-items/index.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
+src/pages/api/proposals/[id]/reorder.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
+src/pages/api/proposals/index.ts  roles=[MANAGER,ADMIN]  proposed=sales.write  widens: +DESIGNER,REGISTER
+src/pages/api/reports/monthly-percentages.ts  roles=[MANAGER,ADMIN]  proposed=reporting.read  widens: +DESIGNER,MARKETING
+src/pages/api/reports/pay-period-sales/confirm.ts  roles=[SUPER_ADMIN]  proposed=reporting.read  widens: +ADMIN,DESIGNER,MANAGER,MARKETING
+src/pages/api/reports/pay-period-sales/report-issue.ts  roles=[SUPER_ADMIN]  proposed=reporting.read  widens: +ADMIN,DESIGNER,MANAGER,MARKETING
+src/pages/api/returns/[id]/refund.ts  roles=[SUPER_ADMIN,MANAGER,ADMIN,REGISTER,WAREHOUSE]  proposed=(none)  no domain rule
+src/pages/api/returns/[id]/status.ts  roles=[REGISTER,MANAGER,ADMIN]  proposed=(none)  no domain rule
+src/pages/api/sales/import-hd-proposal.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
+src/pages/api/sales/orders/[id]/payments.ts  roles=[MANAGER,ADMIN]  proposed=sales.write  widens: +DESIGNER,REGISTER
+src/pages/api/sales/pipeline/bulk-archive.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
+src/pages/api/service/cases/[id]/tasks.ts  roles=[DESIGNER,MANAGER,ADMIN,WAREHOUSE,MARKETING,REGISTER,INSTALLER]  proposed=service.write   tightens: -MARKETING,REGISTER
+src/pages/api/service/cases/index.ts  roles=[DESIGNER,MANAGER,ADMIN,WAREHOUSE,MARKETING,REGISTER,INSTALLER]  proposed=service.write   tightens: -MARKETING,REGISTER
+src/pages/api/service/delivery-zones/[id].ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/delivery-zones/[id]/zips.ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/delivery-zones/index.ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/email-templates/[id].ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/email-templates/index.ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/house-calls/[id].ts  roles=[DESIGNER,MANAGER,ADMIN,INSTALLER]  proposed=service.write  widens: +WAREHOUSE
+src/pages/api/service/house-calls/index.ts  roles=[DESIGNER,MANAGER,ADMIN,INSTALLER]  proposed=service.write  widens: +WAREHOUSE
+src/pages/api/service/installers/[id].ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/installers/index.ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/settings/priorities.ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/settings/priorities/[id].ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/settings/statuses.ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/settings/statuses/[id].ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/settings/types.ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/service/settings/types/[id].ts  roles=[MANAGER,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/services/[id].ts  roles=[SUPER_ADMIN,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,MANAGER,WAREHOUSE
+src/pages/api/services/index.ts  roles=[SUPER_ADMIN,ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,MANAGER,WAREHOUSE
+src/pages/api/stripe/create-checkout.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
+src/pages/api/stripe/send-payment-link.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
+src/pages/api/templates/[id].ts  roles=[ADMIN]  proposed=(none)  no domain rule
+src/pages/api/tickets/[id].ts  roles=[SUPER_ADMIN,ADMIN,MANAGER]  proposed=service.write  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/tickets/[id]/attachments.ts  roles=[SUPER_ADMIN,ADMIN,MANAGER,DESIGNER]  proposed=service.read  widens: +INSTALLER,WAREHOUSE
+src/pages/api/tickets/[id]/messages.ts  roles=[SUPER_ADMIN,ADMIN,MANAGER]  proposed=service.read  widens: +DESIGNER,INSTALLER,WAREHOUSE
+src/pages/api/tills/[id]/close.ts  roles=[REGISTER,MANAGER,ADMIN]  proposed=(none)  no domain rule
+src/pages/api/tills/[id]/reconcile.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
+src/pages/api/tools/query-builder.ts  roles=[ADMIN]  proposed=(none)  no domain rule
+src/pages/api/vendors/[id]/contacts/index.ts  roles=[DESIGNER,MANAGER,ADMIN,WAREHOUSE]  proposed=catalog.write   tightens: -DESIGNER,WAREHOUSE

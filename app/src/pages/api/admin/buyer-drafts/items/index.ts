@@ -9,18 +9,21 @@
 // per CLAUDE.md rule 14. This file is the thin Prisma + HTTP wrapper.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { Prisma, BuyerDraftItemStatus } from "@prisma/client";
 import { buildItemCreateData, VALID_ITEM_STATUSES } from "@/lib/buyerDraftRequestBody";
 
-export default requireAuthWithRole(["ADMIN"], async (req: NextApiRequest, res: NextApiResponse) => {
-  if (req.method === "GET") return list(req, res);
-  if (req.method === "POST") return create(req, res);
-  res.setHeader("Allow", ["GET", "POST"]);
-  return res.status(405).end();
-});
+export default requirePermission(
+  "admin.settings",
+  async (req: NextApiRequest, res: NextApiResponse) => {
+    if (req.method === "GET") return list(req, res);
+    if (req.method === "POST") return create(req, res);
+    res.setHeader("Allow", ["GET", "POST"]);
+    return res.status(405).end();
+  },
+);
 
 async function list(req: NextApiRequest, res: NextApiResponse) {
   const where: Prisma.BuyerDraftItemWhereInput = {};
