@@ -1,8 +1,9 @@
 // /app/src/pages/api/accounting/export-journal.ts
 //
-// Date-range General Journal export for QuickBooks / accountant handoff. Pulls
-// every journal entry in [from, to] and emits a single CSV in the proven
-// General Journal column shape. The anti-lock-in promise extends to the books:
+// Date-range General Journal export for the accountant handoff. Pulls every
+// journal entry in [from, to] and emits a single CSV in the requested format
+// (?format=quickbooks|xero|sage|standard; QuickBooks by default, and `standard`
+// is the plain double-entry shape that imports anywhere). The anti-lock-in promise extends to the books:
 // an operator can hand their accountant a clean journal any time, no support
 // ticket. ADMIN only (financial data).
 
@@ -11,7 +12,8 @@ import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { rowsToCsv } from "@/lib/csv";
-import { journalEntriesToRows, type JournalEntryInput } from "@/lib/quickbooksExport";
+import type { JournalEntryInput } from "@/lib/quickbooksExport";
+import { getJournalFormat, listJournalFormats } from "@/lib/accounting/journalFormats";
 import { logError } from "@/lib/logger";
 
 // Parse a YYYY-MM-DD query param to a UTC Date. Returns null on absent/invalid.
@@ -68,7 +70,21 @@ export default requirePermission(
         })),
       }));
 
-      const rows = journalEntriesToRows(input);
+      // Format is a query param so the same date range can be handed to whichever
+      // package the business actually uses. An unknown key is a 400 rather than a
+      // silent fall back to QuickBooks: a file in the wrong shape imports WRONG
+      // instead of failing, which is the worse outcome.
+      const format = getJournalFormat(
+        typeof req.query.format === "string" ? req.query.format : undefined,
+      );
+      if (!format) {
+        return res.status(400).json({
+          error: "Unknown export format.",
+          formats: listJournalFormats().map((f) => ({ key: f.key, label: f.label })),
+        });
+      }
+
+      const rows = format.toRows(input);
       const csv = rowsToCsv(rows);
       const fromStr = req.query.from as string;
       const toStr = req.query.to as string;
