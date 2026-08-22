@@ -8,13 +8,17 @@
 // Supports dry-run mode via ?dryRun=true query parameter.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
+import { toVendorNumber } from "@/lib/vendorNumbering";
 import { prisma } from "@/lib/prisma";
-import { toMarjanCustomerNumber } from "@/lib/consignment";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 export default requirePermission(
   "admin.data",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
+    // Loaded once per request: the pure helpers run per line item, and a lookup
+    // per row would be hundreds of queries against a handful of rows.
+    const prefixRules = await getVendorPrefixRules();
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const dryRun = req.query.dryRun === "true";
     const userEmail = session.user.email;
@@ -47,7 +51,7 @@ export default requirePermission(
       });
 
       for (const li of soldLineItems) {
-        const cn = li.product ? toMarjanCustomerNumber(li.product.productNumber) : null;
+        const cn = li.product ? toVendorNumber(li.product.productNumber, prefixRules) : null;
         if (!cn) continue;
 
         const item = await prisma.consignmentItem.findFirst({
@@ -87,7 +91,7 @@ export default requirePermission(
 
         const customerNumbers = po.lineItems
           .map((item: { partNo: string | null }) =>
-            item.partNo ? toMarjanCustomerNumber(item.partNo) : null,
+            item.partNo ? toVendorNumber(item.partNo, prefixRules) : null,
           )
           .filter((cn: string | null): cn is string => cn !== null);
 
@@ -147,7 +151,7 @@ export default requirePermission(
       for (const po of receivedPOs) {
         const customerNumbers = po.lineItems
           .map((item: { partNo: string | null }) =>
-            item.partNo ? toMarjanCustomerNumber(item.partNo) : null,
+            item.partNo ? toVendorNumber(item.partNo, prefixRules) : null,
           )
           .filter((cn: string | null): cn is string => cn !== null);
 

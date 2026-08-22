@@ -65,6 +65,7 @@ import { prisma } from "@/lib/prisma";
 const ALL_TABLES = [
   "Account",
   "AdapterOrderFlag",
+  "VendorNumberPrefix",
   "AccountGroup",
   "AppSettings",
   "AutoImportLog",
@@ -259,9 +260,11 @@ export async function resetTestDb(): Promise<void> {
   // Module-level caches hand out ids of rows the TRUNCATE just deleted.
   // Imported lazily so the unit project (no DB) never pulls the adapter in.
   const { clearAutoCreateCachesForTesting } = await import("@/lib/adapters/ordorite/shared");
+  const { clearVendorPrefixCacheForTesting } = await import("@/lib/vendorPrefixService");
   const { clearImportRunnerCachesForTesting } = await import("@/lib/adapters/ordorite/runners");
   const { clearLocationCache } = await import("@/lib/storeLocationResolver");
   clearAutoCreateCachesForTesting();
+  clearVendorPrefixCacheForTesting();
   clearImportRunnerCachesForTesting();
   clearLocationCache();
 }

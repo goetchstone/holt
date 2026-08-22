@@ -1,40 +1,25 @@
 // /app/src/lib/consignment.ts
 
 import type { ConsignmentItemStatus } from "@prisma/client";
+import { toVendorNumber, type VendorPrefixRule } from "@/lib/vendorNumbering";
 
-// the POS system stores Marjan rugs as "MAR-1827-124A"; ConsignmentItem.barcode uses "M1827-124A".
-// Both formats need to be matched and normalised to the barcode form for DB lookups.
-export function isMarjanRug(productNumber: string | null | undefined): boolean {
-  if (!productNumber) return false;
-  return /^MAR-\d/i.test(productNumber) || /^M\d/.test(productNumber);
-}
-
-export function toMarjanBarcode(productNumber: string): string {
-  // "MAR-1827-124A" → "M1827-124A"
-  return productNumber.startsWith("MAR-") ? "M" + productNumber.slice(4) : productNumber;
-}
-
-// external product numbers use the format "MAR-9381-25" where "9381-25" is the
-// ConsignmentItem.customerNumber assigned by Marjan. This bridges the two systems.
-// The barcode format "M9381-25" (from toMarjanBarcode) also maps to "9381-25".
-export function toMarjanCustomerNumber(productNumber: string): string | null {
-  if (!isMarjanRug(productNumber)) return null;
-  if (productNumber.startsWith("MAR-")) return productNumber.slice(4);
-  if (productNumber.startsWith("M")) return productNumber.slice(1);
-  return null;
-}
+// Vendor number prefixes used to be hardcoded here -- isMarjanRug,
+// toMarjanBarcode, toMarjanCustomerNumber -- encoding ONE consignment vendor's
+// scheme ("MAR-1827-124A" on the POS, "M1827-124A" on the tag). A second vendor
+// matched nothing, silently. They now live in lib/vendorNumbering.ts, driven by
+// VendorNumberPrefix rows, and a deployment with no rows has the feature off.
 
 /**
- * customerNumbers of Marjan rugs whose returns in this import batch fully offset
+ * customerNumbers of consigned items whose returns in this import batch fully offset
  * their sales — a same-day sell+return "wash" that must revert the rug to
- * ON_FLOOR instead of leaving it SOLD (owed to Marjan).
+ * ON_FLOOR instead of leaving it SOLD (owed to the consignor).
  *
  * Two things this gets right:
  *
  * 1. **Match on the customerNumber**, the only identifier the two sides share:
  *    the sold side carries the PHYSICAL rug barcode (e.g. "M8994-22") while the
  *    returned side carries the product-number-derived barcode
- *    (`toMarjanBarcode("MAR-10684-26")` = "M10684-26") — those never equal each
+ *    (`toBarcode("MAR-10684-26", rules)` = "M10684-26") — those never equal each
  *    other, so a barcode-vs-barcode comparison silently misses every Marjan
  *    same-day sell+return. Both, however, resolve to the same customerNumber.
  *
@@ -43,11 +28,12 @@ export function toMarjanCustomerNumber(productNumber: string): string | null {
  *    MORE times than it was returned (a re-sale, or a base+rewrite chain that
  *    keeps two active sale lines against one accounting return) is net-SOLD and
  *    must stay SOLD — reverting it would erase a real sale and understate what's
- *    owed to Marjan.
+ *    owed to the consignor.
  */
 export function findWashedRugCustomerNumbers(
   soldRugMatches: readonly { customerNumber: string | null }[],
   returnedProductNumbers: readonly (string | null | undefined)[],
+  prefixRules: readonly VendorPrefixRule[],
 ): Set<string> {
   const soldCounts = new Map<string, number>();
   for (const { customerNumber } of soldRugMatches) {
@@ -55,7 +41,7 @@ export function findWashedRugCustomerNumbers(
   }
   const returnedCounts = new Map<string, number>();
   for (const pn of returnedProductNumbers) {
-    const cn = pn ? toMarjanCustomerNumber(pn) : null;
+    const cn = pn ? toVendorNumber(pn, prefixRules) : null;
     if (cn) returnedCounts.set(cn, (returnedCounts.get(cn) ?? 0) + 1);
   }
   const washed = new Set<string>();

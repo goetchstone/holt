@@ -57,6 +57,24 @@ export async function seedConsignment(
     },
   });
 
+  // How this vendor's numbers look, so a tag or product number resolves back to
+  // it. The seed's items are barcoded "ATR-1000", so the prefix is "ATR-".
+  //
+  // Seeded because the feature is OPT-IN and invisible without a row: a
+  // deployment with none has vendor-number resolution off entirely, and the
+  // consignment screens would demo as though the capability did not exist.
+  await prisma.vendorNumberPrefix.upsert({
+    where: { prefix: "ATR-" },
+    update: {},
+    create: {
+      vendorId: vendor.id,
+      prefix: "ATR-",
+      barcodePrefix: "A",
+      note: "Demo consignment vendor: POS numbers read ATR-1000, tags read A1000.",
+      createdBy: SEED_ACTOR,
+    },
+  });
+
   const receipt = await prisma.consignmentReceipt.create({
     data: {
       vendorId: vendor.id,

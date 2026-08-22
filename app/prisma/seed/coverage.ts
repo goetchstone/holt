@@ -46,6 +46,7 @@ export interface SeedCoverageEntry {
 }
 
 export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
+  VendorNumberPrefix: { status: "seeded" },
   AdapterOrderFlag: {
     status: "skipped",
     reason:

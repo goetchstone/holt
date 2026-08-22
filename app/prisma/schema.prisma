@@ -16,7 +16,54 @@ datasource db {
 // CORE CATALOG & PRODUCT STRUCTURE
 // ---------------------------------------------------------------------------
 
+/// How a vendor's numbers look, so a product or part number can be traced back
+/// to the vendor that issued it.
+///
+/// WHY PREFIXES EXIST AT ALL: two vendors happily ship parts numbered "1827",
+/// so a bare vendor number is not unique in a catalog that buys from both.
+/// Prefixing it -- "MAR-1827" -- makes it unique and keeps the vendor's own
+/// number readable inside it. That is a real retail problem, not a quirk, which
+/// is why this is a first-class table rather than a string convention.
+///
+/// OPT-IN: a deployment with no rows here simply has the feature off, and every
+/// lookup that consults it returns "not a vendor number". Nothing is inferred
+/// from a vendor's name or code.
+///
+/// This replaced a hardcoded scheme in lib/consignment.ts -- isMarjanRug,
+/// toMarjanBarcode, toMarjanCustomerNumber -- which encoded ONE consignment
+/// vendor's numbering ("MAR-1827-124A" on the POS, "M1827-124A" on the physical
+/// tag). A second consignment vendor matched nothing, and did so silently: no
+/// error, just rugs that never linked to their consignment items.
+///
+/// `prefix` is globally unique on purpose. If two vendors could both claim
+/// "MAR-", a number carrying it would resolve to whichever row was read first,
+/// which is worse than refusing the configuration.
+model VendorNumberPrefix {
+  id       Int    @id @default(autoincrement())
+  vendorId Int
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  /// As it appears on product and part numbers, e.g. "MAR-".
+  prefix String @unique
+
+  /// As it appears on a physical barcode or tag when that differs, e.g. "M".
+  /// Null means the barcode carries the same prefix as the product number.
+  barcodePrefix String?
+
+  /// Why this exists, for whoever finds it in three years.
+  note String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([vendorId])
+  @@index([barcodePrefix])
+}
+
 model Vendor {
+  numberPrefixes VendorNumberPrefix[]
   id              Int                @id @default(autoincrement())
   name            String             @unique
   code            String?            @unique // Short vendor code (e.g., "WH", "AL", "HK")

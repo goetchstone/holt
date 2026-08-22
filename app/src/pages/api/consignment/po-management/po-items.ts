@@ -1,11 +1,15 @@
 // /app/src/pages/api/consignment/po-management/po-items.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
+import { toVendorNumber } from "@/lib/vendorNumbering";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import { toMarjanCustomerNumber } from "@/lib/consignment";
 
 export default requirePermission("purchasing.write", async (req, res) => {
+  // Loaded once per request: the pure helpers below run per line item, and a
+  // lookup per row would be hundreds of queries against a handful of rows.
+  const prefixRules = await getVendorPrefixRules();
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).json({ error: "Method not allowed" });
@@ -39,7 +43,7 @@ export default requirePermission("purchasing.write", async (req, res) => {
 
   // For each MAR-* line item, find the matching ConsignmentItem
   const customerNumbers = po.lineItems
-    .map((li) => toMarjanCustomerNumber(li.partNo || ""))
+    .map((li) => toVendorNumber(li.partNo || "", prefixRules))
     .filter((cn): cn is string => cn !== null);
 
   const consignmentItems =
@@ -71,7 +75,7 @@ export default requirePermission("purchasing.write", async (req, res) => {
 
   let unmatchedCount = 0;
   const lineItems = po.lineItems.map((li) => {
-    const customerNumber = toMarjanCustomerNumber(li.partNo || "");
+    const customerNumber = toVendorNumber(li.partNo || "", prefixRules);
     const match = customerNumber ? (ciByCustomerNumber.get(customerNumber) ?? null) : null;
     if (!match && customerNumber) unmatchedCount++;
     return {

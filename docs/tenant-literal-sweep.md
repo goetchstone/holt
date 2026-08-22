@@ -1222,4 +1222,12 @@ The backfill reproduces the old classifiers exactly, so existing numbers are unc
 Worth recording why this mattered more than it looked: **none of the hardcoded names exist in the demo seed.** On a fresh clone the designer dashboard swept almost every department into one fallback column, and the cross-sell report anchored on a `Furniture` department that is not there and returned zero rows every time, silently. Two behaviour changes are deliberate: a department with no `reportGroup` is excluded rather than falling through to a default bucket, and both reports now say when nothing is configured instead of rendering a confident zero.
 
 ### Also on the backlog, unchanged (KNOWN)
-`lib/consignment.ts` (`isMarjanRug`, `/^MAR-\d/`, `MARJAN_VENDOR_NAMES`) — retired by #10's `Vendor.isConsignment`, so schedule it immediately after that PR rather than as separate work.
+### Vendor number prefixes — DONE (migration `20260822140000_vendor_number_prefix`)
+
+`lib/consignment.ts` hardcoded one consignment vendor's numbering: `MAR-` on POS product numbers, `M` on the physical tag, across 26 call sites in `paymentService`, the Ordorite runners and three consignment import routes. A second vendor matched nothing, **silently** — no error, just items that never linked.
+
+**The note that used to be here was wrong**, and worth recording as a lesson: it said this was "retired by #10's `Vendor.isConsignment`". That column does not exist and the PR never landed, so the entry sat behind a false "already handled" claim.
+
+`VendorNumberPrefix` holds it now — `prefix`, optional `barcodePrefix`, unique on `prefix` so two vendors cannot both claim `MAR-`. Prefixes exist to make numbers unique across vendors (two suppliers both ship a part "1827"), which is why this is a table rather than a string convention.
+
+**Opt-in:** a deployment with no rows has the feature off and every lookup returns "not a vendor number". The pure rules live in `lib/vendorNumbering.ts`; `lib/vendorPrefixService.ts` loads and caches them.
