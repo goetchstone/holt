@@ -1706,6 +1706,21 @@ model InventoryTransfer {
   toStockLocationId   Int?
   toStockLocation     StockLocation?          @relation("StockTransferTo", fields: [toStockLocationId], references: [id])
   notes               String?
+  /// The customer order this transfer serves, when it serves one.
+  ///
+  /// Allocation is store-scoped: an order written at one store cannot draw stock
+  /// sitting at another. The answer is to move the stock, and this records WHY
+  /// it moved -- so an order can show "waiting on a transfer" and a transfer can
+  /// say which sale it is for.
+  ///
+  /// Without it, moving stock for a customer was two disconnected acts joined by
+  /// a free-text note: nothing could answer "what is this order waiting on" or
+  /// "which orders does this run unblock".
+  ///
+  /// Null for ordinary stock balancing between stores, which is the common case.
+  salesOrderId Int?
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+
   requestedByUserId   String
   status              InventoryTransferStatus @default(DRAFT)
   requestedByUser     User                    @relation(fields: [requestedByUserId], references: [id])
@@ -2499,6 +2514,7 @@ model AdapterOrderFlag {
 
 model SalesOrder {
   adapterFlags AdapterOrderFlag[]
+  inventoryTransfers InventoryTransfer[]
   id         Int              @id @default(autoincrement())
   orderno    String           @unique
   orderDate  DateTime?

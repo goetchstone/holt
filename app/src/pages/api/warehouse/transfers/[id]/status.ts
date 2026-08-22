@@ -6,6 +6,7 @@
 // Any -> CANCELLED: reverses any position changes already applied
 
 import { NextApiRequest, NextApiResponse } from "next";
+import { allocate } from "@/lib/inventory/allocation";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -82,28 +83,77 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           data: { status: "IN_TRANSIT", shippedAt: new Date() },
         });
       } else if (newStatus === "RECEIVED") {
-        // Increment destination position
-        await tx.inventoryPosition.upsert({
+        // Increment the destination position, or create it.
+        //
+        // NOT an upsert. InventoryPosition's unique key contains two NULLABLE
+        // columns (stockLocationId, salesOrderId), and the index does not
+        // declare NULLS NOT DISTINCT -- so Postgres treats every free-stock row
+        // as distinct and the upsert's `where` could NEVER match one. Every
+        // receipt created a NEW row instead of incrementing the existing one,
+        // fragmenting free stock across duplicate rows for the same product,
+        // store and bin. It lost no units, so nothing ever complained.
+        //
+        // The `null as unknown as number` cast the upsert needed to compile was
+        // the tell: a cast that exists only to satisfy a key the value cannot
+        // legally take means the operation is wrong. lib/inventory/allocation.ts
+        // avoids the same trap in release(); this matches its shape.
+        const destination = await tx.inventoryPosition.findFirst({
           where: {
-            productId_storeLocationId_stockLocationId_salesOrderId: {
-              productId: transfer.productId,
-              storeLocationId: transfer.toLocationId!,
-              stockLocationId: (transfer.toStockLocationId ?? null) as number,
-              salesOrderId: null as unknown as number,
-            },
-          },
-          update: {
-            quantity: { increment: transfer.quantity },
-            updatedBy: session.user!.email,
-          },
-          create: {
             productId: transfer.productId,
             storeLocationId: transfer.toLocationId!,
             stockLocationId: transfer.toStockLocationId ?? null,
-            quantity: transfer.quantity,
-            createdBy: session.user!.email,
+            salesOrderId: null,
           },
         });
+        if (destination) {
+          await tx.inventoryPosition.update({
+            where: { id: destination.id },
+            data: {
+              quantity: { increment: transfer.quantity },
+              updatedBy: session.user!.email,
+            },
+          });
+        } else {
+          await tx.inventoryPosition.create({
+            data: {
+              productId: transfer.productId,
+              storeLocationId: transfer.toLocationId!,
+              stockLocationId: transfer.toStockLocationId ?? null,
+              quantity: transfer.quantity,
+              createdBy: session.user!.email,
+            },
+          });
+        }
+
+        // The stock has landed at the destination store, so an order that was
+        // waiting on it can finally hold it. Allocation is store-scoped, which
+        // is the whole reason the transfer existed.
+        //
+        // Best-effort on purpose: the goods HAVE physically arrived, and a
+        // receipt must not fail because the order was cancelled or already
+        // filled from elsewhere while the stock was in transit. The transfer is
+        // recorded either way and the order simply stays short, which the
+        // shortfall queue already surfaces.
+        if (transfer.salesOrderId) {
+          try {
+            await allocate(
+              transfer.salesOrderId,
+              [
+                {
+                  productId: transfer.productId,
+                  storeLocationId: transfer.toLocationId!,
+                  quantity: transfer.quantity,
+                },
+              ],
+              tx,
+            );
+          } catch (err) {
+            logError("Transfer received but allocating to its order failed", err, {
+              transferId,
+              salesOrderId: transfer.salesOrderId,
+            });
+          }
+        }
 
         await tx.inventoryTransfer.update({
           where: { id: transferId },
