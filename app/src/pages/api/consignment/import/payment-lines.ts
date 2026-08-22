@@ -1,6 +1,7 @@
 // /app/src/pages/api/consignment/import/payment-lines.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { safeString, safeFloat, safeDate } from "@/lib/importHelpers";
 
@@ -42,11 +43,18 @@ export default requirePermission(
 
     try {
       const result = await prisma.$transaction(async (tx) => {
-        const vendor = await tx.vendor.upsert({
-          where: { name: "Marjan International" },
-          update: {},
-          create: { name: "Marjan International", code: "MJ", pricingModel: "FLAT" },
-        });
+        // The consigning vendor, by flag. These routes used to UPSERT a vendor
+        // named "Marjan International" when they could not find one -- which is
+        // exactly how a catalog ends up with "Marjan", "Marjan Intl" and
+        // "MARJANINT" as three separate suppliers. A missing configuration is
+        // now an error, not a new row.
+        const consignmentVendorId = await getPrimaryConsignmentVendorId(tx);
+        if (!consignmentVendorId) {
+          throw new Error(
+            "No consignment vendor configured. Set isConsignment on the vendor before importing.",
+          );
+        }
+        const vendor = { id: consignmentVendorId };
 
         let batches = 0;
         let itemsLinked = 0;

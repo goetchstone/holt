@@ -44,8 +44,9 @@ export async function seedConsignment(
 
   const vendor = await prisma.vendor.upsert({
     where: { name: CONSIGNMENT_VENDOR_NAME },
-    update: {},
+    update: { isConsignment: true },
     create: {
+      isConsignment: true,
       name: CONSIGNMENT_VENDOR_NAME,
       code: CONSIGNMENT_VENDOR_CODE,
       pricingModel: "FLAT",
@@ -53,6 +54,24 @@ export async function seedConsignment(
       city: "Wintergreen Harbor",
       state: "CT",
       notes: "Generic invented consignment-rug source used for seed/demo data only.",
+      createdBy: SEED_ACTOR,
+    },
+  });
+
+  // How this vendor's numbers look, so a tag or product number resolves back to
+  // it. The seed's items are barcoded "ATR-1000", so the prefix is "ATR-".
+  //
+  // Seeded because the feature is OPT-IN and invisible without a row: a
+  // deployment with none has vendor-number resolution off entirely, and the
+  // consignment screens would demo as though the capability did not exist.
+  await prisma.vendorNumberPrefix.upsert({
+    where: { prefix: "ATR-" },
+    update: {},
+    create: {
+      vendorId: vendor.id,
+      prefix: "ATR-",
+      barcodePrefix: "A",
+      note: "Demo consignment vendor: POS numbers read ATR-1000, tags read A1000.",
       createdBy: SEED_ACTOR,
     },
   });

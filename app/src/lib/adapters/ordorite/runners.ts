@@ -6,6 +6,9 @@
 // the automated Gmail import orchestrator.
 
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { findWashedRugCustomerNumbers } from "@/lib/consignment";
+import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
+import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering";
 import { hasOrderFlag, SKIP_SAME_DAY_REWRITE_CLEANUP } from "@/lib/adapters/ordorite/orderFlags";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import {
@@ -35,12 +38,6 @@ import {
 } from "@/lib/adapters/ordorite/shared";
 import { buildLocationMap } from "@/lib/storeLocationResolver";
 import { syncConsignmentReturns } from "@/lib/paymentService";
-import {
-  isMarjanRug,
-  toMarjanBarcode,
-  toMarjanCustomerNumber,
-  findWashedRugCustomerNumbers,
-} from "@/lib/consignment";
 import { findDroppedBaseLineIds } from "@/lib/adapters/ordorite/sameDayRewriteCleanup";
 import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 import { getCellValue } from "@/lib/excelUtils";
@@ -137,6 +134,8 @@ export async function runSalesImport(
   salesData: Record<string, unknown>[],
   createdBy?: string,
 ): Promise<SalesImportResult> {
+  // Loaded once per run: these loop over thousands of line items.
+  const prefixRules = await getVendorPrefixRules();
   const results: SalesImportResult = {
     salesOrdersCreated: 0,
     salesOrdersUpdated: 0,
@@ -288,8 +287,8 @@ export async function runSalesImport(
               // Use product number if available, otherwise fall back to the raw barcode.
               // Marjan rugs may not be imported as products but their barcode is sufficient.
               const rugCandidate = product?.productNumber ?? bc;
-              if (isMarjanRug(rugCandidate)) {
-                returnedLineItems.push({ productNumber: toMarjanBarcode(rugCandidate!) });
+              if (isVendorNumber(rugCandidate, prefixRules)) {
+                returnedLineItems.push({ productNumber: toBarcode(rugCandidate!, prefixRules) });
               }
             }
           }
@@ -548,12 +547,12 @@ export async function runSalesImport(
               const csvBarcode = safeString(row["Barcode No"]);
               const product = csvBarcode ? barcodeProductMap.get(csvBarcode.toLowerCase()) : null;
               const pn = product?.productNumber;
-              if (pn && isMarjanRug(pn)) {
+              if (pn && isVendorNumber(pn, prefixRules)) {
                 // The CSV barcode is Ordorite's internal number, not the physical rug.
                 // The physical barcode starts with M and is the UPC that matched this product.
                 // If the CSV barcode itself starts with M, it IS the physical barcode.
                 const physicalBarcode = csvBarcode && /^M\d/.test(csvBarcode) ? csvBarcode : null;
-                const cn = toMarjanCustomerNumber(pn);
+                const cn = toVendorNumber(pn, prefixRules);
                 rugMatches.push({ barcode: physicalBarcode, customerNumber: cn });
               }
             }
@@ -647,6 +646,7 @@ export async function runSalesImport(
     const washedCustomerNumbers = findWashedRugCustomerNumbers(
       soldRugOrders.flatMap((o) => o.rugMatches),
       returnedLineItems.map((r) => r.productNumber),
+      prefixRules,
     );
     for (const customerNumber of washedCustomerNumbers) {
       const item = await prisma.consignmentItem.findFirst({
@@ -1340,6 +1340,20 @@ export async function runPurchaseOrdersImport(
   records: Record<string, unknown>[],
   createdBy?: string,
 ): Promise<PurchaseOrdersImportResult> {
+  // Loaded once per run: these loop over thousands of line items.
+  const prefixRules = await getVendorPrefixRules();
+  // Names of the configured consignors, lower-cased, to match against the
+  // vendor label the source file carries. By flag, not by one company's
+  // spelling -- the source gives us a NAME, so we resolve the configured set
+  // once and compare against that.
+  const consignmentVendorNames = new Set(
+    (
+      await prisma.vendor.findMany({
+        where: { isConsignment: true },
+        select: { name: true },
+      })
+    ).map((v) => v.name.toLowerCase()),
+  );
   const results: PurchaseOrdersImportResult = {
     purchaseOrdersCreated: 0,
     purchaseOrdersUpdated: 0,
@@ -1499,11 +1513,11 @@ export async function runPurchaseOrdersImport(
     }
   }
 
-  // Create consignment payment batches for Marjan POs that just became RECEIVED_FULL.
+  // Create consignment payment batches for consignment POs that just became RECEIVED_FULL.
   // Matches PO line items to ConsignmentItems via customerNumber and marks them PAID.
   for (const { poId, poNumber, vendorId, orderDate } of newlyReceivedPOs) {
     const vendorEntry = [...vendorCache.entries()].find(([, id]) => id === vendorId);
-    if (!vendorEntry || !vendorEntry[0].includes("marjan")) continue;
+    if (!vendorEntry || !consignmentVendorNames.has(vendorEntry[0].toLowerCase())) continue;
 
     // Skip if a payment batch already exists for this PO
     const existingBatch = await prisma.consignmentPaymentBatch.findUnique({
@@ -1518,7 +1532,7 @@ export async function runPurchaseOrdersImport(
 
     // Convert partNos to customerNumbers, then find matching SOLD ConsignmentItems
     const customerNumbers = poItems
-      .map((item) => (item.partNo ? toMarjanCustomerNumber(item.partNo) : null))
+      .map((item) => (item.partNo ? toVendorNumber(item.partNo, prefixRules) : null))
       .filter((cn): cn is string => cn !== null);
 
     if (customerNumbers.length === 0) continue;
@@ -2695,6 +2709,20 @@ export async function runReceivedItemsImport(
   records: Record<string, unknown>[],
   createdBy?: string,
 ): Promise<ReceivedItemsImportResult> {
+  // Loaded once per run: these loop over thousands of line items.
+  const prefixRules = await getVendorPrefixRules();
+  // Names of the configured consignors, lower-cased, to match against the
+  // vendor label the source file carries. By flag, not by one company's
+  // spelling -- the source gives us a NAME, so we resolve the configured set
+  // once and compare against that.
+  const consignmentVendorNames = new Set(
+    (
+      await prisma.vendor.findMany({
+        where: { isConsignment: true },
+        select: { name: true },
+      })
+    ).map((v) => v.name.toLowerCase()),
+  );
   const results: ReceivedItemsImportResult = {
     receivingRecordsCreated: 0,
     receivingRecordsSkipped: 0,
@@ -2965,10 +2993,10 @@ export async function runReceivedItemsImport(
     }
   }
 
-  // Consignment PAID sync for newly-received Marjan POs
+  // Consignment PAID sync for newly-received consignment POs
   for (const [poId, { poNumber, vendorId, orderDate }] of newlyReceivedPOs) {
     const vendorEntry = [...vendorCache.entries()].find(([, id]) => id === vendorId);
-    if (!vendorEntry || !vendorEntry[0].includes("marjan")) continue;
+    if (!vendorEntry || !consignmentVendorNames.has(vendorEntry[0].toLowerCase())) continue;
 
     const existingBatch = await prisma.consignmentPaymentBatch.findUnique({
       where: { purchaseOrderId: poId },
@@ -2980,7 +3008,7 @@ export async function runReceivedItemsImport(
       select: { partNo: true },
     });
     const customerNumbers = poItems
-      .map((item) => (item.partNo ? toMarjanCustomerNumber(item.partNo) : null))
+      .map((item) => (item.partNo ? toVendorNumber(item.partNo, prefixRules) : null))
       .filter((cn): cn is string => cn !== null);
     if (customerNumbers.length === 0) continue;
 

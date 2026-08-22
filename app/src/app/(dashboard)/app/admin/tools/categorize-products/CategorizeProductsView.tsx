@@ -207,7 +207,7 @@ export function CategorizeProductsView() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") runSearch();
               }}
-              placeholder="e.g. sofa, Marjan, 9381"
+              placeholder="e.g. sofa, vendor name, 9381"
               className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black min-h-[40px] focus:outline-none focus:ring-1 focus:ring-sh-blue"
             />
           </div>

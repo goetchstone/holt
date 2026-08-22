@@ -116,7 +116,7 @@ function RebuildConsignmentSalesPanel() {
           <ResultRow label="Items marked PAID:" value={result.itemsMarkedPaid} />
           <div className="border-t border-sh-gray/20 pt-2 mt-2">
             <p>
-              <span className="text-sh-gray">Outstanding (owed to Marjan):</span>{" "}
+              <span className="text-sh-gray">Outstanding (owed to consignors):</span>{" "}
               <span className="font-semibold text-sh-blue">
                 {result.outstandingItemCount} rugs — {formatMoney(result.outstandingTotal)}
               </span>
@@ -162,7 +162,7 @@ function BackfillConsignmentPanel() {
         <h2 className="text-lg font-semibold text-sh-black">Backfill from Sales Data</h2>
         <p className="text-sm text-sh-gray mt-1">
           Syncs ConsignmentItem statuses from the imported sales data. Marks items as SOLD from
-          matching sales orders, PAID from received Marjan POs, and detects vendor credits for
+          matching sales orders, PAID from received consignment POs, and detects vendor credits for
           returned rugs. Run the dry run first to preview changes.
         </p>
       </div>
@@ -321,8 +321,8 @@ function VendorReturnImportPanel() {
       <div>
         <h2 className="text-lg font-semibold text-sh-black">Import Vendor Return</h2>
         <p className="text-sm text-sh-gray mt-1">
-          Upload a CSV of barcodes for rugs returned to Marjan. Creates a vendor return record
-          grouping all items in the shipment.
+          Upload a CSV of barcodes for rugs returned to the consignor. Creates a vendor return
+          record grouping all items in the shipment.
         </p>
       </div>
 

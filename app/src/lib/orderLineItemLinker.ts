@@ -22,7 +22,7 @@
 //    and read by the designer-credit report's filter — if we relink but
 //    leave the old name stamped, downstream reports stay wrong).
 //
-//    Marjan-to-Marjan re-links are skipped. Per CLAUDE.md, the POS can
+//    Consignment-to-consignment re-links are skipped. Per CLAUDE.md, the POS can
 //    create multiple Product records for the same physical rug as it's
 //    returned and re-consigned — those duplicates are intentional and we
 //    must not collapse them.
@@ -50,7 +50,7 @@ export interface RelinkOptions {
   includeCancelledLines?: boolean;
   // When true, ALSO re-link lines where productId is already set but a UPC
   // match points to a different product. Default false (backfill-NULL-only,
-  // backward compatible). Marjan-vendor lines are protected — see header.
+  // backward compatible). Consignment-vendor lines are protected — see header.
   fixWrongLinks?: boolean;
 }
 
@@ -166,7 +166,7 @@ export async function backfillLineItemProductLinks(
 
   const updated = await client.$executeRawUnsafe(sql, ...(partNos ? [partNos] : []));
 
-  // Phase 2: fix wrong-but-non-NULL links via UPC match. Same Marjan
+  // Phase 2: fix wrong-but-non-NULL links via UPC match. Same consignment
   // exclusion as the one-shot 2026-05-15 migration. Re-links productId AND
   // syncs productName to the new product's name (the line's productName is
   // denormalized; if we don't sync, the designer-credit report's filter
@@ -197,7 +197,11 @@ export async function backfillLineItemProductLinks(
         AND p_new.id = u."productId"
         AND v_old.id = p_old."vendorId"
         AND v_new.id = p_new."vendorId"
-        AND NOT (v_old.name ILIKE 'Marjan%' AND v_new.name ILIKE 'Marjan%')
+        -- Consignment-to-consignment re-links are skipped: two rugs from the
+        -- same consignor share a UPC pattern without being the same item, so a
+        -- UPC match between them is not evidence. By flag, not by vendor name,
+        -- which was matching one company's spelling.
+        AND NOT (v_old."isConsignment" AND v_new."isConsignment")
         ${lineStatusClause}
         ${scopedFilter}
     `;

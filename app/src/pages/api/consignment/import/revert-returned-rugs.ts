@@ -10,13 +10,17 @@
 // Safe to run multiple times — only touches SOLD items with matching RETURNED orders.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
+import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import { isMarjanRug, toMarjanBarcode, toMarjanCustomerNumber } from "@/lib/consignment";
 
 export default requirePermission(
   "admin.data",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
+    // Loaded once per request: the pure helpers run per line item, and a lookup
+    // per row would be hundreds of queries against a handful of rows.
+    const prefixRules = await getVendorPrefixRules();
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
     try {
@@ -36,9 +40,9 @@ export default requirePermission(
       for (const order of returnedOrders) {
         for (const li of order.lineItems) {
           const candidate = li.partNo ?? li.barcode;
-          if (candidate && isMarjanRug(candidate)) {
-            rugBarcodes.add(toMarjanBarcode(candidate));
-            const cn = toMarjanCustomerNumber(candidate);
+          if (candidate && isVendorNumber(candidate, prefixRules)) {
+            rugBarcodes.add(toBarcode(candidate, prefixRules));
+            const cn = toVendorNumber(candidate, prefixRules);
             if (cn) rugCustomerNumbers.add(cn);
           }
         }

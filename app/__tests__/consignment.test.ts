@@ -5,11 +5,16 @@ import {
   mapConsignmentStatusRow,
   isValidConsignmentTransition,
   getValidConsignmentTransitions,
-  isMarjanRug,
-  toMarjanBarcode,
-  toMarjanCustomerNumber,
   findWashedRugCustomerNumbers,
 } from "../src/lib/consignment";
+import type { VendorPrefixRule } from "../src/lib/vendorNumbering";
+
+/**
+ * The scheme that used to be hardcoded inside lib/consignment.ts, supplied as
+ * configuration now. Same prefixes, same expectations below -- which is the
+ * point: this made the behaviour configurable, not different.
+ */
+const PREFIX_RULES: VendorPrefixRule[] = [{ vendorId: 1, prefix: "MAR-", barcodePrefix: "M" }];
 
 describe("calculateRugPricing", () => {
   it("calculates anchor as cost * 7 and retail as anchor / 2", () => {
@@ -152,67 +157,6 @@ describe("getValidConsignmentTransitions", () => {
   });
 });
 
-describe("isMarjanRug", () => {
-  it("detects MAR- prefix (the POS format)", () => {
-    expect(isMarjanRug("MAR-9381-25")).toBe(true);
-    expect(isMarjanRug("MAR-1827-124A")).toBe(true);
-  });
-
-  it("detects M prefix followed by digit (barcode format)", () => {
-    expect(isMarjanRug("M1812-91")).toBe(true);
-    expect(isMarjanRug("M8364-49")).toBe(true);
-  });
-
-  it("is case-insensitive for MAR prefix", () => {
-    expect(isMarjanRug("mar-1234-25")).toBe(true);
-  });
-
-  it("rejects non-Marjan product numbers", () => {
-    expect(isMarjanRug("CRL-6600-14L")).toBe(false);
-    expect(isMarjanRug("HOOK-6950-90215")).toBe(false);
-    expect(isMarjanRug("DELIVERY CHARGE")).toBe(false);
-  });
-
-  it("handles null and undefined", () => {
-    expect(isMarjanRug(null)).toBe(false);
-    expect(isMarjanRug(undefined)).toBe(false);
-    expect(isMarjanRug("")).toBe(false);
-  });
-});
-
-describe("toMarjanBarcode", () => {
-  it("converts MAR- prefix to M prefix", () => {
-    expect(toMarjanBarcode("MAR-1827-124A")).toBe("M1827-124A");
-    expect(toMarjanBarcode("MAR-9381-25")).toBe("M9381-25");
-  });
-
-  it("passes through M-format barcodes unchanged", () => {
-    expect(toMarjanBarcode("M1812-91")).toBe("M1812-91");
-    expect(toMarjanBarcode("M8364-49")).toBe("M8364-49");
-  });
-});
-
-describe("toMarjanCustomerNumber", () => {
-  it("extracts customerNumber from MAR- format", () => {
-    expect(toMarjanCustomerNumber("MAR-9381-25")).toBe("9381-25");
-    expect(toMarjanCustomerNumber("MAR-1827-124A")).toBe("1827-124A");
-  });
-
-  it("extracts customerNumber from M- barcode format", () => {
-    expect(toMarjanCustomerNumber("M1812-91")).toBe("1812-91");
-    expect(toMarjanCustomerNumber("M8364-49")).toBe("8364-49");
-  });
-
-  it("returns null for non-Marjan products", () => {
-    expect(toMarjanCustomerNumber("CRL-6600-14L")).toBeNull();
-    expect(toMarjanCustomerNumber("HOOK-6950")).toBeNull();
-  });
-
-  it("returns null for empty/invalid input", () => {
-    expect(toMarjanCustomerNumber("")).toBeNull();
-  });
-});
-
 describe("findWashedRugCustomerNumbers", () => {
   it("matches a same-day sell+return across the barcode/product-number gap (SBOM42090)", () => {
     // The sold side has the PHYSICAL barcode "M8994-22"; the returned side has
@@ -224,20 +168,22 @@ describe("findWashedRugCustomerNumbers", () => {
       { barcode: "M8996-71", customerNumber: "10685-26" },
     ];
     const returned = ["M10684-26", "M10685-26"]; // toMarjanBarcode(MAR-…) form
-    const washed = findWashedRugCustomerNumbers(sold, returned);
+    const washed = findWashedRugCustomerNumbers(sold, returned, PREFIX_RULES);
     expect(washed).toEqual(new Set(["10684-26", "10685-26"]));
   });
 
   it("does NOT wash a rug that only sold (no matching return)", () => {
     const sold = [{ barcode: "M8994-22", customerNumber: "10684-26" }];
-    expect(findWashedRugCustomerNumbers(sold, []).size).toBe(0);
+    expect(findWashedRugCustomerNumbers(sold, [], PREFIX_RULES).size).toBe(0);
     // A different rug returned — no overlap.
-    expect(findWashedRugCustomerNumbers(sold, ["M9999-99"]).size).toBe(0);
+    expect(findWashedRugCustomerNumbers(sold, ["M9999-99"], PREFIX_RULES).size).toBe(0);
   });
 
   it("ignores non-Marjan and null identifiers", () => {
     const sold = [{ barcode: null, customerNumber: null }];
-    expect(findWashedRugCustomerNumbers(sold, ["CRL-6600", null, undefined]).size).toBe(0);
+    expect(
+      findWashedRugCustomerNumbers(sold, ["CRL-6600", null, undefined], PREFIX_RULES).size,
+    ).toBe(0);
   });
 
   it("does NOT wash a rug re-sold more times than returned (net SOLD)", () => {
@@ -250,7 +196,7 @@ describe("findWashedRugCustomerNumbers", () => {
       { barcode: null, customerNumber: "9932-26" },
     ];
     const returned = ["M9932-26"];
-    expect(findWashedRugCustomerNumbers(sold, returned).size).toBe(0);
+    expect(findWashedRugCustomerNumbers(sold, returned, PREFIX_RULES).size).toBe(0);
   });
 
   it("washes only when returns fully offset sales (net <= 0)", () => {
@@ -263,6 +209,8 @@ describe("findWashedRugCustomerNumbers", () => {
       { barcode: null, customerNumber: "10561-26" },
     ];
     const returned = ["M10685-26", "M10685-26", "M10561-26"];
-    expect(findWashedRugCustomerNumbers(sold, returned)).toEqual(new Set(["10685-26"]));
+    expect(findWashedRugCustomerNumbers(sold, returned, PREFIX_RULES)).toEqual(
+      new Set(["10685-26"]),
+    );
   });
 });

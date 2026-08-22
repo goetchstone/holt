@@ -1,8 +1,9 @@
 // /app/src/lib/paymentService.ts
 import { prisma } from "@/lib/prisma";
+import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
+import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering";
 import { assertCapability, getProviderForPayment } from "@/lib/payments";
 import { syncServiceAppointments } from "@/lib/serviceDispatchService";
-import { isMarjanRug, toMarjanBarcode, toMarjanCustomerNumber } from "@/lib/consignment";
 import { appendEntry } from "@/lib/customerLedger";
 import { logError } from "@/lib/logger";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
@@ -880,15 +881,17 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
 export async function syncConsignmentReturns(
   lineItems: { productNumber?: string | null }[],
 ): Promise<void> {
+  // Loaded once, not per line item.
+  const prefixRules = await getVendorPrefixRules();
   for (const li of lineItems) {
     const pn = li.productNumber;
-    if (!isMarjanRug(pn)) continue;
+    if (!isVendorNumber(pn, prefixRules)) continue;
 
     // Try barcode match first, then customerNumber
-    const barcode = toMarjanBarcode(pn!);
+    const barcode = toBarcode(pn!, prefixRules);
     let item = await prisma.consignmentItem.findUnique({ where: { barcode } });
     if (!item) {
-      const cn = toMarjanCustomerNumber(pn!);
+      const cn = toVendorNumber(pn!, prefixRules);
       if (cn) {
         item = await prisma.consignmentItem.findFirst({ where: { customerNumber: cn } });
       }
@@ -931,11 +934,13 @@ async function syncConsignmentSales(
   lineItems: { product: { id: number; productNumber: string } | null }[],
   orderDate: Date,
 ): Promise<void> {
+  // Loaded once, not per line item.
+  const prefixRules = await getVendorPrefixRules();
   for (const li of lineItems) {
     if (!li.product) continue;
     const pn = li.product.productNumber;
-    if (!isMarjanRug(pn)) continue;
-    const barcode = toMarjanBarcode(pn);
+    if (!isVendorNumber(pn, prefixRules)) continue;
+    const barcode = toBarcode(pn, prefixRules);
 
     const item = await prisma.consignmentItem.findUnique({ where: { barcode } });
     if (!item) continue;

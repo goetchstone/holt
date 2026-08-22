@@ -8,23 +8,31 @@
 // Supports dry-run mode via ?dryRun=true query parameter.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
+import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
+import { toVendorNumber } from "@/lib/vendorNumbering";
 import { prisma } from "@/lib/prisma";
-import { toMarjanCustomerNumber } from "@/lib/consignment";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 export default requirePermission(
   "admin.data",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
+    // Loaded once per request: the pure helpers run per line item, and a lookup
+    // per row would be hundreds of queries against a handful of rows.
+    const prefixRules = await getVendorPrefixRules();
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const dryRun = req.query.dryRun === "true";
     const userEmail = session.user.email;
 
     try {
-      const marjanVendor = await prisma.vendor.findFirst({
-        where: { name: { contains: "Marjan", mode: "insensitive" } },
-        select: { id: true },
-      });
-      if (!marjanVendor) return res.status(404).json({ error: "Marjan vendor not found" });
+      // By flag, not by name. A deployment that does not consign gets a clear
+      // 404 rather than a route that silently matches nothing.
+      const consignmentVendorId = await getPrimaryConsignmentVendorId(prisma);
+      if (!consignmentVendorId) {
+        return res.status(404).json({
+          error: "No consignment vendor configured. Set isConsignment on the vendor first.",
+        });
+      }
 
       const results = {
         soldSynced: 0,
@@ -37,7 +45,7 @@ export default requirePermission(
       // Step 1: Mark ON_FLOOR/ON_APPROVAL items as SOLD if they have matching SalesOrders.
       const soldLineItems = await prisma.orderLineItem.findMany({
         where: {
-          product: { vendorId: marjanVendor.id },
+          product: { vendorId: consignmentVendorId },
           salesOrder: { status: { in: ["ORDER", "FULFILLED"] } },
         },
         include: {
@@ -47,7 +55,7 @@ export default requirePermission(
       });
 
       for (const li of soldLineItems) {
-        const cn = li.product ? toMarjanCustomerNumber(li.product.productNumber) : null;
+        const cn = li.product ? toVendorNumber(li.product.productNumber, prefixRules) : null;
         if (!cn) continue;
 
         const item = await prisma.consignmentItem.findFirst({
@@ -75,7 +83,7 @@ export default requirePermission(
 
       // Step 2: Mark SOLD items as PAID if they appear on RECEIVED_FULL Marjan POs.
       const receivedPOs = await prisma.purchaseOrder.findMany({
-        where: { vendorId: marjanVendor.id, status: "RECEIVED_FULL" },
+        where: { vendorId: consignmentVendorId, status: "RECEIVED_FULL" },
         include: {
           consignmentPaymentBatch: { select: { id: true } },
           lineItems: { select: { partNo: true, unitCost: true } },
@@ -87,7 +95,7 @@ export default requirePermission(
 
         const customerNumbers = po.lineItems
           .map((item: { partNo: string | null }) =>
-            item.partNo ? toMarjanCustomerNumber(item.partNo) : null,
+            item.partNo ? toVendorNumber(item.partNo, prefixRules) : null,
           )
           .filter((cn: string | null): cn is string => cn !== null);
 
@@ -106,7 +114,7 @@ export default requirePermission(
         if (!dryRun) {
           const batch = await prisma.consignmentPaymentBatch.create({
             data: {
-              vendorId: marjanVendor.id,
+              vendorId: consignmentVendorId,
               batchDate: po.orderDate,
               periodStart: po.orderDate,
               periodEnd: po.orderDate,
@@ -147,7 +155,7 @@ export default requirePermission(
       for (const po of receivedPOs) {
         const customerNumbers = po.lineItems
           .map((item: { partNo: string | null }) =>
-            item.partNo ? toMarjanCustomerNumber(item.partNo) : null,
+            item.partNo ? toVendorNumber(item.partNo, prefixRules) : null,
           )
           .filter((cn: string | null): cn is string => cn !== null);
 

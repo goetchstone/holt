@@ -1,6 +1,7 @@
 // /app/src/pages/api/consignment/import/manifest.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
 import { prisma } from "@/lib/prisma";
 import { safeString, safeFloat } from "@/lib/importHelpers";
 import { calculateRugPricing } from "@/lib/consignment";
@@ -18,32 +19,30 @@ interface ManifestRow {
   cost?: number | string;
 }
 
-const MARJAN_NAME_VARIANTS = [
-  "Marjan International",
-  "Marjan International Corp",
-  "Marjan",
-  "MARJANINT",
-  "Marjan Int",
-  "Marjan Intl",
-];
-
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
-// TxClient is used by findOrCreateMarjan and findOrCreateRugsDepartment
-async function findOrCreateMarjan(tx: TxClient) {
-  // Search by name variants first
-  const byName = await tx.vendor.findFirst({
-    where: { name: { in: MARJAN_NAME_VARIANTS, mode: "insensitive" } },
-  });
-  if (byName) return byName;
-
-  // Fall back to code match (handles name changes)
-  const byCode = await tx.vendor.findFirst({ where: { code: "MJ" } });
-  if (byCode) return byCode;
-
-  return tx.vendor.create({
-    data: { name: "Marjan International", code: "MJ", pricingModel: "FLAT" },
-  });
+/**
+ * The consigning vendor for this manifest.
+ *
+ * This function used to be `findOrCreateMarjan`: it searched SIX spellings of
+ * one vendor's name, fell back to the code "MJ", and CREATED a vendor named
+ * "Marjan International" when it still found nothing. That last step is how a
+ * catalog acquires three suppliers who are the same company -- a manifest
+ * imported before anyone set the vendor up quietly minted a new one.
+ *
+ * Now it resolves by flag and refuses when none is configured. Setting up a
+ * consignor is a deliberate act, not a side effect of importing a file.
+ */
+async function resolveConsignmentVendor(tx: TxClient) {
+  const vendorId = await getPrimaryConsignmentVendorId(tx);
+  if (!vendorId) {
+    throw new Error(
+      "No consignment vendor configured. Set isConsignment on the vendor before importing a manifest.",
+    );
+  }
+  const vendor = await tx.vendor.findUnique({ where: { id: vendorId } });
+  if (!vendor) throw new Error("Configured consignment vendor no longer exists.");
+  return vendor;
 }
 
 async function findOrCreateRugsDepartment(tx: TxClient) {
@@ -91,7 +90,7 @@ export default requirePermission(
     try {
       // Set up vendor, department, and receipt outside the per-row loop so they
       // are not rolled back if an individual row fails.
-      const vendor = await prisma.$transaction((tx) => findOrCreateMarjan(tx));
+      const vendor = await prisma.$transaction((tx) => resolveConsignmentVendor(tx));
       const { departmentId, categoryId } = await prisma.$transaction((tx) =>
         findOrCreateRugsDepartment(tx),
       );
