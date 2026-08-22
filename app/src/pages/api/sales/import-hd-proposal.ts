@@ -5,7 +5,7 @@ import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { parseHDProposal } from "@/lib/pricing/hdProposalParser";
 import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
 function splitCustomerName(fullName: string): { firstName: string; lastName: string } {
@@ -30,8 +30,8 @@ function parseCityStateZip(csz: string): { city: string; state: string; zip: str
   return { city, state, zip };
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "admin.data",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });

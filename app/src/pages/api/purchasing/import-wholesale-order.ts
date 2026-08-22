@@ -129,7 +129,7 @@ function generatePONumber(): string {
 }
 
 export default requirePermission(
-  "purchasing.write",
+  "admin.data",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

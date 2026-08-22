@@ -4,11 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorMessage } from "@/lib/toastError";
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "catalog.write",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") return res.status(405).end();
 

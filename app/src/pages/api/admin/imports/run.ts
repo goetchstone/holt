@@ -25,7 +25,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError, logger } from "@/lib/logger";
 import { getImportRunner } from "@/lib/imports/runnerRegistry";
 import type { RawRow } from "@/lib/imports/types";
@@ -41,8 +41,8 @@ interface RunResponse extends GenericImportResult {
 // data through a different door, so it takes the same gate rather than a
 // config-shaped one. admin.config governs AUTHORING a definition (preview.ts
 // and the presets endpoints); RUNNING one is a data import.
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "admin.data",
   async (req: NextApiRequest, res: NextApiResponse<RunResponse | { error: string }>, session) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);

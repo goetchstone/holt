@@ -95,6 +95,16 @@ describe("built-in roles", () => {
       "WAREHOUSE",
       "INSTALLER",
       "MARKETING",
+      // The operating roles (2026-08-21). The eight above described how one
+      // retailer happened to be staffed; these name the jobs a furniture
+      // retailer actually has, so nobody is handed the whole store to do one.
+      "GENERAL_MANAGER",
+      "DEPARTMENT_HEAD",
+      "BUYER",
+      "DATA_ENTRY",
+      "HR",
+      "DISPATCH",
+      "CUSTOMER_SERVICE",
     ].sort();
     expect(BUILT_IN_ROLES.map((r) => r.key).sort()).toEqual(expected);
   });

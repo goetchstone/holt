@@ -69,7 +69,7 @@ describe("the role-array backlog is a ratchet", () => {
 
   it("never grows past the count recorded when it was frozen", () => {
     // The number that matters. 121 routes were on role arrays; 30 converted
-    // with provably identical access, leaving 91.
-    expect(roleArrayRoutes().length).toBeLessThanOrEqual(91);
+    // with provably identical access; the operating-role model took it to 83.
+    expect(roleArrayRoutes().length).toBeLessThanOrEqual(83);
   });
 });

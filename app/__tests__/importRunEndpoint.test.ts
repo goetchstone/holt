@@ -58,7 +58,11 @@ describe("import run endpoint", () => {
   it("takes the data-import gate, not the config-authoring one", () => {
     // Running an import moves data; authoring a definition does not. preview.ts
     // takes admin.config for the opposite reason.
-    expect(RUN).toMatch(/requireAuthWithRole\(\s*\n?\s*\["MANAGER",\s*"ADMIN"\]/);
+    // Running an import writes historical records in bulk. Under the operating-role
+    // model that is administration, not store management: MANAGER lost it
+    // deliberately on 2026-08-21. Domain imports a Buyer or the data-entry team
+    // load -- price lists, vendor invoices -- keep their DOMAIN permission.
+    expect(RUN).toMatch(/requirePermission\(\s*\n?\s*"admin\.data"/);
     expect(PREVIEW).toMatch(/requirePermission\(\s*\n?\s*"admin\.config"/);
   });
 

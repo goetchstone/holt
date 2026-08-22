@@ -547,6 +547,167 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     rank: 2,
     permissions: PERMISSIONS.map((p) => p.key).filter((k) => k !== "admin.impersonate"),
   },
+  // ── The operating roles ────────────────────────────────────────────────
+  //
+  // These describe JOBS a furniture retailer actually staffs, not tiers of
+  // seniority. Rank stays out of it deliberately (see roleDecision.ts: "MANAGER
+  // outranks WAREHOUSE is not true in any useful sense"); a Buyer is not a
+  // junior Manager, they do different work and need different capabilities.
+  //
+  // Every grant below is the LEAST that lets the job be done. Where a job needs
+  // something occasionally -- a Customer Service rep issuing a refund -- the
+  // grant is deliberately withheld and the case escalates to someone who holds
+  // it, because "they might need it one day" is how a role ends up holding
+  // everything.
+  //
+  // Supervisors are NOT separate roles. A supervising Buyer is a Buyer whose
+  // Role row has been given one or two extra permissions by an operator. That is
+  // what the Role/RolePermission tables are for, and inventing BUYER_SUPERVISOR
+  // would double the roster to express a difference of two grants.
+  {
+    key: "GENERAL_MANAGER",
+    name: "General Manager",
+    description:
+      "Runs the business end to end: sales, stock, purchasing, people and the books. Holds no system administration -- imports, integrations and configuration stay with the Administrator, because running a store and changing how the software works are different jobs with different blast radii.",
+    permissions: [
+      "sales.read",
+      "sales.write",
+      "sales.discount",
+      "sales.cancel",
+      "sales.reassign",
+      "sales.lead",
+      "sales.return",
+      "pos.operate",
+      "pos.till.manage",
+      "pos.till.adjust",
+      "payment.take",
+      "payment.refund",
+      "payment.void",
+      "payment.giftcard.issue",
+      "customer.read",
+      "customer.write",
+      "customer.credit.adjust",
+      "catalog.read",
+      "catalog.write",
+      "catalog.pricing",
+      "inventory.read",
+      "inventory.count",
+      "inventory.adjust",
+      "inventory.transfer",
+      "purchasing.read",
+      "purchasing.write",
+      "purchasing.receive",
+      "warehouse.read",
+      "warehouse.operate",
+      "service.read",
+      "service.write",
+      "accounting.read",
+      "accounting.post",
+      "accounting.close",
+      "reporting.read",
+      "reporting.export",
+      "marketing.read",
+      "marketing.write",
+      "staff.self",
+      "staff.read",
+      "staff.time",
+      "staff.manage",
+      "staff.commission",
+    ],
+  },
+  {
+    key: "DEPARTMENT_HEAD",
+    name: "Department Head",
+    description:
+      "Owns one merchandise department: what it stocks, what it costs, how it sells. Reads sales to judge the department; cannot write orders, take money, or touch another department's people.",
+    permissions: [
+      "staff.self",
+      "catalog.read",
+      "catalog.write",
+      "catalog.pricing",
+      "inventory.read",
+      "inventory.count",
+      "purchasing.read",
+      "sales.read",
+      "reporting.read",
+    ],
+  },
+  {
+    key: "BUYER",
+    name: "Buyer",
+    description:
+      "Buys the goods: vendors, purchase orders, receiving, and the cost side of the catalog. Reads inventory to know what to order; holds nothing on the selling or money side.",
+    permissions: [
+      "staff.self",
+      "purchasing.read",
+      "purchasing.write",
+      "purchasing.receive",
+      "catalog.read",
+      "catalog.write",
+      "catalog.pricing",
+      "inventory.read",
+      "reporting.read",
+    ],
+  },
+  {
+    key: "DATA_ENTRY",
+    name: "Data Entry",
+    description:
+      "Loads the paperwork: vendor invoices, price lists, catalog files. Holds the import and write side of the catalog and purchasing WITHOUT the authority to approve, receive against, or pay any of it -- the person typing the invoice is not the person who agrees to it.",
+    permissions: [
+      "staff.self",
+      "catalog.read",
+      "catalog.write",
+      "catalog.pricing",
+      "purchasing.read",
+      "purchasing.write",
+      "inventory.read",
+    ],
+  },
+  {
+    key: "HR",
+    name: "People Operations",
+    description:
+      "Staff records, hours and commission. Deliberately holds nothing on sales, stock or money beyond what commission requires -- the person who edits a payroll record has no business editing the orders it is calculated from.",
+    permissions: [
+      "staff.self",
+      "staff.read",
+      "staff.time",
+      "staff.manage",
+      "staff.commission",
+      "reporting.read",
+    ],
+  },
+  {
+    key: "DISPATCH",
+    name: "Delivery & Dispatch",
+    description:
+      "Schedules and runs deliveries. Reads the order to know what is going out and the customer to reach them on the day; cannot change either.",
+    permissions: [
+      "staff.self",
+      "warehouse.read",
+      "warehouse.operate",
+      "service.read",
+      "service.write",
+      "sales.read",
+      "customer.read",
+    ],
+  },
+  {
+    key: "CUSTOMER_SERVICE",
+    name: "Customer Service",
+    description:
+      "Owns the customer after the sale: cases, tickets and returns. Can start a return but NOT refund it -- moving money is a separate decision that escalates, which is the whole point of splitting sales.return from payment.refund.",
+    permissions: [
+      "staff.self",
+      "service.read",
+      "service.write",
+      "customer.read",
+      "customer.write",
+      "sales.read",
+      "sales.return",
+    ],
+  },
   {
     key: "MANAGER",
     name: "Manager",

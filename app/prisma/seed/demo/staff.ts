@@ -33,6 +33,19 @@ export interface SeededStaffMember {
 export interface StaffSetup {
   all: SeededStaffMember[];
   /**
+   * One person in each operating role: General Manager, Department Head, Buyer,
+   * Data Entry, People Operations, Dispatch, Customer Service, Marketing and
+   * Installer.
+   *
+   * A demo where only Admins and Designers exist cannot show a permission model
+   * at all -- every screen either works or 403s for the same two accounts, and
+   * "least privilege" is a claim rather than something you can sign in and see.
+   * With these, a Buyer's menu really is purchasing and catalog, and People
+   * Operations really cannot open an order.
+   */
+  operatingStaff: SeededStaffMember[];
+
+  /**
    * Sellers who are not designers -- the Apparel and Home Shop floor. They write
    * real orders (~22% of attributed sales in the reference dataset, from 11 of
    * 18 non-designers) but must never appear in designer commission reporting.
@@ -214,6 +227,33 @@ export async function seedStaff(
     isActive: false,
   }));
 
+  // One of each operating role, so the demo can show what each job can actually
+  // reach. Passwords are the shared demo password, so any of them can be signed
+  // in as to compare menus.
+  const operatingEntries: RosterEntry[] = [
+    { displayName: "Cormac Vasilyev", emailLocal: "gm", role: "GENERAL_MANAGER" as StaffRole },
+    {
+      displayName: "Anneliese Broadbent",
+      emailLocal: "dept.head",
+      role: "DEPARTMENT_HEAD" as StaffRole,
+    },
+    { displayName: "Yusuf Adeyemi", emailLocal: "buyer", role: "BUYER" as StaffRole },
+    { displayName: "Marisol Ferreira", emailLocal: "data.entry", role: "DATA_ENTRY" as StaffRole },
+    { displayName: "Delphine Okoro", emailLocal: "hr", role: "HR" as StaffRole },
+    { displayName: "Ravi Thistlewood", emailLocal: "dispatch", role: "DISPATCH" as StaffRole },
+    {
+      displayName: "Saoirse Lindqvist",
+      emailLocal: "service",
+      role: "CUSTOMER_SERVICE" as StaffRole,
+    },
+    { displayName: "August Pemberton", emailLocal: "marketing", role: "MARKETING" as StaffRole },
+    { displayName: "Nils Bergstrom", emailLocal: "installer", role: "INSTALLER" as StaffRole },
+  ].map((e, i) => ({
+    ...e,
+    isDesigner: false,
+    homeStoreId: i % 2 === 0 ? storeA : storeB,
+  }));
+
   // Apparel and Home Shop sellers. REGISTER with isDesigner false: they earn
   // attribution without landing in designer commission reports. One has left,
   // so the departed path is exercised for non-designers too.
@@ -253,6 +293,8 @@ export async function seedStaff(
   for (const e of managerEntries) managers.push(await upsertStaff(prisma, e, passwordHash));
   const designers: SeededStaffMember[] = [];
   for (const e of designerEntries) designers.push(await upsertStaff(prisma, e, passwordHash));
+  const operatingStaff: SeededStaffMember[] = [];
+  for (const e of operatingEntries) operatingStaff.push(await upsertStaff(prisma, e, passwordHash));
   const floorSellers: SeededStaffMember[] = [];
   for (const e of floorSellerEntries) floorSellers.push(await upsertStaff(prisma, e, passwordHash));
   const departedDesigners: SeededStaffMember[] = [];
@@ -269,6 +311,7 @@ export async function seedStaff(
       admin,
       ...managers,
       ...designers,
+      ...operatingStaff,
       ...floorSellers,
       ...departedDesigners,
       ...registerStaff,
@@ -278,6 +321,7 @@ export async function seedStaff(
     admin,
     managers,
     designers,
+    operatingStaff,
     floorSellers,
     departedDesigners,
     registerStaff,
