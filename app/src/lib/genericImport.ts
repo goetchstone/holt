@@ -27,6 +27,95 @@ export interface ImportEntityDef {
 
 export const IMPORT_ENTITIES: readonly ImportEntityDef[] = [
   {
+    key: "vendor",
+    label: "Vendors",
+    description:
+      "Import your supplier list from your previous system. Matched by name, so re-importing an existing vendor leaves it alone rather than duplicating it. Codes and terms are optional -- bring what your file has.",
+    fields: [
+      {
+        key: "name",
+        label: "Vendor Name",
+        type: "string",
+        aliases: ["vendor", "supplier", "manufacturer", "brand", "company", "vendor name"],
+        required: true,
+        help: "The vendor name exactly as it should appear. Rows with a blank name are skipped.",
+      },
+      {
+        key: "code",
+        label: "Vendor Code",
+        type: "string",
+        aliases: ["code", "vendor code", "abbreviation", "abbr", "short code", "supplier code"],
+        required: false,
+        help: "Short code used on POs and part numbers, e.g. AL for American Leather. Must be unique; a row whose code is already taken by a different vendor is reported rather than silently renamed.",
+      },
+      {
+        key: "accountNumber",
+        label: "Account Number",
+        type: "string",
+        aliases: ["account", "account number", "acct", "customer number", "account #"],
+        required: false,
+        help: "Your account number with this vendor, as it appears on their invoices.",
+      },
+      {
+        key: "paymentTerms",
+        label: "Payment Terms",
+        type: "string",
+        aliases: ["terms", "payment terms", "pay terms"],
+        required: false,
+        help: 'Free text, e.g. "Net 30" or "2/10 Net 30".',
+      },
+      {
+        key: "phone",
+        label: "Phone",
+        type: "string",
+        aliases: ["phone", "telephone", "tel", "phone number", "main phone"],
+        required: false,
+      },
+      {
+        key: "email",
+        label: "Email",
+        type: "string",
+        aliases: ["email", "e-mail", "email address", "contact email"],
+        required: false,
+      },
+      {
+        key: "address",
+        label: "Address",
+        type: "string",
+        aliases: ["address", "address1", "street", "street address"],
+        required: false,
+      },
+      {
+        key: "city",
+        label: "City",
+        type: "string",
+        aliases: ["city", "town"],
+        required: false,
+      },
+      {
+        key: "state",
+        label: "State",
+        type: "string",
+        aliases: ["state", "province", "region"],
+        required: false,
+      },
+      {
+        key: "zip",
+        label: "Postal Code",
+        type: "string",
+        aliases: ["zip", "zipcode", "zip code", "postal", "postal code", "postcode"],
+        required: false,
+      },
+      {
+        key: "website",
+        label: "Website",
+        type: "string",
+        aliases: ["website", "url", "web", "site"],
+        required: false,
+      },
+    ],
+  },
+  {
     key: "department",
     label: "Departments",
     description:

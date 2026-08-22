@@ -16,9 +16,11 @@ import type { ImportRunner } from "@/lib/imports/types";
 import { runCustomerRunner } from "@/lib/imports/runners/customerRunner";
 import { runProductRunner } from "@/lib/imports/runners/productRunner";
 import { runDepartmentRunner } from "@/lib/imports/runners/departmentRunner";
+import { runVendorRunner } from "@/lib/imports/runners/vendorRunner";
 
 const RUNNERS: Record<string, ImportRunner> = {
   customer: runCustomerRunner,
+  vendor: runVendorRunner,
   product: runProductRunner,
   department: runDepartmentRunner,
 };

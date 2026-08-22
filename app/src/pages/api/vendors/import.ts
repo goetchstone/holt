@@ -1,9 +1,13 @@
 // /app/src/pages/api/vendors/import.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { prisma } from "@/lib/prisma";
+import { runGenericImport } from "@/lib/genericImportRunner";
+import { getImportEntity } from "@/lib/genericImport";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+/** The vendor entity's own field keys -- derived, so adding a field reaches this route. */
+const VENDOR_FIELD_KEYS: string[] = (getImportEntity("vendor")?.fields ?? []).map((f) => f.key);
+
 export const config = {
   api: { bodyParser: { sizeLimit: "10mb" } },
 };
@@ -22,32 +26,29 @@ export default requirePermission(
     }
 
     try {
-      for (const v of vendors) {
-        if (!v.name || typeof v.name !== "string") continue;
-
-        await prisma.vendor.upsert({
-          where: { name: v.name },
-          update: {
-            address: v.address?.trim() || undefined,
-            city: v.city?.trim() || undefined,
-            state: v.state?.trim() || undefined,
-            zip: v.zip?.trim() || undefined,
-            phone: v.phone?.trim() || undefined,
-            email: v.email?.trim() || undefined,
-          },
-          create: {
-            name: v.name.trim(),
-            address: v.address?.trim() || undefined,
-            city: v.city?.trim() || undefined,
-            state: v.state?.trim() || undefined,
-            zip: v.zip?.trim() || undefined,
-            phone: v.phone?.trim() || undefined,
-            email: v.email?.trim() || undefined,
-          },
+      // One implementation, two doors. This route takes a JSON array; the
+      // configurable path takes a mapped CSV whose columns an operator chose.
+      // Both land in the shared vendor writer, so a fix to vendor matching can
+      // never apply to only one of them (CLAUDE.md rules 6/7).
+      //
+      // The mapping is the identity: this route's payload already uses the
+      // entity's own field keys.
+      const rows = (vendors as Record<string, unknown>[]).filter(
+        (v) => typeof v?.name === "string" && v.name.trim() !== "",
+      );
+      const identity: Record<string, string> = Object.fromEntries(
+        VENDOR_FIELD_KEYS.map((k) => [k, k]),
+      );
+      const result = await runGenericImport("vendor", identity, rows, "api");
+      if (result.errors.length > 0) {
+        // Partial success is the honest answer: a code clash on one row must not
+        // report the whole file as imported.
+        return res.status(207).json({
+          message: `Imported ${result.imported} vendors, ${result.errors.length} row(s) not imported`,
+          ...result,
         });
       }
-
-      return res.status(200).json({ message: "Vendors imported successfully" });
+      return res.status(200).json({ message: "Vendors imported successfully", ...result });
     } catch (err) {
       logError("Vendor import failed", err);
       return res.status(500).json({ error: "Import failed" });

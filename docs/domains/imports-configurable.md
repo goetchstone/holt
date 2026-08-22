@@ -8,6 +8,47 @@ pipeline (still the live path for every production import today), see
 `imports-overview.md` and `import-pipeline.md` — this doc doesn't replace
 either of those yet.
 
+## Entities the engine can target
+
+`IMPORT_ENTITIES` in `lib/genericImport.ts` is the list. An entity that is not
+there cannot be imported configurably no matter how the definition is written,
+so **this list is the real measure of how configurable imports actually are**:
+
+| Entity | Added | Notes |
+| --- | --- | --- |
+| `customer` | Stage 1 | Runner handles addresses and external ids |
+| `product` | Stage 1 | Runner handles the catalog joins |
+| `department` | Stage 1 | The proof the seam is small — one field |
+| `vendor` | 2026-08-22 | Supplier list; the JSON REST route delegates to the same writer |
+
+`__tests__/vendorImport.test.ts` fails if an entity is declared with no
+registered runner — an entity that shows in the admin UI and then fails at run
+time is worse than one that was never offered.
+
+### Adding one
+
+Four small pieces, and the department entity exists as the worked example:
+
+1. An entry in `IMPORT_ENTITIES` (fields, aliases, which are required).
+2. A writer in `genericImportRunner.ts`, dispatched by `entityKey`.
+3. A runner in `lib/imports/runners/` — a thin adapter, no behaviour of its own.
+4. A line in `runnerRegistry.ts`. That list is **pinned by a test on purpose**:
+   a runner appearing without a deliberate edit is a runner nobody reviewed.
+
+If a fixed-shape REST route already imports the same thing, point it at the
+writer rather than leaving two implementations that can disagree (rules 6/7).
+The vendor route does this — its JSON payload uses the entity's own field keys,
+so the mapping is the identity.
+
+Two judgement calls in the vendor writer are worth copying, because a naive
+upsert gets both wrong:
+
+- **Only write what the row carried.** A partial supplier list must not blank
+  out payment terms somebody filled in later.
+- **Report a unique-key clash, never move it.** A `code` already held by another
+  vendor is an error on that row; silently reassigning it would detach part
+  numbers from the vendor they belong to.
+
 ## Why this exists
 
 Before Stage 1, every new data source meant a new hand-coded admin page plus
@@ -193,6 +234,7 @@ loading:
 ```ts
 const RUNNERS: Record<string, ImportRunner> = {
   customer: runCustomerRunner,
+  vendor: runVendorRunner,
   product: runProductRunner,
 };
 ```
@@ -205,8 +247,9 @@ rather than returning `undefined`.
 
 ### The seam is proven by a real consumer, not a toy
 
-`customer` and `product` are registered runners
+`customer`, `vendor` and `product` are registered runners
 (`app/src/lib/imports/runners/customerRunner.ts`,
+`.../vendorRunner.ts`,
 `.../productRunner.ts`) — thin adapters that convert a definition's
 `FieldMappingInput[]` into the `ColumnMapping` shape
 `genericImportRunner.ts`'s existing `runGenericImport` already expects, and
