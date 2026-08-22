@@ -13,7 +13,7 @@ import { toMarjanCustomerNumber } from "@/lib/consignment";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 export default requirePermission(
-  "purchasing.write",
+  "admin.data",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const dryRun = req.query.dryRun === "true";

@@ -4,14 +4,14 @@
 // columns onto an entity's fields, and posts the chosen entity, the mapping,
 // and the rows as JSON. The server coerces and upserts. MANAGER/ADMIN only.
 
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { runGenericImport } from "@/lib/genericImportRunner";
 import { getImportEntity, type ColumnMapping } from "@/lib/genericImport";
 import { logError } from "@/lib/logger";
 
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], async (req, res, session) => {
+export default requirePermission("admin.data", async (req, res, session) => {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { entity, mapping, rows } = req.body as {

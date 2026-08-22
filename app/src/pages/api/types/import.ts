@@ -9,7 +9,7 @@ export const config = {
 };
 
 export default requirePermission(
-  "catalog.write",
+  "admin.data",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       return res.status(405).json({ message: "Method Not Allowed" });

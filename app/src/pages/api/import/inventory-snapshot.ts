@@ -28,7 +28,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { getErrorMessage } from "@/lib/toastError";
 import {
   resolveSnapshotImportRow,
@@ -142,8 +142,8 @@ async function loadResolutionMaps(): Promise<SnapshotImportMaps> {
   return { productByExternalId, locationAliasMap };
 }
 
-export default requireAuthWithRole(
-  ["MANAGER", "ADMIN"],
+export default requirePermission(
+  "admin.data",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });

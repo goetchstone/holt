@@ -23,7 +23,6 @@ src/pages/api/accounting/gl-accounts/index.ts  roles=[MANAGER,ADMIN]  proposed=a
 src/pages/api/accounting/journal-entries/[id].ts  roles=[MANAGER,ADMIN]  proposed=accounting.post   tightens: -MANAGER
 src/pages/api/accounting/system-gl-mappings.ts  roles=[MANAGER,ADMIN]  proposed=accounting.post   tightens: -MANAGER
 src/pages/api/admin/automations/axper-traffic/recent.ts  roles=[MANAGER,ADMIN,SUPER_ADMIN]  proposed=admin.settings   tightens: -MANAGER
-src/pages/api/admin/imports/run.ts  roles=[MANAGER,ADMIN]  proposed=admin.settings   tightens: -MANAGER
 src/pages/api/admin/product-pairings/[id].ts  roles=[ADMIN,MARKETING]  proposed=admin.settings   tightens: -MARKETING
 src/pages/api/admin/product-pairings/index.ts  roles=[ADMIN,MARKETING]  proposed=admin.settings   tightens: -MARKETING
 src/pages/api/admin/relink-line-items.ts  roles=[MANAGER,ADMIN]  proposed=admin.settings   tightens: -MANAGER
@@ -35,9 +34,6 @@ src/pages/api/admin/reports/commission-tiers/tiers.ts  roles=[SUPER_ADMIN]  prop
 src/pages/api/admin/reports/pay-period-confirmations/reopen.ts  roles=[SUPER_ADMIN]  proposed=admin.settings  widens: +ADMIN
 src/pages/api/admin/reports/pay-period-confirmations/resolve-issue.ts  roles=[SUPER_ADMIN]  proposed=admin.settings  widens: +ADMIN
 src/pages/api/bookings/index.ts  roles=[ADMIN]  proposed=service.write  widens: +DESIGNER,INSTALLER,MANAGER,WAREHOUSE
-src/pages/api/consignment/import/consignment-items.ts  roles=[MANAGER,ADMIN]  proposed=inventory.read  widens: +DESIGNER,REGISTER,WAREHOUSE
-src/pages/api/consignment/import/sales-lines.ts  roles=[MANAGER,ADMIN]  proposed=inventory.read  widens: +DESIGNER,REGISTER,WAREHOUSE
-src/pages/api/consignment/import/sales.ts  roles=[MANAGER,ADMIN]  proposed=inventory.read  widens: +DESIGNER,REGISTER,WAREHOUSE
 src/pages/api/consignment/items/[id].ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=inventory.adjust   tightens: -WAREHOUSE
 src/pages/api/consignment/items/mark-sold.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=inventory.read  widens: +DESIGNER,REGISTER
 src/pages/api/customers/[id]/addresses.ts  roles=[DESIGNER,MANAGER,ADMIN,WAREHOUSE,MARKETING]  proposed=customer.write  widens: +REGISTER tightens: -MARKETING,WAREHOUSE
@@ -53,13 +49,10 @@ src/pages/api/dispatch/ready-to-deliver.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  pro
 src/pages/api/dispatch/runs/[id]/status.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.read  widens: +DESIGNER,INSTALLER
 src/pages/api/dispatch/stops/[id].ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.read  widens: +DESIGNER,INSTALLER
 src/pages/api/goals/index.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
-src/pages/api/import/generic.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
-src/pages/api/import/inventory-snapshot.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
 src/pages/api/portal/generate-link.ts  roles=[DESIGNER,REGISTER,MANAGER,ADMIN]  proposed=(none)  no domain rule
 src/pages/api/print-label.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=(none)  no domain rule
 src/pages/api/print-label/batch.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=(none)  no domain rule
 src/pages/api/products/basic.ts  roles=[MANAGER,ADMIN]  proposed=catalog.read  widens: +DESIGNER,MARKETING,REGISTER,WAREHOUSE
-src/pages/api/products/import-basic.ts  roles=[MANAGER,ADMIN]  proposed=catalog.read  widens: +DESIGNER,MARKETING,REGISTER,WAREHOUSE
 src/pages/api/products/quick-create.ts  roles=[MANAGER,ADMIN]  proposed=catalog.read  widens: +DESIGNER,MARKETING,REGISTER,WAREHOUSE
 src/pages/api/proposals/[id]/convert-to-order.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
 src/pages/api/proposals/[id]/generate-pdf.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
@@ -75,7 +68,6 @@ src/pages/api/reports/pay-period-sales/confirm.ts  roles=[SUPER_ADMIN]  proposed
 src/pages/api/reports/pay-period-sales/report-issue.ts  roles=[SUPER_ADMIN]  proposed=reporting.read  widens: +ADMIN,DESIGNER,MANAGER,MARKETING
 src/pages/api/returns/[id]/refund.ts  roles=[SUPER_ADMIN,MANAGER,ADMIN,REGISTER,WAREHOUSE]  proposed=(none)  no domain rule
 src/pages/api/returns/[id]/status.ts  roles=[REGISTER,MANAGER,ADMIN]  proposed=(none)  no domain rule
-src/pages/api/sales/import-hd-proposal.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
 src/pages/api/sales/orders/[id]/payments.ts  roles=[MANAGER,ADMIN]  proposed=sales.write  widens: +DESIGNER,REGISTER
 src/pages/api/sales/pipeline/bulk-archive.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
 src/pages/api/service/cases/[id]/tasks.ts  roles=[DESIGNER,MANAGER,ADMIN,WAREHOUSE,MARKETING,REGISTER,INSTALLER]  proposed=service.write   tightens: -MARKETING,REGISTER

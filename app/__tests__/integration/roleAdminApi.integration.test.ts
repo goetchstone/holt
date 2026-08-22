@@ -37,7 +37,11 @@ import {
   invalidateRoleGrantCache,
   resolvePermissionAccess,
 } from "@/lib/auth/permissionResolver";
-import { BASELINE_PERMISSIONS, PERMISSION_KEYS } from "@/lib/auth/permissionCatalog";
+import {
+  BASELINE_PERMISSIONS,
+  BUILT_IN_ROLES,
+  PERMISSION_KEYS,
+} from "@/lib/auth/permissionCatalog";
 import { LOCKOUT_PERMISSION, type RoleSummary } from "@/lib/auth/roleAdmin";
 import rolesIndexRoute from "@/pages/api/admin/roles/index";
 import roleByIdRoute from "@/pages/api/admin/roles/[id]";
@@ -200,7 +204,10 @@ describe("GET /api/admin/roles", () => {
     const res = await callIndex({ method: "GET" });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.roles).toHaveLength(8);
+    // Derived, not a literal: this said 8 and went stale the day the operating
+    // roles landed. The endpoint should return every seeded built-in role,
+    // whatever the catalog currently holds.
+    expect(res.body.roles).toHaveLength(BUILT_IN_ROLES.length);
     expect(res.body.catalog.permissions.length).toBe(PERMISSION_KEYS.length);
     expect(res.body.catalog.domains.length).toBeGreaterThan(0);
     expect(res.body.baseline).toEqual([...BASELINE_PERMISSIONS]);

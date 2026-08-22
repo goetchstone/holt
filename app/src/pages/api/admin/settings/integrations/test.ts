@@ -11,7 +11,7 @@ import { testIntegration } from "@/lib/integrationTest";
 import { logError } from "@/lib/logger";
 
 export default requirePermission(
-  "admin.integrations",
+  "admin.config",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });

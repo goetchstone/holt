@@ -44,16 +44,51 @@ const SIBLINGS_HELPER_SRC = fs.readFileSync(
  * holder. Asserting the GRANT rather than the call shape means this still fails
  * if admin.settings is ever handed to another role.
  */
+function adminDataHolders(): string[] {
+  return [
+    "ADMIN",
+    "GENERAL_MANAGER",
+    "DEPARTMENT_HEAD",
+    "BUYER",
+    "DATA_ENTRY",
+    "HR",
+    "DISPATCH",
+    "CUSTOMER_SERVICE",
+    "MANAGER",
+    "DESIGNER",
+    "REGISTER",
+    "WAREHOUSE",
+    "INSTALLER",
+    "MARKETING",
+  ].filter((r) => (permissionsForBuiltInRole(r) ?? []).includes("admin.data"));
+}
+
 function adminSettingsHolders(): string[] {
-  return ["ADMIN", "MANAGER", "DESIGNER", "REGISTER", "WAREHOUSE", "INSTALLER", "MARKETING"].filter(
-    (r) => (permissionsForBuiltInRole(r) ?? []).includes("admin.settings"),
-  );
+  return [
+    "ADMIN",
+    "GENERAL_MANAGER",
+    "DEPARTMENT_HEAD",
+    "BUYER",
+    "DATA_ENTRY",
+    "HR",
+    "DISPATCH",
+    "CUSTOMER_SERVICE",
+    "MANAGER",
+    "DESIGNER",
+    "REGISTER",
+    "WAREHOUSE",
+    "INSTALLER",
+    "MARKETING",
+  ].filter((r) => (permissionsForBuiltInRole(r) ?? []).includes("admin.settings"));
 }
 
 describe("historicalPoImport handlers — source-text tripwires", () => {
   it("import handler is ADMIN-gated", () => {
-    expect(HANDLER_SRC).toMatch(/requirePermission\(\s*\n?\s*"admin\.settings"/);
-    expect(adminSettingsHolders()).toEqual(["ADMIN"]);
+    // Bulk-loads historical purchase orders, so it is administration rather than
+    // buying: admin.data, ADMIN-only. A Buyer importing a vendor invoice is a
+    // different act and keeps its domain permission.
+    expect(HANDLER_SRC).toMatch(/requirePermission\(\s*\n?\s*"admin\.data"/);
+    expect(adminDataHolders()).toEqual(["ADMIN"]);
   });
 
   it("search handler is ADMIN-gated", () => {

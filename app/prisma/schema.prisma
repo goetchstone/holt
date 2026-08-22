@@ -2843,6 +2843,20 @@ enum StaffRole {
   WAREHOUSE
   INSTALLER
   MARKETING
+  // The operating roles. Added 2026-08-21: the original eight described how one
+  // retailer happened to be staffed, so a Buyer, a Department Head or anyone in
+  // People Operations had to be shoehorned into MANAGER -- which meant handing
+  // them the whole store to let them do one job. These name the jobs instead.
+  //
+  // BUILT_IN_ROLES in lib/auth/permissionCatalog.ts must stay identical to this
+  // list in both directions; rolePermissionSchema.test.ts enforces it.
+  GENERAL_MANAGER
+  DEPARTMENT_HEAD
+  BUYER
+  DATA_ENTRY
+  HR
+  DISPATCH
+  CUSTOMER_SERVICE
 }
 
 enum ServiceAppointmentType {

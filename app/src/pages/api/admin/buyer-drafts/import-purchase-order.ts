@@ -34,7 +34,7 @@ interface RequestBody {
 }
 
 export default requirePermission(
-  "admin.settings",
+  "admin.data",
   async (req: NextApiRequest, res: NextApiResponse) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", ["POST"]);
