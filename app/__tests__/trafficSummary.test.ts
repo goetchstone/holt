@@ -24,7 +24,7 @@ function row(
 ): TrafficRowForSummary {
   return {
     intervalStart: new Date(date),
-    axperStoreName: store,
+    sourceStoreName: store,
     storeLocationId,
     visitors,
     exits,
@@ -84,9 +84,9 @@ describe("rollupByStore", () => {
       row("2026-05-27T10:00:00", "Cheshire", 2),
     ];
     expect(rollupByStore(rows)).toEqual([
-      { axperStoreName: "NB", storeLocationId: null, visitors: 20, exits: null },
-      { axperStoreName: "Glastonbury", storeLocationId: null, visitors: 15, exits: null },
-      { axperStoreName: "Cheshire", storeLocationId: null, visitors: 2, exits: null },
+      { sourceStoreName: "NB", storeLocationId: null, visitors: 20, exits: null },
+      { sourceStoreName: "Glastonbury", storeLocationId: null, visitors: 15, exits: null },
+      { sourceStoreName: "Cheshire", storeLocationId: null, visitors: 2, exits: null },
     ]);
   });
 
@@ -110,28 +110,28 @@ describe("rollupByDayAndStore", () => {
     expect(rollupByDayAndStore(rows)).toEqual([
       {
         date: "2026-05-27",
-        axperStoreName: "NB",
+        sourceStoreName: "NB",
         storeLocationId: null,
         visitors: 20,
         exits: null,
       },
       {
         date: "2026-05-27",
-        axperStoreName: "Glastonbury",
+        sourceStoreName: "Glastonbury",
         storeLocationId: null,
         visitors: 10,
         exits: null,
       },
       {
         date: "2026-05-28",
-        axperStoreName: "Glastonbury",
+        sourceStoreName: "Glastonbury",
         storeLocationId: null,
         visitors: 30,
         exits: null,
       },
       {
         date: "2026-05-28",
-        axperStoreName: "NB",
+        sourceStoreName: "NB",
         storeLocationId: null,
         visitors: 5,
         exits: null,

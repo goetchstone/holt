@@ -1,7 +1,7 @@
 // /app/src/pages/api/reports/traffic/export.ts
 //
 // CSV export for the Traffic report. Returns one row per
-// (calendar day, axperStoreName) with visitors + exits, suitable
+// (calendar day, sourceStoreName) with visitors + exits, suitable
 // for pasting into Excel / Sheets. Filters mirror the JSON endpoint
 // (dateFrom, dateTo, optional stores).
 //
@@ -80,11 +80,11 @@ export default requirePermission(
       const snapshots = await prisma.trafficSnapshot.findMany({
         where: {
           intervalStart: { gte: dateFrom, lt: persistedUpperBound },
-          ...(storeFilter ? { axperStoreName: { in: storeFilter } } : {}),
+          ...(storeFilter ? { sourceStoreName: { in: storeFilter } } : {}),
         },
         select: {
           intervalStart: true,
-          axperStoreName: true,
+          sourceStoreName: true,
           storeLocationId: true,
           visitors: true,
           exits: true,
@@ -93,7 +93,7 @@ export default requirePermission(
 
       const persistedRows: TrafficRowForSummary[] = snapshots.map((s) => ({
         intervalStart: s.intervalStart,
-        axperStoreName: s.axperStoreName,
+        sourceStoreName: s.sourceStoreName,
         storeLocationId: s.storeLocationId,
         visitors: s.visitors,
         exits: s.exits,
@@ -111,7 +111,7 @@ export default requirePermission(
             );
             return {
               intervalStart: parsed,
-              axperStoreName: r.store_name,
+              sourceStoreName: r.store_name,
               storeLocationId: null,
               visitors: r.entries ?? 0,
               exits: r.exits ?? null,
@@ -127,8 +127,8 @@ export default requirePermission(
       const header = ["Date", "Store (Axper)", "Store (Display)", "Visitors", "Exits"];
       const body = byDayAndStore.map((r) => [
         r.date,
-        r.axperStoreName,
-        storeMap.resolveDisplayName(r.axperStoreName),
+        r.sourceStoreName,
+        storeMap.resolveDisplayName(r.sourceStoreName),
         r.visitors,
         r.exits ?? "",
       ]);

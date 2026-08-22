@@ -60,7 +60,7 @@ export interface DiskReport {
 export interface PresetsGetResponse {
   bundle: PresetBundle;
   storeLocations: StoreLocationSummary[];
-  /** Distinct TrafficSnapshot.axperStoreName values with no owning
+  /** Distinct TrafficSnapshot.sourceStoreName values with no owning
    *  StoreLocation — one-click "assign to store" suggestions. */
   unmappedTrafficSourceNames: string[];
   diskReport: DiskReport;
