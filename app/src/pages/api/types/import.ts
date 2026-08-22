@@ -1,6 +1,8 @@
 // /app/src/pages/api/types/import.ts
 
 import { prisma } from "@/lib/prisma";
+import { runGenericImport } from "@/lib/genericImportRunner";
+import { getImportEntity } from "@/lib/genericImport";
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
@@ -22,39 +24,27 @@ export default requirePermission(
     }
 
     try {
-      const created = [];
-
-      for (const row of types) {
-        const name = row.name?.trim();
-        const categoryName = row.category?.trim();
-
-        if (!name || !categoryName) continue;
-
-        const category = await prisma.category.findFirst({
-          where: { name: categoryName },
+      // One implementation, two doors. This route takes a JSON array; the
+      // configurable path takes a mapped CSV whose columns an operator chose.
+      // Both land in the shared type writer, so a fix here cannot apply to
+      // only one of them (CLAUDE.md rules 6/7). This payload already uses the
+      // entity's own field keys, so the mapping is the identity.
+      const rows = (types as Record<string, unknown>[]).filter(
+        (r) => typeof r?.name === "string" && r.name.trim() !== "",
+      );
+      const identity: Record<string, string> = Object.fromEntries(
+        (getImportEntity("type")?.fields ?? []).map((f) => [f.key, f.key]),
+      );
+      const result = await runGenericImport("type", identity, rows, "api");
+      if (result.errors.length > 0) {
+        // Partial success is the honest answer: rows the writer refused must
+        // not be reported as imported.
+        return res.status(207).json({
+          message: `Imported ${result.imported}, ${result.errors.length} row(s) not imported`,
+          ...result,
         });
-
-        if (!category) continue;
-
-        const existing = await prisma.type.findFirst({
-          where: {
-            name,
-            categoryId: category.id,
-          },
-        });
-
-        if (!existing) {
-          const type = await prisma.type.create({
-            data: {
-              name,
-              categoryId: category.id,
-            },
-          });
-          created.push(type.name);
-        }
       }
-
-      return res.status(200).json({ types: created });
+      return res.status(200).json({ message: "Types imported successfully", ...result });
     } catch (err) {
       logError("Import error", err);
       return res.status(500).json({ message: "Failed to import types" });

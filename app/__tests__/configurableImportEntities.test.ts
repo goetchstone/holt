@@ -1,4 +1,4 @@
-// /app/__tests__/vendorImport.test.ts
+// /app/__tests__/configurableImportEntities.test.ts
 //
 // Vendor is the fourth entity on the configurable import path, and the first
 // added since the seam was proved with departments. The point of adding it is
@@ -40,6 +40,34 @@ describe("vendor is on the configurable import path", () => {
     // "Supplier" rather than "Vendor Name" should land without being told.
     const name = getImportEntity("vendor")?.fields.find((f) => f.key === "name");
     expect(name?.aliases).toEqual(expect.arrayContaining(["supplier", "manufacturer"]));
+  });
+});
+
+describe("category and type carry their parent, and differ on a missing one", () => {
+  it("requires a department on a category and a category on a type", () => {
+    const required = (key: string) =>
+      (getImportEntity(key)?.fields ?? [])
+        .filter((f) => f.required)
+        .map((f) => f.key)
+        .sort();
+    expect(required("category")).toEqual(["department", "name"]);
+    expect(required("type")).toEqual(["category", "name"]);
+  });
+
+  it("says a category CREATES a missing department", () => {
+    // A category cannot be filed without one, and departments are a short flat
+    // list where an invented name is visible rather than buried.
+    const help =
+      getImportEntity("category")?.fields.find((f) => f.key === "department")?.help ?? "";
+    expect(help).toMatch(/created/i);
+  });
+
+  it("says a type REFUSES a missing category", () => {
+    // Types are the most numerous level. A mistyped category would silently
+    // create a near-duplicate and split the catalog in two, with products
+    // landing in whichever half they were imported against.
+    const help = getImportEntity("type")?.fields.find((f) => f.key === "category")?.help ?? "";
+    expect(help).toMatch(/ERROR|error/);
   });
 });
 

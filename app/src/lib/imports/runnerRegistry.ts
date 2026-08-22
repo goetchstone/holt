@@ -17,10 +17,14 @@ import { runCustomerRunner } from "@/lib/imports/runners/customerRunner";
 import { runProductRunner } from "@/lib/imports/runners/productRunner";
 import { runDepartmentRunner } from "@/lib/imports/runners/departmentRunner";
 import { runVendorRunner } from "@/lib/imports/runners/vendorRunner";
+import { runCategoryRunner } from "@/lib/imports/runners/categoryRunner";
+import { runTypeRunner } from "@/lib/imports/runners/typeRunner";
 
 const RUNNERS: Record<string, ImportRunner> = {
   customer: runCustomerRunner,
   vendor: runVendorRunner,
+  category: runCategoryRunner,
+  type: runTypeRunner,
   product: runProductRunner,
   department: runDepartmentRunner,
 };
