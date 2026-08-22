@@ -31,7 +31,9 @@ import { deriveSalesWindow, type BuyPoForWindow } from "@/lib/buyPerformanceWind
 import { computeBuyLinkCutoff } from "@/lib/buyerDraftBuyLinkCutoff";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
-const MARJAN_VENDOR_NAMES = ["Marjan", "Marjan International Corp"];
+// Consignment stock has no shared frame stems, so it cannot roll up with
+// owned inventory. Identified by the flag rather than by vendor name.
+// (No id list needed: the flag travels on the selected vendor rows.)
 
 export default requirePermission(
   "admin.settings",
@@ -84,13 +86,13 @@ export default requirePermission(
                   retail: true,
                   fulfilledProductId: true,
                   vendorId: true,
-                  vendor: { select: { name: true } },
+                  vendor: { select: { name: true, isConsignment: true } },
                   fulfilledProduct: {
                     select: {
                       id: true,
                       productNumber: true,
                       vendorId: true,
-                      vendor: { select: { name: true } },
+                      vendor: { select: { name: true, isConsignment: true } },
                     },
                   },
                 },
@@ -126,7 +128,7 @@ export default requirePermission(
           : await prisma.product.findMany({
               where: {
                 vendorId: { in: linkedVendorIds },
-                vendor: { name: { notIn: MARJAN_VENDOR_NAMES } },
+                vendor: { isConsignment: false },
               },
               select: { id: true, productNumber: true, vendorId: true },
             });
@@ -147,8 +149,11 @@ export default requirePermission(
       // 3) Build the draft rows with frame attribution
       const drafts: PerformanceDraft[] = draftRows
         .filter((d) => {
-          const vendorName = d.fulfilledProduct?.vendor?.name ?? d.vendor?.name ?? "";
-          return !MARJAN_VENDOR_NAMES.includes(vendorName);
+          // Consignment stock has no shared frame stems, so it cannot roll up
+          // with owned inventory. By flag, not by vendor name.
+          const isConsigned =
+            d.fulfilledProduct?.vendor?.isConsignment ?? d.vendor?.isConsignment ?? false;
+          return !isConsigned;
         })
         .map((d) => {
           const frame =

@@ -124,9 +124,9 @@ export function RelinkLineItemsView() {
         </div>
 
         <p className="text-xs text-sh-gray mt-4">
-          This also runs automatically after every product import and every Marjan manifest import,
-          scoped to the just-imported part numbers. Use this page when you have a one-off cleanup or
-          want to sweep everything.
+          This also runs automatically after every product import and every consignment manifest
+          import, scoped to the just-imported part numbers. Use this page when you have a one-off
+          cleanup or want to sweep everything.
         </p>
       </div>
     </div>
