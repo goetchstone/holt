@@ -5,6 +5,7 @@
 // as RETURNED_VENDOR.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
 import { prisma } from "@/lib/prisma";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -23,11 +24,14 @@ export default requirePermission(
       .filter((b: string) => b.length > 0);
 
     try {
-      const marjanVendor = await prisma.vendor.findFirst({
-        where: { name: { contains: "Marjan", mode: "insensitive" } },
-        select: { id: true },
-      });
-      if (!marjanVendor) return res.status(404).json({ error: "Marjan vendor not found" });
+      // By flag, not by name. A deployment that does not consign gets a clear
+      // 404 rather than a route that silently matches nothing.
+      const consignmentVendorId = await getPrimaryConsignmentVendorId(prisma);
+      if (!consignmentVendorId) {
+        return res.status(404).json({
+          error: "No consignment vendor configured. Set isConsignment on the vendor first.",
+        });
+      }
 
       // Look up items by barcode
       const items = await prisma.consignmentItem.findMany({
@@ -55,7 +59,7 @@ export default requirePermission(
 
       const vendorReturn = await prisma.consignmentVendorReturn.create({
         data: {
-          vendorId: marjanVendor.id,
+          vendorId: consignmentVendorId,
           returnDate: parsedDate,
           status: "CONFIRMED",
           notes: notes || null,

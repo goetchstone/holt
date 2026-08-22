@@ -13,7 +13,7 @@ export default requirePermission("purchasing.write", async (req, res) => {
   const status = req.query.status as string | undefined;
 
   const where: any = {
-    vendor: { name: { contains: "marjan", mode: "insensitive" as const } },
+    vendor: { isConsignment: true },
   };
   if (status) {
     where.status = status;

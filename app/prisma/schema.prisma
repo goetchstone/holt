@@ -64,6 +64,19 @@ model VendorNumberPrefix {
 
 model Vendor {
   numberPrefixes VendorNumberPrefix[]
+
+  /// This vendor's goods sit on our floor but stay THEIRS until sold.
+  ///
+  /// Consignment changes real behaviour: the stock is not ours to value, a sale
+  /// creates money owed to the vendor rather than margin, and returning an item
+  /// is a vendor return rather than a write-off. Routes need to find "the
+  /// consignment vendor" to do any of that.
+  ///
+  /// They used to find it by NAME -- `where: { name: { contains: "Marjan" } }`,
+  /// with one route carrying six spellings of it. That worked for exactly one
+  /// deployment, and broke quietly for a second consignor or a rename.
+  isConsignment Boolean @default(false)
+
   id              Int                @id @default(autoincrement())
   name            String             @unique
   code            String?            @unique // Short vendor code (e.g., "WH", "AL", "HK")

@@ -1342,6 +1342,18 @@ export async function runPurchaseOrdersImport(
 ): Promise<PurchaseOrdersImportResult> {
   // Loaded once per run: these loop over thousands of line items.
   const prefixRules = await getVendorPrefixRules();
+  // Names of the configured consignors, lower-cased, to match against the
+  // vendor label the source file carries. By flag, not by one company's
+  // spelling -- the source gives us a NAME, so we resolve the configured set
+  // once and compare against that.
+  const consignmentVendorNames = new Set(
+    (
+      await prisma.vendor.findMany({
+        where: { isConsignment: true },
+        select: { name: true },
+      })
+    ).map((v) => v.name.toLowerCase()),
+  );
   const results: PurchaseOrdersImportResult = {
     purchaseOrdersCreated: 0,
     purchaseOrdersUpdated: 0,
@@ -1501,11 +1513,11 @@ export async function runPurchaseOrdersImport(
     }
   }
 
-  // Create consignment payment batches for Marjan POs that just became RECEIVED_FULL.
+  // Create consignment payment batches for consignment POs that just became RECEIVED_FULL.
   // Matches PO line items to ConsignmentItems via customerNumber and marks them PAID.
   for (const { poId, poNumber, vendorId, orderDate } of newlyReceivedPOs) {
     const vendorEntry = [...vendorCache.entries()].find(([, id]) => id === vendorId);
-    if (!vendorEntry || !vendorEntry[0].includes("marjan")) continue;
+    if (!vendorEntry || !consignmentVendorNames.has(vendorEntry[0].toLowerCase())) continue;
 
     // Skip if a payment batch already exists for this PO
     const existingBatch = await prisma.consignmentPaymentBatch.findUnique({
@@ -2699,6 +2711,18 @@ export async function runReceivedItemsImport(
 ): Promise<ReceivedItemsImportResult> {
   // Loaded once per run: these loop over thousands of line items.
   const prefixRules = await getVendorPrefixRules();
+  // Names of the configured consignors, lower-cased, to match against the
+  // vendor label the source file carries. By flag, not by one company's
+  // spelling -- the source gives us a NAME, so we resolve the configured set
+  // once and compare against that.
+  const consignmentVendorNames = new Set(
+    (
+      await prisma.vendor.findMany({
+        where: { isConsignment: true },
+        select: { name: true },
+      })
+    ).map((v) => v.name.toLowerCase()),
+  );
   const results: ReceivedItemsImportResult = {
     receivingRecordsCreated: 0,
     receivingRecordsSkipped: 0,
@@ -2969,10 +2993,10 @@ export async function runReceivedItemsImport(
     }
   }
 
-  // Consignment PAID sync for newly-received Marjan POs
+  // Consignment PAID sync for newly-received consignment POs
   for (const [poId, { poNumber, vendorId, orderDate }] of newlyReceivedPOs) {
     const vendorEntry = [...vendorCache.entries()].find(([, id]) => id === vendorId);
-    if (!vendorEntry || !vendorEntry[0].includes("marjan")) continue;
+    if (!vendorEntry || !consignmentVendorNames.has(vendorEntry[0].toLowerCase())) continue;
 
     const existingBatch = await prisma.consignmentPaymentBatch.findUnique({
       where: { purchaseOrderId: poId },

@@ -1,6 +1,7 @@
 // /app/src/pages/api/consignment/return-items.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getPrimaryConsignmentVendorId } from "@/lib/consignmentVendor";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
@@ -44,20 +45,19 @@ export default requirePermission("inventory.transfer", async (req, res, session)
       });
     }
 
-    // Find the Marjan vendor to create the return record
-    const marjanVendor = await prisma.vendor.findFirst({
-      where: { name: { contains: "Marjan", mode: "insensitive" } },
-      select: { id: true },
-    });
+    // The consigning vendor to record the return against, found by flag rather
+    // than by name. Null when the deployment does not consign -- the code below
+    // already handles that, and inventing a vendor would be worse.
+    const consignmentVendorId = await getPrimaryConsignmentVendorId(prisma);
 
     const now = new Date();
     const userEmail = session.user?.email ?? null;
 
     // Create a ConsignmentVendorReturn to group this batch of returns
-    const vendorReturn = marjanVendor
+    const vendorReturn = consignmentVendorId
       ? await prisma.consignmentVendorReturn.create({
           data: {
-            vendorId: marjanVendor.id,
+            vendorId: consignmentVendorId,
             returnDate: now,
             status: "PENDING",
             createdBy: userEmail,

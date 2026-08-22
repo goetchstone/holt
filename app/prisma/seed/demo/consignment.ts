@@ -44,8 +44,9 @@ export async function seedConsignment(
 
   const vendor = await prisma.vendor.upsert({
     where: { name: CONSIGNMENT_VENDOR_NAME },
-    update: {},
+    update: { isConsignment: true },
     create: {
+      isConsignment: true,
       name: CONSIGNMENT_VENDOR_NAME,
       code: CONSIGNMENT_VENDOR_CODE,
       pricingModel: "FLAT",
