@@ -6,6 +6,7 @@
 // the automated Gmail import orchestrator.
 
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { hasOrderFlag, SKIP_SAME_DAY_REWRITE_CLEANUP } from "@/lib/adapters/ordorite/orderFlags";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import {
   safeString,
@@ -820,7 +821,6 @@ async function cleanupOneRewriteChain(rewriteOrderno: string): Promise<number> {
     select: {
       id: true,
       customerId: true,
-      skipSameDayRewriteCleanup: true,
       lineItems: {
         select: {
           id: true,
@@ -834,13 +834,18 @@ async function cleanupOneRewriteChain(rewriteOrderno: string): Promise<number> {
   });
   if (!base) return 0; // Cross-day rewrite or no base — nothing to do.
 
-  // Operator override: when the base order is flagged
-  // `skipSameDayRewriteCleanup = true`, skip the heuristic entirely.
+  // Operator override: when the base order carries THIS ADAPTER's
+  // skipSameDayRewriteCleanup flag, skip the heuristic entirely.
   // The sole escape hatch for the rare price-tweak rewrite shape
   // (SBOM39876 — customer kept everything; rewrite is a price tweak
   // only). Operator sets the flag once daily reconciliation surfaces
   // the discrepancy.
-  if (base.skipSameDayRewriteCleanup) return 0;
+  //
+  // Was SalesOrder.skipSameDayRewriteCleanup until 2026-08-22: a column on the
+  // product's highest-traffic table that only this importer ever read, set on
+  // 1 order in 49,769. It is a fact about Ordorite's rewrite shapes, not about
+  // the sale.
+  if (await hasOrderFlag(prisma, base.id, SKIP_SAME_DAY_REWRITE_CLEANUP)) return 0;
 
   // Find the matching same-day accounting return by
   // (customerId, orderDate, prefix-pattern). Per Ordorite's

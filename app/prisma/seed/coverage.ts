@@ -46,6 +46,11 @@ export interface SeedCoverageEntry {
 }
 
 export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
+  AdapterOrderFlag: {
+    status: "skipped",
+    reason:
+      "Per-order state written by a source adapter at import time, or by an operator overriding one of its heuristics. Seeding it would invent an override nobody made.",
+  },
   Account: { status: "todo", tranche: "money-detail" },
   AccountGroup: { status: "seeded" },
   AppSettings: { status: "seeded" },

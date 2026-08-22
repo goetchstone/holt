@@ -64,6 +64,7 @@ import { prisma } from "@/lib/prisma";
  */
 const ALL_TABLES = [
   "Account",
+  "AdapterOrderFlag",
   "AccountGroup",
   "AppSettings",
   "AutoImportLog",
