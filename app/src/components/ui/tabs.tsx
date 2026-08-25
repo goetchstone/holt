@@ -48,8 +48,8 @@ export function TabsTrigger({ children, value }: { children: ReactNode; value: s
       onClick={handleClick}
       className={`px-4 py-2 text-sm font-medium rounded-t border-t border-r border-l ${
         isActive
-          ? "bg-sh-linen text-sh-blue border-sh-gray"
-          : "bg-white text-sh-black border-transparent"
+          ? "bg-brand-linen text-brand-blue border-brand-gray"
+          : "bg-white text-brand-black border-transparent"
       }`}
     >
       {children}

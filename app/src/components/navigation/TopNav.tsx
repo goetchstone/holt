@@ -98,12 +98,12 @@ function NotificationBell() {
       <button
         ref={buttonRef}
         onClick={() => setOpen((prev) => !prev)}
-        className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-sh-linen transition-colors"
+        className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-brand-linen transition-colors"
         aria-label="Notifications"
       >
-        <Bell size={20} className="text-sh-gray" />
+        <Bell size={20} className="text-brand-gray" />
         {openCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-sh-gold text-white text-[10px] font-semibold leading-none px-1">
+          <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-brand-gold text-white text-[10px] font-semibold leading-none px-1">
             {openCount > 99 ? "99+" : openCount}
           </span>
         )}
@@ -112,25 +112,25 @@ function NotificationBell() {
       {open && (
         <div
           ref={dropdownRef}
-          className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border border-sh-gray/20 rounded-lg shadow-lg z-50 font-serif"
+          className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white border border-brand-gray/20 rounded-lg shadow-lg z-50 font-serif"
         >
-          <div className="px-4 py-3 border-b border-sh-gray/10">
-            <h3 className="text-sm font-semibold text-sh-blue">Updates</h3>
+          <div className="px-4 py-3 border-b border-brand-gray/10">
+            <h3 className="text-sm font-semibold text-brand-blue">Updates</h3>
           </div>
 
           <div className="max-h-72 overflow-y-auto">
             {recentlyClosed.length > 0 && (
               <div className="px-4 py-3">
-                <p className="text-xs font-medium text-sh-gray uppercase tracking-wide mb-2">
+                <p className="text-xs font-medium text-brand-gray uppercase tracking-wide mb-2">
                   Recently Fixed
                 </p>
                 <ul className="space-y-2">
                   {recentlyClosed.map((issue) => (
                     <li key={issue.number} className="flex flex-col gap-0.5">
-                      <span className="text-sm text-sh-black truncate" title={issue.title}>
+                      <span className="text-sm text-brand-black truncate" title={issue.title}>
                         {issue.title}
                       </span>
-                      <span className="text-xs text-sh-gray">
+                      <span className="text-xs text-brand-gray">
                         {formatRelativeTime(issue.closedAt)}
                       </span>
                     </li>
@@ -139,15 +139,15 @@ function NotificationBell() {
               </div>
             )}
 
-            <div className="px-4 py-3 border-t border-sh-gray/10">
-              <p className="text-sm text-sh-gray">Open Issues ({openCount})</p>
+            <div className="px-4 py-3 border-t border-brand-gray/10">
+              <p className="text-sm text-brand-gray">Open Issues ({openCount})</p>
             </div>
           </div>
 
-          <div className="px-4 py-3 border-t border-sh-gray/10">
+          <div className="px-4 py-3 border-t border-brand-gray/10">
             <button
               onClick={handleFeedbackClick}
-              className="text-sm text-sh-blue hover:underline underline-offset-2"
+              className="text-sm text-brand-blue hover:underline underline-offset-2"
             >
               Submit Feedback
             </button>
@@ -214,7 +214,7 @@ export default function TopNav() {
   }
 
   return (
-    <nav className="w-full border-b border-sh-gray bg-white shadow-sm font-serif">
+    <nav className="w-full border-b border-brand-gray bg-white shadow-sm font-serif">
       {/* Impersonation banner is now global, rendered from _app.tsx via
           <ImpersonationBanner />. That moves the Stop Impersonating
           button to every layout (TopNav, ScannerLayout, MinimalLayout)
@@ -235,15 +235,15 @@ export default function TopNav() {
         </div>
 
         {/* Center links -- visible on md+ screens */}
-        <div className="hidden md:flex items-center justify-center gap-8 text-xl text-sh-black">
+        <div className="hidden md:flex items-center justify-center gap-8 text-xl text-brand-black">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={`py-2 transition ${
                 isActive(item.href)
-                  ? "border-b-2 border-sh-gold text-sh-blue font-semibold"
-                  : "hover:underline underline-offset-4 hover:text-sh-blue"
+                  ? "border-b-2 border-brand-gold text-brand-blue font-semibold"
+                  : "hover:underline underline-offset-4 hover:text-brand-blue"
               }`}
             >
               {item.label}
@@ -259,7 +259,7 @@ export default function TopNav() {
               onChange={(e) => {
                 if (e.target.value) startImpersonation(e.target.value);
               }}
-              className="text-sm border border-sh-gray/40 rounded-lg px-2 py-1.5 bg-white text-sh-gray min-h-[44px]"
+              className="text-sm border border-brand-gray/40 rounded-lg px-2 py-1.5 bg-white text-brand-gray min-h-[44px]"
             >
               <option value="" disabled>
                 View as...
@@ -285,15 +285,15 @@ export default function TopNav() {
       </div>
 
       {/* Bottom row: scrollable nav links on small screens */}
-      <div className="flex md:hidden overflow-x-auto scrollbar-hide border-t border-sh-gray/20 px-4 gap-6 text-lg text-sh-black">
+      <div className="flex md:hidden overflow-x-auto scrollbar-hide border-t border-brand-gray/20 px-4 gap-6 text-lg text-brand-black">
         {navItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             className={`whitespace-nowrap py-3 transition ${
               isActive(item.href)
-                ? "border-b-2 border-sh-gold text-sh-blue font-semibold"
-                : "hover:text-sh-blue"
+                ? "border-b-2 border-brand-gold text-brand-blue font-semibold"
+                : "hover:text-brand-blue"
             }`}
           >
             {item.label}

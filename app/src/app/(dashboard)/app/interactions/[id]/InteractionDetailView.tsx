@@ -63,9 +63,9 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const SOURCE_BADGE: Record<string, string> = {
-  WALK_IN: "bg-sh-blue/10 text-sh-blue",
-  PHONE: "bg-sh-gold/20 text-sh-gold",
-  EMAIL: "bg-sh-gray/10 text-sh-gray",
+  WALK_IN: "bg-brand-blue/10 text-brand-blue",
+  PHONE: "bg-brand-gold/20 text-brand-gold",
+  EMAIL: "bg-brand-gray/10 text-brand-gray",
   APPOINTMENT: "bg-green-100 text-green-800",
 };
 
@@ -248,14 +248,14 @@ export function InteractionDetailView({ id }: { id: string }) {
   };
 
   if (loading) {
-    return <p className="text-sh-gray py-8">Loading interaction...</p>;
+    return <p className="text-brand-gray py-8">Loading interaction...</p>;
   }
 
   if (!interaction) {
-    return <p className="text-sh-gray py-8">Interaction not found.</p>;
+    return <p className="text-brand-gray py-8">Interaction not found.</p>;
   }
 
-  const sourceBadge = SOURCE_BADGE[interaction.source] || "bg-sh-gray/10 text-sh-gray";
+  const sourceBadge = SOURCE_BADGE[interaction.source] || "bg-brand-gray/10 text-brand-gray";
   const sourceLabel = SOURCE_LABELS[interaction.source] || interaction.source;
 
   return (
@@ -263,16 +263,18 @@ export function InteractionDetailView({ id }: { id: string }) {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl text-sh-blue font-semibold">
+          <h1 className="text-2xl text-brand-blue font-semibold">
             {interaction.staffMember.displayName}
           </h1>
           <span className={`text-xs px-2 py-1 rounded ${sourceBadge}`}>{sourceLabel}</span>
-          <span className="text-sm text-sh-gray">{interaction.storeLocation}</span>
-          <span className="text-sm text-sh-gray">
+          <span className="text-sm text-brand-gray">{interaction.storeLocation}</span>
+          <span className="text-sm text-brand-gray">
             Started {relativeTime(interaction.startedAt)}
           </span>
           {!interaction.isActive && (
-            <span className="text-xs px-2 py-1 rounded bg-sh-gray/10 text-sh-gray">Ended</span>
+            <span className="text-xs px-2 py-1 rounded bg-brand-gray/10 text-brand-gray">
+              Ended
+            </span>
           )}
         </div>
         <Link href="/app/interactions">
@@ -283,8 +285,8 @@ export function InteractionDetailView({ id }: { id: string }) {
       </div>
 
       {/* Customer section */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h3 className="text-sm font-semibold text-sh-gray uppercase tracking-wide mb-3">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h3 className="text-sm font-semibold text-brand-gray uppercase tracking-wide mb-3">
           Customer
         </h3>
         {interaction.customer ? (
@@ -292,23 +294,23 @@ export function InteractionDetailView({ id }: { id: string }) {
             <div className="space-y-1">
               <Link
                 href={`/app/sales/customers/${interaction.customer.id}`}
-                className="font-medium text-sh-blue hover:underline"
+                className="font-medium text-brand-blue hover:underline"
               >
                 {[interaction.customer.firstName, interaction.customer.lastName]
                   .filter(Boolean)
                   .join(" ")}
               </Link>
               {interaction.customer.phone && (
-                <p className="text-sm text-sh-gray">{interaction.customer.phone}</p>
+                <p className="text-sm text-brand-gray">{interaction.customer.phone}</p>
               )}
               {interaction.customer.email && (
-                <p className="text-sm text-sh-gray">{interaction.customer.email}</p>
+                <p className="text-sm text-brand-gray">{interaction.customer.email}</p>
               )}
             </div>
             {interaction.isActive && (
               <button
                 onClick={handleUnlinkCustomer}
-                className="text-sm text-sh-gray hover:text-sh-blue min-h-[44px] px-3"
+                className="text-sm text-brand-gray hover:text-brand-blue min-h-[44px] px-3"
               >
                 Change
               </button>
@@ -323,22 +325,22 @@ export function InteractionDetailView({ id }: { id: string }) {
                   placeholder="Search by name or phone..."
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 />
                 {showCustomerDropdown && customerResults.length > 0 && (
                   <div className="relative">
-                    <div className="absolute z-20 top-0 left-0 right-0 bg-white border border-sh-gray/20 rounded shadow-lg max-h-48 overflow-y-auto">
+                    <div className="absolute z-20 top-0 left-0 right-0 bg-white border border-brand-gray/20 rounded shadow-lg max-h-48 overflow-y-auto">
                       {customerResults.map((c) => (
                         <button
                           key={c.id}
                           onClick={() => handleLinkCustomer(c)}
-                          className="w-full text-left px-4 py-3 text-sm hover:bg-sh-linen transition min-h-[44px]"
+                          className="w-full text-left px-4 py-3 text-sm hover:bg-brand-linen transition min-h-[44px]"
                         >
                           <span className="font-medium">
                             {c.firstName} {c.lastName}
                           </span>
-                          {c.phone && <span className="text-sh-gray ml-2">{c.phone}</span>}
-                          {c.email && <span className="text-sh-gray ml-2">{c.email}</span>}
+                          {c.phone && <span className="text-brand-gray ml-2">{c.phone}</span>}
+                          {c.email && <span className="text-brand-gray ml-2">{c.email}</span>}
                         </button>
                       ))}
                     </div>
@@ -346,17 +348,20 @@ export function InteractionDetailView({ id }: { id: string }) {
                 )}
                 <button
                   onClick={() => setShowNewCustomer(true)}
-                  className="text-sm text-sh-blue hover:underline min-h-[44px] px-1"
+                  className="text-sm text-brand-blue hover:underline min-h-[44px] px-1"
                 >
                   New Customer
                 </button>
               </>
             ) : (
-              <div className="border border-sh-gray/20 rounded p-4 bg-sh-linen space-y-3">
-                <h4 className="text-sm font-semibold text-sh-black">New Customer</h4>
+              <div className="border border-brand-gray/20 rounded p-4 bg-brand-linen space-y-3">
+                <h4 className="text-sm font-semibold text-brand-black">New Customer</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="new-customer-first" className="block text-xs text-sh-gray mb-1">
+                    <label
+                      htmlFor="new-customer-first"
+                      className="block text-xs text-brand-gray mb-1"
+                    >
                       First Name
                     </label>
                     <input
@@ -364,11 +369,14 @@ export function InteractionDetailView({ id }: { id: string }) {
                       type="text"
                       value={newFirstName}
                       onChange={(e) => setNewFirstName(e.target.value)}
-                      className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                      className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                     />
                   </div>
                   <div>
-                    <label htmlFor="new-customer-last" className="block text-xs text-sh-gray mb-1">
+                    <label
+                      htmlFor="new-customer-last"
+                      className="block text-xs text-brand-gray mb-1"
+                    >
                       Last Name
                     </label>
                     <input
@@ -376,11 +384,14 @@ export function InteractionDetailView({ id }: { id: string }) {
                       type="text"
                       value={newLastName}
                       onChange={(e) => setNewLastName(e.target.value)}
-                      className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                      className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                     />
                   </div>
                   <div>
-                    <label htmlFor="new-customer-phone" className="block text-xs text-sh-gray mb-1">
+                    <label
+                      htmlFor="new-customer-phone"
+                      className="block text-xs text-brand-gray mb-1"
+                    >
                       Phone
                     </label>
                     <input
@@ -388,11 +399,14 @@ export function InteractionDetailView({ id }: { id: string }) {
                       type="tel"
                       value={newPhone}
                       onChange={(e) => setNewPhone(e.target.value)}
-                      className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                      className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                     />
                   </div>
                   <div>
-                    <label htmlFor="new-customer-email" className="block text-xs text-sh-gray mb-1">
+                    <label
+                      htmlFor="new-customer-email"
+                      className="block text-xs text-brand-gray mb-1"
+                    >
                       Email
                     </label>
                     <input
@@ -400,7 +414,7 @@ export function InteractionDetailView({ id }: { id: string }) {
                       type="email"
                       value={newEmail}
                       onChange={(e) => setNewEmail(e.target.value)}
-                      className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                      className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                     />
                   </div>
                 </div>
@@ -424,14 +438,16 @@ export function InteractionDetailView({ id }: { id: string }) {
       </div>
 
       {/* Notes section */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h3 className="text-sm font-semibold text-sh-gray uppercase tracking-wide mb-3">Notes</h3>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h3 className="text-sm font-semibold text-brand-gray uppercase tracking-wide mb-3">
+          Notes
+        </h3>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={4}
           placeholder="Add notes about this interaction..."
-          className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm mb-3"
+          className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm mb-3"
           onBlur={() => {
             if (notes !== (interaction.notes || "")) handleSaveNotes();
           }}
@@ -449,8 +465,10 @@ export function InteractionDetailView({ id }: { id: string }) {
       </div>
 
       {/* Outcome section */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h3 className="text-sm font-semibold text-sh-gray uppercase tracking-wide mb-3">Outcome</h3>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h3 className="text-sm font-semibold text-brand-gray uppercase tracking-wide mb-3">
+          Outcome
+        </h3>
         <div className="flex flex-wrap gap-2">
           {OUTCOMES.map((o) => (
             <button
@@ -458,8 +476,8 @@ export function InteractionDetailView({ id }: { id: string }) {
               onClick={() => handleSetOutcome(o.value)}
               className={`px-4 py-2 rounded-full text-sm font-medium transition min-h-[44px] ${
                 selectedOutcome === o.value
-                  ? "bg-sh-blue text-white shadow-md"
-                  : "bg-sh-linen text-sh-black hover:bg-sh-gray/10 border border-sh-gray/20"
+                  ? "bg-brand-blue text-white shadow-md"
+                  : "bg-brand-linen text-brand-black hover:bg-brand-gray/10 border border-brand-gray/20"
               }`}
             >
               {o.label}
@@ -469,8 +487,10 @@ export function InteractionDetailView({ id }: { id: string }) {
       </div>
 
       {/* Actions */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h3 className="text-sm font-semibold text-sh-gray uppercase tracking-wide mb-3">Actions</h3>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h3 className="text-sm font-semibold text-brand-gray uppercase tracking-wide mb-3">
+          Actions
+        </h3>
         <div className="flex flex-wrap gap-3">
           {interaction.customer && (
             <Link
@@ -511,11 +531,11 @@ export function InteractionDetailView({ id }: { id: string }) {
 
       {/* Ended info */}
       {!interaction.isActive && interaction.endedAt && (
-        <div className="bg-sh-linen rounded-lg border border-sh-gray/20 p-4">
-          <p className="text-sm text-sh-black">
+        <div className="bg-brand-linen rounded-lg border border-brand-gray/20 p-4">
+          <p className="text-sm text-brand-black">
             <span className="font-medium">Ended</span> {relativeTime(interaction.endedAt)}
             {interaction.outcome && (
-              <span className="ml-2 text-sh-gray">
+              <span className="ml-2 text-brand-gray">
                 --{" "}
                 {OUTCOMES.find((o) => o.value === interaction.outcome)?.label ||
                   interaction.outcome}

@@ -80,13 +80,13 @@ export function ChangeHistoryPanel() {
   return (
     <div className="space-y-4">
       {loading && rows.length === 0 ? (
-        <div className="flex items-center gap-2 p-4 text-sh-gray">
+        <div className="flex items-center gap-2 p-4 text-brand-gray">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading history…
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-sh-brand-gray">
+        <div className="overflow-x-auto rounded-md border border-brand-accent-gray">
           <table className="w-full text-sm">
-            <thead className="bg-sh-linen text-left">
+            <thead className="bg-brand-linen text-left">
               <tr>
                 <th className="px-3 py-2">When</th>
                 <th className="px-3 py-2">Preset</th>
@@ -98,7 +98,7 @@ export function ChangeHistoryPanel() {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-t border-sh-brand-gray">
+                <tr key={row.id} className="border-t border-brand-accent-gray">
                   <td className="whitespace-nowrap px-3 py-2">{formatWhen(row.created)}</td>
                   <td className="px-3 py-2">
                     {row.presetKind}/{row.presetName}
@@ -108,14 +108,14 @@ export function ChangeHistoryPanel() {
                   </td>
                   <td className="px-3 py-2">{row.source}</td>
                   <td className="px-3 py-2">{row.actor ?? "unattended"}</td>
-                  <td className="max-w-md px-3 py-2 text-xs text-sh-gray">
+                  <td className="max-w-md px-3 py-2 text-xs text-brand-gray">
                     {summaryText(row.summary)}
                   </td>
                 </tr>
               ))}
               {!loading && rows.length === 0 && (
                 <tr>
-                  <td className="px-3 py-4 text-sh-gray" colSpan={6}>
+                  <td className="px-3 py-4 text-brand-gray" colSpan={6}>
                     No configuration changes logged yet.
                   </td>
                 </tr>

@@ -52,8 +52,8 @@ export default async function BlogPost({ params }: PostParams) {
   return (
     <article className="mx-auto max-w-screen-md px-6 py-12">
       <header className="mb-8 text-center">
-        <h1 className="font-serif text-4xl text-sh-navy">{post.title}</h1>
-        <p className="mt-2 text-sm text-sh-gray">
+        <h1 className="font-serif text-4xl text-brand-navy">{post.title}</h1>
+        <p className="mt-2 text-sm text-brand-gray">
           {[post.author, dateLabel].filter(Boolean).join(" · ")}
         </p>
       </header>
@@ -61,27 +61,27 @@ export default async function BlogPost({ params }: PostParams) {
 
       {commentsEnabled ? (
         <section className="mt-12 border-t border-black/10 pt-8">
-          <h2 className="font-serif text-2xl text-sh-navy">Comments</h2>
+          <h2 className="font-serif text-2xl text-brand-navy">Comments</h2>
           {comments.length === 0 ? (
-            <p className="mt-3 text-sh-gray">Be the first to comment.</p>
+            <p className="mt-3 text-brand-gray">Be the first to comment.</p>
           ) : (
             <ul className="mt-6 space-y-6">
               {comments.map((c) => (
                 <li key={c.id} className="border-b border-black/5 pb-4">
-                  <p className="text-sm font-medium text-sh-navy">{c.authorName}</p>
-                  <p className="text-xs text-sh-gray">
+                  <p className="text-sm font-medium text-brand-navy">{c.authorName}</p>
+                  <p className="text-xs text-brand-gray">
                     {new Intl.DateTimeFormat(settings.locale, {
                       dateStyle: "medium",
                       timeZone: settings.timezone,
                     }).format(c.created)}
                   </p>
-                  <p className="mt-2 whitespace-pre-wrap text-sh-black">{c.content}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-brand-black">{c.content}</p>
                 </li>
               ))}
             </ul>
           )}
           <div className="mt-8">
-            <h3 className="font-serif text-lg text-sh-navy">Leave a comment</h3>
+            <h3 className="font-serif text-lg text-brand-navy">Leave a comment</h3>
             <div className="mt-4">
               <CommentForm postId={post.id} />
             </div>

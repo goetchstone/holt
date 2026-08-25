@@ -28,8 +28,8 @@ interface ProposalRow {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  DRAFT: "bg-sh-gray/20 text-sh-gray",
-  SENT: "bg-sh-blue/15 text-sh-blue",
+  DRAFT: "bg-brand-gray/20 text-brand-gray",
+  SENT: "bg-brand-blue/15 text-brand-blue",
   ACCEPTED: "bg-green-100 text-green-800",
   DECLINED: "bg-red-100 text-red-700",
   EXPIRED: "bg-amber-100 text-amber-700",
@@ -89,16 +89,16 @@ export function ProposalsListView() {
 
   return (
     <div className="py-2 space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/sales" className="hover:underline">
           Sales
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">B2B Proposals</span>
+        <span className="text-brand-black">B2B Proposals</span>
       </nav>
 
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-semibold text-sh-navy">B2B Proposals</h1>
+        <h1 className="text-2xl font-semibold text-brand-navy">B2B Proposals</h1>
         <Button onClick={handleCreate} disabled={creating} className="min-h-[44px]">
           <Plus className="w-4 h-4 mr-2" />
           {creating ? "Creating..." : "New Proposal"}
@@ -114,7 +114,7 @@ export function ProposalsListView() {
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             placeholder="Search proposals..."
-            className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+            className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
           />
         </div>
         <select
@@ -124,7 +124,7 @@ export function ProposalsListView() {
             setPage(1);
             fetchData(1);
           }}
-          className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+          className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
         >
           <option value="">All Statuses</option>
           <option value="DRAFT">Draft</option>
@@ -139,29 +139,29 @@ export function ProposalsListView() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-sh-gray/15 overflow-hidden">
+      <div className="bg-white rounded-xl border border-brand-gray/15 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-sh-gray/15 bg-sh-stripe">
-              <th className="text-left px-4 py-3 font-medium text-sh-gray">Proposal</th>
-              <th className="text-left px-4 py-3 font-medium text-sh-gray">Project</th>
-              <th className="text-left px-4 py-3 font-medium text-sh-gray">Customer</th>
-              <th className="text-left px-4 py-3 font-medium text-sh-gray">Status</th>
-              <th className="text-right px-4 py-3 font-medium text-sh-gray">Items</th>
-              <th className="text-left px-4 py-3 font-medium text-sh-gray">Created</th>
+            <tr className="border-b border-brand-gray/15 bg-brand-stripe">
+              <th className="text-left px-4 py-3 font-medium text-brand-gray">Proposal</th>
+              <th className="text-left px-4 py-3 font-medium text-brand-gray">Project</th>
+              <th className="text-left px-4 py-3 font-medium text-brand-gray">Customer</th>
+              <th className="text-left px-4 py-3 font-medium text-brand-gray">Status</th>
+              <th className="text-right px-4 py-3 font-medium text-brand-gray">Items</th>
+              <th className="text-left px-4 py-3 font-medium text-brand-gray">Created</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sh-gray">
+                <td colSpan={6} className="px-4 py-8 text-center text-brand-gray">
                   Loading...
                 </td>
               </tr>
             ) : proposals.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sh-gray">
-                  <FileText className="w-8 h-8 mx-auto mb-2 text-sh-gray/30" />
+                <td colSpan={6} className="px-4 py-8 text-center text-brand-gray">
+                  <FileText className="w-8 h-8 mx-auto mb-2 text-brand-gray/30" />
                   No proposals found
                 </td>
               </tr>
@@ -173,23 +173,23 @@ export function ProposalsListView() {
                 return (
                   <tr
                     key={p.id}
-                    className={`border-b border-sh-gray/10 cursor-pointer hover:bg-sh-linen transition ${idx % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                    className={`border-b border-brand-gray/10 cursor-pointer hover:bg-brand-linen transition ${idx % 2 === 1 ? "bg-brand-stripe" : ""}`}
                     onClick={() => router.push(`/app/sales/proposals/${p.id}`)}
                   >
                     <td className="px-4 py-3">
-                      <span className="text-sh-blue font-medium">{p.proposalNumber}</span>
+                      <span className="text-brand-blue font-medium">{p.proposalNumber}</span>
                     </td>
-                    <td className="px-4 py-3 text-sh-black">{p.projectName || "—"}</td>
-                    <td className="px-4 py-3 text-sh-black">{customerName}</td>
+                    <td className="px-4 py-3 text-brand-black">{p.projectName || "—"}</td>
+                    <td className="px-4 py-3 text-brand-black">{customerName}</td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[p.status] || "bg-sh-gray/20 text-sh-gray"}`}
+                        className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[p.status] || "bg-brand-gray/20 text-brand-gray"}`}
                       >
                         {p.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-sh-gray">{p._count.lineItems}</td>
-                    <td className="px-4 py-3 text-sh-gray text-xs">
+                    <td className="px-4 py-3 text-right text-brand-gray">{p._count.lineItems}</td>
+                    <td className="px-4 py-3 text-brand-gray text-xs">
                       {new Date(p.created).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -213,11 +213,11 @@ export function ProposalsListView() {
               fetchData(page - 1);
             }}
             disabled={page <= 1 || loading}
-            className="px-3 py-2 text-sm border border-sh-gray/20 rounded-lg hover:bg-sh-linen disabled:opacity-30 min-h-[44px]"
+            className="px-3 py-2 text-sm border border-brand-gray/20 rounded-lg hover:bg-brand-linen disabled:opacity-30 min-h-[44px]"
           >
             Previous
           </button>
-          <span className="text-sm text-sh-gray">
+          <span className="text-sm text-brand-gray">
             Page {page} of {totalPages}
           </span>
           <button
@@ -226,7 +226,7 @@ export function ProposalsListView() {
               fetchData(page + 1);
             }}
             disabled={page >= totalPages || loading}
-            className="px-3 py-2 text-sm border border-sh-gray/20 rounded-lg hover:bg-sh-linen disabled:opacity-30 min-h-[44px]"
+            className="px-3 py-2 text-sm border border-brand-gray/20 rounded-lg hover:bg-brand-linen disabled:opacity-30 min-h-[44px]"
           >
             Next
           </button>

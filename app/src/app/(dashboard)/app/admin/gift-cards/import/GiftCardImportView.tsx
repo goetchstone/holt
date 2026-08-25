@@ -93,16 +93,16 @@ export function GiftCardImportView() {
     <div className="font-serif">
       <button
         onClick={() => router.push("/app/admin/gift-cards")}
-        className="flex items-center gap-1 text-sh-blue font-serif mb-4 hover:underline"
+        className="flex items-center gap-1 text-brand-blue font-serif mb-4 hover:underline"
       >
         <ArrowLeft className="w-4 h-4" /> Back to Gift Cards
       </button>
 
-      <h1 className="text-2xl font-semibold text-sh-blue mb-6">Import the POS Vouchers</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue mb-6">Import the POS Vouchers</h1>
 
       {/* File upload */}
-      <div className="bg-white border border-sh-gray/20 rounded-xl p-6 mb-6">
-        <p className="font-serif text-sh-black mb-4">
+      <div className="bg-white border border-brand-gray/20 rounded-xl p-6 mb-6">
+        <p className="font-serif text-brand-black mb-4">
           Upload the Voucher Report CSV. Expected columns: Creationdate, Code, Referenceno,
           Initialamount, Remainingamount.
         </p>
@@ -122,7 +122,7 @@ export function GiftCardImportView() {
           >
             <Upload className="w-4 h-4" /> Choose File
           </Button>
-          {fileName && <span className="text-sh-gray font-serif text-sm">{fileName}</span>}
+          {fileName && <span className="text-brand-gray font-serif text-sm">{fileName}</span>}
         </div>
       </div>
 
@@ -130,7 +130,9 @@ export function GiftCardImportView() {
       {rows.length > 0 && !result && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-serif font-semibold text-sh-blue">Preview ({rows.length} rows)</h3>
+            <h3 className="font-serif font-semibold text-brand-blue">
+              Preview ({rows.length} rows)
+            </h3>
             <Button onClick={handleImport} disabled={importing}>
               {importing ? "Importing..." : `Import ${rows.length} Vouchers`}
             </Button>
@@ -139,16 +141,20 @@ export function GiftCardImportView() {
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b border-sh-gray/30 text-left">
-                  <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm">Date</th>
-                  <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm">Code</th>
-                  <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm">
+                <tr className="border-b border-brand-gray/30 text-left">
+                  <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm">
+                    Date
+                  </th>
+                  <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm">
+                    Code
+                  </th>
+                  <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm">
                     Barcode
                   </th>
-                  <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm text-right">
+                  <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm text-right">
                     Initial
                   </th>
-                  <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm text-right">
+                  <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm text-right">
                     Remaining
                   </th>
                 </tr>
@@ -157,8 +163,8 @@ export function GiftCardImportView() {
                 {rows.slice(0, 10).map((r, i) => (
                   <tr
                     key={`${r.Referenceno || r.Code}-${i}`}
-                    className={`border-b border-sh-gray/10 ${
-                      i % 2 === 0 ? "bg-white" : "bg-sh-stripe"
+                    className={`border-b border-brand-gray/10 ${
+                      i % 2 === 0 ? "bg-white" : "bg-brand-stripe"
                     }`}
                   >
                     <td className="py-2 px-3 font-serif text-sm">{r.Creationdate}</td>
@@ -175,7 +181,7 @@ export function GiftCardImportView() {
               </tbody>
             </table>
             {rows.length > 10 && (
-              <p className="text-sh-gray font-serif text-sm text-center mt-2">
+              <p className="text-brand-gray font-serif text-sm text-center mt-2">
                 ...and {rows.length - 10} more rows
               </p>
             )}
@@ -185,29 +191,29 @@ export function GiftCardImportView() {
 
       {/* Results */}
       {result && (
-        <div className="bg-white border border-sh-gray/20 rounded-xl p-6">
-          <h3 className="font-serif font-semibold text-sh-blue mb-4">Import Results</h3>
+        <div className="bg-white border border-brand-gray/20 rounded-xl p-6">
+          <h3 className="font-serif font-semibold text-brand-blue mb-4">Import Results</h3>
           <div className="grid grid-cols-4 gap-4 mb-4">
             <div>
-              <p className="text-sm text-sh-gray font-serif">Imported</p>
+              <p className="text-sm text-brand-gray font-serif">Imported</p>
               <p className="text-2xl font-serif font-semibold text-green-700">
                 {result.importedCount}
               </p>
             </div>
             <div>
-              <p className="text-sm text-sh-gray font-serif">Updated</p>
-              <p className="text-2xl font-serif font-semibold text-sh-blue">
+              <p className="text-sm text-brand-gray font-serif">Updated</p>
+              <p className="text-2xl font-serif font-semibold text-brand-blue">
                 {result.updatedCount}
               </p>
             </div>
             <div>
-              <p className="text-sm text-sh-gray font-serif">Skipped</p>
-              <p className="text-2xl font-serif font-semibold text-sh-gray">
+              <p className="text-sm text-brand-gray font-serif">Skipped</p>
+              <p className="text-2xl font-serif font-semibold text-brand-gray">
                 {result.skippedCount}
               </p>
             </div>
             <div>
-              <p className="text-sm text-sh-gray font-serif">Errors</p>
+              <p className="text-sm text-brand-gray font-serif">Errors</p>
               <p className="text-2xl font-serif font-semibold text-red-700">{result.errorCount}</p>
             </div>
           </div>

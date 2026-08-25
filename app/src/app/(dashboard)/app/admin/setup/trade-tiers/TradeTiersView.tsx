@@ -127,8 +127,8 @@ export function TradeTiersView() {
     <div className="container mx-auto px-4 py-8 font-serif">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-sh-black">Trade Tiers</h1>
-          <p className="text-sm text-sh-gray mt-1">
+          <h1 className="text-3xl font-bold text-brand-black">Trade Tiers</h1>
+          <p className="text-sm text-brand-gray mt-1">
             Discount tiers for trade customers, applied to anchor pricing.
           </p>
         </div>
@@ -138,10 +138,10 @@ export function TradeTiersView() {
         </Button>
       </div>
 
-      {loading && <p className="text-sh-gray">Loading...</p>}
+      {loading && <p className="text-brand-gray">Loading...</p>}
 
       {!loading && tiers.length === 0 && (
-        <div className="bg-white rounded-lg shadow-md p-8 text-center text-sh-gray">
+        <div className="bg-white rounded-lg shadow-md p-8 text-center text-brand-gray">
           No trade tiers configured yet. Add one to get started.
         </div>
       )}
@@ -150,27 +150,29 @@ export function TradeTiersView() {
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/20 text-left">
-                <th className="px-4 py-3 font-semibold text-sh-black">Tier Name</th>
-                <th className="px-4 py-3 font-semibold text-sh-black text-right">Discount %</th>
-                <th className="px-4 py-3 font-semibold text-sh-black text-right">Sort Order</th>
-                <th className="px-4 py-3 font-semibold text-sh-black text-center">Active</th>
-                <th className="px-4 py-3 font-semibold text-sh-black text-right">Actions</th>
+              <tr className="border-b border-brand-gray/20 text-left">
+                <th className="px-4 py-3 font-semibold text-brand-black">Tier Name</th>
+                <th className="px-4 py-3 font-semibold text-brand-black text-right">Discount %</th>
+                <th className="px-4 py-3 font-semibold text-brand-black text-right">Sort Order</th>
+                <th className="px-4 py-3 font-semibold text-brand-black text-center">Active</th>
+                <th className="px-4 py-3 font-semibold text-brand-black text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {tiers.map((tier, i) => (
                 <tr
                   key={tier.id}
-                  className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                  className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
                 >
-                  <td className="px-4 py-3 font-medium text-sh-black">{tier.name}</td>
+                  <td className="px-4 py-3 font-medium text-brand-black">{tier.name}</td>
                   <td className="px-4 py-3 text-right">{tier.discountPercent}%</td>
                   <td className="px-4 py-3 text-right">{tier.sortOrder}</td>
                   <td className="px-4 py-3 text-center">
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                        tier.isActive ? "bg-green-100 text-green-800" : "bg-sh-gray/20 text-sh-gray"
+                        tier.isActive
+                          ? "bg-green-100 text-green-800"
+                          : "bg-brand-gray/20 text-brand-gray"
                       }`}
                     >
                       {tier.isActive ? "Yes" : "No"}

@@ -42,7 +42,9 @@ export default function PaginationControls({
           key={p}
           onClick={() => goTo(p)}
           className={`min-w-[40px] py-2 border rounded-lg transition text-center ${
-            p === currentPage ? "bg-sh-blue text-white" : "border-sh-gray hover:bg-sh-blue/10"
+            p === currentPage
+              ? "bg-brand-blue text-white"
+              : "border-brand-gray hover:bg-brand-blue/10"
           }`}
         >
           {p}
@@ -71,14 +73,14 @@ export default function PaginationControls({
       <button
         onClick={() => goTo(1)}
         disabled={currentPage === 1}
-        className="w-16 py-2 text-xs border rounded-lg border-sh-gray disabled:opacity-50 hover:bg-sh-blue/10 transition text-center"
+        className="w-16 py-2 text-xs border rounded-lg border-brand-gray disabled:opacity-50 hover:bg-brand-blue/10 transition text-center"
       >
         « First
       </button>
       <button
         onClick={() => goTo(currentPage - 1)}
         disabled={currentPage === 1}
-        className="w-16 py-2 text-xs border rounded-lg border-sh-gray disabled:opacity-50 hover:bg-sh-blue/10 transition text-center"
+        className="w-16 py-2 text-xs border rounded-lg border-brand-gray disabled:opacity-50 hover:bg-brand-blue/10 transition text-center"
       >
         ‹ Prev
       </button>
@@ -86,14 +88,14 @@ export default function PaginationControls({
       <button
         onClick={() => goTo(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="w-16 py-2 text-xs border rounded-lg border-sh-gray disabled:opacity-50 hover:bg-sh-blue/10 transition text-center"
+        className="w-16 py-2 text-xs border rounded-lg border-brand-gray disabled:opacity-50 hover:bg-brand-blue/10 transition text-center"
       >
         Next ›
       </button>
       <button
         onClick={() => goTo(totalPages)}
         disabled={currentPage === totalPages}
-        className="w-16 py-2 text-xs border rounded-lg border-sh-gray disabled:opacity-50 hover:bg-sh-blue/10 transition text-center"
+        className="w-16 py-2 text-xs border rounded-lg border-brand-gray disabled:opacity-50 hover:bg-brand-blue/10 transition text-center"
       >
         Last »
       </button>

@@ -17,7 +17,7 @@ interface SubmitResult {
 }
 
 const FIELD_CLASS =
-  "mt-1 w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none";
+  "mt-1 w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none";
 
 export function SupportFormView() {
   const [submitterName, setName] = useState("");
@@ -49,14 +49,14 @@ export function SupportFormView() {
   if (result) {
     return (
       <div className="mt-8 rounded-md border border-green-200 bg-green-50 p-6">
-        <h2 className="font-serif text-2xl text-sh-navy">Thanks — we&apos;ve got it.</h2>
-        <p className="mt-2 text-sh-gray">
+        <h2 className="font-serif text-2xl text-brand-navy">Thanks — we&apos;ve got it.</h2>
+        <p className="mt-2 text-brand-gray">
           Your request <span className="font-mono font-semibold">{result.ticketNumber}</span> is in
           our queue. We&apos;ll reply by email. You can also track it and add details here:
         </p>
         <Link
           href={`/support/${result.publicToken}`}
-          className="mt-4 inline-block rounded-md bg-sh-navy px-5 py-3 text-sm font-medium text-white transition hover:bg-sh-blue"
+          className="mt-4 inline-block rounded-md bg-brand-navy px-5 py-3 text-sm font-medium text-white transition hover:bg-brand-blue"
         >
           Track your request
         </Link>
@@ -67,7 +67,7 @@ export function SupportFormView() {
   return (
     <form onSubmit={submit} className="mt-8 space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm font-medium text-sh-black">
+        <label className="block text-sm font-medium text-brand-black">
           Your name
           <input
             value={submitterName}
@@ -76,7 +76,7 @@ export function SupportFormView() {
             className={FIELD_CLASS}
           />
         </label>
-        <label className="block text-sm font-medium text-sh-black">
+        <label className="block text-sm font-medium text-brand-black">
           Email
           <input
             type="email"
@@ -87,7 +87,7 @@ export function SupportFormView() {
           />
         </label>
       </div>
-      <label className="block text-sm font-medium text-sh-black">
+      <label className="block text-sm font-medium text-brand-black">
         Subject
         <input
           value={subject}
@@ -96,7 +96,7 @@ export function SupportFormView() {
           className={FIELD_CLASS}
         />
       </label>
-      <label className="block text-sm font-medium text-sh-black">
+      <label className="block text-sm font-medium text-brand-black">
         How can we help?
         <textarea
           value={body}
@@ -109,7 +109,7 @@ export function SupportFormView() {
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-[44px] rounded-md bg-sh-navy px-6 py-3 text-sm font-medium text-white transition hover:bg-sh-blue disabled:opacity-60"
+        className="min-h-[44px] rounded-md bg-brand-navy px-6 py-3 text-sm font-medium text-white transition hover:bg-brand-blue disabled:opacity-60"
       >
         {submitting ? "Sending…" : "Send request"}
       </button>

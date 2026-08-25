@@ -256,13 +256,13 @@ export function RegistersView() {
   return (
     <div className="py-2 font-serif">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-serif text-sh-navy">Registers</h1>
+        <h1 className="text-2xl font-serif text-brand-navy">Registers</h1>
       </div>
 
-      {loading && <p className="text-sh-gray font-serif">Loading...</p>}
+      {loading && <p className="text-brand-gray font-serif">Loading...</p>}
 
       {!loading && storeLocations.length === 0 && (
-        <p className="text-sh-gray font-serif">
+        <p className="text-brand-gray font-serif">
           No store locations configured. Add locations first in Warehouse setup.
         </p>
       )}
@@ -275,22 +275,25 @@ export function RegistersView() {
               .sort((a, b) => a.sortOrder - b.sortOrder);
 
             return (
-              <div key={loc.id} className="bg-white rounded-xl shadow-sm border border-sh-gray/20">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-sh-gray/10">
-                  <h2 className="text-lg font-serif text-sh-navy">{loc.name}</h2>
+              <div
+                key={loc.id}
+                className="bg-white rounded-xl shadow-sm border border-brand-gray/20"
+              >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-brand-gray/10">
+                  <h2 className="text-lg font-serif text-brand-navy">{loc.name}</h2>
                   <Button variant="outline" size="sm" onClick={() => openCreateModal(loc.id)}>
                     <Plus className="w-4 h-4 mr-1" /> Add Register
                   </Button>
                 </div>
 
                 {locRegisters.length === 0 ? (
-                  <p className="px-6 py-4 text-sh-gray font-serif text-sm">
+                  <p className="px-6 py-4 text-brand-gray font-serif text-sm">
                     No registers at this location.
                   </p>
                 ) : (
                   <table className="w-full">
                     <thead>
-                      <tr className="text-left text-sm text-sh-gray font-serif border-b border-sh-gray/10">
+                      <tr className="text-left text-sm text-brand-gray font-serif border-b border-brand-gray/10">
                         <th className="px-6 py-3">Name</th>
                         <th className="px-6 py-3">Status</th>
                         <th className="px-6 py-3">Sort Order</th>
@@ -301,21 +304,21 @@ export function RegistersView() {
                         <tr
                           key={reg.id}
                           onClick={() => openEditModal(reg)}
-                          className="border-b border-sh-gray/5 hover:bg-sh-linen cursor-pointer transition-colors"
+                          className="border-b border-brand-gray/5 hover:bg-brand-linen cursor-pointer transition-colors"
                         >
-                          <td className="px-6 py-3 font-serif text-sh-navy">{reg.name}</td>
+                          <td className="px-6 py-3 font-serif text-brand-navy">{reg.name}</td>
                           <td className="px-6 py-3">
                             <span
                               className={`inline-block px-2 py-0.5 rounded-full text-xs font-serif-condensed font-semibold ${
                                 reg.isActive
                                   ? "bg-green-100 text-green-800"
-                                  : "bg-sh-gray/20 text-sh-gray"
+                                  : "bg-brand-gray/20 text-brand-gray"
                               }`}
                             >
                               {reg.isActive ? "Active" : "Inactive"}
                             </span>
                           </td>
-                          <td className="px-6 py-3 font-serif text-sh-gray">{reg.sortOrder}</td>
+                          <td className="px-6 py-3 font-serif text-brand-gray">{reg.sortOrder}</td>
                         </tr>
                       ))}
                     </tbody>

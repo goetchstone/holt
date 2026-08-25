@@ -122,17 +122,17 @@ export const STATUSES = ["DRAFT", "READY", "EXPORTED", "FULFILLED", "CANCELLED"]
 export type Status = (typeof STATUSES)[number];
 
 export const STATUS_BADGE: Record<Status, string> = {
-  DRAFT: "bg-sh-stripe text-sh-gray",
-  READY: "bg-sh-gold/20 text-sh-gold",
-  EXPORTED: "bg-sh-blue/15 text-sh-blue",
+  DRAFT: "bg-brand-stripe text-brand-gray",
+  READY: "bg-brand-gold/20 text-brand-gold",
+  EXPORTED: "bg-brand-blue/15 text-brand-blue",
   FULFILLED: "bg-emerald-100 text-emerald-700",
   CANCELLED: "bg-red-100 text-red-700",
 };
 
 export const BUY_STATUS_BADGE: Record<DraftBuy["status"], string> = {
-  PLANNING: "bg-sh-stripe text-sh-gray",
-  OPEN: "bg-sh-gold/20 text-sh-gold",
-  EXPORTED: "bg-sh-blue/15 text-sh-blue",
+  PLANNING: "bg-brand-stripe text-brand-gray",
+  OPEN: "bg-brand-gold/20 text-brand-gold",
+  EXPORTED: "bg-brand-blue/15 text-brand-blue",
   CLOSED: "bg-emerald-100 text-emerald-700",
 };
 

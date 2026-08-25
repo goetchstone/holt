@@ -480,16 +480,16 @@ export function BuyersReportView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Buyers Report</span>
+        <span className="text-brand-black">Buyers Report</span>
       </nav>
       <div>
-        <h1 className="text-2xl font-semibold text-sh-navy">Buyers Report</h1>
-        <p className="text-sm text-sh-gray mt-1">
+        <h1 className="text-2xl font-semibold text-brand-navy">Buyers Report</h1>
+        <p className="text-sm text-brand-gray mt-1">
           On hand, on order, and sold in one view. Pivot by department or by vendor. Click any row
           to drill down — each click takes you one level deeper (Department → Category → Type →
           Vendor → Part #). Headline numbers re-scope to wherever you&apos;re drilled.
@@ -497,11 +497,11 @@ export function BuyersReportView() {
       </div>
 
       {/* Filter bar */}
-      <div className="bg-white border border-sh-gray/15 rounded-xl p-5 flex flex-wrap items-end gap-4">
+      <div className="bg-white border border-brand-gray/15 rounded-xl p-5 flex flex-wrap items-end gap-4">
         <div>
           <label
             htmlFor="buyers-from"
-            className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+            className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
           >
             From
           </label>
@@ -513,13 +513,13 @@ export function BuyersReportView() {
               setStartDate(e.target.value);
               resetDrill();
             }}
-            className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+            className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
           />
         </div>
         <div>
           <label
             htmlFor="buyers-to"
-            className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+            className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
           >
             To
           </label>
@@ -531,13 +531,13 @@ export function BuyersReportView() {
               setEndDate(e.target.value);
               resetDrill();
             }}
-            className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+            className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
           />
         </div>
         <div>
           <label
             htmlFor="buyers-pivot"
-            className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+            className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
           >
             Pivot
           </label>
@@ -548,14 +548,14 @@ export function BuyersReportView() {
               setPivot(e.target.value as BuyersPivot);
               resetDrill();
             }}
-            className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+            className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
           >
             <option value="department">By Department</option>
             <option value="vendor">By Vendor</option>
           </select>
         </div>
         <div className="flex items-end">
-          <label className="flex items-center gap-2 cursor-pointer min-h-[44px] text-sm text-sh-black">
+          <label className="flex items-center gap-2 cursor-pointer min-h-[44px] text-sm text-brand-black">
             <input
               type="checkbox"
               checked={rollupFrames}
@@ -599,8 +599,8 @@ export function BuyersReportView() {
             onClick={() => setSavedView(v.id)}
             className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
               savedView === v.id
-                ? "bg-sh-blue text-white border-sh-blue"
-                : "border-sh-gray/30 text-sh-gray hover:border-sh-blue"
+                ? "bg-brand-blue text-white border-brand-blue"
+                : "border-brand-gray/30 text-brand-gray hover:border-brand-blue"
             }`}
           >
             {v.label}
@@ -614,16 +614,16 @@ export function BuyersReportView() {
           <div className="flex flex-wrap items-center gap-1 text-sm">
             <button
               onClick={() => drillUpTo(0)}
-              className={`${effectiveCrumbs.length === 0 ? "text-sh-navy font-semibold" : "text-sh-blue hover:underline"}`}
+              className={`${effectiveCrumbs.length === 0 ? "text-brand-navy font-semibold" : "text-brand-blue hover:underline"}`}
             >
               All
             </button>
             {effectiveCrumbs.map((label, i) => (
               <span key={i} className="flex items-center gap-1">
-                <ChevronRight className="w-3 h-3 text-sh-gray" />
+                <ChevronRight className="w-3 h-3 text-brand-gray" />
                 <button
                   onClick={() => drillUpTo(i + 1)}
-                  className={`${i === effectiveCrumbs.length - 1 ? "text-sh-navy font-semibold" : "text-sh-blue hover:underline"}`}
+                  className={`${i === effectiveCrumbs.length - 1 ? "text-brand-navy font-semibold" : "text-brand-blue hover:underline"}`}
                 >
                   {label}
                 </button>
@@ -636,15 +636,15 @@ export function BuyersReportView() {
             <div
               className={`rounded-xl border p-4 ${
                 deptHint.kind === "season"
-                  ? "bg-sh-linen border-sh-gold/40"
-                  : "bg-white border-sh-gray/25"
+                  ? "bg-brand-linen border-brand-gold/40"
+                  : "bg-white border-brand-gray/25"
               }`}
             >
-              <h3 className="text-sm font-semibold text-sh-navy mb-1">{deptHint.title}</h3>
-              <p className="text-xs text-sh-gray">{deptHint.message}</p>
+              <h3 className="text-sm font-semibold text-brand-navy mb-1">{deptHint.title}</h3>
+              <p className="text-xs text-brand-gray">{deptHint.message}</p>
               {deptHint.kind === "season" && deptHint.seasonStart && deptHint.seasonEnd && (
                 <div className="mt-3 flex items-center gap-3 text-xs">
-                  <span className="text-sh-gray">
+                  <span className="text-brand-gray">
                     Season: {deptHint.seasonStart} → {deptHint.seasonEnd}
                   </span>
                   <Button
@@ -668,13 +668,13 @@ export function BuyersReportView() {
               label="On Hand"
               size="compact"
               value={num(scopeTotals.onHand)}
-              sub={<span className="text-xs text-sh-gray">floor, available to sell</span>}
+              sub={<span className="text-xs text-brand-gray">floor, available to sell</span>}
             />
             <KpiCard
               label="Cust Stock"
               size="compact"
               value={num(scopeTotals.customerStock)}
-              sub={<span className="text-xs text-sh-gray">allocated to open orders</span>}
+              sub={<span className="text-xs text-brand-gray">allocated to open orders</span>}
             />
             <KpiCard label="On Order" size="compact" value={num(scopeTotals.onOrder)} />
             <KpiCard label="Sold Qty" size="compact" value={num(scopeTotals.soldQty)} />
@@ -685,7 +685,7 @@ export function BuyersReportView() {
               value={formatScopeMargin(scopeTotals.avgMarginPct, scopeTotals.costEstimated)}
               sub={
                 scopeTotals.costEstimated ? (
-                  <span className="text-xs text-sh-gray">* includes retail/2 estimates</span>
+                  <span className="text-xs text-brand-gray">* includes retail/2 estimates</span>
                 ) : undefined
               }
             />
@@ -705,12 +705,12 @@ export function BuyersReportView() {
             description="Click any row to drill in. Click a breadcrumb to step back up. Leaf rows link to the product page."
           >
             {visibleRows.length === 0 ? (
-              <p className="text-sm text-sh-gray py-4">Nothing matches this saved view.</p>
+              <p className="text-sm text-brand-gray py-4">Nothing matches this saved view.</p>
             ) : (
-              <div className="bg-white rounded-xl border border-sh-gray/15 overflow-x-auto">
+              <div className="bg-white rounded-xl border border-brand-gray/15 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-sh-gray/15 bg-sh-linen text-[10px] uppercase tracking-wide text-sh-gray">
+                    <tr className="border-b border-brand-gray/15 bg-brand-linen text-[10px] uppercase tracking-wide text-brand-gray">
                       <th className="text-left px-2 py-2 font-semibold">
                         {depthLabel(pivot, effectiveCrumbs.length)}
                       </th>
@@ -770,7 +770,7 @@ export function BuyersReportView() {
                 </table>
               </div>
             )}
-            <p className="text-xs text-sh-gray mt-2">
+            <p className="text-xs text-brand-gray mt-2">
               Margin = (Sold $ − Sold Cost) / Sold $. Sold Cost uses the line&apos;s actual cost
               when the POS has it, falls back to the product&apos;s base cost × quantity, then to
               retail ÷ 2 as a last resort. An asterisk (*) marks rows whose margin includes at least
@@ -782,7 +782,7 @@ export function BuyersReportView() {
       )}
 
       {!data && !loading && (
-        <p className="text-sh-gray text-center py-16">Select filters and click Run.</p>
+        <p className="text-brand-gray text-center py-16">Select filters and click Run.</p>
       )}
     </div>
   );
@@ -809,32 +809,32 @@ function Row({
   const isFrame = isLeaf && node.productId === null;
   return (
     <tr
-      className={`border-b border-sh-gray/10 cursor-pointer hover:bg-sh-linen transition ${zebra ? "bg-sh-stripe" : ""}`}
+      className={`border-b border-brand-gray/10 cursor-pointer hover:bg-brand-linen transition ${zebra ? "bg-brand-stripe" : ""}`}
       onClick={onClick}
     >
-      <td className="px-2 py-2 whitespace-nowrap font-semibold text-sh-navy">
+      <td className="px-2 py-2 whitespace-nowrap font-semibold text-brand-navy">
         <span className="inline-flex items-center gap-2">
-          {!isLeaf && <ChevronRight className="w-3 h-3 text-sh-gray" />}
+          {!isLeaf && <ChevronRight className="w-3 h-3 text-brand-gray" />}
           {isLeaf && !isFrame && node.productId !== null && (
             <MapPin
-              className={`w-3 h-3 transition-colors ${expanded ? "text-sh-blue" : "text-sh-gray"}`}
+              className={`w-3 h-3 transition-colors ${expanded ? "text-brand-blue" : "text-brand-gray"}`}
             />
           )}
           <span>{node.name}</span>
           {isFrame && (
-            <span className="text-xs text-sh-gray font-normal">
+            <span className="text-xs text-brand-gray font-normal">
               ({node.productCount} variant{node.productCount === 1 ? "" : "s"})
             </span>
           )}
         </span>
       </td>
-      <td className="px-2 py-2 whitespace-nowrap text-right text-sh-gray">
+      <td className="px-2 py-2 whitespace-nowrap text-right text-brand-gray">
         {node.productCount.toLocaleString()}
       </td>
       <td className="px-2 py-2 whitespace-nowrap text-right">{node.onHand.toLocaleString()}</td>
       <td
         className={`px-2 py-2 whitespace-nowrap text-right ${
-          node.customerStock > 0 ? "text-sh-navy" : "text-sh-gray"
+          node.customerStock > 0 ? "text-brand-navy" : "text-brand-gray"
         }`}
       >
         {node.customerStock.toLocaleString()}
@@ -854,7 +854,7 @@ function Row({
         })}
       </td>
       <td
-        className={`px-2 py-2 whitespace-nowrap text-right ${node.costEstimated ? "text-sh-gray italic" : "text-sh-gray"}`}
+        className={`px-2 py-2 whitespace-nowrap text-right ${node.costEstimated ? "text-brand-gray italic" : "text-brand-gray"}`}
         title={marginTitle}
       >
         {node.soldCost.toLocaleString("en-US", {
@@ -864,18 +864,18 @@ function Row({
         })}
       </td>
       <td
-        className="px-2 py-2 whitespace-nowrap text-right text-sh-navy font-medium"
+        className="px-2 py-2 whitespace-nowrap text-right text-brand-navy font-medium"
         title={marginTitle}
       >
         {formatScopeMargin(node.avgMarginPct, node.costEstimated)}
       </td>
-      <td className="px-2 py-2 whitespace-nowrap text-right text-sh-gray">
+      <td className="px-2 py-2 whitespace-nowrap text-right text-brand-gray">
         {node.sellThroughPct}%
       </td>
-      <td className="px-2 py-2 whitespace-nowrap text-right text-sh-gray">
+      <td className="px-2 py-2 whitespace-nowrap text-right text-brand-gray">
         {fmtWeeks(node.weeksSupply)}
       </td>
-      <td className="px-2 py-2 whitespace-nowrap text-sh-gray">{formatDate(node.lastSold)}</td>
+      <td className="px-2 py-2 whitespace-nowrap text-brand-gray">{formatDate(node.lastSold)}</td>
     </tr>
   );
 }
@@ -891,21 +891,21 @@ function PositionsRow({
 }>) {
   return (
     <tr>
-      <td colSpan={12} className="bg-sh-linen/50 px-6 py-3 border-b border-sh-gray/10">
-        {loading && <p className="text-xs text-sh-gray">Loading locations…</p>}
-        {!loading && !data && <p className="text-xs text-sh-gray">No position data returned.</p>}
+      <td colSpan={12} className="bg-brand-linen/50 px-6 py-3 border-b border-brand-gray/10">
+        {loading && <p className="text-xs text-brand-gray">Loading locations…</p>}
+        {!loading && !data && <p className="text-xs text-brand-gray">No position data returned.</p>}
         {!loading && data && (
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-4 text-xs">
-              <div className="text-sh-gray">
-                <span className="font-semibold text-sh-navy">{data.productNumber}</span>
+              <div className="text-brand-gray">
+                <span className="font-semibold text-brand-navy">{data.productNumber}</span>
                 {data.productName && <span> — {data.productName}</span>}
                 {data.vendorName && <span className="ml-2">· {data.vendorName}</span>}
               </div>
               {node.productId !== null && (
                 <a
                   href={`/products/${node.productId}`}
-                  className="inline-flex items-center gap-1 text-sh-blue hover:underline"
+                  className="inline-flex items-center gap-1 text-brand-blue hover:underline"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -915,7 +915,7 @@ function PositionsRow({
               )}
             </div>
             {data.positions.length === 0 ? (
-              <p className="text-xs text-sh-gray italic">
+              <p className="text-xs text-brand-gray italic">
                 No on-hand inventory positions. On order: {data.totalOnOrder}
                 {data.earliestEsd
                   ? ` (earliest ${new Date(data.earliestEsd).toLocaleDateString()})`
@@ -925,7 +925,7 @@ function PositionsRow({
               <>
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="text-[10px] uppercase tracking-wide text-sh-gray">
+                    <tr className="text-[10px] uppercase tracking-wide text-brand-gray">
                       <th className="text-left px-2 py-1 font-semibold">Store</th>
                       <th className="text-left px-2 py-1 font-semibold">Stock Location</th>
                       <th className="text-right px-2 py-1 font-semibold">Floor</th>
@@ -934,11 +934,11 @@ function PositionsRow({
                   </thead>
                   <tbody>
                     {data.positions.map((p, i) => (
-                      <tr key={i} className="border-t border-sh-gray/10">
-                        <td className="px-2 py-1 text-sh-gray">{p.storeName || "—"}</td>
-                        <td className="px-2 py-1 text-sh-black">
+                      <tr key={i} className="border-t border-brand-gray/10">
+                        <td className="px-2 py-1 text-brand-gray">{p.storeName || "—"}</td>
+                        <td className="px-2 py-1 text-brand-black">
                           {p.locationCode ? (
-                            <span className="text-sh-gray mr-2">{p.locationCode}</span>
+                            <span className="text-brand-gray mr-2">{p.locationCode}</span>
                           ) : null}
                           {p.locationName || "(no location)"}
                         </td>
@@ -947,28 +947,28 @@ function PositionsRow({
                         </td>
                         <td
                           className={`px-2 py-1 text-right tabular-nums ${
-                            p.customerQty > 0 ? "text-sh-navy font-medium" : "text-sh-gray"
+                            p.customerQty > 0 ? "text-brand-navy font-medium" : "text-brand-gray"
                           }`}
                         >
                           {p.customerQty > 0 ? p.customerQty.toLocaleString() : "—"}
                         </td>
                       </tr>
                     ))}
-                    <tr className="border-t-2 border-sh-gray/25 font-semibold">
-                      <td colSpan={2} className="px-2 py-1 text-sh-navy">
+                    <tr className="border-t-2 border-brand-gray/25 font-semibold">
+                      <td colSpan={2} className="px-2 py-1 text-brand-navy">
                         Totals
                       </td>
-                      <td className="px-2 py-1 text-right tabular-nums text-sh-navy">
+                      <td className="px-2 py-1 text-right tabular-nums text-brand-navy">
                         {data.totalFloor.toLocaleString()}
                       </td>
-                      <td className="px-2 py-1 text-right tabular-nums text-sh-navy">
+                      <td className="px-2 py-1 text-right tabular-nums text-brand-navy">
                         {data.totalCustomer.toLocaleString()}
                       </td>
                     </tr>
                   </tbody>
                 </table>
                 {data.totalOnOrder > 0 && (
-                  <p className="text-xs text-sh-gray">
+                  <p className="text-xs text-brand-gray">
                     On order: {data.totalOnOrder.toLocaleString()}
                     {data.earliestEsd
                       ? ` · earliest arrival ${new Date(data.earliestEsd).toLocaleDateString()}`
@@ -1000,26 +1000,26 @@ function AttentionPanel({
   if (runningThin.length === 0 && deadMoney.length === 0 && hiddenDemand.length === 0) return null;
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div className="bg-white border border-sh-gold/40 rounded-xl p-4">
+      <div className="bg-white border border-brand-gold/40 rounded-xl p-4">
         <div className="flex items-center gap-2 mb-2">
-          <AlertTriangle className="w-4 h-4 text-sh-gold" />
-          <h3 className="text-sm font-semibold text-sh-navy">Opportunity — running thin</h3>
+          <AlertTriangle className="w-4 h-4 text-brand-gold" />
+          <h3 className="text-sm font-semibold text-brand-navy">Opportunity — running thin</h3>
         </div>
         {runningThin.length === 0 ? (
-          <p className="text-xs text-sh-gray">
+          <p className="text-xs text-brand-gray">
             No products in this scope are selling fast with fewer than 2 weeks of stock. Good.
           </p>
         ) : (
           <>
-            <p className="text-xs text-sh-gray mb-2">
+            <p className="text-xs text-brand-gray mb-2">
               {runningThin.length} product{runningThin.length === 1 ? "" : "s"} selling fast with
               less than 2 weeks of stock. Likely missing sales unless reordered soon.
             </p>
             <ul className="space-y-1 text-xs">
               {runningThin.map((l) => (
                 <li key={l.id} className="flex justify-between gap-2">
-                  <span className="text-sh-black truncate">{l.name}</span>
-                  <span className="text-sh-gray whitespace-nowrap tabular-nums">
+                  <span className="text-brand-black truncate">{l.name}</span>
+                  <span className="text-brand-gray whitespace-nowrap tabular-nums">
                     {num(l.soldQty)} sold · {l.weeksSupply?.toFixed(1)}w left
                   </span>
                 </li>
@@ -1029,27 +1029,27 @@ function AttentionPanel({
         )}
       </div>
 
-      <div className="bg-white border border-sh-gray/30 rounded-xl p-4">
+      <div className="bg-white border border-brand-gray/30 rounded-xl p-4">
         <div className="flex items-center gap-2 mb-2">
-          <Archive className="w-4 h-4 text-sh-gray" />
-          <h3 className="text-sm font-semibold text-sh-navy">Dead money — sitting too deep</h3>
+          <Archive className="w-4 h-4 text-brand-gray" />
+          <h3 className="text-sm font-semibold text-brand-navy">Dead money — sitting too deep</h3>
         </div>
         {deadMoney.length === 0 ? (
-          <p className="text-xs text-sh-gray">
+          <p className="text-xs text-brand-gray">
             No on-hand stock in this scope with zero sales. Clean floor.
           </p>
         ) : (
           <>
-            <p className="text-xs text-sh-gray mb-2">
+            <p className="text-xs text-brand-gray mb-2">
               {deadMoney.length} product{deadMoney.length === 1 ? "" : "s"} with on-hand stock and
               zero sales in range. Tied-up cost:{" "}
-              <span className="font-semibold text-sh-navy">{currency(deadMoneyDollars)}</span>.
+              <span className="font-semibold text-brand-navy">{currency(deadMoneyDollars)}</span>.
             </p>
             <ul className="space-y-1 text-xs">
               {deadMoney.map((l) => (
                 <li key={l.id} className="flex justify-between gap-2">
-                  <span className="text-sh-black truncate">{l.name}</span>
-                  <span className="text-sh-gray whitespace-nowrap tabular-nums">
+                  <span className="text-brand-black truncate">{l.name}</span>
+                  <span className="text-brand-gray whitespace-nowrap tabular-nums">
                     {num(l.onHand)} on hand · {currency(l.soldCost)}
                   </span>
                 </li>
@@ -1059,21 +1059,21 @@ function AttentionPanel({
         )}
       </div>
 
-      <div className="bg-white border border-sh-blue/40 rounded-xl p-4">
+      <div className="bg-white border border-brand-blue/40 rounded-xl p-4">
         <div className="flex items-center gap-2 mb-2">
-          <Eye className="w-4 h-4 text-sh-blue" />
-          <h3 className="text-sm font-semibold text-sh-navy">
+          <Eye className="w-4 h-4 text-brand-blue" />
+          <h3 className="text-sm font-semibold text-brand-navy">
             Hidden demand — worth a floor sample
           </h3>
         </div>
         {hiddenDemand.length === 0 ? (
-          <p className="text-xs text-sh-gray">
+          <p className="text-xs text-brand-gray">
             Nothing in this scope is selling as special-order or sitting allocated without a floor
             sample.
           </p>
         ) : (
           <>
-            <p className="text-xs text-sh-gray mb-2">
+            <p className="text-xs text-brand-gray mb-2">
               {hiddenDemand.length} product{hiddenDemand.length === 1 ? "" : "s"} with zero on-hand
               but proven demand (customer-allocated units or special-order sales). Candidates for a
               floor sample.
@@ -1081,8 +1081,8 @@ function AttentionPanel({
             <ul className="space-y-1 text-xs">
               {hiddenDemand.map((l) => (
                 <li key={l.id} className="flex justify-between gap-2">
-                  <span className="text-sh-black truncate">{l.name}</span>
-                  <span className="text-sh-gray whitespace-nowrap tabular-nums">
+                  <span className="text-brand-black truncate">{l.name}</span>
+                  <span className="text-brand-gray whitespace-nowrap tabular-nums">
                     {l.customerStock > 0 ? `${num(l.customerStock)} cust` : ""}
                     {l.customerStock > 0 && l.specialSoldQty > 0 ? " · " : ""}
                     {l.specialSoldQty > 0 ? `${num(l.specialSoldQty)} special` : ""}

@@ -88,14 +88,14 @@ function VendorSettingsPanel({
   else if (saving) saveLabel = "Saving…";
 
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-sm p-5 max-w-2xl">
-      <h3 className="text-sm font-semibold text-sh-blue mb-4 flex items-center gap-2">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-sm p-5 max-w-2xl">
+      <h3 className="text-sm font-semibold text-brand-blue mb-4 flex items-center gap-2">
         <Settings className="w-4 h-4" />
         Pricing Settings — {vendorName}
       </h3>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-          <label htmlFor="cfg-markup" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="cfg-markup" className="block text-xs text-brand-gray mb-1">
             Default Markup (multiplier)
           </label>
           <input
@@ -106,14 +106,14 @@ function VendorSettingsPanel({
             max="10"
             value={editMarkup}
             onChange={(e) => onMarkupChange(e.target.value)}
-            className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sm tabular-nums"
+            className="w-full border border-brand-gray rounded-lg px-3 py-2 text-sm tabular-nums"
             placeholder="2.5"
           />
-          <span className="text-xs text-sh-gray mt-1 block">e.g. 2.5 = 2.5× wholesale</span>
+          <span className="text-xs text-brand-gray mt-1 block">e.g. 2.5 = 2.5× wholesale</span>
         </div>
 
         <div>
-          <label htmlFor="cfg-discount" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="cfg-discount" className="block text-xs text-brand-gray mb-1">
             Default Discount (%)
           </label>
           <div className="relative">
@@ -125,30 +125,30 @@ function VendorSettingsPanel({
               max="99"
               value={editDiscount}
               onChange={(e) => onDiscountChange(e.target.value)}
-              className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sm tabular-nums pr-8"
+              className="w-full border border-brand-gray rounded-lg px-3 py-2 text-sm tabular-nums pr-8"
               placeholder="0"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sh-gray text-sm">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray text-sm">
               %
             </span>
           </div>
-          <span className="text-xs text-sh-gray mt-1 block">Off suggested retail</span>
+          <span className="text-xs text-brand-gray mt-1 block">Off suggested retail</span>
         </div>
 
         <div>
-          <label htmlFor="cfg-map" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="cfg-map" className="block text-xs text-brand-gray mb-1">
             MAP Enforced
           </label>
           <label
             htmlFor="cfg-map"
-            className="flex items-center gap-2 mt-2 cursor-pointer text-sm text-sh-black"
+            className="flex items-center gap-2 mt-2 cursor-pointer text-sm text-brand-black"
           >
             <input
               id="cfg-map"
               type="checkbox"
               checked={editMapEnforced}
               onChange={(e) => onMapEnforcedChange(e.target.checked)}
-              className="w-5 h-5 accent-sh-blue"
+              className="w-5 h-5 accent-brand-blue"
             />
             Enforce minimum advertised price
           </label>
@@ -159,12 +159,12 @@ function VendorSettingsPanel({
           type="button"
           onClick={onSave}
           disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-sh-blue text-white rounded-lg text-sm hover:bg-sh-blue/90 disabled:opacity-50 transition"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-blue text-white rounded-lg text-sm hover:bg-brand-blue/90 disabled:opacity-50 transition"
         >
           <SaveButtonIcon saving={saving} saved={saved} />
           {saveLabel}
         </button>
-        <span className="text-xs text-sh-gray">
+        <span className="text-xs text-brand-gray">
           Settings are saved to this vendor and applied automatically.
         </span>
       </div>
@@ -184,7 +184,7 @@ function EmptyState({
 }: Readonly<{ message: string; children?: React.ReactNode }>) {
   return (
     <div className="text-center py-16">
-      <p className="text-sh-gray">{message}</p>
+      <p className="text-brand-gray">{message}</p>
       {children}
     </div>
   );
@@ -358,18 +358,18 @@ export function ConfiguratorView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-2xl text-sh-blue font-semibold">Price Configurator</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">Price Configurator</h1>
 
         {/* Vendor selector + settings */}
         <div className="flex items-center gap-3">
-          <label htmlFor="cfg-vendor" className="text-sm text-sh-gray">
+          <label htmlFor="cfg-vendor" className="text-sm text-brand-gray">
             Vendor:
           </label>
           <select
             id="cfg-vendor"
             value={selectedVendorId ?? ""}
             onChange={(e) => setSelectedVendorId(e.target.value ? Number(e.target.value) : null)}
-            className="border border-sh-gray rounded-lg px-3 py-2 text-sm bg-white text-sh-black min-w-[200px]"
+            className="border border-brand-gray rounded-lg px-3 py-2 text-sm bg-white text-brand-black min-w-[200px]"
           >
             <option value="">Select a vendor…</option>
             {vendors.map((v) => (
@@ -384,8 +384,8 @@ export function ConfiguratorView() {
               onClick={() => setShowSettings(!showSettings)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition ${
                 showSettings
-                  ? "bg-sh-blue text-white border-sh-blue"
-                  : "bg-white text-sh-gray border-sh-gray hover:border-sh-blue hover:text-sh-blue"
+                  ? "bg-brand-blue text-white border-brand-blue"
+                  : "bg-white text-brand-gray border-brand-gray hover:border-brand-blue hover:text-brand-blue"
               }`}
               title="Vendor pricing settings"
             >
@@ -398,12 +398,14 @@ export function ConfiguratorView() {
 
       {/* Standard / Signature Elements toggle */}
       {hasSE && !loading && (
-        <div className="flex items-center gap-1 bg-sh-stripe rounded-lg p-1 w-fit">
+        <div className="flex items-center gap-1 bg-brand-stripe rounded-lg p-1 w-fit">
           <button
             type="button"
             onClick={() => setSEMode(false)}
             className={`px-4 py-1.5 rounded-md text-sm font-sans transition ${
-              !seMode ? "bg-white text-sh-blue shadow-sm" : "text-sh-gray hover:text-sh-black"
+              !seMode
+                ? "bg-white text-brand-blue shadow-sm"
+                : "text-brand-gray hover:text-brand-black"
             }`}
           >
             Standard
@@ -412,7 +414,9 @@ export function ConfiguratorView() {
             type="button"
             onClick={() => setSEMode(true)}
             className={`px-4 py-1.5 rounded-md text-sm font-sans transition ${
-              seMode ? "bg-white text-sh-blue shadow-sm" : "text-sh-gray hover:text-sh-black"
+              seMode
+                ? "bg-white text-brand-blue shadow-sm"
+                : "text-brand-gray hover:text-brand-black"
             }`}
           >
             Signature Elements
@@ -439,8 +443,8 @@ export function ConfiguratorView() {
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-sh-blue mr-3" />
-          <span className="text-sh-gray">Loading products…</span>
+          <Loader2 className="w-6 h-6 animate-spin text-brand-blue mr-3" />
+          <span className="text-brand-gray">Loading products…</span>
         </div>
       )}
 
@@ -463,11 +467,11 @@ export function ConfiguratorView() {
       {/* No products */}
       {noProducts && (
         <EmptyState message="No products with pricing data found for this vendor.">
-          <p className="text-sm text-sh-gray mt-2">
+          <p className="text-sm text-brand-gray mt-2">
             Import a price list first from{" "}
             <Link
               href="/app/admin/pricing/import"
-              className="text-sh-blue underline underline-offset-2 hover:text-sh-blue/80"
+              className="text-brand-blue underline underline-offset-2 hover:text-brand-blue/80"
             >
               the import page
             </Link>

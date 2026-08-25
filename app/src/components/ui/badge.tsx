@@ -8,11 +8,11 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const VARIANTS = {
-  neutral: "bg-sh-stripe text-sh-gray",
+  neutral: "bg-brand-stripe text-brand-gray",
   success: "bg-green-100 text-green-800",
-  warning: "bg-sh-gold/20 text-sh-gold",
+  warning: "bg-brand-gold/20 text-brand-gold",
   danger: "bg-red-100 text-red-800",
-  info: "bg-sh-brand-blue/15 text-sh-brand-blue",
+  info: "bg-brand-accent-blue/15 text-brand-accent-blue",
 } as const;
 
 export type BadgeVariant = keyof typeof VARIANTS;

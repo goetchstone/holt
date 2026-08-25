@@ -58,7 +58,7 @@ export function AppNav() {
   };
 
   return (
-    <nav className="w-full border-b border-sh-gray bg-white shadow-sm font-serif">
+    <nav className="w-full border-b border-brand-gray bg-white shadow-sm font-serif">
       <div className="flex h-20 items-center justify-between px-4 sm:px-8">
         <Link href="/app" className="flex min-w-[140px] items-center gap-4">
           <BrandLogo
@@ -70,15 +70,15 @@ export function AppNav() {
           />
         </Link>
 
-        <div className="hidden items-center justify-center gap-8 text-xl text-sh-black md:flex">
+        <div className="hidden items-center justify-center gap-8 text-xl text-brand-black md:flex">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={`py-2 transition ${
                 isActive(item.href)
-                  ? "border-b-2 border-sh-gold font-semibold text-sh-blue"
-                  : "underline-offset-4 hover:text-sh-blue hover:underline"
+                  ? "border-b-2 border-brand-gold font-semibold text-brand-blue"
+                  : "underline-offset-4 hover:text-brand-blue hover:underline"
               }`}
             >
               {item.label}
@@ -100,13 +100,13 @@ export function AppNav() {
       </div>
 
       {/* Mobile nav row */}
-      <div className="flex flex-wrap gap-3 px-4 pb-3 text-sm text-sh-black md:hidden">
+      <div className="flex flex-wrap gap-3 px-4 pb-3 text-sm text-brand-black md:hidden">
         {navItems.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             className={`py-1 ${
-              isActive(item.href) ? "font-semibold text-sh-blue" : "text-sh-gray"
+              isActive(item.href) ? "font-semibold text-brand-blue" : "text-brand-gray"
             }`}
           >
             {item.label}

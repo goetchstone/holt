@@ -68,24 +68,24 @@ export function CrossSellView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Cross-Sell Opportunity</span>
+        <span className="text-brand-black">Cross-Sell Opportunity</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">Cross-Sell Opportunity</h1>
-      <p className="text-sm text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-navy">Cross-Sell Opportunity</h1>
+      <p className="text-sm text-brand-gray">
         Furniture buyers who never bought from high-value complementary departments. Targeted
         outreach list.
       </p>
 
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-sh-gray/15 bg-white p-5">
+      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-brand-gray/15 bg-white p-5">
         <div>
           <label
             htmlFor="target-dept"
-            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-sh-gray"
+            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-brand-gray"
           >
             Target Department
           </label>
@@ -93,7 +93,7 @@ export function CrossSellView() {
             id="target-dept"
             value={target}
             onChange={(e) => setTarget(e.target.value)}
-            className="min-h-[44px] rounded-lg border border-sh-gray/30 px-3 py-2 text-sm"
+            className="min-h-[44px] rounded-lg border border-brand-gray/30 px-3 py-2 text-sm"
           >
             <option value="">All missing departments</option>
             <option value="Rugs">Never bought Rugs</option>
@@ -109,7 +109,7 @@ export function CrossSellView() {
         <div>
           <label
             htmlFor="min-furn-spend"
-            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-sh-gray"
+            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-brand-gray"
           >
             Min Furniture Spend
           </label>
@@ -117,7 +117,7 @@ export function CrossSellView() {
             id="min-furn-spend"
             value={minSpend}
             onChange={(e) => setMinSpend(Number(e.target.value))}
-            className="min-h-[44px] rounded-lg border border-sh-gray/30 px-3 py-2 text-sm"
+            className="min-h-[44px] rounded-lg border border-brand-gray/30 px-3 py-2 text-sm"
           >
             <option value={500}>$500+</option>
             <option value={1000}>$1,000+</option>
@@ -130,7 +130,7 @@ export function CrossSellView() {
           type="button"
           onClick={run}
           disabled={query.isFetching}
-          className="min-h-[44px] rounded-lg bg-sh-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-brand-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
         >
           {query.isFetching ? "Loading..." : "Run Report"}
         </button>
@@ -173,7 +173,7 @@ export function CrossSellView() {
       )}
 
       {committed === null && (
-        <p className="py-16 text-center text-sh-gray">Select filters and click Run Report</p>
+        <p className="py-16 text-center text-brand-gray">Select filters and click Run Report</p>
       )}
     </div>
   );

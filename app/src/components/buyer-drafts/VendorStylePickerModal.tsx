@@ -130,12 +130,12 @@ export default function VendorStylePickerModal({
         <div className="flex min-h-full items-center justify-center p-4">
           <DialogPanel className="w-full max-w-3xl bg-white rounded-2xl shadow-xl flex flex-col max-h-[85vh]">
             {/* Header */}
-            <div className="flex items-start justify-between px-6 py-4 border-b border-sh-stripe">
+            <div className="flex items-start justify-between px-6 py-4 border-b border-brand-stripe">
               <div>
-                <DialogTitle as="h2" className="font-serif text-xl text-sh-navy">
+                <DialogTitle as="h2" className="font-serif text-xl text-brand-navy">
                   Pick from catalog
                 </DialogTitle>
-                <p className="text-xs text-sh-gray mt-1">
+                <p className="text-xs text-brand-gray mt-1">
                   {vendorName ? `${vendorName} — ` : ""}
                   click a style to pre-fill the wizard&apos;s identity, pricing, and dimension
                   fields. You can still edit before saving.
@@ -145,22 +145,22 @@ export default function VendorStylePickerModal({
                 type="button"
                 onClick={onClose}
                 aria-label="Close picker"
-                className="text-sh-gray hover:text-sh-navy"
+                className="text-brand-gray hover:text-brand-navy"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Search */}
-            <div className="px-6 py-3 border-b border-sh-stripe">
+            <div className="px-6 py-3 border-b border-brand-stripe">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sh-gray" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by part number, name, dept, or category…"
-                  className="w-full pl-9 pr-3 py-2 border border-sh-stripe rounded text-base"
+                  className="w-full pl-9 pr-3 py-2 border border-brand-stripe rounded text-base"
                   aria-label="Filter catalog"
                 />
               </div>
@@ -179,7 +179,7 @@ export default function VendorStylePickerModal({
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-3 border-t border-sh-stripe text-xs text-sh-gray flex items-center justify-between">
+            <div className="px-6 py-3 border-t border-brand-stripe text-xs text-brand-gray flex items-center justify-between">
               <span>
                 {filtered.length} of {styles.length} style{styles.length === 1 ? "" : "s"} shown
               </span>
@@ -241,7 +241,7 @@ function PickerResults({
 }: Readonly<PickerResultsProps>) {
   if (vendorId === null) {
     return (
-      <div className="p-8 text-center text-sh-gray text-sm">
+      <div className="p-8 text-center text-brand-gray text-sm">
         Select a vendor on the previous step before opening the catalog.
       </div>
     );
@@ -249,7 +249,7 @@ function PickerResults({
   if (loading) {
     return (
       <div className="p-12 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-sh-gold" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
       </div>
     );
   }
@@ -258,10 +258,10 @@ function PickerResults({
       styles.length === 0
         ? `No vendor styles found for ${vendorName}.`
         : "No styles match the search.";
-    return <div className="p-8 text-center text-sh-gray text-sm">{message}</div>;
+    return <div className="p-8 text-center text-brand-gray text-sm">{message}</div>;
   }
   return (
-    <ul className="divide-y divide-sh-stripe">
+    <ul className="divide-y divide-brand-stripe">
       {filtered.map((style) => (
         <li key={style.id}>
           <PickerRow style={style} onPick={onPick} />
@@ -280,31 +280,31 @@ function PickerRow({
     <button
       type="button"
       onClick={() => onPick(style)}
-      className="w-full text-left px-6 py-3 hover:bg-sh-stripe/40 flex items-start gap-3"
+      className="w-full text-left px-6 py-3 hover:bg-brand-stripe/40 flex items-start gap-3"
     >
       {style.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={style.imageUrl}
           alt=""
-          className="w-16 h-16 object-contain bg-sh-linen rounded flex-shrink-0"
+          className="w-16 h-16 object-contain bg-brand-linen rounded flex-shrink-0"
         />
       ) : (
-        <div className="w-16 h-16 bg-sh-stripe rounded flex items-center justify-center flex-shrink-0">
-          <Package className="h-6 w-6 text-sh-gray" />
+        <div className="w-16 h-16 bg-brand-stripe rounded flex items-center justify-center flex-shrink-0">
+          <Package className="h-6 w-6 text-brand-gray" />
         </div>
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <code className="font-mono font-semibold text-sh-navy">{style.styleNumber}</code>
+          <code className="font-mono font-semibold text-brand-navy">{style.styleNumber}</code>
           {style.isDiscontinued && (
             <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">
               <AlertTriangle className="h-3 w-3" /> Discontinued
             </span>
           )}
         </div>
-        <div className="text-sm text-sh-navy">{style.name}</div>
-        <div className="text-xs text-sh-gray mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+        <div className="text-sm text-brand-navy">{style.name}</div>
+        <div className="text-xs text-brand-gray mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
           {style.department?.name && <span>Dept: {style.department.name}</span>}
           {style.category?.name && <span>Cat: {style.category.name}</span>}
           {style.baseCost && <span>Cost: ${formatMoney(style.baseCost)}</span>}

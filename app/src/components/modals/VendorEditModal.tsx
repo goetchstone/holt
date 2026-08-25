@@ -83,7 +83,7 @@ export default function VendorEditModal({ vendor, onClose, onSave }: VendorEditM
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-3xl shadow-xl font-serif">
-        <h2 className="text-xl font-semibold text-sh-blue mb-4">Edit Vendor</h2>
+        <h2 className="text-xl font-semibold text-brand-blue mb-4">Edit Vendor</h2>
 
         {/* Vendor Fields */}
         <div className="space-y-4 mb-6">
@@ -95,10 +95,10 @@ export default function VendorEditModal({ vendor, onClose, onSave }: VendorEditM
         </div>
 
         {/* Vendor Contacts */}
-        <h3 className="text-lg font-serif text-sh-blue mb-2">Contacts</h3>
+        <h3 className="text-lg font-serif text-brand-blue mb-2">Contacts</h3>
         <div className="space-y-4 mb-6">
           {contacts.map((contact, index) => (
-            <div key={index} className="border border-sh-gray p-4 rounded space-y-2">
+            <div key={index} className="border border-brand-gray p-4 rounded space-y-2">
               <FormInput
                 label="Contact Name"
                 name={`contact-name-${index}`}

@@ -23,7 +23,7 @@ export function BrandLogo({
   className,
   width,
   height,
-  wordmarkClassName = "font-serif text-2xl font-semibold text-sh-navy",
+  wordmarkClassName = "font-serif text-2xl font-semibold text-brand-navy",
 }: BrandLogoProps) {
   if (logoUrl) {
     return (

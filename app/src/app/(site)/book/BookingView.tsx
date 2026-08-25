@@ -140,12 +140,12 @@ export function BookingView() {
 
   function renderSlots() {
     if (hasServices && !selectedService) {
-      return <p className="mt-4 text-sh-gray">Choose a service to see available times.</p>;
+      return <p className="mt-4 text-brand-gray">Choose a service to see available times.</p>;
     }
-    if (loadingSlots) return <p className="mt-4 text-sh-gray">Loading available times…</p>;
+    if (loadingSlots) return <p className="mt-4 text-brand-gray">Loading available times…</p>;
     if (days.length === 0) {
       return (
-        <p className="mt-4 text-sh-gray">
+        <p className="mt-4 text-brand-gray">
           No times are available right now. Please check back soon.
         </p>
       );
@@ -154,7 +154,7 @@ export function BookingView() {
       <div className="mt-4 space-y-6">
         {days.map((day) => (
           <div key={day.key}>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-sh-gray">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-brand-gray">
               {day.label}
             </h3>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -210,18 +210,18 @@ export function BookingView() {
   if (confirmed) {
     const start = new Date(confirmed.startsAt);
     return (
-      <section className="mt-10 rounded-lg border border-sh-gray/20 bg-sh-linen p-8">
-        <h2 className="font-serif text-2xl text-sh-navy">You&apos;re booked</h2>
-        <p className="mt-3 text-sh-gray">
+      <section className="mt-10 rounded-lg border border-brand-gray/20 bg-brand-linen p-8">
+        <h2 className="font-serif text-2xl text-brand-navy">You&apos;re booked</h2>
+        <p className="mt-3 text-brand-gray">
           Thanks, {confirmed.customerName}. We&apos;ve reserved{" "}
-          <span className="font-medium text-sh-black">
+          <span className="font-medium text-brand-black">
             {dayLabelFmt.format(start)} at {timeFmt.format(start)}
           </span>
           . A confirmation will follow by email.
         </p>
         <a
           href={`/api/bookings/${confirmed.id}/ics?token=${encodeURIComponent(confirmed.icsToken)}`}
-          className="mt-6 inline-block rounded-md bg-sh-navy px-5 py-2.5 text-sm font-medium text-white transition hover:bg-sh-blue"
+          className="mt-6 inline-block rounded-md bg-brand-navy px-5 py-2.5 text-sm font-medium text-white transition hover:bg-brand-blue"
         >
           Add to calendar
         </a>
@@ -234,7 +234,7 @@ export function BookingView() {
       <section>
         {hasServices ? (
           <>
-            <h2 className="font-serif text-2xl text-sh-navy">Choose a service</h2>
+            <h2 className="font-serif text-2xl text-brand-navy">Choose a service</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {services.map((s) => (
                 <button
@@ -244,16 +244,16 @@ export function BookingView() {
                   aria-pressed={selectedService?.id === s.id}
                   className={`rounded-lg border p-4 text-left transition ${
                     selectedService?.id === s.id
-                      ? "border-sh-navy bg-sh-navy/5"
-                      : "border-sh-gray/30 bg-white hover:border-sh-navy"
+                      ? "border-brand-navy bg-brand-navy/5"
+                      : "border-brand-gray/30 bg-white hover:border-brand-navy"
                   }`}
                 >
-                  <span className="block font-medium text-sh-black">{s.name}</span>
-                  <span className="mt-1 block text-xs uppercase tracking-wide text-sh-gray">
+                  <span className="block font-medium text-brand-black">{s.name}</span>
+                  <span className="mt-1 block text-xs uppercase tracking-wide text-brand-gray">
                     {serviceMeta(s)}
                   </span>
                   {s.description ? (
-                    <span className="mt-2 block text-sm text-sh-gray">{s.description}</span>
+                    <span className="mt-2 block text-sm text-brand-gray">{s.description}</span>
                   ) : null}
                 </button>
               ))}
@@ -261,17 +261,17 @@ export function BookingView() {
           </>
         ) : null}
 
-        <h2 className={`font-serif text-2xl text-sh-navy ${hasServices ? "mt-8" : ""}`}>
+        <h2 className={`font-serif text-2xl text-brand-navy ${hasServices ? "mt-8" : ""}`}>
           Choose a time
         </h2>
-        {servicesLoaded ? renderSlots() : <p className="mt-4 text-sh-gray">Loading…</p>}
+        {servicesLoaded ? renderSlots() : <p className="mt-4 text-brand-gray">Loading…</p>}
       </section>
 
       <section>
-        <h2 className="font-serif text-2xl text-sh-navy">Your details</h2>
+        <h2 className="font-serif text-2xl text-brand-navy">Your details</h2>
         <form onSubmit={submit} className="mt-4 space-y-4">
           <div>
-            <label htmlFor="booking-name" className="block text-sm font-medium text-sh-black">
+            <label htmlFor="booking-name" className="block text-sm font-medium text-brand-black">
               Name
             </label>
             <input
@@ -280,11 +280,11 @@ export function BookingView() {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 min-h-[44px] w-full rounded-md border border-sh-gray/30 px-3 py-2 text-sh-black focus:border-sh-navy focus:outline-none"
+              className="mt-1 min-h-[44px] w-full rounded-md border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
             />
           </div>
           <div>
-            <label htmlFor="booking-email" className="block text-sm font-medium text-sh-black">
+            <label htmlFor="booking-email" className="block text-sm font-medium text-brand-black">
               Email
             </label>
             <input
@@ -293,45 +293,45 @@ export function BookingView() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 min-h-[44px] w-full rounded-md border border-sh-gray/30 px-3 py-2 text-sh-black focus:border-sh-navy focus:outline-none"
+              className="mt-1 min-h-[44px] w-full rounded-md border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
             />
           </div>
           <div>
-            <label htmlFor="booking-phone" className="block text-sm font-medium text-sh-black">
-              Phone <span className="text-sh-gray">(optional)</span>
+            <label htmlFor="booking-phone" className="block text-sm font-medium text-brand-black">
+              Phone <span className="text-brand-gray">(optional)</span>
             </label>
             <input
               id="booking-phone"
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="mt-1 min-h-[44px] w-full rounded-md border border-sh-gray/30 px-3 py-2 text-sh-black focus:border-sh-navy focus:outline-none"
+              className="mt-1 min-h-[44px] w-full rounded-md border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
             />
           </div>
           <div>
-            <label htmlFor="booking-notes" className="block text-sm font-medium text-sh-black">
-              What can we help with? <span className="text-sh-gray">(optional)</span>
+            <label htmlFor="booking-notes" className="block text-sm font-medium text-brand-black">
+              What can we help with? <span className="text-brand-gray">(optional)</span>
             </label>
             <textarea
               id="booking-notes"
               rows={3}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="mt-1 w-full rounded-md border border-sh-gray/30 px-3 py-2 text-sh-black focus:border-sh-navy focus:outline-none"
+              className="mt-1 w-full rounded-md border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
             />
           </div>
 
           {selected ? (
-            <p className="text-sm text-sh-gray">
+            <p className="text-sm text-brand-gray">
               Selected:{" "}
-              <span className="font-medium text-sh-black">
+              <span className="font-medium text-brand-black">
                 {selectedService ? `${selectedService.name} — ` : ""}
                 {dayLabelFmt.format(new Date(selected.startsAt))} at{" "}
                 {timeFmt.format(new Date(selected.startsAt))}
               </span>
             </p>
           ) : (
-            <p className="text-sm text-sh-gray">
+            <p className="text-sm text-brand-gray">
               {showSlots ? "Select a time to continue." : "Select a service, then a time."}
             </p>
           )}
@@ -339,7 +339,7 @@ export function BookingView() {
           <button
             type="submit"
             disabled={submitting || !selected}
-            className="min-h-[44px] w-full rounded-md bg-sh-navy px-5 py-2.5 text-sm font-medium text-white transition hover:bg-sh-blue disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-[44px] w-full rounded-md bg-brand-navy px-5 py-2.5 text-sm font-medium text-white transition hover:bg-brand-blue disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? "Booking…" : "Confirm booking"}
           </button>
@@ -361,8 +361,8 @@ function SlotButton({
       aria-pressed={selected}
       className={
         selected
-          ? "min-h-[44px] rounded-md border border-sh-navy bg-sh-navy px-4 py-2 text-sm font-medium text-white"
-          : "min-h-[44px] rounded-md border border-sh-gray/30 bg-white px-4 py-2 text-sm text-sh-black transition hover:border-sh-navy"
+          ? "min-h-[44px] rounded-md border border-brand-navy bg-brand-navy px-4 py-2 text-sm font-medium text-white"
+          : "min-h-[44px] rounded-md border border-brand-gray/30 bg-white px-4 py-2 text-sm text-brand-black transition hover:border-brand-navy"
       }
     >
       {timeFmt.format(new Date(slot.startsAt))}

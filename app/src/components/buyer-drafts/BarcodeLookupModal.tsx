@@ -130,12 +130,12 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
         <div className="flex min-h-full items-center justify-center p-4">
           <DialogPanel className="w-full max-w-lg bg-white rounded-2xl shadow-xl flex flex-col">
             {/* Header */}
-            <div className="flex items-start justify-between px-6 py-4 border-b border-sh-stripe">
+            <div className="flex items-start justify-between px-6 py-4 border-b border-brand-stripe">
               <div>
-                <DialogTitle as="h2" className="font-serif text-xl text-sh-navy">
+                <DialogTitle as="h2" className="font-serif text-xl text-brand-navy">
                   Quick add by barcode
                 </DialogTitle>
-                <p className="text-xs text-sh-gray mt-1">
+                <p className="text-xs text-brand-gray mt-1">
                   Scan or type a UPC to add an existing catalog item as a draft.
                 </p>
               </div>
@@ -143,7 +143,7 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="text-sh-gray hover:text-sh-navy"
+                className="text-brand-gray hover:text-brand-navy"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -154,12 +154,12 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
               <div>
                 <label
                   htmlFor="barcode-input"
-                  className="block text-sm font-semibold text-sh-navy mb-1"
+                  className="block text-sm font-semibold text-brand-navy mb-1"
                 >
                   Barcode / UPC
                 </label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sh-gray" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray" />
                   <input
                     ref={inputRef}
                     id="barcode-input"
@@ -175,7 +175,7 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
                       }
                     }}
                     placeholder="Scan or type UPC, press Enter"
-                    className="w-full pl-9 pr-3 py-3 border border-sh-stripe rounded text-base min-h-[44px]"
+                    className="w-full pl-9 pr-3 py-3 border border-brand-stripe rounded text-base min-h-[44px]"
                   />
                 </div>
                 {lookupError && (
@@ -187,21 +187,21 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
 
               {/* Preview */}
               {preview && (
-                <div className="border border-sh-stripe rounded-lg p-3 bg-sh-stripe/30">
-                  <div className="text-xs uppercase text-sh-gray tracking-wide">
+                <div className="border border-brand-stripe rounded-lg p-3 bg-brand-stripe/30">
+                  <div className="text-xs uppercase text-brand-gray tracking-wide">
                     {preview.product.vendorName}
                   </div>
-                  <div className="font-semibold text-sh-navy">{preview.product.name}</div>
-                  <code className="text-xs text-sh-gray font-mono">
+                  <div className="font-semibold text-brand-navy">{preview.product.name}</div>
+                  <code className="text-xs text-brand-gray font-mono">
                     {preview.product.productNumber}
                   </code>
                   <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <div className="text-sh-gray">Cost</div>
+                      <div className="text-brand-gray">Cost</div>
                       <div className="font-semibold">{preview.product.cost ?? "—"}</div>
                     </div>
                     <div>
-                      <div className="text-sh-gray">Retail</div>
+                      <div className="text-brand-gray">Retail</div>
                       <div className="font-semibold">{preview.product.retail ?? "—"}</div>
                     </div>
                   </div>
@@ -211,26 +211,28 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
                     </div>
                   )}
                   {!preview.product.isActive && !preview.product.isDiscontinued && (
-                    <div className="text-xs text-sh-gold mt-2 font-semibold">⚠ Marked inactive</div>
+                    <div className="text-xs text-brand-gold mt-2 font-semibold">
+                      ⚠ Marked inactive
+                    </div>
                   )}
                   {/* Slice 6.12 — operational awareness: how did this
                       frame sell last year? Buyer's quantity decision
                       should be informed by data, not memory. */}
                   {preview.salesHistory && (
-                    <div className="mt-3 pt-3 border-t border-sh-stripe">
-                      <div className="text-xs uppercase text-sh-gray tracking-wide mb-1">
+                    <div className="mt-3 pt-3 border-t border-brand-stripe">
+                      <div className="text-xs uppercase text-brand-gray tracking-wide mb-1">
                         Last {preview.salesHistory.windowMonths} months · frame total
                       </div>
                       <div className="flex items-baseline gap-3 text-sm">
                         <div>
-                          <span className="font-semibold text-sh-navy">
+                          <span className="font-semibold text-brand-navy">
                             {preview.salesHistory.units}
                           </span>
-                          <span className="text-sh-gray ml-1">units</span>
+                          <span className="text-brand-gray ml-1">units</span>
                         </div>
-                        <div className="text-sh-gray">·</div>
+                        <div className="text-brand-gray">·</div>
                         <div>
-                          <span className="font-semibold text-sh-navy">
+                          <span className="font-semibold text-brand-navy">
                             {preview.salesHistory.revenue.toLocaleString("en-US", {
                               style: "currency",
                               currency: "USD",
@@ -238,8 +240,8 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
                             })}
                           </span>
                         </div>
-                        <div className="text-sh-gray">·</div>
-                        <div className="text-xs text-sh-gray">
+                        <div className="text-brand-gray">·</div>
+                        <div className="text-xs text-brand-gray">
                           {preview.salesHistory.distinctOrders} order
                           {preview.salesHistory.distinctOrders === 1 ? "" : "s"}
                         </div>
@@ -251,13 +253,13 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-3 border-t border-sh-stripe flex items-center justify-end gap-2">
+            <div className="px-6 py-3 border-t border-brand-stripe flex items-center justify-end gap-2">
               {/* Slice 6.2 — qty input appears once a preview is shown
                   so the buyer can scan + bump qty + save in one flow,
                   rather than scan-save-edit-save. 44px tap target. */}
               {preview && (
                 <div className="flex items-center gap-2 mr-auto">
-                  <label htmlFor="barcode-qty" className="text-sm text-sh-navy font-semibold">
+                  <label htmlFor="barcode-qty" className="text-sm text-brand-navy font-semibold">
                     Qty
                   </label>
                   <input
@@ -268,7 +270,7 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
                     value={qty}
                     onChange={(e) => setQty(e.target.value)}
                     disabled={adding}
-                    className="w-20 px-2 py-2 border border-sh-stripe rounded text-base min-h-[44px]"
+                    className="w-20 px-2 py-2 border border-brand-stripe rounded text-base min-h-[44px]"
                   />
                 </div>
               )}

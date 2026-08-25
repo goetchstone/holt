@@ -30,15 +30,15 @@ type InteractionRow = {
 type Tab = "active" | "mine" | "all" | "completed";
 
 const SOURCE_BADGE: Record<string, { bg: string; label: string }> = {
-  WALK_IN: { bg: "bg-sh-blue/10 text-sh-blue", label: "Walk-in" },
-  PHONE: { bg: "bg-sh-gold/20 text-sh-gold", label: "Phone" },
-  EMAIL: { bg: "bg-sh-gray/10 text-sh-gray", label: "Email" },
+  WALK_IN: { bg: "bg-brand-blue/10 text-brand-blue", label: "Walk-in" },
+  PHONE: { bg: "bg-brand-gold/20 text-brand-gold", label: "Phone" },
+  EMAIL: { bg: "bg-brand-gray/10 text-brand-gray", label: "Email" },
   APPOINTMENT: { bg: "bg-green-100 text-green-800", label: "Appointment" },
 };
 
 const OUTCOME_BADGE: Record<string, { bg: string; label: string }> = {
-  BROWSING: { bg: "bg-sh-gray/10 text-sh-gray", label: "Browsing" },
-  QUOTE_STARTED: { bg: "bg-sh-gold/20 text-sh-gold", label: "Quote" },
+  BROWSING: { bg: "bg-brand-gray/10 text-brand-gray", label: "Browsing" },
+  QUOTE_STARTED: { bg: "bg-brand-gold/20 text-brand-gold", label: "Quote" },
   SALE_COMPLETED: { bg: "bg-green-100 text-green-800", label: "Sale" },
   APPOINTMENT_SET: { bg: "bg-blue-100 text-blue-800", label: "Appt Set" },
   SERVICE_CASE: { bg: "bg-yellow-100 text-yellow-800", label: "Service" },
@@ -123,18 +123,18 @@ export function InteractionsView() {
 
   return (
     <div className="py-2 space-y-4 font-serif">
-      <h1 className="text-2xl text-sh-blue font-semibold">Customer Interactions</h1>
+      <h1 className="text-2xl text-brand-blue font-semibold">Customer Interactions</h1>
 
       {/* Tab filters */}
-      <div className="flex gap-1 border-b border-sh-gray/20">
+      <div className="flex gap-1 border-b border-brand-gray/20">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`px-4 py-3 text-sm font-medium transition-colors min-h-[44px] ${
               tab === t.key
-                ? "text-sh-blue border-b-2 border-sh-blue"
-                : "text-sh-gray hover:text-sh-black"
+                ? "text-brand-blue border-b-2 border-brand-blue"
+                : "text-brand-gray hover:text-brand-black"
             }`}
           >
             {t.label}
@@ -144,34 +144,34 @@ export function InteractionsView() {
 
       {/* Table */}
       {loading ? (
-        <p className="text-sh-gray py-8 text-sm">Loading interactions...</p>
+        <p className="text-brand-gray py-8 text-sm">Loading interactions...</p>
       ) : interactions.length === 0 ? (
-        <p className="text-sh-gray py-8 text-sm">No interactions found.</p>
+        <p className="text-brand-gray py-8 text-sm">No interactions found.</p>
       ) : (
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                  <th className="text-left px-4 py-3 text-sh-gray font-medium text-xs uppercase tracking-wide">
+                <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                  <th className="text-left px-4 py-3 text-brand-gray font-medium text-xs uppercase tracking-wide">
                     Staff
                   </th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-medium text-xs uppercase tracking-wide">
+                  <th className="text-left px-4 py-3 text-brand-gray font-medium text-xs uppercase tracking-wide">
                     Customer
                   </th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-medium text-xs uppercase tracking-wide">
+                  <th className="text-left px-4 py-3 text-brand-gray font-medium text-xs uppercase tracking-wide">
                     Store
                   </th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-medium text-xs uppercase tracking-wide">
+                  <th className="text-left px-4 py-3 text-brand-gray font-medium text-xs uppercase tracking-wide">
                     Source
                   </th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-medium text-xs uppercase tracking-wide">
+                  <th className="text-left px-4 py-3 text-brand-gray font-medium text-xs uppercase tracking-wide">
                     Started
                   </th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-medium text-xs uppercase tracking-wide">
+                  <th className="text-left px-4 py-3 text-brand-gray font-medium text-xs uppercase tracking-wide">
                     Outcome
                   </th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-medium text-xs uppercase tracking-wide">
+                  <th className="text-left px-4 py-3 text-brand-gray font-medium text-xs uppercase tracking-wide">
                     Notes
                   </th>
                 </tr>
@@ -179,12 +179,12 @@ export function InteractionsView() {
               <tbody>
                 {interactions.map((ix, idx) => {
                   const sourceCfg = SOURCE_BADGE[ix.source] || {
-                    bg: "bg-sh-gray/10 text-sh-gray",
+                    bg: "bg-brand-gray/10 text-brand-gray",
                     label: ix.source,
                   };
                   const outcomeCfg = ix.outcome
                     ? OUTCOME_BADGE[ix.outcome] || {
-                        bg: "bg-sh-gray/10 text-sh-gray",
+                        bg: "bg-brand-gray/10 text-brand-gray",
                         label: ix.outcome,
                       }
                     : null;
@@ -197,27 +197,27 @@ export function InteractionsView() {
                     <tr
                       key={ix.id}
                       onClick={() => router.push(`/app/interactions/${ix.id}`)}
-                      className={`border-b border-sh-gray/10 cursor-pointer hover:bg-sh-linen transition-colors ${
-                        idx % 2 === 1 ? "bg-sh-stripe" : ""
+                      className={`border-b border-brand-gray/10 cursor-pointer hover:bg-brand-linen transition-colors ${
+                        idx % 2 === 1 ? "bg-brand-stripe" : ""
                       }`}
                     >
-                      <td className="px-4 py-3 text-sh-black font-medium">
+                      <td className="px-4 py-3 text-brand-black font-medium">
                         {ix.staffMember.displayName}
                       </td>
-                      <td className="px-4 py-3 text-sh-black">
+                      <td className="px-4 py-3 text-brand-black">
                         {ix.customer ? (
                           customerName
                         ) : (
-                          <span className="text-sh-gray italic">Walk-in</span>
+                          <span className="text-brand-gray italic">Walk-in</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sh-gray">{ix.storeLocation}</td>
+                      <td className="px-4 py-3 text-brand-gray">{ix.storeLocation}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded ${sourceCfg.bg}`}>
                           {sourceCfg.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sh-gray text-xs">
+                      <td className="px-4 py-3 text-brand-gray text-xs">
                         {relativeTime(ix.startedAt)}
                       </td>
                       <td className="px-4 py-3">
@@ -226,12 +226,12 @@ export function InteractionsView() {
                             {outcomeCfg.label}
                           </span>
                         ) : (
-                          <span className="text-xs text-sh-gray italic">
+                          <span className="text-xs text-brand-gray italic">
                             {ix.isActive ? "In progress" : "--"}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sh-gray text-xs max-w-[200px] truncate">
+                      <td className="px-4 py-3 text-brand-gray text-xs max-w-[200px] truncate">
                         {ix.notes || "--"}
                       </td>
                     </tr>
@@ -243,21 +243,21 @@ export function InteractionsView() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-sh-gray/10">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-brand-gray/10">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="text-sm text-sh-blue hover:underline disabled:text-sh-gray disabled:no-underline min-h-[44px] px-3"
+                className="text-sm text-brand-blue hover:underline disabled:text-brand-gray disabled:no-underline min-h-[44px] px-3"
               >
                 Previous
               </button>
-              <span className="text-xs text-sh-gray">
+              <span className="text-xs text-brand-gray">
                 Page {page} of {totalPages}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="text-sm text-sh-blue hover:underline disabled:text-sh-gray disabled:no-underline min-h-[44px] px-3"
+                className="text-sm text-brand-blue hover:underline disabled:text-brand-gray disabled:no-underline min-h-[44px] px-3"
               >
                 Next
               </button>

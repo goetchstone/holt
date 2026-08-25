@@ -19,14 +19,14 @@ export default function FormCheckbox({
 }: FormCheckboxProps) {
   return (
     <div className="mb-4">
-      <label className="flex items-center gap-2 text-sh-black font-serif">
+      <label className="flex items-center gap-2 text-brand-black font-serif">
         <input
           type="checkbox"
           name={name}
           checked={checked}
           onChange={onChange}
           disabled={disabled}
-          className="h-5 w-5 border border-sh-gray rounded accent-sh-blue"
+          className="h-5 w-5 border border-brand-gray rounded accent-brand-blue"
         />
         {label}
       </label>

@@ -5,7 +5,7 @@
 // the session cookie off the raw Request — the reliable way to read a v4
 // session outside the Pages Router req/res world. The jwt callback in
 // [...nextauth].ts puts `id` and `role` on the token, so they're available here
-// without a DB hit. The sh-impersonate cookie is surfaced for role procedures.
+// without a DB hit. The holt-impersonate cookie is surfaced for role procedures.
 
 import { getToken } from "next-auth/jwt";
 
@@ -24,7 +24,7 @@ function readImpersonateCookie(req: Request): string | null {
   if (!raw) return null;
   for (const part of raw.split(";")) {
     const [k, ...rest] = part.trim().split("=");
-    if (k === "sh-impersonate") return decodeURIComponent(rest.join("="));
+    if (k === "holt-impersonate") return decodeURIComponent(rest.join("="));
   }
   return null;
 }

@@ -153,7 +153,7 @@ export function SalespersonCorrectionsView() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-serif text-sh-navy">Salesperson Corrections</h1>
+      <h1 className="text-2xl font-serif text-brand-navy">Salesperson Corrections</h1>
 
       <SearchFilters
         filterOrderno={filterOrderno}
@@ -185,7 +185,7 @@ export function SalespersonCorrectionsView() {
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
         </div>
       )}
 
@@ -199,7 +199,7 @@ export function SalespersonCorrectionsView() {
       )}
 
       {!loading && orders.length === 0 && filterSalesperson && (
-        <p className="text-center text-sm text-sh-gray py-8">
+        <p className="text-center text-sm text-brand-gray py-8">
           No orders found. Try adjusting your filters.
         </p>
       )}
@@ -238,10 +238,10 @@ function SearchFilters({
 }: Readonly<SearchFiltersProps>) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
-      <h2 className="text-sm font-semibold text-sh-navy">Search Orders</h2>
+      <h2 className="text-sm font-semibold text-brand-navy">Search Orders</h2>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         <div>
-          <label htmlFor="filter-orderno" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="filter-orderno" className="block text-xs text-brand-gray mb-1">
             Order #
           </label>
           <input
@@ -254,7 +254,7 @@ function SearchFilters({
           />
         </div>
         <div>
-          <label htmlFor="filter-salesperson" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="filter-salesperson" className="block text-xs text-brand-gray mb-1">
             Salesperson
           </label>
           <input
@@ -267,7 +267,7 @@ function SearchFilters({
           />
         </div>
         <div>
-          <label htmlFor="filter-store" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="filter-store" className="block text-xs text-brand-gray mb-1">
             Store
           </label>
           <input
@@ -280,7 +280,7 @@ function SearchFilters({
           />
         </div>
         <div>
-          <label htmlFor="filter-from" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="filter-from" className="block text-xs text-brand-gray mb-1">
             From
           </label>
           <input
@@ -292,7 +292,7 @@ function SearchFilters({
           />
         </div>
         <div>
-          <label htmlFor="filter-to" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="filter-to" className="block text-xs text-brand-gray mb-1">
             To
           </label>
           <input
@@ -333,10 +333,10 @@ function BulkAssignControls({
   onApply,
 }: Readonly<BulkAssignControlsProps>) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-sh-linen p-4">
+    <div className="rounded-lg border border-gray-200 bg-brand-linen p-4">
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <label htmlFor="bulk-primary" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="bulk-primary" className="block text-xs text-brand-gray mb-1">
             Assign Primary ({selectedCount} selected)
           </label>
           <select
@@ -354,7 +354,7 @@ function BulkAssignControls({
           </select>
         </div>
         <div>
-          <label htmlFor="bulk-split" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="bulk-split" className="block text-xs text-brand-gray mb-1">
             Split With (optional)
           </label>
           <select
@@ -406,7 +406,7 @@ function OrdersTable({ orders, staff, onToggleSelect, onToggleAll }: Readonly<Or
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
       <table className="w-full text-sm">
-        <thead className="bg-sh-linen">
+        <thead className="bg-brand-linen">
           <tr>
             <th className="px-3 py-3 text-left">
               <input
@@ -417,13 +417,13 @@ function OrdersTable({ orders, staff, onToggleSelect, onToggleAll }: Readonly<Or
                 className="h-5 w-5"
               />
             </th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Order #</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Date</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Customer</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Salesperson</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Split</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Store</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Status</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Order #</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Date</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Customer</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Salesperson</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Split</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Store</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -451,7 +451,7 @@ interface OrderTableRowProps {
 
 function rowClassName(order: OrderRow, index: number): string {
   if (order.selected) return "bg-blue-50";
-  return index % 2 === 1 ? "bg-sh-stripe" : "bg-white";
+  return index % 2 === 1 ? "bg-brand-stripe" : "bg-white";
 }
 
 function OrderTableRow({ order, index, staff, onToggleSelect }: Readonly<OrderTableRowProps>) {
@@ -472,18 +472,18 @@ function OrderTableRow({ order, index, staff, onToggleSelect }: Readonly<OrderTa
           className="h-5 w-5"
         />
       </td>
-      <td className="px-3 py-3 font-mono text-sh-navy">{order.orderno}</td>
-      <td className="px-3 py-3 text-sh-gray">{formatDate(order.orderDate)}</td>
-      <td className="px-3 py-3 text-sh-navy">{custName}</td>
-      <td className="px-3 py-3 text-sh-navy">{order.salesperson || "—"}</td>
-      <td className="px-3 py-3 text-sh-gray">
+      <td className="px-3 py-3 font-mono text-brand-navy">{order.orderno}</td>
+      <td className="px-3 py-3 text-brand-gray">{formatDate(order.orderDate)}</td>
+      <td className="px-3 py-3 text-brand-navy">{custName}</td>
+      <td className="px-3 py-3 text-brand-navy">{order.salesperson || "—"}</td>
+      <td className="px-3 py-3 text-brand-gray">
         {splitName && (
           <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
             50/50 {splitName}
           </span>
         )}
       </td>
-      <td className="px-3 py-3 text-sh-gray">{order.storeLocation || "—"}</td>
+      <td className="px-3 py-3 text-brand-gray">{order.storeLocation || "—"}</td>
       <td className="px-3 py-3">
         <span className="text-xs">{order.status}</span>
       </td>

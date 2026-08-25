@@ -26,9 +26,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             "px-3 py-1.5 text-sm": size === "sm",
 
             // Style variants
-            "bg-sh-blue text-white hover:bg-sh-black": variant === "primary",
-            "bg-white text-sh-blue border border-sh-blue hover:bg-sh-gray": variant === "secondary",
-            "border border-sh-gray text-sh-blue bg-transparent hover:bg-sh-gray/10":
+            "bg-brand-blue text-white hover:bg-brand-black": variant === "primary",
+            "bg-white text-brand-blue border border-brand-blue hover:bg-brand-gray":
+              variant === "secondary",
+            "border border-brand-gray text-brand-blue bg-transparent hover:bg-brand-gray/10":
               variant === "outline",
             "w-full": fullWidth,
           },

@@ -83,11 +83,11 @@ export function ReturnStatusView({ token }: { token: string }) {
     <div className="min-h-screen bg-white flex items-start justify-center px-4 py-12">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-serif text-sh-navy">{storeName}</h1>
-          <h2 className="text-lg text-sh-gray mt-1">Return Status</h2>
+          <h1 className="text-2xl font-serif text-brand-navy">{storeName}</h1>
+          <h2 className="text-lg text-brand-gray mt-1">Return Status</h2>
         </div>
 
-        {loading && <p className="text-center text-sh-gray">Loading return details...</p>}
+        {loading && <p className="text-center text-brand-gray">Loading return details...</p>}
 
         {error && (
           <div className="rounded border border-red-200 bg-red-50 p-4 text-center">
@@ -97,26 +97,26 @@ export function ReturnStatusView({ token }: { token: string }) {
 
         {!loading && !error && returnInfo && (
           <div className="space-y-6">
-            <div className="rounded border border-sh-brand-gray/20 bg-sh-linen p-4 space-y-2">
+            <div className="rounded border border-brand-accent-gray/20 bg-brand-linen p-4 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-sh-gray">Return Number</span>
-                <span className="font-medium text-sh-navy">{returnInfo.returnNumber}</span>
+                <span className="text-brand-gray">Return Number</span>
+                <span className="font-medium text-brand-navy">{returnInfo.returnNumber}</span>
               </div>
               {returnInfo.productName && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-sh-gray">Product</span>
-                  <span className="font-medium text-sh-navy">{returnInfo.productName}</span>
+                  <span className="text-brand-gray">Product</span>
+                  <span className="font-medium text-brand-navy">{returnInfo.productName}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">
-                <span className="text-sh-gray">Status</span>
-                <span className="font-medium text-sh-navy">
+                <span className="text-brand-gray">Status</span>
+                <span className="font-medium text-brand-navy">
                   {STATUS_LABELS[returnInfo.status] || returnInfo.status}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-sh-gray">Date Submitted</span>
-                <span className="font-medium text-sh-navy">
+                <span className="text-brand-gray">Date Submitted</span>
+                <span className="font-medium text-brand-navy">
                   {new Date(returnInfo.created).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "long",
@@ -132,7 +132,7 @@ export function ReturnStatusView({ token }: { token: string }) {
               </div>
             ) : (
               <div className="space-y-3">
-                <h3 className="text-sm font-medium text-sh-navy">Progress</h3>
+                <h3 className="text-sm font-medium text-brand-navy">Progress</h3>
                 <ul className="space-y-2">
                   {PROGRESS_STEPS.map((step) => {
                     const done = completedSteps.includes(step.key);
@@ -141,13 +141,13 @@ export function ReturnStatusView({ token }: { token: string }) {
                         <span
                           className={`flex h-5 w-5 items-center justify-center rounded-full text-xs ${
                             done
-                              ? "bg-sh-navy text-white"
-                              : "border border-sh-brand-gray/40 text-sh-brand-gray"
+                              ? "bg-brand-navy text-white"
+                              : "border border-brand-accent-gray/40 text-brand-accent-gray"
                           }`}
                         >
                           {done ? "✓" : ""}
                         </span>
-                        <span className={done ? "text-sh-navy font-medium" : "text-sh-gray"}>
+                        <span className={done ? "text-brand-navy font-medium" : "text-brand-gray"}>
                           {step.label}
                         </span>
                       </li>

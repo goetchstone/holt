@@ -37,7 +37,7 @@ export function CommentForm({ postId }: { postId: number }) {
 
   if (done) {
     return (
-      <p className="rounded-md bg-sh-stripe p-4 text-sm text-sh-gray">
+      <p className="rounded-md bg-brand-stripe p-4 text-sm text-brand-gray">
         Thanks — your comment has been submitted and is awaiting moderation.
       </p>
     );
@@ -49,7 +49,7 @@ export function CommentForm({ postId }: { postId: number }) {
     <form onSubmit={submit} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor="c-name" className="mb-1 block text-sm text-sh-gray">
+          <label htmlFor="c-name" className="mb-1 block text-sm text-brand-gray">
             Name
           </label>
           <input
@@ -61,7 +61,7 @@ export function CommentForm({ postId }: { postId: number }) {
           />
         </div>
         <div>
-          <label htmlFor="c-email" className="mb-1 block text-sm text-sh-gray">
+          <label htmlFor="c-email" className="mb-1 block text-sm text-brand-gray">
             Email (not published)
           </label>
           <input
@@ -75,7 +75,7 @@ export function CommentForm({ postId }: { postId: number }) {
         </div>
       </div>
       <div>
-        <label htmlFor="c-content" className="mb-1 block text-sm text-sh-gray">
+        <label htmlFor="c-content" className="mb-1 block text-sm text-brand-gray">
           Comment
         </label>
         <textarea
@@ -91,7 +91,7 @@ export function CommentForm({ postId }: { postId: number }) {
       <button
         type="submit"
         disabled={submitting}
-        className="min-h-[44px] rounded-md bg-sh-navy px-5 text-sm font-medium text-white transition hover:bg-sh-blue disabled:opacity-60"
+        className="min-h-[44px] rounded-md bg-brand-navy px-5 text-sm font-medium text-white transition hover:bg-brand-blue disabled:opacity-60"
       >
         {submitting ? "Posting…" : "Post comment"}
       </button>

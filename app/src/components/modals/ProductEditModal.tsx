@@ -65,7 +65,7 @@ export default function ProductEditModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full font-serif">
-        <h2 className="text-xl font-semibold text-sh-blue mb-4">Edit Product</h2>
+        <h2 className="text-xl font-semibold text-brand-blue mb-4">Edit Product</h2>
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <FormInput
@@ -104,11 +104,11 @@ export default function ProductEditModal({
         />
 
         <div className="mt-4">
-          <label className="mb-1 block text-xs text-sh-gray">Service Type</label>
+          <label className="mb-1 block text-xs text-brand-gray">Service Type</label>
           <select
             value={form.serviceType}
             onChange={(e) => handleChange("serviceType", e.target.value)}
-            className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+            className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
           >
             <option value="">None (not a service product)</option>
             <option value="MEASURE">Measure</option>
@@ -118,7 +118,7 @@ export default function ProductEditModal({
           </select>
         </div>
 
-        <h3 className="text-lg font-serif text-sh-black mt-6 mb-2">Dimensions (inches)</h3>
+        <h3 className="text-lg font-serif text-brand-black mt-6 mb-2">Dimensions (inches)</h3>
         <div className="grid grid-cols-3 gap-4 mb-4">
           <FormInput
             label="Length"

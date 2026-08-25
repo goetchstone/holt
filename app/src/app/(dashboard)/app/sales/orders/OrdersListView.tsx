@@ -151,8 +151,8 @@ export function OrdersListView() {
   ];
 
   return (
-    <div className="py-2 font-serif text-sh-black">
-      <h1 className="mb-4 text-2xl font-semibold text-sh-blue">Sales Orders</h1>
+    <div className="py-2 font-serif text-brand-black">
+      <h1 className="mb-4 text-2xl font-semibold text-brand-blue">Sales Orders</h1>
 
       <div className="flex gap-2 mb-2">
         {["", "QUOTE", "ORDER", "FULFILLED", "CANCELLED"].map((s) => (
@@ -164,8 +164,8 @@ export function OrdersListView() {
             }}
             className={`px-3 py-1.5 text-sm rounded-full border transition ${
               statusFilter === s
-                ? "bg-sh-blue text-white border-sh-blue"
-                : "bg-white text-sh-gray border-sh-gray/30 hover:border-sh-blue"
+                ? "bg-brand-blue text-white border-brand-blue"
+                : "bg-white text-brand-gray border-brand-gray/30 hover:border-brand-blue"
             }`}
           >
             {s ? STATUS_LABELS[s] : "All"}
@@ -183,8 +183,8 @@ export function OrdersListView() {
               }}
               className={`px-3 py-1 text-xs rounded-full border transition ${
                 quoteScope === scope
-                  ? "bg-sh-gold text-white border-sh-gold"
-                  : "bg-white text-sh-gray border-sh-gray/30 hover:border-sh-gold"
+                  ? "bg-brand-gold text-white border-brand-gold"
+                  : "bg-white text-brand-gray border-brand-gray/30 hover:border-brand-gold"
               }`}
             >
               {scope === "mine" ? "My Quotes" : "All Quotes"}

@@ -244,26 +244,26 @@ export function NewHouseCallView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl text-sh-blue font-semibold">New House Call</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">New House Call</h1>
         <Button variant="outline" onClick={() => router.push("/app/service/house-calls")}>
           Back to List
         </Button>
       </div>
 
       {/* Customer */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h2 className="text-lg font-semibold text-sh-black mb-4">Customer</h2>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h2 className="text-lg font-semibold text-brand-black mb-4">Customer</h2>
         {selectedCustomer ? (
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sh-black font-medium">
+              <p className="text-brand-black font-medium">
                 {selectedCustomer.firstName} {selectedCustomer.lastName}
               </p>
               {selectedCustomer.email && (
-                <p className="text-sm text-sh-gray">{selectedCustomer.email}</p>
+                <p className="text-sm text-brand-gray">{selectedCustomer.email}</p>
               )}
               {selectedCustomer.phone && (
-                <p className="text-sm text-sh-gray">{selectedCustomer.phone}</p>
+                <p className="text-sm text-brand-gray">{selectedCustomer.phone}</p>
               )}
             </div>
             <Button
@@ -282,25 +282,25 @@ export function NewHouseCallView() {
           <div className="relative">
             <input
               type="text"
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               placeholder="Search customers by name, email, or phone..."
               value={customerSearch}
               onChange={(e) => setCustomerSearch(e.target.value)}
             />
-            {searching && <p className="text-xs text-sh-gray mt-1">Searching...</p>}
+            {searching && <p className="text-xs text-brand-gray mt-1">Searching...</p>}
             {customerResults.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full bg-white border border-sh-gray/20 rounded-lg shadow-lg max-h-[240px] overflow-y-auto">
+              <div className="absolute z-10 mt-1 w-full bg-white border border-brand-gray/20 rounded-lg shadow-lg max-h-[240px] overflow-y-auto">
                 {customerResults.map((c) => (
                   <button
                     key={c.id}
                     type="button"
-                    className="w-full text-left px-4 py-3 hover:bg-sh-stripe border-b border-sh-gray/10 last:border-0"
+                    className="w-full text-left px-4 py-3 hover:bg-brand-stripe border-b border-brand-gray/10 last:border-0"
                     onClick={() => selectCustomer(c)}
                   >
-                    <p className="text-sm font-medium text-sh-black">
+                    <p className="text-sm font-medium text-brand-black">
                       {c.firstName} {c.lastName}
                     </p>
-                    <p className="text-xs text-sh-gray">
+                    <p className="text-xs text-brand-gray">
                       {[c.email, c.phone].filter(Boolean).join(" -- ")}
                     </p>
                   </button>
@@ -312,11 +312,11 @@ export function NewHouseCallView() {
       </div>
 
       {/* Order (optional) */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h2 className="text-lg font-semibold text-sh-black mb-4">Order (Optional)</h2>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h2 className="text-lg font-semibold text-brand-black mb-4">Order (Optional)</h2>
         {selectedOrder ? (
           <div className="flex items-center justify-between">
-            <p className="text-sh-black font-medium">Order #{selectedOrder.orderno}</p>
+            <p className="text-brand-black font-medium">Order #{selectedOrder.orderno}</p>
             <Button variant="outline" size="sm" onClick={() => setSelectedOrder(null)}>
               Remove
             </Button>
@@ -325,22 +325,22 @@ export function NewHouseCallView() {
           <div className="relative">
             <input
               type="text"
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               placeholder="Search by order number..."
               value={orderSearch}
               onChange={(e) => setOrderSearch(e.target.value)}
             />
-            {searchingOrders && <p className="text-xs text-sh-gray mt-1">Searching...</p>}
+            {searchingOrders && <p className="text-xs text-brand-gray mt-1">Searching...</p>}
             {orderResults.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full bg-white border border-sh-gray/20 rounded-lg shadow-lg max-h-[200px] overflow-y-auto">
+              <div className="absolute z-10 mt-1 w-full bg-white border border-brand-gray/20 rounded-lg shadow-lg max-h-[200px] overflow-y-auto">
                 {orderResults.map((o) => (
                   <button
                     key={o.id}
                     type="button"
-                    className="w-full text-left px-4 py-3 hover:bg-sh-stripe border-b border-sh-gray/10 last:border-0"
+                    className="w-full text-left px-4 py-3 hover:bg-brand-stripe border-b border-brand-gray/10 last:border-0"
                     onClick={() => selectOrder(o)}
                   >
-                    <p className="text-sm font-medium text-sh-black">#{o.orderno}</p>
+                    <p className="text-sm font-medium text-brand-black">#{o.orderno}</p>
                   </button>
                 ))}
               </div>
@@ -350,12 +350,12 @@ export function NewHouseCallView() {
       </div>
 
       {/* Address */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h2 className="text-lg font-semibold text-sh-black mb-4">Address</h2>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h2 className="text-lg font-semibold text-brand-black mb-4">Address</h2>
         {selectedCustomer && customerAddresses.length > 0 && !useManualAddress && (
           <div className="space-y-3">
             <select
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               value={addressId}
               onChange={(e) => setAddressId(e.target.value)}
             >
@@ -369,7 +369,7 @@ export function NewHouseCallView() {
             </select>
             <button
               type="button"
-              className="text-sm text-sh-blue hover:underline"
+              className="text-sm text-brand-blue hover:underline"
               onClick={() => setUseManualAddress(true)}
             >
               Enter address manually
@@ -379,38 +379,38 @@ export function NewHouseCallView() {
         {(useManualAddress || !selectedCustomer || customerAddresses.length === 0) && (
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-sh-gray mb-1">Street</label>
+              <label className="block text-xs font-medium text-brand-gray mb-1">Street</label>
               <input
                 type="text"
-                className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+                className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
                 value={manualAddress.street}
                 onChange={(e) => setManualAddress((a) => ({ ...a, street: e.target.value }))}
               />
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-medium text-sh-gray mb-1">City</label>
+                <label className="block text-xs font-medium text-brand-gray mb-1">City</label>
                 <input
                   type="text"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
                   value={manualAddress.city}
                   onChange={(e) => setManualAddress((a) => ({ ...a, city: e.target.value }))}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-sh-gray mb-1">State</label>
+                <label className="block text-xs font-medium text-brand-gray mb-1">State</label>
                 <input
                   type="text"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
                   value={manualAddress.state}
                   onChange={(e) => setManualAddress((a) => ({ ...a, state: e.target.value }))}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-sh-gray mb-1">ZIP</label>
+                <label className="block text-xs font-medium text-brand-gray mb-1">ZIP</label>
                 <input
                   type="text"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
                   value={manualAddress.zip}
                   onChange={(e) => setManualAddress((a) => ({ ...a, zip: e.target.value }))}
                 />
@@ -419,7 +419,7 @@ export function NewHouseCallView() {
             {selectedCustomer && customerAddresses.length > 0 && (
               <button
                 type="button"
-                className="text-sm text-sh-blue hover:underline"
+                className="text-sm text-brand-blue hover:underline"
                 onClick={() => {
                   setUseManualAddress(false);
                   setManualAddress({ street: "", city: "", state: "", zip: "" });
@@ -433,31 +433,31 @@ export function NewHouseCallView() {
       </div>
 
       {/* Scheduling */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h2 className="text-lg font-semibold text-sh-black mb-4">Scheduling</h2>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h2 className="text-lg font-semibold text-brand-black mb-4">Scheduling</h2>
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-medium text-sh-gray mb-1">Date</label>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Date</label>
             <input
               type="date"
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               value={date}
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-sh-gray mb-1">Time</label>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Time</label>
             <input
               type="time"
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               value={time}
               onChange={(e) => setTime(e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-sh-gray mb-1">Duration</label>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Duration</label>
             <select
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
             >
@@ -473,13 +473,13 @@ export function NewHouseCallView() {
       </div>
 
       {/* Assignment */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h2 className="text-lg font-semibold text-sh-black mb-4">Assignment</h2>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h2 className="text-lg font-semibold text-brand-black mb-4">Assignment</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-sh-gray mb-1">Designer</label>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Designer</label>
             <select
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               value={designerId}
               onChange={(e) => setDesignerId(e.target.value)}
             >
@@ -492,9 +492,9 @@ export function NewHouseCallView() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-sh-gray mb-1">Showroom</label>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Showroom</label>
             <select
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               value={locationId}
               onChange={(e) => setLocationId(e.target.value)}
             >
@@ -510,13 +510,13 @@ export function NewHouseCallView() {
       </div>
 
       {/* Details */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h2 className="text-lg font-semibold text-sh-black mb-4">Details</h2>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h2 className="text-lg font-semibold text-brand-black mb-4">Details</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-sh-gray mb-1">Scope of Work</label>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Scope of Work</label>
             <textarea
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               rows={3}
               placeholder="Describe the scope of work..."
               value={scope}
@@ -524,11 +524,11 @@ export function NewHouseCallView() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-sh-gray mb-1">
+            <label className="block text-xs font-medium text-brand-gray mb-1">
               Special Instructions
             </label>
             <textarea
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               rows={3}
               placeholder="Any special instructions or notes..."
               value={specialInstructions}

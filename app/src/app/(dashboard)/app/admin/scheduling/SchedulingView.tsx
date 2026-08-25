@@ -75,15 +75,15 @@ export function SchedulingView() {
     void load();
   }, [load]);
 
-  if (loading) return <p className="text-sh-gray">Loading…</p>;
+  if (loading) return <p className="text-brand-gray">Loading…</p>;
 
   return (
     <div className="space-y-10">
       <header>
-        <h1 className="text-2xl font-semibold text-sh-blue">Scheduling</h1>
-        <p className="mt-1 text-sm text-sh-gray">
+        <h1 className="text-2xl font-semibold text-brand-blue">Scheduling</h1>
+        <p className="mt-1 text-sm text-brand-gray">
           Services, weekly hours, and time off power the public{" "}
-          <Link href="/book" className="text-sh-blue hover:underline">
+          <Link href="/book" className="text-brand-blue hover:underline">
             booking page
           </Link>
           . With no services + windows, booking falls back to the flat hours in Settings.
@@ -160,13 +160,13 @@ function ServicesSection({
 
   return (
     <section>
-      <h2 className="text-lg font-semibold text-sh-black">Services</h2>
+      <h2 className="text-lg font-semibold text-brand-black">Services</h2>
       <form
         onSubmit={add}
-        className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-black/10 bg-sh-linen p-4"
+        className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-black/10 bg-brand-linen p-4"
       >
         <label className="text-sm">
-          <span className="mb-1 block font-medium text-sh-black">Name</span>
+          <span className="mb-1 block font-medium text-brand-black">Name</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -175,7 +175,7 @@ function ServicesSection({
           />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium text-sh-black">Minutes</span>
+          <span className="mb-1 block font-medium text-brand-black">Minutes</span>
           <input
             type="number"
             min={1}
@@ -186,7 +186,7 @@ function ServicesSection({
           />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium text-sh-black">Price</span>
+          <span className="mb-1 block font-medium text-brand-black">Price</span>
           <input
             type="number"
             min={0}
@@ -197,7 +197,7 @@ function ServicesSection({
             className="min-h-[44px] w-28 rounded-md border border-black/15 bg-white px-3 text-sm"
           />
         </label>
-        <label className="flex items-center gap-2 pb-2 text-sm text-sh-gray">
+        <label className="flex items-center gap-2 pb-2 text-sm text-brand-gray">
           <input
             type="checkbox"
             checked={isPublic}
@@ -209,21 +209,21 @@ function ServicesSection({
         <button
           type="submit"
           disabled={saving}
-          className="min-h-[44px] rounded-md bg-sh-navy px-4 text-sm font-medium text-white transition hover:bg-sh-blue disabled:opacity-60"
+          className="min-h-[44px] rounded-md bg-brand-navy px-4 text-sm font-medium text-white transition hover:bg-brand-blue disabled:opacity-60"
         >
           {saving ? "…" : "Add"}
         </button>
       </form>
 
       {services.length === 0 ? (
-        <p className="mt-3 text-sm text-sh-gray">No services yet.</p>
+        <p className="mt-3 text-sm text-brand-gray">No services yet.</p>
       ) : (
         <ul className="mt-3 divide-y divide-black/5 rounded-md border border-black/10">
           {services.map((s) => (
             <li key={s.id} className="flex items-center justify-between px-4 py-2 text-sm">
               <span>
-                <span className="font-medium text-sh-black">{s.name}</span>
-                <span className="ml-2 text-sh-gray">
+                <span className="font-medium text-brand-black">{s.name}</span>
+                <span className="ml-2 text-brand-gray">
                   {s.durationMinutes} min{s.price != null ? ` · $${s.price}` : ""}
                 </span>
               </span>
@@ -231,14 +231,14 @@ function ServicesSection({
                 <button
                   type="button"
                   onClick={() => toggle(s, "isPublic")}
-                  className="text-xs text-sh-blue hover:underline"
+                  className="text-xs text-brand-blue hover:underline"
                 >
                   {s.isPublic ? "Public" : "Hidden"}
                 </button>
                 <button
                   type="button"
                   onClick={() => toggle(s, "isActive")}
-                  className="text-xs text-sh-blue hover:underline"
+                  className="text-xs text-brand-blue hover:underline"
                 >
                   {s.isActive ? "Active" : "Inactive"}
                 </button>
@@ -304,13 +304,13 @@ function WindowsSection({
 
   return (
     <section>
-      <h2 className="text-lg font-semibold text-sh-black">Weekly hours</h2>
+      <h2 className="text-lg font-semibold text-brand-black">Weekly hours</h2>
       <form
         onSubmit={add}
-        className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-black/10 bg-sh-linen p-4"
+        className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-black/10 bg-brand-linen p-4"
       >
         <label className="text-sm">
-          <span className="mb-1 block font-medium text-sh-black">Day</span>
+          <span className="mb-1 block font-medium text-brand-black">Day</span>
           <select
             value={dayOfWeek}
             onChange={(e) => setDayOfWeek(e.target.value)}
@@ -324,7 +324,7 @@ function WindowsSection({
           </select>
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium text-sh-black">From</span>
+          <span className="mb-1 block font-medium text-brand-black">From</span>
           <input
             type="time"
             value={startTime}
@@ -333,7 +333,7 @@ function WindowsSection({
           />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium text-sh-black">To</span>
+          <span className="mb-1 block font-medium text-brand-black">To</span>
           <input
             type="time"
             value={endTime}
@@ -342,7 +342,7 @@ function WindowsSection({
           />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium text-sh-black">Service</span>
+          <span className="mb-1 block font-medium text-brand-black">Service</span>
           <select
             value={serviceId}
             onChange={(e) => setServiceId(e.target.value)}
@@ -359,24 +359,24 @@ function WindowsSection({
         <button
           type="submit"
           disabled={saving}
-          className="min-h-[44px] rounded-md bg-sh-navy px-4 text-sm font-medium text-white transition hover:bg-sh-blue disabled:opacity-60"
+          className="min-h-[44px] rounded-md bg-brand-navy px-4 text-sm font-medium text-white transition hover:bg-brand-blue disabled:opacity-60"
         >
           {saving ? "…" : "Add"}
         </button>
       </form>
 
       {windows.length === 0 ? (
-        <p className="mt-3 text-sm text-sh-gray">
+        <p className="mt-3 text-sm text-brand-gray">
           No windows — booking uses the flat hours from Settings.
         </p>
       ) : (
         <ul className="mt-3 divide-y divide-black/5 rounded-md border border-black/10">
           {windows.map((w) => (
             <li key={w.id} className="flex items-center justify-between px-4 py-2 text-sm">
-              <span className="text-sh-black">
+              <span className="text-brand-black">
                 <span className="font-medium">{DAY_OF_WEEK_LABELS[w.dayOfWeek]}</span> {w.startTime}
                 –{w.endTime}
-                <span className="ml-2 text-sh-gray">
+                <span className="ml-2 text-brand-gray">
                   {w.service ? w.service.name : "All services"}
                 </span>
               </span>
@@ -445,13 +445,13 @@ function BlocksSection({
 
   return (
     <section>
-      <h2 className="text-lg font-semibold text-sh-black">Time off / closures</h2>
+      <h2 className="text-lg font-semibold text-brand-black">Time off / closures</h2>
       <form
         onSubmit={add}
-        className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-black/10 bg-sh-linen p-4"
+        className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-black/10 bg-brand-linen p-4"
       >
         <label className="text-sm">
-          <span className="mb-1 block font-medium text-sh-black">From</span>
+          <span className="mb-1 block font-medium text-brand-black">From</span>
           <input
             type="datetime-local"
             value={startsAt}
@@ -460,7 +460,7 @@ function BlocksSection({
           />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium text-sh-black">To</span>
+          <span className="mb-1 block font-medium text-brand-black">To</span>
           <input
             type="datetime-local"
             value={endsAt}
@@ -469,7 +469,7 @@ function BlocksSection({
           />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium text-sh-black">Reason</span>
+          <span className="mb-1 block font-medium text-brand-black">Reason</span>
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -480,22 +480,22 @@ function BlocksSection({
         <button
           type="submit"
           disabled={saving}
-          className="min-h-[44px] rounded-md bg-sh-navy px-4 text-sm font-medium text-white transition hover:bg-sh-blue disabled:opacity-60"
+          className="min-h-[44px] rounded-md bg-brand-navy px-4 text-sm font-medium text-white transition hover:bg-brand-blue disabled:opacity-60"
         >
           {saving ? "…" : "Add"}
         </button>
       </form>
 
       {blocks.length === 0 ? (
-        <p className="mt-3 text-sm text-sh-gray">No time off scheduled.</p>
+        <p className="mt-3 text-sm text-brand-gray">No time off scheduled.</p>
       ) : (
         <ul className="mt-3 divide-y divide-black/5 rounded-md border border-black/10">
           {blocks.map((b) => (
             <li key={b.id} className="flex items-center justify-between px-4 py-2 text-sm">
-              <span className="text-sh-black">
+              <span className="text-brand-black">
                 {dateTimeFmt.format(new Date(b.startsAt))} –{" "}
                 {dateTimeFmt.format(new Date(b.endsAt))}
-                {b.reason ? <span className="ml-2 text-sh-gray">{b.reason}</span> : null}
+                {b.reason ? <span className="ml-2 text-brand-gray">{b.reason}</span> : null}
               </span>
               <button
                 type="button"

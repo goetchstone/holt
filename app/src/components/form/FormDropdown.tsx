@@ -25,13 +25,13 @@ export default function FormDropdown({
 
   return (
     <div className="mb-4">
-      <label className="block text-sh-blue font-serif mb-1">{label}</label>
+      <label className="block text-brand-blue font-serif mb-1">{label}</label>
       <div className="flex items-center space-x-2">
         <select
           value={value}
           onChange={handleChange}
           disabled={disabled}
-          className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif"
+          className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
         >
           <option value="">Select {label}</option>
           {options.map((opt) => (
@@ -44,7 +44,7 @@ export default function FormDropdown({
           <button
             type="button"
             onClick={onAddNew}
-            className="text-sm text-sh-blue font-serif border border-sh-blue rounded-lg px-3 py-2 hover:bg-sh-blue hover:text-white transition"
+            className="text-sm text-brand-blue font-serif border border-brand-blue rounded-lg px-3 py-2 hover:bg-brand-blue hover:text-white transition"
           >
             + Add New
           </button>

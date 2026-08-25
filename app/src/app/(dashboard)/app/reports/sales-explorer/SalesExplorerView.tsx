@@ -53,9 +53,9 @@ function toOptions(names: readonly string[]) {
 function RowChevron({ hasChildren, isOpen }: Readonly<{ hasChildren: boolean; isOpen: boolean }>) {
   if (!hasChildren) return <span className="inline-block w-4 shrink-0" />;
   return isOpen ? (
-    <ChevronDown className="h-4 w-4 shrink-0 text-sh-gold" />
+    <ChevronDown className="h-4 w-4 shrink-0 text-brand-gold" />
   ) : (
-    <ChevronRight className="h-4 w-4 shrink-0 text-sh-gold" />
+    <ChevronRight className="h-4 w-4 shrink-0 text-brand-gold" />
   );
 }
 
@@ -171,7 +171,7 @@ export function SalesExplorerView() {
   }
 
   function VarianceBadge({ value, pct }: Readonly<{ value: number; pct: number | null }>) {
-    if (value === 0 && pct === null) return <span className="text-sh-gray">--</span>;
+    if (value === 0 && pct === null) return <span className="text-brand-gray">--</span>;
     const isPositive = value >= 0;
     return (
       <span
@@ -215,9 +215,9 @@ export function SalesExplorerView() {
         className={`flex w-full flex-col items-end leading-tight ${isLeaf ? "cursor-pointer hover:underline" : "cursor-default"}`}
         title={isLeaf ? "View product-level rows for this period" : undefined}
       >
-        <span className="text-sh-black">{fmt(agg.netSales)}</span>
-        <span className="text-xs text-sh-gray">{sub.join(" · ")}</span>
-        {kpis.length > 0 && <span className="text-xs text-sh-gold">{kpis.join(" · ")}</span>}
+        <span className="text-brand-black">{fmt(agg.netSales)}</span>
+        <span className="text-xs text-brand-gray">{sub.join(" · ")}</span>
+        {kpis.length > 0 && <span className="text-xs text-brand-gold">{kpis.join(" · ")}</span>}
       </button>
     );
   }
@@ -227,22 +227,22 @@ export function SalesExplorerView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Sales Explorer</span>
+        <span className="text-brand-black">Sales Explorer</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">Sales Explorer</h1>
-      <p className="text-sm text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-navy">Sales Explorer</h1>
+      <p className="text-sm text-brand-gray">
         Compare two periods across Store, Department, Category, and Vendor. Expand any row to drill
         in; click a leaf row&apos;s dollar figure to see the product-level line items behind it.
         Cancelled lines are excluded; returns net out against their original sale.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-sh-gray">Pivot by</span>
+        <span className="text-xs font-medium text-brand-gray">Pivot by</span>
         {SALES_EXPLORER_PIVOTS.map((p) => (
           <button
             key={p}
@@ -250,8 +250,8 @@ export function SalesExplorerView() {
             onClick={() => setPivot(p)}
             className={`min-h-[44px] rounded border px-3 text-sm ${
               pivot === p
-                ? "border-sh-navy bg-sh-navy text-white"
-                : "border-gray-300 bg-white text-sh-navy hover:border-sh-gold"
+                ? "border-brand-navy bg-brand-navy text-white"
+                : "border-gray-300 bg-white text-brand-navy hover:border-brand-gold"
             }`}
           >
             {PIVOT_LABELS[p]}
@@ -261,7 +261,7 @@ export function SalesExplorerView() {
 
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <label htmlFor="se-p1-start" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="se-p1-start" className="mb-1 block text-xs font-medium text-brand-gray">
             Current Start
           </label>
           <input
@@ -273,7 +273,7 @@ export function SalesExplorerView() {
           />
         </div>
         <div>
-          <label htmlFor="se-p1-end" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="se-p1-end" className="mb-1 block text-xs font-medium text-brand-gray">
             Current End
           </label>
           <input
@@ -284,9 +284,9 @@ export function SalesExplorerView() {
             className="min-h-[44px] rounded border border-gray-300 px-3 text-sm"
           />
         </div>
-        <div className="self-center px-2 text-sm font-semibold text-sh-gray">vs</div>
+        <div className="self-center px-2 text-sm font-semibold text-brand-gray">vs</div>
         <div>
-          <label htmlFor="se-p2-start" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="se-p2-start" className="mb-1 block text-xs font-medium text-brand-gray">
             Compare Start
           </label>
           <input
@@ -298,7 +298,7 @@ export function SalesExplorerView() {
           />
         </div>
         <div>
-          <label htmlFor="se-p2-end" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="se-p2-end" className="mb-1 block text-xs font-medium text-brand-gray">
             Compare End
           </label>
           <input
@@ -344,7 +344,7 @@ export function SalesExplorerView() {
           type="button"
           onClick={run}
           disabled={loading}
-          className="min-h-[44px] rounded-lg bg-sh-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-brand-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
         >
           {loading ? "Loading..." : "Run Report"}
         </button>
@@ -352,26 +352,26 @@ export function SalesExplorerView() {
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
         </div>
       )}
 
       {data && !loading && (
         <>
-          <div className="overflow-hidden rounded-lg border border-sh-gray/20 bg-white shadow-md">
+          <div className="overflow-hidden rounded-lg border border-brand-gray/20 bg-white shadow-md">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                  <th className="px-4 py-3 text-left font-semibold text-sh-gray">
+                <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                  <th className="px-4 py-3 text-left font-semibold text-brand-gray">
                     {PIVOT_LABELS[data.pivot]}
                   </th>
-                  <th className="px-4 py-3 text-right font-semibold text-sh-gray">
+                  <th className="px-4 py-3 text-right font-semibold text-brand-gray">
                     {data.period1Label}
                   </th>
-                  <th className="px-4 py-3 text-right font-semibold text-sh-gray">
+                  <th className="px-4 py-3 text-right font-semibold text-brand-gray">
                     {data.period2Label}
                   </th>
-                  <th className="px-4 py-3 text-right font-semibold text-sh-gray">Variance</th>
+                  <th className="px-4 py-3 text-right font-semibold text-brand-gray">Variance</th>
                 </tr>
               </thead>
               <tbody>
@@ -380,12 +380,12 @@ export function SalesExplorerView() {
                   const isOpen = expanded.has(node.id);
                   return (
                     <Fragment key={node.id}>
-                      <tr className="border-b border-sh-gray/10 hover:bg-sh-stripe">
+                      <tr className="border-b border-brand-gray/10 hover:bg-brand-stripe">
                         <td className="px-4 py-2 align-top">
                           <button
                             type="button"
                             onClick={() => hasChildren && toggle(node.id)}
-                            className="flex items-center gap-1 text-left text-sh-navy"
+                            className="flex items-center gap-1 text-left text-brand-navy"
                             style={{ paddingLeft: `${depth * 18}px` }}
                           >
                             <RowChevron hasChildren={hasChildren} isOpen={isOpen} />
@@ -418,7 +418,7 @@ export function SalesExplorerView() {
                         (openDrill === `${node.id}::1` || openDrill === `${node.id}::2`) && (
                           <tr
                             key={`${node.id}-drill`}
-                            className="border-b border-sh-gray/10 bg-sh-linen/40"
+                            className="border-b border-brand-gray/10 bg-brand-linen/40"
                           >
                             <td colSpan={4} className="px-4 py-3">
                               <DrillTable
@@ -437,15 +437,15 @@ export function SalesExplorerView() {
                 })}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-sh-gray">
+                    <td colSpan={4} className="px-4 py-8 text-center text-brand-gray">
                       No sales for the selected periods and filters.
                     </td>
                   </tr>
                 )}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-sh-navy bg-sh-linen">
-                  <td className="px-4 py-3 align-top font-semibold text-sh-navy">Total</td>
+                <tr className="border-t-2 border-brand-navy bg-brand-linen">
+                  <td className="px-4 py-3 align-top font-semibold text-brand-navy">Total</td>
                   <td className="px-4 py-3 text-right align-top font-semibold">
                     {fmt(data.totals.period1.netSales)}
                   </td>
@@ -461,10 +461,10 @@ export function SalesExplorerView() {
           </div>
 
           {data.pivot === "store" && data.storeTraffic.length > 0 && (
-            <div className="overflow-hidden rounded-lg border border-sh-gray/20 bg-white shadow-md">
-              <div className="border-b border-sh-gray/20 bg-sh-linen px-4 py-2">
-                <h2 className="font-serif text-sm font-semibold text-sh-navy">Store Traffic</h2>
-                <p className="text-xs text-sh-gray">
+            <div className="overflow-hidden rounded-lg border border-brand-gray/20 bg-white shadow-md">
+              <div className="border-b border-brand-gray/20 bg-brand-linen px-4 py-2">
+                <h2 className="font-serif text-sm font-semibold text-brand-navy">Store Traffic</h2>
+                <p className="text-xs text-brand-gray">
                   Axper door-counter visitors. Conversion = orders ÷ visitors.
                   {data.trafficDecoupled &&
                     " A dept/category/vendor filter is active, so conversion reflects filtered sales against total store traffic — read it as a trend, not an exact rate."}
@@ -472,7 +472,7 @@ export function SalesExplorerView() {
               </div>
               <table className="w-full font-serif text-sm">
                 <thead>
-                  <tr className="border-b border-sh-gray/20 text-xs text-sh-gray">
+                  <tr className="border-b border-brand-gray/20 text-xs text-brand-gray">
                     <th className="px-4 py-2 text-left font-semibold">Store</th>
                     <th className="px-4 py-2 text-right font-semibold">Visitors (cur / cmp)</th>
                     <th className="px-4 py-2 text-right font-semibold">Orders (cur / cmp)</th>
@@ -481,8 +481,8 @@ export function SalesExplorerView() {
                 </thead>
                 <tbody>
                   {data.storeTraffic.map((row) => (
-                    <tr key={row.store} className="border-b border-sh-gray/10">
-                      <td className="px-4 py-2 font-semibold text-sh-navy">{row.store}</td>
+                    <tr key={row.store} className="border-b border-brand-gray/10">
+                      <td className="px-4 py-2 font-semibold text-brand-navy">{row.store}</td>
                       <td className="px-4 py-2 text-right">
                         {intFmt.format(row.visitors1)} / {intFmt.format(row.visitors2)}
                       </td>
@@ -504,7 +504,7 @@ export function SalesExplorerView() {
       )}
 
       {committed === null && !loading && (
-        <p className="py-16 text-center text-sh-gray">Pick two periods and click Run Report</p>
+        <p className="py-16 text-center text-brand-gray">Pick two periods and click Run Report</p>
       )}
     </div>
   );
@@ -524,7 +524,7 @@ function DrillTable({
 }>) {
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-sh-gray">
+      <div className="flex items-center gap-2 text-sm text-brand-gray">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading items for {periodLabel}...
       </div>
     );
@@ -540,14 +540,14 @@ function DrillTable({
     orderedQuantity: number;
   }>;
   if (rows.length === 0) {
-    return <p className="text-sm text-sh-gray">No product-level rows for {periodLabel}.</p>;
+    return <p className="text-sm text-brand-gray">No product-level rows for {periodLabel}.</p>;
   }
   return (
     <div className="overflow-x-auto">
-      <p className="mb-2 text-xs font-semibold text-sh-gray">Line items — {periodLabel}</p>
+      <p className="mb-2 text-xs font-semibold text-brand-gray">Line items — {periodLabel}</p>
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-left text-sh-gray">
+          <tr className="text-left text-brand-gray">
             <th className="pr-3 pb-1">Order</th>
             <th className="pr-3 pb-1">Date</th>
             <th className="pr-3 pb-1">Customer</th>
@@ -559,7 +559,7 @@ function DrillTable({
         </thead>
         <tbody>
           {rows.slice(0, 500).map((it) => (
-            <tr key={it.id} className="border-t border-sh-gray/10">
+            <tr key={it.id} className="border-t border-brand-gray/10">
               <td className="py-1 pr-3">{it.orderno}</td>
               <td className="py-1 pr-3">{it.orderDate ? it.orderDate.slice(0, 10) : "--"}</td>
               <td className="py-1 pr-3">{it.customerName ?? "--"}</td>

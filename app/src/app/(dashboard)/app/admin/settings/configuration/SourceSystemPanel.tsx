@@ -105,7 +105,7 @@ export function SourceSystemPanel() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 p-6 text-sh-gray">
+      <div className="flex items-center gap-2 p-6 text-brand-gray">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading…
       </div>
     );
@@ -113,7 +113,7 @@ export function SourceSystemPanel() {
 
   return (
     <div className="space-y-4 p-1">
-      <p className="text-xs text-sh-gray">
+      <p className="text-xs text-brand-gray">
         The system this deployment ran before holt, and keeps pulling from on a schedule. Scheduled
         imports use whichever adapter is selected here. <strong>No source system</strong> is a real
         answer — a deployment that keys everything in holt imports nothing.
@@ -123,7 +123,7 @@ export function SourceSystemPanel() {
         {options.map((opt) => (
           <label
             key={opt.id}
-            className="flex cursor-pointer items-start gap-3 rounded border border-sh-linen p-3 hover:bg-sh-linen/40"
+            className="flex cursor-pointer items-start gap-3 rounded border border-brand-linen p-3 hover:bg-brand-linen/40"
           >
             <input
               type="radio"
@@ -134,8 +134,8 @@ export function SourceSystemPanel() {
               onChange={() => setSelected(opt.id)}
             />
             <span>
-              <span className="block text-sm text-sh-black">{opt.label}</span>
-              <span className="block text-xs text-sh-gray">{opt.description}</span>
+              <span className="block text-sm text-brand-black">{opt.label}</span>
+              <span className="block text-xs text-brand-gray">{opt.description}</span>
             </span>
           </label>
         ))}

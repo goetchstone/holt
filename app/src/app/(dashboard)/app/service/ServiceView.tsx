@@ -166,16 +166,16 @@ export function ServiceView() {
   const totalPages = Math.ceil(total / limit);
 
   const badgeStyle = (color: string | null) => {
-    if (!color) return "bg-sh-gray/10 text-sh-gray";
+    if (!color) return "bg-brand-gray/10 text-brand-gray";
     return `text-white`;
   };
 
   return (
     <div className="py-2 space-y-4 font-serif">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl text-sh-blue font-semibold">Service Cases</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">Service Cases</h1>
         <div className="flex gap-2 items-center">
-          <Link href="/app/reports/service" className="text-sm text-sh-gold hover:underline">
+          <Link href="/app/reports/service" className="text-sm text-brand-gold hover:underline">
             View KPIs →
           </Link>
           <Link href="/app/service/cases/new">
@@ -187,15 +187,15 @@ export function ServiceView() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-sh-gray/20">
+      <div className="flex gap-1 border-b border-brand-gray/20">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => handleTabChange(tab.key)}
             className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px ${
               activeTab === tab.key
-                ? "border-sh-blue text-sh-blue"
-                : "border-transparent text-sh-gray hover:text-sh-black"
+                ? "border-brand-blue text-brand-blue"
+                : "border-transparent text-brand-gray hover:text-brand-black"
             }`}
           >
             {tab.label}
@@ -213,7 +213,7 @@ export function ServiceView() {
             setSearch(e.target.value);
             setPage(1);
           }}
-          className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-64"
+          className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-64"
         />
         <select
           value={typeFilter}
@@ -221,7 +221,7 @@ export function ServiceView() {
             setTypeFilter(e.target.value);
             setPage(1);
           }}
-          className="border border-sh-gray/30 rounded px-3 py-2 text-sm"
+          className="border border-brand-gray/30 rounded px-3 py-2 text-sm"
         >
           <option value="">All Types</option>
           {types.map((t) => (
@@ -236,7 +236,7 @@ export function ServiceView() {
             setPriorityFilter(e.target.value);
             setPage(1);
           }}
-          className="border border-sh-gray/30 rounded px-3 py-2 text-sm"
+          className="border border-brand-gray/30 rounded px-3 py-2 text-sm"
         >
           <option value="">All Priorities</option>
           {priorities.map((p) => (
@@ -251,7 +251,7 @@ export function ServiceView() {
             setLocationFilter(e.target.value);
             setPage(1);
           }}
-          className="border border-sh-gray/30 rounded px-3 py-2 text-sm"
+          className="border border-brand-gray/30 rounded px-3 py-2 text-sm"
         >
           <option value="">All Locations</option>
           {locations.map((l) => (
@@ -263,10 +263,10 @@ export function ServiceView() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-sh-linen text-sh-black">
+            <thead className="bg-brand-linen text-brand-black">
               <tr>
                 <th className="p-3 border-b font-medium">Case #</th>
                 <th className="p-3 border-b font-medium">Customer</th>
@@ -279,7 +279,7 @@ export function ServiceView() {
             {loading ? (
               <tbody>
                 <tr>
-                  <td colSpan={6} className="p-4 text-center text-sh-gray">
+                  <td colSpan={6} className="p-4 text-center text-brand-gray">
                     Loading...
                   </td>
                 </tr>
@@ -287,7 +287,7 @@ export function ServiceView() {
             ) : cases.length === 0 ? (
               <tbody>
                 <tr>
-                  <td colSpan={6} className="p-4 text-center text-sh-gray">
+                  <td colSpan={6} className="p-4 text-center text-brand-gray">
                     No cases found
                   </td>
                 </tr>
@@ -304,10 +304,10 @@ export function ServiceView() {
                 return (
                   <tbody
                     key={c.id}
-                    className={`${i % 2 === 0 ? "bg-white" : "bg-sh-stripe"} hover:bg-sh-linen transition`}
+                    className={`${i % 2 === 0 ? "bg-white" : "bg-brand-stripe"} hover:bg-brand-linen transition`}
                   >
                     <tr>
-                      <td className="p-3 font-medium text-sh-blue">
+                      <td className="p-3 font-medium text-brand-blue">
                         <Link
                           href={`/app/service/cases/${c.id}`}
                           className="hover:underline focus:underline focus:outline-none"
@@ -329,10 +329,10 @@ export function ServiceView() {
                           {c.status.name}
                         </span>
                       </td>
-                      <td className="p-3 text-sh-gray whitespace-nowrap">
+                      <td className="p-3 text-brand-gray whitespace-nowrap">
                         {format(new Date(c.created), "MMM d, yyyy")}
                       </td>
-                      <td className="p-3 text-sh-gray whitespace-nowrap">
+                      <td className="p-3 text-brand-gray whitespace-nowrap">
                         {formatDistanceToNowStrict(new Date(c.lastActionAt), { addSuffix: true })}
                       </td>
                       <td className="p-3">{c.assignedTo ? c.assignedTo.displayName : "--"}</td>
@@ -343,20 +343,20 @@ export function ServiceView() {
                        * muted placeholder when the case has no comments. */}
                       <td
                         colSpan={6}
-                        className="px-3 pt-0 pb-3 border-b text-sh-gray"
+                        className="px-3 pt-0 pb-3 border-b text-brand-gray"
                         title={previewTitle}
                       >
                         {c.lastActionText ? (
-                          <p className="text-xs italic text-sh-gray/90 line-clamp-2">
+                          <p className="text-xs italic text-brand-gray/90 line-clamp-2">
                             {c.lastActionAuthor ? (
-                              <span className="not-italic font-medium text-sh-gray">
+                              <span className="not-italic font-medium text-brand-gray">
                                 {c.lastActionAuthor}:{" "}
                               </span>
                             ) : null}
                             {c.lastActionText}
                           </p>
                         ) : (
-                          <p className="text-xs italic text-sh-gray/50">No comments yet</p>
+                          <p className="text-xs italic text-brand-gray/50">No comments yet</p>
                         )}
                       </td>
                     </tr>
@@ -369,8 +369,8 @@ export function ServiceView() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-sh-gray/10">
-            <span className="text-sm text-sh-gray">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-brand-gray/10">
+            <span className="text-sm text-brand-gray">
               Page {page} of {totalPages} ({total} cases)
             </span>
             <div className="flex gap-2">

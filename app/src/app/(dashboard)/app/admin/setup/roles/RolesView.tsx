@@ -118,7 +118,7 @@ function GrantRow({
     <div
       className={cn(
         "flex items-start justify-between gap-3 rounded-md border px-3 pt-4",
-        permission.sensitive ? "border-sh-gold/60 bg-sh-gold/10" : "border-black/10 bg-white",
+        permission.sensitive ? "border-brand-gold/60 bg-brand-gold/10" : "border-black/10 bg-white",
         held ? "" : "opacity-90",
       )}
     >
@@ -156,7 +156,7 @@ function DomainCard({
       <CardHeader>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <CardTitle>{group.label}</CardTitle>
-          <span className="text-xs text-sh-gray">
+          <span className="text-xs text-brand-gray">
             {granted} of {group.permissions.length} granted
           </span>
         </div>
@@ -181,9 +181,9 @@ function DomainCard({
 function BaselineCard({ entries }: Readonly<{ entries: BaselineEntry[] }>) {
   if (entries.length === 0) return null;
   return (
-    <Card className="mb-6 bg-sh-stripe">
+    <Card className="mb-6 bg-brand-stripe">
       <CardHeader>
-        <CardTitle className="text-sh-gray">Every role can always do their own job</CardTitle>
+        <CardTitle className="text-brand-gray">Every role can always do their own job</CardTitle>
         <CardDescription>
           These are on for every role in holt, including this one. They are not granted and cannot
           be taken away.
@@ -193,7 +193,7 @@ function BaselineCard({ entries }: Readonly<{ entries: BaselineEntry[] }>) {
         {entries.map((entry) => (
           <div
             key={entry.key}
-            className="flex items-start justify-between gap-3 rounded-md border border-black/5 bg-white/60 px-3 py-2 text-sm text-sh-gray"
+            className="flex items-start justify-between gap-3 rounded-md border border-black/5 bg-white/60 px-3 py-2 text-sm text-brand-gray"
           >
             <span>
               <span className="font-medium">{entry.label}</span>
@@ -222,14 +222,14 @@ function PendingChanges({
   if (added.length === 0 && removed.length === 0) return null;
   const addedSensitive = sensitiveGrants(added, catalog);
   return (
-    <div className="mb-4 rounded-md border border-black/10 bg-sh-linen/40 p-4 text-sm">
-      <p className="text-sh-black">
+    <div className="mb-4 rounded-md border border-black/10 bg-brand-linen/40 p-4 text-sm">
+      <p className="text-brand-black">
         Unsaved: {added.length} permission{added.length === 1 ? "" : "s"} added, {removed.length}{" "}
         removed.
       </p>
       {addedSensitive.length > 0 ? (
-        <p className="mt-2 text-sh-black">
-          <AlertTriangle className="mr-1 inline h-4 w-4 text-sh-gold" />
+        <p className="mt-2 text-brand-black">
+          <AlertTriangle className="mr-1 inline h-4 w-4 text-brand-gold" />
           Sensitive additions: {addedSensitive.map((p) => p.label).join(", ")}. Anyone holding this
           role will be able to do these.
         </p>
@@ -394,7 +394,7 @@ function RoleEditor({
             value={rank}
             onChange={setRank}
           />
-          <p className="-mt-2 text-xs text-sh-gray">
+          <p className="-mt-2 text-xs text-brand-gray">
             Used for one thing only: nobody can impersonate a role ranked above their own. Leave it
             at 0 unless this role genuinely outranks another — 0 means a different job, not a lower
             rung.
@@ -429,15 +429,15 @@ function RoleEditor({
           onSave={confirmPending}
           saveLabel="Grant it"
         >
-          <p className="text-sm text-sh-black">
+          <p className="text-sm text-brand-black">
             <span className="font-semibold">{pending.label}</span> — {pending.description}
           </p>
-          <p className="text-sm text-sh-gray">
+          <p className="text-sm text-brand-gray">
             This one moves money or hands power to someone else. Everyone holding{" "}
-            <span className="text-sh-black">{role.name}</span> will be able to do it, including
+            <span className="text-brand-black">{role.name}</span> will be able to do it, including
             people assigned to the role later.
           </p>
-          <p className="text-xs text-sh-gray">
+          <p className="text-xs text-brand-gray">
             Nothing is saved until you choose Save changes on the role.
           </p>
         </Modal>
@@ -528,7 +528,7 @@ function CreateRoleModal({
       saving={saving}
       saveLabel="Create role"
     >
-      <p className="text-sm text-sh-gray">
+      <p className="text-sm text-brand-gray">
         Start from a role that already works, then take away what this one should not do. Nothing
         about the role you copy changes.
       </p>
@@ -542,25 +542,25 @@ function CreateRoleModal({
       />
 
       {loadingSource ? (
-        <p className="flex items-center gap-2 text-sm text-sh-gray">
+        <p className="flex items-center gap-2 text-sm text-brand-gray">
           <Loader2 className="h-4 w-4 animate-spin" /> Reading that role…
         </p>
       ) : null}
 
       {source ? (
-        <div className="rounded-md border border-black/10 bg-sh-linen/40 p-3 text-sm">
-          <p className="text-sh-black">
+        <div className="rounded-md border border-black/10 bg-brand-linen/40 p-3 text-sm">
+          <p className="text-brand-black">
             Copies {grants.length} permission{grants.length === 1 ? "" : "s"} from {source.name}.
           </p>
           {source.grantsAllPermissions ? (
-            <p className="mt-1 text-xs text-sh-gray">
+            <p className="mt-1 text-xs text-brand-gray">
               {source.name} holds everything, so the new role starts with every permission in the
               catalog. Take away what it should not have.
             </p>
           ) : null}
           {sensitive.length > 0 ? (
-            <p className="mt-1 text-xs text-sh-gray">
-              <AlertTriangle className="mr-1 inline h-3 w-3 text-sh-gold" />
+            <p className="mt-1 text-xs text-brand-gray">
+              <AlertTriangle className="mr-1 inline h-3 w-3 text-brand-gold" />
               {sensitive.length} of them are sensitive — they move money or hand power to someone
               else. You can remove them on the next screen.
             </p>
@@ -576,8 +576,8 @@ function CreateRoleModal({
         placeholder="e.g. Floor Lead"
       />
       {key ? (
-        <p className="-mt-2 text-xs text-sh-gray">
-          Permanent identifier: <span className="text-sh-black">{key}</span>. Built from the name
+        <p className="-mt-2 text-xs text-brand-gray">
+          Permanent identifier: <span className="text-brand-black">{key}</span>. Built from the name
           and never changes, so the name can be edited later without breaking anything.
         </p>
       ) : null}
@@ -654,7 +654,7 @@ function DeleteRoleModal({
       saving={saving}
       saveLabel="Delete role"
     >
-      <p className="text-sm text-sh-black">
+      <p className="text-sm text-brand-black">
         {reassignSentence(role.staffCount, target?.name ?? null)}
       </p>
 
@@ -668,7 +668,7 @@ function DeleteRoleModal({
         />
       ) : null}
 
-      <p className="text-xs text-sh-gray">
+      <p className="text-xs text-brand-gray">
         Deleting a role does not delete anybody. Their permissions become whatever the role they
         move to allows.
       </p>
@@ -715,7 +715,7 @@ function RoleList({
   return (
     <div className="overflow-hidden rounded-md border border-black/10 bg-white">
       <table className="w-full text-left text-sm">
-        <thead className="bg-sh-stripe text-sh-gray">
+        <thead className="bg-brand-stripe text-brand-gray">
           <tr>
             <th className="px-3 py-2 font-medium">Role</th>
             <th className="px-3 py-2 text-right font-medium">Staff</th>
@@ -730,15 +730,15 @@ function RoleList({
             <tr key={role.id} className="border-t border-black/5 align-top">
               <td className="px-3 py-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-sh-black">{role.name}</span>
+                  <span className="font-medium text-brand-black">{role.name}</span>
                   <RoleBadges role={role} />
                 </div>
-                <p className="mt-1 text-xs text-sh-gray">
+                <p className="mt-1 text-xs text-brand-gray">
                   {role.description || "No description yet."}
                 </p>
               </td>
-              <td className="px-3 py-3 text-right text-sh-black">{role.staffCount}</td>
-              <td className="px-3 py-3 text-right text-sh-black">
+              <td className="px-3 py-3 text-right text-brand-black">{role.staffCount}</td>
+              <td className="px-3 py-3 text-right text-brand-black">
                 {role.grantsAllPermissions ? "All" : role.permissionCount}
               </td>
               <td className="px-3 py-3">
@@ -812,7 +812,7 @@ export function RolesView() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 p-8 text-sh-gray">
+      <div className="flex items-center gap-2 p-8 text-brand-gray">
         <Loader2 className="h-5 w-5 animate-spin" /> Loading roles…
       </div>
     );
@@ -822,7 +822,7 @@ export function RolesView() {
     return (
       <div>
         <PageHeader title="Roles" subtitle="What each job can do in holt." />
-        <p className="mb-4 text-sh-gray">Roles could not be loaded.</p>
+        <p className="mb-4 text-brand-gray">Roles could not be loaded.</p>
         <Button
           onClick={() => {
             setLoading(true);
@@ -866,7 +866,7 @@ export function RolesView() {
 
       <RoleList roles={index.roles} opening={opening} onOpen={openRole} onDelete={setDeleting} />
 
-      <p className="mt-3 text-xs text-sh-gray">
+      <p className="mt-3 text-xs text-brand-gray">
         Roles that ship with holt cannot be deleted — an installation that could delete
         Administrator could lock itself out. What they can do is still yours to change.
       </p>

@@ -87,59 +87,59 @@ export function ReturnsHistoryView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center gap-3">
-        <Link href="/app/inventory/consignment" className="text-sh-blue hover:underline text-sm">
+        <Link href="/app/inventory/consignment" className="text-brand-blue hover:underline text-sm">
           Consignment
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">Returns to Vendor</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">Returns to Vendor</h1>
       </div>
 
       {!loading && returns.length > 0 && (
         <div className="flex gap-6 text-sm">
           <div>
-            <span className="text-sh-gray">Total Returns:</span>{" "}
-            <span className="font-semibold text-sh-navy">{returns.length}</span>
+            <span className="text-brand-gray">Total Returns:</span>{" "}
+            <span className="font-semibold text-brand-navy">{returns.length}</span>
           </div>
           <div>
-            <span className="text-sh-gray">Items Returned:</span>{" "}
-            <span className="font-semibold text-sh-navy">{totalItems}</span>
+            <span className="text-brand-gray">Items Returned:</span>{" "}
+            <span className="font-semibold text-brand-navy">{totalItems}</span>
           </div>
           <div>
-            <span className="text-sh-gray">Total Cost:</span>{" "}
-            <span className="font-semibold text-sh-navy">{fmt(totalCost)}</span>
+            <span className="text-brand-gray">Total Cost:</span>{" "}
+            <span className="font-semibold text-brand-navy">{fmt(totalCost)}</span>
           </div>
           {totalCredits > 0 && (
             <div>
-              <span className="text-sh-gray">Credits Owed:</span>{" "}
+              <span className="text-brand-gray">Credits Owed:</span>{" "}
               <span className="font-semibold text-red-700">{totalCredits}</span>
             </div>
           )}
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-sh-gray/20 bg-sh-linen">
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Return Date</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Vendor</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Status</th>
-              <th className="text-right px-4 py-3 text-sh-gray font-semibold">Items</th>
-              <th className="text-right px-4 py-3 text-sh-gray font-semibold">Total Cost</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Notes</th>
+            <tr className="border-b border-brand-gray/20 bg-brand-linen">
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Return Date</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Vendor</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Status</th>
+              <th className="text-right px-4 py-3 text-brand-gray font-semibold">Items</th>
+              <th className="text-right px-4 py-3 text-brand-gray font-semibold">Total Cost</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Notes</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sh-gray">
+                <td colSpan={6} className="px-4 py-8 text-center text-brand-gray">
                   Loading...
                 </td>
               </tr>
             )}
             {!loading && returns.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sh-gray">
+                <td colSpan={6} className="px-4 py-8 text-center text-brand-gray">
                   No vendor returns recorded.
                 </td>
               </tr>
@@ -174,21 +174,21 @@ function ReturnRow({ ret, striped, expanded, onToggle, fmt }: Readonly<ReturnRow
     <>
       <tr
         onClick={onToggle}
-        className={`border-b border-sh-gray/10 cursor-pointer hover:bg-sh-linen transition ${
-          striped ? "bg-sh-stripe" : ""
+        className={`border-b border-brand-gray/10 cursor-pointer hover:bg-brand-linen transition ${
+          striped ? "bg-brand-stripe" : ""
         }`}
       >
-        <td className="px-4 py-3 text-sh-black">
+        <td className="px-4 py-3 text-brand-black">
           <span className="flex items-center gap-1.5">
             {expanded ? (
-              <ChevronDown className="h-4 w-4 text-sh-gray" />
+              <ChevronDown className="h-4 w-4 text-brand-gray" />
             ) : (
-              <ChevronRight className="h-4 w-4 text-sh-gray" />
+              <ChevronRight className="h-4 w-4 text-brand-gray" />
             )}
             {formatDate(ret.returnDate)}
           </span>
         </td>
-        <td className="px-4 py-3 text-sh-black">{ret.vendorName}</td>
+        <td className="px-4 py-3 text-brand-black">{ret.vendorName}</td>
         <td className="px-4 py-3">
           <span
             className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${statusBadgeClasses(
@@ -203,9 +203,11 @@ function ReturnRow({ ret, striped, expanded, onToggle, fmt }: Readonly<ReturnRow
             </span>
           )}
         </td>
-        <td className="px-4 py-3 text-right text-sh-black">{ret.itemCount}</td>
-        <td className="px-4 py-3 text-right text-sh-black">{fmt(ret.totalCost)}</td>
-        <td className="px-4 py-3 text-sh-gray text-xs truncate max-w-[200px]">{ret.notes || ""}</td>
+        <td className="px-4 py-3 text-right text-brand-black">{ret.itemCount}</td>
+        <td className="px-4 py-3 text-right text-brand-black">{fmt(ret.totalCost)}</td>
+        <td className="px-4 py-3 text-brand-gray text-xs truncate max-w-[200px]">
+          {ret.notes || ""}
+        </td>
       </tr>
       {expanded && (
         <tr>
@@ -213,12 +215,12 @@ function ReturnRow({ ret, striped, expanded, onToggle, fmt }: Readonly<ReturnRow
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-1 text-sh-gray">Barcode</th>
-                  <th className="text-left py-1 text-sh-gray">Cust #</th>
-                  <th className="text-left py-1 text-sh-gray">Quality</th>
-                  <th className="text-left py-1 text-sh-gray">Size</th>
-                  <th className="text-right py-1 text-sh-gray">Cost</th>
-                  <th className="text-left py-1 text-sh-gray">Credit</th>
+                  <th className="text-left py-1 text-brand-gray">Barcode</th>
+                  <th className="text-left py-1 text-brand-gray">Cust #</th>
+                  <th className="text-left py-1 text-brand-gray">Quality</th>
+                  <th className="text-left py-1 text-brand-gray">Size</th>
+                  <th className="text-right py-1 text-brand-gray">Cost</th>
+                  <th className="text-left py-1 text-brand-gray">Credit</th>
                 </tr>
               </thead>
               <tbody>
@@ -227,14 +229,14 @@ function ReturnRow({ ret, striped, expanded, onToggle, fmt }: Readonly<ReturnRow
                     <td className="py-1">
                       <Link
                         href={`/app/inventory/consignment/${item.id}`}
-                        className="text-sh-blue hover:underline"
+                        className="text-brand-blue hover:underline"
                       >
                         {item.barcode}
                       </Link>
                     </td>
-                    <td className="py-1 text-sh-gray">{item.customerNumber}</td>
-                    <td className="py-1 text-sh-gray">{item.quality}</td>
-                    <td className="py-1 text-sh-gray">{item.size}</td>
+                    <td className="py-1 text-brand-gray">{item.customerNumber}</td>
+                    <td className="py-1 text-brand-gray">{item.quality}</td>
+                    <td className="py-1 text-brand-gray">{item.size}</td>
                     <td className="py-1 text-right">{fmt(item.cost)}</td>
                     <td className="py-1">
                       {item.creditOwed && <span className="text-red-600 font-semibold">Yes</span>}

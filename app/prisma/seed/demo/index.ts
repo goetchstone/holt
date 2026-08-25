@@ -158,6 +158,7 @@ async function main(): Promise<void> {
     locations.stores,
     staff.warehouseStaff,
     volume.purchaseOrderCount,
+    new Date(),
   );
 
   const consignmentResult = await seedConsignment(

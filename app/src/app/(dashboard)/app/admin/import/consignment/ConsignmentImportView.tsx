@@ -35,14 +35,14 @@ export function ConsignmentImportView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center gap-3">
-        <Link href="/app/admin/import" className="text-sh-blue hover:underline text-sm">
+        <Link href="/app/admin/import" className="text-brand-blue hover:underline text-sm">
           Import Tools
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">Consignment Import</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">Consignment Import</h1>
       </div>
 
-      <p className="text-sh-gray text-sm">
+      <p className="text-brand-gray text-sm">
         Import consignment data from CSV exports (items, sales history, payments).
       </p>
 
@@ -93,10 +93,10 @@ function RebuildConsignmentSalesPanel() {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-sh-gold/30 shadow-md p-5 space-y-4">
+    <div className="bg-white rounded-lg border border-brand-gold/30 shadow-md p-5 space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-sh-black">Rebuild Sales Records</h2>
-        <p className="text-sm text-sh-gray mt-1">
+        <h2 className="text-lg font-semibold text-brand-black">Rebuild Sales Records</h2>
+        <p className="text-sm text-brand-gray mt-1">
           Generates ConsignmentSale and ConsignmentSaleLine records from the linked SOLD items. Also
           fixes the PAID status for any items that have a payment batch assigned but are still
           showing as SOLD. Safe to run multiple times.
@@ -108,16 +108,16 @@ function RebuildConsignmentSalesPanel() {
       </Button>
 
       {result && (
-        <div className="bg-sh-linen rounded-lg p-4 space-y-1 text-sm font-serif">
+        <div className="bg-brand-linen rounded-lg p-4 space-y-1 text-sm font-serif">
           <ResultRow label="Sales created:" value={result.salesCreated} />
           <ResultRow label="Sales updated:" value={result.salesUpdated} />
           <ResultRow label="Sale lines created:" value={result.linesCreated} />
           <ResultRow label="Sale lines skipped (existed):" value={result.linesSkipped} />
           <ResultRow label="Items marked PAID:" value={result.itemsMarkedPaid} />
-          <div className="border-t border-sh-gray/20 pt-2 mt-2">
+          <div className="border-t border-brand-gray/20 pt-2 mt-2">
             <p>
-              <span className="text-sh-gray">Outstanding (owed to consignors):</span>{" "}
-              <span className="font-semibold text-sh-blue">
+              <span className="text-brand-gray">Outstanding (owed to consignors):</span>{" "}
+              <span className="font-semibold text-brand-blue">
                 {result.outstandingItemCount} rugs — {formatMoney(result.outstandingTotal)}
               </span>
             </p>
@@ -157,10 +157,10 @@ function BackfillConsignmentPanel() {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-sh-gold/30 shadow-md p-5 space-y-4">
+    <div className="bg-white rounded-lg border border-brand-gold/30 shadow-md p-5 space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-sh-black">Backfill from Sales Data</h2>
-        <p className="text-sm text-sh-gray mt-1">
+        <h2 className="text-lg font-semibold text-brand-black">Backfill from Sales Data</h2>
+        <p className="text-sm text-brand-gray mt-1">
           Syncs ConsignmentItem statuses from the imported sales data. Marks items as SOLD from
           matching sales orders, PAID from received consignment POs, and detects vendor credits for
           returned rugs. Run the dry run first to preview changes.
@@ -182,9 +182,9 @@ function BackfillConsignmentPanel() {
       </div>
 
       {result && (
-        <div className="bg-sh-linen rounded-lg p-4 space-y-2 text-sm font-serif">
+        <div className="bg-brand-linen rounded-lg p-4 space-y-2 text-sm font-serif">
           {result.dryRun && (
-            <p className="text-sh-gold font-semibold text-xs uppercase tracking-wide">
+            <p className="text-brand-gold font-semibold text-xs uppercase tracking-wide">
               Dry Run — no changes applied
             </p>
           )}
@@ -196,11 +196,11 @@ function BackfillConsignmentPanel() {
           </div>
 
           {result.details.length > 0 && (
-            <div className="border-t border-sh-gray/20 pt-2 mt-2">
-              <p className="text-sh-gray text-xs mb-1">Details:</p>
+            <div className="border-t border-brand-gray/20 pt-2 mt-2">
+              <p className="text-brand-gray text-xs mb-1">Details:</p>
               <div className="max-h-60 overflow-y-auto space-y-0.5">
                 {result.details.map((d, i) => (
-                  <p key={`${i}-${d}`} className="text-xs text-sh-black font-mono truncate">
+                  <p key={`${i}-${d}`} className="text-xs text-brand-black font-mono truncate">
                     {d}
                   </p>
                 ))}
@@ -232,10 +232,10 @@ function ResetMissingPanel() {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-sh-gold/30 shadow-md p-5 space-y-4">
+    <div className="bg-white rounded-lg border border-brand-gold/30 shadow-md p-5 space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-sh-black">Reset Missing Items</h2>
-        <p className="text-sm text-sh-gray mt-1">
+        <h2 className="text-lg font-semibold text-brand-black">Reset Missing Items</h2>
+        <p className="text-sm text-brand-gray mt-1">
           Moves all MISSING consignment items back to ON_FLOOR. Use this when starting fresh with
           inventory counts.
         </p>
@@ -246,10 +246,10 @@ function ResetMissingPanel() {
       </Button>
 
       {result && (
-        <div className="bg-sh-linen rounded-lg p-4 text-sm font-serif">
+        <div className="bg-brand-linen rounded-lg p-4 text-sm font-serif">
           <p>
-            <span className="text-sh-gray">Items reset to ON_FLOOR:</span>{" "}
-            <span className="font-semibold text-sh-blue">{result.updated}</span>
+            <span className="text-brand-gray">Items reset to ON_FLOOR:</span>{" "}
+            <span className="font-semibold text-brand-blue">{result.updated}</span>
           </p>
         </div>
       )}
@@ -317,17 +317,17 @@ function VendorReturnImportPanel() {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-sh-gold/30 shadow-md p-5 space-y-4">
+    <div className="bg-white rounded-lg border border-brand-gold/30 shadow-md p-5 space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-sh-black">Import Vendor Return</h2>
-        <p className="text-sm text-sh-gray mt-1">
+        <h2 className="text-lg font-semibold text-brand-black">Import Vendor Return</h2>
+        <p className="text-sm text-brand-gray mt-1">
           Upload a CSV of barcodes for rugs returned to the consignor. Creates a vendor return
           record grouping all items in the shipment.
         </p>
       </div>
 
       <div>
-        <label htmlFor={fileId} className="block text-sm text-sh-gray mb-1">
+        <label htmlFor={fileId} className="block text-sm text-brand-gray mb-1">
           CSV file (barcodes in first column)
         </label>
         <input
@@ -336,7 +336,7 @@ function VendorReturnImportPanel() {
           type="file"
           accept=".csv"
           onChange={handleFile}
-          className="block w-full text-sm text-sh-black file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sh-blue file:text-white hover:file:bg-sh-black file:min-h-[44px] file:cursor-pointer"
+          className="block w-full text-sm text-brand-black file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-blue file:text-white hover:file:bg-brand-black file:min-h-[44px] file:cursor-pointer"
         />
       </div>
 
@@ -344,7 +344,7 @@ function VendorReturnImportPanel() {
         <>
           <div className="flex gap-4 items-end">
             <div>
-              <label htmlFor={returnDateId} className="block text-sm text-sh-gray mb-1">
+              <label htmlFor={returnDateId} className="block text-sm text-brand-gray mb-1">
                 Return Date (optional)
               </label>
               <input
@@ -352,11 +352,11 @@ function VendorReturnImportPanel() {
                 type="date"
                 value={returnDate}
                 onChange={(e) => setReturnDate(e.target.value)}
-                className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+                className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
               />
             </div>
             <div className="flex-1">
-              <label htmlFor={notesId} className="block text-sm text-sh-gray mb-1">
+              <label htmlFor={notesId} className="block text-sm text-brand-gray mb-1">
                 Notes (optional)
               </label>
               <input
@@ -365,13 +365,13 @@ function VendorReturnImportPanel() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="e.g. March 2026 return shipment"
-                className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm w-full min-h-[44px]"
+                className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm w-full min-h-[44px]"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            <span className="text-sm text-sh-gray">{barcodes.length} barcodes parsed</span>
+            <span className="text-sm text-brand-gray">{barcodes.length} barcodes parsed</span>
             <Button onClick={handleImport} disabled={importing} className="min-h-[44px]">
               {importing ? "Importing..." : "Import Return"}
             </Button>
@@ -380,22 +380,22 @@ function VendorReturnImportPanel() {
       )}
 
       {result && (
-        <div className="bg-sh-linen rounded-lg p-4 space-y-1 text-sm font-serif">
+        <div className="bg-brand-linen rounded-lg p-4 space-y-1 text-sm font-serif">
           <ResultRow label="Return record ID:" value={result.returnId} />
           <p>
-            <span className="text-sh-gray">Items marked RETURNED_VENDOR:</span>{" "}
-            <span className="font-semibold text-sh-blue">{result.itemsReturned}</span>
+            <span className="text-brand-gray">Items marked RETURNED_VENDOR:</span>{" "}
+            <span className="font-semibold text-brand-blue">{result.itemsReturned}</span>
           </p>
           {result.notFound.length > 0 && (
-            <div className="border-t border-sh-gray/20 pt-2 mt-2">
+            <div className="border-t border-brand-gray/20 pt-2 mt-2">
               <p className="text-red-600 text-xs">
                 Not found ({result.notFound.length}): {result.notFound.join(", ")}
               </p>
             </div>
           )}
           {result.alreadyReturned.length > 0 && (
-            <div className="border-t border-sh-gray/20 pt-2 mt-2">
-              <p className="text-sh-gray text-xs">
+            <div className="border-t border-brand-gray/20 pt-2 mt-2">
+              <p className="text-brand-gray text-xs">
                 Already returned ({result.alreadyReturned.length}):{" "}
                 {result.alreadyReturned.join(", ")}
               </p>
@@ -433,10 +433,10 @@ function RevertReturnedRugsPanel() {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-sh-gold/30 shadow-md p-5 space-y-4">
+    <div className="bg-white rounded-lg border border-brand-gold/30 shadow-md p-5 space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-sh-black">Revert Returned Rugs</h2>
-        <p className="text-sm text-sh-gray mt-1">
+        <h2 className="text-lg font-semibold text-brand-black">Revert Returned Rugs</h2>
+        <p className="text-sm text-brand-gray mt-1">
           Finds all RETURNED SalesOrders, locates any matching SOLD ConsignmentItems, and flips them
           back to ON_FLOOR. Fixes historical returns that were imported before return-handling was
           added. Safe to run multiple times.
@@ -448,12 +448,12 @@ function RevertReturnedRugsPanel() {
       </Button>
 
       {result && (
-        <div className="bg-sh-linen rounded-lg p-4 space-y-1 text-sm font-serif">
+        <div className="bg-brand-linen rounded-lg p-4 space-y-1 text-sm font-serif">
           <ResultRow label="Returned orders scanned:" value={result.returnedOrdersScanned} />
           <ResultRow label="Rug barcodes on returned orders:" value={result.rugBarcodesFound} />
           <p>
-            <span className="text-sh-gray">Items reverted to ON_FLOOR:</span>{" "}
-            <span className="font-semibold text-sh-blue">{result.itemsReverted}</span>
+            <span className="text-brand-gray">Items reverted to ON_FLOOR:</span>{" "}
+            <span className="font-semibold text-brand-blue">{result.itemsReverted}</span>
           </p>
           <ResultRow label="Already on floor (no change):" value={result.itemsAlreadyOnFloor} />
         </div>
@@ -530,11 +530,11 @@ function ImportSectionPanel({ section }: Readonly<{ section: ImportSection }>) {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-5 space-y-4">
-      <h2 className="text-lg font-semibold text-sh-black">{section.title}</h2>
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5 space-y-4">
+      <h2 className="text-lg font-semibold text-brand-black">{section.title}</h2>
 
       <div>
-        <label htmlFor={fileId} className="block text-sm text-sh-gray mb-1">
+        <label htmlFor={fileId} className="block text-sm text-brand-gray mb-1">
           Upload CSV
         </label>
         <input
@@ -543,13 +543,13 @@ function ImportSectionPanel({ section }: Readonly<{ section: ImportSection }>) {
           type="file"
           accept=".csv"
           onChange={handleFile}
-          className="block w-full text-sm text-sh-black file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sh-blue file:text-white hover:file:bg-sh-black file:min-h-[44px] file:cursor-pointer"
+          className="block w-full text-sm text-brand-black file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-blue file:text-white hover:file:bg-brand-black file:min-h-[44px] file:cursor-pointer"
         />
       </div>
 
       {rows.length > 0 && (
         <div className="flex items-center gap-4">
-          <span className="text-sm text-sh-gray">{rows.length} rows parsed</span>
+          <span className="text-sm text-brand-gray">{rows.length} rows parsed</span>
           <Button onClick={handleImport} disabled={importing} className="min-h-[44px]">
             {importing ? "Importing..." : "Import"}
           </Button>
@@ -560,11 +560,11 @@ function ImportSectionPanel({ section }: Readonly<{ section: ImportSection }>) {
         <div className="space-y-1">
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
-              className="bg-sh-blue h-2 rounded-full transition-all"
+              className="bg-brand-blue h-2 rounded-full transition-all"
               style={{ width: `${(progress.imported / progress.total) * 100}%` }}
             />
           </div>
-          <span className="text-xs text-sh-gray">
+          <span className="text-xs text-brand-gray">
             {progress.imported} of {progress.total}
           </span>
         </div>
@@ -584,7 +584,8 @@ function ImportSectionPanel({ section }: Readonly<{ section: ImportSection }>) {
 function ResultRow({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
     <p>
-      <span className="text-sh-gray">{label}</span> <span className="font-semibold">{value}</span>
+      <span className="text-brand-gray">{label}</span>{" "}
+      <span className="font-semibold">{value}</span>
     </p>
   );
 }

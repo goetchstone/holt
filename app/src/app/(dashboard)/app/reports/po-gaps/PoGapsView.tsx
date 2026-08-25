@@ -36,7 +36,7 @@ export function PoGapsView({ data }: Readonly<{ data: PoGapsResult }>) {
 
   const missingCell = (value: string | null) =>
     value ? (
-      <span className="text-sh-black">{value}</span>
+      <span className="text-brand-black">{value}</span>
     ) : (
       <span className="text-xs font-semibold text-red-600">MISSING</span>
     );
@@ -49,7 +49,7 @@ export function PoGapsView({ data }: Readonly<{ data: PoGapsResult }>) {
       render: (r) => (
         <Link
           href={`/app/purchasing/orders/${r.id}`}
-          className="font-semibold text-sh-blue hover:underline"
+          className="font-semibold text-brand-blue hover:underline"
         >
           {r.poNumber}
         </Link>
@@ -85,14 +85,14 @@ export function PoGapsView({ data }: Readonly<{ data: PoGapsResult }>) {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Open PO Gaps</span>
+        <span className="text-brand-black">Open PO Gaps</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">
+      <h1 className="text-2xl font-semibold text-brand-navy">
         Open PO Gaps — Missing ESD &amp; Acknowledgement
       </h1>
 
@@ -118,8 +118,8 @@ export function PoGapsView({ data }: Readonly<{ data: PoGapsResult }>) {
             onClick={() => setFilter(value)}
             className={`min-h-[36px] rounded-full px-3 py-1.5 text-xs font-semibold transition ${
               filter === value
-                ? "bg-sh-blue text-white"
-                : "bg-sh-linen text-sh-gray hover:bg-sh-gray/10"
+                ? "bg-brand-blue text-white"
+                : "bg-brand-linen text-brand-gray hover:bg-brand-gray/10"
             }`}
           >
             {label}

@@ -61,11 +61,11 @@ interface PriorityForm {
 }
 
 function ColorCell({ color }: { color: string | null }) {
-  if (!color) return <span className="text-sh-gray">--</span>;
+  if (!color) return <span className="text-brand-gray">--</span>;
   return (
     <span className="flex items-center gap-2">
       <span className="inline-block w-4 h-4 rounded" style={{ backgroundColor: color }} />
-      <span className="text-xs text-sh-gray">{color}</span>
+      <span className="text-xs text-brand-gray">{color}</span>
     </span>
   );
 }
@@ -93,15 +93,15 @@ function SettingsCard<T extends { id: number }>({
   onEdit: (item: T) => void;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-sh-black">{title}</h2>
+        <h2 className="text-lg font-semibold text-brand-black">{title}</h2>
         <Button variant="primary" size="sm" onClick={onAdd}>
           {addLabel}
         </Button>
       </div>
       <table className="min-w-full text-left text-sm">
-        <thead className="bg-sh-linen text-sh-black">
+        <thead className="bg-brand-linen text-brand-black">
           <tr>
             {columns.map((c) => (
               <th key={c.header} className="p-3 border-b font-medium">
@@ -113,7 +113,7 @@ function SettingsCard<T extends { id: number }>({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id} className="odd:bg-white even:bg-sh-stripe">
+            <tr key={row.id} className="odd:bg-white even:bg-brand-stripe">
               {columns.map((c) => (
                 <td key={c.header} className="p-3 border-b">
                   {c.render(row)}
@@ -122,7 +122,7 @@ function SettingsCard<T extends { id: number }>({
               <td className="p-3 border-b">
                 <button
                   onClick={() => onEdit(row)}
-                  className="text-sm text-sh-blue hover:underline"
+                  className="text-sm text-brand-blue hover:underline"
                 >
                   Edit
                 </button>
@@ -131,7 +131,7 @@ function SettingsCard<T extends { id: number }>({
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={columns.length + 1} className="p-3 text-center text-sh-gray">
+              <td colSpan={columns.length + 1} className="p-3 text-center text-brand-gray">
                 {emptyText}
               </td>
             </tr>
@@ -363,12 +363,12 @@ export function ServiceSetupView() {
   };
 
   if (loading) {
-    return <p className="text-sh-gray py-8 font-serif">Loading...</p>;
+    return <p className="text-brand-gray py-8 font-serif">Loading...</p>;
   }
 
   return (
     <div className="py-2 space-y-8 font-serif">
-      <h1 className="text-2xl text-sh-blue font-semibold">Service Settings</h1>
+      <h1 className="text-2xl text-brand-blue font-semibold">Service Settings</h1>
 
       <SettingsCard<CaseType>
         title="Case Types"
@@ -446,7 +446,7 @@ export function ServiceSetupView() {
               onChange={(e) => setTypeForm((f) => ({ ...f, isActive: e.target.checked }))}
               className="rounded"
             />
-            <label htmlFor="typeActive" className="text-sm text-sh-gray">
+            <label htmlFor="typeActive" className="text-sm text-brand-gray">
               Active
             </label>
           </div>
@@ -490,7 +490,7 @@ export function ServiceSetupView() {
               onChange={(e) => setStatusForm((f) => ({ ...f, isClosed: e.target.checked }))}
               className="rounded"
             />
-            <label htmlFor="statusClosed" className="text-sm text-sh-gray">
+            <label htmlFor="statusClosed" className="text-sm text-brand-gray">
               Is Closed Status
             </label>
           </div>
@@ -502,7 +502,7 @@ export function ServiceSetupView() {
               onChange={(e) => setStatusForm((f) => ({ ...f, isActive: e.target.checked }))}
               className="rounded"
             />
-            <label htmlFor="statusActive" className="text-sm text-sh-gray">
+            <label htmlFor="statusActive" className="text-sm text-brand-gray">
               Active
             </label>
           </div>
@@ -553,7 +553,7 @@ export function ServiceSetupView() {
               onChange={(e) => setPriorityForm((f) => ({ ...f, isActive: e.target.checked }))}
               className="rounded"
             />
-            <label htmlFor="priorityActive" className="text-sm text-sh-gray">
+            <label htmlFor="priorityActive" className="text-sm text-brand-gray">
               Active
             </label>
           </div>

@@ -6,7 +6,7 @@
 
 export function PaymentCancelView() {
   return (
-    <div className="min-h-screen bg-sh-linen flex items-center justify-center px-4">
+    <div className="min-h-screen bg-brand-linen flex items-center justify-center px-4">
       <div className="bg-white rounded-lg shadow-md p-10 max-w-md w-full text-center">
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
           <svg
@@ -19,12 +19,12 @@ export function PaymentCancelView() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </div>
-        <h1 className="text-2xl font-serif font-bold text-sh-blue mb-3">Payment Cancelled</h1>
-        <p className="text-sh-gray text-sm mb-2">
+        <h1 className="text-2xl font-serif font-bold text-brand-blue mb-3">Payment Cancelled</h1>
+        <p className="text-brand-gray text-sm mb-2">
           Your payment was not processed. If you would like to try again, please contact us or use
           the payment link sent to your email.
         </p>
-        <p className="text-sh-gray text-sm mt-6">You may close this window.</p>
+        <p className="text-brand-gray text-sm mt-6">You may close this window.</p>
       </div>
     </div>
   );

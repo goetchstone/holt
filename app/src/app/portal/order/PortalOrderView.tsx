@@ -108,23 +108,23 @@ export function PortalOrderView() {
   }, [order, token, payFull, paymentAmount]);
 
   return (
-    <div className="min-h-screen bg-sh-linen">
+    <div className="min-h-screen bg-brand-linen">
       {/* Test mode banner */}
       <div className="bg-red-600 text-white text-center py-2 text-sm font-sans font-semibold tracking-wide">
         TEST MODE - NOT VISIBLE TO CUSTOMERS
       </div>
 
       {/* Header */}
-      <header className="bg-white border-b border-sh-gray/20 py-6">
+      <header className="bg-white border-b border-brand-gray/20 py-6">
         <div className="max-w-3xl mx-auto px-4">
-          <h1 className="text-2xl font-serif text-sh-blue tracking-wide">{storeName}</h1>
+          <h1 className="text-2xl font-serif text-brand-blue tracking-wide">{storeName}</h1>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
         {loading && (
           <div className="text-center py-16">
-            <p className="text-sh-gray font-serif">Loading order details...</p>
+            <p className="text-brand-gray font-serif">Loading order details...</p>
           </div>
         )}
 
@@ -140,19 +140,19 @@ export function PortalOrderView() {
             <div className="bg-white rounded-lg shadow-sm p-6">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-xl font-serif font-semibold text-sh-blue">
+                  <h2 className="text-xl font-serif font-semibold text-brand-blue">
                     Order {order.orderno}
                   </h2>
-                  <p className="text-sm text-sh-gray mt-1">
+                  <p className="text-sm text-brand-gray mt-1">
                     {format(new Date(order.orderDate), "MMMM d, yyyy")}
                   </p>
                   {order.customer && (
-                    <p className="text-sm text-sh-gray mt-0.5">
+                    <p className="text-sm text-brand-gray mt-0.5">
                       {order.customer.firstName} {order.customer.lastName}
                     </p>
                   )}
                 </div>
-                <span className="px-3 py-1 text-xs font-medium rounded-full bg-sh-linen text-sh-blue border border-sh-blue/20">
+                <span className="px-3 py-1 text-xs font-medium rounded-full bg-brand-linen text-brand-blue border border-brand-blue/20">
                   {STATUS_LABELS[order.status] || order.status}
                 </span>
               </div>
@@ -160,26 +160,28 @@ export function PortalOrderView() {
 
             {/* Line items */}
             <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-serif font-semibold text-sh-blue mb-4">Items</h3>
+              <h3 className="text-lg font-serif font-semibold text-brand-blue mb-4">Items</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-sh-gray/20">
-                      <th className="pb-2 font-serif font-semibold text-sh-black">Item</th>
-                      <th className="pb-2 font-serif font-semibold text-sh-black text-right">
+                    <tr className="border-b border-brand-gray/20">
+                      <th className="pb-2 font-serif font-semibold text-brand-black">Item</th>
+                      <th className="pb-2 font-serif font-semibold text-brand-black text-right">
                         Qty
                       </th>
-                      <th className="pb-2 font-serif font-semibold text-sh-black text-right">
+                      <th className="pb-2 font-serif font-semibold text-brand-black text-right">
                         Price
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {order.lineItems.map((item) => (
-                      <tr key={item.id} className="border-b border-sh-gray/10">
-                        <td className="py-3 text-sh-black">{item.productName || "Unnamed Item"}</td>
-                        <td className="py-3 text-sh-gray text-right">{item.orderedQuantity}</td>
-                        <td className="py-3 text-sh-black text-right">{fmt(item.netPrice)}</td>
+                      <tr key={item.id} className="border-b border-brand-gray/10">
+                        <td className="py-3 text-brand-black">
+                          {item.productName || "Unnamed Item"}
+                        </td>
+                        <td className="py-3 text-brand-gray text-right">{item.orderedQuantity}</td>
+                        <td className="py-3 text-brand-black text-right">{fmt(item.netPrice)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -190,28 +192,30 @@ export function PortalOrderView() {
             {/* Payment history */}
             {order.payments.length > 0 && (
               <div className="bg-white rounded-lg shadow-sm p-6">
-                <h3 className="text-lg font-serif font-semibold text-sh-blue mb-4">
+                <h3 className="text-lg font-serif font-semibold text-brand-blue mb-4">
                   Payment History
                 </h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-sh-gray/20">
-                        <th className="pb-2 font-serif font-semibold text-sh-black">Date</th>
-                        <th className="pb-2 font-serif font-semibold text-sh-black">Method</th>
-                        <th className="pb-2 font-serif font-semibold text-sh-black text-right">
+                      <tr className="border-b border-brand-gray/20">
+                        <th className="pb-2 font-serif font-semibold text-brand-black">Date</th>
+                        <th className="pb-2 font-serif font-semibold text-brand-black">Method</th>
+                        <th className="pb-2 font-serif font-semibold text-brand-black text-right">
                           Amount
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {order.payments.map((p) => (
-                        <tr key={p.id} className="border-b border-sh-gray/10">
-                          <td className="py-3 text-sh-gray">
+                        <tr key={p.id} className="border-b border-brand-gray/10">
+                          <td className="py-3 text-brand-gray">
                             {format(new Date(p.paymentDate), "MMM d, yyyy")}
                           </td>
-                          <td className="py-3 text-sh-gray">{p.paymentType}</td>
-                          <td className="py-3 text-sh-black text-right">{fmt(p.paymentAmount)}</td>
+                          <td className="py-3 text-brand-gray">{p.paymentType}</td>
+                          <td className="py-3 text-brand-black text-right">
+                            {fmt(p.paymentAmount)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -224,16 +228,16 @@ export function PortalOrderView() {
             <div className="bg-white rounded-lg shadow-sm p-6">
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-sh-gray">Order Total</span>
-                  <span className="text-sh-black font-medium">{fmt(order.totalAmount)}</span>
+                  <span className="text-brand-gray">Order Total</span>
+                  <span className="text-brand-black font-medium">{fmt(order.totalAmount)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sh-gray">Total Paid</span>
-                  <span className="text-sh-black font-medium">{fmt(order.totalPaid)}</span>
+                  <span className="text-brand-gray">Total Paid</span>
+                  <span className="text-brand-black font-medium">{fmt(order.totalPaid)}</span>
                 </div>
-                <div className="border-t border-sh-gray/20 pt-2">
+                <div className="border-t border-brand-gray/20 pt-2">
                   <div className="flex justify-between">
-                    <span className="font-serif font-semibold text-sh-blue">Balance Due</span>
+                    <span className="font-serif font-semibold text-brand-blue">Balance Due</span>
                     <span
                       className={`font-serif font-semibold text-lg ${
                         order.balanceDue > 0 ? "text-red-700" : "text-green-700"
@@ -256,7 +260,7 @@ export function PortalOrderView() {
                         onChange={() => setPayFull(true)}
                         className="w-4 h-4"
                       />
-                      <span className="text-sm text-sh-black">
+                      <span className="text-sm text-brand-black">
                         Pay in full ({fmt(order.balanceDue)})
                       </span>
                     </label>
@@ -268,13 +272,13 @@ export function PortalOrderView() {
                         onChange={() => setPayFull(false)}
                         className="w-4 h-4"
                       />
-                      <span className="text-sm text-sh-black">Make a partial payment</span>
+                      <span className="text-sm text-brand-black">Make a partial payment</span>
                     </label>
                   </div>
 
                   {!payFull && (
                     <div className="flex items-center justify-center gap-2">
-                      <span className="text-sh-gray text-sm">$</span>
+                      <span className="text-brand-gray text-sm">$</span>
                       <input
                         type="number"
                         step="0.01"
@@ -283,7 +287,7 @@ export function PortalOrderView() {
                         value={paymentAmount}
                         onChange={(e) => setPaymentAmount(e.target.value)}
                         placeholder="Enter amount"
-                        className="w-40 text-center border border-sh-gray/30 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sh-gold"
+                        className="w-40 text-center border border-brand-gray/30 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-gold"
                       />
                     </div>
                   )}
@@ -292,7 +296,7 @@ export function PortalOrderView() {
                     <button
                       onClick={handlePayNow}
                       disabled={paymentLoading}
-                      className="inline-flex items-center justify-center px-8 py-3 bg-sh-gold text-white font-serif font-semibold text-sm rounded-lg shadow-md hover:bg-sh-gold/90 transition disabled:opacity-50 disabled:cursor-not-allowed tracking-wide"
+                      className="inline-flex items-center justify-center px-8 py-3 bg-brand-gold text-white font-serif font-semibold text-sm rounded-lg shadow-md hover:bg-brand-gold/90 transition disabled:opacity-50 disabled:cursor-not-allowed tracking-wide"
                     >
                       {renderPayButtonLabel(
                         paymentLoading,
@@ -322,9 +326,9 @@ export function PortalOrderView() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-sh-gray/20 py-6 mt-12">
+      <footer className="border-t border-brand-gray/20 py-6 mt-12">
         <div className="max-w-3xl mx-auto px-4 text-center">
-          <p className="text-xs text-sh-gray">{storeName}</p>
+          <p className="text-xs text-brand-gray">{storeName}</p>
         </div>
       </footer>
     </div>

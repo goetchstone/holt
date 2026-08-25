@@ -57,14 +57,14 @@ export default function PaginatedTable<T>({
 
   return (
     <div className="font-serif text-sm space-y-4">
-      <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+      <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`border-b border-sh-gray px-3 py-2 text-sh-black bg-sh-linen ${
+                  className={`border-b border-brand-gray px-3 py-2 text-brand-black bg-brand-linen ${
                     col.align === "right"
                       ? "text-right"
                       : col.align === "center"
@@ -113,12 +113,12 @@ export default function PaginatedTable<T>({
                 <tr
                   key={idx}
                   onClick={() => onRowClick?.(row)}
-                  className={`${onRowClick ? "cursor-pointer" : ""} hover:bg-sh-gray/10 odd:bg-white even:bg-sh-stripe`}
+                  className={`${onRowClick ? "cursor-pointer" : ""} hover:bg-brand-gray/10 odd:bg-white even:bg-brand-stripe`}
                 >
                   {columns.map((col) => (
                     <td
                       key={col.key}
-                      className={`px-3 py-2 h-10 border-b border-sh-gray ${
+                      className={`px-3 py-2 h-10 border-b border-brand-gray ${
                         col.align === "right"
                           ? "text-right"
                           : col.align === "center"
@@ -139,7 +139,7 @@ export default function PaginatedTable<T>({
               Array.from({ length: emptyRowCount }).map((_, idx) => (
                 <tr key={`empty-${idx}`} aria-hidden="true">
                   {columns.map((col) => (
-                    <td key={col.key} className="px-3 py-2 h-10 border-b border-sh-gray">
+                    <td key={col.key} className="px-3 py-2 h-10 border-b border-brand-gray">
                       &nbsp;
                     </td>
                   ))}

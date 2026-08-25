@@ -136,7 +136,7 @@ export function CommissionTiersView() {
 
       {/* Tabs — Drafts is the work surface (default); Locked Payouts is the
           frozen archive; Live Calculator is the secondary what-if. */}
-      <div className="mb-1 flex gap-1 border-b border-sh-stripe">
+      <div className="mb-1 flex gap-1 border-b border-brand-stripe">
         <TabButton active={activeTab === "drafts"} onClick={() => setActiveTab("drafts")}>
           Draft Payouts
         </TabButton>
@@ -149,7 +149,7 @@ export function CommissionTiersView() {
       </div>
 
       {activeTab === "drafts" && (
-        <p className="mb-4 text-xs text-sh-gray">
+        <p className="mb-4 text-xs text-brand-gray">
           Pick a pay period → <strong>Generate</strong> → review →{" "}
           <strong>Confirm &amp; Lock</strong> (files it under <strong>Locked Payouts</strong>) or{" "}
           <strong>Save as draft</strong> to keep editing here. Drafts can be changed anytime; a
@@ -157,13 +157,13 @@ export function CommissionTiersView() {
         </p>
       )}
       {activeTab === "locked" && (
-        <p className="mb-4 text-xs text-sh-gray">
+        <p className="mb-4 text-xs text-brand-gray">
           The frozen record of what was paid each pay period. Read-only — to correct a locked
           payout, open it and <strong>Edit</strong> (an audit reason is required for every change).
         </p>
       )}
       {activeTab === "calculator" && (
-        <p className="mb-4 text-xs text-sh-gray">
+        <p className="mb-4 text-xs text-brand-gray">
           What-if calculator for any date range — current marginal-tier commission as the data
           stands now. It does not pay anyone; use <strong>Draft Payouts</strong> to confirm + lock.
         </p>
@@ -194,7 +194,7 @@ export function CommissionTiersView() {
               />
             </>
           )}
-          {loading && <div className="text-sh-gray">Loading...</div>}
+          {loading && <div className="text-brand-gray">Loading...</div>}
         </>
       )}
     </div>
@@ -209,8 +209,8 @@ interface TabButtonProps {
 
 function TabButton({ active, onClick, children }: Readonly<TabButtonProps>) {
   const stateClass = active
-    ? "border-sh-navy text-sh-navy"
-    : "border-transparent text-sh-gray hover:text-sh-black";
+    ? "border-brand-navy text-brand-navy"
+    : "border-transparent text-brand-gray hover:text-brand-black";
   return (
     <button
       type="button"
@@ -395,7 +395,7 @@ function PlansManager({ onPlansChanged }: Readonly<{ onPlansChanged: () => void 
   return (
     <section className="mb-6">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-sh-navy">Commission Plans</h2>
+        <h2 className="text-lg font-semibold text-brand-navy">Commission Plans</h2>
         {showNewPlan ? (
           <div className="flex items-center gap-2">
             <label htmlFor="new-plan-name" className="sr-only">
@@ -413,7 +413,7 @@ function PlansManager({ onPlansChanged }: Readonly<{ onPlansChanged: () => void 
               type="button"
               onClick={createPlan}
               disabled={busy}
-              className="rounded bg-sh-navy px-3 py-1 text-sm text-white hover:bg-sh-blue disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded bg-brand-navy px-3 py-1 text-sm text-white hover:bg-brand-blue disabled:cursor-not-allowed disabled:opacity-50"
             >
               Create
             </button>
@@ -425,7 +425,7 @@ function PlansManager({ onPlansChanged }: Readonly<{ onPlansChanged: () => void 
                 setActionError(null);
               }}
               disabled={busy}
-              className="rounded border border-gray-300 px-3 py-1 text-sm text-sh-gray hover:bg-gray-50"
+              className="rounded border border-gray-300 px-3 py-1 text-sm text-brand-gray hover:bg-gray-50"
             >
               Cancel
             </button>
@@ -434,7 +434,7 @@ function PlansManager({ onPlansChanged }: Readonly<{ onPlansChanged: () => void 
           <button
             type="button"
             onClick={() => setShowNewPlan(true)}
-            className="rounded border border-sh-navy px-3 py-1 text-sm text-sh-navy hover:bg-sh-linen"
+            className="rounded border border-brand-navy px-3 py-1 text-sm text-brand-navy hover:bg-brand-linen"
           >
             + New Plan
           </button>
@@ -447,9 +447,9 @@ function PlansManager({ onPlansChanged }: Readonly<{ onPlansChanged: () => void 
         </div>
       )}
 
-      {loadingPlans && <p className="text-sm text-sh-gray">Loading plans…</p>}
+      {loadingPlans && <p className="text-sm text-brand-gray">Loading plans…</p>}
       {!loadingPlans && plans.length === 0 && (
-        <p className="rounded border border-gray-200 bg-white p-3 text-sm text-sh-gray">
+        <p className="rounded border border-gray-200 bg-white p-3 text-sm text-brand-gray">
           No plans yet — payouts fall back to the standard tier set. Create a plan to manage tiers
           here (the first plan becomes the default automatically).
         </p>
@@ -499,7 +499,7 @@ function PlansManager({ onPlansChanged }: Readonly<{ onPlansChanged: () => void 
         ))}
       </div>
 
-      <p className="mt-2 text-xs text-sh-gray">
+      <p className="mt-2 text-xs text-brand-gray">
         Marginal: each tier&apos;s rate applies only to the slice of YTD sales inside that
         tier&apos;s bracket. Tiers are not retroactive -- once a salesperson crosses a threshold,
         subsequent sales earn the higher rate going forward. Staff without an assigned plan use the
@@ -545,14 +545,16 @@ function PlanCard({
     <div className="rounded border border-gray-200 bg-white p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-sh-navy">{plan.name}</span>
+          <span className="font-medium text-brand-navy">{plan.name}</span>
           {plan.isDefault && (
-            <span className="rounded bg-sh-navy px-2 py-0.5 text-xs text-white">Default</span>
+            <span className="rounded bg-brand-navy px-2 py-0.5 text-xs text-white">Default</span>
           )}
           {!plan.isActive && (
-            <span className="rounded bg-gray-200 px-2 py-0.5 text-xs text-sh-gray">Inactive</span>
+            <span className="rounded bg-gray-200 px-2 py-0.5 text-xs text-brand-gray">
+              Inactive
+            </span>
           )}
-          <span className="text-xs text-sh-gray">
+          <span className="text-xs text-brand-gray">
             {plan.assignedCount} assigned · {plan.tiers.length} tier
             {plan.tiers.length === 1 ? "" : "s"}
           </span>
@@ -564,7 +566,7 @@ function PlanCard({
                 type="button"
                 onClick={onCancelEdit}
                 disabled={busy}
-                className="rounded border border-gray-300 px-3 py-1 text-sm text-sh-gray hover:bg-gray-50"
+                className="rounded border border-gray-300 px-3 py-1 text-sm text-brand-gray hover:bg-gray-50"
               >
                 Cancel
               </button>
@@ -572,7 +574,7 @@ function PlanCard({
                 type="button"
                 onClick={onSaveTiers}
                 disabled={busy}
-                className="rounded bg-sh-navy px-3 py-1 text-sm text-white hover:bg-sh-blue disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded bg-brand-navy px-3 py-1 text-sm text-white hover:bg-brand-blue disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Save Tiers
               </button>
@@ -582,7 +584,7 @@ function PlanCard({
               <button
                 type="button"
                 onClick={onBeginEdit}
-                className="rounded border border-sh-navy px-3 py-1 text-sm text-sh-navy hover:bg-sh-linen"
+                className="rounded border border-brand-navy px-3 py-1 text-sm text-brand-navy hover:bg-brand-linen"
               >
                 Edit Tiers
               </button>
@@ -591,7 +593,7 @@ function PlanCard({
                   type="button"
                   onClick={onMakeDefault}
                   disabled={busy}
-                  className="rounded border border-sh-gold px-3 py-1 text-sm text-sh-gold hover:bg-sh-linen disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded border border-brand-gold px-3 py-1 text-sm text-brand-gold hover:bg-brand-linen disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Make Default
                 </button>
@@ -609,7 +611,7 @@ function PlanCard({
           )}
         </div>
       </div>
-      {plan.description && <p className="mb-2 text-xs text-sh-gray">{plan.description}</p>}
+      {plan.description && <p className="mb-2 text-xs text-brand-gray">{plan.description}</p>}
 
       {editing ? (
         <TierEditor
@@ -644,7 +646,7 @@ function TierEditor({
   return (
     <div className="rounded border border-gray-200 bg-white p-3">
       <table className="w-full text-sm">
-        <thead className="text-sh-navy">
+        <thead className="text-brand-navy">
           <tr>
             <th className="px-2 py-1 text-left">Label</th>
             <th className="px-2 py-1 text-right">Min YTD</th>
@@ -712,14 +714,14 @@ function TierEditor({
         </tbody>
       </table>
       <div className="mt-2 flex items-center justify-between">
-        <p className="text-xs text-sh-gray">
+        <p className="text-xs text-brand-gray">
           Rate as decimal (e.g. 0.04 = 4%). Leave Max blank on the last tier for &quot;no upper
           bound&quot;. Brackets must be contiguous.
         </p>
         <button
           type="button"
           onClick={addTier}
-          className="rounded border border-sh-gold px-3 py-1 text-xs text-sh-gold hover:bg-sh-linen"
+          className="rounded border border-brand-gold px-3 py-1 text-xs text-brand-gold hover:bg-brand-linen"
         >
           + Add Tier
         </button>
@@ -739,9 +741,9 @@ function TierCards({ tiers }: Readonly<{ tiers: PlanTierRow[] }>) {
     <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
       {tiers.map((t) => (
         <div key={t.label} className="rounded border border-gray-200 bg-white p-3 text-center">
-          <div className="text-xs uppercase text-sh-gray">{t.label}</div>
-          <div className="text-xl font-semibold text-sh-navy">{formatPct(t.rate)}</div>
-          <div className="text-xs text-sh-gray">
+          <div className="text-xs uppercase text-brand-gray">{t.label}</div>
+          <div className="text-xl font-semibold text-brand-navy">{formatPct(t.rate)}</div>
+          <div className="text-xs text-brand-gray">
             {money(t.minYtdSales, { whole: true })} --{" "}
             {t.maxYtdSalesExclusive === null ? "∞" : money(t.maxYtdSalesExclusive, { whole: true })}
           </div>
@@ -771,7 +773,7 @@ function DateRangeControls({
   return (
     <section className="mb-6 flex flex-wrap items-end gap-4 print:hidden">
       <div>
-        <label htmlFor="start-date" className="block text-xs font-medium text-sh-navy">
+        <label htmlFor="start-date" className="block text-xs font-medium text-brand-navy">
           Window Start
         </label>
         <input
@@ -779,11 +781,11 @@ function DateRangeControls({
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
+          className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
         />
       </div>
       <div>
-        <label htmlFor="end-date" className="block text-xs font-medium text-sh-navy">
+        <label htmlFor="end-date" className="block text-xs font-medium text-brand-navy">
           Window End
         </label>
         <input
@@ -791,10 +793,10 @@ function DateRangeControls({
           type="date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
+          className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
         />
       </div>
-      <p className="ml-auto max-w-xs text-xs text-sh-gray">
+      <p className="ml-auto max-w-xs text-xs text-brand-gray">
         Commission earned on sales within the window, marginal across tiers. YTD-at-start is looked
         up from Jan 1 of the start year.
       </p>
@@ -811,14 +813,14 @@ function TotalsCards({ totals }: Readonly<TotalsCardsProps>) {
   return (
     <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
       <div className="rounded border border-gray-200 bg-white p-4">
-        <div className="text-xs uppercase text-sh-gray">Window Sales (all designers)</div>
-        <div className="text-2xl font-semibold text-sh-navy">
+        <div className="text-xs uppercase text-brand-gray">Window Sales (all designers)</div>
+        <div className="text-2xl font-semibold text-brand-navy">
           {money(totals.totalWindowSales, { whole: true })}
         </div>
       </div>
       <div className="rounded border border-gray-200 bg-white p-4">
-        <div className="text-xs uppercase text-sh-gray">Commission Owed (window)</div>
-        <div className="text-2xl font-semibold text-sh-navy">
+        <div className="text-xs uppercase text-brand-gray">Commission Owed (window)</div>
+        <div className="text-2xl font-semibold text-brand-navy">
           {money(totals.totalCommission, { whole: true })}
         </div>
       </div>
@@ -835,10 +837,10 @@ interface DesignerTableProps {
 function DesignerTable({ rows, expandedRow, setExpandedRow }: Readonly<DesignerTableProps>) {
   return (
     <section>
-      <h2 className="mb-2 text-lg font-semibold text-sh-navy">By Designer</h2>
+      <h2 className="mb-2 text-lg font-semibold text-brand-navy">By Designer</h2>
       <div className="overflow-x-auto rounded border border-gray-200 bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-sh-stripe text-sh-navy">
+          <thead className="bg-brand-stripe text-brand-navy">
             <tr>
               <th className="px-3 py-2 text-left font-semibold">Designer</th>
               <th className="px-3 py-2 text-left font-semibold">Plan</th>
@@ -861,7 +863,7 @@ function DesignerTable({ rows, expandedRow, setExpandedRow }: Readonly<DesignerT
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-sh-gray">
+                <td colSpan={8} className="px-3 py-6 text-center text-brand-gray">
                   No designer had sales in this window.
                 </td>
               </tr>
@@ -885,8 +887,8 @@ function DesignerRow({ row, expanded, onToggle }: Readonly<DesignerRowProps>) {
     <>
       <tr className="border-t border-gray-100">
         <td className="px-3 py-2">{row.displayName}</td>
-        <td className="px-3 py-2 text-sh-gray">{row.planName}</td>
-        <td className="px-3 py-2 text-right text-sh-gray">
+        <td className="px-3 py-2 text-brand-gray">{row.planName}</td>
+        <td className="px-3 py-2 text-right text-brand-gray">
           {money(row.ytdAtStart, { whole: true })}
         </td>
         <td className="px-3 py-2 text-right">{money(row.windowSales, { whole: true })}</td>
@@ -896,13 +898,13 @@ function DesignerRow({ row, expanded, onToggle }: Readonly<DesignerRowProps>) {
           {money(row.commission, { whole: true })}
         </td>
         <td className="px-3 py-2 text-right">
-          <button type="button" onClick={onToggle} className="text-xs text-sh-navy underline">
+          <button type="button" onClick={onToggle} className="text-xs text-brand-navy underline">
             {expanded ? "Hide" : "Breakdown"}
           </button>
         </td>
       </tr>
       {expanded && row.breakdown.length > 0 && (
-        <tr className="bg-sh-linen">
+        <tr className="bg-brand-linen">
           <td colSpan={8} className="px-6 py-2">
             <BreakdownTable breakdown={row.breakdown} />
           </td>
@@ -917,7 +919,7 @@ function BreakdownTable({ breakdown }: Readonly<{ breakdown: Breakdown[] }>) {
   return (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-sh-gray">
+        <tr className="text-brand-gray">
           <th className="px-2 py-1 text-left">Tier</th>
           <th className="px-2 py-1 text-right">Rate</th>
           <th className="px-2 py-1 text-right">Sales in Tier</th>

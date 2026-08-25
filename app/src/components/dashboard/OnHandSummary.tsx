@@ -53,7 +53,7 @@ export default function OnHandSummary() {
 
   return (
     <div>
-      <h2 className="text-xl text-sh-blue mb-2">Snapshot vs. Physical Count Summary</h2>
+      <h2 className="text-xl text-brand-blue mb-2">Snapshot vs. Physical Count Summary</h2>
       <Tabs defaultValue="department">
         <TabsList>
           <TabsTrigger value="department">By Department</TabsTrigger>
@@ -66,7 +66,7 @@ export default function OnHandSummary() {
           <SortableSummaryTable data={locationTotals} groupKey="location" />
         </TabsContent>
       </Tabs>
-      <p className="text-xs text-sh-gray mt-2 italic">
+      <p className="text-xs text-brand-gray mt-2 italic">
         Note: For items with a missing or zero cost, an estimated cost of 50% of the retail price is
         used for financial totals.
       </p>
@@ -153,14 +153,14 @@ const SortableSummaryTable = ({
   };
 
   return (
-    <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+    <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
       <table className="min-w-full text-left text-sm whitespace-nowrap">
-        <thead className="bg-sh-linen text-sh-black">
+        <thead className="bg-brand-linen text-brand-black">
           <tr>
             {headers.map(({ key, label, isNumeric }) => (
               <th
                 key={key}
-                className={`p-2 border-b border-sh-gray ${isNumeric ? "text-right" : ""}`}
+                className={`p-2 border-b border-brand-gray ${isNumeric ? "text-right" : ""}`}
               >
                 <button onClick={() => requestSort(key)} className="flex items-center gap-1">
                   {label} <ArrowUpDown className="w-3 h-3 text-gray-400" />
@@ -171,34 +171,34 @@ const SortableSummaryTable = ({
         </thead>
         <tbody>
           {sortedData.map((item, i) => (
-            <tr key={i} className="odd:bg-white even:bg-sh-stripe">
-              <td className="p-2 border-b border-sh-gray font-semibold">
+            <tr key={i} className="odd:bg-white even:bg-brand-stripe">
+              <td className="p-2 border-b border-brand-gray font-semibold">
                 <Link
                   href={`/app/inventory/summary-details?groupType=${groupKey}&groupName=${encodeURIComponent(item[groupKey] || "")}`}
-                  className="text-sh-blue hover:underline"
+                  className="text-brand-blue hover:underline"
                 >
                   {item[groupKey]}
                 </Link>
               </td>
-              <td className="p-2 border-b border-sh-gray text-right">
+              <td className="p-2 border-b border-brand-gray text-right">
                 {item.expectedQty.toLocaleString()}
               </td>
-              <td className="p-2 border-b border-sh-gray text-right">
+              <td className="p-2 border-b border-brand-gray text-right">
                 {item.countedQty.toLocaleString()}
               </td>
               <td
-                className={`p-2 border-b border-sh-gray text-right font-bold ${getVarianceClass(item.varianceQty)}`}
+                className={`p-2 border-b border-brand-gray text-right font-bold ${getVarianceClass(item.varianceQty)}`}
               >
                 {item.varianceQty.toLocaleString()}
               </td>
-              <td className="p-2 border-b border-sh-gray text-right">
+              <td className="p-2 border-b border-brand-gray text-right">
                 {item.expectedCost.toLocaleString("en-US", { style: "currency", currency: "USD" })}
               </td>
-              <td className="p-2 border-b border-sh-gray text-right">
+              <td className="p-2 border-b border-brand-gray text-right">
                 {item.countedCost.toLocaleString("en-US", { style: "currency", currency: "USD" })}
               </td>
               <td
-                className={`p-2 border-b border-sh-gray text-right font-bold ${getVarianceClass(item.varianceCost)}`}
+                className={`p-2 border-b border-brand-gray text-right font-bold ${getVarianceClass(item.varianceCost)}`}
               >
                 {item.varianceCost.toLocaleString("en-US", { style: "currency", currency: "USD" })}
               </td>
@@ -206,14 +206,14 @@ const SortableSummaryTable = ({
           ))}
           {data.length === 0 && (
             <tr>
-              <td colSpan={headers.length} className="p-4 text-center text-sh-gray">
+              <td colSpan={headers.length} className="p-4 text-center text-brand-gray">
                 No data found.
               </td>
             </tr>
           )}
         </tbody>
         <tfoot>
-          <tr className="bg-sh-blue text-white font-bold">
+          <tr className="bg-brand-blue text-white font-bold">
             <td className="p-2">Grand Total</td>
             <td className="p-2 text-right">{grandTotals.expectedQty.toLocaleString()}</td>
             <td className="p-2 text-right">{grandTotals.countedQty.toLocaleString()}</td>

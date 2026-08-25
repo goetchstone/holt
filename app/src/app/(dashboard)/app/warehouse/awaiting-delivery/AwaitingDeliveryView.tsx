@@ -112,25 +112,25 @@ export function AwaitingDeliveryView() {
     <div className="py-2 space-y-5 font-serif">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <Link href="/app/warehouse" className="text-sh-blue hover:underline text-sm">
+          <Link href="/app/warehouse" className="text-brand-blue hover:underline text-sm">
             Warehouse
           </Link>
-          <span className="text-sh-gray">/</span>
-          <h1 className="text-2xl font-semibold text-sh-blue">Awaiting Delivery</h1>
+          <span className="text-brand-gray">/</span>
+          <h1 className="text-2xl font-semibold text-brand-blue">Awaiting Delivery</h1>
           {(filter !== "all" || balanceFilter !== "all") && (
-            <span className="text-sm text-sh-gray">({filtered.length})</span>
+            <span className="text-sm text-brand-gray">({filtered.length})</span>
           )}
         </div>
         <div className="flex gap-2">
-          <div className="flex rounded-lg border border-sh-gray/30 overflow-hidden">
+          <div className="flex rounded-lg border border-brand-gray/30 overflow-hidden">
             {(["all", "unpaid", "paid"] as const).map((bf) => (
               <button
                 key={bf}
                 onClick={() => setBalanceFilter(bf)}
                 className={`px-3 py-2 text-xs font-semibold min-h-[44px] transition ${
                   balanceFilter === bf
-                    ? "bg-sh-navy text-white"
-                    : "bg-white text-sh-navy hover:bg-sh-linen"
+                    ? "bg-brand-navy text-white"
+                    : "bg-white text-brand-navy hover:bg-brand-linen"
                 }`}
               >
                 {bf === "all" ? "All" : bf === "unpaid" ? "Balance Due" : "Paid"}
@@ -143,13 +143,13 @@ export function AwaitingDeliveryView() {
                 setFilter("all");
                 setBalanceFilter("all");
               }}
-              className="px-4 py-2 text-sm font-semibold border border-sh-navy text-sh-navy rounded-lg hover:bg-sh-linen transition min-h-[44px]"
+              className="px-4 py-2 text-sm font-semibold border border-brand-navy text-brand-navy rounded-lg hover:bg-brand-linen transition min-h-[44px]"
             >
               Clear
             </button>
           )}
           <Link href="/app/warehouse/outbound">
-            <span className="px-4 py-2 text-sm font-semibold border border-sh-navy text-sh-navy rounded-lg hover:bg-sh-linen transition min-h-[44px] flex items-center cursor-pointer">
+            <span className="px-4 py-2 text-sm font-semibold border border-brand-navy text-brand-navy rounded-lg hover:bg-brand-linen transition min-h-[44px] flex items-center cursor-pointer">
               Outbound
             </span>
           </Link>
@@ -158,14 +158,14 @@ export function AwaitingDeliveryView() {
 
       {loading && (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-sh-blue mr-3" />
-          <span className="text-sh-gray">Loading orders...</span>
+          <Loader2 className="w-6 h-6 animate-spin text-brand-blue mr-3" />
+          <span className="text-brand-gray">Loading orders...</span>
         </div>
       )}
 
       {!loading && (
         <>
-          <p className="text-sm text-sh-gray">
+          <p className="text-sm text-brand-gray">
             Orders with status ORDER and no invoice. These have not been delivered or fulfilled. Old
             orders may need to be researched and closed out.
           </p>
@@ -177,15 +177,15 @@ export function AwaitingDeliveryView() {
                 onClick={() => setFilter(c.key)}
                 className={`bg-white rounded-xl border p-3 text-center transition min-h-[44px] ${
                   filter === c.key
-                    ? "border-sh-blue ring-2 ring-sh-blue/20"
+                    ? "border-brand-blue ring-2 ring-brand-blue/20"
                     : c.warn && c.count > 0
                       ? "border-red-200 hover:border-red-400"
-                      : "border-sh-gray/15 hover:border-sh-blue/30"
+                      : "border-brand-gray/15 hover:border-brand-blue/30"
                 }`}
               >
-                <div className="text-xs text-sh-gray mb-1">{c.label}</div>
+                <div className="text-xs text-brand-gray mb-1">{c.label}</div>
                 <div
-                  className={`text-xl font-semibold ${c.warn && c.count > 0 ? "text-red-600" : "text-sh-black"}`}
+                  className={`text-xl font-semibold ${c.warn && c.count > 0 ? "text-red-600" : "text-brand-black"}`}
                 >
                   {c.count}
                 </div>
@@ -193,24 +193,26 @@ export function AwaitingDeliveryView() {
             ))}
           </div>
 
-          <div className="bg-white rounded-xl border border-sh-gray/15 overflow-hidden">
+          <div className="bg-white rounded-xl border border-brand-gray/15 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Order #</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Customer</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Store</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Order Date</th>
-                  <th className="text-right px-4 py-3 text-sh-gray font-semibold">Items</th>
-                  <th className="text-right px-4 py-3 text-sh-gray font-semibold">Balance Due</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Inbound</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Age</th>
+                <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Order #</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Customer</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Store</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Order Date</th>
+                  <th className="text-right px-4 py-3 text-brand-gray font-semibold">Items</th>
+                  <th className="text-right px-4 py-3 text-brand-gray font-semibold">
+                    Balance Due
+                  </th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Inbound</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Age</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-sh-gray">
+                    <td colSpan={8} className="px-4 py-8 text-center text-brand-gray">
                       {filter === "all"
                         ? "No orders awaiting delivery."
                         : "No orders in this age range."}
@@ -224,28 +226,30 @@ export function AwaitingDeliveryView() {
                       <tr
                         key={order.id}
                         onClick={() => setExpandedId(isExpanded ? null : order.id)}
-                        className={`border-b border-sh-gray/10 cursor-pointer hover:bg-sh-linen/50 transition ${i % 2 === 1 && !isExpanded ? "bg-sh-stripe" : ""}`}
+                        className={`border-b border-brand-gray/10 cursor-pointer hover:bg-brand-linen/50 transition ${i % 2 === 1 && !isExpanded ? "bg-brand-stripe" : ""}`}
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             <ChevronDown
-                              className={`w-3.5 h-3.5 text-sh-gray transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                              className={`w-3.5 h-3.5 text-brand-gray transition-transform ${isExpanded ? "rotate-180" : ""}`}
                             />
                             <Link
                               href={`/app/sales/orders/${order.id}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="text-sh-blue hover:underline font-mono text-xs min-h-[44px] flex items-center"
+                              className="text-brand-blue hover:underline font-mono text-xs min-h-[44px] flex items-center"
                             >
                               {order.orderno}
                             </Link>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sh-black text-xs">{order.customerName}</td>
-                        <td className="px-4 py-3 text-sh-gray text-xs">{order.storeName || "—"}</td>
-                        <td className="px-4 py-3 text-sh-black text-xs">
+                        <td className="px-4 py-3 text-brand-black text-xs">{order.customerName}</td>
+                        <td className="px-4 py-3 text-brand-gray text-xs">
+                          {order.storeName || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-brand-black text-xs">
                           {formatDate(order.orderDate)}
                         </td>
-                        <td className="px-4 py-3 text-right text-sh-black">
+                        <td className="px-4 py-3 text-right text-brand-black">
                           {order.lineItemCount}
                         </td>
                         <td
@@ -259,7 +263,7 @@ export function AwaitingDeliveryView() {
                         </td>
                         <td className="px-4 py-3">
                           {order.linkedPOs.length === 0 ? (
-                            <span className="text-xs text-sh-gray">No PO</span>
+                            <span className="text-xs text-brand-gray">No PO</span>
                           ) : (
                             <div className="space-y-0.5">
                               {order.linkedPOs.map((po) => (
@@ -267,7 +271,7 @@ export function AwaitingDeliveryView() {
                                   <Link
                                     href={`/app/purchasing/orders/${po.id}`}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="text-sh-blue hover:underline font-mono text-xs"
+                                    className="text-brand-blue hover:underline font-mono text-xs"
                                   >
                                     {po.poNumber}
                                   </Link>
@@ -277,7 +281,7 @@ export function AwaitingDeliveryView() {
                                         ? "bg-green-100 text-green-700"
                                         : po.status === "RECEIVED_PARTIAL"
                                           ? "bg-amber-100 text-amber-700"
-                                          : "bg-sh-blue/10 text-sh-blue"
+                                          : "bg-brand-blue/10 text-brand-blue"
                                     }`}
                                   >
                                     {po.status === "RECEIVED_FULL"
@@ -297,10 +301,10 @@ export function AwaitingDeliveryView() {
                       </tr>
                       {isExpanded && order.lineItems.length > 0 && (
                         <tr key={`${order.id}-detail`}>
-                          <td colSpan={8} className="bg-sh-linen/60 px-6 py-3">
+                          <td colSpan={8} className="bg-brand-linen/60 px-6 py-3">
                             <table className="w-full text-xs">
                               <thead>
-                                <tr className="text-sh-gray">
+                                <tr className="text-brand-gray">
                                   <th className="text-left py-1 font-medium">Product</th>
                                   <th className="text-left py-1 font-medium">Part #</th>
                                   <th className="text-right py-1 font-medium">Qty</th>
@@ -310,24 +314,24 @@ export function AwaitingDeliveryView() {
                               </thead>
                               <tbody>
                                 {order.lineItems.map((li) => (
-                                  <tr key={li.id} className="border-t border-sh-gray/10">
-                                    <td className="py-1.5 text-sh-black">
+                                  <tr key={li.id} className="border-t border-brand-gray/10">
+                                    <td className="py-1.5 text-brand-black">
                                       {li.productName || "—"}
                                     </td>
-                                    <td className="py-1.5 text-sh-gray font-mono">
+                                    <td className="py-1.5 text-brand-gray font-mono">
                                       {li.partNo || "—"}
                                     </td>
-                                    <td className="py-1.5 text-right text-sh-black">
+                                    <td className="py-1.5 text-right text-brand-black">
                                       {li.orderedQuantity}
                                     </td>
-                                    <td className="py-1.5 text-right text-sh-black">
+                                    <td className="py-1.5 text-right text-brand-black">
                                       {li.netPrice > 0
                                         ? `$${li.netPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
                                         : "—"}
                                     </td>
                                     <td className="py-1.5 pl-3">
                                       {li.lineItemStatus && (
-                                        <span className="px-1.5 py-0.5 rounded bg-sh-gray/10 text-sh-gray font-medium">
+                                        <span className="px-1.5 py-0.5 rounded bg-brand-gray/10 text-brand-gray font-medium">
                                           {li.lineItemStatus}
                                         </span>
                                       )}
@@ -344,7 +348,7 @@ export function AwaitingDeliveryView() {
                 })}
                 {filtered.length > 200 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-3 text-center text-sh-gray text-xs">
+                    <td colSpan={8} className="px-4 py-3 text-center text-brand-gray text-xs">
                       Showing first 200 of {filtered.length} orders
                     </td>
                   </tr>

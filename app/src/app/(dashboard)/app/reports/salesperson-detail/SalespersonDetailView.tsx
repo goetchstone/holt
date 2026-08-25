@@ -68,12 +68,14 @@ function LineItemRow({
 }>) {
   return (
     <tr key={`${ord.orderno}-${liIdx}`} className="border-b border-gray-50 bg-white/80">
-      <td className="py-1 pl-16 pr-4 text-xs text-sh-gray" colSpan={2}>
-        <span className="text-sh-navy">{li.productName || li.partNo}</span>
-        {li.partNo && li.productName && <span className="ml-1.5 text-sh-gray/60">{li.partNo}</span>}
-        {li.qty > 1 && <span className="ml-1.5 text-sh-gray/60">x{li.qty}</span>}
+      <td className="py-1 pl-16 pr-4 text-xs text-brand-gray" colSpan={2}>
+        <span className="text-brand-navy">{li.productName || li.partNo}</span>
+        {li.partNo && li.productName && (
+          <span className="ml-1.5 text-brand-gray/60">{li.partNo}</span>
+        )}
+        {li.qty > 1 && <span className="ml-1.5 text-brand-gray/60">x{li.qty}</span>}
       </td>
-      <td className="px-4 py-1 text-right text-xs text-sh-gray">
+      <td className="px-4 py-1 text-right text-xs text-brand-gray">
         {money(li.netPrice, { whole: true })}
       </td>
     </tr>
@@ -105,7 +107,7 @@ function OrderRow({
         onClick={onToggle}
         className="border-b border-gray-50 bg-gray-50/50 cursor-pointer hover:bg-gray-100/50"
       >
-        <td className="py-1.5 pl-10 pr-4 text-xs text-sh-gray">
+        <td className="py-1.5 pl-10 pr-4 text-xs text-brand-gray">
           <span className="flex items-center gap-1">
             {isOrdExpanded ? (
               <ChevronDown className="h-3 w-3 shrink-0" />
@@ -116,13 +118,13 @@ function OrderRow({
             {ord.isSplit && <span className="ml-1 text-amber-600">(split)</span>}
           </span>
         </td>
-        <td className="px-4 py-1.5 text-center text-xs text-sh-gray">
+        <td className="px-4 py-1.5 text-center text-xs text-brand-gray">
           {parseLocalDate(ord.orderDate).toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",
           })}
         </td>
-        <td className="px-4 py-1.5 text-right text-xs text-sh-gray">
+        <td className="px-4 py-1.5 text-right text-xs text-brand-gray">
           {money(ord.netSales, { whole: true })}
         </td>
       </tr>
@@ -171,15 +173,15 @@ function CustomerDrilldownRow({
       <tr
         key={custKey}
         onClick={() => showDrilldown && onToggleCustomer(monthKey, custKey)}
-        className={`border-b border-gray-100 ${rowIndex % 2 === 1 ? "bg-sh-stripe" : "bg-white"} ${showDrilldown ? "cursor-pointer hover:bg-gray-50" : ""}`}
+        className={`border-b border-gray-100 ${rowIndex % 2 === 1 ? "bg-brand-stripe" : "bg-white"} ${showDrilldown ? "cursor-pointer hover:bg-gray-50" : ""}`}
       >
-        <td className="px-4 py-2 text-sm text-sh-navy">
+        <td className="px-4 py-2 text-sm text-brand-navy">
           <span className="flex items-center gap-1.5">
             {showDrilldown &&
               (isCustExpanded ? (
-                <ChevronDown className="h-3 w-3 shrink-0 text-sh-gray" />
+                <ChevronDown className="h-3 w-3 shrink-0 text-brand-gray" />
               ) : (
-                <ChevronRight className="h-3 w-3 shrink-0 text-sh-gray" />
+                <ChevronRight className="h-3 w-3 shrink-0 text-brand-gray" />
               ))}
             {cust.customerName}
             {cust.isSplit && (
@@ -189,8 +191,8 @@ function CustomerDrilldownRow({
             )}
           </span>
         </td>
-        <td className="px-4 py-2 text-center text-sm text-sh-gray">{cust.orderCount}</td>
-        <td className="px-4 py-2 text-right text-sm text-sh-navy">
+        <td className="px-4 py-2 text-center text-sm text-brand-gray">{cust.orderCount}</td>
+        <td className="px-4 py-2 text-right text-sm text-brand-navy">
           {money(cust.netSales, { whole: true })}
         </td>
       </tr>
@@ -312,7 +314,7 @@ export function SalespersonDetailView() {
           <div>
             <label
               htmlFor="salesperson-detail-name"
-              className="block text-xs font-medium text-sh-gray mb-1"
+              className="block text-xs font-medium text-brand-gray mb-1"
             >
               Salesperson
             </label>
@@ -323,7 +325,7 @@ export function SalespersonDetailView() {
                 setSelectedName(e.target.value);
                 resetDrilldowns();
               }}
-              className="rounded border border-gray-300 px-3 min-h-[44px] text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
+              className="rounded border border-gray-300 px-3 min-h-[44px] text-sm focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
             >
               <option value="">Select...</option>
               {staff.map((s) => (
@@ -337,7 +339,7 @@ export function SalespersonDetailView() {
         <div>
           <label
             htmlFor="salesperson-detail-year"
-            className="block text-xs font-medium text-sh-gray mb-1"
+            className="block text-xs font-medium text-brand-gray mb-1"
           >
             Year
           </label>
@@ -348,7 +350,7 @@ export function SalespersonDetailView() {
               setYear(Number(e.target.value));
               resetDrilldowns();
             }}
-            className="rounded border border-gray-300 px-3 min-h-[44px] text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
+            className="rounded border border-gray-300 px-3 min-h-[44px] text-sm focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>
@@ -361,32 +363,32 @@ export function SalespersonDetailView() {
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
         </div>
       )}
 
       {!loading && isManager && !selectedName && (
-        <p className="py-8 text-center text-sm text-sh-gray">Select a salesperson.</p>
+        <p className="py-8 text-center text-sm text-brand-gray">Select a salesperson.</p>
       )}
 
       {!loading && enabled && !data && (
-        <p className="py-8 text-center text-sm text-sh-gray">No data found.</p>
+        <p className="py-8 text-center text-sm text-brand-gray">No data found.</p>
       )}
 
       {data && !loading && (
         <>
           <div className="flex items-baseline justify-between">
-            <h2 className="text-lg font-semibold text-sh-navy">
+            <h2 className="text-lg font-semibold text-brand-navy">
               {data.salesperson} &mdash; {data.year} Sales by Customer
             </h2>
             <div className="text-right">
-              <p className="text-sm text-sh-gray">
+              <p className="text-sm text-brand-gray">
                 YTD Total:{" "}
-                <span className="font-semibold text-sh-navy">
+                <span className="font-semibold text-brand-navy">
                   {money(data.ytdTotal, { whole: true })}
                 </span>
               </p>
-              <p className="text-xs text-sh-gray">
+              <p className="text-xs text-brand-gray">
                 {data.ytdOrders} order{data.ytdOrders === 1 ? "" : "s"}
               </p>
             </div>
@@ -402,20 +404,20 @@ export function SalespersonDetailView() {
                 >
                   <button
                     onClick={() => toggleMonth(month.month)}
-                    className="flex w-full items-center justify-between bg-sh-linen px-4 py-3 text-left min-h-[44px]"
+                    className="flex w-full items-center justify-between bg-brand-linen px-4 py-3 text-left min-h-[44px]"
                   >
                     <div className="flex items-center gap-2">
                       {isExpanded ? (
-                        <ChevronDown className="h-4 w-4 text-sh-gray" />
+                        <ChevronDown className="h-4 w-4 text-brand-gray" />
                       ) : (
-                        <ChevronRight className="h-4 w-4 text-sh-gray" />
+                        <ChevronRight className="h-4 w-4 text-brand-gray" />
                       )}
-                      <span className="font-semibold text-sh-navy">{month.label}</span>
-                      <span className="text-sm text-sh-gray">
+                      <span className="font-semibold text-brand-navy">{month.label}</span>
+                      <span className="text-sm text-brand-gray">
                         ({month.orderCount} order{month.orderCount === 1 ? "" : "s"})
                       </span>
                     </div>
-                    <span className="font-semibold text-sh-navy">
+                    <span className="font-semibold text-brand-navy">
                       {money(month.totalSales, { whole: true })}
                     </span>
                   </button>
@@ -424,13 +426,13 @@ export function SalespersonDetailView() {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-gray-200 bg-white">
-                          <th className="px-4 py-2 text-left text-xs font-medium text-sh-gray">
+                          <th className="px-4 py-2 text-left text-xs font-medium text-brand-gray">
                             Customer
                           </th>
-                          <th className="px-4 py-2 text-center text-xs font-medium text-sh-gray">
+                          <th className="px-4 py-2 text-center text-xs font-medium text-brand-gray">
                             Orders
                           </th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-sh-gray">
+                          <th className="px-4 py-2 text-right text-xs font-medium text-brand-gray">
                             Net Sales
                           </th>
                         </tr>
@@ -461,7 +463,9 @@ export function SalespersonDetailView() {
           </div>
 
           {data.months.length === 0 && (
-            <p className="py-8 text-center text-sm text-sh-gray">No sales found for {data.year}.</p>
+            <p className="py-8 text-center text-sm text-brand-gray">
+              No sales found for {data.year}.
+            </p>
           )}
         </>
       )}

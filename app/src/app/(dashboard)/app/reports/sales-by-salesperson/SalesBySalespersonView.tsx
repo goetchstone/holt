@@ -87,9 +87,12 @@ function DrilldownRow({
   fmt,
 }: Readonly<{ item: SalesByGroupItem; hideCol: GroupBy; fmt: (v: number) => string }>) {
   return (
-    <tr className="border-b border-sh-gray/10">
+    <tr className="border-b border-brand-gray/10">
       <td className="py-1.5 pr-3">
-        <Link href={`/app/sales/orders/${item.orderId}`} className="text-sh-blue hover:underline">
+        <Link
+          href={`/app/sales/orders/${item.orderId}`}
+          className="text-brand-blue hover:underline"
+        >
           {item.orderno}
         </Link>
         {item.isSplit && (
@@ -101,27 +104,29 @@ function DrilldownRow({
           </span>
         )}
       </td>
-      <td className="py-1.5 pr-3 text-sh-gray">
+      <td className="py-1.5 pr-3 text-brand-gray">
         {item.orderDate ? item.orderDate.slice(0, 10) : "—"}
       </td>
       {hideCol !== "customer" && (
-        <td className="py-1.5 pr-3 text-sh-black max-w-[180px] truncate">{item.customerLabel}</td>
+        <td className="py-1.5 pr-3 text-brand-black max-w-[180px] truncate">
+          {item.customerLabel}
+        </td>
       )}
       {hideCol !== "salesperson" && (
-        <td className="py-1.5 pr-3 text-sh-gray max-w-[120px] truncate">
+        <td className="py-1.5 pr-3 text-brand-gray max-w-[120px] truncate">
           {item.salesPersonName ?? "—"}
         </td>
       )}
       {hideCol !== "department" && (
-        <td className="py-1.5 pr-3 text-sh-gray">{item.departmentName ?? "—"}</td>
+        <td className="py-1.5 pr-3 text-brand-gray">{item.departmentName ?? "—"}</td>
       )}
-      <td className="py-1.5 pr-3 text-sh-black max-w-[260px] truncate">
+      <td className="py-1.5 pr-3 text-brand-black max-w-[260px] truncate">
         {item.productName ?? item.partNo ?? "—"}
       </td>
       <td className="py-1.5 pr-3 text-right">{fmt(item.retail)}</td>
-      <td className="py-1.5 pr-3 text-right text-sh-gray">{fmt(item.cost)}</td>
+      <td className="py-1.5 pr-3 text-right text-brand-gray">{fmt(item.cost)}</td>
       <td className="py-1.5 pr-3 text-right">{fmt(item.margin)}</td>
-      <td className="py-1.5 pr-3 text-right text-sh-gray">{formatMarginPct(item.marginPct)}</td>
+      <td className="py-1.5 pr-3 text-right text-brand-gray">{formatMarginPct(item.marginPct)}</td>
     </tr>
   );
 }
@@ -141,10 +146,10 @@ function DrilldownContent({
   onExport: () => void;
 }>) {
   if (isLoading) {
-    return <p className="text-sm text-sh-gray">Loading line items…</p>;
+    return <p className="text-sm text-brand-gray">Loading line items…</p>;
   }
   if (!items || items.length === 0) {
-    return <p className="text-sm text-sh-gray">No line items.</p>;
+    return <p className="text-sm text-brand-gray">No line items.</p>;
   }
   // Drilldown columns are conditional on the active group: when grouped
   // by salesperson, the Salesperson column is redundant (every row in
@@ -167,7 +172,7 @@ function DrilldownContent({
   return (
     <>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-sh-gray">
+        <p className="text-xs text-brand-gray">
           {items.length} line item{items.length === 1 ? "" : "s"}
           {items.length >= 500 && (
             <span className="text-amber-600">
@@ -182,7 +187,7 @@ function DrilldownContent({
             e.stopPropagation();
             onExport();
           }}
-          className="text-xs text-sh-blue hover:underline"
+          className="text-xs text-brand-blue hover:underline"
         >
           Export this drilldown
         </button>
@@ -190,7 +195,7 @@ function DrilldownContent({
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-left text-sh-gray border-b border-sh-gray/20">
+            <tr className="text-left text-brand-gray border-b border-brand-gray/20">
               {headerLabels.map((h) => (
                 <th
                   key={h.key}
@@ -231,14 +236,14 @@ function SortableTh({
   return (
     <th
       onClick={onClick}
-      className={`p-3 font-semibold text-sh-black cursor-pointer select-none hover:bg-sh-stripe transition ${
+      className={`p-3 font-semibold text-brand-black cursor-pointer select-none hover:bg-brand-stripe transition ${
         align === "right" ? "text-right" : "text-left"
       }`}
     >
       <span className="inline-flex items-center gap-1">
         {children}
         <span
-          className={`text-[10px] ${active ? "text-sh-blue" : "text-sh-gray/40"}`}
+          className={`text-[10px] ${active ? "text-brand-blue" : "text-brand-gray/40"}`}
           aria-hidden="true"
         >
           {arrow}
@@ -403,11 +408,11 @@ export function SalesBySalespersonView() {
 
   function renderResults() {
     if (loading && !data) {
-      return <p className="text-sh-gray text-center py-8">Loading…</p>;
+      return <p className="text-brand-gray text-center py-8">Loading…</p>;
     }
     if (!data || data.rows.length === 0) {
       return (
-        <p className="text-sh-gray text-center py-8">
+        <p className="text-brand-gray text-center py-8">
           No sales data for this period and filter combination.
         </p>
       );
@@ -427,9 +432,9 @@ export function SalesBySalespersonView() {
         </div>
 
         {/* Group-totals table */}
-        <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 bg-sh-stripe border-b border-sh-gray/20">
-            <p className="text-xs text-sh-gray">
+        <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 bg-brand-stripe border-b border-brand-gray/20">
+            <p className="text-xs text-brand-gray">
               Click any {groupHeader.toLowerCase()} row to drill down
               {data.appliedFilters.includeDeliveryFreight && (
                 <span className="ml-2 italic">· delivery &amp; freight included</span>
@@ -438,14 +443,14 @@ export function SalesBySalespersonView() {
             <button
               type="button"
               onClick={() => exportCsv("group")}
-              className="text-xs text-sh-blue hover:underline"
+              className="text-xs text-brand-blue hover:underline"
             >
               Export CSV
             </button>
           </div>
           <div className="max-h-[70vh] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-sh-linen z-10 border-b border-sh-gray/20 shadow-sm">
+              <thead className="sticky top-0 bg-brand-linen z-10 border-b border-brand-gray/20 shadow-sm">
                 <tr>
                   <SortableTh
                     align="left"
@@ -506,27 +511,27 @@ export function SalesBySalespersonView() {
                     <Fragment key={row.groupKey}>
                       <tr
                         onClick={() => toggleDrilldown(row)}
-                        className={`border-b border-sh-gray/10 cursor-pointer transition ${
-                          isExpanded ? "bg-sh-linen/60" : "hover:bg-sh-stripe"
+                        className={`border-b border-brand-gray/10 cursor-pointer transition ${
+                          isExpanded ? "bg-brand-linen/60" : "hover:bg-brand-stripe"
                         }`}
                       >
                         <td className="p-3 font-medium">
-                          <span className="inline-block w-4 text-sh-gray">
+                          <span className="inline-block w-4 text-brand-gray">
                             {isExpanded ? "▾" : "▸"}
                           </span>
                           {row.groupLabel}
                         </td>
-                        <td className="p-3 text-right text-sh-gray">{row.itemCount}</td>
+                        <td className="p-3 text-right text-brand-gray">{row.itemCount}</td>
                         <td className="p-3 text-right font-medium">{fmt(row.retail)}</td>
-                        <td className="p-3 text-right text-sh-gray">{fmt(row.cost)}</td>
+                        <td className="p-3 text-right text-brand-gray">{fmt(row.cost)}</td>
                         <td className="p-3 text-right">{fmt(row.margin)}</td>
-                        <td className="p-3 text-right text-sh-gray">
+                        <td className="p-3 text-right text-brand-gray">
                           {formatMarginPct(row.marginPct)}
                         </td>
                       </tr>
                       {isExpanded && (
                         <tr>
-                          <td colSpan={6} className="bg-sh-linen/30 px-4 py-3">
+                          <td colSpan={6} className="bg-brand-linen/30 px-4 py-3">
                             <DrilldownContent
                               isLoading={isLoading}
                               items={items}
@@ -542,15 +547,15 @@ export function SalesBySalespersonView() {
                 })}
               </tbody>
               <tfoot>
-                <tr className="bg-sh-linen border-t-2 border-sh-gray/30 sticky bottom-0">
+                <tr className="bg-brand-linen border-t-2 border-brand-gray/30 sticky bottom-0">
                   <td className="p-3 font-semibold">TOTAL</td>
                   <td className="p-3 text-right font-semibold">{data.total.itemCount}</td>
                   <td className="p-3 text-right font-semibold">{fmt(data.total.retail)}</td>
-                  <td className="p-3 text-right font-semibold text-sh-gray">
+                  <td className="p-3 text-right font-semibold text-brand-gray">
                     {fmt(data.total.cost)}
                   </td>
                   <td className="p-3 text-right font-semibold">{fmt(data.total.margin)}</td>
-                  <td className="p-3 text-right font-semibold text-sh-gray">
+                  <td className="p-3 text-right font-semibold text-brand-gray">
                     {formatMarginPct(data.total.marginPct)}
                   </td>
                 </tr>
@@ -565,19 +570,19 @@ export function SalesBySalespersonView() {
   return (
     <div className="max-w-screen-lg mx-auto py-6 space-y-4">
       <div className="flex items-baseline justify-between">
-        <h1 className="font-serif text-2xl text-sh-black">Sales by Salesperson</h1>
-        <Link href="/app/reports" className="text-sm text-sh-blue hover:underline">
+        <h1 className="font-serif text-2xl text-brand-black">Sales by Salesperson</h1>
+        <Link href="/app/reports" className="text-sm text-brand-blue hover:underline">
           ← Back to reports
         </Link>
       </div>
 
-      <p className="text-sm text-sh-gray">
+      <p className="text-sm text-brand-gray">
         Date-range sales totals with retail, cost, and margin. Group by salesperson, department, or
         customer. Filter to a subset and export the result.
         {!isPrivileged && data?.appliedFilters?.designerLockedTo && (
           <>
             {" "}
-            <span className="text-sh-blue">
+            <span className="text-brand-blue">
               Showing your own data (<strong>{data.appliedFilters.designerLockedTo}</strong>).
             </span>
           </>
@@ -585,7 +590,7 @@ export function SalesBySalespersonView() {
       </p>
 
       {/* Compact filter bar */}
-      <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-4">
+      <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-4">
         <div className="flex items-end gap-3 flex-wrap">
           <div className="flex-1 min-w-[240px]">
             <DateRangeFilter
@@ -597,7 +602,7 @@ export function SalesBySalespersonView() {
             />
           </div>
           <fieldset>
-            <legend className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+            <legend className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
               Group by
             </legend>
             <div className="flex gap-1">
@@ -611,8 +616,8 @@ export function SalesBySalespersonView() {
                   }}
                   className={`px-3 py-2 text-sm rounded-lg border min-h-[42px] capitalize transition ${
                     groupBy === g
-                      ? "bg-sh-blue text-white border-sh-blue"
-                      : "bg-white text-sh-black border-sh-gray/30 hover:border-sh-blue"
+                      ? "bg-brand-blue text-white border-brand-blue"
+                      : "bg-white text-brand-black border-brand-gray/30 hover:border-brand-blue"
                   }`}
                 >
                   {g}
@@ -621,7 +626,7 @@ export function SalesBySalespersonView() {
             </div>
           </fieldset>
           <div>
-            <p className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+            <p className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
               Departments
             </p>
             <MultiSelectDropdown
@@ -637,7 +642,7 @@ export function SalesBySalespersonView() {
           </div>
           {isPrivileged && (
             <div>
-              <p className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+              <p className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
                 Salespeople
               </p>
               <MultiSelectDropdown
@@ -653,7 +658,7 @@ export function SalesBySalespersonView() {
             </div>
           )}
         </div>
-        <div className="mt-3 pt-3 border-t border-sh-gray/15 flex items-center justify-between">
+        <div className="mt-3 pt-3 border-t border-brand-gray/15 flex items-center justify-between">
           <label className="inline-flex items-center gap-2 cursor-pointer text-sm">
             <input
               type="checkbox"
@@ -662,11 +667,11 @@ export function SalesBySalespersonView() {
                 setIncludeDeliveryFreight(e.target.checked);
                 resetDrilldowns();
               }}
-              className="h-4 w-4 accent-sh-blue"
+              className="h-4 w-4 accent-brand-blue"
             />
-            <span className="text-sh-black">Include delivery &amp; freight</span>
+            <span className="text-brand-black">Include delivery &amp; freight</span>
           </label>
-          {loading && <span className="text-xs text-sh-gray italic">Updating…</span>}
+          {loading && <span className="text-xs text-brand-gray italic">Updating…</span>}
         </div>
       </div>
 

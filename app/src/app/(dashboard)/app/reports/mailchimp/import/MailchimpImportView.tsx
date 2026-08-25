@@ -48,7 +48,10 @@ export function MailchimpImportView() {
       label: "Campaign Title",
       accessor: "name",
       render: (row: CampaignRow) => (
-        <a href={`/app/reports/mailchimp/campaigns/${row.id}`} className="text-sh-blue underline">
+        <a
+          href={`/app/reports/mailchimp/campaigns/${row.id}`}
+          className="text-brand-blue underline"
+        >
           {row.name}
         </a>
       ),
@@ -62,7 +65,7 @@ export function MailchimpImportView() {
 
   return (
     <div className="py-2 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue mb-4">Import Mailchimp Campaigns</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue mb-4">Import Mailchimp Campaigns</h1>
       <PaginatedTable
         data={paginated}
         columns={columns}

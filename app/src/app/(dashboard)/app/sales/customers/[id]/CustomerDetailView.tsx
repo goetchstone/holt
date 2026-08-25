@@ -143,17 +143,17 @@ interface SortConfig {
 const LEVEL_CONFIG: Record<number, { label: string; className: string; description: string }> = {
   1: {
     label: "Occasional",
-    className: "bg-sh-gray/20 text-sh-gray",
+    className: "bg-brand-gray/20 text-brand-gray",
     description: "Below average order frequency and order total",
   },
   2: {
     label: "Frequent",
-    className: "bg-sh-brand-blue/20 text-sh-brand-blue",
+    className: "bg-brand-accent-blue/20 text-brand-accent-blue",
     description: "Above average order frequency, below average order total",
   },
   3: {
     label: "High Value",
-    className: "bg-sh-gold/20 text-sh-gold",
+    className: "bg-brand-gold/20 text-brand-gold",
     description: "Below average order frequency, above average order total",
   },
   4: {
@@ -284,28 +284,30 @@ function LifetimeStats({ customer }: { customer: CustomerWithRelations }) {
   };
 
   return (
-    <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-sh-gray mt-1">
+    <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-brand-gray mt-1">
       <span>
-        Lifetime: <strong className="text-sh-black">{formatMoney(spend, { whole: true })}</strong>
+        Lifetime:{" "}
+        <strong className="text-brand-black">{formatMoney(spend, { whole: true })}</strong>
       </span>
       <span>
-        Orders: <strong className="text-sh-black">{customer.lifetimeOrderCount ?? 0}</strong>
+        Orders: <strong className="text-brand-black">{customer.lifetimeOrderCount ?? 0}</strong>
       </span>
       <span>
         Last order:{" "}
-        <strong className="text-sh-black">{formatRelative(customer.lastOrderDate)}</strong>
+        <strong className="text-brand-black">{formatRelative(customer.lastOrderDate)}</strong>
       </span>
       {customer.customerGroup && (
         <span>
           Primary:{" "}
-          <strong className="text-sh-black">
+          <strong className="text-brand-black">
             {GROUP_LABELS[customer.customerGroup] ?? customer.customerGroup}
           </strong>
         </span>
       )}
       {(customer.departmentCount ?? 0) > 1 && (
         <span>
-          Shops across: <strong className="text-sh-black">{customer.departmentCount} groups</strong>
+          Shops across:{" "}
+          <strong className="text-brand-black">{customer.departmentCount} groups</strong>
         </span>
       )}
     </div>
@@ -341,24 +343,24 @@ function EmailEngagementSummary({ customerId }: { customerId: number }) {
       <h2 className="text-xl font-semibold mb-3">Email Engagement</h2>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white rounded-lg shadow-md p-4 text-center">
-          <p className="text-xs text-sh-gray mb-1">Emails Sent</p>
-          <p className="text-2xl font-bold text-sh-black">{stats.totalSent}</p>
+          <p className="text-xs text-brand-gray mb-1">Emails Sent</p>
+          <p className="text-2xl font-bold text-brand-black">{stats.totalSent}</p>
         </div>
         <div className="bg-white rounded-lg shadow-md p-4 text-center">
-          <p className="text-xs text-sh-gray mb-1">Opens</p>
-          <p className="text-2xl font-bold text-sh-black">{stats.totalOpens}</p>
+          <p className="text-xs text-brand-gray mb-1">Opens</p>
+          <p className="text-2xl font-bold text-brand-black">{stats.totalOpens}</p>
         </div>
         <div className="bg-white rounded-lg shadow-md p-4 text-center">
-          <p className="text-xs text-sh-gray mb-1">Open Rate</p>
-          <p className="text-2xl font-bold text-sh-black">{stats.openRate}%</p>
+          <p className="text-xs text-brand-gray mb-1">Open Rate</p>
+          <p className="text-2xl font-bold text-brand-black">{stats.openRate}%</p>
         </div>
         <div className="bg-white rounded-lg shadow-md p-4 text-center">
-          <p className="text-xs text-sh-gray mb-1">Clicks</p>
-          <p className="text-2xl font-bold text-sh-black">{stats.totalClicks}</p>
+          <p className="text-xs text-brand-gray mb-1">Clicks</p>
+          <p className="text-2xl font-bold text-brand-black">{stats.totalClicks}</p>
         </div>
         <div className="bg-white rounded-lg shadow-md p-4 text-center">
-          <p className="text-xs text-sh-gray mb-1">Click Rate</p>
-          <p className="text-2xl font-bold text-sh-black">{stats.clickRate}%</p>
+          <p className="text-xs text-brand-gray mb-1">Click Rate</p>
+          <p className="text-2xl font-bold text-brand-black">{stats.clickRate}%</p>
         </div>
       </div>
     </div>
@@ -403,15 +405,15 @@ function EmailActivityPanel({ email }: { email: string | null }) {
   }, [loaded, loadActivity]);
 
   if (!email) {
-    return <p className="text-sh-gray">No email address on file.</p>;
+    return <p className="text-brand-gray">No email address on file.</p>;
   }
 
   if (loading) {
-    return <p className="text-sh-gray">Loading email activity...</p>;
+    return <p className="text-brand-gray">Loading email activity...</p>;
   }
 
   if (activities.length === 0) {
-    return <p className="text-sh-gray">No email activity found for {email}.</p>;
+    return <p className="text-brand-gray">No email activity found for {email}.</p>;
   }
 
   return (
@@ -419,17 +421,17 @@ function EmailActivityPanel({ email }: { email: string | null }) {
       {activities.map((a, i) => (
         <div
           key={`${a.timestamp}-${a.action}-${i}`}
-          className="flex items-center gap-3 py-2 border-b border-sh-gray/10 last:border-0"
+          className="flex items-center gap-3 py-2 border-b border-brand-gray/10 last:border-0"
         >
           <span
             className={`text-xs px-2 py-0.5 rounded min-w-[50px] text-center ${emailActionStyle(a.action)}`}
           >
             {a.action}
           </span>
-          <span className="text-sm text-sh-black flex-1">
+          <span className="text-sm text-brand-black flex-1">
             {a.campaignName || "Unknown campaign"}
           </span>
-          <span className="text-xs text-sh-gray">
+          <span className="text-xs text-brand-gray">
             {format(new Date(a.timestamp), "MMM d, yyyy h:mm a")}
           </span>
         </div>
@@ -680,7 +682,7 @@ export function CustomerDetailView({ id }: { id: string }) {
         accessor: "orderno",
         width: "150px",
         render: (row: SalesOrderWithCalculatedFields) => (
-          <Link href={`/app/sales/orders/${row.id}`} className="text-sh-blue hover:underline">
+          <Link href={`/app/sales/orders/${row.id}`} className="text-brand-blue hover:underline">
             {row.orderno}
           </Link>
         ),
@@ -747,7 +749,7 @@ export function CustomerDetailView({ id }: { id: string }) {
             />
             {canSeeWealth && <WealthTierBadge tier={customer.windfallEnrichment?.wealthTier} />}
             {customer.isTradeAccount && customer.tradeTier && (
-              <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-sh-gold/20 text-sh-gold">
+              <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-brand-gold/20 text-brand-gold">
                 {customer.tradeTier.name}
               </span>
             )}
@@ -862,19 +864,19 @@ export function CustomerDetailView({ id }: { id: string }) {
               <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-sh-gray text-xs mb-1">Status</p>
+                    <p className="text-brand-gray text-xs mb-1">Status</p>
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
                         customer.isTradeAccount
-                          ? "bg-sh-gold/20 text-sh-gold"
-                          : "bg-sh-gray/20 text-sh-gray"
+                          ? "bg-brand-gold/20 text-brand-gold"
+                          : "bg-brand-gray/20 text-brand-gray"
                       }`}
                     >
                       {customer.isTradeAccount ? "Trade Account" : "Retail"}
                     </span>
                   </div>
                   <div>
-                    <p className="text-sh-gray text-xs mb-1">Tier</p>
+                    <p className="text-brand-gray text-xs mb-1">Tier</p>
                     <p className="font-medium">
                       {customer.tradeTier
                         ? `${customer.tradeTier.name} (${Number(customer.tradeTier.discountPercent)}% off anchor)`
@@ -882,11 +884,11 @@ export function CustomerDetailView({ id }: { id: string }) {
                     </p>
                   </div>
                   <div>
-                    <p className="text-sh-gray text-xs mb-1">Company</p>
+                    <p className="text-brand-gray text-xs mb-1">Company</p>
                     <p className="font-medium">{customer.tradeCompanyName || "Not set"}</p>
                   </div>
                   <div>
-                    <p className="text-sh-gray text-xs mb-1">Tax Exempt Number</p>
+                    <p className="text-brand-gray text-xs mb-1">Tax Exempt Number</p>
                     <p className="font-medium">{customer.taxExemptNumber || "Not set"}</p>
                   </div>
                 </div>
@@ -936,38 +938,40 @@ export function CustomerDetailView({ id }: { id: string }) {
             {customer.windfallEnrichment ? (
               <div className="space-y-6">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="bg-sh-linen rounded-lg p-4">
-                    <p className="text-xs text-sh-gray uppercase tracking-wide">Net Worth</p>
-                    <p className="text-lg font-semibold text-sh-black mt-1">
+                  <div className="bg-brand-linen rounded-lg p-4">
+                    <p className="text-xs text-brand-gray uppercase tracking-wide">Net Worth</p>
+                    <p className="text-lg font-semibold text-brand-black mt-1">
                       {customer.windfallEnrichment.netWorth
                         ? `$${(customer.windfallEnrichment.netWorth / 1_000_000).toFixed(1)}M`
                         : "Unknown"}
                     </p>
                     {customer.windfallEnrichment.netWorthLow != null &&
                       customer.windfallEnrichment.netWorthHigh != null && (
-                        <p className="text-xs text-sh-gray mt-0.5">
+                        <p className="text-xs text-brand-gray mt-0.5">
                           Range: ${(customer.windfallEnrichment.netWorthLow / 1_000_000).toFixed(1)}
                           M - ${(customer.windfallEnrichment.netWorthHigh / 1_000_000).toFixed(1)}M
                         </p>
                       )}
                   </div>
-                  <div className="bg-sh-linen rounded-lg p-4">
-                    <p className="text-xs text-sh-gray uppercase tracking-wide">Tier</p>
+                  <div className="bg-brand-linen rounded-lg p-4">
+                    <p className="text-xs text-brand-gray uppercase tracking-wide">Tier</p>
                     <p className="mt-1">
                       <WealthTierBadge tier={customer.windfallEnrichment.wealthTier} />
                     </p>
                   </div>
-                  <div className="bg-sh-linen rounded-lg p-4">
-                    <p className="text-xs text-sh-gray uppercase tracking-wide">Match Confidence</p>
-                    <p className="text-lg font-semibold text-sh-black mt-1">
+                  <div className="bg-brand-linen rounded-lg p-4">
+                    <p className="text-xs text-brand-gray uppercase tracking-wide">
+                      Match Confidence
+                    </p>
+                    <p className="text-lg font-semibold text-brand-black mt-1">
                       {customer.windfallEnrichment.matchConfidence != null
                         ? `${Math.round(Number(customer.windfallEnrichment.matchConfidence) * 100)}%`
                         : "—"}
                     </p>
                   </div>
-                  <div className="bg-sh-linen rounded-lg p-4">
-                    <p className="text-xs text-sh-gray uppercase tracking-wide">Last Updated</p>
-                    <p className="text-sm text-sh-black mt-1">
+                  <div className="bg-brand-linen rounded-lg p-4">
+                    <p className="text-xs text-brand-gray uppercase tracking-wide">Last Updated</p>
+                    <p className="text-sm text-brand-black mt-1">
                       {customer.windfallEnrichment.netWorthLastCalculated
                         ? format(
                             new Date(customer.windfallEnrichment.netWorthLastCalculated),
@@ -978,7 +982,7 @@ export function CustomerDetailView({ id }: { id: string }) {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-sh-gray uppercase tracking-wide mb-2">
+                  <p className="text-xs text-brand-gray uppercase tracking-wide mb-2">
                     Active Signals
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -1039,12 +1043,12 @@ export function CustomerDetailView({ id }: { id: string }) {
                     )}
                   </div>
                 </div>
-                <p className="text-xs text-sh-gray">
+                <p className="text-xs text-brand-gray">
                   Windfall ID: {customer.windfallEnrichment.windfallId || "—"}
                 </p>
               </div>
             ) : (
-              <p className="text-sh-gray text-sm">
+              <p className="text-brand-gray text-sm">
                 No Windfall enrichment data available for this customer.
               </p>
             )}

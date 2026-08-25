@@ -16,7 +16,7 @@
 // regression the type checker could not see.
 //
 // Rules encoded here:
-//   - Impersonation (sh-impersonate cookie) is honored ONLY for a real
+//   - Impersonation (holt-impersonate cookie) is honored ONLY for a real
 //     SUPER_ADMIN or ADMIN, and can only ever REDUCE privilege. An ADMIN used
 //     to be able to set the cookie to SUPER_ADMIN and pass a SUPER_ADMIN-gated
 //     check, which defeated the whole point of having an owner-only tier above
@@ -46,7 +46,7 @@ const ROLE_RANK: Record<string, number> = {
 
 /**
  * Resolve the role a check should actually run against, given the real role and
- * whatever the sh-impersonate cookie claims.
+ * whatever the holt-impersonate cookie claims.
  *
  * THE ONE implementation of the anti-escalation rule. Both decideRoleAccess and
  * decidePermissionAccess call it; nothing else may re-derive it.
@@ -65,7 +65,7 @@ export function resolveEffectiveRole(
   if (!canImpersonate || !impersonate) return realRole;
   // Impersonation must never escalate. An ADMIN impersonating SUPER_ADMIN is
   // just an ADMIN; a SUPER_ADMIN impersonating anyone is that lesser role.
-  // Without this, the sh-impersonate cookie is a self-serve privilege upgrade
+  // Without this, the holt-impersonate cookie is a self-serve privilege upgrade
   // for anyone who already holds ADMIN.
   const escalates = (ranks[impersonate] ?? 0) > (ranks[realRole] ?? 0);
   return escalates ? realRole : impersonate;
@@ -91,7 +91,7 @@ export interface RoleDecisionInput {
   allowedRoles: string[];
   /** The user's real role from StaffMember (default "DESIGNER" if unlinked). */
   realRole: string;
-  /** Value of the sh-impersonate cookie, or null. */
+  /** Value of the holt-impersonate cookie, or null. */
   impersonate: string | null;
   /**
    * Count of active, linked privileged staff (SUPER_ADMIN/ADMIN/MANAGER).
@@ -136,7 +136,7 @@ export interface PermissionDecisionInput {
   permission: string;
   /** The user's real role KEY — Role.key, or the StaffRole enum value. */
   realRole: string;
-  /** Value of the sh-impersonate cookie, or null. */
+  /** Value of the holt-impersonate cookie, or null. */
   impersonate: string | null;
   /**
    * Grants held by each role KEY the decision might land on. The caller

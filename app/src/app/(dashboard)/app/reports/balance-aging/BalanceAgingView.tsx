@@ -23,7 +23,7 @@ export function BalanceAgingView({ data }: { data: BalanceAgingResult }) {
       label: "Order #",
       sortable: true,
       render: (r) => (
-        <Link href={`/app/sales/orders/${r.id}`} className="text-sh-blue hover:underline">
+        <Link href={`/app/sales/orders/${r.id}`} className="text-brand-blue hover:underline">
           {r.orderno}
         </Link>
       ),
@@ -36,7 +36,7 @@ export function BalanceAgingView({ data }: { data: BalanceAgingResult }) {
         r.customerId ? (
           <Link
             href={`/app/sales/customers/${r.customerId}`}
-            className="text-sh-blue hover:underline"
+            className="text-brand-blue hover:underline"
           >
             {r.customerName}
           </Link>
@@ -82,15 +82,15 @@ export function BalanceAgingView({ data }: { data: BalanceAgingResult }) {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Balance Due Aging</span>
+        <span className="text-brand-black">Balance Due Aging</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">Balance Due Aging</h1>
-      <p className="text-sm text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-navy">Balance Due Aging</h1>
+      <p className="text-sm text-brand-gray">
         Unpaid balances on open orders by age. Money sitting on the table that needs collection.
       </p>
 

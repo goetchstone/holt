@@ -203,15 +203,15 @@ export default function DraftPoModal({
         <div className="flex min-h-full items-center justify-center p-4">
           <DialogPanel className="w-full max-w-xl bg-white rounded-2xl shadow-xl flex flex-col">
             {/* Header */}
-            <div className="flex items-start justify-between px-6 py-4 border-b border-sh-stripe">
-              <DialogTitle as="h2" className="font-serif text-xl text-sh-navy">
+            <div className="flex items-start justify-between px-6 py-4 border-b border-brand-stripe">
+              <DialogTitle as="h2" className="font-serif text-xl text-brand-navy">
                 {isEdit ? "Edit draft PO" : "New draft PO"}
               </DialogTitle>
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="text-sh-gray hover:text-sh-navy"
+                className="text-brand-gray hover:text-brand-navy"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -223,7 +223,7 @@ export default function DraftPoModal({
               <div>
                 <label
                   htmlFor="po-vendor"
-                  className="block text-sm font-semibold text-sh-navy mb-1"
+                  className="block text-sm font-semibold text-brand-navy mb-1"
                 >
                   Supplier <span className="text-red-600">*</span>
                 </label>
@@ -231,7 +231,7 @@ export default function DraftPoModal({
                   id="po-vendor"
                   value={form.vendorId}
                   onChange={(e) => setForm((f) => ({ ...f, vendorId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                  className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                 >
                   <option value="">Select supplier…</option>
                   {vendors.map((v) => (
@@ -245,7 +245,10 @@ export default function DraftPoModal({
 
               {/* Reference number */}
               <div>
-                <label htmlFor="po-ref" className="block text-sm font-semibold text-sh-navy mb-1">
+                <label
+                  htmlFor="po-ref"
+                  className="block text-sm font-semibold text-brand-navy mb-1"
+                >
                   Vendor reference number
                 </label>
                 <input
@@ -254,14 +257,17 @@ export default function DraftPoModal({
                   value={form.referenceNumber}
                   onChange={(e) => setForm((f) => ({ ...f, referenceNumber: e.target.value }))}
                   placeholder="e.g. SH-FALL26-WH-1"
-                  className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                  className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                 />
               </div>
 
               {/* ETA + store location side-by-side */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="po-eta" className="block text-sm font-semibold text-sh-navy mb-1">
+                  <label
+                    htmlFor="po-eta"
+                    className="block text-sm font-semibold text-brand-navy mb-1"
+                  >
                     ETA (year-month)
                   </label>
                   <input
@@ -269,13 +275,13 @@ export default function DraftPoModal({
                     type="month"
                     value={form.expectedShipMonth}
                     onChange={(e) => setForm((f) => ({ ...f, expectedShipMonth: e.target.value }))}
-                    className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                    className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="po-store"
-                    className="block text-sm font-semibold text-sh-navy mb-1"
+                    className="block text-sm font-semibold text-brand-navy mb-1"
                   >
                     Destination store
                   </label>
@@ -283,7 +289,7 @@ export default function DraftPoModal({
                     id="po-store"
                     value={form.storeLocationId}
                     onChange={(e) => setForm((f) => ({ ...f, storeLocationId: e.target.value }))}
-                    className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                    className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                   >
                     <option value="">— None —</option>
                     {storeLocations.map((s) => (
@@ -298,14 +304,17 @@ export default function DraftPoModal({
               {/* Buy + Status side-by-side on edit; Buy alone on create */}
               <div className={isEdit ? "grid grid-cols-1 sm:grid-cols-2 gap-3" : ""}>
                 <div>
-                  <label htmlFor="po-buy" className="block text-sm font-semibold text-sh-navy mb-1">
+                  <label
+                    htmlFor="po-buy"
+                    className="block text-sm font-semibold text-brand-navy mb-1"
+                  >
                     Buy (optional)
                   </label>
                   <select
                     id="po-buy"
                     value={form.buyId}
                     onChange={(e) => setForm((f) => ({ ...f, buyId: e.target.value }))}
-                    className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                    className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                   >
                     <option value="">— Unassigned —</option>
                     {buys.map((b) => (
@@ -323,7 +332,7 @@ export default function DraftPoModal({
                   <div>
                     <label
                       htmlFor="po-status"
-                      className="block text-sm font-semibold text-sh-navy mb-1"
+                      className="block text-sm font-semibold text-brand-navy mb-1"
                     >
                       Status
                     </label>
@@ -333,7 +342,7 @@ export default function DraftPoModal({
                       onChange={(e) =>
                         setForm((f) => ({ ...f, status: e.target.value as PoStatus }))
                       }
-                      className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                      className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                     >
                       {PO_STATUSES.map((s) => (
                         <option key={s} value={s}>
@@ -350,7 +359,7 @@ export default function DraftPoModal({
                 <div>
                   <label
                     htmlFor="po-notes"
-                    className="block text-sm font-semibold text-sh-navy mb-1"
+                    className="block text-sm font-semibold text-brand-navy mb-1"
                   >
                     Notes
                   </label>
@@ -359,14 +368,14 @@ export default function DraftPoModal({
                     value={form.notes}
                     onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                     rows={3}
-                    className="w-full px-3 py-2 border border-sh-stripe rounded text-base resize-y"
+                    className="w-full px-3 py-2 border border-brand-stripe rounded text-base resize-y"
                   />
                 </div>
               )}
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-3 border-t border-sh-stripe flex items-center justify-between gap-2">
+            <div className="px-6 py-3 border-t border-brand-stripe flex items-center justify-between gap-2">
               <div>
                 {isEdit && (
                   <Button

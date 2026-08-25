@@ -131,33 +131,33 @@ export function ServiceCasesImportView() {
   return (
     <div className="max-w-screen-lg mx-auto px-4 py-6 space-y-6">
       <div className="flex items-baseline justify-between">
-        <h1 className="text-3xl font-serif text-sh-navy">Import Customer Service Sheet</h1>
-        <Link href="/app/service" className="text-sm text-sh-gold hover:underline">
+        <h1 className="text-3xl font-serif text-brand-navy">Import Customer Service Sheet</h1>
+        <Link href="/app/service" className="text-sm text-brand-gold hover:underline">
           ← Service module
         </Link>
       </div>
 
-      <p className="text-sh-gray">
+      <p className="text-brand-gray">
         Upload the latest <code>Updated Customer Service Sheet.xlsx</code>. The importer reads the
         &quot;C.S. In process&quot;, &quot;C.S. Completed&quot;, and &quot;Repair&quot; tabs;
         threaded cell comments become individual notes on the matching ServiceCase. Re-uploading the
         same file is a no-op; only new rows + new comment threads are written.
       </p>
 
-      <div className="rounded border border-sh-stripe bg-white p-4 text-sm">
+      <div className="rounded border border-brand-stripe bg-white p-4 text-sm">
         <div className="flex items-center justify-between">
-          <span className="text-sh-gray">Imported cases on file</span>
-          <span className="font-medium text-sh-navy">{lastSync?.importedCaseCount ?? "—"}</span>
+          <span className="text-brand-gray">Imported cases on file</span>
+          <span className="font-medium text-brand-navy">{lastSync?.importedCaseCount ?? "—"}</span>
         </div>
         <div className="mt-1 flex items-center justify-between">
-          <span className="text-sh-gray">Last sync</span>
-          <span className="font-medium text-sh-navy">{formatWhen(lastSync?.lastSyncAt)}</span>
+          <span className="text-brand-gray">Last sync</span>
+          <span className="font-medium text-brand-navy">{formatWhen(lastSync?.lastSyncAt)}</span>
         </div>
       </div>
 
-      <div className="rounded border border-sh-stripe bg-white p-6 space-y-4">
+      <div className="rounded border border-brand-stripe bg-white p-6 space-y-4">
         <div>
-          <label htmlFor="cs-sheet-file" className="block text-sm font-medium text-sh-navy">
+          <label htmlFor="cs-sheet-file" className="block text-sm font-medium text-brand-navy">
             Customer Service Sheet (.xlsx)
           </label>
           <input
@@ -168,7 +168,7 @@ export function ServiceCasesImportView() {
             className="mt-2 block w-full text-sm"
           />
           {file && (
-            <p className="mt-1 text-xs text-sh-gray">
+            <p className="mt-1 text-xs text-brand-gray">
               Selected: <span className="font-mono">{file.name}</span> (
               {Math.round(file.size / 1024)} KB)
             </p>
@@ -183,7 +183,7 @@ export function ServiceCasesImportView() {
             onChange={(e) => setDryRun(e.target.checked)}
             className="h-4 w-4"
           />
-          <label htmlFor="cs-sheet-dryrun" className="text-sm text-sh-navy">
+          <label htmlFor="cs-sheet-dryrun" className="text-sm text-brand-navy">
             Dry-run only (no writes — see what would change)
           </label>
         </div>
@@ -194,8 +194,8 @@ export function ServiceCasesImportView() {
       </div>
 
       {result && (
-        <div className="rounded border border-sh-stripe bg-white p-6 space-y-4">
-          <h2 className="text-xl font-serif text-sh-navy">
+        <div className="rounded border border-brand-stripe bg-white p-6 space-y-4">
+          <h2 className="text-xl font-serif text-brand-navy">
             {result.dryRun ? "Dry-run results" : "Import complete"}
           </h2>
 
@@ -240,20 +240,20 @@ export function ServiceCasesImportView() {
           {result.unmatched.length > 0 && (
             <div>
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-sh-navy">
+                <h3 className="text-sm font-medium text-brand-navy">
                   Unmatched rows ({result.unmatched.length})
                 </h3>
                 <button
                   type="button"
                   onClick={() => copyText(unmatchedAsTsv(result.unmatched))}
-                  className="text-xs text-sh-gold hover:underline"
+                  className="text-xs text-brand-gold hover:underline"
                 >
                   Copy as TSV
                 </button>
               </div>
               <div className="mt-2 overflow-x-auto">
                 <table className="min-w-full text-sm">
-                  <thead className="bg-sh-stripe">
+                  <thead className="bg-brand-stripe">
                     <tr>
                       <th className="px-3 py-2 text-left">Sheet · row</th>
                       <th className="px-3 py-2 text-left">Name</th>
@@ -263,19 +263,19 @@ export function ServiceCasesImportView() {
                   </thead>
                   <tbody>
                     {result.unmatched.slice(0, 100).map((u) => (
-                      <tr key={u.rowKey} className="border-t border-sh-stripe">
+                      <tr key={u.rowKey} className="border-t border-brand-stripe">
                         <td className="px-3 py-2 whitespace-nowrap font-mono text-xs">
                           {u.sheetName} · {u.rowNumber}
                         </td>
                         <td className="px-3 py-2">{u.name}</td>
                         <td className="px-3 py-2 font-mono text-xs">{u.ordernoRaw ?? ""}</td>
-                        <td className="px-3 py-2 text-sh-gray">{u.reason}</td>
+                        <td className="px-3 py-2 text-brand-gray">{u.reason}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 {result.unmatched.length > 100 && (
-                  <p className="mt-2 text-xs text-sh-gray">
+                  <p className="mt-2 text-xs text-brand-gray">
                     Showing first 100. Copy-as-TSV for the full list.
                   </p>
                 )}
@@ -283,7 +283,9 @@ export function ServiceCasesImportView() {
             </div>
           )}
 
-          <p className="text-xs text-sh-gray">Elapsed: {(result.elapsedMs / 1000).toFixed(1)}s</p>
+          <p className="text-xs text-brand-gray">
+            Elapsed: {(result.elapsedMs / 1000).toFixed(1)}s
+          </p>
         </div>
       )}
     </div>
@@ -297,8 +299,8 @@ function ResultStat({
 }: Readonly<{ label: string; value: number; isError?: boolean }>) {
   return (
     <div>
-      <div className="text-sh-gray">{label}</div>
-      <div className={`text-2xl font-medium ${isError ? "text-red-600" : "text-sh-navy"}`}>
+      <div className="text-brand-gray">{label}</div>
+      <div className={`text-2xl font-medium ${isError ? "text-red-600" : "text-brand-navy"}`}>
         {value}
       </div>
     </div>

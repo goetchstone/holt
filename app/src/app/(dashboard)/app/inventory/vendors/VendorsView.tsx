@@ -121,9 +121,9 @@ export function VendorsView() {
   ];
 
   return (
-    <div className="py-2 font-serif text-sh-black">
+    <div className="py-2 font-serif text-brand-black">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-sh-blue">Vendors</h1>
+        <h1 className="text-2xl font-semibold text-brand-blue">Vendors</h1>
         <Button variant="primary" onClick={() => setShowCreateModal(true)}>
           Add New <Plus className="w-4 h-4 ml-2" />
         </Button>
@@ -159,7 +159,7 @@ export function VendorsView() {
         <DialogBackdrop className="fixed inset-0 bg-black/50" />
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <DialogPanel className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl font-serif">
-            <DialogTitle as="h3" className="text-lg font-semibold text-sh-blue mb-4">
+            <DialogTitle as="h3" className="text-lg font-semibold text-brand-blue mb-4">
               Add New Vendor
             </DialogTitle>
             <label htmlFor="new-vendor-name" className="sr-only">
@@ -175,7 +175,7 @@ export function VendorsView() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleCreateVendor();
               }}
-              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black font-serif mb-4"
+              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black font-serif mb-4"
             />
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setShowCreateModal(false)}>

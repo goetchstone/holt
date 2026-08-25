@@ -53,7 +53,7 @@ export default function TableWithFilters<T>({
           value={search}
           onChange={(e) => handleInternalSearchChange(e.target.value)}
           placeholder="Search..."
-          className="border border-sh-gray rounded-lg px-3 py-2 w-full mb-2"
+          className="border border-brand-gray rounded-lg px-3 py-2 w-full mb-2"
         />
       </div>
       <PaginatedTable

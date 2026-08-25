@@ -53,7 +53,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  PENDING: "bg-sh-gray/20 text-sh-gray",
+  PENDING: "bg-brand-gray/20 text-brand-gray",
   SCHEDULED: "bg-blue-100 text-blue-800",
   IN_PROGRESS: "bg-orange-100 text-orange-800",
   COMPLETED: "bg-green-100 text-green-800",
@@ -187,9 +187,9 @@ export function ServiceDispatchView() {
   return (
     <div className="py-2 space-y-4 font-serif">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl text-sh-blue font-semibold">Service Dispatch</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">Service Dispatch</h1>
         <select
-          className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-w-[160px]"
+          className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-w-[160px]"
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
         >
@@ -200,15 +200,15 @@ export function ServiceDispatchView() {
         </select>
       </div>
 
-      <div className="flex gap-1 border-b border-sh-gray/20">
+      <div className="flex gap-1 border-b border-brand-gray/20">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px ${
               tab === t.key
-                ? "border-sh-blue text-sh-blue"
-                : "border-transparent text-sh-gray hover:text-sh-black"
+                ? "border-brand-blue text-brand-blue"
+                : "border-transparent text-brand-gray hover:text-brand-black"
             }`}
           >
             {t.label} ({filterByType(appointments[t.key]).length})
@@ -217,7 +217,7 @@ export function ServiceDispatchView() {
       </div>
 
       {loading ? (
-        <p className="text-sh-gray">Loading...</p>
+        <p className="text-brand-gray">Loading...</p>
       ) : tab === "pending" ? (
         <PendingTable
           appointments={filterByType(appointments.pending)}
@@ -254,7 +254,7 @@ export function ServiceDispatchView() {
 function TypeBadge({ type }: { type: string }) {
   return (
     <span
-      className={`text-xs px-2 py-0.5 rounded ${TYPE_STYLES[type] || "bg-sh-gray/20 text-sh-gray"}`}
+      className={`text-xs px-2 py-0.5 rounded ${TYPE_STYLES[type] || "bg-brand-gray/20 text-brand-gray"}`}
     >
       {TYPE_LABELS[type] || type}
     </span>
@@ -264,7 +264,7 @@ function TypeBadge({ type }: { type: string }) {
 function StatusBadge({ status }: { status: string }) {
   return (
     <span
-      className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[status] || "bg-sh-gray/20 text-sh-gray"}`}
+      className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[status] || "bg-brand-gray/20 text-brand-gray"}`}
     >
       {STATUS_LABELS[status] || status}
     </span>
@@ -274,7 +274,7 @@ function StatusBadge({ status }: { status: string }) {
 function EmptyRow({ colSpan, message }: { colSpan: number; message: string }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-4 py-8 text-center text-sh-gray">
+      <td colSpan={colSpan} className="px-4 py-8 text-center text-brand-gray">
         {message}
       </td>
     </tr>
@@ -301,18 +301,18 @@ function PendingTable({
   onSchedule: (id: number) => void;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-sh-gray/20 bg-sh-stripe">
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Appt #</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[90px]">Type</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Customer</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Order #</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Department</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[90px]">Urgency</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[100px]">Created</th>
-            <th className="text-right px-4 py-3 font-medium text-sh-gray w-[100px]">Actions</th>
+          <tr className="border-b border-brand-gray/20 bg-brand-stripe">
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Appt #</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[90px]">Type</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Customer</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Order #</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Department</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[90px]">Urgency</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[100px]">Created</th>
+            <th className="text-right px-4 py-3 font-medium text-brand-gray w-[100px]">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -321,16 +321,16 @@ function PendingTable({
           ) : (
             appointments.map((a) => (
               <>
-                <tr key={a.id} className="border-b border-sh-gray/10 hover:bg-sh-stripe/50">
-                  <td className="px-4 py-2 text-sh-black font-medium">{a.appointmentNumber}</td>
+                <tr key={a.id} className="border-b border-brand-gray/10 hover:bg-brand-stripe/50">
+                  <td className="px-4 py-2 text-brand-black font-medium">{a.appointmentNumber}</td>
                   <td className="px-4 py-2">
                     <TypeBadge type={a.type} />
                   </td>
-                  <td className="px-4 py-2 text-sh-gray">{a.customerName}</td>
-                  <td className="px-4 py-2 text-sh-gray">{a.orderNumber || "--"}</td>
-                  <td className="px-4 py-2 text-sh-gray">{a.department || "--"}</td>
-                  <td className="px-4 py-2 text-sh-gray text-xs">{a.urgency || "--"}</td>
-                  <td className="px-4 py-2 text-sh-gray text-xs">
+                  <td className="px-4 py-2 text-brand-gray">{a.customerName}</td>
+                  <td className="px-4 py-2 text-brand-gray">{a.orderNumber || "--"}</td>
+                  <td className="px-4 py-2 text-brand-gray">{a.department || "--"}</td>
+                  <td className="px-4 py-2 text-brand-gray text-xs">{a.urgency || "--"}</td>
+                  <td className="px-4 py-2 text-brand-gray text-xs">
                     {format(new Date(a.created), "MMM d")}
                   </td>
                   <td className="px-4 py-2 text-right">
@@ -344,16 +344,16 @@ function PendingTable({
                   </td>
                 </tr>
                 {expandedId === a.id && (
-                  <tr key={`${a.id}-form`} className="border-b border-sh-gray/10 bg-sh-linen">
+                  <tr key={`${a.id}-form`} className="border-b border-brand-gray/10 bg-brand-linen">
                     <td colSpan={8} className="px-4 py-4">
                       <div className="flex flex-wrap items-end gap-4">
                         <div>
-                          <label className="block text-xs font-medium text-sh-gray mb-1">
+                          <label className="block text-xs font-medium text-brand-gray mb-1">
                             Date
                           </label>
                           <input
                             type="date"
-                            className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-w-[160px]"
+                            className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-w-[160px]"
                             value={scheduleForm.date}
                             onChange={(e) =>
                               onFormChange({ ...scheduleForm, date: e.target.value })
@@ -361,12 +361,12 @@ function PendingTable({
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-sh-gray mb-1">
+                          <label className="block text-xs font-medium text-brand-gray mb-1">
                             Time
                           </label>
                           <input
                             type="time"
-                            className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-w-[120px]"
+                            className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-w-[120px]"
                             value={scheduleForm.time}
                             onChange={(e) =>
                               onFormChange({ ...scheduleForm, time: e.target.value })
@@ -374,11 +374,11 @@ function PendingTable({
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-sh-gray mb-1">
+                          <label className="block text-xs font-medium text-brand-gray mb-1">
                             Installer
                           </label>
                           <select
-                            className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-w-[200px]"
+                            className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-w-[200px]"
                             value={scheduleForm.installerId}
                             onChange={(e) =>
                               onFormChange({ ...scheduleForm, installerId: e.target.value })
@@ -420,18 +420,18 @@ function ScheduledTable({
   onComplete: (id: number) => void;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-sh-gray/20 bg-sh-stripe">
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Appt #</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[90px]">Type</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Customer</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Address</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[130px]">Date/Time</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Installer</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[110px]">Status</th>
-            <th className="text-right px-4 py-3 font-medium text-sh-gray w-[160px]">Actions</th>
+          <tr className="border-b border-brand-gray/20 bg-brand-stripe">
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Appt #</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[90px]">Type</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Customer</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Address</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[130px]">Date/Time</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Installer</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[110px]">Status</th>
+            <th className="text-right px-4 py-3 font-medium text-brand-gray w-[160px]">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -439,20 +439,20 @@ function ScheduledTable({
             <EmptyRow colSpan={8} message="No scheduled appointments" />
           ) : (
             appointments.map((a) => (
-              <tr key={a.id} className="border-b border-sh-gray/10 hover:bg-sh-stripe/50">
-                <td className="px-4 py-2 text-sh-black font-medium">{a.appointmentNumber}</td>
+              <tr key={a.id} className="border-b border-brand-gray/10 hover:bg-brand-stripe/50">
+                <td className="px-4 py-2 text-brand-black font-medium">{a.appointmentNumber}</td>
                 <td className="px-4 py-2">
                   <TypeBadge type={a.type} />
                 </td>
-                <td className="px-4 py-2 text-sh-gray">{a.customerName}</td>
-                <td className="px-4 py-2 text-sh-gray text-xs">
+                <td className="px-4 py-2 text-brand-gray">{a.customerName}</td>
+                <td className="px-4 py-2 text-brand-gray text-xs">
                   {[a.city, a.state].filter(Boolean).join(", ") || "--"}
                 </td>
-                <td className="px-4 py-2 text-sh-gray text-xs">
+                <td className="px-4 py-2 text-brand-gray text-xs">
                   {a.scheduledDate ? format(new Date(a.scheduledDate), "MMM d") : "--"}
                   {a.scheduledTime ? ` ${a.scheduledTime}` : ""}
                 </td>
-                <td className="px-4 py-2 text-sh-gray">{a.installerName || "--"}</td>
+                <td className="px-4 py-2 text-brand-gray">{a.installerName || "--"}</td>
                 <td className="px-4 py-2">
                   <StatusBadge status={a.status} />
                 </td>
@@ -486,17 +486,17 @@ function ScheduledTable({
 
 function HistoryTable({ appointments }: { appointments: Appointment[] }) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-sh-gray/20 bg-sh-stripe">
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Appt #</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[90px]">Type</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Customer</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[100px]">Date</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Installer</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[110px]">Status</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[110px]">Completed</th>
+          <tr className="border-b border-brand-gray/20 bg-brand-stripe">
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Appt #</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[90px]">Type</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Customer</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[100px]">Date</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Installer</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[110px]">Status</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[110px]">Completed</th>
           </tr>
         </thead>
         <tbody>
@@ -504,20 +504,20 @@ function HistoryTable({ appointments }: { appointments: Appointment[] }) {
             <EmptyRow colSpan={7} message="No history" />
           ) : (
             appointments.map((a) => (
-              <tr key={a.id} className="border-b border-sh-gray/10 hover:bg-sh-stripe/50">
-                <td className="px-4 py-2 text-sh-black font-medium">{a.appointmentNumber}</td>
+              <tr key={a.id} className="border-b border-brand-gray/10 hover:bg-brand-stripe/50">
+                <td className="px-4 py-2 text-brand-black font-medium">{a.appointmentNumber}</td>
                 <td className="px-4 py-2">
                   <TypeBadge type={a.type} />
                 </td>
-                <td className="px-4 py-2 text-sh-gray">{a.customerName}</td>
-                <td className="px-4 py-2 text-sh-gray text-xs">
+                <td className="px-4 py-2 text-brand-gray">{a.customerName}</td>
+                <td className="px-4 py-2 text-brand-gray text-xs">
                   {a.scheduledDate ? format(new Date(a.scheduledDate), "MMM d, yyyy") : "--"}
                 </td>
-                <td className="px-4 py-2 text-sh-gray">{a.installerName || "--"}</td>
+                <td className="px-4 py-2 text-brand-gray">{a.installerName || "--"}</td>
                 <td className="px-4 py-2">
                   <StatusBadge status={a.status} />
                 </td>
-                <td className="px-4 py-2 text-sh-gray text-xs">
+                <td className="px-4 py-2 text-brand-gray text-xs">
                   {a.completedDate ? format(new Date(a.completedDate), "MMM d, yyyy") : "--"}
                 </td>
               </tr>

@@ -161,17 +161,17 @@ export function MailchimpView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Mailchimp Campaign Impact</span>
+        <span className="text-brand-black">Mailchimp Campaign Impact</span>
       </nav>
 
       <div>
-        <h1 className="text-2xl font-semibold text-sh-navy">Mailchimp Campaign Impact</h1>
-        <p className="text-sm text-sh-gray mt-1">
+        <h1 className="text-2xl font-semibold text-brand-navy">Mailchimp Campaign Impact</h1>
+        <p className="text-sm text-brand-gray mt-1">
           Every campaign with the revenue it generated. Date range filters by{" "}
           <strong>when each campaign was sent</strong>; for each purchase within {attributionWindow}{" "}
           days of an open or click, credit goes to the{" "}
@@ -183,11 +183,11 @@ export function MailchimpView() {
       </div>
 
       {/* Filter bar */}
-      <div className="bg-white border border-sh-gray/15 rounded-xl p-5 flex flex-wrap items-end gap-4">
+      <div className="bg-white border border-brand-gray/15 rounded-xl p-5 flex flex-wrap items-end gap-4">
         <div>
           <label
             htmlFor="mc-start"
-            className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+            className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
           >
             Campaigns sent on or after
           </label>
@@ -196,13 +196,13 @@ export function MailchimpView() {
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+            className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
           />
         </div>
         <div>
           <label
             htmlFor="mc-end"
-            className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+            className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
           >
             Campaigns sent on or before
           </label>
@@ -211,13 +211,13 @@ export function MailchimpView() {
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+            className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
           />
         </div>
         <div className="flex-1 min-w-[180px]">
           <label
             htmlFor="mc-search"
-            className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+            className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
           >
             Search
           </label>
@@ -227,7 +227,7 @@ export function MailchimpView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Name or subject"
-            className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+            className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
           />
         </div>
         <Button
@@ -268,7 +268,7 @@ export function MailchimpView() {
           label="Purchasers"
           value={num(totals.purchasers)}
           sub={
-            <span className="inline-flex items-center gap-1 text-xs text-sh-gray">
+            <span className="inline-flex items-center gap-1 text-xs text-brand-gray">
               <ShoppingCart className="w-3 h-3" />
               Unique customers who bought after engaging
             </span>
@@ -278,7 +278,7 @@ export function MailchimpView() {
           label="Attributed $"
           value={money(totals.revenue, { whole: true })}
           sub={
-            <span className="inline-flex items-center gap-1 text-xs text-sh-gray">
+            <span className="inline-flex items-center gap-1 text-xs text-brand-gray">
               <TrendingUp className="w-3 h-3" />
               Shared credit across campaigns
             </span>
@@ -291,10 +291,10 @@ export function MailchimpView() {
         title={`${total.toLocaleString()} campaigns`}
         description="Newest sends on top. Click any column header to re-sort, or click a campaign for the full breakdown."
       >
-        <div className="bg-white rounded-xl border border-sh-gray/15 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-brand-gray/15 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/15 bg-sh-linen text-xs uppercase tracking-wide text-sh-gray">
+              <tr className="border-b border-brand-gray/15 bg-brand-linen text-xs uppercase tracking-wide text-brand-gray">
                 <th className="text-left px-4 py-2 font-semibold">Campaign</th>
                 <SortHeader
                   label="Sent"
@@ -344,39 +344,39 @@ export function MailchimpView() {
               {sorted.map((c, i) => (
                 <tr
                   key={c.id}
-                  className={`border-b border-sh-gray/10 cursor-pointer hover:bg-sh-linen transition ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                  className={`border-b border-brand-gray/10 cursor-pointer hover:bg-brand-linen transition ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
                   onClick={() => router.push(`/app/reports/mailchimp/campaigns/${c.id}`)}
                 >
                   <td className="px-4 py-2">
-                    <div className="text-sh-black font-medium">{c.name || "(no name)"}</div>
-                    {c.subject && <div className="text-xs text-sh-gray">{c.subject}</div>}
+                    <div className="text-brand-black font-medium">{c.name || "(no name)"}</div>
+                    {c.subject && <div className="text-xs text-brand-gray">{c.subject}</div>}
                   </td>
-                  <td className="px-4 py-2 text-sh-gray">
+                  <td className="px-4 py-2 text-brand-gray">
                     {c.sentAt ? format(new Date(c.sentAt), "MMM d, yyyy") : "Draft"}
                   </td>
-                  <td className="px-4 py-2 text-right font-semibold text-sh-navy tabular-nums">
+                  <td className="px-4 py-2 text-right font-semibold text-brand-navy tabular-nums">
                     {num(c.attribution.purchasers)}
                   </td>
-                  <td className="px-4 py-2 text-right font-semibold text-sh-navy tabular-nums">
+                  <td className="px-4 py-2 text-right font-semibold text-brand-navy tabular-nums">
                     {money(c.attribution.revenue, { whole: true })}
                   </td>
-                  <td className="px-4 py-2 text-right text-sh-black tabular-nums">
+                  <td className="px-4 py-2 text-right text-brand-black tabular-nums">
                     {c.attribution.revenuePerSend > 0 ? money(c.attribution.revenuePerSend) : "—"}
                   </td>
-                  <td className="px-4 py-2 text-right text-sh-gray tabular-nums">
+                  <td className="px-4 py-2 text-right text-brand-gray tabular-nums">
                     {c.stats?.emailsSent ? num(c.stats.emailsSent) : "—"}
                   </td>
-                  <td className="px-4 py-2 text-right text-sh-gray tabular-nums">
+                  <td className="px-4 py-2 text-right text-brand-gray tabular-nums">
                     {c.stats?.opens ? num(c.stats.opens) : "—"}
                   </td>
-                  <td className="px-4 py-2 text-right text-sh-gray tabular-nums">
+                  <td className="px-4 py-2 text-right text-brand-gray tabular-nums">
                     {c.stats?.clicks ? num(c.stats.clicks) : "—"}
                   </td>
                 </tr>
               ))}
               {!loading && sorted.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sh-gray">
+                  <td colSpan={8} className="px-4 py-8 text-center text-brand-gray">
                     No campaigns match these filters.
                   </td>
                 </tr>
@@ -387,7 +387,7 @@ export function MailchimpView() {
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between pt-3">
-            <span className="text-xs text-sh-gray">
+            <span className="text-xs text-brand-gray">
               Page {page} of {totalPages}
             </span>
             <div className="flex gap-2">
@@ -412,9 +412,9 @@ export function MailchimpView() {
         )}
       </ReportSection>
 
-      <p className="text-xs text-sh-gray">
+      <p className="text-xs text-brand-gray">
         Looking for raw open/click events?{" "}
-        <Link href="/app/reports/mailchimp/activity" className="text-sh-blue hover:underline">
+        <Link href="/app/reports/mailchimp/activity" className="text-brand-blue hover:underline">
           Activity log →
         </Link>
       </p>
@@ -440,8 +440,8 @@ function SortHeader({
       className={`${align === "right" ? "text-right" : "text-left"} px-4 py-2 font-semibold cursor-pointer select-none`}
       onClick={onClick}
     >
-      <span className={active ? "text-sh-blue" : ""}>{label}</span>
-      {active && <span className="ml-1 text-sh-blue">{dir === "desc" ? "↓" : "↑"}</span>}
+      <span className={active ? "text-brand-blue" : ""}>{label}</span>
+      {active && <span className="ml-1 text-brand-blue">{dir === "desc" ? "↓" : "↑"}</span>}
     </th>
   );
 }

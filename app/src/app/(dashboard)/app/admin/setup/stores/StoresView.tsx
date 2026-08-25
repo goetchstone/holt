@@ -67,7 +67,7 @@ const typeOptions = [
 const typeBadgeClasses: Record<LocationType, string> = {
   STORE: "bg-blue-100 text-blue-800",
   WAREHOUSE: "bg-amber-100 text-amber-800",
-  OFFSITE: "bg-sh-gray/20 text-sh-gray",
+  OFFSITE: "bg-brand-gray/20 text-brand-gray",
 };
 
 function StoreModal({
@@ -295,23 +295,23 @@ export function StoresView() {
   return (
     <div className="py-2 font-serif">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-serif text-sh-navy">Store Locations</h1>
+        <h1 className="text-2xl font-serif text-brand-navy">Store Locations</h1>
         <Button variant="primary" onClick={openCreateModal}>
           <Plus className="w-4 h-4 mr-1" /> Add Store
         </Button>
       </div>
 
-      {loading && <p className="text-sh-gray font-serif">Loading...</p>}
+      {loading && <p className="text-brand-gray font-serif">Loading...</p>}
 
       {!loading && stores.length === 0 && (
-        <p className="text-sh-gray font-serif">No store locations configured.</p>
+        <p className="text-brand-gray font-serif">No store locations configured.</p>
       )}
 
       {!loading && stores.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-sh-gray/20">
+        <div className="bg-white rounded-xl shadow-sm border border-brand-gray/20">
           <table className="w-full">
             <thead>
-              <tr className="text-left text-sm text-sh-gray font-serif border-b border-sh-gray/10">
+              <tr className="text-left text-sm text-brand-gray font-serif border-b border-brand-gray/10">
                 <th className="px-6 py-3">Name</th>
                 <th className="px-6 py-3">Code</th>
                 <th className="px-6 py-3">Type</th>
@@ -325,10 +325,10 @@ export function StoresView() {
                 <tr
                   key={store.id}
                   onClick={() => openEditModal(store)}
-                  className="border-b border-sh-gray/5 hover:bg-sh-linen cursor-pointer transition-colors"
+                  className="border-b border-brand-gray/5 hover:bg-brand-linen cursor-pointer transition-colors"
                 >
-                  <td className="px-6 py-3 font-serif text-sh-navy">{store.name}</td>
-                  <td className="px-6 py-3 font-serif text-sh-gray">{store.code}</td>
+                  <td className="px-6 py-3 font-serif text-brand-navy">{store.name}</td>
+                  <td className="px-6 py-3 font-serif text-brand-gray">{store.code}</td>
                   <td className="px-6 py-3">
                     <span
                       className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${typeBadgeClasses[store.type]}`}
@@ -336,7 +336,7 @@ export function StoresView() {
                       {store.type}
                     </span>
                   </td>
-                  <td className="px-6 py-3 font-serif text-sh-gray">
+                  <td className="px-6 py-3 font-serif text-brand-gray">
                     {[store.city, store.state].filter(Boolean).join(", ") || "--"}
                   </td>
                   <td className="px-6 py-3">
@@ -348,7 +348,7 @@ export function StoresView() {
                       {store.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-6 py-3 font-serif text-sh-gray">{store.sortOrder}</td>
+                  <td className="px-6 py-3 font-serif text-brand-gray">{store.sortOrder}</td>
                 </tr>
               ))}
             </tbody>

@@ -84,13 +84,13 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const SOURCE_BADGE: Record<string, { bg: string; label: string }> = {
-  MAILCHIMP_CLICK: { bg: "bg-sh-blue/10 text-sh-blue", label: "Email Click" },
-  MAILCHIMP_OPEN: { bg: "bg-sh-blue/5 text-sh-blue/70", label: "Email Open" },
-  WALK_IN: { bg: "bg-sh-gold/20 text-sh-gold", label: "Walk-in" },
+  MAILCHIMP_CLICK: { bg: "bg-brand-blue/10 text-brand-blue", label: "Email Click" },
+  MAILCHIMP_OPEN: { bg: "bg-brand-blue/5 text-brand-blue/70", label: "Email Open" },
+  WALK_IN: { bg: "bg-brand-gold/20 text-brand-gold", label: "Walk-in" },
   PHONE: { bg: "bg-green-100 text-green-800", label: "Phone" },
   REFERRAL: { bg: "bg-purple-100 text-purple-800", label: "Referral" },
   WEBSITE: { bg: "bg-blue-100 text-blue-800", label: "Website" },
-  OTHER: { bg: "bg-sh-gray/10 text-sh-gray", label: "Other" },
+  OTHER: { bg: "bg-brand-gray/10 text-brand-gray", label: "Other" },
 };
 
 // Plain-English temperature pills. Designers see these instead of numbers.
@@ -98,7 +98,7 @@ const TIER_PILL: Record<LeadTier, { bg: string; label: string; emoji: string }> 
   HOT: { bg: "bg-red-100 text-red-800 border-red-200", label: "Hot", emoji: "🔥" },
   WARM: { bg: "bg-amber-100 text-amber-800 border-amber-200", label: "Warm", emoji: "🙂" },
   COOL: { bg: "bg-blue-100 text-blue-800 border-blue-200", label: "Cool", emoji: "🙃" },
-  NEW: { bg: "bg-sh-gray/10 text-sh-gray border-sh-gray/20", label: "New", emoji: "😐" },
+  NEW: { bg: "bg-brand-gray/10 text-brand-gray border-brand-gray/20", label: "New", emoji: "😐" },
 };
 
 const ALL_STATUSES = ["NEW", "ASSIGNED", "CONTACTED", "QUALIFIED", "CONVERTED", "LOST"];
@@ -336,19 +336,19 @@ export function LeadsView() {
     <>
       <div className="py-2 space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl text-sh-blue font-semibold font-serif">Leads</h1>
+          <h1 className="text-2xl text-brand-blue font-semibold font-serif">Leads</h1>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowCampaignModal(true)}
-              className="px-4 py-2.5 bg-sh-blue text-white rounded-lg text-sm font-medium
-                         hover:bg-sh-navy transition min-h-[44px]"
+              className="px-4 py-2.5 bg-brand-blue text-white rounded-lg text-sm font-medium
+                         hover:bg-brand-navy transition min-h-[44px]"
             >
               Generate from Campaign
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2.5 border border-sh-blue text-sh-blue rounded-lg text-sm
-                         font-medium hover:bg-sh-blue/5 transition min-h-[44px]"
+              className="px-4 py-2.5 border border-brand-blue text-brand-blue rounded-lg text-sm
+                         font-medium hover:bg-brand-blue/5 transition min-h-[44px]"
             >
               Add Lead
             </button>
@@ -358,14 +358,14 @@ export function LeadsView() {
         {/* Filters */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <label htmlFor="lead-filter-assigned" className="text-sm text-sh-gray">
+            <label htmlFor="lead-filter-assigned" className="text-sm text-brand-gray">
               Assigned to
             </label>
             <select
               id="lead-filter-assigned"
               value={filterAssignedTo}
               onChange={(e) => setFilterAssignedTo(e.target.value)}
-              className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+              className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
             >
               <option value="">All</option>
               {staff.map((s) => (
@@ -379,21 +379,21 @@ export function LeadsView() {
             onClick={() => setFilterHot((v) => !v)}
             className={`px-4 py-2 rounded-lg text-sm font-medium min-h-[44px] transition ${
               filterHot
-                ? "bg-sh-gold text-white"
-                : "border border-sh-gray/30 text-sh-gray hover:border-sh-gold hover:text-sh-gold"
+                ? "bg-brand-gold text-white"
+                : "border border-brand-gray/30 text-brand-gray hover:border-brand-gold hover:text-brand-gold"
             }`}
           >
             Hot Leads
           </button>
           <div className="flex items-center gap-2">
-            <label htmlFor="lead-filter-source" className="text-sm text-sh-gray">
+            <label htmlFor="lead-filter-source" className="text-sm text-brand-gray">
               Source
             </label>
             <select
               id="lead-filter-source"
               value={filterSource}
               onChange={(e) => setFilterSource(e.target.value)}
-              className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+              className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
             >
               <option value="">All</option>
               {Object.entries(SOURCE_BADGE).map(([key, { label }]) => (
@@ -407,7 +407,7 @@ export function LeadsView() {
 
         {/* Needs Attention strip (manager-only) */}
         {isManager && needsAttention && (
-          <div className="bg-white border border-sh-gray/20 rounded-lg p-3">
+          <div className="bg-white border border-brand-gray/20 rounded-lg p-3">
             {needsAttention.newToAssign === 0 &&
             needsAttention.goingStale === 0 &&
             needsAttention.hotNoContact === 0 ? (
@@ -421,7 +421,7 @@ export function LeadsView() {
                       setFilterHot(false);
                       setFilterAssignedTo("");
                     }}
-                    className="px-3 py-1.5 text-sm rounded-full border border-sh-blue/40 text-sh-blue hover:bg-sh-blue hover:text-white transition"
+                    className="px-3 py-1.5 text-sm rounded-full border border-brand-blue/40 text-brand-blue hover:bg-brand-blue hover:text-white transition"
                     title="New leads nobody's been assigned"
                   >
                     {needsAttention.newToAssign} new to assign
@@ -460,7 +460,8 @@ export function LeadsView() {
                 onClick={() => setFilterTier(active ? "" : tier)}
                 className={`px-3 py-1.5 text-xs rounded-full border transition ${
                   active
-                    ? pill.bg.replace(/bg-\S+ /g, "bg-sh-blue ") + " text-white border-sh-blue"
+                    ? pill.bg.replace(/bg-\S+ /g, "bg-brand-blue ") +
+                      " text-white border-brand-blue"
                     : pill.bg
                 }`}
               >
@@ -471,7 +472,7 @@ export function LeadsView() {
           {filterTier && (
             <button
               onClick={() => setFilterTier("")}
-              className="px-3 py-1.5 text-xs text-sh-gray hover:underline"
+              className="px-3 py-1.5 text-xs text-brand-gray hover:underline"
             >
               Clear
             </button>
@@ -480,18 +481,18 @@ export function LeadsView() {
 
         {/* Kanban Board */}
         {loading ? (
-          <p className="text-sh-gray text-sm py-8 text-center">Loading leads...</p>
+          <p className="text-brand-gray text-sm py-8 text-center">Loading leads...</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {BOARD_COLUMNS.map((col) => {
               const colLeads = boardLeads.filter((l) => l.status === col);
               return (
-                <div key={col} className="bg-sh-linen rounded-lg p-3 min-h-[200px]">
+                <div key={col} className="bg-brand-linen rounded-lg p-3 min-h-[200px]">
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-semibold text-sh-blue font-serif">
+                    <h2 className="text-sm font-semibold text-brand-blue font-serif">
                       {STATUS_LABELS[col]}
                     </h2>
-                    <span className="text-xs text-sh-gray bg-white rounded-full px-2 py-0.5">
+                    <span className="text-xs text-brand-gray bg-white rounded-full px-2 py-0.5">
                       {colLeads.length}
                     </span>
                   </div>
@@ -513,7 +514,7 @@ export function LeadsView() {
                       />
                     ))}
                     {colLeads.length === 0 && (
-                      <p className="text-xs text-sh-gray/50 text-center py-4">No leads</p>
+                      <p className="text-xs text-brand-gray/50 text-center py-4">No leads</p>
                     )}
                   </div>
                 </div>
@@ -525,8 +526,10 @@ export function LeadsView() {
         {/* Archived section */}
         {archivedLeads.length > 0 && (
           <div className="mt-6">
-            <h2 className="text-lg text-sh-blue font-semibold font-serif mb-3">Converted / Lost</h2>
-            <div className="bg-white rounded-lg border border-sh-gray/20 divide-y divide-sh-gray/10">
+            <h2 className="text-lg text-brand-blue font-semibold font-serif mb-3">
+              Converted / Lost
+            </h2>
+            <div className="bg-white rounded-lg border border-brand-gray/20 divide-y divide-brand-gray/10">
               {archivedLeads.map((lead) => (
                 <div key={lead.id} className="px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -539,12 +542,14 @@ export function LeadsView() {
                     >
                       {STATUS_LABELS[lead.status]}
                     </span>
-                    <span className="text-sm text-sh-black">{leadDisplayName(lead)}</span>
+                    <span className="text-sm text-brand-black">{leadDisplayName(lead)}</span>
                     {lead.salesOrder && (
-                      <span className="text-xs text-sh-gray">Order {lead.salesOrder.orderno}</span>
+                      <span className="text-xs text-brand-gray">
+                        Order {lead.salesOrder.orderno}
+                      </span>
                     )}
                   </div>
-                  <span className="text-xs text-sh-gray">{daysSince(lead.created)}d ago</span>
+                  <span className="text-xs text-brand-gray">{daysSince(lead.created)}d ago</span>
                 </div>
               ))}
             </div>
@@ -556,17 +561,17 @@ export function LeadsView() {
       {showCampaignModal && (
         <ModalOverlay onClose={() => setShowCampaignModal(false)}>
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold text-sh-blue font-serif mb-4">
+            <h2 className="text-lg font-semibold text-brand-blue font-serif mb-4">
               Generate Leads from Campaign
             </h2>
-            <p className="text-sm text-sh-gray mb-4">
+            <p className="text-sm text-brand-gray mb-4">
               Creates a lead for each unique email that clicked a link in the selected campaign.
               Existing customers are auto-assigned to their primary designer.
             </p>
             <select
               value={selectedCampaignId}
               onChange={(e) => setSelectedCampaignId(e.target.value)}
-              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm mb-4
+              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm mb-4
                          min-h-[44px]"
             >
               <option value="">Select a campaign...</option>
@@ -579,7 +584,7 @@ export function LeadsView() {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowCampaignModal(false)}
-                className="px-4 py-2.5 text-sm text-sh-gray hover:text-sh-black transition
+                className="px-4 py-2.5 text-sm text-brand-gray hover:text-brand-black transition
                            min-h-[44px]"
               >
                 Cancel
@@ -587,8 +592,8 @@ export function LeadsView() {
               <button
                 onClick={handleGenerateFromCampaign}
                 disabled={!selectedCampaignId || generating}
-                className="px-4 py-2.5 bg-sh-blue text-white rounded-lg text-sm font-medium
-                           hover:bg-sh-navy transition disabled:opacity-50 min-h-[44px]"
+                className="px-4 py-2.5 bg-brand-blue text-white rounded-lg text-sm font-medium
+                           hover:bg-brand-navy transition disabled:opacity-50 min-h-[44px]"
               >
                 {generating ? "Generating..." : "Generate"}
               </button>
@@ -601,20 +606,20 @@ export function LeadsView() {
       {showCreateModal && (
         <ModalOverlay onClose={() => setShowCreateModal(false)}>
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold text-sh-blue font-serif mb-4">Add Lead</h2>
+            <h2 className="text-lg font-semibold text-brand-blue font-serif mb-4">Add Lead</h2>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <input
                   placeholder="First name"
                   value={createForm.firstName}
                   onChange={(e) => setCreateForm((f) => ({ ...f, firstName: e.target.value }))}
-                  className="border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+                  className="border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
                 />
                 <input
                   placeholder="Last name"
                   value={createForm.lastName}
                   onChange={(e) => setCreateForm((f) => ({ ...f, lastName: e.target.value }))}
-                  className="border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+                  className="border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
                 />
               </div>
               <input
@@ -622,20 +627,20 @@ export function LeadsView() {
                 type="email"
                 value={createForm.email}
                 onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
-                className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm
+                className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm
                            min-h-[44px]"
               />
               <input
                 placeholder="Phone"
                 value={createForm.phone}
                 onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
-                className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm
+                className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm
                            min-h-[44px]"
               />
               <select
                 value={createForm.source}
                 onChange={(e) => setCreateForm((f) => ({ ...f, source: e.target.value }))}
-                className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm
+                className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm
                            min-h-[44px]"
               >
                 {Object.entries(SOURCE_BADGE).map(([key, { label }]) => (
@@ -649,13 +654,13 @@ export function LeadsView() {
                 value={createForm.notes}
                 onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
                 rows={3}
-                className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm"
+                className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm"
               />
             </div>
             <div className="flex justify-end gap-3 mt-4">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2.5 text-sm text-sh-gray hover:text-sh-black transition
+                className="px-4 py-2.5 text-sm text-brand-gray hover:text-brand-black transition
                            min-h-[44px]"
               >
                 Cancel
@@ -663,8 +668,8 @@ export function LeadsView() {
               <button
                 onClick={handleCreateLead}
                 disabled={creating}
-                className="px-4 py-2.5 bg-sh-blue text-white rounded-lg text-sm font-medium
-                           hover:bg-sh-navy transition disabled:opacity-50 min-h-[44px]"
+                className="px-4 py-2.5 bg-brand-blue text-white rounded-lg text-sm font-medium
+                           hover:bg-brand-navy transition disabled:opacity-50 min-h-[44px]"
               >
                 {creating ? "Creating..." : "Create"}
               </button>
@@ -725,7 +730,7 @@ function LeadCard({
   return (
     <div
       className={`bg-white rounded-lg shadow-sm ${
-        isHot ? "border-2 border-red-300" : "border border-sh-gray/15"
+        isHot ? "border-2 border-red-300" : "border border-brand-gray/15"
       }`}
     >
       {/* Going-stale / expired strip */}
@@ -747,7 +752,7 @@ function LeadCard({
         </div>
       )}
       {lead.pinned && lead.staleness !== "going_stale" && (
-        <div className="bg-sh-blue/5 border-b border-sh-blue/20 px-3 py-1 text-xs text-sh-blue">
+        <div className="bg-brand-blue/5 border-b border-brand-blue/20 px-3 py-1 text-xs text-brand-blue">
           📌 Pinned — exempt from auto-archive
         </div>
       )}
@@ -756,7 +761,9 @@ function LeadCard({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-medium text-sh-black truncate">{leadDisplayName(lead)}</p>
+              <p className="text-sm font-medium text-brand-black truncate">
+                {leadDisplayName(lead)}
+              </p>
               {tierPill && (
                 <span
                   className={`text-xs px-1.5 py-0.5 rounded-full border ${tierPill.bg} font-medium whitespace-nowrap`}
@@ -768,21 +775,23 @@ function LeadCard({
                 </span>
               )}
               {lead.wealthTier && isManager && (
-                <span className="text-xs px-1.5 py-0.5 rounded bg-sh-gold/15 text-sh-gold font-medium">
+                <span className="text-xs px-1.5 py-0.5 rounded bg-brand-gold/15 text-brand-gold font-medium">
                   {lead.wealthTier.replace(/_/g, " ")}
                 </span>
               )}
             </div>
             {lead.email && lead.customer && (
-              <p className="text-xs text-sh-gray truncate">{lead.email}</p>
+              <p className="text-xs text-brand-gray truncate">{lead.email}</p>
             )}
           </div>
-          <span className="text-xs text-sh-gray whitespace-nowrap">{days}d</span>
+          <span className="text-xs text-brand-gray whitespace-nowrap">{days}d</span>
         </div>
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
           <span
             className={`text-xs px-2 py-0.5 rounded-full ${
-              lead.isExistingCustomer ? "bg-sh-gold/15 text-sh-gold" : "bg-sh-gray/10 text-sh-gray"
+              lead.isExistingCustomer
+                ? "bg-brand-gold/15 text-brand-gold"
+                : "bg-brand-gray/10 text-brand-gray"
             }`}
           >
             {lead.isExistingCustomer ? "Existing Customer" : "New Contact"}
@@ -791,11 +800,11 @@ function LeadCard({
             {displaySource}
           </span>
           {lead.assignedTo && (
-            <span className="text-xs text-sh-gray truncate">{lead.assignedTo.displayName}</span>
+            <span className="text-xs text-brand-gray truncate">{lead.assignedTo.displayName}</span>
           )}
         </div>
         {lead.hasOrders && (
-          <div className="flex items-center gap-3 mt-1.5 text-xs text-sh-gray">
+          <div className="flex items-center gap-3 mt-1.5 text-xs text-brand-gray">
             <span>
               {lead.orderCount} order{lead.orderCount !== 1 ? "s" : ""}
             </span>
@@ -803,27 +812,32 @@ function LeadCard({
             {lead.lastSalesperson && <span>Last: {lead.lastSalesperson}</span>}
           </div>
         )}
-        {engagementBlurb && <p className="text-xs text-sh-blue mt-1.5">📬 {engagementBlurb}</p>}
+        {engagementBlurb && <p className="text-xs text-brand-blue mt-1.5">📬 {engagementBlurb}</p>}
         {lead.suggestedAction && (
-          <p className="text-xs text-sh-gold mt-1.5 font-medium">→ {lead.suggestedAction.label}</p>
+          <p className="text-xs text-brand-gold mt-1.5 font-medium">
+            → {lead.suggestedAction.label}
+          </p>
         )}
       </button>
 
       {isExpanded && (
-        <div className="border-t border-sh-gray/10 p-3 space-y-3">
-          {lead.sourceDetail && <p className="text-xs text-sh-gray">{lead.sourceDetail}</p>}
-          {lead.phone && <p className="text-xs text-sh-gray">Phone: {lead.phone}</p>}
+        <div className="border-t border-brand-gray/10 p-3 space-y-3">
+          {lead.sourceDetail && <p className="text-xs text-brand-gray">{lead.sourceDetail}</p>}
+          {lead.phone && <p className="text-xs text-brand-gray">Phone: {lead.phone}</p>}
 
           {/* Status dropdown */}
           <div>
-            <label htmlFor={`lead-status-${lead.id}`} className="text-xs text-sh-gray block mb-1">
+            <label
+              htmlFor={`lead-status-${lead.id}`}
+              className="text-xs text-brand-gray block mb-1"
+            >
               Status
             </label>
             <select
               id={`lead-status-${lead.id}`}
               value={lead.status}
               onChange={(e) => onStatusChange(lead, e.target.value)}
-              className="w-full border border-sh-gray/30 rounded-lg px-2 py-2 text-sm
+              className="w-full border border-brand-gray/30 rounded-lg px-2 py-2 text-sm
                          min-h-[44px]"
             >
               {ALL_STATUSES.map((s) => (
@@ -837,7 +851,10 @@ function LeadCard({
           {/* Assignment (managers only) */}
           {isManager && (
             <div>
-              <label htmlFor={`lead-assign-${lead.id}`} className="text-xs text-sh-gray block mb-1">
+              <label
+                htmlFor={`lead-assign-${lead.id}`}
+                className="text-xs text-brand-gray block mb-1"
+              >
                 Assign to
               </label>
               <select
@@ -846,7 +863,7 @@ function LeadCard({
                 onChange={(e) =>
                   onAssign(lead, e.target.value ? Number.parseInt(e.target.value) : null)
                 }
-                className="w-full border border-sh-gray/30 rounded-lg px-2 py-2 text-sm
+                className="w-full border border-brand-gray/30 rounded-lg px-2 py-2 text-sm
                            min-h-[44px]"
               >
                 <option value="">Unassigned</option>
@@ -861,7 +878,7 @@ function LeadCard({
 
           {/* Notes */}
           <div>
-            <label htmlFor={`lead-notes-${lead.id}`} className="text-xs text-sh-gray block mb-1">
+            <label htmlFor={`lead-notes-${lead.id}`} className="text-xs text-brand-gray block mb-1">
               Notes
             </label>
             <textarea
@@ -869,12 +886,12 @@ function LeadCard({
               value={editNotes}
               onChange={(e) => setEditNotes(e.target.value)}
               rows={2}
-              className="w-full border border-sh-gray/30 rounded-lg px-2 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded-lg px-2 py-2 text-sm"
             />
             {editNotes !== (lead.notes || "") && (
               <button
                 onClick={() => onNotesUpdate(lead.id, editNotes)}
-                className="mt-1 text-xs text-sh-blue hover:underline min-h-[44px] px-2"
+                className="mt-1 text-xs text-brand-blue hover:underline min-h-[44px] px-2"
               >
                 Save notes
               </button>
@@ -885,7 +902,7 @@ function LeadCard({
           {lead.salesOrder && (
             <a
               href={`/app/sales/orders/${lead.salesOrder.id}`}
-              className="block text-xs text-sh-blue hover:underline"
+              className="block text-xs text-brand-blue hover:underline"
             >
               View Order {lead.salesOrder.orderno}
             </a>
@@ -920,7 +937,7 @@ function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClos
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
-        className="absolute inset-0 bg-sh-black/40"
+        className="absolute inset-0 bg-brand-black/40"
         role="presentation"
         onClick={onClose}
         onKeyDown={(e) => e.key === "Escape" && onClose()}

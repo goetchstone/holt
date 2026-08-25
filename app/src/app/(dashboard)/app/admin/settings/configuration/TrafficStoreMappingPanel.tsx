@@ -214,17 +214,17 @@ export function TrafficStoreMappingPanel({
   return (
     <div className="space-y-8">
       {stillUnmapped.length > 0 && (
-        <section className="space-y-3 rounded-md border border-sh-gold/40 bg-sh-gold/5 p-4">
+        <section className="space-y-3 rounded-md border border-brand-gold/40 bg-brand-gold/5 p-4">
           <div>
-            <h3 className="font-serif text-base text-sh-blue">Unmapped counter names</h3>
-            <p className="text-xs text-sh-gray">
+            <h3 className="font-serif text-base text-brand-blue">Unmapped counter names</h3>
+            <p className="text-xs text-brand-gray">
               Seen in traffic data but not claimed by any store. Pick a store and assign.
             </p>
           </div>
           <ul className="space-y-2">
             {stillUnmapped.map((name) => (
               <li key={name} className="flex flex-wrap items-center gap-2">
-                <span className="rounded bg-white px-2 py-1 text-sm text-sh-black shadow-sm">
+                <span className="rounded bg-white px-2 py-1 text-sm text-brand-black shadow-sm">
                   {name}
                 </span>
                 <label className="sr-only" htmlFor={`assign-${name}`}>
@@ -234,7 +234,7 @@ export function TrafficStoreMappingPanel({
                   id={`assign-${name}`}
                   value={assignTo[name] ?? ""}
                   onChange={(e) => setAssignTo((prev) => ({ ...prev, [name]: e.target.value }))}
-                  className="rounded-md border border-sh-brand-gray px-2 py-1 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+                  className="rounded-md border border-brand-accent-gray px-2 py-1 text-sm text-brand-black focus:border-brand-blue focus:outline-none"
                 >
                   <option value="">Choose a store…</option>
                   {stores.map((s) => (
@@ -258,33 +258,33 @@ export function TrafficStoreMappingPanel({
       )}
 
       <section className="space-y-4">
-        <h3 className="font-serif text-base text-sh-blue">Stores</h3>
+        <h3 className="font-serif text-base text-brand-blue">Stores</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {stores.map((store) => (
-            <div key={store.id} className="rounded-md border border-sh-brand-gray p-4">
+            <div key={store.id} className="rounded-md border border-brand-accent-gray p-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-sh-black">{store.name}</span>
+                <span className="text-sm font-medium text-brand-black">{store.name}</span>
                 {!store.isActive && (
-                  <span className="rounded bg-sh-stripe px-2 py-0.5 text-[10px] uppercase text-sh-gray">
+                  <span className="rounded bg-brand-stripe px-2 py-0.5 text-[10px] uppercase text-brand-gray">
                     Inactive
                   </span>
                 )}
               </div>
               <ul className="mb-2 flex flex-wrap gap-1.5">
                 {store.sourceNames.length === 0 && (
-                  <li className="text-xs italic text-sh-gray">No counter names mapped yet</li>
+                  <li className="text-xs italic text-brand-gray">No counter names mapped yet</li>
                 )}
                 {store.sourceNames.map((name) => (
                   <li
                     key={name}
-                    className="flex items-center gap-1 rounded-full bg-sh-linen px-2 py-1 text-xs text-sh-black"
+                    className="flex items-center gap-1 rounded-full bg-brand-linen px-2 py-1 text-xs text-brand-black"
                   >
                     {name}
                     <button
                       type="button"
                       aria-label={`Remove ${name} from ${store.name}`}
                       onClick={() => removeSourceName(store.id, name)}
-                      className="text-sh-gray hover:text-red-600"
+                      className="text-brand-gray hover:text-red-600"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -307,7 +307,7 @@ export function TrafficStoreMappingPanel({
                       addSourceName(store.id, drafts[store.id] ?? "");
                     }
                   }}
-                  className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+                  className="w-full rounded-md border border-brand-accent-gray px-2 py-1.5 text-sm text-brand-black focus:border-brand-blue focus:outline-none"
                 />
                 <Button
                   variant="outline"
@@ -336,12 +336,12 @@ export function TrafficStoreMappingPanel({
           {previewing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           Preview changes (dry run)
         </Button>
-        {!dirty && <span className="text-xs text-sh-gray">No unsaved changes</span>}
+        {!dirty && <span className="text-xs text-brand-gray">No unsaved changes</span>}
       </div>
 
       {preview && (
-        <section className="space-y-3 rounded-md border border-sh-brand-gray p-4">
-          <h3 className="font-serif text-base text-sh-blue">Preview</h3>
+        <section className="space-y-3 rounded-md border border-brand-accent-gray p-4">
+          <h3 className="font-serif text-base text-brand-blue">Preview</h3>
           <ApplyPreview results={preview} />
           {pendingBundle && (
             <div className="flex gap-2">

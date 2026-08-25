@@ -62,26 +62,26 @@ export function UnclassifiedReturnsView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Unclassified Returns</span>
+        <span className="text-brand-black">Unclassified Returns</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">Unclassified Returns</h1>
-      <p className="text-sm text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-navy">Unclassified Returns</h1>
+      <p className="text-sm text-brand-gray">
         Every return in this list was booked on the default assumption that it&apos;s a restock —
         because no Return record classifies it (imported/historical returns carry none; a few native
         returns just haven&apos;t been inspected yet). Review and correct any that were actually
         written off.
       </p>
 
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-sh-gray/15 bg-white p-5">
+      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-brand-gray/15 bg-white p-5">
         <div>
           <label
             htmlFor="urStart"
-            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-sh-gray"
+            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-brand-gray"
           >
             Start
           </label>
@@ -90,13 +90,13 @@ export function UnclassifiedReturnsView() {
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="min-h-[44px] rounded-lg border border-sh-gray/30 px-3 py-2 text-sm"
+            className="min-h-[44px] rounded-lg border border-brand-gray/30 px-3 py-2 text-sm"
           />
         </div>
         <div>
           <label
             htmlFor="urEnd"
-            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-sh-gray"
+            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-brand-gray"
           >
             End
           </label>
@@ -105,14 +105,14 @@ export function UnclassifiedReturnsView() {
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="min-h-[44px] rounded-lg border border-sh-gray/30 px-3 py-2 text-sm"
+            className="min-h-[44px] rounded-lg border border-brand-gray/30 px-3 py-2 text-sm"
           />
         </div>
         <button
           type="button"
           onClick={() => setCommitted({ startDate, endDate })}
           disabled={loading}
-          className="min-h-[44px] rounded-lg bg-sh-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-brand-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
         >
           {loading ? "Loading..." : "Run Report"}
         </button>
@@ -141,7 +141,7 @@ export function UnclassifiedReturnsView() {
       )}
 
       {committed === null && !loading && (
-        <p className="py-16 text-center text-sh-gray">Pick a date range and click Run Report</p>
+        <p className="py-16 text-center text-brand-gray">Pick a date range and click Run Report</p>
       )}
     </div>
   );

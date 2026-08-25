@@ -75,8 +75,8 @@ export default function MultiSelectDropdown({
         onClick={() => setOpen((prev) => !prev)}
         className={`px-3 py-2 text-sm rounded-lg border min-h-[42px] font-sans transition flex items-center gap-2 ${
           selected.length > 0
-            ? "bg-sh-blue text-white border-sh-blue"
-            : "bg-white text-sh-black border-sh-gray/30 hover:border-sh-blue"
+            ? "bg-brand-blue text-white border-brand-blue"
+            : "bg-white text-brand-black border-brand-gray/30 hover:border-brand-blue"
         }`}
       >
         <span>{buttonLabel}</span>
@@ -92,33 +92,35 @@ export default function MultiSelectDropdown({
       </button>
       {open && (
         <div
-          className={`absolute mt-1 ${panelAlign} ${panelWidth} bg-white border border-sh-gray/30 rounded-lg shadow-lg z-20 max-h-80 overflow-y-auto`}
+          className={`absolute mt-1 ${panelAlign} ${panelWidth} bg-white border border-brand-gray/30 rounded-lg shadow-lg z-20 max-h-80 overflow-y-auto`}
         >
           {selected.length > 0 && (
             <button
               type="button"
               onClick={() => onChange([])}
-              className="w-full text-left px-3 py-2 text-xs text-sh-blue hover:bg-sh-stripe border-b border-sh-gray/20"
+              className="w-full text-left px-3 py-2 text-xs text-brand-blue hover:bg-brand-stripe border-b border-brand-gray/20"
             >
               Clear all ({selected.length})
             </button>
           )}
           {options.length === 0 ? (
-            <p className="px-3 py-3 text-sm text-sh-gray italic">No options</p>
+            <p className="px-3 py-3 text-sm text-brand-gray italic">No options</p>
           ) : (
             <ul>
               {options.map((opt) => {
                 const checked = selected.includes(opt.value);
                 return (
                   <li key={opt.value}>
-                    <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-sh-stripe min-h-[40px] text-sm">
+                    <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-brand-stripe min-h-[40px] text-sm">
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggle(opt.value)}
-                        className="h-4 w-4 accent-sh-blue"
+                        className="h-4 w-4 accent-brand-blue"
                       />
-                      <span className={checked ? "font-medium text-sh-black" : "text-sh-black"}>
+                      <span
+                        className={checked ? "font-medium text-brand-black" : "text-brand-black"}
+                      >
                         {opt.label}
                       </span>
                     </label>

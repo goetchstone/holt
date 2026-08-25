@@ -144,15 +144,15 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
       <div className="fixed inset-0 overflow-y-auto">
         <div className="flex min-h-full items-center justify-center p-4">
           <DialogPanel className="w-full max-w-xl bg-white rounded-2xl shadow-xl flex flex-col">
-            <div className="flex items-start justify-between px-6 py-4 border-b border-sh-stripe">
-              <DialogTitle as="h2" className="font-serif text-xl text-sh-navy">
+            <div className="flex items-start justify-between px-6 py-4 border-b border-brand-stripe">
+              <DialogTitle as="h2" className="font-serif text-xl text-brand-navy">
                 {isEdit ? "Edit buy" : "New buy"}
               </DialogTitle>
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="text-sh-gray hover:text-sh-navy"
+                className="text-brand-gray hover:text-brand-navy"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -161,7 +161,10 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
             <div className="px-6 py-4 space-y-4">
               {/* Name */}
               <div>
-                <label htmlFor="buy-name" className="block text-sm font-semibold text-sh-navy mb-1">
+                <label
+                  htmlFor="buy-name"
+                  className="block text-sm font-semibold text-brand-navy mb-1"
+                >
                   Name <span className="text-red-600">*</span>
                 </label>
                 <input
@@ -170,7 +173,7 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder='e.g. "Spring 2026", "Holiday 2025"'
-                  className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                  className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                 />
               </div>
 
@@ -179,7 +182,7 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
                 <div>
                   <label
                     htmlFor="buy-season"
-                    className="block text-sm font-semibold text-sh-navy mb-1"
+                    className="block text-sm font-semibold text-brand-navy mb-1"
                   >
                     Season
                   </label>
@@ -187,7 +190,7 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
                     id="buy-season"
                     value={form.season}
                     onChange={(e) => setForm((f) => ({ ...f, season: e.target.value }))}
-                    className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                    className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                   >
                     {SEASONS.map((s) => (
                       <option key={s || "none"} value={s}>
@@ -199,7 +202,7 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
                 <div>
                   <label
                     htmlFor="buy-year"
-                    className="block text-sm font-semibold text-sh-navy mb-1"
+                    className="block text-sm font-semibold text-brand-navy mb-1"
                   >
                     Year
                   </label>
@@ -210,7 +213,7 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
                     value={form.year}
                     onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))}
                     placeholder="2026"
-                    className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                    className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                   />
                 </div>
               </div>
@@ -220,7 +223,7 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
                 <div>
                   <label
                     htmlFor="buy-budget"
-                    className="block text-sm font-semibold text-sh-navy mb-1"
+                    className="block text-sm font-semibold text-brand-navy mb-1"
                   >
                     Budget ($)
                   </label>
@@ -231,13 +234,13 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
                     value={form.budget}
                     onChange={(e) => setForm((f) => ({ ...f, budget: e.target.value }))}
                     placeholder="50000"
-                    className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                    className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="buy-status"
-                    className="block text-sm font-semibold text-sh-navy mb-1"
+                    className="block text-sm font-semibold text-brand-navy mb-1"
                   >
                     Status
                   </label>
@@ -247,7 +250,7 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
                     onChange={(e) =>
                       setForm((f) => ({ ...f, status: e.target.value as BuyStatus }))
                     }
-                    className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                    className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                   >
                     {BUY_STATUSES.map((s) => (
                       <option key={s} value={s}>
@@ -263,7 +266,7 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
                 <div>
                   <label
                     htmlFor="buy-notes"
-                    className="block text-sm font-semibold text-sh-navy mb-1"
+                    className="block text-sm font-semibold text-brand-navy mb-1"
                   >
                     Notes
                   </label>
@@ -272,13 +275,13 @@ export default function DraftBuyModal({ open, onClose, onSaved, editingBuy }: Re
                     value={form.notes}
                     onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                     rows={3}
-                    className="w-full px-3 py-2 border border-sh-stripe rounded text-base resize-y"
+                    className="w-full px-3 py-2 border border-brand-stripe rounded text-base resize-y"
                   />
                 </div>
               )}
             </div>
 
-            <div className="px-6 py-3 border-t border-sh-stripe flex items-center justify-between gap-2">
+            <div className="px-6 py-3 border-t border-brand-stripe flex items-center justify-between gap-2">
               <div>
                 {isEdit && (
                   <Button

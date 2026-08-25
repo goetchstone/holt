@@ -120,14 +120,14 @@ function FollowUpModal({
       <div className="fixed inset-0 flex items-end sm:items-center justify-center p-4">
         <DialogPanel className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 space-y-5">
           <div>
-            <h2 className="text-lg font-semibold text-sh-black font-serif">Log Follow-Up</h2>
-            <p className="text-sm text-sh-gray mt-0.5">
+            <h2 className="text-lg font-semibold text-brand-black font-serif">Log Follow-Up</h2>
+            <p className="text-sm text-brand-gray mt-0.5">
               {quote.customer ? customerDisplayName(quote) : "Unknown customer"} · {quote.orderno}
             </p>
           </div>
 
           <div>
-            <p className="text-xs text-sh-gray uppercase tracking-wide mb-2">
+            <p className="text-xs text-brand-gray uppercase tracking-wide mb-2">
               How you reached them
             </p>
             <div className="grid grid-cols-4 gap-2">
@@ -137,8 +137,8 @@ function FollowUpModal({
                   onClick={() => setSource(s)}
                   className={`py-2 px-1 rounded-lg border text-xs font-semibold transition-colors min-h-[44px] ${
                     source === s
-                      ? "bg-sh-blue text-white border-sh-blue"
-                      : "border-sh-gray/30 text-sh-gray hover:border-sh-blue"
+                      ? "bg-brand-blue text-white border-brand-blue"
+                      : "border-brand-gray/30 text-brand-gray hover:border-brand-blue"
                   }`}
                 >
                   {SOURCE_LABELS[s]}
@@ -150,7 +150,7 @@ function FollowUpModal({
           <div>
             <label
               htmlFor="follow-up-notes"
-              className="block text-xs text-sh-gray uppercase tracking-wide mb-2"
+              className="block text-xs text-brand-gray uppercase tracking-wide mb-2"
             >
               Notes <span className="normal-case">(optional)</span>
             </label>
@@ -160,7 +160,7 @@ function FollowUpModal({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="Left voicemail about fabric selections..."
-              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black resize-none focus:outline-none focus:ring-1 focus:ring-sh-blue"
+              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black resize-none focus:outline-none focus:ring-1 focus:ring-brand-blue"
             />
           </div>
 
@@ -170,7 +170,7 @@ function FollowUpModal({
             </Button>
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-sh-gray/30 text-sh-gray text-sm min-h-[44px]"
+              className="px-4 py-2 rounded-lg border border-brand-gray/30 text-brand-gray text-sm min-h-[44px]"
             >
               Cancel
             </button>
@@ -241,15 +241,15 @@ function ArchiveModal({
       <div className="fixed inset-0 flex items-end sm:items-center justify-center p-4">
         <DialogPanel className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 space-y-5">
           <div>
-            <h2 className="text-lg font-semibold text-sh-black font-serif">Archive Quote</h2>
-            <p className="text-sm text-sh-gray mt-0.5">
+            <h2 className="text-lg font-semibold text-brand-black font-serif">Archive Quote</h2>
+            <p className="text-sm text-brand-gray mt-0.5">
               {quote.customer ? customerDisplayName(quote) : "Unknown customer"} · {quote.orderno} ·{" "}
               {currency(quote.totalAmount, { whole: true })}
             </p>
           </div>
 
           <div>
-            <p className="text-xs text-sh-gray uppercase tracking-wide mb-2">Reason</p>
+            <p className="text-xs text-brand-gray uppercase tracking-wide mb-2">Reason</p>
             <div className="flex flex-wrap gap-2 mb-3">
               {ARCHIVE_REASONS.map((r) => (
                 <button
@@ -257,8 +257,8 @@ function ArchiveModal({
                   onClick={() => setReason(reason === r ? "" : r)}
                   className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                     reason === r
-                      ? "bg-sh-blue text-white border-sh-blue"
-                      : "border-sh-gray/30 text-sh-gray hover:border-sh-blue"
+                      ? "bg-brand-blue text-white border-brand-blue"
+                      : "border-brand-gray/30 text-brand-gray hover:border-brand-blue"
                   }`}
                 >
                   {r}
@@ -269,11 +269,11 @@ function ArchiveModal({
 
           {needsReplacement && (
             <div>
-              <p className="text-xs text-sh-gray uppercase tracking-wide mb-2">
+              <p className="text-xs text-brand-gray uppercase tracking-wide mb-2">
                 Replaced by which quote?
               </p>
               {suggestions.length === 0 ? (
-                <p className="text-sm text-sh-gray italic">
+                <p className="text-sm text-brand-gray italic">
                   No other active quotes for this customer. Archive will still record the reason.
                 </p>
               ) : (
@@ -284,7 +284,7 @@ function ArchiveModal({
                       e.target.value ? Number.parseInt(e.target.value, 10) : null,
                     )
                   }
-                  className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black focus:outline-none focus:ring-1 focus:ring-sh-blue min-h-[44px]"
+                  className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black focus:outline-none focus:ring-1 focus:ring-brand-blue min-h-[44px]"
                   aria-label="Replacement quote"
                 >
                   <option value="">— Not specified —</option>
@@ -302,7 +302,7 @@ function ArchiveModal({
           <div>
             <label
               htmlFor="archive-note"
-              className="block text-xs text-sh-gray uppercase tracking-wide mb-2"
+              className="block text-xs text-brand-gray uppercase tracking-wide mb-2"
             >
               Note (optional)
             </label>
@@ -312,7 +312,7 @@ function ArchiveModal({
               onChange={(e) => setNote(e.target.value)}
               rows={2}
               placeholder="Add context for the archive..."
-              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black resize-none focus:outline-none focus:ring-1 focus:ring-sh-blue"
+              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black resize-none focus:outline-none focus:ring-1 focus:ring-brand-blue"
             />
           </div>
 
@@ -320,13 +320,13 @@ function ArchiveModal({
             <Button
               onClick={handleArchive}
               disabled={saving}
-              className="flex-1 min-h-[44px] bg-sh-gray hover:bg-sh-black"
+              className="flex-1 min-h-[44px] bg-brand-gray hover:bg-brand-black"
             >
               {saving ? "Archiving..." : "Archive Quote"}
             </Button>
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-sh-gray/30 text-sh-gray text-sm min-h-[44px]"
+              className="px-4 py-2 rounded-lg border border-brand-gray/30 text-brand-gray text-sm min-h-[44px]"
             >
               Cancel
             </button>
@@ -371,33 +371,35 @@ function QuoteCard({
       href={`/app/sales/orders/${quote.id}`}
       className={`bg-white rounded-xl border shadow-sm p-4 flex gap-4 cursor-pointer no-underline text-inherit ${
         isArchived
-          ? "border-sh-gray/10 opacity-75"
-          : "border-sh-gray/15 hover:border-sh-blue/30 hover:shadow-md"
+          ? "border-brand-gray/10 opacity-75"
+          : "border-brand-gray/15 hover:border-brand-blue/30 hover:shadow-md"
       } transition-all`}
     >
       <div className="flex flex-col items-center pt-1 gap-2 shrink-0">
-        <div className={`w-2.5 h-2.5 rounded-full ${isArchived ? "bg-sh-gray/40" : urgency.dot}`} />
+        <div
+          className={`w-2.5 h-2.5 rounded-full ${isArchived ? "bg-brand-gray/40" : urgency.dot}`}
+        />
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <p className="font-semibold text-sh-black text-base leading-tight truncate">
+              <p className="font-semibold text-brand-black text-base leading-tight truncate">
                 {customerName}
               </p>
               <LeadScoreBadge tier={quote.customer?.leadTier} score={quote.customer?.leadScore} />
               {canSeeWealth && <WealthTierBadge tier={quote.customer?.wealthTier} />}
             </div>
-            <p className="text-xs text-sh-gray mt-0.5">
-              <span className="text-sh-blue">{quote.orderno}</span>
+            <p className="text-xs text-brand-gray mt-0.5">
+              <span className="text-brand-blue">{quote.orderno}</span>
               {quote.storeLocation && ` · ${quote.storeLocation}`}
               {quote.salesperson && ` · ${quote.salesperson}`}
               {quote.quoteDate && ` · ${formatQuoteDate(quote.quoteDate)}`}
             </p>
           </div>
           <div className="text-right shrink-0">
-            <p className="font-semibold text-sh-black">
+            <p className="font-semibold text-brand-black">
               {currency(quote.totalAmount, { whole: true })}
             </p>
             {!isArchived && (
@@ -410,7 +412,7 @@ function QuoteCard({
           </div>
         </div>
 
-        <p className="text-xs text-sh-gray mt-2 truncate">{quote.lineItemSummary}</p>
+        <p className="text-xs text-brand-gray mt-2 truncate">{quote.lineItemSummary}</p>
 
         {!isArchived && quote.possibleDuplicateOf.length > 0 && (
           <p className="text-xs text-amber-700 mt-1.5 font-medium">
@@ -425,7 +427,7 @@ function QuoteCard({
         )}
 
         {isArchived && quote.replacedByOrderno && (
-          <p className="text-xs text-sh-blue mt-1.5">
+          <p className="text-xs text-brand-blue mt-1.5">
             Replaced by{" "}
             <Link
               href={`/app/sales/orders/${quote.replacedByOrderId}`}
@@ -438,16 +440,16 @@ function QuoteCard({
         )}
 
         {isArchived && quote.archiveReason && (
-          <p className="text-xs text-sh-gray mt-1">Reason: {quote.archiveReason}</p>
+          <p className="text-xs text-brand-gray mt-1">Reason: {quote.archiveReason}</p>
         )}
 
         {isArchived && quote.pipelineNote && (
-          <p className="text-xs text-sh-gray mt-1 italic">{quote.pipelineNote}</p>
+          <p className="text-xs text-brand-gray mt-1 italic">{quote.pipelineNote}</p>
         )}
 
         <div className="flex items-center justify-between mt-3 gap-2">
           {isArchived ? (
-            <p className="text-xs text-sh-gray">
+            <p className="text-xs text-brand-gray">
               Archived{" "}
               {quote.pipelineArchivedAt
                 ? daysLabel(
@@ -467,7 +469,7 @@ function QuoteCard({
                 e.stopPropagation();
                 if (quote.interactions.length > 0) setShowHistory(!showHistory);
               }}
-              className={`text-xs text-left ${quote.lastInteractionAt ? "text-sh-gray hover:text-sh-blue" : "text-amber-600 font-medium"}`}
+              className={`text-xs text-left ${quote.lastInteractionAt ? "text-brand-gray hover:text-brand-blue" : "text-amber-600 font-medium"}`}
             >
               {quote.lastInteractionAt
                 ? lastContactLabel(quote.daysSinceContact ?? 0, quote.interactions.length)
@@ -489,7 +491,7 @@ function QuoteCard({
                   e.stopPropagation();
                   onRestore?.(quote);
                 }}
-                className="text-xs font-semibold text-sh-blue border border-sh-blue/40 rounded-lg px-3 py-1.5 hover:bg-sh-blue hover:text-white transition-colors min-h-[36px]"
+                className="text-xs font-semibold text-brand-blue border border-brand-blue/40 rounded-lg px-3 py-1.5 hover:bg-brand-blue hover:text-white transition-colors min-h-[36px]"
               >
                 Restore
               </button>
@@ -501,7 +503,7 @@ function QuoteCard({
                     e.stopPropagation();
                     onArchive?.(quote);
                   }}
-                  className="text-xs text-sh-gray border border-sh-gray/30 rounded-lg px-3 py-1.5 hover:bg-sh-linen transition-colors min-h-[36px]"
+                  className="text-xs text-brand-gray border border-brand-gray/30 rounded-lg px-3 py-1.5 hover:bg-brand-linen transition-colors min-h-[36px]"
                 >
                   Archive
                 </button>
@@ -511,7 +513,7 @@ function QuoteCard({
                     e.stopPropagation();
                     onFollowUp?.(quote);
                   }}
-                  className="text-xs font-semibold text-sh-blue border border-sh-blue/40 rounded-lg px-3 py-1.5 hover:bg-sh-blue hover:text-white transition-colors min-h-[36px]"
+                  className="text-xs font-semibold text-brand-blue border border-brand-blue/40 rounded-lg px-3 py-1.5 hover:bg-brand-blue hover:text-white transition-colors min-h-[36px]"
                 >
                   Follow Up
                 </button>
@@ -521,21 +523,21 @@ function QuoteCard({
         </div>
 
         {showHistory && quote.interactions.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-sh-gray/10 space-y-2">
+          <div className="mt-3 pt-3 border-t border-brand-gray/10 space-y-2">
             {quote.interactions.map((ix) => (
               <div key={ix.id} className="flex gap-2 text-xs">
-                <span className="text-sh-gray shrink-0 w-16">
+                <span className="text-brand-gray shrink-0 w-16">
                   {new Date(ix.startedAt).toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
                   })}
                 </span>
-                <span className="shrink-0 px-1.5 py-0.5 rounded bg-sh-linen text-sh-gray font-medium">
+                <span className="shrink-0 px-1.5 py-0.5 rounded bg-brand-linen text-brand-gray font-medium">
                   {SOURCE_LABELS[ix.source as ContactSource] ?? ix.source}
                 </span>
-                <span className="text-sh-gray shrink-0">{ix.staffName}</span>
+                <span className="text-brand-gray shrink-0">{ix.staffName}</span>
                 {ix.notes && (
-                  <span className="text-sh-black truncate" title={ix.notes}>
+                  <span className="text-brand-black truncate" title={ix.notes}>
                     {ix.notes}
                   </span>
                 )}
@@ -563,32 +565,34 @@ function LeadCard({ lead }: Readonly<{ lead: PipelineLead }>) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-sh-gold/30 shadow-sm p-4 flex gap-4">
+    <div className="bg-white rounded-xl border border-brand-gold/30 shadow-sm p-4 flex gap-4">
       <div className="flex flex-col items-center pt-1 gap-2 shrink-0">
-        <div className="w-2.5 h-2.5 rounded-full bg-sh-gold" />
+        <div className="w-2.5 h-2.5 rounded-full bg-brand-gold" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="font-semibold text-sh-black text-base leading-tight">{name}</p>
-            <p className="text-xs text-sh-gray mt-0.5">
+            <p className="font-semibold text-brand-black text-base leading-tight">{name}</p>
+            <p className="text-xs text-brand-gray mt-0.5">
               {sourceLabel[lead.source] ?? lead.source} · {lead.status}
             </p>
           </div>
-          <span className="text-xs text-sh-gray shrink-0">{daysLabel(lead.daysSinceCreated)}</span>
+          <span className="text-xs text-brand-gray shrink-0">
+            {daysLabel(lead.daysSinceCreated)}
+          </span>
         </div>
         {(lead.phone || lead.email) && (
-          <p className="text-xs text-sh-gray mt-1.5">
+          <p className="text-xs text-brand-gray mt-1.5">
             {lead.phone && <span>{lead.phone}</span>}
             {lead.phone && lead.email && " · "}
             {lead.email && <span>{lead.email}</span>}
           </p>
         )}
-        {lead.notes && <p className="text-xs text-sh-gray mt-1 italic truncate">{lead.notes}</p>}
+        {lead.notes && <p className="text-xs text-brand-gray mt-1 italic truncate">{lead.notes}</p>}
         {lead.salesOrderId && (
           <Link
             href={`/app/sales/orders/${lead.salesOrderId}`}
-            className="text-xs text-sh-blue hover:underline mt-1 block"
+            className="text-xs text-brand-blue hover:underline mt-1 block"
           >
             View quote →
           </Link>
@@ -608,15 +612,15 @@ function StaffSummaryCard({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-white rounded-xl border border-sh-gray/15 shadow-sm p-4 hover:border-sh-blue/50 hover:shadow-md transition-all"
+      className="w-full text-left bg-white rounded-xl border border-brand-gray/15 shadow-sm p-4 hover:border-brand-blue/50 hover:shadow-md transition-all"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold text-sh-black text-base leading-tight truncate">
+          <p className="font-semibold text-brand-black text-base leading-tight truncate">
             {summary.displayName}
           </p>
           {summary.storeLocation && (
-            <p className="text-xs text-sh-gray mt-0.5">{summary.storeLocation}</p>
+            <p className="text-xs text-brand-gray mt-0.5">{summary.storeLocation}</p>
           )}
         </div>
         {summary.overdueCount > 0 && (
@@ -627,19 +631,19 @@ function StaffSummaryCard({
       </div>
       <div className="flex gap-6 mt-4">
         <div>
-          <p className="text-xs text-sh-gray uppercase tracking-wide">Pipeline</p>
-          <p className="font-semibold text-sh-black text-lg">
+          <p className="text-xs text-brand-gray uppercase tracking-wide">Pipeline</p>
+          <p className="font-semibold text-brand-black text-lg">
             {currency(summary.totalValue, { whole: true })}
           </p>
         </div>
         <div>
-          <p className="text-xs text-sh-gray uppercase tracking-wide">Quotes</p>
-          <p className="font-semibold text-sh-black text-lg">{summary.quoteCount}</p>
+          <p className="text-xs text-brand-gray uppercase tracking-wide">Quotes</p>
+          <p className="font-semibold text-brand-black text-lg">{summary.quoteCount}</p>
         </div>
         {summary.leadCount > 0 && (
           <div>
-            <p className="text-xs text-sh-gray uppercase tracking-wide">Leads</p>
-            <p className="font-semibold text-sh-gold text-lg">{summary.leadCount}</p>
+            <p className="text-xs text-brand-gray uppercase tracking-wide">Leads</p>
+            <p className="font-semibold text-brand-gold text-lg">{summary.leadCount}</p>
           </div>
         )}
       </div>
@@ -823,12 +827,12 @@ export function PipelineView() {
                 setViewingStaffName(null);
                 setShowArchived(false);
               }}
-              className="text-sh-blue text-sm hover:underline shrink-0"
+              className="text-brand-blue text-sm hover:underline shrink-0"
             >
               ← All Staff
             </button>
           )}
-          <h1 className="text-2xl font-semibold text-sh-blue truncate">{pageTitle}</h1>
+          <h1 className="text-2xl font-semibold text-brand-blue truncate">{pageTitle}</h1>
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
@@ -837,7 +841,7 @@ export function PipelineView() {
             <button
               onClick={handleBulkArchive}
               disabled={bulkArchiving}
-              className="text-xs text-sh-gray border border-sh-gray/30 rounded-lg px-3 py-2 hover:bg-sh-linen transition-colors min-h-[44px]"
+              className="text-xs text-brand-gray border border-brand-gray/30 rounded-lg px-3 py-2 hover:bg-brand-linen transition-colors min-h-[44px]"
             >
               {bulkArchiving ? "Archiving..." : "Archive pre-2026"}
             </button>
@@ -845,19 +849,23 @@ export function PipelineView() {
 
           {/* Scope toggle */}
           {data?.canViewAll && (
-            <div className="flex rounded-lg border border-sh-gray/30 overflow-hidden text-sm">
+            <div className="flex rounded-lg border border-brand-gray/30 overflow-hidden text-sm">
               <button
                 onClick={() => switchScope("mine")}
                 className={`px-4 py-2 min-h-[44px] font-semibold transition-colors ${
-                  scope === "mine" ? "bg-sh-blue text-white" : "text-sh-gray hover:bg-sh-linen"
+                  scope === "mine"
+                    ? "bg-brand-blue text-white"
+                    : "text-brand-gray hover:bg-brand-linen"
                 }`}
               >
                 My Pipeline
               </button>
               <button
                 onClick={() => switchScope("all")}
-                className={`px-4 py-2 min-h-[44px] font-semibold transition-colors border-l border-sh-gray/30 ${
-                  scope === "all" ? "bg-sh-blue text-white" : "text-sh-gray hover:bg-sh-linen"
+                className={`px-4 py-2 min-h-[44px] font-semibold transition-colors border-l border-brand-gray/30 ${
+                  scope === "all"
+                    ? "bg-brand-blue text-white"
+                    : "text-brand-gray hover:bg-brand-linen"
                 }`}
               >
                 All Staff
@@ -869,13 +877,13 @@ export function PipelineView() {
 
       {/* Active / Archived tab — shown when in an individual pipeline view */}
       {!isStaffGrid && (
-        <div className="flex gap-1 border-b border-sh-gray/15">
+        <div className="flex gap-1 border-b border-brand-gray/15">
           <button
             onClick={() => setShowArchived(false)}
             className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
               showArchived
-                ? "border-transparent text-sh-gray hover:text-sh-black"
-                : "border-sh-blue text-sh-blue"
+                ? "border-transparent text-brand-gray hover:text-brand-black"
+                : "border-brand-blue text-brand-blue"
             }`}
           >
             Active
@@ -884,8 +892,8 @@ export function PipelineView() {
             onClick={() => setShowArchived(true)}
             className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
               showArchived
-                ? "border-sh-blue text-sh-blue"
-                : "border-transparent text-sh-gray hover:text-sh-black"
+                ? "border-brand-blue text-brand-blue"
+                : "border-transparent text-brand-gray hover:text-brand-black"
             }`}
           >
             Archived
@@ -897,34 +905,34 @@ export function PipelineView() {
       {data && !loading && !showArchived && (
         <div className="flex flex-wrap gap-6 text-sm">
           <div>
-            <p className="text-sh-gray text-xs uppercase tracking-wide">Pipeline value</p>
-            <p className="text-sh-black font-semibold text-lg">
+            <p className="text-brand-gray text-xs uppercase tracking-wide">Pipeline value</p>
+            <p className="text-brand-black font-semibold text-lg">
               {currency(totalValue, { whole: true })}
             </p>
           </div>
           <div>
-            <p className="text-sh-gray text-xs uppercase tracking-wide">
+            <p className="text-brand-gray text-xs uppercase tracking-wide">
               {isStaffGrid ? "Total quotes" : "Open quotes"}
             </p>
-            <p className="text-sh-black font-semibold text-lg">{totalQuotes}</p>
+            <p className="text-brand-black font-semibold text-lg">{totalQuotes}</p>
           </div>
           {totalOverdue > 0 && (
             <div>
-              <p className="text-sh-gray text-xs uppercase tracking-wide">Overdue</p>
+              <p className="text-brand-gray text-xs uppercase tracking-wide">Overdue</p>
               <p className="text-red-600 font-semibold text-lg">{totalOverdue}</p>
             </div>
           )}
           {totalLeads > 0 && (
             <div>
-              <p className="text-sh-gray text-xs uppercase tracking-wide">Open leads</p>
-              <p className="text-sh-gold font-semibold text-lg">{totalLeads}</p>
+              <p className="text-brand-gray text-xs uppercase tracking-wide">Open leads</p>
+              <p className="text-brand-gold font-semibold text-lg">{totalLeads}</p>
             </div>
           )}
         </div>
       )}
 
       {loading && (
-        <div className="text-sh-gray text-sm animate-pulse py-8 text-center">
+        <div className="text-brand-gray text-sm animate-pulse py-8 text-center">
           Loading pipeline...
         </div>
       )}
@@ -935,7 +943,7 @@ export function PipelineView() {
           {isStaffGrid && (
             <section className="space-y-3">
               {summaries.length === 0 ? (
-                <p className="text-sh-gray text-sm text-center py-16">
+                <p className="text-brand-gray text-sm text-center py-16">
                   No open quotes or leads across any staff.
                 </p>
               ) : (
@@ -957,10 +965,10 @@ export function PipelineView() {
           {!isStaffGrid && showArchived && (
             <section className="space-y-3">
               {quotes.length === 0 ? (
-                <p className="text-sh-gray text-sm text-center py-16">No archived quotes.</p>
+                <p className="text-brand-gray text-sm text-center py-16">No archived quotes.</p>
               ) : (
                 <>
-                  <p className="text-xs text-sh-gray">
+                  <p className="text-xs text-brand-gray">
                     {quotes.length} archived quote{quotes.length === 1 ? "" : "s"} — tap Restore to
                     return to active pipeline.
                   </p>
@@ -977,7 +985,7 @@ export function PipelineView() {
             <>
               {active.length > 0 && (
                 <section className="space-y-3">
-                  <h2 className="text-xs font-semibold text-sh-gray uppercase tracking-widest">
+                  <h2 className="text-xs font-semibold text-brand-gray uppercase tracking-widest">
                     Active — {active.length} quote{active.length === 1 ? "" : "s"}
                   </h2>
                   {active.map((q) => (
@@ -1010,7 +1018,7 @@ export function PipelineView() {
 
               {leads.length > 0 && (
                 <section className="space-y-3">
-                  <h2 className="text-xs font-semibold text-sh-gold uppercase tracking-widest">
+                  <h2 className="text-xs font-semibold text-brand-gold uppercase tracking-widest">
                     Leads — {leads.length}
                   </h2>
                   {leads.map((lead) => (
@@ -1021,11 +1029,11 @@ export function PipelineView() {
 
               {quotes.length === 0 && leads.length === 0 && (
                 <div className="text-center py-16 space-y-2">
-                  <p className="text-sh-gray">No open quotes or leads.</p>
+                  <p className="text-brand-gray">No open quotes or leads.</p>
                   {scope === "mine" && (
                     <Link
                       href="/app/sales/quotes/new"
-                      className="text-sh-blue hover:underline text-sm"
+                      className="text-brand-blue hover:underline text-sm"
                     >
                       Start a new quote →
                     </Link>

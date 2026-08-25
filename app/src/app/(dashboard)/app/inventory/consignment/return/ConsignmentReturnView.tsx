@@ -132,9 +132,9 @@ export function ConsignmentReturnView() {
     <div className="flex flex-col h-[calc(100vh-8rem)] -mt-4">
       <ReturnHeader />
 
-      <div className="p-3 bg-sh-linen border-b border-sh-gray/30 space-y-3">
+      <div className="p-3 bg-brand-linen border-b border-brand-gray/30 space-y-3">
         <div>
-          <label htmlFor="return-barcode" className="block text-sh-black mb-1 text-sm">
+          <label htmlFor="return-barcode" className="block text-brand-black mb-1 text-sm">
             Scan Rug Barcode for Return
           </label>
           <input
@@ -145,20 +145,20 @@ export function ConsignmentReturnView() {
             value={barcode}
             onChange={(e) => setBarcode(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="border border-sh-gray/40 rounded-lg p-3 w-full text-lg min-h-[44px]"
+            className="border border-brand-gray/40 rounded-lg p-3 w-full text-lg min-h-[44px]"
             placeholder="Ready for scan..."
             autoFocus
           />
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-center text-sm">
-          <div className="bg-white rounded-lg border border-sh-gray/20 p-2">
-            <div className="text-sh-gray">Rugs to Return</div>
-            <div className="text-xl font-bold text-sh-blue">{returnItems.length}</div>
+          <div className="bg-white rounded-lg border border-brand-gray/20 p-2">
+            <div className="text-brand-gray">Rugs to Return</div>
+            <div className="text-xl font-bold text-brand-blue">{returnItems.length}</div>
           </div>
-          <div className="bg-white rounded-lg border border-sh-gray/20 p-2">
-            <div className="text-sh-gray">Total Cost</div>
-            <div className="text-xl font-bold text-sh-black">{fmt(totalCost)}</div>
+          <div className="bg-white rounded-lg border border-brand-gray/20 p-2">
+            <div className="text-brand-gray">Total Cost</div>
+            <div className="text-xl font-bold text-brand-black">{fmt(totalCost)}</div>
           </div>
         </div>
 
@@ -173,24 +173,24 @@ export function ConsignmentReturnView() {
       </div>
 
       <div className="flex-grow overflow-y-auto p-2">
-        <h2 className="font-bold text-sh-blue mb-2 font-serif">Scanned for Return</h2>
+        <h2 className="font-bold text-brand-blue mb-2 font-serif">Scanned for Return</h2>
         {returnItems.length === 0 && (
-          <p className="text-sh-gray text-sm py-4 text-center">
+          <p className="text-brand-gray text-sm py-4 text-center">
             No items scanned. Scan rug barcodes to add them to the return list.
           </p>
         )}
         {returnItems.map((item) => (
           <div
             key={item.barcode}
-            className="border-b border-sh-gray/10 py-2 flex justify-between items-start"
+            className="border-b border-brand-gray/10 py-2 flex justify-between items-start"
           >
             <div>
-              <p className="font-bold text-sh-black font-serif">{item.barcode}</p>
-              <p className="text-sm text-sh-gray">
+              <p className="font-bold text-brand-black font-serif">{item.barcode}</p>
+              <p className="text-sm text-brand-gray">
                 {item.quality || "Unknown quality"}
                 {item.size ? ` / ${item.size}` : ""}
               </p>
-              <p className="text-sm text-sh-gray">{fmt(item.cost)}</p>
+              <p className="text-sm text-brand-gray">{fmt(item.cost)}</p>
             </div>
             <Button
               variant="secondary"
@@ -217,7 +217,7 @@ function ReturnHeader() {
   };
 
   return (
-    <header className="w-full bg-sh-blue text-white px-4 py-2 flex items-center justify-between shadow-md">
+    <header className="w-full bg-brand-blue text-white px-4 py-2 flex items-center justify-between shadow-md">
       <h1 className="font-serif text-lg font-bold">Return to Vendor</h1>
       {session && (
         <Button variant="secondary" onClick={handleSignOut}>

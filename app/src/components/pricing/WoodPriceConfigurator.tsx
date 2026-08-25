@@ -375,13 +375,13 @@ export default function WoodPriceConfigurator({
       {/* ─── Product Tab ─────────────────────────────────────── */}
       <StepTabPanel tabId="product">
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sh-gray" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by SKU or name..."
-            className="w-full border border-sh-gray rounded-lg pl-10 pr-3 py-2 text-sh-black font-serif"
+            className="w-full border border-brand-gray rounded-lg pl-10 pr-3 py-2 text-brand-black font-serif"
           />
         </div>
 
@@ -407,18 +407,18 @@ export default function WoodPriceConfigurator({
                 onClick={() => handleSelectProduct(p)}
                 className={`text-left rounded-lg border-2 p-4 transition-all ${
                   isSelected
-                    ? "border-sh-blue bg-sh-linen shadow-md"
-                    : "border-sh-gray/20 bg-white hover:border-sh-blue/40 hover:shadow-sm"
+                    ? "border-brand-blue bg-brand-linen shadow-md"
+                    : "border-brand-gray/20 bg-white hover:border-brand-blue/40 hover:shadow-sm"
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="font-semibold text-sh-black">{p.productNumber}</div>
-                    <div className="text-sm text-sh-gray">{p.name}</div>
+                    <div className="font-semibold text-brand-black">{p.productNumber}</div>
+                    <div className="text-sm text-brand-gray">{p.name}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-sh-gray">{priceLabel}</div>
-                    <div className="text-sm font-semibold text-sh-blue tabular-nums">
+                    <div className="text-xs text-brand-gray">{priceLabel}</div>
+                    <div className="text-sm font-semibold text-brand-blue tabular-nums">
                       {formatCurrency(minPrice)}
                       {maxPrice > minPrice && ` – ${formatCurrency(maxPrice)}`}
                     </div>
@@ -429,10 +429,10 @@ export default function WoodPriceConfigurator({
           })}
         </div>
         {filteredProducts.length === 0 && (
-          <div className="text-center py-8 text-sh-gray">No products match your search.</div>
+          <div className="text-center py-8 text-brand-gray">No products match your search.</div>
         )}
         {filteredProducts.length > 100 && (
-          <div className="text-center py-2 text-sm text-sh-gray">
+          <div className="text-center py-2 text-sm text-brand-gray">
             Showing 100 of {filteredProducts.length} — refine your search.
           </div>
         )}
@@ -443,8 +443,8 @@ export default function WoodPriceConfigurator({
         {selectedProduct && speciesDim && (
           <>
             <div className="flex items-center gap-2 mb-4">
-              <Package className="w-5 h-5 text-sh-blue" />
-              <span className="font-semibold text-sh-black">
+              <Package className="w-5 h-5 text-brand-blue" />
+              <span className="font-semibold text-brand-black">
                 {selectedProduct.productNumber} — {selectedProduct.name}
               </span>
             </div>
@@ -475,27 +475,27 @@ export default function WoodPriceConfigurator({
                     disabled={!isAvailable}
                     className={`rounded-lg border-2 p-4 text-left transition-all ${
                       isSelected
-                        ? "border-sh-blue bg-sh-linen shadow-md"
+                        ? "border-brand-blue bg-brand-linen shadow-md"
                         : isAvailable
-                          ? "border-sh-gray/20 bg-white hover:border-sh-blue/40 hover:shadow-sm"
-                          : "border-sh-gray/10 bg-sh-gray/5 opacity-50 cursor-not-allowed"
+                          ? "border-brand-gray/20 bg-white hover:border-brand-blue/40 hover:shadow-sm"
+                          : "border-brand-gray/10 bg-brand-gray/5 opacity-50 cursor-not-allowed"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <TreePine
-                        className={`w-5 h-5 ${isSelected ? "text-sh-blue" : "text-sh-gray"}`}
+                        className={`w-5 h-5 ${isSelected ? "text-brand-blue" : "text-brand-gray"}`}
                       />
                       <div>
-                        <div className="font-semibold text-sh-black">{tier.name}</div>
+                        <div className="font-semibold text-brand-black">{tier.name}</div>
                         {isAvailable && (
-                          <div className="text-sm font-semibold text-sh-blue tabular-nums mt-1">
+                          <div className="text-sm font-semibold text-brand-blue tabular-nums mt-1">
                             {selectedProduct.axisPrices.length > 0
                               ? `from ${formatCurrency(price!)}`
                               : formatCurrency(price!)}
                           </div>
                         )}
                         {!isAvailable && (
-                          <div className="text-xs text-sh-gray mt-1">Not available</div>
+                          <div className="text-xs text-brand-gray mt-1">Not available</div>
                         )}
                       </div>
                     </div>
@@ -512,8 +512,8 @@ export default function WoodPriceConfigurator({
         {selectedProduct && needsSizeSelection && selectedSpeciesTierId && (
           <>
             <div className="flex items-center gap-2 mb-4">
-              <Ruler className="w-5 h-5 text-sh-blue" />
-              <span className="font-semibold text-sh-black">
+              <Ruler className="w-5 h-5 text-brand-blue" />
+              <span className="font-semibold text-brand-black">
                 Select {isRoundTable ? "Diameter" : "Size"}
               </span>
             </div>
@@ -535,13 +535,13 @@ export default function WoodPriceConfigurator({
                       }}
                       className={`rounded-lg border-2 p-4 text-center transition-all ${
                         isSelected
-                          ? "border-sh-blue bg-sh-linen shadow-md"
-                          : "border-sh-gray/20 bg-white hover:border-sh-blue/40"
+                          ? "border-brand-blue bg-brand-linen shadow-md"
+                          : "border-brand-gray/20 bg-white hover:border-brand-blue/40"
                       }`}
                     >
-                      <div className="font-semibold text-sh-black">{tier.name}</div>
+                      <div className="font-semibold text-brand-black">{tier.name}</div>
                       {axisPrice && (
-                        <div className="text-sm font-semibold text-sh-blue tabular-nums mt-1">
+                        <div className="text-sm font-semibold text-brand-blue tabular-nums mt-1">
                           {formatCurrency(axisPrice.cost)}
                         </div>
                       )}
@@ -554,7 +554,7 @@ export default function WoodPriceConfigurator({
               <div className="space-y-6">
                 {/* Width selection */}
                 <div>
-                  <label className="text-sm font-semibold text-sh-gray mb-2 block">Width</label>
+                  <label className="text-sm font-semibold text-brand-gray mb-2 block">Width</label>
                   <div className="flex flex-wrap gap-2">
                     {availableWidths.map((tier) => {
                       const isSelected = selectedWidthTierId === tier.id;
@@ -567,8 +567,8 @@ export default function WoodPriceConfigurator({
                           }}
                           className={`px-4 py-2 rounded-lg border-2 text-sm font-semibold transition-all ${
                             isSelected
-                              ? "border-sh-blue bg-sh-linen text-sh-blue"
-                              : "border-sh-gray/20 bg-white text-sh-black hover:border-sh-blue/40"
+                              ? "border-brand-blue bg-brand-linen text-brand-blue"
+                              : "border-brand-gray/20 bg-white text-brand-black hover:border-brand-blue/40"
                           }`}
                         >
                           {tier.name}
@@ -581,7 +581,9 @@ export default function WoodPriceConfigurator({
                 {/* Length selection (shown after width selected) */}
                 {selectedWidthTierId && availableLengths.length > 0 && (
                   <div>
-                    <label className="text-sm font-semibold text-sh-gray mb-2 block">Length</label>
+                    <label className="text-sm font-semibold text-brand-gray mb-2 block">
+                      Length
+                    </label>
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
                       {availableLengths.map((tier) => {
                         const axisPrice = selectedProduct.axisPrices.find(
@@ -600,13 +602,15 @@ export default function WoodPriceConfigurator({
                             }}
                             className={`rounded-lg border-2 p-3 text-center transition-all ${
                               isSelected
-                                ? "border-sh-blue bg-sh-linen shadow-md"
-                                : "border-sh-gray/20 bg-white hover:border-sh-blue/40"
+                                ? "border-brand-blue bg-brand-linen shadow-md"
+                                : "border-brand-gray/20 bg-white hover:border-brand-blue/40"
                             }`}
                           >
-                            <div className="font-semibold text-sh-black text-sm">{tier.name}</div>
+                            <div className="font-semibold text-brand-black text-sm">
+                              {tier.name}
+                            </div>
                             {axisPrice && (
-                              <div className="text-xs font-semibold text-sh-blue tabular-nums mt-1">
+                              <div className="text-xs font-semibold text-brand-blue tabular-nums mt-1">
                                 {formatCurrency(axisPrice.cost)}
                               </div>
                             )}
@@ -625,11 +629,11 @@ export default function WoodPriceConfigurator({
       {/* ─── Options Tab ─────────────────────────────────────── */}
       <StepTabPanel tabId="options">
         {availableOpts.length > 0 ? (
-          <div className="bg-white rounded-lg border border-sh-gray/20 shadow-sm divide-y divide-sh-gray/10">
+          <div className="bg-white rounded-lg border border-brand-gray/20 shadow-sm divide-y divide-brand-gray/10">
             {availableOpts.map((option) => (
               <label
                 key={option.optionId}
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-sh-linen/50 transition"
+                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-brand-linen/50 transition"
               >
                 <div className="flex items-center gap-3">
                   <input
@@ -637,14 +641,14 @@ export default function WoodPriceConfigurator({
                     checked={option.isStandard || selectedOptions.has(option.optionId)}
                     disabled={option.isStandard}
                     onChange={() => toggleOption(option.optionId)}
-                    className="w-5 h-5 accent-sh-blue"
+                    className="w-5 h-5 accent-brand-blue"
                   />
                   <div>
-                    <div className="text-sm text-sh-black">{option.optionName}</div>
-                    <div className="text-xs text-sh-gray">{option.groupName}</div>
+                    <div className="text-sm text-brand-black">{option.optionName}</div>
+                    <div className="text-xs text-brand-gray">{option.groupName}</div>
                   </div>
                 </div>
-                <div className="text-sm font-semibold tabular-nums text-sh-black">
+                <div className="text-sm font-semibold tabular-nums text-brand-black">
                   {option.isStandard
                     ? "Included"
                     : option.surcharge > 0
@@ -655,7 +659,7 @@ export default function WoodPriceConfigurator({
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 text-sh-gray">
+          <div className="text-center py-12 text-brand-gray">
             <SlidersHorizontal className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm">No options available for this product.</p>
             <Button
@@ -673,18 +677,18 @@ export default function WoodPriceConfigurator({
       <StepTabPanel tabId="summary">
         {priceCalc && selectedProduct ? (
           <div className="w-full max-w-2xl mx-auto space-y-4">
-            <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
+            <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
               {!retailOnly && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-sh-black">Base Cost ({priceCalc.gradeName})</span>
+                    <span className="text-brand-black">Base Cost ({priceCalc.gradeName})</span>
                     <span className="font-semibold tabular-nums">
                       {formatCurrency(priceCalc.basePrice)}
                     </span>
                   </div>
                   {priceCalc.optionLines.map((line, i) => (
                     <div key={i} className="flex justify-between text-sm">
-                      <span className="text-sh-gray flex items-center gap-1">
+                      <span className="text-brand-gray flex items-center gap-1">
                         <ChevronRight className="w-3 h-3" />
                         {line.label}
                       </span>
@@ -694,28 +698,28 @@ export default function WoodPriceConfigurator({
                 </div>
               )}
 
-              {!retailOnly && <div className="border-t border-sh-gray/20 my-4" />}
+              {!retailOnly && <div className="border-t border-brand-gray/20 my-4" />}
 
               {!retailOnly && (
                 <div className="flex justify-between text-base font-semibold">
-                  <span className="text-sh-blue">Total Wholesale</span>
-                  <span className="text-sh-black tabular-nums">
+                  <span className="text-brand-blue">Total Wholesale</span>
+                  <span className="text-brand-black tabular-nums">
                     {formatCurrency(priceCalc.totalCost)}
                   </span>
                 </div>
               )}
 
               <div className="flex justify-between text-sm mt-2">
-                <span className="text-sh-gray">
+                <span className="text-brand-gray">
                   {retailOnly ? "Retail Price" : `Suggested Retail (${defaultMarkup}x)`}
                 </span>
-                <span className="font-semibold text-sh-black tabular-nums">
+                <span className="font-semibold text-brand-black tabular-nums">
                   {formatCurrency(priceCalc.suggestedRetail)}
                 </span>
               </div>
 
               <div className="flex justify-between items-center text-sm mt-2">
-                <span className="text-sh-gray flex items-center gap-2">
+                <span className="text-brand-gray flex items-center gap-2">
                   Discount
                   <input
                     type="number"
@@ -725,7 +729,7 @@ export default function WoodPriceConfigurator({
                     step="1"
                     value={Math.round(discountPercent * 100)}
                     onChange={(e) => handleDiscountChange(e.target.value)}
-                    className="w-14 border border-sh-gray rounded px-2 py-0.5 text-center text-sh-black tabular-nums text-sm"
+                    className="w-14 border border-brand-gray rounded px-2 py-0.5 text-center text-brand-black tabular-nums text-sm"
                   />
                   <span>%</span>
                 </span>
@@ -736,11 +740,11 @@ export default function WoodPriceConfigurator({
                 </span>
               </div>
 
-              <div className="border-t border-sh-gray/20 my-4" />
+              <div className="border-t border-brand-gray/20 my-4" />
 
               <div className="flex justify-between text-lg font-semibold">
-                <span className="text-sh-blue">As-Shown Price</span>
-                <span className="text-sh-gold tabular-nums">
+                <span className="text-brand-blue">As-Shown Price</span>
+                <span className="text-brand-gold tabular-nums">
                   {formatCurrency(priceCalc.asShownPrice)}
                 </span>
               </div>
@@ -757,7 +761,7 @@ export default function WoodPriceConfigurator({
 
               {!retailOnly && (
                 <div className="flex justify-between text-sm mt-3">
-                  <span className="text-sh-gray">Margin</span>
+                  <span className="text-brand-gray">Margin</span>
                   <span
                     className={`font-semibold tabular-nums ${priceCalc.margin >= 0 ? "text-green-700" : "text-red-600"}`}
                   >
@@ -787,14 +791,14 @@ export default function WoodPriceConfigurator({
                     vendor: vendorName,
                   });
                 }}
-                className="w-full py-3 rounded-lg bg-sh-gold text-white font-semibold text-base transition hover:bg-sh-gold/90 min-h-[44px]"
+                className="w-full py-3 rounded-lg bg-brand-gold text-white font-semibold text-base transition hover:bg-brand-gold/90 min-h-[44px]"
               >
                 Add to Quote
               </button>
             )}
           </div>
         ) : (
-          <div className="text-center py-12 text-sh-gray">
+          <div className="text-center py-12 text-brand-gray">
             <DollarSign className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm">Select a product and species to see the price summary.</p>
           </div>

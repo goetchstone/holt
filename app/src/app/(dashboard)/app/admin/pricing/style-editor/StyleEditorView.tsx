@@ -98,15 +98,15 @@ function formatOptionsSummary(s: StyleRow): string {
 function StyleThumbnail({ imageUrl }: Readonly<{ imageUrl: string | null }>) {
   if (imageUrl) {
     return (
-      <div className="w-8 h-8 rounded overflow-hidden bg-sh-linen flex items-center justify-center">
+      <div className="w-8 h-8 rounded overflow-hidden bg-brand-linen flex items-center justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element -- vendor image URLs are arbitrary remote hosts; no next/image loader configured for them */}
         <img src={imageUrl} alt="" className="w-full h-full object-contain" />
       </div>
     );
   }
   return (
-    <div className="w-8 h-8 rounded bg-sh-linen flex items-center justify-center">
-      <ImageIcon className="w-4 h-4 text-sh-gray/40" />
+    <div className="w-8 h-8 rounded bg-brand-linen flex items-center justify-center">
+      <ImageIcon className="w-4 h-4 text-brand-gray/40" />
     </div>
   );
 }
@@ -115,23 +115,23 @@ function StyleTableRow({ style, onEdit }: Readonly<{ style: StyleRow; onEdit: ()
   return (
     <tr
       onClick={onEdit}
-      className="border-t border-sh-gray/10 hover:bg-sh-linen/40 cursor-pointer transition"
+      className="border-t border-brand-gray/10 hover:bg-brand-linen/40 cursor-pointer transition"
     >
       <td className="px-3 py-2.5">
         <StyleThumbnail imageUrl={style.imageUrl} />
       </td>
-      <td className="px-3 py-2.5 font-semibold text-sh-blue whitespace-nowrap">
+      <td className="px-3 py-2.5 font-semibold text-brand-blue whitespace-nowrap">
         {style.productNumber}
       </td>
-      <td className="px-3 py-2.5 text-sh-black max-w-[200px] truncate">{style.name}</td>
-      <td className="px-3 py-2.5 text-sh-gray whitespace-nowrap">{formatDimensions(style)}</td>
-      <td className="px-3 py-2.5 text-sh-gray max-w-[120px] truncate">{style.finish || "--"}</td>
-      <td className="px-3 py-2.5 text-sh-gray whitespace-nowrap">{formatYardage(style)}</td>
-      <td className="px-3 py-2.5 text-sh-gray max-w-[200px] truncate text-xs">
+      <td className="px-3 py-2.5 text-brand-black max-w-[200px] truncate">{style.name}</td>
+      <td className="px-3 py-2.5 text-brand-gray whitespace-nowrap">{formatDimensions(style)}</td>
+      <td className="px-3 py-2.5 text-brand-gray max-w-[120px] truncate">{style.finish || "--"}</td>
+      <td className="px-3 py-2.5 text-brand-gray whitespace-nowrap">{formatYardage(style)}</td>
+      <td className="px-3 py-2.5 text-brand-gray max-w-[200px] truncate text-xs">
         {formatOptionsSummary(style)}
       </td>
       <td className="px-3 py-2.5 text-center">
-        <Pencil className="w-4 h-4 text-sh-gray/50" />
+        <Pencil className="w-4 h-4 text-brand-gray/50" />
       </td>
     </tr>
   );
@@ -239,15 +239,15 @@ export function StyleEditorView() {
     <div className="py-2 font-serif space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-sh-blue mb-1">Style Editor</h1>
-        <p className="text-sh-gray text-sm">
+        <h1 className="text-2xl font-semibold text-brand-blue mb-1">Style Editor</h1>
+        <p className="text-brand-gray text-sm">
           View and correct imported style data. Click a row to edit.
         </p>
       </div>
 
       {/* Vendor selector */}
       {vendorsLoading ? (
-        <div className="flex items-center gap-2 text-sh-gray text-sm">
+        <div className="flex items-center gap-2 text-brand-gray text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading vendors...
         </div>
@@ -264,24 +264,24 @@ export function StyleEditorView() {
           >
             <div className="relative">
               <ComboboxInput
-                className="w-full border border-sh-gray/30 rounded-lg pl-3 pr-10 py-2 text-sm text-sh-black font-serif focus:border-sh-blue focus:ring-1 focus:ring-sh-blue outline-none"
+                className="w-full border border-brand-gray/30 rounded-lg pl-3 pr-10 py-2 text-sm text-brand-black font-serif focus:border-brand-blue focus:ring-1 focus:ring-brand-blue outline-none"
                 displayValue={(v: Vendor | null) => v?.name || ""}
                 onChange={(e) => setVendorQuery(e.target.value)}
                 placeholder="Select vendor..."
               />
               <ComboboxButton className="absolute inset-y-0 right-0 flex items-center pr-3">
-                <ChevronDown className="w-4 h-4 text-sh-gray" />
+                <ChevronDown className="w-4 h-4 text-brand-gray" />
               </ComboboxButton>
             </div>
-            <ComboboxOptions className="absolute z-20 mt-1 max-h-60 w-full max-w-xs overflow-auto rounded-lg bg-white border border-sh-gray/20 shadow-lg py-1">
+            <ComboboxOptions className="absolute z-20 mt-1 max-h-60 w-full max-w-xs overflow-auto rounded-lg bg-white border border-brand-gray/20 shadow-lg py-1">
               {filteredVendors.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-sh-gray">No vendors found</div>
+                <div className="px-3 py-2 text-sm text-brand-gray">No vendors found</div>
               ) : (
                 filteredVendors.map((v) => (
                   <ComboboxOption
                     key={v.id}
                     value={v}
-                    className="cursor-pointer select-none px-3 py-2 text-sm text-sh-black data-[focus]:bg-sh-linen data-[selected]:font-semibold data-[selected]:text-sh-blue"
+                    className="cursor-pointer select-none px-3 py-2 text-sm text-brand-black data-[focus]:bg-brand-linen data-[selected]:font-semibold data-[selected]:text-brand-blue"
                   >
                     {v.name}
                   </ComboboxOption>
@@ -296,14 +296,14 @@ export function StyleEditorView() {
       {selectedVendorId && (
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sh-gray" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
             <input
               type="text"
               aria-label="Search styles"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by style number or name..."
-              className="w-full pl-10 pr-3 py-2 border border-sh-gray/30 rounded-lg text-sm text-sh-black font-serif"
+              className="w-full pl-10 pr-3 py-2 border border-brand-gray/30 rounded-lg text-sm text-brand-black font-serif"
             />
           </div>
           <button
@@ -311,14 +311,14 @@ export function StyleEditorView() {
             onClick={() => setFilterMissingImage((v) => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition ${
               filterMissingImage
-                ? "bg-sh-blue text-white shadow-md"
-                : "bg-white text-sh-gray border border-sh-gray/30 hover:border-sh-blue hover:text-sh-blue"
+                ? "bg-brand-blue text-white shadow-md"
+                : "bg-white text-brand-gray border border-brand-gray/30 hover:border-brand-blue hover:text-brand-blue"
             }`}
           >
             <ImageOff className="w-4 h-4" />
             Missing Image
           </button>
-          <span className="text-sm text-sh-gray">
+          <span className="text-sm text-brand-gray">
             Showing {Math.min(pageStart + 1, filteredStyles.length)}-
             {Math.min(pageEnd, filteredStyles.length)} of {filteredStyles.length} styles
           </span>
@@ -328,23 +328,23 @@ export function StyleEditorView() {
       {/* Table */}
       {loading && (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 text-sh-blue animate-spin" />
+          <Loader2 className="w-8 h-8 text-brand-blue animate-spin" />
         </div>
       )}
 
       {!loading && showEmpty && (
-        <div className="text-center py-16 text-sh-gray">
+        <div className="text-center py-16 text-brand-gray">
           <p>{searchQuery ? "No styles match your search." : "No styles found."}</p>
         </div>
       )}
 
       {!loading && selectedVendorId && filteredStyles.length > 0 && (
         <>
-          <div className="border border-sh-gray/20 rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray/20 rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-sh-linen text-sh-gray text-xs uppercase tracking-wider">
+                  <tr className="bg-brand-linen text-brand-gray text-xs uppercase tracking-wider">
                     <th className="text-left px-3 py-2.5 font-medium w-10" aria-label="Image" />
                     <th className="text-left px-3 py-2.5 font-medium">Style</th>
                     <th className="text-left px-3 py-2.5 font-medium">Name</th>

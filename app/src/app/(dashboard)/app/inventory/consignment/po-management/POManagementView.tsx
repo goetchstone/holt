@@ -95,7 +95,7 @@ function AgeBadge({ date }: Readonly<{ date: string | null }>) {
 // JSX has no nested ternary.
 function rowBg(selected: boolean, striped: boolean, selectedClass: string): string {
   if (selected) return selectedClass;
-  if (striped) return "bg-sh-stripe";
+  if (striped) return "bg-brand-stripe";
   return "";
 }
 
@@ -245,11 +245,14 @@ export function POManagementView() {
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <Link href="/app/inventory/consignment" className="text-sh-blue hover:underline text-sm">
+          <Link
+            href="/app/inventory/consignment"
+            className="text-brand-blue hover:underline text-sm"
+          >
             Consignment
           </Link>
-          <span className="text-sh-gray">/</span>
-          <h1 className="text-2xl font-semibold text-sh-blue">PO Management</h1>
+          <span className="text-brand-gray">/</span>
+          <h1 className="text-2xl font-semibold text-brand-blue">PO Management</h1>
         </div>
         <Link href="/app/inventory/consignment/payments">
           <Button variant="secondary" className="min-h-[44px]">
@@ -260,19 +263,19 @@ export function POManagementView() {
 
       {!loading && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-sh-gray/15 p-4 text-center">
-            <div className="text-xs text-sh-gray mb-1">Sold / Unpaid</div>
-            <div className="text-2xl font-semibold text-sh-black">{soldItems.length}</div>
-            <div className="text-sm text-sh-gray">{fmt(soldGrandTotal)}</div>
+          <div className="bg-white rounded-xl border border-brand-gray/15 p-4 text-center">
+            <div className="text-xs text-brand-gray mb-1">Sold / Unpaid</div>
+            <div className="text-2xl font-semibold text-brand-black">{soldItems.length}</div>
+            <div className="text-sm text-brand-gray">{fmt(soldGrandTotal)}</div>
           </div>
-          <div className="bg-white rounded-xl border border-sh-gray/15 p-4 text-center">
-            <div className="text-xs text-sh-gray mb-1">Credits Owed</div>
+          <div className="bg-white rounded-xl border border-brand-gray/15 p-4 text-center">
+            <div className="text-xs text-brand-gray mb-1">Credits Owed</div>
             <div className="text-2xl font-semibold text-red-600">{creditItems.length}</div>
             <div className="text-sm text-red-600">-{fmt(creditGrandTotal)}</div>
           </div>
-          <div className="bg-white rounded-xl border border-sh-gray/15 p-4 text-center">
-            <div className="text-xs text-sh-gray mb-1">Net Owed to Vendor</div>
-            <div className="text-2xl font-semibold text-sh-black">
+          <div className="bg-white rounded-xl border border-brand-gray/15 p-4 text-center">
+            <div className="text-xs text-brand-gray mb-1">Net Owed to Vendor</div>
+            <div className="text-2xl font-semibold text-brand-black">
               {fmt(soldGrandTotal - creditGrandTotal)}
             </div>
           </div>
@@ -303,25 +306,25 @@ export function POManagementView() {
       />
 
       {hasSelections && (
-        <div className="sticky bottom-4 bg-white rounded-xl border-2 border-sh-blue shadow-lg p-5 space-y-3">
+        <div className="sticky bottom-4 bg-white rounded-xl border-2 border-brand-blue shadow-lg p-5 space-y-3">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <div className="text-xs text-sh-gray">Sold ({selectedSold.size})</div>
-              <div className="text-lg font-semibold text-sh-black">{fmt(soldTotal)}</div>
+              <div className="text-xs text-brand-gray">Sold ({selectedSold.size})</div>
+              <div className="text-lg font-semibold text-brand-black">{fmt(soldTotal)}</div>
             </div>
             <div>
-              <div className="text-xs text-sh-gray">Credits ({selectedCredits.size})</div>
+              <div className="text-xs text-brand-gray">Credits ({selectedCredits.size})</div>
               <div className="text-lg font-semibold text-red-600">-{fmt(creditTotal)}</div>
             </div>
             <div>
-              <div className="text-xs text-sh-gray">Net (Check Amount)</div>
-              <div className="text-lg font-semibold text-sh-blue">{fmt(netTotal)}</div>
+              <div className="text-xs text-brand-gray">Net (Check Amount)</div>
+              <div className="text-lg font-semibold text-brand-blue">{fmt(netTotal)}</div>
             </div>
           </div>
 
           <div className="flex items-end gap-3 flex-wrap">
             <div>
-              <label htmlFor="po-check-number" className="block text-xs text-sh-gray mb-1">
+              <label htmlFor="po-check-number" className="block text-xs text-brand-gray mb-1">
                 Check Number
               </label>
               <input
@@ -330,7 +333,7 @@ export function POManagementView() {
                 value={checkNumber}
                 onChange={(e) => setCheckNumber(e.target.value)}
                 placeholder="Optional"
-                className="border border-sh-gray rounded-lg px-3 py-2 text-sm w-40 min-h-[44px]"
+                className="border border-brand-gray rounded-lg px-3 py-2 text-sm w-40 min-h-[44px]"
               />
             </div>
             <Button
@@ -367,54 +370,54 @@ function SoldTable({
   fmt,
 }: Readonly<SoldTableProps>) {
   return (
-    <div className="bg-white rounded-xl border border-sh-gray/15 p-5 space-y-3">
+    <div className="bg-white rounded-xl border border-brand-gray/15 p-5 space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-sh-blue">Sold Rugs — Owed to Vendor</h2>
-        <span className="text-sm text-sh-gray">
+        <h2 className="text-lg font-semibold text-brand-blue">Sold Rugs — Owed to Vendor</h2>
+        <span className="text-sm text-brand-gray">
           {items.length} item{items.length !== 1 ? "s" : ""}
         </span>
       </div>
 
       {loading && (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-5 h-5 animate-spin text-sh-blue mr-2" />
-          <span className="text-sh-gray text-sm">Loading...</span>
+          <Loader2 className="w-5 h-5 animate-spin text-brand-blue mr-2" />
+          <span className="text-brand-gray text-sm">Loading...</span>
         </div>
       )}
       {!loading && items.length === 0 && (
-        <p className="text-sm text-sh-gray py-4 text-center">No unpaid sold rugs.</p>
+        <p className="text-sm text-brand-gray py-4 text-center">No unpaid sold rugs.</p>
       )}
       {!loading && items.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-sh-gray/15">
+        <div className="overflow-hidden rounded-lg border border-brand-gray/15">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/20 bg-sh-linen">
+              <tr className="border-b border-brand-gray/20 bg-brand-linen">
                 <th className="px-4 py-3 text-left">
                   <input
                     type="checkbox"
                     aria-label="Select all sold rugs"
                     checked={selected.size === items.length && items.length > 0}
                     onChange={onSelectAll}
-                    className="w-5 h-5 accent-sh-blue"
+                    className="w-5 h-5 accent-brand-blue"
                   />
                 </th>
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Barcode</th>
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Description</th>
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Customer</th>
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Order</th>
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Sale Date</th>
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Age</th>
-                <th className="text-right px-4 py-3 text-sh-gray font-semibold">Cost</th>
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Barcode</th>
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Description</th>
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Customer</th>
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Order</th>
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Sale Date</th>
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Age</th>
+                <th className="text-right px-4 py-3 text-brand-gray font-semibold">Cost</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item, i) => (
                 <tr
                   key={item.id}
-                  className={`border-b border-sh-gray/10 cursor-pointer ${rowBg(
+                  className={`border-b border-brand-gray/10 cursor-pointer ${rowBg(
                     selected.has(item.id),
                     i % 2 === 1,
-                    "bg-sh-blue/5",
+                    "bg-brand-blue/5",
                   )}`}
                   onClick={() => onToggle(item.id)}
                 >
@@ -425,21 +428,23 @@ function SoldTable({
                       checked={selected.has(item.id)}
                       onChange={() => onToggle(item.id)}
                       onClick={(e) => e.stopPropagation()}
-                      className="w-5 h-5 accent-sh-blue"
+                      className="w-5 h-5 accent-brand-blue"
                     />
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-sh-black">{item.barcode}</td>
-                  <td className="px-4 py-3 text-sh-black text-xs">
+                  <td className="px-4 py-3 font-mono text-xs text-brand-black">{item.barcode}</td>
+                  <td className="px-4 py-3 text-brand-black text-xs">
                     {item.quality || "—"}
                     {item.size ? ` / ${item.size}` : ""}
                   </td>
-                  <td className="px-4 py-3 text-sh-gray text-xs">{item.customerName || "—"}</td>
-                  <td className="px-4 py-3 text-sh-blue text-xs">{item.orderNumber || "—"}</td>
-                  <td className="px-4 py-3 text-sh-black text-xs">{formatDate(item.saleDate)}</td>
+                  <td className="px-4 py-3 text-brand-gray text-xs">{item.customerName || "—"}</td>
+                  <td className="px-4 py-3 text-brand-blue text-xs">{item.orderNumber || "—"}</td>
+                  <td className="px-4 py-3 text-brand-black text-xs">
+                    {formatDate(item.saleDate)}
+                  </td>
                   <td className="px-4 py-3">
                     <AgeBadge date={item.saleDate} />
                   </td>
-                  <td className="px-4 py-3 text-right text-sh-black">{fmt(item.cost)}</td>
+                  <td className="px-4 py-3 text-right text-brand-black">{fmt(item.cost)}</td>
                 </tr>
               ))}
             </tbody>
@@ -478,51 +483,51 @@ function CreditsTable({
   fmt,
 }: Readonly<CreditsTableProps>) {
   return (
-    <div className="bg-white rounded-xl border border-sh-gray/15 p-5 space-y-3">
+    <div className="bg-white rounded-xl border border-brand-gray/15 p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-red-700">Credits Owed — Returns After Payment</h2>
-        <span className="text-sm text-sh-gray">
+        <span className="text-sm text-brand-gray">
           {items.length} item{items.length !== 1 ? "s" : ""}
         </span>
       </div>
 
       {loading && (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-5 h-5 animate-spin text-sh-blue mr-2" />
-          <span className="text-sh-gray text-sm">Loading...</span>
+          <Loader2 className="w-5 h-5 animate-spin text-brand-blue mr-2" />
+          <span className="text-brand-gray text-sm">Loading...</span>
         </div>
       )}
       {!loading && items.length === 0 && (
-        <p className="text-sm text-sh-gray py-4 text-center">No credits owed.</p>
+        <p className="text-sm text-brand-gray py-4 text-center">No credits owed.</p>
       )}
       {!loading && items.length > 0 && (
         <>
-          <div className="overflow-hidden rounded-lg border border-sh-gray/15">
+          <div className="overflow-hidden rounded-lg border border-brand-gray/15">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-sh-gray/20 bg-sh-linen">
+                <tr className="border-b border-brand-gray/20 bg-brand-linen">
                   <th className="px-4 py-3 text-left">
                     <input
                       type="checkbox"
                       aria-label="Select all credits"
                       checked={selected.size === items.length && items.length > 0}
                       onChange={onSelectAll}
-                      className="w-5 h-5 accent-sh-blue"
+                      className="w-5 h-5 accent-brand-blue"
                     />
                   </th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Barcode</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Description</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Customer</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Paid Date</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Status</th>
-                  <th className="text-right px-4 py-3 text-sh-gray font-semibold">Credit</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Barcode</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Description</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Customer</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Paid Date</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Status</th>
+                  <th className="text-right px-4 py-3 text-brand-gray font-semibold">Credit</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, i) => (
                   <tr
                     key={item.id}
-                    className={`border-b border-sh-gray/10 cursor-pointer ${rowBg(
+                    className={`border-b border-brand-gray/10 cursor-pointer ${rowBg(
                       selected.has(item.id),
                       i % 2 === 1,
                       "bg-red-50",
@@ -536,18 +541,22 @@ function CreditsTable({
                         checked={selected.has(item.id)}
                         onChange={() => onToggle(item.id)}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-5 h-5 accent-sh-blue"
+                        className="w-5 h-5 accent-brand-blue"
                       />
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-sh-black">{item.barcode}</td>
-                    <td className="px-4 py-3 text-sh-black text-xs">
+                    <td className="px-4 py-3 font-mono text-xs text-brand-black">{item.barcode}</td>
+                    <td className="px-4 py-3 text-brand-black text-xs">
                       {item.quality || "—"}
                       {item.size ? ` / ${item.size}` : ""}
                     </td>
-                    <td className="px-4 py-3 text-sh-gray text-xs">{item.customerName || "—"}</td>
-                    <td className="px-4 py-3 text-sh-black text-xs">{formatDate(item.paidDate)}</td>
+                    <td className="px-4 py-3 text-brand-gray text-xs">
+                      {item.customerName || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-brand-black text-xs">
+                      {formatDate(item.paidDate)}
+                    </td>
                     <td className="px-4 py-3">
-                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-sh-blue/10 text-sh-blue">
+                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-blue/10 text-brand-blue">
                         {item.status.replace("_", " ")}
                       </span>
                     </td>
@@ -572,7 +581,7 @@ function CreditsTable({
                   onChange={(e) =>
                     onApplyToBatchIdChange(e.target.value ? Number.parseInt(e.target.value) : null)
                   }
-                  className="border border-sh-gray rounded-lg px-3 py-2 text-sm w-64 bg-white min-h-[44px]"
+                  className="border border-brand-gray rounded-lg px-3 py-2 text-sm w-64 bg-white min-h-[44px]"
                 >
                   <option value="">Select a batch...</option>
                   {batches.map((b) => (

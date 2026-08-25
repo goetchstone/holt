@@ -100,8 +100,8 @@ export function ReceivingListView() {
   ];
 
   return (
-    <div className="py-2 font-serif text-sh-black">
-      <h1 className="mb-4 text-2xl font-semibold text-sh-blue">Receiving Records</h1>
+    <div className="py-2 font-serif text-brand-black">
+      <h1 className="mb-4 text-2xl font-semibold text-brand-blue">Receiving Records</h1>
       <TableWithFilters<ReceivingRow>
         data={data}
         columns={columns}

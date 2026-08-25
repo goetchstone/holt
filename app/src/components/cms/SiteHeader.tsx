@@ -22,15 +22,15 @@ interface SiteHeaderProps {
 export function SiteHeader({ appName, logoUrl, items, variant = "light" }: SiteHeaderProps) {
   const dark = variant === "dark";
   const link = dark
-    ? "text-sm text-sh-stripe/70 transition hover:text-sh-gold"
-    : "text-sm text-sh-gray transition hover:text-sh-navy";
-  const dropdownPanel = dark ? "border-white/10 bg-sh-navy" : "border-black/10 bg-white";
+    ? "text-sm text-brand-stripe/70 transition hover:text-brand-gold"
+    : "text-sm text-brand-gray transition hover:text-brand-navy";
+  const dropdownPanel = dark ? "border-white/10 bg-brand-navy" : "border-black/10 bg-white";
   const dropdownLink = dark
-    ? "px-4 py-2 text-sm text-sh-stripe/70 hover:bg-white/5 hover:text-sh-gold"
-    : "px-4 py-2 text-sm text-sh-gray hover:bg-sh-linen hover:text-sh-navy";
+    ? "px-4 py-2 text-sm text-brand-stripe/70 hover:bg-white/5 hover:text-brand-gold"
+    : "px-4 py-2 text-sm text-brand-gray hover:bg-brand-linen hover:text-brand-navy";
 
   return (
-    <header className={dark ? "bg-sh-navy" : "border-b border-black/10 bg-white"}>
+    <header className={dark ? "bg-brand-navy" : "border-b border-black/10 bg-white"}>
       <div className="mx-auto flex max-w-screen-lg items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-3">
           {logoUrl ? (
@@ -41,9 +41,11 @@ export function SiteHeader({ appName, logoUrl, items, variant = "light" }: SiteH
               name alone when there is no logo). Light keeps logo-or-name so
               wordmark-image logos aren't duplicated by a text name. */}
           {dark ? (
-            <span className="font-serif text-base tracking-[0.2em] text-sh-stripe">{appName}</span>
+            <span className="font-serif text-base tracking-[0.2em] text-brand-stripe">
+              {appName}
+            </span>
           ) : !logoUrl ? (
-            <span className="font-serif text-xl text-sh-navy">{appName}</span>
+            <span className="font-serif text-xl text-brand-navy">{appName}</span>
           ) : null}
         </Link>
         <nav className="flex items-center gap-6">
@@ -70,14 +72,14 @@ export function SiteHeader({ appName, logoUrl, items, variant = "light" }: SiteH
           {dark ? (
             <Link
               href="/app"
-              className="rounded-[2px] border border-sh-stripe/30 px-4 py-2 text-sm text-sh-stripe transition hover:border-sh-gold hover:text-sh-gold"
+              className="rounded-[2px] border border-brand-stripe/30 px-4 py-2 text-sm text-brand-stripe transition hover:border-brand-gold hover:text-brand-gold"
             >
               Staff login
             </Link>
           ) : (
             <Link
               href="/app"
-              className="rounded-md bg-sh-navy px-4 py-2 text-sm font-medium text-white transition hover:bg-sh-blue"
+              className="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-blue"
             >
               Sign in
             </Link>

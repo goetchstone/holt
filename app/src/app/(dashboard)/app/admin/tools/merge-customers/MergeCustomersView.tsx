@@ -45,9 +45,9 @@ export function MergeCustomersView() {
 
   return (
     <div className="py-2 space-y-6 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue">Merge Duplicate Customers</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue">Merge Duplicate Customers</h1>
       <div className="bg-white p-6 rounded-lg shadow-md">
-        <p className="mb-4 text-sh-black">
+        <p className="mb-4 text-brand-black">
           This tool will find customers with the same first and last name, merge their POS IDs and
           addresses into a single record, and delete the duplicates. This action cannot be undone.
         </p>

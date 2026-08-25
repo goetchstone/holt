@@ -27,21 +27,21 @@ export function ChartCard({
   action,
 }: ChartCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-sh-gray/15 shadow-sm p-5 space-y-4">
+    <div className="bg-white rounded-xl border border-brand-gray/15 shadow-sm p-5 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-sh-black font-serif text-base">{title}</h3>
-          {subtitle && <p className="text-xs text-sh-gray mt-0.5 font-sans">{subtitle}</p>}
+          <h3 className="font-semibold text-brand-black font-serif text-base">{title}</h3>
+          {subtitle && <p className="text-xs text-brand-gray mt-0.5 font-sans">{subtitle}</p>}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </div>
 
       {loading ? (
-        <div className="h-48 flex items-center justify-center text-sh-gray text-sm font-sans animate-pulse">
+        <div className="h-48 flex items-center justify-center text-brand-gray text-sm font-sans animate-pulse">
           Loading...
         </div>
       ) : empty ? (
-        <div className="h-48 flex items-center justify-center text-sh-gray text-sm font-sans">
+        <div className="h-48 flex items-center justify-center text-brand-gray text-sm font-sans">
           {emptyMessage}
         </div>
       ) : (

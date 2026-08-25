@@ -42,44 +42,47 @@ export function AccountView() {
   if (me.isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
       </div>
     );
   }
   if (!me.data) {
-    return <p className="py-16 text-center text-sh-gray">No staff record for this account.</p>;
+    return <p className="py-16 text-center text-brand-gray">No staff record for this account.</p>;
   }
 
   return (
     <div className="max-w-lg space-y-8 font-serif">
       <div>
-        <h1 className="text-2xl font-semibold text-sh-navy">My Account</h1>
-        <p className="text-sm text-sh-gray">Your sign-in identity on this system.</p>
+        <h1 className="text-2xl font-semibold text-brand-navy">My Account</h1>
+        <p className="text-sm text-brand-gray">Your sign-in identity on this system.</p>
       </div>
 
-      <dl className="space-y-2 rounded-lg border border-sh-gray/20 bg-white p-4 text-sm">
+      <dl className="space-y-2 rounded-lg border border-brand-gray/20 bg-white p-4 text-sm">
         <div className="flex justify-between">
-          <dt className="text-sh-gray">Name</dt>
-          <dd className="font-semibold text-sh-navy">{me.data.displayName}</dd>
+          <dt className="text-brand-gray">Name</dt>
+          <dd className="font-semibold text-brand-navy">{me.data.displayName}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-sh-gray">Email</dt>
+          <dt className="text-brand-gray">Email</dt>
           <dd>{me.data.email ?? "--"}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-sh-gray">Role</dt>
+          <dt className="text-brand-gray">Role</dt>
           <dd>{me.data.role}</dd>
         </div>
       </dl>
 
       {me.data.localAuthEnabled ? (
         <form onSubmit={submit} className="space-y-3">
-          <h2 className="text-lg font-semibold text-sh-navy">
+          <h2 className="text-lg font-semibold text-brand-navy">
             {me.data.hasLocalPassword ? "Change password" : "Set a password"}
           </h2>
           {me.data.hasLocalPassword && (
             <div>
-              <label htmlFor="acc-current" className="mb-1 block text-xs font-medium text-sh-gray">
+              <label
+                htmlFor="acc-current"
+                className="mb-1 block text-xs font-medium text-brand-gray"
+              >
                 Current password
               </label>
               <input
@@ -94,7 +97,7 @@ export function AccountView() {
             </div>
           )}
           <div>
-            <label htmlFor="acc-next" className="mb-1 block text-xs font-medium text-sh-gray">
+            <label htmlFor="acc-next" className="mb-1 block text-xs font-medium text-brand-gray">
               New password (min 8 characters)
             </label>
             <input
@@ -109,7 +112,7 @@ export function AccountView() {
             />
           </div>
           <div>
-            <label htmlFor="acc-confirm" className="mb-1 block text-xs font-medium text-sh-gray">
+            <label htmlFor="acc-confirm" className="mb-1 block text-xs font-medium text-brand-gray">
               Confirm new password
             </label>
             <input
@@ -126,13 +129,13 @@ export function AccountView() {
           <button
             type="submit"
             disabled={changePassword.isPending}
-            className="min-h-[44px] rounded-lg bg-sh-navy px-6 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+            className="min-h-[44px] rounded-lg bg-brand-navy px-6 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
           >
             {changePassword.isPending ? "Saving..." : "Save password"}
           </button>
         </form>
       ) : (
-        <p className="text-sm text-sh-gray">
+        <p className="text-sm text-brand-gray">
           This deployment signs in through an identity provider — there is no local password to
           manage.
         </p>

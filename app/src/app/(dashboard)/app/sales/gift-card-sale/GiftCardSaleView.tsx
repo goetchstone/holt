@@ -52,9 +52,9 @@ function stepState(step: Step, target: Step, index: number): StepState {
 }
 
 const STEP_CIRCLE_CLASSES: Record<StepState, string> = {
-  current: "bg-sh-blue text-white",
+  current: "bg-brand-blue text-white",
   done: "bg-green-500 text-white",
-  future: "bg-sh-gray/20 text-sh-gray",
+  future: "bg-brand-gray/20 text-brand-gray",
 };
 
 export function GiftCardSaleView() {
@@ -195,7 +195,7 @@ export function GiftCardSaleView() {
               >
                 {state === "done" ? <Check className="w-4 h-4" /> : i + 1}
               </div>
-              {i < 2 && <div className="w-8 h-px bg-sh-gray/30" />}
+              {i < 2 && <div className="w-8 h-px bg-brand-gray/30" />}
             </div>
           );
         })}
@@ -204,8 +204,8 @@ export function GiftCardSaleView() {
       {/* Step: Enter quick code */}
       {step === "code" && (
         <div className="text-center">
-          <CreditCard className="w-12 h-12 text-sh-blue mx-auto mb-3" />
-          <h2 className="text-xl font-serif font-semibold text-sh-blue mb-4">
+          <CreditCard className="w-12 h-12 text-brand-blue mx-auto mb-3" />
+          <h2 className="text-xl font-serif font-semibold text-brand-blue mb-4">
             Enter Gift Card Code
           </h2>
           <label htmlFor="gc-code" className="sr-only">
@@ -219,7 +219,7 @@ export function GiftCardSaleView() {
             onChange={(e) => setCodeInput(e.target.value)}
             onKeyDown={handleCodeKey}
             placeholder="GC, GC25, GC50..."
-            className="w-full border border-sh-gray rounded-lg px-4 py-3 text-center text-xl font-serif text-sh-black mb-4"
+            className="w-full border border-brand-gray rounded-lg px-4 py-3 text-center text-xl font-serif text-brand-black mb-4"
             autoComplete="off"
           />
           <Button onClick={resolveCode} fullWidth>
@@ -231,12 +231,12 @@ export function GiftCardSaleView() {
       {/* Step: Enter custom amount */}
       {step === "amount" && (
         <div className="text-center">
-          <h2 className="text-xl font-serif font-semibold text-sh-blue mb-2">
+          <h2 className="text-xl font-serif font-semibold text-brand-blue mb-2">
             {preset?.label || "Custom Gift Card"}
           </h2>
-          <p className="text-sh-gray font-serif mb-4">Enter the gift card amount</p>
+          <p className="text-brand-gray font-serif mb-4">Enter the gift card amount</p>
           <div className="relative mb-4">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-sh-gray font-serif">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-brand-gray font-serif">
               $
             </span>
             <label htmlFor="gc-amount" className="sr-only">
@@ -252,7 +252,7 @@ export function GiftCardSaleView() {
               placeholder="0.00"
               step="0.01"
               min="0.01"
-              className="w-full border border-sh-gray rounded-lg pl-8 pr-4 py-3 text-center text-2xl font-serif text-sh-black"
+              className="w-full border border-brand-gray rounded-lg pl-8 pr-4 py-3 text-center text-2xl font-serif text-brand-black"
             />
           </div>
           <div className="flex gap-2">
@@ -269,10 +269,10 @@ export function GiftCardSaleView() {
       {/* Step: Scan card barcode */}
       {step === "scan" && (
         <div className="text-center">
-          <h2 className="text-xl font-serif font-semibold text-sh-blue mb-2">
+          <h2 className="text-xl font-serif font-semibold text-brand-blue mb-2">
             {fmt(Number.parseFloat(amount))} Gift Card
           </h2>
-          <p className="text-sh-gray font-serif mb-4">Scan the physical card barcode</p>
+          <p className="text-brand-gray font-serif mb-4">Scan the physical card barcode</p>
           <label htmlFor="gc-barcode" className="sr-only">
             Gift card barcode
           </label>
@@ -284,7 +284,7 @@ export function GiftCardSaleView() {
             onChange={(e) => setBarcode(e.target.value)}
             onKeyDown={handleBarcodeKey}
             placeholder="Scan barcode..."
-            className="w-full border border-sh-gray rounded-lg px-4 py-3 text-center text-lg font-mono text-sh-black mb-4"
+            className="w-full border border-brand-gray rounded-lg px-4 py-3 text-center text-lg font-mono text-brand-black mb-4"
             autoComplete="off"
           />
           <div className="flex gap-2">
@@ -305,10 +305,10 @@ export function GiftCardSaleView() {
             <Check className="w-8 h-8 text-green-700" />
           </div>
           <h2 className="text-xl font-serif font-semibold text-green-700 mb-2">Card Activated</h2>
-          <p className="text-sh-black font-serif mb-1">
+          <p className="text-brand-black font-serif mb-1">
             <span className="font-semibold">{fmt(Number.parseFloat(amount))}</span> loaded
           </p>
-          <p className="text-sh-gray font-mono text-sm mb-6">{barcode}</p>
+          <p className="text-brand-gray font-mono text-sm mb-6">{barcode}</p>
           <Button onClick={reset} fullWidth>
             Sell Another Card
           </Button>
@@ -318,15 +318,17 @@ export function GiftCardSaleView() {
       {/* Recent activations */}
       {history.length > 0 && (
         <div className="mt-8">
-          <h3 className="font-serif font-semibold text-sh-blue text-sm mb-2">Recent Activations</h3>
+          <h3 className="font-serif font-semibold text-brand-blue text-sm mb-2">
+            Recent Activations
+          </h3>
           <div className="space-y-1">
             {history.slice(0, 10).map((h, i) => (
               <div
                 key={i}
-                className="flex justify-between items-center py-2 px-3 bg-sh-stripe rounded text-sm"
+                className="flex justify-between items-center py-2 px-3 bg-brand-stripe rounded text-sm"
               >
-                <span className="font-mono text-sh-gray">{h.barcode}</span>
-                <span className="font-serif font-semibold text-sh-blue">{fmt(h.amount)}</span>
+                <span className="font-mono text-brand-gray">{h.barcode}</span>
+                <span className="font-serif font-semibold text-brand-blue">{fmt(h.amount)}</span>
               </div>
             ))}
           </div>

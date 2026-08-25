@@ -96,7 +96,7 @@ export default function FeedbackButton() {
           setArea(guessArea(router.pathname));
           setOpen(true);
         }}
-        className="fixed bottom-6 left-6 z-40 flex items-center gap-2 rounded-lg bg-sh-navy/80 px-3 py-2 text-white text-xs font-medium shadow hover:bg-sh-navy transition-colors print:hidden"
+        className="fixed bottom-6 left-6 z-40 flex items-center gap-2 rounded-lg bg-brand-navy/80 px-3 py-2 text-white text-xs font-medium shadow hover:bg-brand-navy transition-colors print:hidden"
         style={{ minHeight: 44 }}
         aria-label="Report an issue or give feedback"
       >
@@ -116,19 +116,19 @@ export default function FeedbackButton() {
                 transition
                 className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-xl font-serif duration-300 ease-out data-closed:scale-95 data-closed:opacity-0"
               >
-                <DialogTitle as="h3" className="text-xl font-semibold text-sh-blue mb-4">
+                <DialogTitle as="h3" className="text-xl font-semibold text-brand-blue mb-4">
                   Report an Issue
                 </DialogTitle>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-sh-gray mb-1">
+                    <label className="block text-sm font-medium text-brand-gray mb-1">
                       What kind of issue?
                     </label>
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
-                      className="w-full rounded-lg border border-sh-gray/30 px-3 py-2.5 text-sm focus:border-sh-blue focus:outline-none"
+                      className="w-full rounded-lg border border-brand-gray/30 px-3 py-2.5 text-sm focus:border-brand-blue focus:outline-none"
                     >
                       <option value="">Select...</option>
                       {CATEGORIES.map((c) => (
@@ -140,11 +140,11 @@ export default function FeedbackButton() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-sh-gray mb-1">Area</label>
+                    <label className="block text-sm font-medium text-brand-gray mb-1">Area</label>
                     <select
                       value={area}
                       onChange={(e) => setArea(e.target.value)}
-                      className="w-full rounded-lg border border-sh-gray/30 px-3 py-2.5 text-sm focus:border-sh-blue focus:outline-none"
+                      className="w-full rounded-lg border border-brand-gray/30 px-3 py-2.5 text-sm focus:border-brand-blue focus:outline-none"
                     >
                       <option value="">Select...</option>
                       {AREAS.map((a) => (
@@ -156,7 +156,7 @@ export default function FeedbackButton() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-sh-gray mb-1">
+                    <label className="block text-sm font-medium text-brand-gray mb-1">
                       Describe the issue
                     </label>
                     <textarea
@@ -164,11 +164,11 @@ export default function FeedbackButton() {
                       onChange={(e) => setDescription(e.target.value)}
                       rows={4}
                       placeholder="What happened? What did you expect?"
-                      className="w-full rounded-lg border border-sh-gray/30 px-3 py-2.5 text-sm focus:border-sh-blue focus:outline-none resize-none"
+                      className="w-full rounded-lg border border-brand-gray/30 px-3 py-2.5 text-sm focus:border-brand-blue focus:outline-none resize-none"
                     />
                   </div>
 
-                  <p className="text-xs text-sh-gray">
+                  <p className="text-xs text-brand-gray">
                     Submitted by {session.user?.email} from {router.pathname}
                   </p>
                 </div>

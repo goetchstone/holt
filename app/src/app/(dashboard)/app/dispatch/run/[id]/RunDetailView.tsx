@@ -229,13 +229,13 @@ export function RunDetailView({ id }: { id: string }) {
   }
 
   if (loading) {
-    return <div className="text-center py-12 text-sh-gray">Loading...</div>;
+    return <div className="text-center py-12 text-brand-gray">Loading...</div>;
   }
 
   if (!run) {
     return (
       <div className="text-center py-12">
-        <p className="text-sh-gray mb-4">Delivery run not found</p>
+        <p className="text-brand-gray mb-4">Delivery run not found</p>
         <Link href="/app/dispatch">
           <Button variant="outline">Back to Dispatch</Button>
         </Link>
@@ -253,33 +253,33 @@ export function RunDetailView({ id }: { id: string }) {
       <div className="mb-4">
         <Link
           href="/app/dispatch"
-          className="text-sm text-sh-blue hover:underline min-h-[44px] inline-flex items-center"
+          className="text-sm text-brand-blue hover:underline min-h-[44px] inline-flex items-center"
         >
           Back to Dispatch
         </Link>
       </div>
 
       {/* Header */}
-      <div className="bg-white border border-sh-gray/10 rounded-lg p-4 mb-6">
+      <div className="bg-white border border-brand-gray/10 rounded-lg p-4 mb-6">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
           <div>
-            <h1 className="font-serif text-xl text-sh-navy">{run.runNumber}</h1>
-            <p className="text-sm text-sh-gray">{runDateFormatted}</p>
+            <h1 className="font-serif text-xl text-brand-navy">{run.runNumber}</h1>
+            <p className="text-sm text-brand-gray">{runDateFormatted}</p>
           </div>
           <StatusBadge status={run.status} />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
           <div>
-            <span className="text-sh-gray">Vehicle</span>
-            <p className="font-semibold text-sh-navy">{run.vehicle.name}</p>
+            <span className="text-brand-gray">Vehicle</span>
+            <p className="font-semibold text-brand-navy">{run.vehicle.name}</p>
           </div>
           <div>
-            <span className="text-sh-gray">Driver</span>
+            <span className="text-brand-gray">Driver</span>
             <select
               value={run.driver?.id || ""}
               onChange={(e) => updateDriver(e.target.value)}
-              className="block w-full mt-1 border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+              className="block w-full mt-1 border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
             >
               <option value="">-- Select Driver --</option>
               {staff.map((s) => (
@@ -290,8 +290,8 @@ export function RunDetailView({ id }: { id: string }) {
             </select>
           </div>
           <div>
-            <span className="text-sh-gray">Stops</span>
-            <p className="font-semibold text-sh-navy">{run.stops.length}</p>
+            <span className="text-brand-gray">Stops</span>
+            <p className="font-semibold text-brand-navy">{run.stops.length}</p>
           </div>
         </div>
 
@@ -302,16 +302,16 @@ export function RunDetailView({ id }: { id: string }) {
               <span
                 className={`text-xs px-2 py-1 rounded ${
                   s === run.status
-                    ? "bg-sh-blue text-white font-semibold"
+                    ? "bg-brand-blue text-white font-semibold"
                     : idx < currentStatusIdx
-                      ? "bg-sh-linen text-sh-navy"
-                      : "bg-sh-stripe text-sh-gray"
+                      ? "bg-brand-linen text-brand-navy"
+                      : "bg-brand-stripe text-brand-gray"
                 }`}
               >
                 {STATUS_LABELS[s]}
               </span>
               {idx < STATUS_ORDER.length - 1 && (
-                <span className="text-sh-gray/40 text-xs">&#8594;</span>
+                <span className="text-brand-gray/40 text-xs">&#8594;</span>
               )}
             </div>
           ))}
@@ -330,16 +330,16 @@ export function RunDetailView({ id }: { id: string }) {
           Generate Pick List
         </Button>
         {run.pickLists && run.pickLists.length > 0 && (
-          <span className="text-sm text-sh-gray flex items-center">
+          <span className="text-sm text-brand-gray flex items-center">
             Pick list: {run.pickLists.map((pl) => pl.pickListNumber).join(", ")}
           </span>
         )}
       </div>
 
       {/* Stops */}
-      <h2 className="font-serif text-lg text-sh-navy mb-3">Stops</h2>
+      <h2 className="font-serif text-lg text-brand-navy mb-3">Stops</h2>
       {run.stops.length === 0 ? (
-        <div className="bg-white border border-sh-gray/10 rounded-lg p-6 text-center text-sh-gray text-sm mb-4">
+        <div className="bg-white border border-brand-gray/10 rounded-lg p-6 text-center text-brand-gray text-sm mb-4">
           No stops on this run yet
         </div>
       ) : (
@@ -351,16 +351,16 @@ export function RunDetailView({ id }: { id: string }) {
               : "Unknown Customer";
 
             return (
-              <div key={stop.id} className="bg-white border border-sh-gray/10 rounded-lg p-4">
+              <div key={stop.id} className="bg-white border border-brand-gray/10 rounded-lg p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
-                    <span className="bg-sh-blue text-white text-sm font-semibold w-8 h-8 rounded-full flex items-center justify-center shrink-0">
+                    <span className="bg-brand-blue text-white text-sm font-semibold w-8 h-8 rounded-full flex items-center justify-center shrink-0">
                       {idx + 1}
                     </span>
                     <div>
-                      <div className="font-semibold text-sh-navy">{customerName}</div>
+                      <div className="font-semibold text-brand-navy">{customerName}</div>
                       {appt.address && (
-                        <div className="text-sm text-sh-gray mt-0.5">
+                        <div className="text-sm text-brand-gray mt-0.5">
                           {appt.address.address1}, {appt.address.city}, {appt.address.state}{" "}
                           {appt.address.zip}
                         </div>
@@ -368,14 +368,14 @@ export function RunDetailView({ id }: { id: string }) {
                       {appt.customer?.phone && (
                         <a
                           href={`tel:${appt.customer.phone}`}
-                          className="text-sm text-sh-blue mt-1 inline-flex items-center gap-1 min-h-[44px]"
+                          className="text-sm text-brand-blue mt-1 inline-flex items-center gap-1 min-h-[44px]"
                         >
                           <Phone className="w-3 h-3" />
                           {appt.customer.phone}
                         </a>
                       )}
                       {appt.salesOrder && appt.salesOrder.lineItems.length > 0 && (
-                        <div className="mt-2 text-xs text-sh-gray">
+                        <div className="mt-2 text-xs text-brand-gray">
                           {appt.salesOrder.lineItems.map((li) => (
                             <div key={li.id}>
                               {li.productName || "Unnamed item"} x{Number(li.orderedQuantity)}
@@ -392,18 +392,18 @@ export function RunDetailView({ id }: { id: string }) {
                       <button
                         onClick={() => moveStop(idx, "up")}
                         disabled={idx === 0}
-                        className="p-2 rounded hover:bg-sh-linen disabled:opacity-30 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                        className="p-2 rounded hover:bg-brand-linen disabled:opacity-30 min-w-[44px] min-h-[44px] flex items-center justify-center"
                         aria-label="Move up"
                       >
-                        <ArrowUp className="w-4 h-4 text-sh-gray" />
+                        <ArrowUp className="w-4 h-4 text-brand-gray" />
                       </button>
                       <button
                         onClick={() => moveStop(idx, "down")}
                         disabled={idx === run.stops.length - 1}
-                        className="p-2 rounded hover:bg-sh-linen disabled:opacity-30 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                        className="p-2 rounded hover:bg-brand-linen disabled:opacity-30 min-w-[44px] min-h-[44px] flex items-center justify-center"
                         aria-label="Move down"
                       >
-                        <ArrowDown className="w-4 h-4 text-sh-gray" />
+                        <ArrowDown className="w-4 h-4 text-brand-gray" />
                       </button>
                       <button
                         onClick={() => removeStop(stop.id)}
@@ -435,7 +435,7 @@ export function RunDetailView({ id }: { id: string }) {
       {/* Add Stop Modal */}
       {showAddStop && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-sh-black/40"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-brand-black/40"
           role="presentation"
           onClick={() => setShowAddStop(false)}
           onKeyDown={(e) => e.key === "Escape" && setShowAddStop(false)}
@@ -446,12 +446,12 @@ export function RunDetailView({ id }: { id: string }) {
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
-            <div className="p-4 border-b border-sh-gray/10">
-              <h3 className="font-serif text-lg text-sh-navy">Add Stop</h3>
+            <div className="p-4 border-b border-brand-gray/10">
+              <h3 className="font-serif text-lg text-brand-navy">Add Stop</h3>
             </div>
             <div className="p-4">
               {unassigned.length === 0 ? (
-                <p className="text-sh-gray text-sm text-center py-4">
+                <p className="text-brand-gray text-sm text-center py-4">
                   No unassigned deliveries available
                 </p>
               ) : (
@@ -464,13 +464,13 @@ export function RunDetailView({ id }: { id: string }) {
                       <button
                         key={d.id}
                         onClick={() => addStop(d.id)}
-                        className="w-full text-left p-3 rounded-lg border border-sh-gray/10 hover:bg-sh-linen transition min-h-[44px]"
+                        className="w-full text-left p-3 rounded-lg border border-brand-gray/10 hover:bg-brand-linen transition min-h-[44px]"
                       >
-                        <div className="font-semibold text-sh-navy text-sm">{name}</div>
-                        <div className="text-xs text-sh-gray">
+                        <div className="font-semibold text-brand-navy text-sm">{name}</div>
+                        <div className="text-xs text-brand-gray">
                           {d.address && `${d.address.city}, ${d.address.state}`}
                           {d.deliveryZone && (
-                            <span className="ml-2 text-sh-gold">{d.deliveryZone.name}</span>
+                            <span className="ml-2 text-brand-gold">{d.deliveryZone.name}</span>
                           )}
                         </div>
                       </button>
@@ -479,7 +479,7 @@ export function RunDetailView({ id }: { id: string }) {
                 </div>
               )}
             </div>
-            <div className="p-4 border-t border-sh-gray/10 flex justify-end">
+            <div className="p-4 border-t border-brand-gray/10 flex justify-end">
               <Button variant="outline" onClick={() => setShowAddStop(false)}>
                 Cancel
               </Button>
@@ -493,15 +493,15 @@ export function RunDetailView({ id }: { id: string }) {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    PLANNING: "bg-sh-linen text-sh-gray",
-    LOADED: "bg-sh-gold/10 text-sh-gold",
-    IN_PROGRESS: "bg-sh-blue/10 text-sh-blue",
+    PLANNING: "bg-brand-linen text-brand-gray",
+    LOADED: "bg-brand-gold/10 text-brand-gold",
+    IN_PROGRESS: "bg-brand-blue/10 text-brand-blue",
     COMPLETED: "bg-green-50 text-green-700",
   };
 
   return (
     <span
-      className={`text-xs px-2 py-1 rounded-full ${colors[status] || "bg-sh-linen text-sh-gray"}`}
+      className={`text-xs px-2 py-1 rounded-full ${colors[status] || "bg-brand-linen text-brand-gray"}`}
     >
       {status.replace("_", " ")}
     </span>
@@ -510,16 +510,16 @@ function StatusBadge({ status }: { status: string }) {
 
 function StopStatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    PENDING: "bg-sh-stripe text-sh-gray",
-    EN_ROUTE: "bg-sh-blue/10 text-sh-blue",
-    ARRIVED: "bg-sh-gold/10 text-sh-gold",
+    PENDING: "bg-brand-stripe text-brand-gray",
+    EN_ROUTE: "bg-brand-blue/10 text-brand-blue",
+    ARRIVED: "bg-brand-gold/10 text-brand-gold",
     COMPLETED: "bg-green-50 text-green-700",
     FAILED: "bg-red-50 text-red-600",
   };
 
   return (
     <span
-      className={`text-xs px-2 py-0.5 rounded-full ${colors[status] || "bg-sh-stripe text-sh-gray"}`}
+      className={`text-xs px-2 py-0.5 rounded-full ${colors[status] || "bg-brand-stripe text-brand-gray"}`}
     >
       {status.replace("_", " ")}
     </span>

@@ -466,12 +466,12 @@ export default function DraftItemWizard({
         <div className="flex min-h-full items-center justify-center p-4">
           <DialogPanel className="w-full max-w-3xl bg-white rounded-2xl shadow-xl flex flex-col max-h-[90vh]">
             {/* Header */}
-            <div className="flex items-start justify-between px-6 py-4 border-b border-sh-stripe">
+            <div className="flex items-start justify-between px-6 py-4 border-b border-brand-stripe">
               <div>
-                <DialogTitle as="h2" className="font-serif text-xl text-sh-navy">
+                <DialogTitle as="h2" className="font-serif text-xl text-brand-navy">
                   {editingItemId ? "Edit draft item" : "New draft item"}
                 </DialogTitle>
-                <p className="text-xs text-sh-gray mt-1">
+                <p className="text-xs text-brand-gray mt-1">
                   {form.vendorName ? `Building for ${form.vendorName}` : "Pick a vendor to begin"}
                 </p>
               </div>
@@ -479,14 +479,14 @@ export default function DraftItemWizard({
                 type="button"
                 onClick={onClose}
                 aria-label="Close wizard"
-                className="text-sh-gray hover:text-sh-navy"
+                className="text-brand-gray hover:text-brand-navy"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Step tabs */}
-            <div role="tablist" className="flex border-b border-sh-stripe overflow-x-auto">
+            <div role="tablist" className="flex border-b border-brand-stripe overflow-x-auto">
               {STEPS.map((s, idx) => {
                 const isActive = s.id === step;
                 const isDone = idx < stepIndex;
@@ -499,15 +499,17 @@ export default function DraftItemWizard({
                     onClick={() => setStep(s.id)}
                     className={`flex-1 min-w-[100px] px-3 py-3 flex flex-col items-center gap-1 text-xs font-semibold transition-colors ${
                       isActive
-                        ? "text-sh-blue border-b-2 border-sh-blue"
-                        : "text-sh-gray border-b-2 border-transparent hover:bg-sh-stripe/40"
+                        ? "text-brand-blue border-b-2 border-brand-blue"
+                        : "text-brand-gray border-b-2 border-transparent hover:bg-brand-stripe/40"
                     }`}
                   >
                     <span className="flex items-center gap-1">
                       {isDone ? (
-                        <Check className="h-4 w-4 text-sh-gold" />
+                        <Check className="h-4 w-4 text-brand-gold" />
                       ) : (
-                        <span className={isActive ? "text-sh-blue" : "text-sh-gray"}>{s.icon}</span>
+                        <span className={isActive ? "text-brand-blue" : "text-brand-gray"}>
+                          {s.icon}
+                        </span>
                       )}
                       {s.label}
                     </span>
@@ -559,7 +561,7 @@ export default function DraftItemWizard({
             </div>
 
             {/* Footer: Back / Next / Save */}
-            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-sh-stripe">
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-brand-stripe">
               <Button
                 variant="secondary"
                 onClick={goBack}
@@ -659,10 +661,10 @@ function VendorStep({
   return (
     <div className="space-y-5 max-w-xl">
       <div>
-        <label htmlFor="wizard-vendor" className="block text-sm font-semibold text-sh-navy mb-1">
+        <label htmlFor="wizard-vendor" className="block text-sm font-semibold text-brand-navy mb-1">
           Supplier
         </label>
-        <p className="text-xs text-sh-gray mb-2">
+        <p className="text-xs text-brand-gray mb-2">
           Pick an existing vendor or type a new one below if you&apos;re drafting from a supplier we
           don&apos;t have a record for yet.
         </p>
@@ -675,7 +677,7 @@ function VendorStep({
             setField("vendorId", v);
             if (matched) setField("vendorName", matched.name);
           }}
-          className="w-full px-3 py-2 border border-sh-stripe rounded text-base bg-white"
+          className="w-full px-3 py-2 border border-brand-stripe rounded text-base bg-white"
         >
           <option value="">— New vendor (type below) —</option>
           {vendors.map((v) => (
@@ -690,7 +692,7 @@ function VendorStep({
       <div>
         <label
           htmlFor="wizard-vendor-name"
-          className="block text-sm font-semibold text-sh-navy mb-1"
+          className="block text-sm font-semibold text-brand-navy mb-1"
         >
           Supplier name (as it should appear on the export)
         </label>
@@ -700,15 +702,15 @@ function VendorStep({
           value={form.vendorName}
           onChange={(e) => setField("vendorName", e.target.value)}
           placeholder="e.g. Wesley Hall"
-          className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+          className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
         />
       </div>
 
       <div>
-        <label htmlFor="wizard-po" className="block text-sm font-semibold text-sh-navy mb-1">
+        <label htmlFor="wizard-po" className="block text-sm font-semibold text-brand-navy mb-1">
           Add to draft PO (optional)
         </label>
-        <p className="text-xs text-sh-gray mb-2">
+        <p className="text-xs text-brand-gray mb-2">
           Group this item with others on a single the POS PO export. You can also leave it
           unassigned and group items later.
         </p>
@@ -718,7 +720,7 @@ function VendorStep({
           onChange={(e) =>
             setField("draftPoId", e.target.value === "" ? null : Number(e.target.value))
           }
-          className="w-full px-3 py-2 border border-sh-stripe rounded text-base bg-white"
+          className="w-full px-3 py-2 border border-brand-stripe rounded text-base bg-white"
         >
           <option value="">— Unassigned —</option>
           {draftPos.map((po) => (
@@ -745,10 +747,10 @@ function IdentityStep({
     <div className="space-y-5 max-w-xl">
       {/* Pick-from-catalog affordance — only when a vendor is selected */}
       {form.vendorId !== null && (
-        <div className="flex items-center justify-between gap-3 p-3 border border-sh-stripe rounded bg-sh-stripe/30">
+        <div className="flex items-center justify-between gap-3 p-3 border border-brand-stripe rounded bg-brand-stripe/30">
           <div>
-            <div className="text-sm font-semibold text-sh-navy">Pre-fill from catalog</div>
-            <div className="text-xs text-sh-gray mt-0.5">
+            <div className="text-sm font-semibold text-brand-navy">Pre-fill from catalog</div>
+            <div className="text-xs text-brand-gray mt-0.5">
               Pick an existing vendor style and the wizard fills in part #, name, cost, retail, and
               dimensions for you.
             </div>
@@ -765,10 +767,10 @@ function IdentityStep({
       )}
 
       <div>
-        <label htmlFor="wizard-part" className="block text-sm font-semibold text-sh-navy mb-1">
+        <label htmlFor="wizard-part" className="block text-sm font-semibold text-brand-navy mb-1">
           Part number
         </label>
-        <p className="text-xs text-sh-gray mb-2">
+        <p className="text-xs text-brand-gray mb-2">
           The vendor&apos;s SKU / Item#. This is what the POS imports as the product number.
         </p>
         <input
@@ -777,11 +779,11 @@ function IdentityStep({
           value={form.partNumber}
           onChange={(e) => setField("partNumber", e.target.value)}
           placeholder="e.g. L2272-05SW"
-          className="w-full px-3 py-2 border border-sh-stripe rounded text-base font-mono"
+          className="w-full px-3 py-2 border border-brand-stripe rounded text-base font-mono"
         />
       </div>
       <div>
-        <label htmlFor="wizard-name" className="block text-sm font-semibold text-sh-navy mb-1">
+        <label htmlFor="wizard-name" className="block text-sm font-semibold text-brand-navy mb-1">
           Product name
         </label>
         <input
@@ -790,11 +792,11 @@ function IdentityStep({
           value={form.productName}
           onChange={(e) => setField("productName", e.target.value)}
           placeholder="e.g. Murphey Swivel Chair"
-          className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+          className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
         />
       </div>
       <div>
-        <label htmlFor="wizard-qty" className="block text-sm font-semibold text-sh-navy mb-1">
+        <label htmlFor="wizard-qty" className="block text-sm font-semibold text-brand-navy mb-1">
           Quantity
         </label>
         <input
@@ -803,7 +805,7 @@ function IdentityStep({
           min={1}
           value={form.qty}
           onChange={(e) => setField("qty", e.target.value)}
-          className="w-32 px-3 py-2 border border-sh-stripe rounded text-base text-right"
+          className="w-32 px-3 py-2 border border-brand-stripe rounded text-base text-right"
         />
       </div>
     </div>
@@ -830,13 +832,13 @@ function TaxonomyStep({
 
   return (
     <div className="space-y-5 max-w-xl">
-      <p className="text-xs text-sh-gray">
+      <p className="text-xs text-brand-gray">
         Department and category drive the POS&apos;s reporting hierarchy. These stick across items
         in this session — your next item starts with the same dept/category pre-selected.{" "}
-        <strong className="text-sh-navy">Department + Category are required to save.</strong>
+        <strong className="text-brand-navy">Department + Category are required to save.</strong>
       </p>
       <div>
-        <label htmlFor="wizard-dept" className="block text-sm font-semibold text-sh-navy mb-1">
+        <label htmlFor="wizard-dept" className="block text-sm font-semibold text-brand-navy mb-1">
           Department <span className="text-red-600">*</span>
         </label>
         <select
@@ -849,7 +851,7 @@ function TaxonomyStep({
             setField("typeId", null);
           }}
           className={`w-full px-3 py-2 border rounded text-base bg-white ${
-            form.departmentId ? "border-sh-stripe" : "border-red-300"
+            form.departmentId ? "border-brand-stripe" : "border-red-300"
           }`}
         >
           <option value="">— Pick a department —</option>
@@ -861,7 +863,7 @@ function TaxonomyStep({
         </select>
       </div>
       <div>
-        <label htmlFor="wizard-cat" className="block text-sm font-semibold text-sh-navy mb-1">
+        <label htmlFor="wizard-cat" className="block text-sm font-semibold text-brand-navy mb-1">
           Category <span className="text-red-600">*</span>
         </label>
         <select
@@ -873,8 +875,8 @@ function TaxonomyStep({
             setField("typeId", null);
           }}
           disabled={!form.departmentId}
-          className={`w-full px-3 py-2 border rounded text-base bg-white disabled:bg-sh-stripe/40 ${
-            form.categoryId || !form.departmentId ? "border-sh-stripe" : "border-red-300"
+          className={`w-full px-3 py-2 border rounded text-base bg-white disabled:bg-brand-stripe/40 ${
+            form.categoryId || !form.departmentId ? "border-brand-stripe" : "border-red-300"
           }`}
         >
           <option value="">
@@ -893,8 +895,8 @@ function TaxonomyStep({
           wondering whether something's broken. */}
       {categoryHasTypes && (
         <div>
-          <label htmlFor="wizard-type" className="block text-sm font-semibold text-sh-navy mb-1">
-            Type <span className="text-sh-gray font-normal">(optional)</span>
+          <label htmlFor="wizard-type" className="block text-sm font-semibold text-brand-navy mb-1">
+            Type <span className="text-brand-gray font-normal">(optional)</span>
           </label>
           <select
             id="wizard-type"
@@ -902,7 +904,7 @@ function TaxonomyStep({
             onChange={(e) =>
               setField("typeId", e.target.value === "" ? null : Number(e.target.value))
             }
-            className="w-full px-3 py-2 border border-sh-stripe rounded text-base bg-white"
+            className="w-full px-3 py-2 border border-brand-stripe rounded text-base bg-white"
           >
             <option value="">— None —</option>
             {types.map((t) => (
@@ -914,7 +916,7 @@ function TaxonomyStep({
         </div>
       )}
       {form.categoryId !== null && !categoryHasTypes && (
-        <p className="text-xs text-sh-gray italic">
+        <p className="text-xs text-brand-gray italic">
           This category has no types defined — skip ahead.
         </p>
       )}
@@ -968,10 +970,10 @@ function ItemTypeSelector({
   ];
   return (
     <fieldset>
-      <legend className="block text-sm font-semibold text-sh-navy mb-2">
+      <legend className="block text-sm font-semibold text-brand-navy mb-2">
         Item type <span className="text-red-600">*</span>
       </legend>
-      <p className="text-xs text-sh-gray mb-3">
+      <p className="text-xs text-brand-gray mb-3">
         Sets the description template (which fields appear and how the description is laid out for
         the POS&apos;s product card).
       </p>
@@ -983,12 +985,12 @@ function ItemTypeSelector({
             onClick={() => setField("itemType", c.value)}
             className={`text-left p-3 border rounded ${
               form.itemType === c.value
-                ? "border-sh-blue bg-sh-blue/5"
-                : "border-sh-stripe hover:bg-sh-stripe/30"
+                ? "border-brand-blue bg-brand-blue/5"
+                : "border-brand-stripe hover:bg-brand-stripe/30"
             }`}
           >
-            <div className="text-sm font-semibold text-sh-navy">{c.label}</div>
-            <div className="text-xs text-sh-gray mt-0.5">{c.hint}</div>
+            <div className="text-sm font-semibold text-brand-navy">{c.label}</div>
+            <div className="text-xs text-brand-gray mt-0.5">{c.hint}</div>
           </button>
         ))}
       </div>
@@ -1081,7 +1083,7 @@ function OtherMaterialsFields({
 }: Readonly<{ form: ItemFormState; setField: SetField }>) {
   return (
     <>
-      <p className="text-xs text-sh-gray italic">
+      <p className="text-xs text-brand-gray italic">
         Generic template — fill in whatever applies. Most accessory / rug / lighting items only need
         Finish + Options + Dimensions.
       </p>
@@ -1126,7 +1128,7 @@ function TextInput({
 }>) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-semibold text-sh-navy mb-1">
+      <label htmlFor={id} className="block text-sm font-semibold text-brand-navy mb-1">
         {label}
       </label>
       <input
@@ -1135,9 +1137,9 @@ function TextInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+        className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
       />
-      {helperText && <p className="text-xs text-sh-gray mt-1">{helperText}</p>}
+      {helperText && <p className="text-xs text-brand-gray mt-1">{helperText}</p>}
     </div>
   );
 }
@@ -1150,11 +1152,11 @@ function CleaningCodeField({
     <div>
       <label
         htmlFor="wizard-cleaning-code"
-        className="block text-sm font-semibold text-sh-navy mb-1"
+        className="block text-sm font-semibold text-brand-navy mb-1"
       >
         Cleaning code
       </label>
-      <p className="text-xs text-sh-gray mb-2">
+      <p className="text-xs text-brand-gray mb-2">
         Industry-standard upholstery cleaning code. Pick from common codes or type a vendor-specific
         one.
       </p>
@@ -1165,7 +1167,7 @@ function CleaningCodeField({
           value={form.cleaningCode}
           onChange={(e) => setField("cleaningCode", e.target.value)}
           placeholder="e.g. S, W, SW"
-          className="w-32 px-3 py-2 border border-sh-stripe rounded text-base font-mono uppercase"
+          className="w-32 px-3 py-2 border border-brand-stripe rounded text-base font-mono uppercase"
         />
         <div className="flex gap-1 flex-wrap">
           {CLEANING_CODE_PRESETS.map((preset) => (
@@ -1175,8 +1177,8 @@ function CleaningCodeField({
               onClick={() => setField("cleaningCode", preset.code)}
               className={`px-2 py-1.5 border rounded text-xs font-mono ${
                 form.cleaningCode === preset.code
-                  ? "border-sh-blue bg-sh-blue/10 text-sh-blue"
-                  : "border-sh-stripe text-sh-gray hover:bg-sh-stripe/40"
+                  ? "border-brand-blue bg-brand-blue/10 text-brand-blue"
+                  : "border-brand-stripe text-brand-gray hover:bg-brand-stripe/40"
               }`}
               title={preset.label}
             >
@@ -1186,7 +1188,7 @@ function CleaningCodeField({
         </div>
       </div>
       {form.cleaningCode && (
-        <p className="text-xs text-sh-gray mt-1.5">
+        <p className="text-xs text-brand-gray mt-1.5">
           {CLEANING_CODE_PRESETS.find((p) => p.code === form.cleaningCode)?.label ??
             `Custom: ${form.cleaningCode}`}
         </p>
@@ -1214,10 +1216,10 @@ function BuildStep({
   return (
     <div className="space-y-5 max-w-2xl">
       {/* Mode toggle */}
-      <div className="flex items-center justify-between border border-sh-stripe rounded p-3 bg-sh-stripe/30">
+      <div className="flex items-center justify-between border border-brand-stripe rounded p-3 bg-brand-stripe/30">
         <div>
-          <div className="text-sm font-semibold text-sh-navy">Description source</div>
-          <div className="text-xs text-sh-gray mt-0.5">
+          <div className="text-sm font-semibold text-brand-navy">Description source</div>
+          <div className="text-xs text-brand-gray mt-0.5">
             {isManual
               ? "Free-text — type whatever you want."
               : "Auto-built from Materials + Options + Dimensions, with line breaks for the POS."}
@@ -1226,7 +1228,7 @@ function BuildStep({
         <button
           type="button"
           onClick={() => setField("descriptionMode", isManual ? "auto" : "manual")}
-          className="px-3 py-1.5 border border-sh-stripe rounded text-sm bg-white hover:bg-sh-stripe/60"
+          className="px-3 py-1.5 border border-brand-stripe rounded text-sm bg-white hover:bg-brand-stripe/60"
         >
           {isManual ? "Use structured fields" : "Free-text override"}
         </button>
@@ -1236,15 +1238,18 @@ function BuildStep({
         <>
           {/* Dimensions */}
           <fieldset>
-            <legend className="block text-sm font-semibold text-sh-navy mb-2">
-              Dimensions <span className="text-sh-gray font-normal">(inches, optional)</span>
+            <legend className="block text-sm font-semibold text-brand-navy mb-2">
+              Dimensions <span className="text-brand-gray font-normal">(inches, optional)</span>
             </legend>
-            <p className="text-xs text-sh-gray mb-2">
+            <p className="text-xs text-brand-gray mb-2">
               Appear in the Description as &ldquo;Dimensions: 30W x 39.5D x 34H&rdquo;.
             </p>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label htmlFor="wizard-w" className="block text-xs font-semibold text-sh-navy mb-1">
+                <label
+                  htmlFor="wizard-w"
+                  className="block text-xs font-semibold text-brand-navy mb-1"
+                >
                   Width
                 </label>
                 <input
@@ -1255,11 +1260,14 @@ function BuildStep({
                   value={form.productWidth}
                   onChange={(e) => setField("productWidth", e.target.value)}
                   placeholder="W"
-                  className="w-full px-3 py-2 border border-sh-stripe rounded text-base text-right"
+                  className="w-full px-3 py-2 border border-brand-stripe rounded text-base text-right"
                 />
               </div>
               <div>
-                <label htmlFor="wizard-l" className="block text-xs font-semibold text-sh-navy mb-1">
+                <label
+                  htmlFor="wizard-l"
+                  className="block text-xs font-semibold text-brand-navy mb-1"
+                >
                   Depth
                 </label>
                 <input
@@ -1270,11 +1278,14 @@ function BuildStep({
                   value={form.productLength}
                   onChange={(e) => setField("productLength", e.target.value)}
                   placeholder="D"
-                  className="w-full px-3 py-2 border border-sh-stripe rounded text-base text-right"
+                  className="w-full px-3 py-2 border border-brand-stripe rounded text-base text-right"
                 />
               </div>
               <div>
-                <label htmlFor="wizard-h" className="block text-xs font-semibold text-sh-navy mb-1">
+                <label
+                  htmlFor="wizard-h"
+                  className="block text-xs font-semibold text-brand-navy mb-1"
+                >
                   Height
                 </label>
                 <input
@@ -1285,7 +1296,7 @@ function BuildStep({
                   value={form.productHeight}
                   onChange={(e) => setField("productHeight", e.target.value)}
                   placeholder="H"
-                  className="w-full px-3 py-2 border border-sh-stripe rounded text-base text-right"
+                  className="w-full px-3 py-2 border border-brand-stripe rounded text-base text-right"
                 />
               </div>
             </div>
@@ -1296,11 +1307,11 @@ function BuildStep({
             <div>
               <label
                 htmlFor="wizard-toss-pillows"
-                className="block text-sm font-semibold text-sh-navy mb-1"
+                className="block text-sm font-semibold text-brand-navy mb-1"
               >
                 Toss pillows
               </label>
-              <p className="text-xs text-sh-gray mb-2">
+              <p className="text-xs text-brand-gray mb-2">
                 Pillow count, sizes, fabric / trim. Example: &ldquo;(2) 22&quot; knife edge in
                 Calvin Sky&rdquo;.
               </p>
@@ -1310,7 +1321,7 @@ function BuildStep({
                 onChange={(e) => setField("tossPillows", e.target.value)}
                 placeholder='e.g. (2) 22" knife edge in Calvin Sky'
                 rows={2}
-                className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+                className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
               />
             </div>
           )}
@@ -1319,11 +1330,11 @@ function BuildStep({
           <div>
             <label
               htmlFor="wizard-options"
-              className="block text-sm font-semibold text-sh-navy mb-1"
+              className="block text-sm font-semibold text-brand-navy mb-1"
             >
               Options
             </label>
-            <p className="text-xs text-sh-gray mb-2">
+            <p className="text-xs text-brand-gray mb-2">
               Trim, build-your-own selections, custom upgrades. Example: &ldquo;Tufted Back, French
               Nailhead, Brass Casters&rdquo;.
             </p>
@@ -1333,23 +1344,23 @@ function BuildStep({
               onChange={(e) => setField("options", e.target.value)}
               placeholder="e.g. Tufted Back, French Nailhead"
               rows={2}
-              className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+              className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
             />
           </div>
 
           {/* Live preview — newline-joined to show exactly what the POS renders */}
-          <div className="border border-sh-stripe rounded p-3 bg-sh-linen">
-            <div className="text-xs font-semibold text-sh-navy uppercase tracking-wide mb-2">
+          <div className="border border-brand-stripe rounded p-3 bg-brand-linen">
+            <div className="text-xs font-semibold text-brand-navy uppercase tracking-wide mb-2">
               Description preview (as the POS will display)
             </div>
-            <div className="text-sm text-sh-navy font-mono whitespace-pre-wrap min-h-[1.5em] bg-white border border-sh-stripe rounded p-2">
+            <div className="text-sm text-brand-navy font-mono whitespace-pre-wrap min-h-[1.5em] bg-white border border-brand-stripe rounded p-2">
               {assembledDescription || (
-                <span className="text-sh-gray italic">
+                <span className="text-brand-gray italic">
                   Empty — fill in Materials, Options, or Dimensions to see a preview.
                 </span>
               )}
             </div>
-            <p className="text-xs text-sh-gray mt-2">
+            <p className="text-xs text-brand-gray mt-2">
               Each line above appears as a separate line on the POS product card.
             </p>
           </div>
@@ -1358,7 +1369,7 @@ function BuildStep({
 
       {isManual && (
         <div>
-          <label htmlFor="wizard-desc" className="block text-sm font-semibold text-sh-navy mb-1">
+          <label htmlFor="wizard-desc" className="block text-sm font-semibold text-brand-navy mb-1">
             Description (free text)
           </label>
           <textarea
@@ -1369,19 +1380,19 @@ function BuildStep({
               "Leather: Stetson Chestnut\nGrade: 13\nCushion: Mayfair\nDimensions: 30W x 39.5D x 34H"
             }
             rows={8}
-            className="w-full px-3 py-2 border border-sh-stripe rounded text-base font-mono"
+            className="w-full px-3 py-2 border border-brand-stripe rounded text-base font-mono"
           />
-          <p className="text-xs text-sh-gray mt-1">
+          <p className="text-xs text-brand-gray mt-1">
             Press Enter for new lines. Each line appears separately on the POS product card.
           </p>
         </div>
       )}
 
       <div>
-        <label htmlFor="wizard-notes" className="block text-sm font-semibold text-sh-navy mb-1">
+        <label htmlFor="wizard-notes" className="block text-sm font-semibold text-brand-navy mb-1">
           Internal notes (optional)
         </label>
-        <p className="text-xs text-sh-gray mb-2">
+        <p className="text-xs text-brand-gray mb-2">
           Anything for your team. Internal only — not exported.
         </p>
         <textarea
@@ -1389,7 +1400,7 @@ function BuildStep({
           value={form.notes}
           onChange={(e) => setField("notes", e.target.value)}
           rows={2}
-          className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+          className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
         />
       </div>
     </div>
@@ -1405,11 +1416,11 @@ function PricingStep({
     <div className="space-y-5 max-w-xl">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-          <label htmlFor="wizard-cost" className="block text-sm font-semibold text-sh-navy mb-1">
+          <label htmlFor="wizard-cost" className="block text-sm font-semibold text-brand-navy mb-1">
             Wholesale cost
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sh-gray">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray">$</span>
             <input
               id="wizard-cost"
               type="number"
@@ -1417,16 +1428,16 @@ function PricingStep({
               min={0}
               value={form.cost}
               onChange={(e) => setField("cost", e.target.value)}
-              className="w-full pl-7 pr-3 py-2 border border-sh-stripe rounded text-base text-right"
+              className="w-full pl-7 pr-3 py-2 border border-brand-stripe rounded text-base text-right"
             />
           </div>
         </div>
         <div>
-          <label htmlFor="wizard-msrp" className="block text-sm font-semibold text-sh-navy mb-1">
+          <label htmlFor="wizard-msrp" className="block text-sm font-semibold text-brand-navy mb-1">
             MSRP / RRP
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sh-gray">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray">$</span>
             <input
               id="wizard-msrp"
               type="number"
@@ -1434,16 +1445,19 @@ function PricingStep({
               min={0}
               value={form.msrp}
               onChange={(e) => setField("msrp", e.target.value)}
-              className="w-full pl-7 pr-3 py-2 border border-sh-stripe rounded text-base text-right"
+              className="w-full pl-7 pr-3 py-2 border border-brand-stripe rounded text-base text-right"
             />
           </div>
         </div>
         <div>
-          <label htmlFor="wizard-retail" className="block text-sm font-semibold text-sh-navy mb-1">
+          <label
+            htmlFor="wizard-retail"
+            className="block text-sm font-semibold text-brand-navy mb-1"
+          >
             Selling price (retail)
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sh-gray">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-gray">$</span>
             <input
               id="wizard-retail"
               type="number"
@@ -1451,14 +1465,14 @@ function PricingStep({
               min={0}
               value={form.retail}
               onChange={(e) => setField("retail", e.target.value)}
-              className="w-full pl-7 pr-3 py-2 border border-sh-stripe rounded text-base text-right"
+              className="w-full pl-7 pr-3 py-2 border border-brand-stripe rounded text-base text-right"
             />
           </div>
         </div>
       </div>
       {margin !== null && (
-        <div className="text-sm text-sh-gray bg-sh-stripe/50 rounded p-3">
-          <span className="font-semibold text-sh-navy">{margin.toFixed(1)}% margin</span> at this
+        <div className="text-sm text-brand-gray bg-brand-stripe/50 rounded p-3">
+          <span className="font-semibold text-brand-navy">{margin.toFixed(1)}% margin</span> at this
           cost / retail.
         </div>
       )}
@@ -1483,10 +1497,12 @@ function StockingStep({
   return (
     <div className="space-y-6 max-w-xl">
       <fieldset>
-        <legend className="block text-sm font-semibold text-sh-navy mb-2">Stocking program</legend>
+        <legend className="block text-sm font-semibold text-brand-navy mb-2">
+          Stocking program
+        </legend>
         <label
           htmlFor="wizard-stock-program"
-          className="flex items-start gap-3 p-3 border border-sh-stripe rounded cursor-pointer hover:bg-sh-stripe/30"
+          className="flex items-start gap-3 p-3 border border-brand-stripe rounded cursor-pointer hover:bg-brand-stripe/30"
         >
           <input
             id="wizard-stock-program"
@@ -1497,8 +1513,8 @@ function StockingStep({
             className="h-5 w-5 mt-0.5"
           />
           <span className="text-sm">
-            <span className="font-semibold text-sh-navy">Part of the stocking program</span>
-            <span className="block text-xs text-sh-gray mt-1">
+            <span className="font-semibold text-brand-navy">Part of the stocking program</span>
+            <span className="block text-xs text-brand-gray mt-1">
               Tag this item as part of a vendor stocking program (e.g. Wesley Hall stocking sofas we
               keep on the floor). Drives the &ldquo;Stock Family&rdquo; column on the items export.
             </span>
@@ -1510,11 +1526,11 @@ function StockingStep({
         <div>
           <label
             htmlFor="wizard-stock-family"
-            className="block text-sm font-semibold text-sh-navy mb-1"
+            className="block text-sm font-semibold text-brand-navy mb-1"
           >
             Stock family
           </label>
-          <p className="text-xs text-sh-gray mb-2">
+          <p className="text-xs text-brand-gray mb-2">
             Free-text label that groups stocking items together. Examples: &ldquo;WH Bevel
             Arm&rdquo;, &ldquo;CRL Magnolia&rdquo;.
           </p>
@@ -1524,16 +1540,16 @@ function StockingStep({
             value={form.stockFamily}
             onChange={(e) => setField("stockFamily", e.target.value)}
             placeholder="e.g. WH Bevel Arm Stocking"
-            className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+            className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
           />
         </div>
       )}
 
       <div>
-        <label htmlFor="wizard-loc" className="block text-sm font-semibold text-sh-navy mb-1">
+        <label htmlFor="wizard-loc" className="block text-sm font-semibold text-brand-navy mb-1">
           Where it lands
         </label>
-        <p className="text-xs text-sh-gray mb-2">
+        <p className="text-xs text-brand-gray mb-2">
           Stock location for the PO export. Sticks across items in this session.
         </p>
         <select
@@ -1542,7 +1558,7 @@ function StockingStep({
           onChange={(e) =>
             setField("stockLocationId", e.target.value === "" ? null : Number(e.target.value))
           }
-          className="w-full px-3 py-2 border border-sh-stripe rounded text-base bg-white"
+          className="w-full px-3 py-2 border border-brand-stripe rounded text-base bg-white"
         >
           <option value="">— None —</option>
           {stockLocations.map((loc) => (
@@ -1554,10 +1570,13 @@ function StockingStep({
       </div>
 
       <div>
-        <label htmlFor="wizard-vignette" className="block text-sm font-semibold text-sh-navy mb-1">
-          Vignette / floor-plan area <span className="text-sh-gray font-normal">(optional)</span>
+        <label
+          htmlFor="wizard-vignette"
+          className="block text-sm font-semibold text-brand-navy mb-1"
+        >
+          Vignette / floor-plan area <span className="text-brand-gray font-normal">(optional)</span>
         </label>
-        <p className="text-xs text-sh-gray mb-2">
+        <p className="text-xs text-brand-gray mb-2">
           Display grouping inside the location — e.g. &ldquo;Vignette 1&rdquo;, &ldquo;Living Room
           Display&rdquo;, &ldquo;Front Window&rdquo;. Multiple items can share a vignette, and one
           stock location can host several vignettes. Drives the Floor Plan sheet on the buyer
@@ -1569,19 +1588,19 @@ function StockingStep({
           value={form.vignette}
           onChange={(e) => setField("vignette", e.target.value)}
           placeholder="e.g. Vignette 3, Front Window"
-          className="w-full px-3 py-2 border border-sh-stripe rounded text-base"
+          className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
         />
       </div>
 
       <fieldset>
-        <legend className="block text-sm font-semibold text-sh-navy mb-2">Status on save</legend>
+        <legend className="block text-sm font-semibold text-brand-navy mb-2">Status on save</legend>
         <div className="grid grid-cols-2 gap-3">
           <label
             htmlFor="wizard-status-draft"
             className={`p-3 border rounded cursor-pointer ${
               form.status === "DRAFT"
-                ? "border-sh-blue bg-sh-blue/5"
-                : "border-sh-stripe hover:bg-sh-stripe/30"
+                ? "border-brand-blue bg-brand-blue/5"
+                : "border-brand-stripe hover:bg-brand-stripe/30"
             }`}
           >
             <input
@@ -1593,8 +1612,8 @@ function StockingStep({
               onChange={() => setField("status", "DRAFT")}
               className="sr-only"
             />
-            <span className="text-sm font-semibold text-sh-navy">Save as DRAFT</span>
-            <span className="block text-xs text-sh-gray mt-1">
+            <span className="text-sm font-semibold text-brand-navy">Save as DRAFT</span>
+            <span className="block text-xs text-brand-gray mt-1">
               Still being figured out. Won&apos;t appear in the next export batch.
             </span>
           </label>
@@ -1602,8 +1621,8 @@ function StockingStep({
             htmlFor="wizard-status-ready"
             className={`p-3 border rounded cursor-pointer ${
               form.status === "READY"
-                ? "border-sh-blue bg-sh-blue/5"
-                : "border-sh-stripe hover:bg-sh-stripe/30"
+                ? "border-brand-blue bg-brand-blue/5"
+                : "border-brand-stripe hover:bg-brand-stripe/30"
             }`}
           >
             <input
@@ -1615,8 +1634,8 @@ function StockingStep({
               onChange={() => setField("status", "READY")}
               className="sr-only"
             />
-            <span className="text-sm font-semibold text-sh-navy">Mark READY</span>
-            <span className="block text-xs text-sh-gray mt-1">
+            <span className="text-sm font-semibold text-brand-navy">Mark READY</span>
+            <span className="block text-xs text-brand-gray mt-1">
               Locked in. Will be included on the next Items / POs CSV export.
             </span>
           </label>

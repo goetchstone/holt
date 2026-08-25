@@ -57,7 +57,7 @@ function renderConfirmStatus(r: ConfirmStatusRow) {
     return (
       <span className="text-red-700">
         <span>⚠ issue reported</span>
-        <span className="ml-1 block text-xs text-sh-gray">“{r.openIssue.note}”</span>
+        <span className="ml-1 block text-xs text-brand-gray">“{r.openIssue.note}”</span>
       </span>
     );
   }
@@ -70,7 +70,7 @@ function renderConfirmStatus(r: ConfirmStatusRow) {
   if (r.reopenedAt) {
     return <span className="text-amber-700">reopened</span>;
   }
-  return <span className="text-sh-gray">not confirmed</span>;
+  return <span className="text-brand-gray">not confirmed</span>;
 }
 
 export function PayPeriodSalesView() {
@@ -237,8 +237,8 @@ export function PayPeriodSalesView() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-navy font-serif">Pay Period Sales</h1>
-          <p className="mt-1 text-sm text-sh-gray">
+          <h1 className="text-2xl font-semibold text-brand-navy font-serif">Pay Period Sales</h1>
+          <p className="mt-1 text-sm text-brand-gray">
             Your sales for the bi-weekly pay period — order detail, period total, and year-to-date.
             Split orders are credited at 50%. This is sales only; commission is calculated
             separately by management.
@@ -250,13 +250,13 @@ export function PayPeriodSalesView() {
       </div>
 
       {/* Period nav + designer picker */}
-      <section className="rounded border border-sh-stripe bg-white p-4">
+      <section className="rounded border border-brand-stripe bg-white p-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => gotoPeriod(-PERIOD_DAYS)} disabled={loading}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="min-w-[180px] text-center text-sm font-medium text-sh-navy">
+            <span className="min-w-[180px] text-center text-sm font-medium text-brand-navy">
               {data?.period.label ?? "…"}
             </span>
             <Button variant="outline" onClick={() => gotoPeriod(PERIOD_DAYS)} disabled={loading}>
@@ -289,7 +289,7 @@ export function PayPeriodSalesView() {
 
       {/* Privileged-with-no-pick prompt */}
       {data?.needsSelection && (
-        <p className="text-sm text-sh-gray">
+        <p className="text-sm text-brand-gray">
           Pick a designer above to view their pay-period statement.
         </p>
       )}
@@ -313,7 +313,7 @@ export function PayPeriodSalesView() {
 
       {/* Confirm banner */}
       {data?.designer && data.confirmation && (
-        <section className="rounded border border-sh-stripe bg-white p-4">
+        <section className="rounded border border-brand-stripe bg-white p-4">
           {data.confirmation.confirmed && (
             <p className="text-sm text-green-700">
               ✓ Confirmed
@@ -330,13 +330,13 @@ export function PayPeriodSalesView() {
                 be confirmed.
               </span>
               {data.issue.note ? (
-                <span className="mt-1 block text-xs text-sh-gray">“{data.issue.note}”</span>
+                <span className="mt-1 block text-xs text-brand-gray">“{data.issue.note}”</span>
               ) : null}
             </p>
           )}
           {!data.confirmation.confirmed && !data.issue?.open && (
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-sh-gray">
+              <p className="text-sm text-brand-gray">
                 {data.confirmation.confirmable
                   ? "Review the orders below. When they look right, confirm to lock the period. If something's wrong, report an issue instead."
                   : "You can confirm these numbers once the pay period has ended. If something looks wrong now, report an issue."}
@@ -363,9 +363,9 @@ export function PayPeriodSalesView() {
 
       {/* Manager confirmation-status grid */}
       {isPrivileged && statusRows.length > 0 && (
-        <section className="rounded border border-sh-stripe bg-white p-4">
+        <section className="rounded border border-brand-stripe bg-white p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-sh-navy">
+            <h2 className="text-sm font-semibold text-brand-navy">
               Confirmation status — {data?.period.label}
             </h2>
             {readyForReview ? (
@@ -373,14 +373,14 @@ export function PayPeriodSalesView() {
                 ✓ Ready for review — all designers confirmed
               </span>
             ) : (
-              <span className="text-xs text-sh-gray">Waiting on confirmations</span>
+              <span className="text-xs text-brand-gray">Waiting on confirmations</span>
             )}
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-xs">
               <tbody>
                 {statusRows.map((r) => (
-                  <tr key={r.staffMemberId} className="border-t border-sh-stripe">
+                  <tr key={r.staffMemberId} className="border-t border-brand-stripe">
                     <td className="p-2">{r.displayName}</td>
                     <td className="p-2">{renderConfirmStatus(r)}</td>
                     <td className="p-2 text-right">
@@ -398,7 +398,7 @@ export function PayPeriodSalesView() {
                           <button
                             type="button"
                             onClick={() => handleReopen(r.confirmationId!)}
-                            className="text-sh-gold hover:underline"
+                            className="text-brand-gold hover:underline"
                           >
                             Reopen
                           </button>
@@ -416,14 +416,14 @@ export function PayPeriodSalesView() {
       {/* Detail table */}
       {data?.designer && (
         <section>
-          {loading && <p className="text-sm text-sh-gray">Loading…</p>}
+          {loading && <p className="text-sm text-brand-gray">Loading…</p>}
           {!loading && data.orders.length === 0 && (
-            <p className="text-sm text-sh-gray py-6 text-center">No sales in this pay period.</p>
+            <p className="text-sm text-brand-gray py-6 text-center">No sales in this pay period.</p>
           )}
           {!loading && data.orders.length > 0 && (
-            <div className="overflow-x-auto rounded border border-sh-stripe bg-white">
+            <div className="overflow-x-auto rounded border border-brand-stripe bg-white">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-sh-linen text-sh-black">
+                <thead className="bg-brand-linen text-brand-black">
                   <tr>
                     <th className="p-2 font-medium">Order #</th>
                     <th className="p-2 font-medium">Date</th>
@@ -436,17 +436,17 @@ export function PayPeriodSalesView() {
                   {data.orders.map((o, i) => (
                     <tr
                       key={o.orderId}
-                      className={`border-t border-sh-stripe ${i % 2 === 1 ? "bg-sh-stripe/40" : ""}`}
+                      className={`border-t border-brand-stripe ${i % 2 === 1 ? "bg-brand-stripe/40" : ""}`}
                     >
                       <td className="p-2 font-mono text-xs">{o.orderNumber}</td>
                       <td className="p-2 whitespace-nowrap">{o.orderDate}</td>
                       <td className="p-2">{o.customer}</td>
-                      <td className="p-2 text-xs text-sh-gray">{o.storeLocation ?? "—"}</td>
+                      <td className="p-2 text-xs text-brand-gray">{o.storeLocation ?? "—"}</td>
                       <td className="p-2 text-right tabular-nums">
                         {currency(o.creditedNet)}
                         {o.isSplit && (
                           <span
-                            className="ml-1 text-[10px] text-sh-gold"
+                            className="ml-1 text-[10px] text-brand-gold"
                             title="Split order — credited at 50%"
                           >
                             50%
@@ -457,11 +457,11 @@ export function PayPeriodSalesView() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-sh-navy bg-sh-linen">
-                    <td className="p-2 font-semibold text-sh-navy" colSpan={4}>
+                  <tr className="border-t-2 border-brand-navy bg-brand-linen">
+                    <td className="p-2 font-semibold text-brand-navy" colSpan={4}>
                       Period total
                     </td>
-                    <td className="p-2 text-right font-semibold text-sh-navy tabular-nums">
+                    <td className="p-2 text-right font-semibold text-brand-navy tabular-nums">
                       {currency(totalCredited)}
                     </td>
                   </tr>

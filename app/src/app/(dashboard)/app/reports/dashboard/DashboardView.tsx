@@ -60,16 +60,16 @@ export function DashboardView() {
     <div className="mx-auto mt-8 max-w-6xl space-y-6 font-serif">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-sh-blue">Sales Report</h1>
+          <h1 className="text-2xl font-bold text-brand-blue">Sales Report</h1>
           {data?.weekStart && (
-            <p className="text-sh-gray">
+            <p className="text-brand-gray">
               For sales period: {data.weekStart} to {data.weekEnd}
             </p>
           )}
         </div>
         <div className="flex items-end space-x-4">
           <div>
-            <label htmlFor="group-by" className="mb-1 block font-serif text-sm text-sh-black">
+            <label htmlFor="group-by" className="mb-1 block font-serif text-sm text-brand-black">
               Group By
             </label>
             <select
@@ -85,7 +85,10 @@ export function DashboardView() {
           </div>
           {entityType === "department" && (
             <div>
-              <label htmlFor="dept-filter" className="mb-1 block font-serif text-sm text-sh-black">
+              <label
+                htmlFor="dept-filter"
+                className="mb-1 block font-serif text-sm text-brand-black"
+              >
                 Filter Departments
               </label>
               <select
@@ -111,31 +114,33 @@ export function DashboardView() {
       {loading ? (
         <p>Loading report...</p>
       ) : !data || data.message || data.rows.length === 0 ? (
-        <p className="p-4 text-center text-sh-gray">
+        <p className="p-4 text-center text-brand-gray">
           {data?.message || "No data available for the selected filters."}
         </p>
       ) : (
         <table className="w-full border-collapse text-left">
           <thead>
-            <tr className="bg-sh-linen">
-              <th className="border-b-2 border-sh-gray p-2">
+            <tr className="bg-brand-linen">
+              <th className="border-b-2 border-brand-gray p-2">
                 {entityType.charAt(0).toUpperCase() + entityType.slice(1)}
               </th>
-              <th className="border-b-2 border-sh-gray p-2 text-right">Actual Sales</th>
-              <th className="border-b-2 border-sh-gray p-2 text-right">Prorated Goal</th>
-              <th className="border-b-2 border-sh-gray p-2 text-right">Variance</th>
+              <th className="border-b-2 border-brand-gray p-2 text-right">Actual Sales</th>
+              <th className="border-b-2 border-brand-gray p-2 text-right">Prorated Goal</th>
+              <th className="border-b-2 border-brand-gray p-2 text-right">Variance</th>
             </tr>
           </thead>
           <tbody>
             {data.rows.map((r) => (
               <tr key={r.entityName} className="odd:bg-white even:bg-gray-50">
-                <td className="border-b border-sh-gray p-2">{r.entityName}</td>
-                <td className="border-b border-sh-gray p-2 text-right">
+                <td className="border-b border-brand-gray p-2">{r.entityName}</td>
+                <td className="border-b border-brand-gray p-2 text-right">
                   {formatCurrency(r.actual)}
                 </td>
-                <td className="border-b border-sh-gray p-2 text-right">{formatCurrency(r.goal)}</td>
+                <td className="border-b border-brand-gray p-2 text-right">
+                  {formatCurrency(r.goal)}
+                </td>
                 <td
-                  className={`border-b border-sh-gray p-2 text-right font-bold ${r.variance >= 0 ? "text-green-600" : "text-red-600"}`}
+                  className={`border-b border-brand-gray p-2 text-right font-bold ${r.variance >= 0 ? "text-green-600" : "text-red-600"}`}
                 >
                   {formatCurrency(r.variance)}
                 </td>

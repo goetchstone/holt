@@ -206,11 +206,11 @@ export function HomeView() {
   return (
     <div className="py-2">
       {/* Page title */}
-      <h1 className="font-serif-display text-2xl text-sh-blue tracking-wide mb-6">Dashboard</h1>
+      <h1 className="font-serif-display text-2xl text-brand-blue tracking-wide mb-6">Dashboard</h1>
 
       {/* --- Traffic + Sales cards --- */}
       <section className="mb-10">
-        <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-sh-gray mb-4">
+        <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-brand-gray mb-4">
           Store Traffic
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -230,7 +230,7 @@ export function HomeView() {
 
       {/* --- Up-Boards --- */}
       <section className="mb-10">
-        <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-sh-gray mb-4">
+        <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-brand-gray mb-4">
           Designer Rotation
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -265,30 +265,32 @@ function StoreCard({
 
   return (
     <div className="bg-white border border-gray-200 p-5 text-center">
-      <div className="font-serif-display text-sh-blue text-base tracking-wide mb-2">
+      <div className="font-serif-display text-brand-blue text-base tracking-wide mb-2">
         {displayName}
       </div>
-      <div className="text-3xl font-serif text-sh-blue font-light mb-1">{entriesToday}</div>
-      <div className="text-xs font-sans uppercase tracking-wider text-sh-gray mb-3">
+      <div className="text-3xl font-serif text-brand-blue font-light mb-1">{entriesToday}</div>
+      <div className="text-xs font-sans uppercase tracking-wider text-brand-gray mb-3">
         Entries Today
       </div>
-      <div className="flex justify-center gap-6 text-xs font-sans text-sh-gray mb-4">
+      <div className="flex justify-center gap-6 text-xs font-sans text-brand-gray mb-4">
         <div>
-          <span className="text-sh-blue font-medium">{entriesLastYear}</span> LY
+          <span className="text-brand-blue font-medium">{entriesLastYear}</span> LY
         </div>
         <div>
-          <span className="text-sh-blue font-medium">{inStore}</span> In Store
+          <span className="text-brand-blue font-medium">{inStore}</span> In Store
         </div>
       </div>
 
       {/* Sales data */}
       <div className="border-t border-gray-100 pt-3">
-        <div className="text-lg font-serif text-sh-blue font-light">{formatCurrency(netSales)}</div>
-        <div className="text-xs font-sans uppercase tracking-wider text-sh-gray mt-0.5">
+        <div className="text-lg font-serif text-brand-blue font-light">
+          {formatCurrency(netSales)}
+        </div>
+        <div className="text-xs font-sans uppercase tracking-wider text-brand-gray mt-0.5">
           Net Sales{itemCount > 0 ? ` (${itemCount} items)` : ""}
         </div>
         <div className="flex justify-center items-center gap-3 mt-2 text-xs font-sans">
-          <span className="text-sh-gray">LY {formatCurrency(lyNet)}</span>
+          <span className="text-brand-gray">LY {formatCurrency(lyNet)}</span>
           <SalesTrend salesPct={salesPct} />
         </div>
       </div>
@@ -300,7 +302,7 @@ function StoreCard({
 // Extracted to avoid a nested ternary inside the card JSX.
 function SalesTrend({ salesPct }: { salesPct: number | null }) {
   if (salesPct === null) {
-    return <span className="text-sh-gray">--</span>;
+    return <span className="text-brand-gray">--</span>;
   }
   const positive = salesPct >= 0;
   return (

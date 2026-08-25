@@ -87,14 +87,16 @@ export function PageEditorView({ pageId }: { pageId: number | null }) {
   }
 
   if (loading) {
-    return <p className="mx-auto max-w-screen-lg px-4 py-6 text-sh-gray">Loading…</p>;
+    return <p className="mx-auto max-w-screen-lg px-4 py-6 text-brand-gray">Loading…</p>;
   }
 
   return (
     <div className="mx-auto max-w-screen-lg px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-sh-blue">{isNew ? "New page" : "Edit page"}</h1>
-        <Link href="/app/admin/cms/pages" className="text-sm text-sh-gray hover:text-sh-navy">
+        <h1 className="text-2xl font-semibold text-brand-blue">
+          {isNew ? "New page" : "Edit page"}
+        </h1>
+        <Link href="/app/admin/cms/pages" className="text-sm text-brand-gray hover:text-brand-navy">
           Back to pages
         </Link>
       </div>
@@ -102,28 +104,28 @@ export function PageEditorView({ pageId }: { pageId: number | null }) {
       <div className="grid gap-6 lg:grid-cols-[1fr,280px]">
         <div className="flex flex-col gap-4">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-sh-gray">Title</span>
+            <span className="mb-1 block text-xs font-medium text-brand-gray">Title</span>
             <input
               type="text"
               value={title}
               onChange={(e) => onTitleChange(e.target.value)}
-              className="w-full rounded-md border border-black/15 px-3 py-2 focus:border-sh-navy focus:outline-none"
+              className="w-full rounded-md border border-black/15 px-3 py-2 focus:border-brand-navy focus:outline-none"
             />
           </label>
 
           <div>
-            <h2 className="mb-2 text-sm font-semibold text-sh-navy">Content</h2>
+            <h2 className="mb-2 text-sm font-semibold text-brand-navy">Content</h2>
             <BlockEditor blocks={blocks} onChange={setBlocks} />
           </div>
         </div>
 
         <aside className="flex flex-col gap-4 rounded-md border border-black/10 bg-white p-4">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-sh-gray">Status</span>
+            <span className="mb-1 block text-xs font-medium text-brand-gray">Status</span>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as "DRAFT" | "PUBLISHED")}
-              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
             >
               <option value="DRAFT">Draft</option>
               <option value="PUBLISHED">Published</option>
@@ -131,7 +133,7 @@ export function PageEditorView({ pageId }: { pageId: number | null }) {
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-sh-gray">Slug</span>
+            <span className="mb-1 block text-xs font-medium text-brand-gray">Slug</span>
             <input
               type="text"
               value={slug}
@@ -139,32 +141,32 @@ export function PageEditorView({ pageId }: { pageId: number | null }) {
                 setSlug(e.target.value);
                 setSlugTouched(true);
               }}
-              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
             />
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-sh-gray">
+          <label className="flex items-center gap-2 text-sm text-brand-gray">
             <input type="checkbox" checked={isHome} onChange={(e) => setIsHome(e.target.checked)} />
             Set as home page (served at /)
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-sh-gray">SEO title</span>
+            <span className="mb-1 block text-xs font-medium text-brand-gray">SEO title</span>
             <input
               type="text"
               value={seoTitle}
               onChange={(e) => setSeoTitle(e.target.value)}
-              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-sh-gray">SEO description</span>
+            <span className="mb-1 block text-xs font-medium text-brand-gray">SEO description</span>
             <textarea
               value={seoDescription}
               rows={3}
               onChange={(e) => setSeoDescription(e.target.value)}
-              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
             />
           </label>
 
@@ -172,7 +174,7 @@ export function PageEditorView({ pageId }: { pageId: number | null }) {
             type="button"
             onClick={save}
             disabled={saving || !title || !slug}
-            className="rounded-md bg-sh-navy px-4 py-2 text-sm font-medium text-white transition hover:bg-sh-blue disabled:opacity-50"
+            className="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-blue disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save page"}
           </button>

@@ -229,29 +229,29 @@ export default function TaxDistrictModal({ item, onClose, onRefresh }: Props) {
 
       {item && (
         <div className="mb-4">
-          <label className="block text-sh-blue font-serif mb-1">ZIP Codes</label>
+          <label className="block text-brand-blue font-serif mb-1">ZIP Codes</label>
           {loading ? (
-            <p className="text-sm text-sh-gray">Loading...</p>
+            <p className="text-sm text-brand-gray">Loading...</p>
           ) : (
             <>
               <div className="flex flex-wrap gap-2 mb-2">
                 {zipCodes.map((zip) => (
                   <span
                     key={zip}
-                    className="inline-flex items-center gap-1 bg-sh-linen text-sh-black text-sm px-2 py-1 rounded"
+                    className="inline-flex items-center gap-1 bg-brand-linen text-brand-black text-sm px-2 py-1 rounded"
                   >
                     {zip}
                     <button
                       type="button"
                       onClick={() => removeZip(zip)}
-                      className="text-sh-gray hover:text-red-600"
+                      className="text-brand-gray hover:text-red-600"
                     >
                       <X size={14} />
                     </button>
                   </span>
                 ))}
                 {zipCodes.length === 0 && (
-                  <span className="text-sm text-sh-gray">No ZIP codes assigned</span>
+                  <span className="text-sm text-brand-gray">No ZIP codes assigned</span>
                 )}
               </div>
               <div className="flex gap-2">
@@ -266,7 +266,7 @@ export default function TaxDistrictModal({ item, onClose, onRefresh }: Props) {
                     }
                   }}
                   placeholder="Add ZIP code"
-                  className="border border-sh-gray rounded-lg px-3 py-2 text-sm font-serif w-32"
+                  className="border border-brand-gray rounded-lg px-3 py-2 text-sm font-serif w-32"
                 />
                 <Button type="button" onClick={addZip} disabled={!newZip.trim()}>
                   Add

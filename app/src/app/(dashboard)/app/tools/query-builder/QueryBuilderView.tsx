@@ -122,12 +122,12 @@ export function QueryBuilderView() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-serif text-2xl font-semibold text-sh-blue">Query Builder</h1>
+      <h1 className="font-serif text-2xl font-semibold text-brand-blue">Query Builder</h1>
 
-      <div className="space-y-4 rounded-lg border border-sh-gray/20 bg-white p-5 shadow-md">
+      <div className="space-y-4 rounded-lg border border-brand-gray/20 bg-white p-5 shadow-md">
         <div className="flex flex-wrap items-end gap-4">
           <div>
-            <label htmlFor="entity" className="mb-1 block text-xs font-medium text-sh-gray">
+            <label htmlFor="entity" className="mb-1 block text-xs font-medium text-brand-gray">
               Entity
             </label>
             <select
@@ -151,7 +151,7 @@ export function QueryBuilderView() {
           </div>
 
           <div>
-            <label htmlFor="limit" className="mb-1 block text-xs font-medium text-sh-gray">
+            <label htmlFor="limit" className="mb-1 block text-xs font-medium text-brand-gray">
               Limit
             </label>
             <select
@@ -170,7 +170,7 @@ export function QueryBuilderView() {
 
         {entity && entity.joins.length > 0 && (
           <div>
-            <span className="mb-1 block text-xs font-medium text-sh-gray">Include</span>
+            <span className="mb-1 block text-xs font-medium text-brand-gray">Include</span>
             <div className="flex flex-wrap gap-2">
               {entity.joins.map((j) => (
                 <button
@@ -178,8 +178,8 @@ export function QueryBuilderView() {
                   onClick={() => toggleJoin(j.relation)}
                   className={`min-h-[36px] rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                     selectedJoins.has(j.relation)
-                      ? "bg-sh-blue text-white"
-                      : "bg-sh-linen text-sh-gray hover:bg-sh-gray/10"
+                      ? "bg-brand-blue text-white"
+                      : "bg-brand-linen text-brand-gray hover:bg-brand-gray/10"
                   }`}
                 >
                   {j.label}
@@ -192,8 +192,8 @@ export function QueryBuilderView() {
         {entity && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-sh-gray">Filters</span>
-              <button onClick={addFilter} className="text-xs text-sh-blue hover:underline">
+              <span className="text-xs font-medium text-brand-gray">Filters</span>
+              <button onClick={addFilter} className="text-xs text-brand-blue hover:underline">
                 + Add Filter
               </button>
             </div>
@@ -274,15 +274,15 @@ export function QueryBuilderView() {
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
         </div>
       )}
 
       {error && <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
       {result && !loading && (
-        <div className="overflow-hidden rounded-lg border border-sh-gray/20 bg-white shadow-md">
-          <div className="flex justify-between border-b border-sh-gray/20 bg-sh-linen px-4 py-2 text-sm text-sh-gray">
+        <div className="overflow-hidden rounded-lg border border-brand-gray/20 bg-white shadow-md">
+          <div className="flex justify-between border-b border-brand-gray/20 bg-brand-linen px-4 py-2 text-sm text-brand-gray">
             <span>
               {result.rowCount} rows{" "}
               {result.totalAvailable !== result.rowCount && `(${result.totalAvailable})`}
@@ -292,11 +292,11 @@ export function QueryBuilderView() {
           <div className="max-h-[600px] overflow-x-auto overflow-y-auto">
             <table className="w-full text-xs">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-sh-gray/20 bg-sh-linen">
+                <tr className="border-b border-brand-gray/20 bg-brand-linen">
                   {result.columns.map((col) => (
                     <th
                       key={col}
-                      className="whitespace-nowrap px-3 py-2 text-left font-semibold text-sh-gray"
+                      className="whitespace-nowrap px-3 py-2 text-left font-semibold text-brand-gray"
                     >
                       {col}
                     </th>
@@ -307,10 +307,10 @@ export function QueryBuilderView() {
                 {result.rows.map((row, i) => (
                   <tr
                     key={i}
-                    className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                    className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
                   >
                     {result.columns.map((col) => (
-                      <td key={col} className="whitespace-nowrap px-3 py-1.5 text-sh-black">
+                      <td key={col} className="whitespace-nowrap px-3 py-1.5 text-brand-black">
                         {formatCell(row[col])}
                       </td>
                     ))}

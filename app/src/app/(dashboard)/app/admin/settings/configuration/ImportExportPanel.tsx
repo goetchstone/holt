@@ -122,21 +122,21 @@ export function ImportExportPanel({ onSaved }: Readonly<{ onSaved: () => void }>
   return (
     <div className="space-y-8">
       <section className="space-y-3">
-        <h3 className="font-serif text-base text-sh-blue">Download current config</h3>
-        <p className="text-xs text-sh-gray">
+        <h3 className="font-serif text-base text-brand-blue">Download current config</h3>
+        <p className="text-xs text-brand-gray">
           Exports the live database as a preset bundle — deterministic key order, so committing an
           unchanged re-export is never a spurious diff.
         </p>
         <div className="flex gap-2">
           <a
             href={exportUrl("yaml")}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-sh-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-sh-blue shadow-md transition hover:bg-sh-gray/10"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-brand-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-brand-blue shadow-md transition hover:bg-brand-gray/10"
           >
             <Download className="h-4 w-4" /> YAML
           </a>
           <a
             href={exportUrl("json")}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-sh-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-sh-blue shadow-md transition hover:bg-sh-gray/10"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-brand-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-brand-blue shadow-md transition hover:bg-brand-gray/10"
           >
             <Download className="h-4 w-4" /> JSON
           </a>
@@ -144,7 +144,7 @@ export function ImportExportPanel({ onSaved }: Readonly<{ onSaved: () => void }>
       </section>
 
       <section className="space-y-3">
-        <h3 className="font-serif text-base text-sh-blue">Paste or upload a config file</h3>
+        <h3 className="font-serif text-base text-brand-blue">Paste or upload a config file</h3>
         <div className="flex flex-wrap items-end gap-4">
           <FileInput
             label="Upload .yaml / .yml / .json"
@@ -152,7 +152,7 @@ export function ImportExportPanel({ onSaved }: Readonly<{ onSaved: () => void }>
             onChange={handleFile}
           />
           <div>
-            <label htmlFor="import-format" className="mb-1 block text-sm text-sh-gray">
+            <label htmlFor="import-format" className="mb-1 block text-sm text-brand-gray">
               Format
             </label>
             <select
@@ -162,7 +162,7 @@ export function ImportExportPanel({ onSaved }: Readonly<{ onSaved: () => void }>
                 setFormatChoice(e.target.value as FormatChoice);
                 resetValidation();
               }}
-              className="rounded-md border border-sh-brand-gray px-3 py-2 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+              className="rounded-md border border-brand-accent-gray px-3 py-2 text-sm text-brand-black focus:border-brand-blue focus:outline-none"
             >
               <option value="auto">Auto-detect</option>
               <option value="yaml">YAML</option>
@@ -171,7 +171,7 @@ export function ImportExportPanel({ onSaved }: Readonly<{ onSaved: () => void }>
           </div>
         </div>
         <div>
-          <label htmlFor="import-text" className="mb-1 block text-sm text-sh-gray">
+          <label htmlFor="import-text" className="mb-1 block text-sm text-brand-gray">
             Preset text
           </label>
           <textarea
@@ -183,7 +183,7 @@ export function ImportExportPanel({ onSaved }: Readonly<{ onSaved: () => void }>
               resetValidation();
             }}
             placeholder={SAMPLE_PLACEHOLDER}
-            className="w-full rounded-md border border-sh-brand-gray px-3 py-2 font-mono text-xs text-sh-black focus:border-sh-blue focus:outline-none"
+            className="w-full rounded-md border border-brand-accent-gray px-3 py-2 font-mono text-xs text-brand-black focus:border-brand-blue focus:outline-none"
           />
         </div>
         <Button onClick={handleValidate} disabled={validating || !text.trim()}>
@@ -210,8 +210,8 @@ export function ImportExportPanel({ onSaved }: Readonly<{ onSaved: () => void }>
         )}
 
         {preview && (
-          <section className="space-y-3 rounded-md border border-sh-brand-gray p-4">
-            <h3 className="font-serif text-base text-sh-blue">Preview</h3>
+          <section className="space-y-3 rounded-md border border-brand-accent-gray p-4">
+            <h3 className="font-serif text-base text-brand-blue">Preview</h3>
             <ApplyPreview results={preview} />
             {pendingBundle && (
               <div className="flex gap-2">

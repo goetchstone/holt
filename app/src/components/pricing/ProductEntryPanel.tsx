@@ -38,12 +38,12 @@ function CopyButton({ value, label }: { value: string; label: string }) {
     <button
       onClick={handleCopy}
       title={`Copy ${label}`}
-      className="flex-shrink-0 p-1 rounded hover:bg-sh-linen transition-colors min-w-[24px] min-h-[24px] flex items-center justify-center"
+      className="flex-shrink-0 p-1 rounded hover:bg-brand-linen transition-colors min-w-[24px] min-h-[24px] flex items-center justify-center"
     >
       {copied ? (
         <Check className="w-3 h-3 text-green-600" />
       ) : (
-        <Copy className="w-3 h-3 text-sh-gray" />
+        <Copy className="w-3 h-3 text-brand-gray" />
       )}
     </button>
   );
@@ -53,10 +53,10 @@ function CompactField({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center gap-1 min-w-0">
       <div className="min-w-0 flex-1">
-        <span className="text-[10px] uppercase tracking-wider text-sh-gray font-sans">
+        <span className="text-[10px] uppercase tracking-wider text-brand-gray font-sans">
           {label}:{" "}
         </span>
-        <span className="text-xs text-sh-black font-serif">{value}</span>
+        <span className="text-xs text-brand-black font-serif">{value}</span>
       </div>
       <CopyButton value={value} label={label} />
     </div>
@@ -103,12 +103,12 @@ export default function ProductEntryPanel({ data }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs uppercase tracking-wider text-sh-gray font-sans font-semibold">
+        <h3 className="text-xs uppercase tracking-wider text-brand-gray font-sans font-semibold">
           Product Entry
         </h3>
         <button
           onClick={handleCopyAll}
-          className="flex items-center gap-1 text-xs text-sh-blue hover:text-sh-navy transition-colors px-2 py-1 rounded hover:bg-sh-linen min-h-[32px]"
+          className="flex items-center gap-1 text-xs text-brand-blue hover:text-brand-navy transition-colors px-2 py-1 rounded hover:bg-brand-linen min-h-[32px]"
         >
           {allCopied ? (
             <>
@@ -138,14 +138,14 @@ export default function ProductEntryPanel({ data }: Props) {
       <div className="mt-2">
         <button
           onClick={() => setDescOpen(!descOpen)}
-          className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-sh-gray font-sans hover:text-sh-blue transition-colors"
+          className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-brand-gray font-sans hover:text-brand-blue transition-colors"
         >
           {descOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
           Full Description (Screen 2)
         </button>
         {descOpen && (
           <div className="mt-1 flex items-start gap-1">
-            <pre className="flex-1 text-xs text-sh-black font-serif whitespace-pre-wrap bg-sh-linen/50 rounded p-2 leading-relaxed">
+            <pre className="flex-1 text-xs text-brand-black font-serif whitespace-pre-wrap bg-brand-linen/50 rounded p-2 leading-relaxed">
               {data.fullDescription}
             </pre>
             <CopyButton value={data.fullDescription} label="Full Description" />

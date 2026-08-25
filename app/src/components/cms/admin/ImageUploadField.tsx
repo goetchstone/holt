@@ -40,20 +40,20 @@ export function ImageUploadField({ label, value, onChange, placeholder }: ImageU
 
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-sh-gray">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-brand-gray">{label}</span>
       <div className="flex items-center gap-2">
         <input
           type="text"
           value={value}
           placeholder={placeholder ?? "/uploads/... or https://..."}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+          className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
         />
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="shrink-0 rounded-md border border-sh-navy/30 px-3 py-2 text-sm text-sh-navy transition hover:bg-sh-linen disabled:opacity-50"
+          className="shrink-0 rounded-md border border-brand-navy/30 px-3 py-2 text-sm text-brand-navy transition hover:bg-brand-linen disabled:opacity-50"
         >
           {uploading ? "Uploading…" : "Upload"}
         </button>

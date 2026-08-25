@@ -128,22 +128,22 @@ export function VarianceReportView() {
   } else if (location) {
     body = (
       <>
-        <div className="p-4 bg-sh-linen rounded-lg mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="p-4 bg-brand-linen rounded-lg mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <h3 className="text-sm text-sh-gray">Location</h3>
-            <p className="text-lg font-bold text-sh-blue">{location}</p>
+            <h3 className="text-sm text-brand-gray">Location</h3>
+            <p className="text-lg font-bold text-brand-blue">{location}</p>
           </div>
           <div>
-            <h3 className="text-sm text-sh-gray">Items with Variances</h3>
-            <p className="text-lg font-bold text-sh-blue">{totalCount.toLocaleString()}</p>
+            <h3 className="text-sm text-brand-gray">Items with Variances</h3>
+            <p className="text-lg font-bold text-brand-blue">{totalCount.toLocaleString()}</p>
           </div>
           <div>
-            <h3 className="text-sm text-sh-gray">Accurate Items</h3>
+            <h3 className="text-sm text-brand-gray">Accurate Items</h3>
             <Link
               href={`/app/inventory/accurate-scans?location=${location}&reportType=general`}
               className="hover:underline"
             >
-              <p className="text-lg font-bold text-sh-blue">{accurateCount.toLocaleString()}</p>
+              <p className="text-lg font-bold text-brand-blue">{accurateCount.toLocaleString()}</p>
             </Link>
           </div>
         </div>
@@ -163,8 +163,8 @@ export function VarianceReportView() {
   } else {
     body = (
       <div className="text-center p-8 border rounded-lg bg-gray-50">
-        <h3 className="text-lg font-semibold text-sh-black">No General Locations Found</h3>
-        <p className="text-sh-gray">
+        <h3 className="text-lg font-semibold text-brand-black">No General Locations Found</h3>
+        <p className="text-brand-gray">
           There are currently no locations with scannable inventory besides the Warehouse.
         </p>
       </div>
@@ -174,12 +174,12 @@ export function VarianceReportView() {
   return (
     <div className="max-w-6xl mx-auto mt-8 font-serif">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-sh-blue">General Variance Report</h1>
+        <h1 className="text-2xl font-semibold text-brand-blue">General Variance Report</h1>
         <div className="flex items-center space-x-2">
           {location && (
             <Link
               href={`/app/inventory/reconciled-items?location=${location}&reportType=general`}
-              className="flex items-center gap-2 text-sh-blue hover:underline"
+              className="flex items-center gap-2 text-brand-blue hover:underline"
             >
               <RotateCcw className="w-4 h-4" /> View/Undo Reconciled
             </Link>

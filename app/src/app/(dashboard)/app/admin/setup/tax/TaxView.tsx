@@ -109,7 +109,7 @@ export function TaxView() {
 
   return (
     <div className="py-8 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue mb-6">Tax Configuration</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue mb-6">Tax Configuration</h1>
 
       <Tabs defaultValue="districts">
         <TabsList>
@@ -122,7 +122,7 @@ export function TaxView() {
         {/* Districts Tab */}
         <TabsContent tabValue="districts">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-sh-blue">Tax Districts</h2>
+            <h2 className="text-xl font-semibold text-brand-blue">Tax Districts</h2>
             <div className="flex gap-2">
               <Link href="/app/admin/setup/tax/load-zips">
                 <Button variant="outline">Load Zip Codes</Button>
@@ -132,16 +132,18 @@ export function TaxView() {
           </div>
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-sh-gray/30">
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium">Short Name</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium">Name</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium">State</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium">Authority</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">
+              <tr className="border-b border-brand-gray/30">
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium">Short Name</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium">Name</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium">State</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium">Authority</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">
                   ZIP Codes
                 </th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">Rules</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">Status</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">Rules</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -149,12 +151,12 @@ export function TaxView() {
                 <tr
                   key={d.id}
                   onClick={() => setDistrictModal(d)}
-                  className="border-b border-sh-gray/10 hover:bg-sh-linen cursor-pointer"
+                  className="border-b border-brand-gray/10 hover:bg-brand-linen cursor-pointer"
                 >
                   <td className="py-2 px-3 font-medium">{d.shortName}</td>
                   <td className="py-2 px-3">{d.name}</td>
                   <td className="py-2 px-3">{d.state}</td>
-                  <td className="py-2 px-3 text-sh-gray">{d.authority || "-"}</td>
+                  <td className="py-2 px-3 text-brand-gray">{d.authority || "-"}</td>
                   <td className="py-2 px-3 text-center">{d._count.zipCodes}</td>
                   <td className="py-2 px-3 text-center">{d._count.rules}</td>
                   <td className="py-2 px-3 text-center">
@@ -164,7 +166,7 @@ export function TaxView() {
               ))}
               {districts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-sh-gray">
+                  <td colSpan={7} className="py-8 text-center text-brand-gray">
                     No tax districts configured.
                   </td>
                 </tr>
@@ -176,21 +178,21 @@ export function TaxView() {
         {/* Groups Tab */}
         <TabsContent tabValue="groups">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-sh-blue">Tax Groups</h2>
+            <h2 className="text-xl font-semibold text-brand-blue">Tax Groups</h2>
             <Button onClick={() => setGroupModal(null)}>+ Add Group</Button>
           </div>
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-sh-gray/30">
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium">Name</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium">Tax Basis</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">
+              <tr className="border-b border-brand-gray/30">
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium">Name</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium">Tax Basis</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">
                   Freight Taxable
                 </th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">
                   Misc Taxable
                 </th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">Rules</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">Rules</th>
               </tr>
             </thead>
             <tbody>
@@ -198,7 +200,7 @@ export function TaxView() {
                 <tr
                   key={g.id}
                   onClick={() => setGroupModal(g)}
-                  className="border-b border-sh-gray/10 hover:bg-sh-linen cursor-pointer"
+                  className="border-b border-brand-gray/10 hover:bg-brand-linen cursor-pointer"
                 >
                   <td className="py-2 px-3 font-medium">{g.name}</td>
                   <td className="py-2 px-3">{g.taxBasis}</td>
@@ -209,7 +211,7 @@ export function TaxView() {
               ))}
               {groups.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-sh-gray">
+                  <td colSpan={5} className="py-8 text-center text-brand-gray">
                     No tax groups configured.
                   </td>
                 </tr>
@@ -221,15 +223,15 @@ export function TaxView() {
         {/* Exempt Reasons Tab */}
         <TabsContent tabValue="exempt">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-sh-blue">Tax Exempt Reasons</h2>
+            <h2 className="text-xl font-semibold text-brand-blue">Tax Exempt Reasons</h2>
             <Button onClick={() => setExemptModal(null)}>+ Add Reason</Button>
           </div>
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-sh-gray/30">
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium">Name</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium">Description</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">
+              <tr className="border-b border-brand-gray/30">
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium">Name</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium">Description</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">
                   Customers
                 </th>
               </tr>
@@ -239,16 +241,16 @@ export function TaxView() {
                 <tr
                   key={r.id}
                   onClick={() => setExemptModal(r)}
-                  className="border-b border-sh-gray/10 hover:bg-sh-linen cursor-pointer"
+                  className="border-b border-brand-gray/10 hover:bg-brand-linen cursor-pointer"
                 >
                   <td className="py-2 px-3 font-medium">{r.name}</td>
-                  <td className="py-2 px-3 text-sh-gray">{r.description || "-"}</td>
+                  <td className="py-2 px-3 text-brand-gray">{r.description || "-"}</td>
                   <td className="py-2 px-3 text-center">{r._count.customers}</td>
                 </tr>
               ))}
               {exemptReasons.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="py-8 text-center text-sh-gray">
+                  <td colSpan={3} className="py-8 text-center text-brand-gray">
                     No exempt reasons configured.
                   </td>
                 </tr>
@@ -260,17 +262,19 @@ export function TaxView() {
         {/* Rules Tab */}
         <TabsContent tabValue="rules">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-sh-blue">Tax Rules</h2>
+            <h2 className="text-xl font-semibold text-brand-blue">Tax Rules</h2>
             <Button onClick={() => setRuleModal(null)}>+ Add Rule</Button>
           </div>
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-sh-gray/30">
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium">District</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium">Group</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium text-right">Rate</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">Order</th>
-                <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">Status</th>
+              <tr className="border-b border-brand-gray/30">
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium">District</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium">Group</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-right">Rate</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">Order</th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -278,7 +282,7 @@ export function TaxView() {
                 <tr
                   key={r.id}
                   onClick={() => setRuleModal(r)}
-                  className="border-b border-sh-gray/10 hover:bg-sh-linen cursor-pointer"
+                  className="border-b border-brand-gray/10 hover:bg-brand-linen cursor-pointer"
                 >
                   <td className="py-2 px-3 font-medium">{r.district.shortName}</td>
                   <td className="py-2 px-3">{r.group.name}</td>
@@ -291,7 +295,7 @@ export function TaxView() {
               ))}
               {rules.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-sh-gray">
+                  <td colSpan={5} className="py-8 text-center text-brand-gray">
                     No tax rules configured.
                   </td>
                 </tr>

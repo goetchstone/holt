@@ -238,14 +238,14 @@ export function MailchimpSyncView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center gap-3">
-        <Link href="/app/admin" className="text-sh-blue hover:underline text-sm">
+        <Link href="/app/admin" className="text-brand-blue hover:underline text-sm">
           Admin
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">Mailchimp Sync</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">Mailchimp Sync</h1>
       </div>
 
-      <p className="text-sm text-sh-gray">
+      <p className="text-sm text-brand-gray">
         Pulls new campaigns, updates metrics, fetches open/click activity for recent campaigns, and
         turns clicks (plus opens from high-value customers) into leads. Runs automatically once a
         day on the Synology. Below are individual buttons per phase — they can be run independently
@@ -284,9 +284,9 @@ export function MailchimpSyncView() {
 function LastRunCard({ health, loading }: Readonly<{ health: Health | null; loading: boolean }>) {
   let body: React.ReactNode;
   if (loading) {
-    body = <p className="text-sh-gray">Loading…</p>;
+    body = <p className="text-brand-gray">Loading…</p>;
   } else if (!health?.lastRun) {
-    body = <p className="text-sh-gray italic">Never run. Use the buttons below to start.</p>;
+    body = <p className="text-brand-gray italic">Never run. Use the buttons below to start.</p>;
   } else {
     const lastRun = health.lastRun;
     body = (
@@ -297,14 +297,14 @@ function LastRunCard({ health, loading }: Readonly<{ health: Health | null; load
           >
             {lastRun.status}
           </span>
-          <span className="text-sm text-sh-black">{fmtDateTime(lastRun.finishedAt)}</span>
+          <span className="text-sm text-brand-black">{fmtDateTime(lastRun.finishedAt)}</span>
           {health.isStale && (
             <span className="inline-block px-2 py-0.5 text-xs font-semibold rounded-full border bg-amber-50 text-amber-700 border-amber-200">
               Stale · {health.hoursSinceSuccess}h since last success
             </span>
           )}
         </div>
-        <p className="text-xs text-sh-gray">
+        <p className="text-xs text-brand-gray">
           {lastRun.campaignsUpserted} campaigns · {lastRun.metricsUpdated} metrics ·{" "}
           {lastRun.activitiesInserted} activities · {lastRun.leadsCreated} leads created,{" "}
           {lastRun.leadsUpdated} updated
@@ -324,8 +324,8 @@ function LastRunCard({ health, loading }: Readonly<{ health: Health | null; load
   }
 
   return (
-    <div className="bg-white border border-sh-gray/20 rounded-lg p-5 space-y-2">
-      <p className="text-xs uppercase tracking-wide text-sh-gray">Last run</p>
+    <div className="bg-white border border-brand-gray/20 rounded-lg p-5 space-y-2">
+      <p className="text-xs uppercase tracking-wide text-brand-gray">Last run</p>
       {body}
     </div>
   );
@@ -345,9 +345,9 @@ function PhaseStepsCard({
   onRunPhase: (phase: Phase) => void;
 }>) {
   return (
-    <div className="bg-white border border-sh-gray/20 rounded-lg p-5 space-y-3">
+    <div className="bg-white border border-brand-gray/20 rounded-lg p-5 space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-sh-black">Sync steps</h2>
+        <h2 className="text-sm font-semibold text-brand-black">Sync steps</h2>
         <Button onClick={onRunAll} disabled={activePhase !== null} className="min-h-[40px] px-5">
           {activePhase === "all" ? "Running…" : "Run All Steps"}
         </Button>
@@ -364,7 +364,7 @@ function PhaseStepsCard({
           />
         ))}
       </div>
-      <p className="text-xs text-sh-gray">
+      <p className="text-xs text-brand-gray">
         Tip: start with &quot;Sync Campaigns&quot; (fast). Then &quot;Sync Metrics&quot;. Activity
         is the slow one — can take several minutes the first time.
       </p>
@@ -386,26 +386,28 @@ function PhaseRow({
   onRun: () => void;
 }>) {
   return (
-    <div className="border border-sh-gray/20 rounded-lg p-3 flex items-start justify-between gap-3">
+    <div className="border border-brand-gray/20 rounded-lg p-3 flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-sh-black flex items-center gap-2">
+        <p className="text-sm font-semibold text-brand-black flex items-center gap-2">
           {PHASE_LABEL[phase]}
           {progress?.result && (
             <span className="text-xs text-green-700">✓ {fmtMs(progress.result.durationMs)}</span>
           )}
           {progress?.error && <span className="text-xs text-red-700">✗ {progress.error}</span>}
-          {isActive && <span className="text-xs text-sh-blue">Running…</span>}
+          {isActive && <span className="text-xs text-brand-blue">Running…</span>}
         </p>
-        <p className="text-xs text-sh-gray mt-0.5">{PHASE_DESC[phase]}</p>
+        <p className="text-xs text-brand-gray mt-0.5">{PHASE_DESC[phase]}</p>
         {progress?.result && (
-          <p className="text-xs text-sh-gray mt-1">{phaseProgressDetail(phase, progress.result)}</p>
+          <p className="text-xs text-brand-gray mt-1">
+            {phaseProgressDetail(phase, progress.result)}
+          </p>
         )}
       </div>
       <button
         type="button"
         onClick={onRun}
         disabled={disabled}
-        className="text-xs px-3 py-2 rounded-lg border border-sh-blue text-sh-blue hover:bg-sh-blue hover:text-white transition disabled:opacity-50 shrink-0 min-h-[36px]"
+        className="text-xs px-3 py-2 rounded-lg border border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white transition disabled:opacity-50 shrink-0 min-h-[36px]"
       >
         Run
       </button>
@@ -433,9 +435,9 @@ function HistoryTable({
   onNext: () => void;
 }>) {
   return (
-    <div className="bg-white border border-sh-gray/20 rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-sh-gray/20 bg-sh-linen">
-        <p className="text-sm text-sh-gray">
+    <div className="bg-white border border-brand-gray/20 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-brand-gray/20 bg-brand-linen">
+        <p className="text-sm text-brand-gray">
           Run history — {total.toLocaleString()} run{total === 1 ? "" : "s"}
         </p>
         <div className="flex gap-2">
@@ -443,18 +445,18 @@ function HistoryTable({
             type="button"
             onClick={onPrev}
             disabled={page === 1}
-            className="px-2 py-1 text-sm text-sh-blue disabled:text-sh-gray/50"
+            className="px-2 py-1 text-sm text-brand-blue disabled:text-brand-gray/50"
           >
             ← Prev
           </button>
-          <span className="text-sm text-sh-gray">
+          <span className="text-sm text-brand-gray">
             Page {page} of {totalPages}
           </span>
           <button
             type="button"
             onClick={onNext}
             disabled={page >= totalPages}
-            className="px-2 py-1 text-sm text-sh-blue disabled:text-sh-gray/50"
+            className="px-2 py-1 text-sm text-brand-blue disabled:text-brand-gray/50"
           >
             Next →
           </button>
@@ -462,7 +464,7 @@ function HistoryTable({
       </div>
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-sh-gray border-b border-sh-gray/20">
+          <tr className="text-left text-xs uppercase tracking-wide text-brand-gray border-b border-brand-gray/20">
             <th className="px-3 py-2">When</th>
             <th className="px-3 py-2">Kind</th>
             <th className="px-3 py-2">Status</th>
@@ -473,17 +475,17 @@ function HistoryTable({
         <tbody>
           {history.length === 0 && !loading ? (
             <tr>
-              <td colSpan={5} className="px-3 py-6 text-center text-sh-gray">
+              <td colSpan={5} className="px-3 py-6 text-center text-brand-gray">
                 No runs yet.
               </td>
             </tr>
           ) : (
             history.map((r) => (
-              <tr key={r.id} className="border-b border-sh-gray/10 hover:bg-sh-stripe">
-                <td className="px-3 py-2 text-sh-black whitespace-nowrap">
+              <tr key={r.id} className="border-b border-brand-gray/10 hover:bg-brand-stripe">
+                <td className="px-3 py-2 text-brand-black whitespace-nowrap">
                   {fmtDateTime(r.created)}
                 </td>
-                <td className="px-3 py-2 text-sh-gray">{r.kind}</td>
+                <td className="px-3 py-2 text-brand-gray">{r.kind}</td>
                 <td className="px-3 py-2">
                   <span
                     className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full border ${STATUS_PILL[r.status] ?? ""}`}
@@ -491,8 +493,10 @@ function HistoryTable({
                     {r.status}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-sh-gray">{fmtDuration(r.startedAt, r.finishedAt)}</td>
-                <td className="px-3 py-2 text-xs text-sh-gray">{historySummary(r)}</td>
+                <td className="px-3 py-2 text-brand-gray">
+                  {fmtDuration(r.startedAt, r.finishedAt)}
+                </td>
+                <td className="px-3 py-2 text-xs text-brand-gray">{historySummary(r)}</td>
               </tr>
             ))
           )}
@@ -581,19 +585,19 @@ function BackfillPanel() {
   }
 
   return (
-    <div className="bg-white border border-sh-gray/20 rounded-lg p-5 space-y-3">
-      <h2 className="text-sm font-semibold text-sh-black">Backfill &amp; repair</h2>
-      <p className="text-xs text-sh-gray">
+    <div className="bg-white border border-brand-gray/20 rounded-lg p-5 space-y-3">
+      <h2 className="text-sm font-semibold text-brand-black">Backfill &amp; repair</h2>
+      <p className="text-xs text-brand-gray">
         The daily cron only syncs the trailing 14 days of campaigns, so anything older has no
         activity rows. Use these two tools to reconcile history.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="border border-sh-gray/20 rounded-md p-3 space-y-2">
-          <h3 className="text-sm font-semibold text-sh-navy">
+        <div className="border border-brand-gray/20 rounded-md p-3 space-y-2">
+          <h3 className="text-sm font-semibold text-brand-navy">
             Backfill activity for old campaigns
           </h3>
-          <p className="text-xs text-sh-gray">
+          <p className="text-xs text-brand-gray">
             Hits the Mailchimp email-activity endpoint for every campaign that currently has zero
             activity rows. Chunks 40 campaigns per request to stay inside nginx&apos;s 300s limit;
             loops until done. Safe to run multiple times (upserts).
@@ -606,24 +610,26 @@ function BackfillPanel() {
             {running === "activity" ? "Running…" : "Run activity backfill"}
           </Button>
           {activityLog.length > 0 && (
-            <div className="bg-sh-linen/60 rounded-md p-2 text-[11px] font-mono max-h-48 overflow-y-auto">
+            <div className="bg-brand-linen/60 rounded-md p-2 text-[11px] font-mono max-h-48 overflow-y-auto">
               {activityLog.map((line) => (
-                <div key={line} className="text-sh-black">
+                <div key={line} className="text-brand-black">
                   {line}
                 </div>
               ))}
               {activityDone && (
-                <div className="text-sh-navy font-semibold mt-1">Done — no campaigns remain.</div>
+                <div className="text-brand-navy font-semibold mt-1">
+                  Done — no campaigns remain.
+                </div>
               )}
             </div>
           )}
         </div>
 
-        <div className="border border-sh-gray/20 rounded-md p-3 space-y-2">
-          <h3 className="text-sm font-semibold text-sh-navy">
+        <div className="border border-brand-gray/20 rounded-md p-3 space-y-2">
+          <h3 className="text-sm font-semibold text-brand-navy">
             Relink orphan activity to customers
           </h3>
-          <p className="text-xs text-sh-gray">
+          <p className="text-xs text-brand-gray">
             Joins MailchimpActivity rows with no customerId back to Customer by email
             (case-insensitive). Useful when a customer&apos;s activity landed before their Customer
             record existed. Fast (single UPDATE). Safe to run repeatedly.
@@ -636,7 +642,9 @@ function BackfillPanel() {
             {running === "links" ? "Running…" : "Relink orphan activity"}
           </Button>
           {linkResult && (
-            <p className="text-xs text-sh-black bg-sh-linen/60 rounded-md p-2">{linkResult}</p>
+            <p className="text-xs text-brand-black bg-brand-linen/60 rounded-md p-2">
+              {linkResult}
+            </p>
           )}
         </div>
       </div>
@@ -689,9 +697,9 @@ function CustomerSyncPanel() {
   }
 
   return (
-    <div className="bg-white border border-sh-gray/20 rounded-lg p-5 space-y-3">
-      <h2 className="text-sm font-semibold text-sh-black">New customer audience sync</h2>
-      <p className="text-xs text-sh-gray">
+    <div className="bg-white border border-brand-gray/20 rounded-lg p-5 space-y-3">
+      <h2 className="text-sm font-semibold text-brand-black">New customer audience sync</h2>
+      <p className="text-xs text-brand-gray">
         Pushes ERP customers (with a valid email, created on or after the backfill cutoff date, not
         yet synced) into your Mailchimp audience as <strong>pending</strong> — Mailchimp sends them
         a double opt-in confirmation. Idempotent: existing subscribed members keep their status;
@@ -705,13 +713,13 @@ function CustomerSyncPanel() {
           type="button"
           onClick={() => runSync(true)}
           disabled={running}
-          className="text-xs px-3 py-2 rounded-lg border border-sh-blue text-sh-blue hover:bg-sh-blue hover:text-white transition disabled:opacity-50 min-h-[40px]"
+          className="text-xs px-3 py-2 rounded-lg border border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white transition disabled:opacity-50 min-h-[40px]"
         >
           {running ? "…" : "Dry run"}
         </button>
       </div>
       {lastResult && (
-        <div className="text-xs text-sh-black bg-sh-linen/60 rounded-md p-3 space-y-1">
+        <div className="text-xs text-brand-black bg-brand-linen/60 rounded-md p-3 space-y-1">
           <p>
             <strong>Last result</strong>
             {lastResult.dryRun ? " (dry run)" : ""}: scanned {lastResult.scanned.toLocaleString()},
@@ -721,7 +729,7 @@ function CustomerSyncPanel() {
             {lastResult.errors.length.toLocaleString()}.
           </p>
           {lastResult.errors.length > 0 && (
-            <ul className="list-disc pl-4 space-y-0.5 text-sh-gray">
+            <ul className="list-disc pl-4 space-y-0.5 text-brand-gray">
               {lastResult.errors.slice(0, 10).map((e) => (
                 <li key={e.customerId}>
                   <span className="font-mono">#{e.customerId}</span> {e.email ?? "—"}: {e.message}

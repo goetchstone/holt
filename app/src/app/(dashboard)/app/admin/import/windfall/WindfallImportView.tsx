@@ -113,14 +113,14 @@ export function WindfallImportView() {
   return (
     <div className="py-2 space-y-5 font-serif">
       <div className="flex items-center gap-3">
-        <Link href="/app/admin/import" className="text-sh-blue hover:underline text-sm">
+        <Link href="/app/admin/import" className="text-brand-blue hover:underline text-sm">
           Import Tools
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">Windfall Enrichment Import</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">Windfall Enrichment Import</h1>
       </div>
 
-      <p className="text-sm text-sh-gray">
+      <p className="text-sm text-brand-gray">
         Upload the enriched customer CSV from Windfall. Matches customers by the POS code and
         imports wealth data, lifestyle signals, and philanthropy indicators.
       </p>
@@ -134,7 +134,7 @@ export function WindfallImportView() {
           type="file"
           accept=".csv"
           onChange={handleFileChange}
-          className="text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border file:border-sh-gray/30 file:bg-white file:text-sh-black file:font-semibold hover:file:bg-sh-linen file:cursor-pointer file:min-h-[44px]"
+          className="text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border file:border-brand-gray/30 file:bg-white file:text-brand-black file:font-semibold hover:file:bg-brand-linen file:cursor-pointer file:min-h-[44px]"
         />
         {rows.length > 0 && (
           <Button variant="primary" onClick={handleImport} disabled={importing}>
@@ -145,9 +145,9 @@ export function WindfallImportView() {
 
       {rows.length > 0 && (
         <div className="flex gap-4 text-sm">
-          <span className="text-sh-black">{rows.length} total rows</span>
+          <span className="text-brand-black">{rows.length} total rows</span>
           <span className="text-green-600">{matchedCount} Windfall matched</span>
-          <span className="text-sh-gray">{unmatchedCount} unmatched</span>
+          <span className="text-brand-gray">{unmatchedCount} unmatched</span>
         </div>
       )}
 
@@ -159,17 +159,17 @@ export function WindfallImportView() {
       )}
 
       {rows.length > 0 && (
-        <div className="bg-white rounded-xl border border-sh-gray/15 overflow-hidden">
+        <div className="bg-white rounded-xl border border-brand-gray/15 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Code</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Name</th>
-                  <th className="text-right px-4 py-3 text-sh-gray font-semibold">Net Worth</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Tier</th>
-                  <th className="text-right px-4 py-3 text-sh-gray font-semibold">Confidence</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Signals</th>
+                <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Code</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Name</th>
+                  <th className="text-right px-4 py-3 text-brand-gray font-semibold">Net Worth</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Tier</th>
+                  <th className="text-right px-4 py-3 text-brand-gray font-semibold">Confidence</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Signals</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,7 +180,7 @@ export function WindfallImportView() {
                   return (
                     <tr
                       key={i}
-                      className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                      className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
                     >
                       <td className="px-4 py-2 font-mono text-xs">{row.customerCode}</td>
                       <td className="px-4 py-2 text-xs">{formatName(row)}</td>
@@ -189,11 +189,11 @@ export function WindfallImportView() {
                       </td>
                       <td className="px-4 py-2 text-xs">
                         {tier ? (
-                          <span className="px-1.5 py-0.5 rounded bg-sh-blue/10 text-sh-blue font-medium">
+                          <span className="px-1.5 py-0.5 rounded bg-brand-blue/10 text-brand-blue font-medium">
                             {TIER_LABELS[tier] || tier}
                           </span>
                         ) : (
-                          <span className="text-sh-gray">—</span>
+                          <span className="text-brand-gray">—</span>
                         )}
                       </td>
                       <td className="px-4 py-2 text-right text-xs">
@@ -201,7 +201,7 @@ export function WindfallImportView() {
                       </td>
                       <td className="px-4 py-2 text-xs">
                         {signals.length > 0 ? (
-                          <span className="text-sh-gray">{signals.join(", ")}</span>
+                          <span className="text-brand-gray">{signals.join(", ")}</span>
                         ) : (
                           "—"
                         )}
@@ -213,7 +213,7 @@ export function WindfallImportView() {
             </table>
           </div>
           {rows.length > PREVIEW_LIMIT && (
-            <div className="px-4 py-3 text-center text-xs text-sh-gray border-t">
+            <div className="px-4 py-3 text-center text-xs text-brand-gray border-t">
               Showing first {PREVIEW_LIMIT} of {rows.length} rows
             </div>
           )}

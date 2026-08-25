@@ -49,14 +49,14 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  INITIATED: "bg-sh-gray/20 text-sh-gray",
+  INITIATED: "bg-brand-gray/20 text-brand-gray",
   PICKUP_SCHEDULED: "bg-blue-100 text-blue-800",
   PICKUP_COMPLETED: "bg-blue-100 text-blue-800",
   RECEIVED: "bg-yellow-100 text-yellow-800",
   INSPECTED: "bg-orange-100 text-orange-800",
   RESTOCKED: "bg-green-100 text-green-800",
   WRITTEN_OFF: "bg-red-100 text-red-800",
-  CLOSED: "bg-sh-gray/20 text-sh-gray",
+  CLOSED: "bg-brand-gray/20 text-brand-gray",
   CANCELLED: "bg-red-100 text-red-800",
 };
 
@@ -110,7 +110,7 @@ export function ReturnsListView() {
   return (
     <div className="font-serif">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-sh-blue">Returns</h1>
+        <h1 className="text-2xl font-bold text-brand-blue">Returns</h1>
         <Link href="/app/sales/returns/new">
           <Button size="sm">
             <Plus className="w-4 h-4 mr-1.5" />
@@ -127,8 +127,8 @@ export function ReturnsListView() {
             onClick={() => handleTabChange(t)}
             className={`px-3 py-1.5 text-sm rounded-full border transition ${
               tab === t
-                ? "bg-sh-blue text-white border-sh-blue"
-                : "bg-white text-sh-gray border-sh-gray/30 hover:border-sh-blue"
+                ? "bg-brand-blue text-white border-brand-blue"
+                : "bg-white text-brand-gray border-brand-gray/30 hover:border-brand-blue"
             }`}
           >
             {t === "active" ? "Active" : t === "completed" ? "Completed" : "All"}
@@ -145,11 +145,11 @@ export function ReturnsListView() {
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search by return #, order #, or customer name..."
-            className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm pr-10"
+            className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm pr-10"
           />
           <button
             onClick={handleSearch}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-sh-gray hover:text-sh-blue transition"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-gray hover:text-brand-blue transition"
           >
             <Search className="w-4 h-4" />
           </button>
@@ -160,7 +160,7 @@ export function ReturnsListView() {
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-sh-linen text-sh-black">
+            <thead className="bg-brand-linen text-brand-black">
               <tr>
                 <th className="p-3 border-b font-semibold">Return #</th>
                 <th className="p-3 border-b font-semibold">Order #</th>
@@ -174,13 +174,13 @@ export function ReturnsListView() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-sh-gray">
+                  <td colSpan={7} className="p-8 text-center text-brand-gray">
                     Loading...
                   </td>
                 </tr>
               ) : returns.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-sh-gray">
+                  <td colSpan={7} className="p-8 text-center text-brand-gray">
                     No returns found.
                   </td>
                 </tr>
@@ -189,9 +189,9 @@ export function ReturnsListView() {
                   <tr
                     key={r.id}
                     onClick={() => router.push(`/app/sales/returns/${r.id}`)}
-                    className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gold/5 cursor-pointer transition"
+                    className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gold/5 cursor-pointer transition"
                   >
-                    <td className="p-3 border-b font-medium text-sh-blue">{r.returnNumber}</td>
+                    <td className="p-3 border-b font-medium text-brand-blue">{r.returnNumber}</td>
                     <td className="p-3 border-b">{r.order?.orderno || "-"}</td>
                     <td className="p-3 border-b">
                       {r.customer ? `${r.customer.firstName} ${r.customer.lastName}` : "-"}
@@ -217,8 +217,8 @@ export function ReturnsListView() {
 
         {/* Pagination */}
         {total > ITEMS_PER_PAGE && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-sh-gray/10">
-            <p className="text-xs text-sh-gray">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-brand-gray/10">
+            <p className="text-xs text-brand-gray">
               Showing {(page - 1) * ITEMS_PER_PAGE + 1}
               {" - "}
               {Math.min(page * ITEMS_PER_PAGE, total)} of {total}
@@ -227,17 +227,17 @@ export function ReturnsListView() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="p-1.5 rounded border border-sh-gray/30 text-sh-gray hover:text-sh-blue disabled:opacity-40 transition"
+                className="p-1.5 rounded border border-brand-gray/30 text-brand-gray hover:text-brand-blue disabled:opacity-40 transition"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="px-3 py-1 text-sm text-sh-gray">
+              <span className="px-3 py-1 text-sm text-brand-gray">
                 {page} / {totalPages}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="p-1.5 rounded border border-sh-gray/30 text-sh-gray hover:text-sh-blue disabled:opacity-40 transition"
+                className="p-1.5 rounded border border-brand-gray/30 text-brand-gray hover:text-brand-blue disabled:opacity-40 transition"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>

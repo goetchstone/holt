@@ -303,12 +303,12 @@ export function ImportOrderView() {
       {/* File upload -- always visible unless we have a result */}
       {!result && (
         <>
-          <p className="text-sm text-sh-gray">
+          <p className="text-sm text-brand-gray">
             Upload a CSV or PDF purchase order. CSV files are parsed client-side. PDF invoices
             require selecting the vendor format before parsing.
           </p>
           <div className="flex items-center gap-4">
-            <label className="flex cursor-pointer items-center gap-2 rounded border border-gray-300 px-4 py-2 text-sm hover:bg-sh-stripe">
+            <label className="flex cursor-pointer items-center gap-2 rounded border border-gray-300 px-4 py-2 text-sm hover:bg-brand-stripe">
               <Upload className="h-4 w-4" />
               {file ? file.name : "Choose CSV or PDF..."}
               <input
@@ -318,16 +318,16 @@ export function ImportOrderView() {
                 onChange={handleFileSelect}
               />
             </label>
-            {loading && <span className="text-sm text-sh-gray">Parsing...</span>}
+            {loading && <span className="text-sm text-brand-gray">Parsing...</span>}
           </div>
           {fileType === "pdf" && !pdfPreview && (
             <div className="flex items-center gap-4">
               <div>
-                <label className="mb-1 block text-xs text-sh-gray">PDF Vendor Format</label>
+                <label className="mb-1 block text-xs text-brand-gray">PDF Vendor Format</label>
                 <select
                   value={pdfFormat}
                   onChange={(e) => setPdfFormat(e.target.value as PdfVendorFormat)}
-                  className="rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                 >
                   {PDF_FORMAT_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -348,7 +348,7 @@ export function ImportOrderView() {
       {fileType === "csv" && csvData.length > 0 && !result && (
         <>
           <div className="rounded border border-gray-200 bg-white p-4">
-            <h3 className="mb-3 text-sm font-semibold text-sh-navy">
+            <h3 className="mb-3 text-sm font-semibold text-brand-navy">
               Defaults for missing columns
             </h3>
             <div className="grid grid-cols-3 gap-4">
@@ -376,7 +376,7 @@ export function ImportOrderView() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 text-left text-xs text-sh-gray">
+                <tr className="border-b border-gray-200 text-left text-xs text-brand-gray">
                   {csvHeaders.map((h) => (
                     <th key={h.key} className="px-2 py-2">
                       {h.label}
@@ -386,7 +386,7 @@ export function ImportOrderView() {
               </thead>
               <tbody>
                 {csvData.slice(0, 50).map((row, i) => (
-                  <tr key={i} className={i % 2 === 0 ? "bg-sh-stripe" : "bg-white"}>
+                  <tr key={i} className={i % 2 === 0 ? "bg-brand-stripe" : "bg-white"}>
                     {csvHeaders.map((h) => (
                       <td key={h.key} className="px-2 py-2">
                         {String(row[h.key] || "")}
@@ -397,7 +397,9 @@ export function ImportOrderView() {
               </tbody>
             </table>
             {csvData.length > 50 && (
-              <p className="mt-2 text-xs text-sh-gray">Showing first 50 of {csvData.length} rows</p>
+              <p className="mt-2 text-xs text-brand-gray">
+                Showing first 50 of {csvData.length} rows
+              </p>
             )}
           </div>
 
@@ -415,41 +417,41 @@ export function ImportOrderView() {
       {/* PDF preview */}
       {fileType === "pdf" && pdfPreview && !result && (
         <>
-          <div className="rounded border border-sh-gold/30 bg-amber-50 p-4">
-            <h3 className="mb-2 font-serif text-base font-semibold text-sh-navy">
+          <div className="rounded border border-brand-gold/30 bg-amber-50 p-4">
+            <h3 className="mb-2 font-serif text-base font-semibold text-brand-navy">
               {pdfPreview.vendorName || "Vendor"} -- Order {pdfPreview.orderNumber}
             </h3>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
-                <span className="text-sh-gray">PO#:</span> {pdfPreview.poNumber}
+                <span className="text-brand-gray">PO#:</span> {pdfPreview.poNumber}
               </div>
               <div>
-                <span className="text-sh-gray">Date:</span> {pdfPreview.orderDate}
+                <span className="text-brand-gray">Date:</span> {pdfPreview.orderDate}
               </div>
               <div>
-                <span className="text-sh-gray">Delivery:</span> {pdfPreview.deliveryStart} -{" "}
+                <span className="text-brand-gray">Delivery:</span> {pdfPreview.deliveryStart} -{" "}
                 {pdfPreview.deliveryEnd}
               </div>
               <div>
-                <span className="text-sh-gray">Total Units:</span> {pdfPreview.totalUnits}
+                <span className="text-brand-gray">Total Units:</span> {pdfPreview.totalUnits}
               </div>
               <div>
-                <span className="text-sh-gray">Total Cost:</span> {fmt(pdfPreview.totalPrice)}
+                <span className="text-brand-gray">Total Cost:</span> {fmt(pdfPreview.totalPrice)}
               </div>
               <div>
-                <span className="text-sh-gray">Terms:</span> {pdfPreview.terms}
+                <span className="text-brand-gray">Terms:</span> {pdfPreview.terms}
               </div>
             </div>
           </div>
 
           {/* Default department and category */}
           <div className="rounded border border-gray-200 bg-white p-4">
-            <h4 className="mb-3 text-sm font-semibold text-sh-navy">
+            <h4 className="mb-3 text-sm font-semibold text-brand-navy">
               Default department and category
             </h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-xs text-sh-gray">Department</label>
+                <label className="mb-1 block text-xs text-brand-gray">Department</label>
                 <select
                   value={selectedDeptId || ""}
                   onChange={(e) => {
@@ -457,7 +459,7 @@ export function ImportOrderView() {
                     setSelectedCatId(null);
                     setItemCategories({});
                   }}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                 >
                   <option value="">Select department...</option>
                   {departments.map((d) => (
@@ -468,14 +470,14 @@ export function ImportOrderView() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs text-sh-gray">Default Category</label>
+                <label className="mb-1 block text-xs text-brand-gray">Default Category</label>
                 <select
                   value={selectedCatId || ""}
                   onChange={(e) => {
                     setSelectedCatId(Number.parseInt(e.target.value) || null);
                     setItemCategories({});
                   }}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                   disabled={!selectedDeptId}
                 >
                   <option value="">
@@ -494,7 +496,7 @@ export function ImportOrderView() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 text-left text-xs text-sh-gray">
+                <tr className="border-b border-gray-200 text-left text-xs text-brand-gray">
                   <th className="px-2 py-2">Style #</th>
                   <th className="px-2 py-2">Product</th>
                   <th className="px-2 py-2">Color</th>
@@ -509,7 +511,7 @@ export function ImportOrderView() {
                 {pdfPreview.items.map((item, i) => (
                   <tr
                     key={item.styleNumber + i}
-                    className={i % 2 === 0 ? "bg-sh-stripe" : "bg-white"}
+                    className={i % 2 === 0 ? "bg-brand-stripe" : "bg-white"}
                   >
                     <td className="px-2 py-2 font-mono text-xs">{item.styleNumber}</td>
                     <td className="px-2 py-2">{item.productName}</td>
@@ -517,7 +519,7 @@ export function ImportOrderView() {
                     <td className="px-2 py-2 text-right">{fmt(item.msrp)}</td>
                     <td className="px-2 py-2 text-right">{fmt(item.unitPrice)}</td>
                     <td className="px-2 py-2 text-center">{item.totalUnits}</td>
-                    <td className="px-2 py-2 text-xs text-sh-gray">
+                    <td className="px-2 py-2 text-xs text-brand-gray">
                       {item.sizes.map((s) => `${s.size}:${s.quantity}`).join(", ")}
                     </td>
                     <td className="px-2 py-2">
@@ -536,7 +538,7 @@ export function ImportOrderView() {
                           });
                         }}
                         disabled={!selectedDeptId}
-                        className="w-full rounded border border-gray-300 px-1 py-1 text-xs focus:border-sh-gold focus:outline-none"
+                        className="w-full rounded border border-gray-300 px-1 py-1 text-xs focus:border-brand-gold focus:outline-none"
                       >
                         <option value="">--</option>
                         {filteredCategories.map((c) => (
@@ -581,11 +583,11 @@ export function ImportOrderView() {
             <dl className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
               {result.poNumber && (
                 <>
-                  <dt className="text-sh-gray">PO Number</dt>
+                  <dt className="text-brand-gray">PO Number</dt>
                   <dd className="font-medium">
                     <a
                       href={`/app/purchasing/orders/${result.poId}`}
-                      className="text-sh-gold underline"
+                      className="text-brand-gold underline"
                     >
                       {result.poNumber}
                     </a>
@@ -594,7 +596,7 @@ export function ImportOrderView() {
               )}
               {result.purchaseOrders && (
                 <>
-                  <dt className="text-sh-gray">Purchase Orders</dt>
+                  <dt className="text-brand-gray">Purchase Orders</dt>
                   <dd>
                     {result.purchaseOrders
                       .map((po) => `${po.poNumber} (${po.itemCount})`)
@@ -604,25 +606,25 @@ export function ImportOrderView() {
               )}
               {result.vendor && (
                 <>
-                  <dt className="text-sh-gray">Vendor</dt>
+                  <dt className="text-brand-gray">Vendor</dt>
                   <dd>{result.vendor}</dd>
                 </>
               )}
-              <dt className="text-sh-gray">Line Items</dt>
+              <dt className="text-brand-gray">Line Items</dt>
               <dd>{result.itemCount}</dd>
               {result.totalUnits !== undefined && (
                 <>
-                  <dt className="text-sh-gray">Total Units</dt>
+                  <dt className="text-brand-gray">Total Units</dt>
                   <dd>{result.totalUnits}</dd>
                 </>
               )}
-              <dt className="text-sh-gray">Total Cost</dt>
+              <dt className="text-brand-gray">Total Cost</dt>
               <dd>{fmt(result.totalCost)}</dd>
-              <dt className="text-sh-gray">Products Created</dt>
+              <dt className="text-brand-gray">Products Created</dt>
               <dd>{result.productsCreated}</dd>
               {result.variantsCreated !== undefined && (
                 <>
-                  <dt className="text-sh-gray">Variants Created</dt>
+                  <dt className="text-brand-gray">Variants Created</dt>
                   <dd>{result.variantsCreated}</dd>
                 </>
               )}
@@ -646,11 +648,11 @@ export function ImportOrderView() {
 
       {/* Help text when nothing loaded */}
       {!file && !result && (
-        <div className="rounded border border-gray-200 bg-sh-linen p-4 text-sm text-sh-gray">
-          <h3 className="mb-2 font-semibold text-sh-black">Supported formats</h3>
+        <div className="rounded border border-gray-200 bg-brand-linen p-4 text-sm text-brand-gray">
+          <h3 className="mb-2 font-semibold text-brand-black">Supported formats</h3>
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <h4 className="mb-1 font-medium text-sh-navy">CSV</h4>
+              <h4 className="mb-1 font-medium text-brand-navy">CSV</h4>
               <p className="mb-2">
                 Exports from NuOrder, JOOR, or any wholesale platform. Column names are
                 auto-detected.
@@ -677,7 +679,7 @@ export function ImportOrderView() {
               </div>
             </div>
             <div>
-              <h4 className="mb-1 font-medium text-sh-navy">PDF</h4>
+              <h4 className="mb-1 font-medium text-brand-navy">PDF</h4>
               <p className="mb-2">Select the vendor format before parsing. Supported formats:</p>
               <ul className="list-inside list-disc space-y-0.5 text-xs">
                 <li>NuORDER purchase orders (Favorite Daughter, etc.)</li>

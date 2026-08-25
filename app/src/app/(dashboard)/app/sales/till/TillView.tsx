@@ -88,7 +88,7 @@ type MoneyFmt = ReturnType<typeof useMoneyFormatter>;
 // Variance is green at exactly zero, red otherwise, gray when not yet known.
 // Extracted so the JSX below stays free of nested ternaries (S3358).
 function varianceClass(variance: number | null): string {
-  if (variance == null) return "text-sh-gray";
+  if (variance == null) return "text-brand-gray";
   return variance === 0 ? "text-green-600" : "text-red-600";
 }
 
@@ -129,11 +129,11 @@ function OpenTillCard({
     : [];
 
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-sh-black">{till.register.name}</h3>
-          <p className="text-sm text-sh-gray">
+          <h3 className="text-lg font-semibold text-brand-black">{till.register.name}</h3>
+          <p className="text-sm text-brand-gray">
             {till.register.storeLocation.name} -- Opened by {till.openedBy.displayName} at{" "}
             {fmtDate(till.openedAt)}
           </p>
@@ -145,28 +145,28 @@ function OpenTillCard({
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
             {methods.map((m) => (
-              <div key={m.label} className="border border-sh-gray/10 rounded p-3 text-center">
-                <p className="text-xs text-sh-gray">{m.label}</p>
-                <p className="text-lg text-sh-black font-medium">{fmt(m.value)}</p>
+              <div key={m.label} className="border border-brand-gray/10 rounded p-3 text-center">
+                <p className="text-xs text-brand-gray">{m.label}</p>
+                <p className="text-lg text-brand-black font-medium">{fmt(m.value)}</p>
               </div>
             ))}
           </div>
 
-          <div className="border-t border-sh-gray/10 pt-3 flex items-center justify-between">
+          <div className="border-t border-brand-gray/10 pt-3 flex items-center justify-between">
             <div className="space-y-1">
-              <p className="text-sm text-sh-gray">
+              <p className="text-sm text-brand-gray">
                 Opening Cash:{" "}
-                <span className="text-sh-black font-medium">{fmt(summary.openingCash)}</span>
+                <span className="text-brand-black font-medium">{fmt(summary.openingCash)}</span>
               </p>
-              <p className="text-sm text-sh-gray">
+              <p className="text-sm text-brand-gray">
                 Expected Cash:{" "}
-                <span className="text-sh-black font-medium">{fmt(summary.expectedCash)}</span>
+                <span className="text-brand-black font-medium">{fmt(summary.expectedCash)}</span>
               </p>
-              <p className="text-sm text-sh-gray">
-                Total: <span className="text-sh-black font-medium">{fmt(summary.total)}</span>
+              <p className="text-sm text-brand-gray">
+                Total: <span className="text-brand-black font-medium">{fmt(summary.total)}</span>
               </p>
-              <p className="text-sm text-sh-gray">
-                Payments: <span className="text-sh-black">{summary.paymentCount}</span>
+              <p className="text-sm text-brand-gray">
+                Payments: <span className="text-brand-black">{summary.paymentCount}</span>
               </p>
             </div>
             <div className="flex gap-2">
@@ -191,7 +191,7 @@ function HistoryTable({ history, fmt }: Readonly<{ history: HistoryTill[]; fmt: 
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-sh-gray border-b border-sh-gray/10">
+          <tr className="text-left text-brand-gray border-b border-brand-gray/10">
             <th className="py-2 pr-4 font-medium">Register</th>
             <th className="py-2 pr-4 font-medium">Opened</th>
             <th className="py-2 pr-4 font-medium">Closed</th>
@@ -204,21 +204,24 @@ function HistoryTable({ history, fmt }: Readonly<{ history: HistoryTill[]; fmt: 
         </thead>
         <tbody>
           {history.map((t) => (
-            <tr key={t.id} className="border-b border-sh-gray/5 hover:bg-sh-stripe cursor-pointer">
+            <tr
+              key={t.id}
+              className="border-b border-brand-gray/5 hover:bg-brand-stripe cursor-pointer"
+            >
               <td className="py-2 pr-4">
-                <Link href={`/app/sales/till/${t.id}`} className="text-sh-blue hover:underline">
+                <Link href={`/app/sales/till/${t.id}`} className="text-brand-blue hover:underline">
                   {t.register.name}
                 </Link>
               </td>
-              <td className="py-2 pr-4 text-sh-gray">{fmtDate(t.openedAt)}</td>
-              <td className="py-2 pr-4 text-sh-gray">{fmtDate(t.closedAt)}</td>
+              <td className="py-2 pr-4 text-brand-gray">{fmtDate(t.openedAt)}</td>
+              <td className="py-2 pr-4 text-brand-gray">{fmtDate(t.closedAt)}</td>
               <td className="py-2 pr-4 text-right">{fmt(t.openingCash)}</td>
               <td className="py-2 pr-4 text-right">{fmt(t.expectedCash)}</td>
               <td className="py-2 pr-4 text-right">{fmt(t.actualCash)}</td>
               <td className={`py-2 pr-4 text-right font-medium ${varianceClass(t.variance)}`}>
                 {fmt(t.variance)}
               </td>
-              <td className="py-2 text-right text-sh-gray">{t._count.payments}</td>
+              <td className="py-2 text-right text-brand-gray">{t._count.payments}</td>
             </tr>
           ))}
         </tbody>
@@ -422,14 +425,14 @@ export function TillView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl text-sh-blue font-semibold">Till</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">Till</h1>
 
         {/* Store selector */}
         {allStores.length > 1 && (
           <select
             value={activeStore?.id ?? ""}
             onChange={(e) => handleStoreChange(Number.parseInt(e.target.value))}
-            className="border border-sh-gray/30 rounded px-3 py-1.5 text-sm"
+            className="border border-brand-gray/30 rounded px-3 py-1.5 text-sm"
             aria-label="Active store"
           >
             {allStores.map((s) => (
@@ -441,19 +444,19 @@ export function TillView() {
         )}
       </div>
 
-      {(initialLoading || storeLoading) && <p className="text-sh-gray">Loading...</p>}
+      {(initialLoading || storeLoading) && <p className="text-brand-gray">Loading...</p>}
 
       {!storeLoading && !activeStore && (
-        <p className="text-sh-gray">No active store selected. Choose a store to continue.</p>
+        <p className="text-brand-gray">No active store selected. Choose a store to continue.</p>
       )}
 
       {/* Closed result banner */}
       {closedResult && (
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6 space-y-4 max-w-md">
-          <h2 className="text-lg font-semibold text-sh-black">Till Closed</h2>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6 space-y-4 max-w-md">
+          <h2 className="text-lg font-semibold text-brand-black">Till Closed</h2>
 
           <div className="text-center py-4">
-            <p className="text-sm text-sh-gray mb-1">Variance</p>
+            <p className="text-sm text-brand-gray mb-1">Variance</p>
             <p className={`text-3xl font-semibold ${varianceClass(closedResult.variance)}`}>
               {fmt(closedResult.variance)}
             </p>
@@ -475,7 +478,9 @@ export function TillView() {
       {/* Open tills grouped by register */}
       {!initialLoading && activeStore && openTills.length > 0 && !closingTillId && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-sh-black">Open Tills ({openTills.length})</h2>
+          <h2 className="text-lg font-semibold text-brand-black">
+            Open Tills ({openTills.length})
+          </h2>
 
           {openTills.map((till) => (
             <OpenTillCard
@@ -492,25 +497,25 @@ export function TillView() {
 
       {/* Closing phase -- denomination count for a specific till */}
       {closingTillId && closingTill && (
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-sh-black">
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-brand-black">
             Count Drawer -- {closingTill.register.name}
           </h2>
-          <p className="text-sm text-sh-gray">
+          <p className="text-sm text-brand-gray">
             Enter the quantity of each denomination in the drawer.
           </p>
 
           <DenominationCountTable counts={counts} onChange={setCounts} />
 
           <div>
-            <label htmlFor="till-close-notes" className="block text-sm text-sh-gray mb-1">
+            <label htmlFor="till-close-notes" className="block text-sm text-brand-gray mb-1">
               Notes
             </label>
             <textarea
               id="till-close-notes"
               value={closeNotes}
               onChange={(e) => setCloseNotes(e.target.value)}
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               rows={3}
               placeholder="Optional notes..."
             />
@@ -529,25 +534,25 @@ export function TillView() {
 
       {/* Open new till form -- shown when there are available registers */}
       {!initialLoading && activeStore && !closingTillId && (
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-sh-black">Open Till</h2>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-brand-black">Open Till</h2>
 
           {registers.length === 0 ? (
-            <p className="text-sm text-sh-gray">
+            <p className="text-sm text-brand-gray">
               No active registers found for {activeStore.name}.
             </p>
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
                 <div>
-                  <label htmlFor="till-register" className="block text-sm text-sh-gray mb-1">
+                  <label htmlFor="till-register" className="block text-sm text-brand-gray mb-1">
                     Register
                   </label>
                   <select
                     id="till-register"
                     value={selectedRegisterId}
                     onChange={(e) => setSelectedRegisterId(e.target.value)}
-                    className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                    className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                   >
                     <option value="">Select a register...</option>
                     {registers.map((r) => (
@@ -559,7 +564,7 @@ export function TillView() {
                 </div>
 
                 <div>
-                  <label htmlFor="till-date" className="block text-sm text-sh-gray mb-1">
+                  <label htmlFor="till-date" className="block text-sm text-brand-gray mb-1">
                     Date
                   </label>
                   <input
@@ -567,13 +572,13 @@ export function TillView() {
                     type="date"
                     value={tillDate}
                     onChange={(e) => setTillDate(e.target.value)}
-                    className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                    className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <p className="text-sm text-sh-gray mb-2">
+                <p className="text-sm text-brand-gray mb-2">
                   Count the drawer before opening. Total becomes the opening cash.
                 </p>
                 <DenominationCountTable
@@ -593,13 +598,13 @@ export function TillView() {
 
       {/* Till History */}
       {activeStore && !storeLoading && !initialLoading && (
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-          <h2 className="text-lg font-semibold text-sh-black mb-4">Recent Tills</h2>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+          <h2 className="text-lg font-semibold text-brand-black mb-4">Recent Tills</h2>
 
-          {historyLoading && <p className="text-sm text-sh-gray">Loading history...</p>}
+          {historyLoading && <p className="text-sm text-brand-gray">Loading history...</p>}
 
           {!historyLoading && history.length === 0 && (
-            <p className="text-sm text-sh-gray">No closed tills found for this store.</p>
+            <p className="text-sm text-brand-gray">No closed tills found for this store.</p>
           )}
 
           {!historyLoading && history.length > 0 && <HistoryTable history={history} fmt={fmt} />}

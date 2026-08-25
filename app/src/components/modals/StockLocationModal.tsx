@@ -203,11 +203,11 @@ export default function StockLocationModal({
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm text-sh-gray mb-1">Location Type</label>
+          <label className="block text-sm text-brand-gray mb-1">Location Type</label>
           <select
             value={form.locationType}
             onChange={(e) => handleChange("locationType", e.target.value)}
-            className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
           >
             <option value="STOCK">Stock</option>
             <option value="FLOOR">Floor</option>
@@ -231,7 +231,7 @@ export default function StockLocationModal({
           onChange={(v) => handleChange("locationAliases", v)}
           placeholder="Comma-separated external location names"
         />
-        <p className="text-[10px] text-sh-gray mt-0.5">
+        <p className="text-[10px] text-brand-gray mt-0.5">
           External location names that map to this USL during import (e.g. &quot;NB 2nd Floor Area
           4, NB Attic&quot;)
         </p>
@@ -245,11 +245,11 @@ export default function StockLocationModal({
             onChange={(e) => setHoldsCommittedStock(e.target.checked)}
             className="rounded"
           />
-          <label htmlFor="slHoldsCommittedStock" className="text-sm text-sh-gray">
+          <label htmlFor="slHoldsCommittedStock" className="text-sm text-brand-gray">
             Holds stock committed to customers
           </label>
         </div>
-        <p className="text-[10px] text-sh-gray mt-0.5">
+        <p className="text-[10px] text-brand-gray mt-0.5">
           Stock here is on hand but already sold — it stays out of available-to-sell quantities and
           shows as Cust Stock on the Buyers Report.
         </p>
@@ -263,7 +263,7 @@ export default function StockLocationModal({
             onChange={(e) => setIsActive(e.target.checked)}
             className="rounded"
           />
-          <label htmlFor="slIsActive" className="text-sm text-sh-gray">
+          <label htmlFor="slIsActive" className="text-sm text-brand-gray">
             Active
           </label>
         </div>

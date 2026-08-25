@@ -6,7 +6,7 @@
    runtime via an injected :root block (see _document.tsx + lib/appSettings.ts),
    so the whole UI re-skins live. Channels are space-separated so the sh-*
    tokens below wrap them in rgb(); Tailwind 4 applies opacity modifiers
-   (e.g. bg-sh-blue/50) via color-mix. DO NOT add `/ <alpha-value>` here --
+   (e.g. bg-brand-blue/50) via color-mix. DO NOT add `/ <alpha-value>` here --
    that is Tailwind 3 syntax; Tailwind 4 leaves it un-substituted, producing
    an invalid color that silently drops the background (the 2026-06-04
    white-on-white sidebar bug). */
@@ -24,15 +24,15 @@
 /* Tailwind 4 theme: brand colors resolve from the --brand-* channels above so
    the runtime re-skin still works; fonts mirror the old tailwind.config.js. */
 @theme {
-  --color-sh-blue: rgb(var(--brand-navy));
-  --color-sh-navy: rgb(var(--brand-navy));
-  --color-sh-linen: rgb(var(--brand-linen));
-  --color-sh-gold: rgb(var(--brand-gold));
-  --color-sh-gray: rgb(var(--brand-gray));
-  --color-sh-black: rgb(var(--brand-black));
-  --color-sh-stripe: rgb(var(--brand-stripe));
-  --color-sh-brand-gray: rgb(var(--brand-accent-gray));
-  --color-sh-brand-blue: rgb(var(--brand-accent-blue));
+  --color-brand-blue: rgb(var(--brand-navy));
+  --color-brand-navy: rgb(var(--brand-navy));
+  --color-brand-linen: rgb(var(--brand-linen));
+  --color-brand-gold: rgb(var(--brand-gold));
+  --color-brand-gray: rgb(var(--brand-gray));
+  --color-brand-black: rgb(var(--brand-black));
+  --color-brand-stripe: rgb(var(--brand-stripe));
+  --color-brand-accent-gray: rgb(var(--brand-accent-gray));
+  --color-brand-accent-blue: rgb(var(--brand-accent-blue));
 
   /* Akritos tool palette — the dark theme for the (Akritos-gated) public DMARC
      tools ported from akritos.com. Scoped to those pages; not part of the

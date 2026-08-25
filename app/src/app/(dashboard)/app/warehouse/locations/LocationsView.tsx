@@ -188,7 +188,7 @@ export function LocationsView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl text-sh-blue font-semibold">Locations</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">Locations</h1>
         <Button size="sm" onClick={openCreate}>
           Add Location
         </Button>
@@ -196,14 +196,14 @@ export function LocationsView() {
 
       {/* Store Location Form */}
       {showForm && (
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-sh-black">
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-brand-black">
             {editingId ? "Edit Location" : "New Location"}
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="location-name" className="block text-sm text-sh-gray mb-1">
+              <label htmlFor="location-name" className="block text-sm text-brand-gray mb-1">
                 Name
               </label>
               <input
@@ -211,11 +211,11 @@ export function LocationsView() {
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label htmlFor="location-code" className="block text-sm text-sh-gray mb-1">
+              <label htmlFor="location-code" className="block text-sm text-brand-gray mb-1">
                 Code
               </label>
               <input
@@ -223,19 +223,19 @@ export function LocationsView() {
                 type="text"
                 value={form.code}
                 onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 maxLength={5}
               />
             </div>
             <div>
-              <label htmlFor="location-type" className="block text-sm text-sh-gray mb-1">
+              <label htmlFor="location-type" className="block text-sm text-brand-gray mb-1">
                 Type
               </label>
               <select
                 id="location-type"
                 value={form.type}
                 onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               >
                 {LOCATION_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -248,7 +248,7 @@ export function LocationsView() {
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
-              <label htmlFor="location-address" className="block text-sm text-sh-gray mb-1">
+              <label htmlFor="location-address" className="block text-sm text-brand-gray mb-1">
                 Address
               </label>
               <input
@@ -256,11 +256,11 @@ export function LocationsView() {
                 type="text"
                 value={form.address}
                 onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label htmlFor="location-city" className="block text-sm text-sh-gray mb-1">
+              <label htmlFor="location-city" className="block text-sm text-brand-gray mb-1">
                 City
               </label>
               <input
@@ -268,11 +268,11 @@ export function LocationsView() {
                 type="text"
                 value={form.city}
                 onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label htmlFor="location-state" className="block text-sm text-sh-gray mb-1">
+              <label htmlFor="location-state" className="block text-sm text-brand-gray mb-1">
                 State
               </label>
               <input
@@ -280,12 +280,12 @@ export function LocationsView() {
                 type="text"
                 value={form.state}
                 onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 maxLength={2}
               />
             </div>
             <div>
-              <label htmlFor="location-zip" className="block text-sm text-sh-gray mb-1">
+              <label htmlFor="location-zip" className="block text-sm text-brand-gray mb-1">
                 ZIP
               </label>
               <input
@@ -293,14 +293,14 @@ export function LocationsView() {
                 type="text"
                 value={form.zip}
                 onChange={(e) => setForm((f) => ({ ...f, zip: e.target.value }))}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 maxLength={10}
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="location-external-name" className="block text-sm text-sh-gray mb-1">
+            <label htmlFor="location-external-name" className="block text-sm text-brand-gray mb-1">
               the POS Location Name
             </label>
             <input
@@ -308,7 +308,7 @@ export function LocationsView() {
               type="text"
               value={form.externalLocationName}
               onChange={(e) => setForm((f) => ({ ...f, externalLocationName: e.target.value }))}
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               placeholder="Maps to the POS stock location strings"
             />
           </div>
@@ -322,7 +322,7 @@ export function LocationsView() {
                 onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
                 className="rounded"
               />
-              <label htmlFor="isActive" className="text-sm text-sh-gray">
+              <label htmlFor="isActive" className="text-sm text-brand-gray">
                 Active
               </label>
             </div>
@@ -348,17 +348,17 @@ export function LocationsView() {
 
       {/* Location list */}
       {loading ? (
-        <p className="text-sh-gray">Loading...</p>
+        <p className="text-brand-gray">Loading...</p>
       ) : (
         <div className="space-y-3">
           {locations.map((loc) => (
             <div
               key={loc.id}
-              className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden"
+              className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden"
             >
               {/* Location header row */}
               <div
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-sh-stripe/50"
+                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-brand-stripe/50"
                 role="button"
                 tabIndex={0}
                 onClick={() => toggleExpand(loc.id)}
@@ -370,19 +370,21 @@ export function LocationsView() {
                 }}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-sh-black font-medium">{loc.name}</span>
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-sh-gray/10 text-sh-gray">
+                  <span className="text-brand-black font-medium">{loc.name}</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-brand-gray/10 text-brand-gray">
                     {loc.code}
                   </span>
-                  <span className="text-xs text-sh-gray">{TYPE_LABELS[loc.type] || loc.type}</span>
+                  <span className="text-xs text-brand-gray">
+                    {TYPE_LABELS[loc.type] || loc.type}
+                  </span>
                   {!loc.isActive && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-sh-gray/20 text-sh-gray">
+                    <span className="text-xs px-2 py-0.5 rounded bg-brand-gray/20 text-brand-gray">
                       Inactive
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-sh-gray">
+                  <span className="text-sm text-brand-gray">
                     {loc.stockLocations.length} USL{loc.stockLocations.length !== 1 ? "s" : ""}
                   </span>
                   <button
@@ -390,22 +392,24 @@ export function LocationsView() {
                       e.stopPropagation();
                       openEdit(loc);
                     }}
-                    className="text-xs text-sh-gray hover:text-sh-blue"
+                    className="text-xs text-brand-gray hover:text-brand-blue"
                   >
                     Edit
                   </button>
-                  <span className="text-sh-gray text-xs">{expandedId === loc.id ? "▼" : "▶"}</span>
+                  <span className="text-brand-gray text-xs">
+                    {expandedId === loc.id ? "▼" : "▶"}
+                  </span>
                 </div>
               </div>
 
               {/* Expanded stock locations */}
               {expandedId === loc.id && (
-                <div className="border-t border-sh-gray/10 px-4 py-3">
+                <div className="border-t border-brand-gray/10 px-4 py-3">
                   {/* Default receiving location */}
                   <div className="mb-4 flex items-center gap-3">
                     <label
                       htmlFor={`default-receiving-${loc.id}`}
-                      className="text-sm text-sh-gray whitespace-nowrap"
+                      className="text-sm text-brand-gray whitespace-nowrap"
                     >
                       Default Receiving Location:
                     </label>
@@ -418,7 +422,7 @@ export function LocationsView() {
                           e.target.value ? Number.parseInt(e.target.value) : null,
                         )
                       }
-                      className="border border-sh-gray/30 rounded px-2 py-1 text-sm"
+                      className="border border-brand-gray/30 rounded px-2 py-1 text-sm"
                     >
                       <option value="">None</option>
                       {loc.stockLocations
@@ -432,26 +436,26 @@ export function LocationsView() {
                   </div>
 
                   {loc.stockLocations.length === 0 ? (
-                    <p className="text-sm text-sh-gray py-2">No stock locations configured</p>
+                    <p className="text-sm text-brand-gray py-2">No stock locations configured</p>
                   ) : (
                     <div className="space-y-4">
                       {Object.entries(groupByBuilding(loc.stockLocations)).map(
                         ([building, items]) => (
                           <div key={building}>
-                            <h4 className="text-xs font-medium text-sh-gray uppercase tracking-wide mb-2">
+                            <h4 className="text-xs font-medium text-brand-gray uppercase tracking-wide mb-2">
                               {building}
                             </h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
                               {items.map((sl) => (
                                 <div
                                   key={sl.id}
-                                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-sh-stripe/50 text-sm group"
+                                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-brand-stripe/50 text-sm group"
                                 >
-                                  <span className="text-xs font-mono text-sh-gray w-[90px] shrink-0">
+                                  <span className="text-xs font-mono text-brand-gray w-[90px] shrink-0">
                                     {sl.code}
                                   </span>
                                   <span
-                                    className={`text-sh-black ${!sl.isActive ? "line-through opacity-50" : ""}`}
+                                    className={`text-brand-black ${!sl.isActive ? "line-through opacity-50" : ""}`}
                                   >
                                     {sl.name}
                                   </span>
@@ -459,18 +463,18 @@ export function LocationsView() {
                                     className={`text-[10px] px-1.5 py-0.5 rounded ${
                                       sl.locationType === "FLOOR"
                                         ? "bg-blue-50 text-blue-700"
-                                        : "bg-sh-gray/10 text-sh-gray"
+                                        : "bg-brand-gray/10 text-brand-gray"
                                     }`}
                                   >
                                     {sl.locationType === "FLOOR" ? "Floor" : "Stock"}
                                   </span>
                                   {sl.locationType === "FLOOR" && sl.squareFootage && (
-                                    <span className="text-[10px] text-sh-gray">
+                                    <span className="text-[10px] text-brand-gray">
                                       {sl.squareFootage.toLocaleString()} sqft
                                     </span>
                                   )}
                                   {sl.floor != null && (
-                                    <span className="text-xs text-sh-gray">
+                                    <span className="text-xs text-brand-gray">
                                       {FLOOR_LABELS[sl.floor] || `Floor ${sl.floor}`}
                                     </span>
                                   )}
@@ -481,7 +485,7 @@ export function LocationsView() {
                                         storeLocationId: loc.id,
                                       })
                                     }
-                                    className="text-xs text-sh-gray hover:text-sh-blue opacity-0 group-hover:opacity-100 ml-auto"
+                                    className="text-xs text-brand-gray hover:text-brand-blue opacity-0 group-hover:opacity-100 ml-auto"
                                   >
                                     Edit
                                   </button>
@@ -494,7 +498,7 @@ export function LocationsView() {
                     </div>
                   )}
 
-                  <div className="mt-3 pt-3 border-t border-sh-gray/10">
+                  <div className="mt-3 pt-3 border-t border-brand-gray/10">
                     <Button
                       variant="outline"
                       size="sm"
@@ -510,7 +514,7 @@ export function LocationsView() {
             </div>
           ))}
           {locations.length === 0 && (
-            <p className="text-sh-gray text-center py-8">No locations configured</p>
+            <p className="text-brand-gray text-center py-8">No locations configured</p>
           )}
         </div>
       )}

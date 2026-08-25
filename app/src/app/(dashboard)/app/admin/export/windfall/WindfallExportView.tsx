@@ -103,16 +103,19 @@ export function WindfallExportView() {
 
   return (
     <div className="space-y-8 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-navy">Windfall Data Export</h1>
+      <h1 className="text-2xl font-semibold text-brand-navy">Windfall Data Export</h1>
 
       <div>
-        <h2 className="text-lg font-semibold text-sh-navy">Prior Week Sales</h2>
-        <p className="mt-1 text-sm text-sh-gray">
+        <h2 className="text-lg font-semibold text-brand-navy">Prior Week Sales</h2>
+        <p className="mt-1 text-sm text-brand-gray">
           Sales data for the selected date range. Defaults to last Sunday through Saturday.
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-4">
           <div>
-            <label htmlFor="windfall-start" className="block text-xs font-medium text-sh-gray mb-1">
+            <label
+              htmlFor="windfall-start"
+              className="block text-xs font-medium text-brand-gray mb-1"
+            >
               Start Date
             </label>
             <input
@@ -120,11 +123,14 @@ export function WindfallExportView() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="rounded border border-gray-300 px-3 py-2 min-h-[44px] text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
+              className="rounded border border-gray-300 px-3 py-2 min-h-[44px] text-sm focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
             />
           </div>
           <div>
-            <label htmlFor="windfall-end" className="block text-xs font-medium text-sh-gray mb-1">
+            <label
+              htmlFor="windfall-end"
+              className="block text-xs font-medium text-brand-gray mb-1"
+            >
               End Date
             </label>
             <input
@@ -132,13 +138,13 @@ export function WindfallExportView() {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="rounded border border-gray-300 px-3 py-2 min-h-[44px] text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
+              className="rounded border border-gray-300 px-3 py-2 min-h-[44px] text-sm focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
             />
           </div>
           <button
             onClick={downloadSales}
             disabled={salesLoading || !startDate || !endDate}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded bg-sh-navy px-5 py-2 text-sm font-medium text-white hover:bg-sh-navy/90 disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded bg-brand-navy px-5 py-2 text-sm font-medium text-white hover:bg-brand-navy/90 disabled:opacity-50"
           >
             {salesLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -162,15 +168,15 @@ export function WindfallExportView() {
       <hr className="border-gray-200" />
 
       <div>
-        <h2 className="text-lg font-semibold text-sh-navy">Customer Dump</h2>
-        <p className="mt-1 text-sm text-sh-gray">
+        <h2 className="text-lg font-semibold text-brand-navy">Customer Dump</h2>
+        <p className="mt-1 text-sm text-brand-gray">
           Full customer export with name, address, and contact info for Windfall matching.
         </p>
         <div className="mt-3">
           <button
             onClick={downloadCustomers}
             disabled={customersLoading}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded bg-sh-navy px-5 py-2 text-sm font-medium text-white hover:bg-sh-navy/90 disabled:opacity-50"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded bg-brand-navy px-5 py-2 text-sm font-medium text-white hover:bg-brand-navy/90 disabled:opacity-50"
           >
             {customersLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />

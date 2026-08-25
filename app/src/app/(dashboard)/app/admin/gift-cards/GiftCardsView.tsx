@@ -28,7 +28,7 @@ interface GiftCardSummary {
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   ACTIVE: "bg-green-100 text-green-800",
-  REDEEMED: "bg-sh-gray/20 text-sh-gray",
+  REDEEMED: "bg-brand-gray/20 text-brand-gray",
   VOIDED: "bg-red-100 text-red-800",
 };
 
@@ -78,11 +78,11 @@ export function GiftCardsView() {
 
   return (
     <div className="py-2 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue mb-6">Gift Cards</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue mb-6">Gift Cards</h1>
 
       <div className="flex gap-3 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sh-gray" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
           <label htmlFor="gift-card-search" className="sr-only">
             Search gift cards
           </label>
@@ -93,7 +93,7 @@ export function GiftCardsView() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search by barcode or the POS code..."
-            className="w-full border border-sh-gray rounded-lg pl-10 pr-3 py-2 font-serif text-sh-black"
+            className="w-full border border-brand-gray rounded-lg pl-10 pr-3 py-2 font-serif text-brand-black"
           />
         </div>
         <Button onClick={handleSearch} disabled={loading}>
@@ -105,25 +105,25 @@ export function GiftCardsView() {
       </div>
 
       {searched && cards.length === 0 && !loading && (
-        <p className="text-sh-gray font-serif text-center py-8">No gift cards found.</p>
+        <p className="text-brand-gray font-serif text-center py-8">No gift cards found.</p>
       )}
 
       {cards.length > 0 && (
         <table className="w-full border-collapse">
           <thead>
-            <tr className="border-b border-sh-gray/30 text-left">
-              <th className="py-3 px-4 font-serif font-semibold text-sh-blue">Barcode</th>
-              <th className="py-3 px-4 font-serif font-semibold text-sh-blue">the POS</th>
-              <th className="py-3 px-4 font-serif font-semibold text-sh-blue text-right">
+            <tr className="border-b border-brand-gray/30 text-left">
+              <th className="py-3 px-4 font-serif font-semibold text-brand-blue">Barcode</th>
+              <th className="py-3 px-4 font-serif font-semibold text-brand-blue">the POS</th>
+              <th className="py-3 px-4 font-serif font-semibold text-brand-blue text-right">
                 Initial
               </th>
-              <th className="py-3 px-4 font-serif font-semibold text-sh-blue text-right">
+              <th className="py-3 px-4 font-serif font-semibold text-brand-blue text-right">
                 Balance
               </th>
-              <th className="py-3 px-4 font-serif font-semibold text-sh-blue text-center">
+              <th className="py-3 px-4 font-serif font-semibold text-brand-blue text-center">
                 Status
               </th>
-              <th className="py-3 px-4 font-serif font-semibold text-sh-blue">Activated</th>
+              <th className="py-3 px-4 font-serif font-semibold text-brand-blue">Activated</th>
             </tr>
           </thead>
           <tbody>
@@ -131,24 +131,24 @@ export function GiftCardsView() {
               <tr
                 key={c.id}
                 onClick={() => router.push(`/app/admin/gift-cards/${c.id}`)}
-                className={`border-b border-sh-gray/10 cursor-pointer hover:bg-sh-linen/50 ${
-                  i % 2 === 0 ? "bg-white" : "bg-sh-stripe"
+                className={`border-b border-brand-gray/10 cursor-pointer hover:bg-brand-linen/50 ${
+                  i % 2 === 0 ? "bg-white" : "bg-brand-stripe"
                 }`}
               >
-                <td className="py-3 px-4 font-serif text-sh-black font-mono text-sm">
+                <td className="py-3 px-4 font-serif text-brand-black font-mono text-sm">
                   {c.barcode}
                 </td>
-                <td className="py-3 px-4 font-serif text-sh-gray">{c.externalCode || "-"}</td>
-                <td className="py-3 px-4 font-serif text-sh-black text-right">
+                <td className="py-3 px-4 font-serif text-brand-gray">{c.externalCode || "-"}</td>
+                <td className="py-3 px-4 font-serif text-brand-black text-right">
                   {formatMoney(c.initialAmount)}
                 </td>
-                <td className="py-3 px-4 font-serif font-semibold text-sh-blue text-right">
+                <td className="py-3 px-4 font-serif font-semibold text-brand-blue text-right">
                   {formatMoney(c.currentBalance)}
                 </td>
                 <td className="py-3 px-4 text-center">
                   <StatusBadge status={c.status} />
                 </td>
-                <td className="py-3 px-4 font-serif text-sh-gray text-sm">
+                <td className="py-3 px-4 font-serif text-brand-gray text-sm">
                   {c.activatedAt ? new Date(c.activatedAt).toLocaleDateString() : "-"}
                 </td>
               </tr>

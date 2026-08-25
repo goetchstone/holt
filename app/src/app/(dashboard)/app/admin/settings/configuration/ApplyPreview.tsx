@@ -20,7 +20,7 @@ const ACTION_VARIANT: Record<ApplyResultSummary["action"], BadgeVariant> = {
 
 export function ApplyPreview({ results }: Readonly<{ results: ApplyResultSummary[] }>) {
   if (results.length === 0) {
-    return <p className="text-sm text-sh-gray">Nothing to apply.</p>;
+    return <p className="text-sm text-brand-gray">Nothing to apply.</p>;
   }
 
   return (
@@ -28,14 +28,14 @@ export function ApplyPreview({ results }: Readonly<{ results: ApplyResultSummary
       {results.map((r) => (
         <li
           key={`${r.kind}/${r.name}`}
-          className="rounded-md border border-sh-brand-gray p-3 text-sm"
+          className="rounded-md border border-brand-accent-gray p-3 text-sm"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-medium text-sh-black">
+            <span className="font-medium text-brand-black">
               {r.kind}/{r.name}
             </span>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-sh-gray">
+              <span className="text-xs text-brand-gray">
                 +{r.changes.created} created &middot; {r.changes.updated} updated &middot; -
                 {r.changes.deleted} deleted
               </span>
@@ -43,7 +43,7 @@ export function ApplyPreview({ results }: Readonly<{ results: ApplyResultSummary
             </div>
           </div>
           {r.messages.length > 0 && (
-            <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-sh-gray">
+            <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-brand-gray">
               {r.messages.map((m) => (
                 <li key={m}>{m}</li>
               ))}

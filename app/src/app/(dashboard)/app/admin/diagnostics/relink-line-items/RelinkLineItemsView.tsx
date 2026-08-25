@@ -60,15 +60,15 @@ export function RelinkLineItemsView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center gap-3">
-        <Link href="/app/admin" className="text-sh-blue hover:underline text-sm">
+        <Link href="/app/admin" className="text-brand-blue hover:underline text-sm">
           Admin
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">Relink Order Line Items</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">Relink Order Line Items</h1>
       </div>
 
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6 space-y-5">
-        <p className="text-sm text-sh-gray leading-relaxed">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6 space-y-5">
+        <p className="text-sm text-brand-gray leading-relaxed">
           Some historical order line items are not linked to a product record (Product Number
           matches but the foreign key is NULL). They appear as <em>Uncategorized</em> on reports.
           This tool matches those line items to products by exact part number and sets the link.
@@ -76,20 +76,20 @@ export function RelinkLineItemsView() {
         </p>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 rounded-lg border border-sh-gray/20 bg-sh-linen">
-            <p className="text-xs text-sh-gray uppercase tracking-wide">Unlinked lines</p>
-            <p className="text-3xl font-semibold text-sh-black mt-1">
+          <div className="p-4 rounded-lg border border-brand-gray/20 bg-brand-linen">
+            <p className="text-xs text-brand-gray uppercase tracking-wide">Unlinked lines</p>
+            <p className="text-3xl font-semibold text-brand-black mt-1">
               {status ? status.unlinked.toLocaleString() : "…"}
             </p>
             {status && (
-              <p className="text-xs text-sh-gray mt-1">
+              <p className="text-xs text-brand-gray mt-1">
                 {status.percentUnlinked.toFixed(2)}% of active lines
               </p>
             )}
           </div>
-          <div className="p-4 rounded-lg border border-sh-gray/20 bg-sh-linen">
-            <p className="text-xs text-sh-gray uppercase tracking-wide">Active lines total</p>
-            <p className="text-3xl font-semibold text-sh-black mt-1">
+          <div className="p-4 rounded-lg border border-brand-gray/20 bg-brand-linen">
+            <p className="text-xs text-brand-gray uppercase tracking-wide">Active lines total</p>
+            <p className="text-3xl font-semibold text-brand-black mt-1">
               {status ? status.totalActive.toLocaleString() : "…"}
             </p>
           </div>
@@ -116,14 +116,14 @@ export function RelinkLineItemsView() {
           </Button>
           <button
             onClick={loadStatus}
-            className="text-sm text-sh-blue hover:underline"
+            className="text-sm text-brand-blue hover:underline"
             disabled={running}
           >
             Refresh status
           </button>
         </div>
 
-        <p className="text-xs text-sh-gray mt-4">
+        <p className="text-xs text-brand-gray mt-4">
           This also runs automatically after every product import and every consignment manifest
           import, scoped to the just-imported part numbers. Use this page when you have a one-off
           cleanup or want to sweep everything.

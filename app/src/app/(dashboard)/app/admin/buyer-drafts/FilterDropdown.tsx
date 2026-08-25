@@ -16,14 +16,14 @@ export function FilterDropdown({ label, value, onChange, options }: Readonly<Fil
   const id = `filter-${label.toLowerCase()}`;
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor={id} className="text-sm font-semibold text-sh-navy">
+      <label htmlFor={id} className="text-sm font-semibold text-brand-navy">
         {label}
       </label>
       <select
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="px-3 py-2 border border-sh-stripe rounded text-sm bg-white min-h-[36px]"
+        className="px-3 py-2 border border-brand-stripe rounded text-sm bg-white min-h-[36px]"
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>

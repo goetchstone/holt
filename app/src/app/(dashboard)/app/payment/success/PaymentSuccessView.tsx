@@ -37,7 +37,7 @@ export function PaymentSuccessView() {
   }, [sessionId]);
 
   return (
-    <div className="min-h-screen bg-sh-linen flex items-center justify-center px-4">
+    <div className="min-h-screen bg-brand-linen flex items-center justify-center px-4">
       <div className="bg-white rounded-lg shadow-md p-10 max-w-md w-full text-center">
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
           <svg
@@ -50,16 +50,16 @@ export function PaymentSuccessView() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h1 className="text-2xl font-serif font-bold text-sh-blue mb-3">Payment Received</h1>
+        <h1 className="text-2xl font-serif font-bold text-brand-blue mb-3">Payment Received</h1>
         {loading ? (
-          <p className="text-sh-gray text-sm">Confirming payment...</p>
+          <p className="text-brand-gray text-sm">Confirming payment...</p>
         ) : (
           <>
-            <p className="text-sh-gray text-sm mb-2">
+            <p className="text-brand-gray text-sm mb-2">
               Thank you for your payment.
               {sessionData?.orderno && <> Your order {sessionData.orderno} has been updated.</>}
             </p>
-            <p className="text-sh-gray text-sm mt-6">You may close this window.</p>
+            <p className="text-brand-gray text-sm mt-6">You may close this window.</p>
           </>
         )}
       </div>

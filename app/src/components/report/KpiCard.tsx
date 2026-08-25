@@ -35,7 +35,7 @@ export function KpiCard({
   href,
   size = "normal",
 }: KpiCardProps) {
-  let trendColor = "text-sh-gray";
+  let trendColor = "text-brand-gray";
   let trendSymbol = "";
 
   if (trend === "up") {
@@ -48,11 +48,11 @@ export function KpiCard({
 
   const card = (
     <div
-      className={`bg-white rounded-xl border border-sh-gray/15 shadow-sm p-5${href ? " hover:border-sh-gold/40 transition-colors cursor-pointer" : ""}`}
+      className={`bg-white rounded-xl border border-brand-gray/15 shadow-sm p-5${href ? " hover:border-brand-gold/40 transition-colors cursor-pointer" : ""}`}
     >
-      <p className="text-xs text-sh-gray uppercase tracking-widest font-sans">{label}</p>
+      <p className="text-xs text-brand-gray uppercase tracking-widest font-sans">{label}</p>
       <p
-        className={`font-semibold text-sh-black font-serif mt-1 leading-none tabular-nums whitespace-nowrap overflow-hidden ${
+        className={`font-semibold text-brand-black font-serif mt-1 leading-none tabular-nums whitespace-nowrap overflow-hidden ${
           size === "compact" ? "text-base md:text-lg xl:text-xl" : "text-3xl"
         }`}
       >
@@ -64,7 +64,7 @@ export function KpiCard({
           {comparison}
         </p>
       )}
-      {sub && <div className="mt-2 text-xs text-sh-gray font-sans">{sub}</div>}
+      {sub && <div className="mt-2 text-xs text-brand-gray font-sans">{sub}</div>}
     </div>
   );
 

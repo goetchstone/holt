@@ -26,7 +26,7 @@ export function AppTopbar({ onMenuClick }: { onMenuClick: () => void }) {
         type="button"
         onClick={onMenuClick}
         aria-label="Open menu"
-        className="rounded-md p-2 text-sh-gray hover:bg-sh-stripe md:hidden"
+        className="rounded-md p-2 text-brand-gray hover:bg-brand-stripe md:hidden"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -35,7 +35,7 @@ export function AppTopbar({ onMenuClick }: { onMenuClick: () => void }) {
 
       {session?.user ? (
         <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-sh-gray sm:inline">{session.user.email}</span>
+          <span className="hidden text-sm text-brand-gray sm:inline">{session.user.email}</span>
           <Button type="button" variant="secondary" onClick={handleSignOut}>
             Sign out
           </Button>

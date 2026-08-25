@@ -285,7 +285,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
     <button
       type="button"
       onClick={() => toggleSection(section)}
-      className="flex items-center gap-2 w-full text-left py-2 text-sm font-semibold text-sh-blue uppercase tracking-wider"
+      className="flex items-center gap-2 w-full text-left py-2 text-sm font-semibold text-brand-blue uppercase tracking-wider"
     >
       {expandedSections[section] ? (
         <ChevronDown className="w-4 h-4" />
@@ -310,18 +310,21 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
             className="w-full max-w-3xl transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all font-serif duration-300 ease-out data-closed:scale-95 data-closed:opacity-0"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-sh-gray/20">
-              <DialogTitle as="h3" className="text-xl font-semibold text-sh-blue">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-brand-gray/20">
+              <DialogTitle as="h3" className="text-xl font-semibold text-brand-blue">
                 {style ? `${style.styleNumber} - ${style.name}` : "Loading..."}
               </DialogTitle>
-              <button onClick={onClose} className="text-sh-gray hover:text-sh-black transition p-1">
+              <button
+                onClick={onClose}
+                className="text-brand-gray hover:text-brand-black transition p-1"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {loading ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 text-sh-blue animate-spin" />
+                <Loader2 className="w-8 h-8 text-brand-blue animate-spin" />
               </div>
             ) : (
               style && (
@@ -330,7 +333,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                   <div className="px-6 py-4 max-h-[70vh] overflow-y-auto space-y-4">
                     {/* Image section */}
                     <div className="flex gap-4 items-start">
-                      <div className="w-32 h-32 flex-shrink-0 rounded-lg border border-sh-gray/20 overflow-hidden bg-sh-linen flex items-center justify-center">
+                      <div className="w-32 h-32 flex-shrink-0 rounded-lg border border-brand-gray/20 overflow-hidden bg-brand-linen flex items-center justify-center">
                         {style.imageUrl ? (
                           <img
                             src={style.imageUrl}
@@ -338,11 +341,11 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                             className="w-full h-full object-contain"
                           />
                         ) : (
-                          <span className="text-sh-gray text-xs text-center px-2">No image</span>
+                          <span className="text-brand-gray text-xs text-center px-2">No image</span>
                         )}
                       </div>
                       <div className="space-y-2">
-                        <p className="text-xs text-sh-gray">
+                        <p className="text-xs text-brand-gray">
                           {style.imageUrl || "No image assigned"}
                         </p>
                         <input
@@ -388,7 +391,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                       {expandedSections.details && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-2">
                           <FieldRow label="Style Number">
-                            <div className="px-3 py-2 bg-sh-linen rounded-lg text-sh-black text-sm">
+                            <div className="px-3 py-2 bg-brand-linen rounded-lg text-brand-black text-sm">
                               {style.styleNumber}
                             </div>
                           </FieldRow>
@@ -397,7 +400,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                               type="text"
                               value={fields.name}
                               onChange={(e) => handleFieldChange("name", e.target.value)}
-                              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black"
+                              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black"
                             />
                           </FieldRow>
                           <div className="md:col-span-2">
@@ -406,7 +409,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                                 value={fields.description}
                                 onChange={(e) => handleFieldChange("description", e.target.value)}
                                 rows={2}
-                                className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black resize-none"
+                                className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black resize-none"
                               />
                             </FieldRow>
                           </div>
@@ -503,7 +506,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                               type="text"
                               value={fields.standardSeat}
                               onChange={(e) => handleFieldChange("standardSeat", e.target.value)}
-                              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black"
+                              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black"
                             />
                           </FieldRow>
                           <FieldRow label="Standard Back">
@@ -511,7 +514,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                               type="text"
                               value={fields.standardBack}
                               onChange={(e) => handleFieldChange("standardBack", e.target.value)}
-                              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black"
+                              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black"
                             />
                           </FieldRow>
                           <FieldRow label="Standard Pillows">
@@ -519,7 +522,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                               type="text"
                               value={fields.standardPillows}
                               onChange={(e) => handleFieldChange("standardPillows", e.target.value)}
-                              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black"
+                              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black"
                             />
                           </FieldRow>
                           <FieldRow label="Finish">
@@ -527,7 +530,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                               type="text"
                               value={fields.finish}
                               onChange={(e) => handleFieldChange("finish", e.target.value)}
-                              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black"
+                              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black"
                             />
                           </FieldRow>
                         </div>
@@ -571,13 +574,13 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                         <div className="space-y-4 pb-2">
                           {vendorOptionGroups.map((group) => (
                             <div key={group.id}>
-                              <h4 className="text-xs font-semibold text-sh-gray uppercase tracking-wider mb-2">
+                              <h4 className="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-2">
                                 {group.name}
                               </h4>
-                              <div className="border border-sh-gray/20 rounded-lg overflow-hidden">
+                              <div className="border border-brand-gray/20 rounded-lg overflow-hidden">
                                 <table className="w-full text-sm">
                                   <thead>
-                                    <tr className="bg-sh-linen text-sh-gray text-xs">
+                                    <tr className="bg-brand-linen text-brand-gray text-xs">
                                       <th className="text-left px-3 py-2 font-medium">Option</th>
                                       <th className="text-center px-3 py-2 font-medium w-20">
                                         Available
@@ -597,9 +600,9 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                                       return (
                                         <tr
                                           key={opt.id}
-                                          className="border-t border-sh-gray/10 hover:bg-sh-linen/30"
+                                          className="border-t border-brand-gray/10 hover:bg-brand-linen/30"
                                         >
-                                          <td className="px-3 py-2 text-sh-black">{opt.name}</td>
+                                          <td className="px-3 py-2 text-brand-black">{opt.name}</td>
                                           <td className="px-3 py-2 text-center">
                                             <input
                                               type="checkbox"
@@ -611,7 +614,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                                                   e.target.checked,
                                                 )
                                               }
-                                              className="h-4 w-4 accent-sh-blue"
+                                              className="h-4 w-4 accent-brand-blue"
                                             />
                                           </td>
                                           <td className="px-3 py-2 text-center">
@@ -625,12 +628,14 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                                                   e.target.checked,
                                                 )
                                               }
-                                              className="h-4 w-4 accent-sh-blue"
+                                              className="h-4 w-4 accent-brand-blue"
                                             />
                                           </td>
                                           <td className="px-3 py-2">
                                             <div className="flex items-center justify-end">
-                                              <span className="text-sh-gray text-xs mr-1">$</span>
+                                              <span className="text-brand-gray text-xs mr-1">
+                                                $
+                                              </span>
                                               <input
                                                 type="number"
                                                 value={form.surcharge}
@@ -644,7 +649,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                                                 placeholder={String(
                                                   Number(opt.defaultSurcharge) || 0,
                                                 )}
-                                                className="w-16 text-right border border-sh-gray/30 rounded px-2 py-1 text-sm text-sh-black"
+                                                className="w-16 text-right border border-brand-gray/30 rounded px-2 py-1 text-sm text-brand-black"
                                               />
                                             </div>
                                           </td>
@@ -662,7 +667,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
                   </div>
 
                   {/* Footer */}
-                  <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-sh-gray/20 bg-sh-linen/30">
+                  <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-brand-gray/20 bg-brand-linen/30">
                     <Button variant="secondary" onClick={onClose}>
                       Cancel
                     </Button>
@@ -694,7 +699,7 @@ export default function StyleEditModal({ styleId, onClose, onSaved }: Props) {
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-sh-gray mb-1">{label}</label>
+      <label className="block text-xs font-medium text-brand-gray mb-1">{label}</label>
       {children}
     </div>
   );
@@ -713,9 +718,9 @@ function NumericInput({
   suffix?: string;
 }) {
   return (
-    <div className="flex items-center border border-sh-gray/30 rounded-lg overflow-hidden">
+    <div className="flex items-center border border-brand-gray/30 rounded-lg overflow-hidden">
       {prefix && (
-        <span className="px-2 text-sm text-sh-gray bg-sh-linen border-r border-sh-gray/30">
+        <span className="px-2 text-sm text-brand-gray bg-brand-linen border-r border-brand-gray/30">
           {prefix}
         </span>
       )}
@@ -724,10 +729,10 @@ function NumericInput({
         step="any"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex-1 px-3 py-2 text-sm text-sh-black min-w-0"
+        className="flex-1 px-3 py-2 text-sm text-brand-black min-w-0"
       />
       {suffix && (
-        <span className="px-2 text-sm text-sh-gray bg-sh-linen border-l border-sh-gray/30">
+        <span className="px-2 text-sm text-brand-gray bg-brand-linen border-l border-brand-gray/30">
           {suffix}
         </span>
       )}

@@ -151,23 +151,23 @@ export function LoadZipsView() {
 
   return (
     <div className="max-w-2xl mx-auto py-6 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue mb-4">Load Tax District Zip Codes</h1>
-      <p className="text-sm text-sh-gray mb-6">
+      <h1 className="text-2xl font-semibold text-brand-blue mb-4">Load Tax District Zip Codes</h1>
+      <p className="text-sm text-brand-gray mb-6">
         Upload the uszips.csv file and select a state to bulk-load all zip codes for that state into
         a tax district.
       </p>
 
-      <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-4 space-y-4">
+      <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-4 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="taxDistrict" className="block text-xs text-sh-gray mb-1">
+            <label htmlFor="taxDistrict" className="block text-xs text-brand-gray mb-1">
               Tax District
             </label>
             <select
               id="taxDistrict"
               value={selectedDistrictId || ""}
               onChange={(e) => setSelectedDistrictId(Number.parseInt(e.target.value) || null)}
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
             >
               <option value="">Select district...</option>
               {districts.map((d) => (
@@ -178,14 +178,14 @@ export function LoadZipsView() {
             </select>
           </div>
           <div>
-            <label htmlFor="taxState" className="block text-xs text-sh-gray mb-1">
+            <label htmlFor="taxState" className="block text-xs text-brand-gray mb-1">
               State
             </label>
             <select
               id="taxState"
               value={selectedState}
               onChange={(e) => setSelectedState(e.target.value)}
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
             >
               <option value="">Select state...</option>
               {US_STATES.map((s) => (
@@ -198,7 +198,7 @@ export function LoadZipsView() {
         </div>
 
         <div>
-          <label htmlFor="zipCsv" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="zipCsv" className="block text-xs text-brand-gray mb-1">
             Zip Code CSV (uszips.csv)
           </label>
           <input
@@ -221,8 +221,8 @@ export function LoadZipsView() {
       </div>
 
       {result && (
-        <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-4 mt-4">
-          <p className="text-sm text-sh-black">
+        <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-4 mt-4">
+          <p className="text-sm text-brand-black">
             <span className="font-semibold">{result.created}</span> zip codes added,{" "}
             <span className="font-semibold">{result.skipped}</span> already existed
           </p>

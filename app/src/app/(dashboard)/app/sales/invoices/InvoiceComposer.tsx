@@ -131,28 +131,28 @@ export function InvoiceComposer({ initial }: { initial?: ComposerInitial }) {
 
   return (
     <div className="max-w-3xl space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/sales/invoices" className="hover:underline">
           Invoices
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">{initial ? `Edit ${initial.id}` : "New"}</span>
+        <span className="text-brand-black">{initial ? `Edit ${initial.id}` : "New"}</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">
+      <h1 className="text-2xl font-semibold text-brand-navy">
         {initial ? "Edit Draft Invoice" : "New Invoice"}
       </h1>
 
       <div ref={dropdownRef} className="relative">
-        <label htmlFor="invCustomer" className="mb-1 block text-xs font-medium text-sh-gray">
+        <label htmlFor="invCustomer" className="mb-1 block text-xs font-medium text-brand-gray">
           Customer
         </label>
         {customer ? (
-          <div className="flex min-h-[44px] items-center justify-between rounded border border-gray-300 bg-sh-linen px-3">
-            <span className="font-semibold text-sh-navy">{customer.name}</span>
+          <div className="flex min-h-[44px] items-center justify-between rounded border border-gray-300 bg-brand-linen px-3">
+            <span className="font-semibold text-brand-navy">{customer.name}</span>
             <button
               type="button"
               onClick={() => setCustomer(null)}
-              className="text-sm text-sh-gray hover:text-sh-black"
+              className="text-sm text-brand-gray hover:text-brand-black"
             >
               Change
             </button>
@@ -177,12 +177,12 @@ export function InvoiceComposer({ initial }: { initial?: ComposerInitial }) {
                     <button
                       type="button"
                       onClick={() => pickCustomer(c)}
-                      className="block w-full px-3 py-2 text-left text-sm hover:bg-sh-linen"
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-brand-linen"
                     >
                       <span className="font-semibold">
                         {[c.firstName, c.lastName].filter(Boolean).join(" ")}
                       </span>
-                      {c.email ? <span className="text-sh-gray"> · {c.email}</span> : null}
+                      {c.email ? <span className="text-brand-gray"> · {c.email}</span> : null}
                     </button>
                   </li>
                 ))}
@@ -193,7 +193,7 @@ export function InvoiceComposer({ initial }: { initial?: ComposerInitial }) {
       </div>
 
       <div className="space-y-2">
-        <span className="block text-xs font-medium text-sh-gray">Lines</span>
+        <span className="block text-xs font-medium text-brand-gray">Lines</span>
         {lines.map((line, i) => (
           <div key={i} className="flex items-start gap-2">
             <input
@@ -228,7 +228,7 @@ export function InvoiceComposer({ initial }: { initial?: ComposerInitial }) {
               onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
               disabled={lines.length === 1}
               aria-label={`Remove line ${i + 1}`}
-              className="min-h-[44px] rounded px-2 text-sh-gray transition hover:text-red-700 disabled:opacity-30"
+              className="min-h-[44px] rounded px-2 text-brand-gray transition hover:text-red-700 disabled:opacity-30"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -237,7 +237,7 @@ export function InvoiceComposer({ initial }: { initial?: ComposerInitial }) {
         <button
           type="button"
           onClick={() => setLines((prev) => [...prev, { ...EMPTY_LINE }])}
-          className="inline-flex min-h-[44px] items-center gap-1 text-sm text-sh-navy hover:underline"
+          className="inline-flex min-h-[44px] items-center gap-1 text-sm text-brand-navy hover:underline"
         >
           <Plus className="h-4 w-4" /> Add line
         </button>
@@ -245,7 +245,7 @@ export function InvoiceComposer({ initial }: { initial?: ComposerInitial }) {
 
       <div className="flex flex-wrap gap-4">
         <div>
-          <label htmlFor="invTax" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="invTax" className="mb-1 block text-xs font-medium text-brand-gray">
             Tax %
           </label>
           <input
@@ -260,7 +260,7 @@ export function InvoiceComposer({ initial }: { initial?: ComposerInitial }) {
           />
         </div>
         <div>
-          <label htmlFor="invDue" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="invDue" className="mb-1 block text-xs font-medium text-brand-gray">
             Due date
           </label>
           <input
@@ -274,7 +274,7 @@ export function InvoiceComposer({ initial }: { initial?: ComposerInitial }) {
       </div>
 
       <div>
-        <label htmlFor="invNotes" className="mb-1 block text-xs font-medium text-sh-gray">
+        <label htmlFor="invNotes" className="mb-1 block text-xs font-medium text-brand-gray">
           Notes (shown on the invoice)
         </label>
         <textarea
@@ -286,11 +286,11 @@ export function InvoiceComposer({ initial }: { initial?: ComposerInitial }) {
         />
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border border-sh-gray/20 bg-sh-linen px-4 py-3">
-        <div className="text-sm text-sh-gray">
+      <div className="flex items-center justify-between rounded-lg border border-brand-gray/20 bg-brand-linen px-4 py-3">
+        <div className="text-sm text-brand-gray">
           Subtotal {money(totals.subtotal)} · Tax {money(totals.tax)}
         </div>
-        <div className="text-lg font-semibold text-sh-navy">Total {money(totals.total)}</div>
+        <div className="text-lg font-semibold text-brand-navy">Total {money(totals.total)}</div>
       </div>
 
       <div className="flex gap-3">
@@ -298,13 +298,13 @@ export function InvoiceComposer({ initial }: { initial?: ComposerInitial }) {
           type="button"
           onClick={save}
           disabled={saving}
-          className="min-h-[44px] rounded-lg bg-sh-navy px-6 py-2 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-brand-navy px-6 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
         >
           {saving ? "Saving..." : initial ? "Save Draft" : "Create Draft"}
         </button>
         <Link
           href={initial ? `/app/sales/invoices/${initial.id}` : "/app/sales/invoices"}
-          className="inline-flex min-h-[44px] items-center rounded-lg border border-gray-300 px-6 py-2 text-sm text-sh-black transition hover:bg-sh-linen"
+          className="inline-flex min-h-[44px] items-center rounded-lg border border-gray-300 px-6 py-2 text-sm text-brand-black transition hover:bg-brand-linen"
         >
           Cancel
         </Link>

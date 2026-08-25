@@ -239,7 +239,7 @@ function PairingModal({
         onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
       />
       {isEdit && (
-        <div className="pt-4 border-t border-sh-gray/10 mt-4">
+        <div className="pt-4 border-t border-brand-gray/10 mt-4">
           <Button variant="outline" onClick={handleDelete} disabled={saving}>
             Delete pairing
           </Button>
@@ -258,7 +258,7 @@ function PairingActiveBadge({ active }: { active: boolean }) {
     );
   }
   return (
-    <span className="text-xs px-2 py-0.5 rounded bg-sh-gray/10 text-sh-gray border border-sh-gray/20">
+    <span className="text-xs px-2 py-0.5 rounded bg-brand-gray/10 text-brand-gray border border-brand-gray/20">
       Off
     </span>
   );
@@ -305,21 +305,21 @@ export function ProductPairingsView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/admin" className="hover:underline">
           Admin
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Product Pairings</span>
+        <span className="text-brand-black">Product Pairings</span>
       </nav>
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-navy">Product Pairings</h1>
-          <p className="text-sm text-sh-gray mt-1">
+          <h1 className="text-2xl font-semibold text-brand-navy">Product Pairings</h1>
+          <p className="text-sm text-brand-gray mt-1">
             Define which product categories belong together. Customers who bought the
             &quot;from&quot; but never the &quot;to&quot; show up in the{" "}
-            <Link href="/app/reports/opportunities" className="text-sh-blue hover:underline">
+            <Link href="/app/reports/opportunities" className="text-brand-blue hover:underline">
               Missing Pieces
             </Link>{" "}
             tile.
@@ -330,19 +330,19 @@ export function ProductPairingsView() {
         </Button>
       </div>
 
-      {loading && <p className="text-sh-gray py-8">Loading...</p>}
+      {loading && <p className="text-brand-gray py-8">Loading...</p>}
 
       {!loading && pairings.length === 0 && (
-        <div className="bg-white border border-sh-gray/15 rounded-xl p-8 text-center text-sm text-sh-gray">
+        <div className="bg-white border border-brand-gray/15 rounded-xl p-8 text-center text-sm text-brand-gray">
           No pairings yet. Add one to start flagging cross-sell gaps.
         </div>
       )}
 
       {!loading && pairings.length > 0 && (
-        <div className="bg-white border border-sh-gray/15 rounded-xl overflow-hidden">
+        <div className="bg-white border border-brand-gray/15 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/15 bg-sh-linen text-xs uppercase tracking-wide text-sh-gray">
+              <tr className="border-b border-brand-gray/15 bg-brand-linen text-xs uppercase tracking-wide text-brand-gray">
                 <th className="text-left px-4 py-2 font-semibold">Name</th>
                 <th className="text-left px-4 py-2 font-semibold">From</th>
                 <th className="text-left px-4 py-2 font-semibold">To</th>
@@ -356,22 +356,22 @@ export function ProductPairingsView() {
               {pairings.map((p, i) => (
                 <tr
                   key={p.id}
-                  className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                  className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
                 >
                   <td className="px-4 py-2">
-                    <div className="text-sh-black font-medium">{p.name}</div>
+                    <div className="text-brand-black font-medium">{p.name}</div>
                     {p.description && (
-                      <div className="text-xs text-sh-gray mt-0.5">{p.description}</div>
+                      <div className="text-xs text-brand-gray mt-0.5">{p.description}</div>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-sh-gray">
+                  <td className="px-4 py-2 text-brand-gray">
                     {describeEnd(p.fromDepartment, p.fromCategory)}
                   </td>
-                  <td className="px-4 py-2 text-sh-gray">
+                  <td className="px-4 py-2 text-brand-gray">
                     {describeEnd(p.toDepartment, p.toCategory)}
                   </td>
-                  <td className="px-4 py-2 text-right text-sh-gray">{p.windowDays}d</td>
-                  <td className="px-4 py-2 text-right text-sh-gray">{p.sortOrder}</td>
+                  <td className="px-4 py-2 text-right text-brand-gray">{p.windowDays}d</td>
+                  <td className="px-4 py-2 text-right text-brand-gray">{p.sortOrder}</td>
                   <td className="px-4 py-2 text-center">
                     <PairingActiveBadge active={p.isActive} />
                   </td>

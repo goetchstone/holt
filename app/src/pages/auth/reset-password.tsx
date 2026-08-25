@@ -57,30 +57,30 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-sh-linen px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-brand-linen px-4">
       <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg">
         <div className="mb-6 flex justify-center">
           <BrandLogo
             appName={branding.appName}
             logoUrl={branding.loginLogoUrl ?? branding.logoUrl}
             className="h-14 w-auto"
-            wordmarkClassName="font-serif text-3xl font-semibold text-sh-navy"
+            wordmarkClassName="font-serif text-3xl font-semibold text-brand-navy"
           />
         </div>
 
         {done ? (
-          <div className="text-center text-sm text-sh-gray">
+          <div className="text-center text-sm text-brand-gray">
             <p>Your password has been updated.</p>
             <p className="mt-4">
-              <Link href="/auth/login" className="text-sh-navy hover:underline">
+              <Link href="/auth/login" className="text-brand-navy hover:underline">
                 Sign in with your new password
               </Link>
             </p>
           </div>
         ) : !token ? (
-          <p className="text-center text-sm text-sh-gray">
+          <p className="text-center text-sm text-brand-gray">
             This reset link is incomplete — open the link from the email, or{" "}
-            <Link href="/auth/forgot-password" className="text-sh-navy hover:underline">
+            <Link href="/auth/forgot-password" className="text-brand-navy hover:underline">
               request a new one
             </Link>
             .
@@ -88,7 +88,10 @@ export default function ResetPassword() {
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-3">
             <div>
-              <label htmlFor="rp-password" className="mb-1 block text-sm font-medium text-sh-navy">
+              <label
+                htmlFor="rp-password"
+                className="mb-1 block text-sm font-medium text-brand-navy"
+              >
                 New password
               </label>
               <input
@@ -99,11 +102,14 @@ export default function ResetPassword() {
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="min-h-[44px] w-full rounded border border-sh-gray/30 px-3 py-2 text-sh-black focus:border-sh-navy focus:outline-none"
+                className="min-h-[44px] w-full rounded border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
               />
             </div>
             <div>
-              <label htmlFor="rp-confirm" className="mb-1 block text-sm font-medium text-sh-navy">
+              <label
+                htmlFor="rp-confirm"
+                className="mb-1 block text-sm font-medium text-brand-navy"
+              >
                 Confirm password
               </label>
               <input
@@ -114,7 +120,7 @@ export default function ResetPassword() {
                 minLength={8}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                className="min-h-[44px] w-full rounded border border-sh-gray/30 px-3 py-2 text-sh-black focus:border-sh-navy focus:outline-none"
+                className="min-h-[44px] w-full rounded border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
               />
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}

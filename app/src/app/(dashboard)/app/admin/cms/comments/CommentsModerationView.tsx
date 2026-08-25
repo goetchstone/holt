@@ -32,7 +32,7 @@ const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeSt
 
 const ACTION_STYLES: Record<CommentModerationValue, string> = {
   APPROVED: "bg-green-600 hover:bg-green-700",
-  REJECTED: "bg-sh-gray hover:bg-sh-black",
+  REJECTED: "bg-brand-gray hover:bg-brand-black",
   SPAM: "bg-red-600 hover:bg-red-700",
 };
 
@@ -90,7 +90,7 @@ export function CommentsModerationView() {
             type="button"
             onClick={() => setStatus(s)}
             className={`min-h-[40px] rounded-md px-3 text-sm ${
-              status === s ? "bg-sh-navy text-white" : "bg-sh-stripe text-sh-gray"
+              status === s ? "bg-brand-navy text-white" : "bg-brand-stripe text-brand-gray"
             }`}
           >
             {COMMENT_STATUS_LABELS[s]}
@@ -101,25 +101,27 @@ export function CommentsModerationView() {
 
       <div className="mt-6 space-y-4">
         {loading ? (
-          <p className="text-sh-gray">Loading…</p>
+          <p className="text-brand-gray">Loading…</p>
         ) : comments.length === 0 ? (
-          <p className="text-sh-gray">No {COMMENT_STATUS_LABELS[status].toLowerCase()} comments.</p>
+          <p className="text-brand-gray">
+            No {COMMENT_STATUS_LABELS[status].toLowerCase()} comments.
+          </p>
         ) : (
           comments.map((c) => (
             <div key={c.id} className="rounded-md border border-black/10 p-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="text-sm font-medium text-sh-navy">
+                <p className="text-sm font-medium text-brand-navy">
                   {c.authorName}{" "}
-                  <span className="font-normal text-sh-gray">&lt;{c.authorEmail}&gt;</span>
+                  <span className="font-normal text-brand-gray">&lt;{c.authorEmail}&gt;</span>
                 </p>
-                <p className="text-xs text-sh-gray">{dateFmt.format(new Date(c.created))}</p>
+                <p className="text-xs text-brand-gray">{dateFmt.format(new Date(c.created))}</p>
               </div>
               {c.post ? (
-                <p className="mt-1 text-xs text-sh-gray">
-                  on <span className="text-sh-black">{c.post.title}</span>
+                <p className="mt-1 text-xs text-brand-gray">
+                  on <span className="text-brand-black">{c.post.title}</span>
                 </p>
               ) : null}
-              <p className="mt-2 whitespace-pre-wrap text-sh-black">{c.content}</p>
+              <p className="mt-2 whitespace-pre-wrap text-brand-black">{c.content}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {COMMENT_MODERATION_VALUES.filter((m) => m !== c.status).map((m) => (
                   <button

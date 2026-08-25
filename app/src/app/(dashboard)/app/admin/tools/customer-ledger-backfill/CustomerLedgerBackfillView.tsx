@@ -92,7 +92,7 @@ function progressPercent(progress: ProgressState): number {
 
 function ProgressBar({ progress }: Readonly<{ progress: ProgressState }>) {
   return (
-    <div className="text-sm text-sh-gray space-y-1">
+    <div className="text-sm text-brand-gray space-y-1">
       <div className="flex justify-between font-mono">
         <span>
           Batch {progress.batchesDone} / {progress.batchesTotal}
@@ -101,9 +101,9 @@ function ProgressBar({ progress }: Readonly<{ progress: ProgressState }>) {
           {progress.processed} / {progress.totalCustomers} customers
         </span>
       </div>
-      <div className="h-2 w-full bg-sh-stripe rounded overflow-hidden">
+      <div className="h-2 w-full bg-brand-stripe rounded overflow-hidden">
         <div
-          className="h-full bg-sh-gold transition-all"
+          className="h-full bg-brand-gold transition-all"
           style={{ width: `${progressPercent(progress)}%` }}
         />
       </div>
@@ -117,20 +117,20 @@ type MoneyFmt = ReturnType<typeof useMoneyFormatter>;
 function BackfillSummary({ result, fmt }: Readonly<{ result: BackfillResponse; fmt: MoneyFmt }>) {
   return (
     <dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-      <dt className="text-sh-gray">Total customers</dt>
-      <dd className="font-mono text-sh-navy">{result.customersTotal}</dd>
-      <dt className="text-sh-gray">Backfilled cleanly</dt>
-      <dd className="font-mono text-sh-navy">{result.customersBackfilled}</dd>
-      <dt className="text-sh-gray">Backfilled with drift</dt>
-      <dd className="font-mono text-sh-navy">{result.customersBackfilledWithDrift}</dd>
-      <dt className="text-sh-gray">Skipped (already done or no orders)</dt>
-      <dd className="font-mono text-sh-navy">{result.customersSkipped}</dd>
-      <dt className="text-sh-gray">Failed</dt>
-      <dd className="font-mono text-sh-navy">{result.customersFailed}</dd>
-      <dt className="text-sh-gray">Entries created</dt>
-      <dd className="font-mono text-sh-navy">{result.entriesCreated}</dd>
-      <dt className="text-sh-gray">Total drift</dt>
-      <dd className="font-mono text-sh-navy">{fmt(result.totalDriftDollars)}</dd>
+      <dt className="text-brand-gray">Total customers</dt>
+      <dd className="font-mono text-brand-navy">{result.customersTotal}</dd>
+      <dt className="text-brand-gray">Backfilled cleanly</dt>
+      <dd className="font-mono text-brand-navy">{result.customersBackfilled}</dd>
+      <dt className="text-brand-gray">Backfilled with drift</dt>
+      <dd className="font-mono text-brand-navy">{result.customersBackfilledWithDrift}</dd>
+      <dt className="text-brand-gray">Skipped (already done or no orders)</dt>
+      <dd className="font-mono text-brand-navy">{result.customersSkipped}</dd>
+      <dt className="text-brand-gray">Failed</dt>
+      <dd className="font-mono text-brand-navy">{result.customersFailed}</dd>
+      <dt className="text-brand-gray">Entries created</dt>
+      <dd className="font-mono text-brand-navy">{result.entriesCreated}</dd>
+      <dt className="text-brand-gray">Total drift</dt>
+      <dd className="font-mono text-brand-navy">{fmt(result.totalDriftDollars)}</dd>
     </dl>
   );
 }
@@ -141,17 +141,21 @@ function DriftedCustomersTable({
 }: Readonly<{ drifted: DriftedCustomer[]; fmt: MoneyFmt }>) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-sh-navy mb-2">Drifted customers (review needed)</h3>
+      <h3 className="text-sm font-semibold text-brand-navy mb-2">
+        Drifted customers (review needed)
+      </h3>
       <div className="overflow-x-auto rounded border border-gray-200">
         <table className="w-full text-sm">
-          <thead className="bg-sh-linen">
+          <thead className="bg-brand-linen">
             <tr>
-              <th className="px-3 py-2 text-left text-xs font-medium text-sh-gray">Customer ID</th>
-              <th className="px-3 py-2 text-right text-xs font-medium text-sh-gray">Ledger</th>
-              <th className="px-3 py-2 text-right text-xs font-medium text-sh-gray">
+              <th className="px-3 py-2 text-left text-xs font-medium text-brand-gray">
+                Customer ID
+              </th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-brand-gray">Ledger</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-brand-gray">
                 Source (computeBalance)
               </th>
-              <th className="px-3 py-2 text-right text-xs font-medium text-sh-gray">Diff</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-brand-gray">Diff</th>
             </tr>
           </thead>
           <tbody>
@@ -160,7 +164,7 @@ function DriftedCustomersTable({
                 <td className="px-3 py-2 font-mono">
                   <a
                     href={`/app/sales/customers/${d.customerId}`}
-                    className="text-sh-blue hover:underline"
+                    className="text-brand-blue hover:underline"
                   >
                     {d.customerId}
                   </a>
@@ -173,7 +177,7 @@ function DriftedCustomersTable({
           </tbody>
         </table>
         {drifted.length > 100 && (
-          <p className="px-3 py-2 text-xs text-sh-gray bg-sh-linen">
+          <p className="px-3 py-2 text-xs text-brand-gray bg-brand-linen">
             Showing first 100 of {drifted.length}. Full list in the response payload.
           </p>
         )}
@@ -187,7 +191,7 @@ function BackfillErrors({
 }: Readonly<{ errors: Array<{ customerId: number; message: string }> }>) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-sh-navy mb-2">Errors</h3>
+      <h3 className="text-sm font-semibold text-brand-navy mb-2">Errors</h3>
       <ul className="text-xs text-red-700 list-disc pl-5 space-y-1">
         {errors.slice(0, 50).map((e) => (
           <li key={e.customerId} className="font-mono">
@@ -282,14 +286,14 @@ export function CustomerLedgerBackfillView() {
   return (
     <div className="space-y-6 py-2">
       <div>
-        <h1 className="text-2xl font-serif text-sh-navy">Customer Ledger Backfill</h1>
-        <p className="text-sm text-sh-gray mt-2 max-w-2xl">
+        <h1 className="text-2xl font-serif text-brand-navy">Customer Ledger Backfill</h1>
+        <p className="text-sm text-brand-gray mt-2 max-w-2xl">
           Walks every customer&apos;s historical orders + payments and writes ledger entries to{" "}
           <code className="px-1">CustomerLedgerEntry</code>. Updates{" "}
           <code className="px-1">Customer.openArBalance</code> with the running total. Idempotent —
           already-backfilled customers are skipped on re-run.
         </p>
-        <p className="text-sm text-sh-gray mt-2 max-w-2xl">
+        <p className="text-sm text-brand-gray mt-2 max-w-2xl">
           This is a one-time Phase 0.5.3 migration step. Once the backfill has run cleanly across
           all customers, the daily-recon cron (Phase 0.5.5) takes over to keep the ledger in sync
           going forward.
@@ -320,7 +324,7 @@ export function CustomerLedgerBackfillView() {
 
       {result && (
         <div className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
-          <h2 className="text-lg font-serif text-sh-navy">Results</h2>
+          <h2 className="text-lg font-serif text-brand-navy">Results</h2>
           <BackfillSummary result={result} fmt={fmt} />
           {result.driftedCustomers.length > 0 && (
             <DriftedCustomersTable drifted={result.driftedCustomers} fmt={fmt} />

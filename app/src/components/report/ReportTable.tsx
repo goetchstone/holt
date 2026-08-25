@@ -127,35 +127,37 @@ export function ReportTable<T>({
         <button
           onClick={handleExport}
           disabled={rows.length === 0}
-          className="text-xs font-semibold text-sh-blue border border-sh-blue/40 rounded-lg px-3 py-2 hover:bg-sh-blue hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed min-h-[36px] font-sans"
+          className="text-xs font-semibold text-brand-blue border border-brand-blue/40 rounded-lg px-3 py-2 hover:bg-brand-blue hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed min-h-[36px] font-sans"
         >
           Export CSV
         </button>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-sh-gray/15 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-brand-gray/15 bg-white">
         <table className="w-full text-sm font-sans">
           <thead>
-            <tr className="border-b border-sh-gray/15 bg-sh-linen">
+            <tr className="border-b border-brand-gray/15 bg-brand-linen">
               {columns.map((col) => (
                 <th
                   key={col.key as string}
                   onClick={col.sortable !== false ? () => handleSort(col.key as string) : undefined}
                   className={[
-                    "px-4 py-3 text-xs font-semibold text-sh-gray uppercase tracking-wider whitespace-nowrap",
+                    "px-4 py-3 text-xs font-semibold text-brand-gray uppercase tracking-wider whitespace-nowrap",
                     col.align === "right"
                       ? "text-right"
                       : col.align === "center"
                         ? "text-center"
                         : "text-left",
-                    col.sortable !== false ? "cursor-pointer select-none hover:text-sh-blue" : "",
+                    col.sortable !== false
+                      ? "cursor-pointer select-none hover:text-brand-blue"
+                      : "",
                     col.className ?? "",
                   ].join(" ")}
                 >
                   {col.label}
                   {sortKey === col.key && (
-                    <span className="ml-1 text-sh-blue">{sortDir === "asc" ? "↑" : "↓"}</span>
+                    <span className="ml-1 text-brand-blue">{sortDir === "asc" ? "↑" : "↓"}</span>
                   )}
                 </th>
               ))}
@@ -166,14 +168,17 @@ export function ReportTable<T>({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-10 text-center text-sh-gray text-sm"
+                  className="px-4 py-10 text-center text-brand-gray text-sm"
                 >
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
               visible.map((row, i) => (
-                <tr key={getRowKey(row, i)} className={i % 2 === 0 ? "bg-white" : "bg-sh-stripe"}>
+                <tr
+                  key={getRowKey(row, i)}
+                  className={i % 2 === 0 ? "bg-white" : "bg-brand-stripe"}
+                >
                   {columns.map((col) => {
                     const rendered = col.render ? col.render(row) : null;
                     const val = rendered ?? getDisplayValue(row, col);
@@ -181,7 +186,7 @@ export function ReportTable<T>({
                       <td
                         key={col.key as string}
                         className={[
-                          "px-4 py-3 text-sh-black whitespace-nowrap",
+                          "px-4 py-3 text-brand-black whitespace-nowrap",
                           col.align === "right"
                             ? "text-right"
                             : col.align === "center"
@@ -190,7 +195,7 @@ export function ReportTable<T>({
                           col.className ?? "",
                         ].join(" ")}
                       >
-                        {val ?? <span className="text-sh-gray/50">—</span>}
+                        {val ?? <span className="text-brand-gray/50">—</span>}
                       </td>
                     );
                   })}
@@ -198,14 +203,14 @@ export function ReportTable<T>({
               ))
             )}
             {totalsRow && visible.length > 0 && (
-              <tr className="border-t-2 border-sh-gray/20 bg-sh-linen font-semibold">
+              <tr className="border-t-2 border-brand-gray/20 bg-brand-linen font-semibold">
                 {columns.map((col) => {
                   const val = totalsRow[col.key as string];
                   return (
                     <td
                       key={col.key as string}
                       className={[
-                        "px-4 py-3 text-sh-black whitespace-nowrap",
+                        "px-4 py-3 text-brand-black whitespace-nowrap",
                         col.align === "right"
                           ? "text-right"
                           : col.align === "center"
@@ -225,7 +230,7 @@ export function ReportTable<T>({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between text-xs text-sh-gray font-sans">
+        <div className="flex items-center justify-between text-xs text-brand-gray font-sans">
           <span>
             {page * (pageSize ?? rows.length) + 1}–
             {Math.min((page + 1) * (pageSize ?? rows.length), rows.length)} of {rows.length}
@@ -234,14 +239,14 @@ export function ReportTable<T>({
             <button
               onClick={() => setPage((p) => p - 1)}
               disabled={page === 0}
-              className="px-3 py-1.5 border border-sh-gray/30 rounded-lg disabled:opacity-40 hover:border-sh-blue min-h-[36px]"
+              className="px-3 py-1.5 border border-brand-gray/30 rounded-lg disabled:opacity-40 hover:border-brand-blue min-h-[36px]"
             >
               Prev
             </button>
             <button
               onClick={() => setPage((p) => p + 1)}
               disabled={page >= totalPages - 1}
-              className="px-3 py-1.5 border border-sh-gray/30 rounded-lg disabled:opacity-40 hover:border-sh-blue min-h-[36px]"
+              className="px-3 py-1.5 border border-brand-gray/30 rounded-lg disabled:opacity-40 hover:border-brand-blue min-h-[36px]"
             >
               Next
             </button>

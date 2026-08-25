@@ -84,7 +84,7 @@ export default function CsvImportForm<T>({
 
   return (
     <div className="space-y-6 py-2 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue">{title}</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue">{title}</h1>
 
       <div className="flex items-center gap-4">
         <input
@@ -92,9 +92,9 @@ export default function CsvImportForm<T>({
           type="file"
           accept=".csv"
           onChange={handleFileUpload}
-          className="block w-full text-sm text-sh-black
-            file:mr-4 file:rounded-lg file:border-0 file:bg-sh-blue file:px-4 file:py-2
-            file:text-sm file:font-semibold file:text-white hover:file:bg-sh-black"
+          className="block w-full text-sm text-brand-black
+            file:mr-4 file:rounded-lg file:border-0 file:bg-brand-blue file:px-4 file:py-2
+            file:text-sm file:font-semibold file:text-white hover:file:bg-brand-black"
         />
         <Button
           onClick={handleImport}
@@ -108,12 +108,12 @@ export default function CsvImportForm<T>({
       {parsedData.length > 0 && (
         <div>
           <h2 className="mb-2 text-xl font-semibold">Preview ({parsedData.length} rows):</h2>
-          <div className="overflow-x-auto rounded-lg border border-sh-gray shadow-sm">
+          <div className="overflow-x-auto rounded-lg border border-brand-gray shadow-sm">
             <table className="min-w-full whitespace-nowrap text-left text-sm">
-              <thead className="bg-sh-linen text-sh-black">
+              <thead className="bg-brand-linen text-brand-black">
                 <tr>
                   {columnHeaders.map((header) => (
-                    <th key={String(header.key)} className="border-b border-sh-gray p-2">
+                    <th key={String(header.key)} className="border-b border-brand-gray p-2">
                       {header.label}
                     </th>
                   ))}
@@ -121,9 +121,9 @@ export default function CsvImportForm<T>({
               </thead>
               <tbody>
                 {parsedData.map((row, i) => (
-                  <tr key={i} className="odd:bg-white even:bg-sh-stripe">
+                  <tr key={i} className="odd:bg-white even:bg-brand-stripe">
                     {columnHeaders.map((header) => (
-                      <td key={String(header.key)} className="border-b border-sh-gray p-2">
+                      <td key={String(header.key)} className="border-b border-brand-gray p-2">
                         {String(row[header.key] ?? "")}
                       </td>
                     ))}

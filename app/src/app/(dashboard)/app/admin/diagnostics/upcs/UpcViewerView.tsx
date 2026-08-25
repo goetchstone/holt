@@ -50,8 +50,8 @@ export function UpcViewerView() {
 
   return (
     <div className="py-2 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue mb-4">UPC / Barcode Viewer</h1>
-      <p className="mb-4 text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-blue mb-4">UPC / Barcode Viewer</h1>
+      <p className="mb-4 text-brand-gray">
         Use this tool to verify that barcodes have been imported correctly and are linked to the
         right products.
       </p>

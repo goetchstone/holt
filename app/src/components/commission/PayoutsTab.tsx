@@ -309,10 +309,13 @@ export function PayoutsTab({
       {view === "drafts" && (
         <>
           {/* Generate banner */}
-          <section className="rounded border border-sh-stripe bg-white p-4">
+          <section className="rounded border border-brand-stripe bg-white p-4">
             <div className="flex flex-wrap items-end gap-3">
               <div>
-                <label htmlFor="payout-period" className="block text-xs font-medium text-sh-navy">
+                <label
+                  htmlFor="payout-period"
+                  className="block text-xs font-medium text-brand-navy"
+                >
                   Pay period
                 </label>
                 <select
@@ -334,7 +337,7 @@ export function PayoutsTab({
                   <div>
                     <label
                       htmlFor="payout-start"
-                      className="block text-xs font-medium text-sh-navy"
+                      className="block text-xs font-medium text-brand-navy"
                     >
                       Period Start
                     </label>
@@ -347,7 +350,10 @@ export function PayoutsTab({
                     />
                   </div>
                   <div>
-                    <label htmlFor="payout-end" className="block text-xs font-medium text-sh-navy">
+                    <label
+                      htmlFor="payout-end"
+                      className="block text-xs font-medium text-brand-navy"
+                    >
                       Period End
                     </label>
                     <input
@@ -363,7 +369,7 @@ export function PayoutsTab({
               <button
                 type="button"
                 onClick={handlePreview}
-                className="rounded bg-sh-navy px-4 py-2 text-sm font-medium text-white hover:bg-sh-blue"
+                className="rounded bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-blue"
               >
                 Generate payouts
               </button>
@@ -372,11 +378,11 @@ export function PayoutsTab({
               <button
                 type="button"
                 onClick={toggleCustomRange}
-                className="text-xs text-sh-gold hover:underline"
+                className="text-xs text-brand-gold hover:underline"
               >
                 {showCustomRange ? "Use a set pay period" : "Custom range…"}
               </button>
-              <span className="text-xs text-sh-gray">
+              <span className="text-xs text-brand-gray">
                 Draft = edit anytime. Locked = set in stone (edits need a reason).
               </span>
             </div>
@@ -413,7 +419,7 @@ export function PayoutsTab({
 
       {/* This view's payouts — drafts (editable) or the locked archive. */}
       <section>
-        <h2 className="mb-2 text-lg font-semibold text-sh-navy">
+        <h2 className="mb-2 text-lg font-semibold text-brand-navy">
           {view === "locked" ? "Locked Payouts" : "Draft Payouts"}
         </h2>
         <PayoutHistory
@@ -461,10 +467,10 @@ function PayoutHistory({
   onToggle: (id: number) => void;
   onEdit: (p: StoredPayout) => void;
 }>) {
-  if (loadingList) return <p className="text-sm text-sh-gray">Loading…</p>;
+  if (loadingList) return <p className="text-sm text-brand-gray">Loading…</p>;
   if (payouts.length === 0) {
     return (
-      <p className="text-sm text-sh-gray">
+      <p className="text-sm text-brand-gray">
         {view === "locked"
           ? "No locked payouts yet. Lock a draft to file it here."
           : "No draft payouts. Generate a pay period above to start one."}
@@ -474,9 +480,9 @@ function PayoutHistory({
   // The tab name already says Draft vs Locked, so the per-row Status badge is
   // dropped here (it only made sense in the old combined table).
   return (
-    <div className="overflow-x-auto rounded border border-sh-stripe bg-white">
+    <div className="overflow-x-auto rounded border border-brand-stripe bg-white">
       <table className="min-w-full text-left text-sm">
-        <thead className="bg-sh-linen text-sh-black">
+        <thead className="bg-brand-linen text-brand-black">
           <tr>
             <th className="p-3 font-medium">Salesperson</th>
             <th className="p-3 font-medium">Period</th>
@@ -585,18 +591,18 @@ function PreviewPanel({
   }
 
   return (
-    <section className="rounded border border-sh-gold/40 bg-amber-50 p-4">
-      <h3 className="mb-2 text-base font-semibold text-sh-navy">
+    <section className="rounded border border-brand-gold/40 bg-amber-50 p-4">
+      <h3 className="mb-2 text-base font-semibold text-brand-navy">
         Preview — {startDate} to {endDate}
       </h3>
       {hasOverlap && <OverlapWarning overlaps={overlappingPayouts} />}
       {rows.length === 0 ? (
-        <p className="text-sm text-sh-gray">Computing…</p>
+        <p className="text-sm text-brand-gray">Computing…</p>
       ) : (
         <>
           <div className="overflow-x-auto rounded bg-white">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-sh-linen text-sh-black">
+              <thead className="bg-brand-linen text-brand-black">
                 <tr>
                   <th className="p-2 font-medium">Salesperson</th>
                   <th className="p-2 font-medium">Plan</th>
@@ -614,9 +620,9 @@ function PreviewPanel({
                   const effective = ov.commissionAmount ?? r.commissionAmount;
                   return (
                     <Fragment key={r.staffMemberId}>
-                      <tr className="border-t border-sh-stripe">
+                      <tr className="border-t border-brand-stripe">
                         <td className="p-2">{r.displayName}</td>
-                        <td className="p-2 text-sh-gray">{r.commissionPlanName}</td>
+                        <td className="p-2 text-brand-gray">{r.commissionPlanName}</td>
                         <td className="p-2 text-right tabular-nums">
                           {money(r.periodSalesAmount)}
                         </td>
@@ -624,27 +630,27 @@ function PreviewPanel({
                         <td className="p-2 text-right tabular-nums">
                           {money(effective)}
                           {ov.commissionAmount !== undefined && (
-                            <span className="ml-1 text-xs font-medium text-sh-gold">adj.</span>
+                            <span className="ml-1 text-xs font-medium text-brand-gold">adj.</span>
                           )}
                         </td>
                         <td className="p-2 text-right">
                           <button
                             type="button"
                             onClick={() => toggleRow(r.staffMemberId)}
-                            className="text-xs text-sh-gold hover:underline"
+                            className="text-xs text-brand-gold hover:underline"
                           >
                             {isEditing ? "Done" : "Adjust"}
                           </button>
                         </td>
                       </tr>
                       {isEditing && (
-                        <tr className="border-t border-sh-stripe bg-white">
+                        <tr className="border-t border-brand-stripe bg-white">
                           <td colSpan={6} className="px-2 pb-3">
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                               <span className="flex items-center gap-2">
                                 <label
                                   htmlFor={`ov-amt-${r.staffMemberId}`}
-                                  className="text-xs text-sh-gray"
+                                  className="text-xs text-brand-gray"
                                 >
                                   Override amount
                                 </label>
@@ -666,7 +672,7 @@ function PreviewPanel({
                               <span className="flex flex-1 items-center gap-2">
                                 <label
                                   htmlFor={`ov-note-${r.staffMemberId}`}
-                                  className="text-xs text-sh-gray"
+                                  className="text-xs text-brand-gray"
                                 >
                                   Notes
                                 </label>
@@ -689,7 +695,7 @@ function PreviewPanel({
                   );
                 })}
               </tbody>
-              <tfoot className="border-t border-sh-stripe bg-sh-stripe font-medium">
+              <tfoot className="border-t border-brand-stripe bg-brand-stripe font-medium">
                 <tr>
                   <td className="p-2">Total ({rows.length} salespeople)</td>
                   <td colSpan={3}></td>
@@ -701,7 +707,7 @@ function PreviewPanel({
             </table>
           </div>
           {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-          <p className="mt-3 text-xs text-sh-gray">
+          <p className="mt-3 text-xs text-brand-gray">
             Confirm &amp; Lock sets this pay period in stone — later edits need an audit reason. Not
             ready? Save it as a draft and keep editing.
           </p>
@@ -711,7 +717,7 @@ function PreviewPanel({
               onClick={onSaveLock}
               disabled={committing || hasOverlap}
               title={hasOverlap ? "Resolve the overlapping payout(s) above first." : undefined}
-              className="rounded bg-sh-navy px-5 py-2 text-sm font-medium text-white hover:bg-sh-blue disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded bg-brand-navy px-5 py-2 text-sm font-medium text-white hover:bg-brand-blue disabled:cursor-not-allowed disabled:opacity-50"
             >
               {committing ? "Saving…" : "Confirm & Lock"}
             </button>
@@ -720,7 +726,7 @@ function PreviewPanel({
               onClick={onSaveDraft}
               disabled={committing || hasOverlap}
               title={hasOverlap ? "Resolve the overlapping payout(s) above first." : undefined}
-              className="text-sm text-sh-gray underline hover:text-sh-navy disabled:cursor-not-allowed disabled:opacity-50"
+              className="text-sm text-brand-gray underline hover:text-brand-navy disabled:cursor-not-allowed disabled:opacity-50"
             >
               {committing ? "Saving…" : "Save as draft instead"}
             </button>
@@ -728,7 +734,7 @@ function PreviewPanel({
               type="button"
               onClick={onCancel}
               disabled={committing}
-              className="ml-auto text-sm text-sh-gray hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+              className="ml-auto text-sm text-brand-gray hover:underline disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancel
             </button>
@@ -750,9 +756,9 @@ function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) 
   const money = useMoneyFormatter();
   return (
     <>
-      <tr className="border-t border-sh-stripe hover:bg-sh-linen">
-        <td className="p-3 font-medium text-sh-navy">{p.staffMember.displayName}</td>
-        <td className="p-3 whitespace-nowrap text-sh-gray">
+      <tr className="border-t border-brand-stripe hover:bg-brand-linen">
+        <td className="p-3 font-medium text-brand-navy">{p.staffMember.displayName}</td>
+        <td className="p-3 whitespace-nowrap text-brand-gray">
           {formatDate(p.periodStart)} – {formatDate(p.periodEnd)}
         </td>
         <td className="p-3 text-right tabular-nums">{money(toNum(p.periodSalesAmount))}</td>
@@ -760,35 +766,39 @@ function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) 
         <td className="p-3 text-right tabular-nums font-medium">
           {money(toNum(p.commissionAmount))}
         </td>
-        <td className="p-3 whitespace-nowrap text-sh-gray">{formatDate(p.paidOn)}</td>
+        <td className="p-3 whitespace-nowrap text-brand-gray">{formatDate(p.paidOn)}</td>
         <td className="p-3 whitespace-nowrap">
           <button
             type="button"
             onClick={onToggle}
-            className="mr-2 text-xs text-sh-gold hover:underline"
+            className="mr-2 text-xs text-brand-gold hover:underline"
           >
             {expanded ? "Hide" : "Detail"}
           </button>
-          <button type="button" onClick={onEdit} className="text-xs text-sh-gold hover:underline">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="text-xs text-brand-gold hover:underline"
+          >
             Edit
           </button>
         </td>
       </tr>
       {expanded && (
-        <tr className="border-t border-sh-stripe bg-sh-linen/30">
+        <tr className="border-t border-brand-stripe bg-brand-linen/30">
           <td colSpan={7} className="p-4">
             <div className="grid gap-4 lg:grid-cols-2">
               <div>
-                <h4 className="mb-2 text-xs font-semibold uppercase text-sh-gray">
+                <h4 className="mb-2 text-xs font-semibold uppercase text-brand-gray">
                   Tier Breakdown
                 </h4>
-                <p className="mb-2 text-xs text-sh-gray">
+                <p className="mb-2 text-xs text-brand-gray">
                   Plan:{" "}
-                  <span className="font-medium text-sh-navy">{p.commissionPlanName ?? "—"}</span>
+                  <span className="font-medium text-brand-navy">{p.commissionPlanName ?? "—"}</span>
                 </p>
                 <table className="min-w-full text-xs">
                   <thead>
-                    <tr className="text-sh-gray">
+                    <tr className="text-brand-gray">
                       <th className="py-1 text-left">Tier</th>
                       <th className="py-1 text-right">Rate</th>
                       <th className="py-1 text-right">Slice</th>
@@ -814,35 +824,39 @@ function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) 
                 </table>
                 {p.notes && (
                   <div className="mt-3">
-                    <div className="text-xs font-semibold uppercase text-sh-gray">Notes</div>
+                    <div className="text-xs font-semibold uppercase text-brand-gray">Notes</div>
                     <p className="text-sm">{p.notes}</p>
                   </div>
                 )}
               </div>
               <div>
-                <h4 className="mb-2 text-xs font-semibold uppercase text-sh-gray">Edit History</h4>
+                <h4 className="mb-2 text-xs font-semibold uppercase text-brand-gray">
+                  Edit History
+                </h4>
                 {p.edits && p.edits.length > 0 ? (
                   <ul className="space-y-2">
                     {p.edits.map((e) => (
                       <li
                         key={e.id}
-                        className="rounded border border-sh-stripe bg-white p-2 text-xs"
+                        className="rounded border border-brand-stripe bg-white p-2 text-xs"
                       >
-                        <div className="text-sh-navy font-medium">
+                        <div className="text-brand-navy font-medium">
                           {e.fieldChanged} · {e.editedBy}
                         </div>
-                        <div className="text-sh-gray">{new Date(e.editedAt).toLocaleString()}</div>
+                        <div className="text-brand-gray">
+                          {new Date(e.editedAt).toLocaleString()}
+                        </div>
                         <div className="mt-1">
                           <span className="text-red-700">{JSON.stringify(e.oldValue)}</span>
                           {" → "}
                           <span className="text-green-700">{JSON.stringify(e.newValue)}</span>
                         </div>
-                        <div className="mt-1 italic text-sh-gray">{e.reason}</div>
+                        <div className="mt-1 italic text-brand-gray">{e.reason}</div>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-sh-gray">No edits.</p>
+                  <p className="text-xs text-brand-gray">No edits.</p>
                 )}
               </div>
             </div>
@@ -932,17 +946,17 @@ function EditPayoutModal({ payout, onClose, onSaved }: Readonly<EditPayoutModalP
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-        <h3 className="text-lg font-semibold text-sh-navy">
+        <h3 className="text-lg font-semibold text-brand-navy">
           Edit Payout — {payout.staffMember.displayName}
         </h3>
-        <p className="mt-1 text-xs text-sh-gray">
+        <p className="mt-1 text-xs text-brand-gray">
           Period {formatDate(payout.periodStart)} – {formatDate(payout.periodEnd)}
           {isLocked ? " · Currently LOCKED" : " · Draft"}
         </p>
 
         <div className="mt-4 space-y-3">
           <div>
-            <label htmlFor="edit-commission" className="block text-xs font-medium text-sh-navy">
+            <label htmlFor="edit-commission" className="block text-xs font-medium text-brand-navy">
               Commission Amount
             </label>
             <input
@@ -955,7 +969,7 @@ function EditPayoutModal({ payout, onClose, onSaved }: Readonly<EditPayoutModalP
             />
           </div>
           <div>
-            <label htmlFor="edit-paid-on" className="block text-xs font-medium text-sh-navy">
+            <label htmlFor="edit-paid-on" className="block text-xs font-medium text-brand-navy">
               Paid On
             </label>
             <input
@@ -967,7 +981,7 @@ function EditPayoutModal({ payout, onClose, onSaved }: Readonly<EditPayoutModalP
             />
           </div>
           <div>
-            <label htmlFor="edit-notes" className="block text-xs font-medium text-sh-navy">
+            <label htmlFor="edit-notes" className="block text-xs font-medium text-brand-navy">
               Notes
             </label>
             <textarea
@@ -979,7 +993,7 @@ function EditPayoutModal({ payout, onClose, onSaved }: Readonly<EditPayoutModalP
             />
           </div>
           <div>
-            <label htmlFor="edit-reason" className="block text-xs font-medium text-sh-navy">
+            <label htmlFor="edit-reason" className="block text-xs font-medium text-brand-navy">
               Audit Reason <span className="text-red-600">*</span>
             </label>
             <input
@@ -990,7 +1004,7 @@ function EditPayoutModal({ payout, onClose, onSaved }: Readonly<EditPayoutModalP
               placeholder="Why is this edit needed?"
               className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
             />
-            <p className="mt-1 text-xs text-sh-gray">
+            <p className="mt-1 text-xs text-brand-gray">
               Required for every change. Recorded in the audit log.
             </p>
           </div>
@@ -1003,7 +1017,7 @@ function EditPayoutModal({ payout, onClose, onSaved }: Readonly<EditPayoutModalP
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded border border-gray-300 px-4 py-2 text-sm text-sh-gray hover:bg-gray-50"
+            className="rounded border border-gray-300 px-4 py-2 text-sm text-brand-gray hover:bg-gray-50"
           >
             Cancel
           </button>
@@ -1019,7 +1033,7 @@ function EditPayoutModal({ payout, onClose, onSaved }: Readonly<EditPayoutModalP
             type="button"
             onClick={save}
             disabled={saving}
-            className="rounded bg-sh-navy px-4 py-2 text-sm font-medium text-white hover:bg-sh-blue"
+            className="rounded bg-brand-navy px-4 py-2 text-sm font-medium text-white hover:bg-brand-blue"
           >
             {saving ? "Saving…" : "Save with Audit"}
           </button>

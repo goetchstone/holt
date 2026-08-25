@@ -37,17 +37,17 @@ const dateTimeFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", ti
 
 const STATUS_STYLES: Record<TicketStatusValue, string> = {
   OPEN: "bg-blue-100 text-blue-800",
-  IN_PROGRESS: "bg-sh-gold/20 text-sh-gold",
+  IN_PROGRESS: "bg-brand-gold/20 text-brand-gold",
   WAITING_ON_CUSTOMER: "bg-amber-100 text-amber-800",
   RESOLVED: "bg-green-100 text-green-800",
-  CLOSED: "bg-black/5 text-sh-gray",
+  CLOSED: "bg-black/5 text-brand-gray",
 };
 
 const PRIORITY_STYLES: Record<TicketPriorityValue, string> = {
   URGENT: "bg-red-100 text-red-800",
-  HIGH: "bg-sh-gold/20 text-sh-gold",
-  MEDIUM: "bg-black/5 text-sh-gray",
-  LOW: "bg-black/5 text-sh-gray",
+  HIGH: "bg-brand-gold/20 text-brand-gold",
+  MEDIUM: "bg-black/5 text-brand-gray",
+  LOW: "bg-black/5 text-brand-gray",
 };
 
 function sortQueue(tickets: TicketRow[]): TicketRow[] {
@@ -90,8 +90,8 @@ export function HelpdeskQueueView() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-sh-blue">Helpdesk</h1>
-      <p className="mt-1 text-sm text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-blue">Helpdesk</h1>
+      <p className="mt-1 text-sm text-brand-gray">
         Support requests from the public <span className="font-mono">/support</span> form and your
         team.
       </p>
@@ -104,7 +104,9 @@ export function HelpdeskQueueView() {
               type="button"
               onClick={() => setScope(s)}
               className={`min-h-[44px] px-4 text-sm font-medium transition ${
-                scope === s ? "bg-sh-navy text-white" : "bg-white text-sh-gray hover:bg-sh-stripe"
+                scope === s
+                  ? "bg-brand-navy text-white"
+                  : "bg-white text-brand-gray hover:bg-brand-stripe"
               }`}
             >
               {s === "open" ? "Open" : "All"}
@@ -126,7 +128,7 @@ export function HelpdeskQueueView() {
           />
           <button
             type="submit"
-            className="min-h-[44px] rounded-md bg-sh-navy px-4 text-sm font-medium text-white transition hover:bg-sh-blue"
+            className="min-h-[44px] rounded-md bg-brand-navy px-4 text-sm font-medium text-white transition hover:bg-brand-blue"
           >
             Search
           </button>
@@ -139,12 +141,12 @@ export function HelpdeskQueueView() {
 }
 
 function renderTable(tickets: TicketRow[], loading: boolean) {
-  if (loading) return <p className="text-sh-gray">Loading…</p>;
-  if (tickets.length === 0) return <p className="text-sh-gray">No tickets match this view.</p>;
+  if (loading) return <p className="text-brand-gray">Loading…</p>;
+  if (tickets.length === 0) return <p className="text-brand-gray">No tickets match this view.</p>;
   return (
     <div className="overflow-hidden rounded-md border border-black/10">
       <table className="w-full text-left text-sm">
-        <thead className="bg-sh-stripe text-sh-gray">
+        <thead className="bg-brand-stripe text-brand-gray">
           <tr>
             <th className="px-3 py-2 font-medium">Ticket</th>
             <th className="px-3 py-2 font-medium">Subject</th>
@@ -157,24 +159,24 @@ function renderTable(tickets: TicketRow[], loading: boolean) {
         </thead>
         <tbody>
           {tickets.map((t) => (
-            <tr key={t.id} className="border-t border-black/5 align-top hover:bg-sh-stripe/50">
+            <tr key={t.id} className="border-t border-black/5 align-top hover:bg-brand-stripe/50">
               <td className="px-3 py-2">
                 <Link
                   href={`/app/helpdesk/${t.id}`}
-                  className="font-mono text-xs font-semibold text-sh-blue hover:underline"
+                  className="font-mono text-xs font-semibold text-brand-blue hover:underline"
                 >
                   {t.ticketNumber}
                 </Link>
               </td>
-              <td className="px-3 py-2 text-sh-black">
+              <td className="px-3 py-2 text-brand-black">
                 <Link href={`/app/helpdesk/${t.id}`} className="hover:underline">
                   {t.subject}
                 </Link>
                 {t._count.messages > 1 ? (
-                  <span className="ml-1 text-xs text-sh-gray">({t._count.messages})</span>
+                  <span className="ml-1 text-xs text-brand-gray">({t._count.messages})</span>
                 ) : null}
               </td>
-              <td className="px-3 py-2 text-sh-gray">
+              <td className="px-3 py-2 text-brand-gray">
                 {t.submitterName ?? "—"}
                 {t.submitterEmail ? (
                   <span className="block text-xs">{t.submitterEmail}</span>
@@ -190,10 +192,10 @@ function renderTable(tickets: TicketRow[], loading: boolean) {
                   {TICKET_STATUS_LABELS[t.status]}
                 </span>
               </td>
-              <td className="px-3 py-2 text-sh-gray">
+              <td className="px-3 py-2 text-brand-gray">
                 {t.assignedTo?.displayName ?? "Unassigned"}
               </td>
-              <td className="px-3 py-2 text-xs text-sh-gray">
+              <td className="px-3 py-2 text-xs text-brand-gray">
                 {dateTimeFmt.format(new Date(t.updated ?? t.created))}
               </td>
             </tr>

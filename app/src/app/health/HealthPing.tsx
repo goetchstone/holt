@@ -19,7 +19,7 @@ export function HealthPing() {
   else status = ping.data?.ok ? "ok" : "unexpected response";
 
   return (
-    <p className="mt-1 text-sm text-sh-gray">
+    <p className="mt-1 text-sm text-brand-gray">
       tRPC health.ping: <span className="font-mono">{status}</span>
     </p>
   );

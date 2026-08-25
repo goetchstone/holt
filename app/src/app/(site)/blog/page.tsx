@@ -21,9 +21,9 @@ export default async function BlogIndex() {
 
   return (
     <div className="mx-auto max-w-screen-lg px-6 py-12">
-      <h1 className="font-serif text-4xl text-sh-navy">Blog</h1>
+      <h1 className="font-serif text-4xl text-brand-navy">Blog</h1>
       {posts.length === 0 ? (
-        <p className="mt-6 text-sh-gray">No posts published yet.</p>
+        <p className="mt-6 text-brand-gray">No posts published yet.</p>
       ) : (
         <div className="mt-8 grid gap-10 sm:grid-cols-2">
           {posts.map((post) => (
@@ -38,17 +38,17 @@ export default async function BlogIndex() {
                   />
                 </Link>
               ) : null}
-              <h2 className="mt-4 font-serif text-2xl text-sh-navy">
+              <h2 className="mt-4 font-serif text-2xl text-brand-navy">
                 <Link href={`/blog/${post.slug}`} className="hover:underline">
                   {post.title}
                 </Link>
               </h2>
-              <p className="mt-1 text-sm text-sh-gray">
+              <p className="mt-1 text-sm text-brand-gray">
                 {[post.author, post.publishedAt ? fmt.format(post.publishedAt) : null]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
-              {post.excerpt ? <p className="mt-2 text-sh-gray">{post.excerpt}</p> : null}
+              {post.excerpt ? <p className="mt-2 text-brand-gray">{post.excerpt}</p> : null}
             </article>
           ))}
         </div>

@@ -92,12 +92,12 @@ export function InventoryPositionsView() {
 
   return (
     <div className="py-2 space-y-4 font-serif">
-      <h1 className="text-2xl text-sh-blue font-semibold">Inventory by Location</h1>
+      <h1 className="text-2xl text-brand-blue font-semibold">Inventory by Location</h1>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-end">
         <div>
-          <label htmlFor="positions-search" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="positions-search" className="block text-xs text-brand-gray mb-1">
             Search
           </label>
           <input
@@ -109,11 +109,11 @@ export function InventoryPositionsView() {
               setPage(1);
             }}
             placeholder="Product name or number..."
-            className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-56"
+            className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-56"
           />
         </div>
         <div>
-          <label htmlFor="positions-location" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="positions-location" className="block text-xs text-brand-gray mb-1">
             Location
           </label>
           <select
@@ -124,7 +124,7 @@ export function InventoryPositionsView() {
               setStockLocationFilter("");
               setPage(1);
             }}
-            className="border border-sh-gray/30 rounded px-3 py-2 text-sm"
+            className="border border-brand-gray/30 rounded px-3 py-2 text-sm"
           >
             <option value="">All Locations</option>
             {locations.map((loc) => (
@@ -136,7 +136,10 @@ export function InventoryPositionsView() {
         </div>
         {filteredStockLocations.length > 0 && (
           <div>
-            <label htmlFor="positions-stock-location" className="block text-xs text-sh-gray mb-1">
+            <label
+              htmlFor="positions-stock-location"
+              className="block text-xs text-brand-gray mb-1"
+            >
               Stock Location
             </label>
             <select
@@ -146,7 +149,7 @@ export function InventoryPositionsView() {
                 setStockLocationFilter(e.target.value);
                 setPage(1);
               }}
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm"
             >
               <option value="">All USLs</option>
               {filteredStockLocations.map((sl) => (
@@ -160,55 +163,59 @@ export function InventoryPositionsView() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-sh-gray/20 bg-sh-stripe">
-              <th className="text-left px-4 py-3 font-medium text-sh-gray">Product</th>
-              <th className="text-left px-4 py-3 font-medium text-sh-gray w-[130px]">Location</th>
-              <th className="text-left px-4 py-3 font-medium text-sh-gray w-[160px]">
+            <tr className="border-b border-brand-gray/20 bg-brand-stripe">
+              <th className="text-left px-4 py-3 font-medium text-brand-gray">Product</th>
+              <th className="text-left px-4 py-3 font-medium text-brand-gray w-[130px]">
+                Location
+              </th>
+              <th className="text-left px-4 py-3 font-medium text-brand-gray w-[160px]">
                 Stock Location
               </th>
-              <th className="text-right px-4 py-3 font-medium text-sh-gray w-[60px]">Qty</th>
-              <th className="text-left px-4 py-3 font-medium text-sh-gray w-[120px]">
+              <th className="text-right px-4 py-3 font-medium text-brand-gray w-[60px]">Qty</th>
+              <th className="text-left px-4 py-3 font-medium text-brand-gray w-[120px]">
                 Sales Order
               </th>
-              <th className="text-left px-4 py-3 font-medium text-sh-gray w-[100px]">Updated</th>
+              <th className="text-left px-4 py-3 font-medium text-brand-gray w-[100px]">Updated</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sh-gray">
+                <td colSpan={6} className="px-4 py-8 text-center text-brand-gray">
                   Loading...
                 </td>
               </tr>
             ) : positions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sh-gray">
+                <td colSpan={6} className="px-4 py-8 text-center text-brand-gray">
                   No inventory positions found
                 </td>
               </tr>
             ) : (
               positions.map((pos) => (
-                <tr key={pos.id} className="border-b border-sh-gray/10">
+                <tr key={pos.id} className="border-b border-brand-gray/10">
                   <td className="px-4 py-2">
-                    <div className="text-sh-black">{pos.productName}</div>
-                    <div className="text-xs text-sh-gray">{pos.productNumber}</div>
+                    <div className="text-brand-black">{pos.productName}</div>
+                    <div className="text-xs text-brand-gray">{pos.productNumber}</div>
                   </td>
-                  <td className="px-4 py-2 text-sh-gray">{pos.locationName}</td>
+                  <td className="px-4 py-2 text-brand-gray">{pos.locationName}</td>
                   <td className="px-4 py-2">
                     {pos.stockLocationName ? (
-                      <span className="text-xs px-2 py-0.5 rounded bg-sh-gray/10 text-sh-gray">
+                      <span className="text-xs px-2 py-0.5 rounded bg-brand-gray/10 text-brand-gray">
                         {pos.stockLocationName}
                       </span>
                     ) : (
-                      <span className="text-xs text-sh-gray/50">--</span>
+                      <span className="text-xs text-brand-gray/50">--</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right text-sh-black font-medium">{pos.quantity}</td>
-                  <td className="px-4 py-2 text-sh-gray text-xs">{pos.salesOrderNo || ""}</td>
-                  <td className="px-4 py-2 text-sh-gray text-xs">
+                  <td className="px-4 py-2 text-right text-brand-black font-medium">
+                    {pos.quantity}
+                  </td>
+                  <td className="px-4 py-2 text-brand-gray text-xs">{pos.salesOrderNo || ""}</td>
+                  <td className="px-4 py-2 text-brand-gray text-xs">
                     {pos.updated ? format(new Date(pos.updated), "MMM d") : ""}
                   </td>
                 </tr>
@@ -220,7 +227,7 @@ export function InventoryPositionsView() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-sh-gray">
+        <div className="flex items-center justify-between text-sm text-brand-gray">
           <span>
             {total} position{total !== 1 ? "s" : ""}
           </span>
@@ -228,7 +235,7 @@ export function InventoryPositionsView() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-3 py-1 border border-sh-gray/30 rounded disabled:opacity-40"
+              className="px-3 py-1 border border-brand-gray/30 rounded disabled:opacity-40"
             >
               Prev
             </button>
@@ -238,7 +245,7 @@ export function InventoryPositionsView() {
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-3 py-1 border border-sh-gray/30 rounded disabled:opacity-40"
+              className="px-3 py-1 border border-brand-gray/30 rounded disabled:opacity-40"
             >
               Next
             </button>

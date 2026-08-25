@@ -68,27 +68,27 @@ export function NeedsOrderingView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl text-sh-blue font-semibold">Needs Ordering</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">Needs Ordering</h1>
         <Button variant="secondary" onClick={() => router.push("/app/purchasing")}>
           Back to Purchasing
         </Button>
       </div>
 
-      <p className="text-sm text-sh-gray">
+      <p className="text-sm text-brand-gray">
         Sales orders with status ORDER that do not yet have purchase orders.
       </p>
 
       {loading ? (
-        <p className="text-sh-gray">Loading...</p>
+        <p className="text-brand-gray">Loading...</p>
       ) : orders.length === 0 ? (
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-8 text-center">
-          <p className="text-sh-gray">All orders have purchase orders created.</p>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-8 text-center">
+          <p className="text-brand-gray">All orders have purchase orders created.</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-sh-linen text-sh-black">
+              <thead className="bg-brand-linen text-brand-black">
                 <tr>
                   <th className="p-3 border-b">Order #</th>
                   <th className="p-3 border-b">Customer</th>
@@ -100,10 +100,10 @@ export function NeedsOrderingView() {
               </thead>
               <tbody>
                 {orders.map((order) => (
-                  <tr key={order.id} className="odd:bg-white even:bg-sh-stripe">
+                  <tr key={order.id} className="odd:bg-white even:bg-brand-stripe">
                     <td className="p-3 border-b">
                       <button
-                        className="text-sh-blue hover:underline font-medium"
+                        className="text-brand-blue hover:underline font-medium"
                         onClick={() => router.push(`/app/sales/orders/${order.id}`)}
                       >
                         {order.orderno}

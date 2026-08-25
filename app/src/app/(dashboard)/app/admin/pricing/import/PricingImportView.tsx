@@ -347,7 +347,7 @@ function VendorMissingNotice({ displayName }: Readonly<{ displayName?: string }>
         <p className="font-semibold text-yellow-800">{displayName} vendor not found</p>
         <p className="text-sm text-yellow-700 mt-1">
           Please create a vendor named &ldquo;{displayName}&rdquo; in the{" "}
-          <Link href="/app/admin/setup" className="underline underline-offset-2 text-sh-blue">
+          <Link href="/app/admin/setup" className="underline underline-offset-2 text-brand-blue">
             Admin Setup
           </Link>{" "}
           before importing price books.
@@ -378,8 +378,8 @@ function PriceListMetadata({
       className={`grid grid-cols-1 ${isFabrics ? "md:grid-cols-1 max-w-xs" : "md:grid-cols-3"} gap-4`}
     >
       <div>
-        <span className="block text-sm font-semibold text-sh-blue mb-1">Vendor</span>
-        <div className="w-full border border-sh-gray/20 bg-sh-linen rounded-lg px-3 py-2 text-sh-black font-serif">
+        <span className="block text-sm font-semibold text-brand-blue mb-1">Vendor</span>
+        <div className="w-full border border-brand-gray/20 bg-brand-linen rounded-lg px-3 py-2 text-brand-black font-serif">
           {vendorName || "Loading..."}
         </div>
       </div>
@@ -388,7 +388,7 @@ function PriceListMetadata({
           <div>
             <label
               htmlFor="price-list-name"
-              className="block text-sm font-semibold text-sh-blue mb-1"
+              className="block text-sm font-semibold text-brand-blue mb-1"
             >
               Price List Name
             </label>
@@ -397,13 +397,13 @@ function PriceListMetadata({
               type="text"
               value={priceListName}
               onChange={(e) => onPriceListNameChange(e.target.value)}
-              className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif"
+              className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
             />
           </div>
           <div>
             <label
               htmlFor="effective-date"
-              className="block text-sm font-semibold text-sh-blue mb-1"
+              className="block text-sm font-semibold text-brand-blue mb-1"
             >
               Effective Date
             </label>
@@ -412,7 +412,7 @@ function PriceListMetadata({
               type="date"
               value={effectiveDate}
               onChange={(e) => onEffectiveDateChange(e.target.value)}
-              className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif"
+              className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
             />
           </div>
         </>
@@ -440,18 +440,18 @@ function UploadPanel({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={`border-2 border-dashed rounded-lg p-10 text-center bg-white transition-colors ${
-        isDragging ? "border-sh-blue bg-sh-blue/5" : "border-sh-gray/40"
+        isDragging ? "border-brand-blue bg-brand-blue/5" : "border-brand-gray/40"
       }`}
     >
       <Upload
         className={`w-12 h-12 mx-auto mb-4 transition-colors ${
-          isDragging ? "text-sh-blue" : "text-sh-gray"
+          isDragging ? "text-brand-blue" : "text-brand-gray"
         }`}
       />
-      <p className="text-sh-black font-semibold mb-2">
+      <p className="text-brand-black font-semibold mb-2">
         {isDragging ? "Drop file to upload" : "Drop a file here or click to browse"}
       </p>
-      <p className="text-sh-gray text-sm mb-6">Supports PDF, CSV, and XLSX files</p>
+      <p className="text-brand-gray text-sm mb-6">Supports PDF, CSV, and XLSX files</p>
       <Button variant="primary" onClick={onChoose}>
         <FileText className="w-4 h-4 mr-2" /> Choose File
       </Button>
@@ -508,8 +508,8 @@ function PreviewPanel({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <FileText className="w-5 h-5 text-sh-blue" />
-          <span className="text-sm text-sh-black">
+          <FileText className="w-5 h-5 text-brand-blue" />
+          <span className="text-sm text-brand-black">
             <strong>{fileName}</strong> —{" "}
             {summarizeParsed(parsedVendorData, parsedProducts.length, importType)} parsed
           </span>
@@ -541,14 +541,14 @@ function ImageExtractionBlock({
 }>) {
   if (result && !result.error) {
     return (
-      <div className="border border-sh-gray/20 rounded-lg p-4 mt-2">
+      <div className="border border-brand-gray/20 rounded-lg p-4 mt-2">
         <div className="text-sm text-green-700 space-y-1">
           <div className="flex items-center gap-2">
             <CheckCircle className="w-4 h-4 flex-shrink-0" />
             Extracted {result.imagesExtracted} images, mapped {result.stylesMapped} styles, updated{" "}
             {result.stylesUpdated} records
           </div>
-          <div className="text-xs text-sh-gray ml-6">
+          <div className="text-xs text-brand-gray ml-6">
             Page base: {result.pageNumberBase} | {result.pagesMatched}/{result.pagesWithImages}{" "}
             pages matched
           </div>
@@ -559,13 +559,13 @@ function ImageExtractionBlock({
 
   if (result?.error) {
     return (
-      <div className="border border-sh-gray/20 rounded-lg p-4 mt-2">
+      <div className="border border-brand-gray/20 rounded-lg p-4 mt-2">
         <div className="space-y-2">
           <div className="text-sm text-red-600 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
             {result.error}
           </div>
-          {result.details && <div className="text-xs text-sh-gray pl-6">{result.details}</div>}
+          {result.details && <div className="text-xs text-brand-gray pl-6">{result.details}</div>}
           <Button variant="secondary" size="sm" onClick={onClear} className="ml-6">
             Try Again
           </Button>
@@ -575,9 +575,9 @@ function ImageExtractionBlock({
   }
 
   return (
-    <div className="border border-sh-gray/20 rounded-lg p-4 mt-2">
+    <div className="border border-brand-gray/20 rounded-lg p-4 mt-2">
       <div className="flex items-center justify-between">
-        <div className="text-sm text-sh-gray">Extract line drawing images from the PDF?</div>
+        <div className="text-sm text-brand-gray">Extract line drawing images from the PDF?</div>
         <Button variant="secondary" onClick={onExtract} disabled={extracting}>
           {extracting ? (
             <>
@@ -615,19 +615,19 @@ function ImportSuccessPanel({
   return (
     <div className="bg-white rounded-lg border border-green-200 shadow-md p-6 text-center space-y-4">
       <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
-      <h2 className="text-xl font-semibold text-sh-blue">Import Complete</h2>
+      <h2 className="text-xl font-semibold text-brand-blue">Import Complete</h2>
       <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
-        <div className="bg-sh-linen rounded-lg p-3">
-          <div className="text-2xl font-semibold text-sh-blue">{imported}</div>
-          <div className="text-xs text-sh-gray">Imported</div>
+        <div className="bg-brand-linen rounded-lg p-3">
+          <div className="text-2xl font-semibold text-brand-blue">{imported}</div>
+          <div className="text-xs text-brand-gray">Imported</div>
         </div>
-        <div className="bg-sh-linen rounded-lg p-3">
-          <div className="text-2xl font-semibold text-sh-gray">{skipped}</div>
-          <div className="text-xs text-sh-gray">Skipped</div>
+        <div className="bg-brand-linen rounded-lg p-3">
+          <div className="text-2xl font-semibold text-brand-gray">{skipped}</div>
+          <div className="text-xs text-brand-gray">Skipped</div>
         </div>
-        <div className="bg-sh-linen rounded-lg p-3">
-          <div className="text-2xl font-semibold text-sh-gray">{errorCount}</div>
-          <div className="text-xs text-sh-gray">Errors</div>
+        <div className="bg-brand-linen rounded-lg p-3">
+          <div className="text-2xl font-semibold text-brand-gray">{errorCount}</div>
+          <div className="text-xs text-brand-gray">Errors</div>
         </div>
       </div>
       {errorCount > 0 && (
@@ -673,20 +673,20 @@ function ImportingIndicator({
 }: Readonly<{ productCount: number; importType: string; elapsed: number }>) {
   return (
     <div className="text-center py-16">
-      <Loader2 className="w-12 h-12 text-sh-blue mx-auto mb-4 animate-spin" />
-      <p className="text-sh-black font-semibold">
+      <Loader2 className="w-12 h-12 text-brand-blue mx-auto mb-4 animate-spin" />
+      <p className="text-brand-black font-semibold">
         Importing {productCount} {importType === "fabrics" ? "fabrics" : "products"}...
       </p>
-      <p className="text-sh-gray text-sm mt-2">
+      <p className="text-brand-gray text-sm mt-2">
         {importType === "fabrics"
           ? "Mapping fabrics to grade tiers and updating catalog."
           : "Creating price dimensions, grade tiers, and product prices."}
       </p>
-      <p className="text-sh-gray text-xs mt-3">
+      <p className="text-brand-gray text-xs mt-3">
         {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")} elapsed
       </p>
       {elapsed >= 60 && (
-        <p className="text-sh-gray text-xs mt-1">Large imports may take several minutes.</p>
+        <p className="text-brand-gray text-xs mt-1">Large imports may take several minutes.</p>
       )}
     </div>
   );
@@ -1189,8 +1189,8 @@ export function PricingImportView() {
   return (
     <div className="py-2 font-serif space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-sh-blue mb-1">Import Price Book</h1>
-        <p className="text-sh-gray text-sm">
+        <h1 className="text-2xl font-semibold text-brand-blue mb-1">Import Price Book</h1>
+        <p className="text-brand-gray text-sm">
           Upload a vendor price list PDF, CSV, or XLSX to import pricing data.
         </p>
       </div>
@@ -1208,7 +1208,7 @@ export function PricingImportView() {
       {vendorMissing && <VendorMissingNotice displayName={vendorConfig?.displayName} />}
 
       {!selectedVendorSlug && !vendorLoading && (
-        <div className="text-center py-16 text-sh-gray">
+        <div className="text-center py-16 text-brand-gray">
           Select a vendor to begin importing a price book.
         </div>
       )}
@@ -1224,8 +1224,8 @@ export function PricingImportView() {
                   onClick={() => handleImportTypeChange(it.value)}
                   className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
                     importTypeValue === it.value
-                      ? "bg-sh-blue text-white shadow-md"
-                      : "bg-white text-sh-gray border border-sh-gray/30 hover:border-sh-blue hover:text-sh-blue"
+                      ? "bg-brand-blue text-white shadow-md"
+                      : "bg-white text-brand-gray border border-brand-gray/30 hover:border-brand-blue hover:text-brand-blue"
                   }`}
                 >
                   {it.label}
@@ -1305,7 +1305,7 @@ export function PricingImportView() {
 
                 {!importing && !importResult && (
                   <div className="text-center py-16">
-                    <p className="text-sh-gray">
+                    <p className="text-brand-gray">
                       Click &ldquo;Import&rdquo; from the Preview tab to begin importing.
                     </p>
                   </div>

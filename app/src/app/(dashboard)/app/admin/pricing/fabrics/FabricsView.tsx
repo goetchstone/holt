@@ -205,13 +205,13 @@ function ImportDropZone({
         onDragLeave={onDragLeave}
         onDrop={onDrop}
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-          isDragging ? "border-sh-blue bg-sh-blue/5" : "border-sh-gray/40"
+          isDragging ? "border-brand-blue bg-brand-blue/5" : "border-brand-gray/40"
         }`}
       >
         <Upload
-          className={`w-10 h-10 mx-auto mb-3 ${isDragging ? "text-sh-blue" : "text-sh-gray"}`}
+          className={`w-10 h-10 mx-auto mb-3 ${isDragging ? "text-brand-blue" : "text-brand-gray"}`}
         />
-        <p className="text-sh-black font-semibold mb-2">
+        <p className="text-brand-black font-semibold mb-2">
           {isDragging ? "Drop file" : "Drop a CSV/XLSX file or click to browse"}
         </p>
         <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
@@ -245,24 +245,24 @@ function ImportPreviewTable({
 }: Readonly<{ detectedColumns: string[]; rows: FabricRecord[] }>) {
   const visibleColumns = detectedColumns.slice(0, 8);
   return (
-    <div className="overflow-x-auto border border-sh-gray/20 rounded-lg max-h-[300px] overflow-y-auto">
+    <div className="overflow-x-auto border border-brand-gray/20 rounded-lg max-h-[300px] overflow-y-auto">
       <table className="min-w-full text-xs">
-        <thead className="bg-sh-linen sticky top-0">
+        <thead className="bg-brand-linen sticky top-0">
           <tr>
-            <th className="px-3 py-2 text-left text-sh-gray font-semibold">#</th>
+            <th className="px-3 py-2 text-left text-brand-gray font-semibold">#</th>
             {visibleColumns.map((col) => (
-              <th key={col} className="px-3 py-2 text-left text-sh-gray font-semibold">
+              <th key={col} className="px-3 py-2 text-left text-brand-gray font-semibold">
                 {col}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-sh-gray/10">
+        <tbody className="divide-y divide-brand-gray/10">
           {rows.slice(0, 20).map((row, i) => (
-            <tr key={i} className="hover:bg-sh-linen/50">
-              <td className="px-3 py-1.5 text-sh-gray">{i + 1}</td>
+            <tr key={i} className="hover:bg-brand-linen/50">
+              <td className="px-3 py-1.5 text-brand-gray">{i + 1}</td>
               {visibleColumns.map((col) => (
-                <td key={col} className="px-3 py-1.5 text-sh-black truncate max-w-[200px]">
+                <td key={col} className="px-3 py-1.5 text-brand-black truncate max-w-[200px]">
                   {String(row[col] ?? "")}
                 </td>
               ))}
@@ -271,7 +271,7 @@ function ImportPreviewTable({
         </tbody>
       </table>
       {rows.length > 20 && (
-        <div className="px-3 py-2 text-xs text-sh-gray bg-sh-linen text-center">
+        <div className="px-3 py-2 text-xs text-brand-gray bg-brand-linen text-center">
           Showing 20 of {rows.length} rows
         </div>
       )}
@@ -286,19 +286,19 @@ function ImportResultPanel({
   return (
     <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center space-y-4">
       <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
-      <h3 className="text-lg font-semibold text-sh-blue">Import Complete</h3>
+      <h3 className="text-lg font-semibold text-brand-blue">Import Complete</h3>
       <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
         <div className="bg-white rounded-lg p-3">
-          <div className="text-xl font-semibold text-sh-blue">{result.created}</div>
-          <div className="text-xs text-sh-gray">Created</div>
+          <div className="text-xl font-semibold text-brand-blue">{result.created}</div>
+          <div className="text-xs text-brand-gray">Created</div>
         </div>
         <div className="bg-white rounded-lg p-3">
-          <div className="text-xl font-semibold text-sh-gray">{result.skipped}</div>
-          <div className="text-xs text-sh-gray">Skipped</div>
+          <div className="text-xl font-semibold text-brand-gray">{result.skipped}</div>
+          <div className="text-xs text-brand-gray">Skipped</div>
         </div>
         <div className="bg-white rounded-lg p-3">
-          <div className="text-xl font-semibold text-sh-gray">{result.totalErrors}</div>
-          <div className="text-xs text-sh-gray">Errors</div>
+          <div className="text-xl font-semibold text-brand-gray">{result.totalErrors}</div>
+          <div className="text-xs text-brand-gray">Errors</div>
         </div>
       </div>
 
@@ -369,20 +369,20 @@ function ImportPanel(props: Readonly<ImportPanelProps>) {
   const showPreview = props.importPreview.length > 0 && !props.importResult;
 
   return (
-    <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-6 space-y-4">
+    <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-sh-blue">Import Fabric Catalog</h2>
+        <h2 className="text-lg font-semibold text-brand-blue">Import Fabric Catalog</h2>
         <button
           type="button"
           aria-label="Close import panel"
           onClick={props.onClose}
-          className="text-sh-gray hover:text-sh-black transition"
+          className="text-brand-gray hover:text-brand-black transition"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      <p className="text-sm text-sh-gray">
+      <p className="text-sm text-brand-gray">
         Upload a CSV or XLSX with fabric data. Required columns: <strong>Fabric Name</strong> and{" "}
         <strong>Grade</strong>. Optional columns: Color, Code, Pattern Repeat, Width, Content,
         Collection, Usage, Notes.
@@ -403,7 +403,7 @@ function ImportPanel(props: Readonly<ImportPanelProps>) {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-sh-blue" />
+              <FileText className="w-5 h-5 text-brand-blue" />
               <span className="text-sm">
                 <strong>{props.importFileName}</strong> — {props.importPreview.length} rows
               </span>
@@ -431,14 +431,14 @@ function ImportPanel(props: Readonly<ImportPanelProps>) {
           <div className="flex items-center justify-between">
             <label
               htmlFor="fabric-clear-existing"
-              className="flex items-center gap-2 text-sm text-sh-gray cursor-pointer"
+              className="flex items-center gap-2 text-sm text-brand-gray cursor-pointer"
             >
               <input
                 id="fabric-clear-existing"
                 type="checkbox"
                 checked={props.clearExisting}
                 onChange={(e) => props.onClearExistingChange(e.target.checked)}
-                className="w-4 h-4 accent-sh-blue"
+                className="w-4 h-4 accent-brand-blue"
               />
               Clear existing fabrics before import
             </label>
@@ -483,7 +483,7 @@ function FabricFilterBar(props: Readonly<FilterBarProps>) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="relative flex-1 min-w-[200px]">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sh-gray" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
         <input
           id="fabric-search"
           type="text"
@@ -491,14 +491,14 @@ function FabricFilterBar(props: Readonly<FilterBarProps>) {
           value={props.searchQuery}
           onChange={(e) => props.onSearchChange(e.target.value)}
           placeholder="Search by fabric name, code, or color..."
-          className="w-full border border-sh-gray rounded-lg pl-10 pr-3 py-2 text-sm text-sh-black"
+          className="w-full border border-brand-gray rounded-lg pl-10 pr-3 py-2 text-sm text-brand-black"
         />
         {props.searchQuery && (
           <button
             type="button"
             aria-label="Clear search"
             onClick={() => props.onSearchChange("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-sh-gray hover:text-sh-black"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray hover:text-brand-black"
           >
             <X className="w-4 h-4" />
           </button>
@@ -506,13 +506,13 @@ function FabricFilterBar(props: Readonly<FilterBarProps>) {
       </div>
 
       <div className="relative">
-        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sh-gray pointer-events-none" />
+        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray pointer-events-none" />
         <select
           id="fabric-grade-filter"
           aria-label="Filter by grade"
           value={props.selectedGrade}
           onChange={(e) => props.onGradeChange(e.target.value)}
-          className="border border-sh-gray rounded-lg pl-9 pr-8 py-2 text-sm bg-white text-sh-black appearance-none cursor-pointer"
+          className="border border-brand-gray rounded-lg pl-9 pr-8 py-2 text-sm bg-white text-brand-black appearance-none cursor-pointer"
         >
           <option value="">All Grades</option>
           {props.gradeTiers.map((tier) => {
@@ -525,10 +525,10 @@ function FabricFilterBar(props: Readonly<FilterBarProps>) {
             );
           })}
         </select>
-        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-sh-gray pointer-events-none" />
+        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray pointer-events-none" />
       </div>
 
-      <span className="text-sm text-sh-gray tabular-nums">
+      <span className="text-sm text-brand-gray tabular-nums">
         {props.total} fabric{props.total !== 1 ? "s" : ""}
       </span>
     </div>
@@ -537,8 +537,8 @@ function FabricFilterBar(props: Readonly<FilterBarProps>) {
 
 function FabricTableRow({ fabric }: Readonly<{ fabric: FabricRow }>) {
   return (
-    <tr className="hover:bg-sh-linen/50 transition">
-      <td className="px-4 py-2.5 text-sh-black font-medium">
+    <tr className="hover:bg-brand-linen/50 transition">
+      <td className="px-4 py-2.5 text-brand-black font-medium">
         {fabric.fabricName}
         {fabric.isDiscontinued && (
           <span className="ml-2 px-1.5 py-0.5 rounded bg-red-100 text-red-600 text-xs">
@@ -546,18 +546,18 @@ function FabricTableRow({ fabric }: Readonly<{ fabric: FabricRow }>) {
           </span>
         )}
       </td>
-      <td className="px-4 py-2.5 text-sh-gray tabular-nums">{fabric.fabricCode || "—"}</td>
-      <td className="px-4 py-2.5 text-sh-black">{fabric.colorName || "—"}</td>
+      <td className="px-4 py-2.5 text-brand-gray tabular-nums">{fabric.fabricCode || "—"}</td>
+      <td className="px-4 py-2.5 text-brand-black">{fabric.colorName || "—"}</td>
       <td className="px-4 py-2.5">
-        <span className="px-2 py-0.5 rounded bg-sh-blue/10 text-sh-blue text-xs font-medium">
+        <span className="px-2 py-0.5 rounded bg-brand-blue/10 text-brand-blue text-xs font-medium">
           {fabric.tier?.name || "—"}
         </span>
       </td>
-      <td className="px-4 py-2.5 text-sh-gray text-xs max-w-[200px] truncate">
+      <td className="px-4 py-2.5 text-brand-gray text-xs max-w-[200px] truncate">
         {fabric.content || "—"}
       </td>
-      <td className="px-4 py-2.5 text-sh-gray text-xs">{fabric.width || "—"}</td>
-      <td className="px-4 py-2.5 text-sh-gray text-xs">{fabric.collection || "—"}</td>
+      <td className="px-4 py-2.5 text-brand-gray text-xs">{fabric.width || "—"}</td>
+      <td className="px-4 py-2.5 text-brand-gray text-xs">{fabric.collection || "—"}</td>
     </tr>
   );
 }
@@ -566,21 +566,21 @@ const FABRIC_COLUMNS = ["Fabric Name", "Code", "Color", "Grade", "Content", "Wid
 
 function FabricTable({ fabrics }: Readonly<{ fabrics: FabricRow[] }>) {
   return (
-    <div className="overflow-x-auto border border-sh-gray/20 rounded-lg shadow-sm">
+    <div className="overflow-x-auto border border-brand-gray/20 rounded-lg shadow-sm">
       <table className="min-w-full text-sm">
-        <thead className="bg-sh-linen">
+        <thead className="bg-brand-linen">
           <tr>
             {FABRIC_COLUMNS.map((col) => (
               <th
                 key={col}
-                className="px-4 py-3 text-left text-sh-gray font-semibold text-xs uppercase tracking-wider"
+                className="px-4 py-3 text-left text-brand-gray font-semibold text-xs uppercase tracking-wider"
               >
                 {col}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-sh-gray/10 bg-white">
+        <tbody className="divide-y divide-brand-gray/10 bg-white">
           {fabrics.map((f) => (
             <FabricTableRow key={f.id} fabric={f} />
           ))}
@@ -593,12 +593,12 @@ function FabricTable({ fabrics }: Readonly<{ fabrics: FabricRow[] }>) {
 function FabricEmptyState({ filtered }: Readonly<{ filtered: boolean }>) {
   return (
     <div className="text-center py-16">
-      <Palette className="w-12 h-12 mx-auto mb-4 text-sh-gray opacity-30" />
-      <p className="text-sh-gray">
+      <Palette className="w-12 h-12 mx-auto mb-4 text-brand-gray opacity-30" />
+      <p className="text-brand-gray">
         {filtered ? "No fabrics match your search." : "No fabrics loaded for this vendor yet."}
       </p>
       {!filtered && (
-        <p className="text-sm text-sh-gray mt-2">
+        <p className="text-sm text-brand-gray mt-2">
           Click &ldquo;Import Fabrics&rdquo; to upload a CSV or XLSX.
         </p>
       )}
@@ -827,11 +827,11 @@ export function FabricsView() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl text-sh-blue font-semibold flex items-center gap-2">
+          <h1 className="text-2xl text-brand-blue font-semibold flex items-center gap-2">
             <Palette className="w-6 h-6" />
             Fabric Catalog
           </h1>
-          <p className="text-sm text-sh-gray mt-1">
+          <p className="text-sm text-brand-gray mt-1">
             Browse and import vendor fabric catalogs. Each fabric maps to a grade tier for pricing.
           </p>
         </div>
@@ -848,7 +848,7 @@ export function FabricsView() {
               setSearchQuery("");
               setSelectedGrade("");
             }}
-            className="border border-sh-gray rounded-lg px-3 py-2 text-sm bg-white text-sh-black min-w-[200px]"
+            className="border border-brand-gray rounded-lg px-3 py-2 text-sm bg-white text-brand-black min-w-[200px]"
           >
             <option value="">Select a vendor...</option>
             {vendors.map((v) => (
@@ -915,8 +915,8 @@ export function FabricsView() {
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-sh-blue mr-3" />
-          <span className="text-sh-gray">Loading fabrics...</span>
+          <Loader2 className="w-6 h-6 animate-spin text-brand-blue mr-3" />
+          <span className="text-brand-gray">Loading fabrics...</span>
         </div>
       )}
 
@@ -925,7 +925,7 @@ export function FabricsView() {
 
       {/* No vendor selected */}
       {!selectedVendorId && !vendorLoading && (
-        <div className="text-center py-16 text-sh-gray">
+        <div className="text-center py-16 text-brand-gray">
           Select a vendor above to browse or import fabrics.
         </div>
       )}

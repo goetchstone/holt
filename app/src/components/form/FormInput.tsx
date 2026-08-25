@@ -23,7 +23,7 @@ export default function FormInput({
 }: FormInputProps) {
   return (
     <div className="mb-4">
-      <label htmlFor={name} className="block text-sh-blue font-serif mb-1">
+      <label htmlFor={name} className="block text-brand-blue font-serif mb-1">
         {label}
       </label>
       <input
@@ -35,7 +35,7 @@ export default function FormInput({
         disabled={disabled}
         placeholder={placeholder}
         required={required} // Pass the required prop down to the native input
-        className="w-full border border-sh-gray rounded-lg px-3 py-2.5 text-sh-black font-serif"
+        className="w-full border border-brand-gray rounded-lg px-3 py-2.5 text-brand-black font-serif"
       />
     </div>
   );

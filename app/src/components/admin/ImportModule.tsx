@@ -90,7 +90,7 @@ const ImportModule = ({ title, apiEndpoint, returnUrl }: ImportModuleProps) => {
   return (
     <div className="bg-white p-6 rounded-lg shadow-md font-serif">
       <div className="mb-4">
-        <label htmlFor="file-upload" className="block text-sm font-serif text-sh-blue mb-1">
+        <label htmlFor="file-upload" className="block text-sm font-serif text-brand-blue mb-1">
           Select CSV File
         </label>
         <input
@@ -98,7 +98,7 @@ const ImportModule = ({ title, apiEndpoint, returnUrl }: ImportModuleProps) => {
           type="file"
           accept=".csv,.xlsx"
           onChange={handleFileChange}
-          className="mt-1 block w-full text-sm text-sh-black border border-sh-gray rounded-lg cursor-pointer bg-sh-linen focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sh-blue file:text-white hover:file:bg-sh-black"
+          className="mt-1 block w-full text-sm text-brand-black border border-brand-gray rounded-lg cursor-pointer bg-brand-linen focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-blue file:text-white hover:file:bg-brand-black"
         />
       </div>
       {getButton()}

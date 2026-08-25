@@ -55,7 +55,7 @@ const VEHICLE_TYPE_OPTIONS = [
 ];
 
 function StatusBadge({ active }: { active: boolean }) {
-  const cls = active ? "bg-green-100 text-green-800" : "bg-sh-gray/20 text-sh-gray";
+  const cls = active ? "bg-green-100 text-green-800" : "bg-brand-gray/20 text-brand-gray";
   return (
     <span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{active ? "Active" : "Inactive"}</span>
   );
@@ -73,7 +73,7 @@ function VehicleTypeSelect({
   return (
     <select
       id={id}
-      className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+      className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >
@@ -175,14 +175,14 @@ export function VehiclesView() {
   };
 
   if (loading) {
-    return <p className="text-sh-gray py-8">Loading...</p>;
+    return <p className="text-brand-gray py-8">Loading...</p>;
   }
 
   return (
     <>
       <div className="py-2 space-y-6 font-serif">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl text-sh-blue font-semibold">Vehicle Management</h1>
+          <h1 className="text-2xl text-brand-blue font-semibold">Vehicle Management</h1>
           <Button
             variant="primary"
             onClick={() => {
@@ -196,23 +196,23 @@ export function VehiclesView() {
 
         {/* Add Form */}
         {showAddForm && (
-          <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-            <h2 className="text-lg font-semibold text-sh-black mb-4">New Vehicle</h2>
+          <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+            <h2 className="text-lg font-semibold text-brand-black mb-4">New Vehicle</h2>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <label htmlFor="addName" className="block text-xs font-medium text-sh-gray mb-1">
+                <label htmlFor="addName" className="block text-xs font-medium text-brand-gray mb-1">
                   Name *
                 </label>
                 <input
                   id="addName"
                   type="text"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
                   value={addForm.name}
                   onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
                 />
               </div>
               <div>
-                <label htmlFor="addType" className="block text-xs font-medium text-sh-gray mb-1">
+                <label htmlFor="addType" className="block text-xs font-medium text-brand-gray mb-1">
                   Type
                 </label>
                 <VehicleTypeSelect
@@ -222,13 +222,16 @@ export function VehiclesView() {
                 />
               </div>
               <div>
-                <label htmlFor="addPlate" className="block text-xs font-medium text-sh-gray mb-1">
+                <label
+                  htmlFor="addPlate"
+                  className="block text-xs font-medium text-brand-gray mb-1"
+                >
                   License Plate
                 </label>
                 <input
                   id="addPlate"
                   type="text"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
                   value={addForm.licensePlate}
                   onChange={(e) => setAddForm((f) => ({ ...f, licensePlate: e.target.value }))}
                 />
@@ -236,26 +239,26 @@ export function VehiclesView() {
               <div>
                 <label
                   htmlFor="addCapacity"
-                  className="block text-xs font-medium text-sh-gray mb-1"
+                  className="block text-xs font-medium text-brand-gray mb-1"
                 >
                   Capacity
                 </label>
                 <input
                   id="addCapacity"
                   type="number"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
                   value={addForm.capacity}
                   onChange={(e) => setAddForm((f) => ({ ...f, capacity: e.target.value }))}
                 />
               </div>
             </div>
             <div className="mb-4">
-              <label htmlFor="addNotes" className="block text-xs font-medium text-sh-gray mb-1">
+              <label htmlFor="addNotes" className="block text-xs font-medium text-brand-gray mb-1">
                 Notes
               </label>
               <textarea
                 id="addNotes"
-                className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+                className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
                 rows={2}
                 value={addForm.notes}
                 onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
@@ -270,41 +273,43 @@ export function VehiclesView() {
         )}
 
         {/* Table */}
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/20 bg-sh-stripe">
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">Type</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">License Plate</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">Capacity</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray w-[90px]">Active</th>
-                <th className="text-right px-4 py-3 font-medium text-sh-gray w-[80px]">Actions</th>
+              <tr className="border-b border-brand-gray/20 bg-brand-stripe">
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">Type</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">License Plate</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">Capacity</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray w-[90px]">Active</th>
+                <th className="text-right px-4 py-3 font-medium text-brand-gray w-[80px]">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sh-gray">
+                  <td colSpan={6} className="px-4 py-8 text-center text-brand-gray">
                     No vehicles configured
                   </td>
                 </tr>
               ) : (
                 vehicles.map((v) => (
-                  <tr key={v.id} className="border-b border-sh-gray/10 hover:bg-sh-stripe/50">
-                    <td className="px-4 py-2 text-sh-black font-medium">{v.name}</td>
-                    <td className="px-4 py-2 text-sh-gray">
+                  <tr key={v.id} className="border-b border-brand-gray/10 hover:bg-brand-stripe/50">
+                    <td className="px-4 py-2 text-brand-black font-medium">{v.name}</td>
+                    <td className="px-4 py-2 text-brand-gray">
                       {VEHICLE_TYPE_LABELS[v.type] || v.type}
                     </td>
-                    <td className="px-4 py-2 text-sh-gray">{v.licensePlate || "--"}</td>
-                    <td className="px-4 py-2 text-sh-gray">{v.capacity}</td>
+                    <td className="px-4 py-2 text-brand-gray">{v.licensePlate || "--"}</td>
+                    <td className="px-4 py-2 text-brand-gray">{v.capacity}</td>
                     <td className="px-4 py-2">
                       <StatusBadge active={v.isActive} />
                     </td>
                     <td className="px-4 py-2 text-right">
                       <button
                         onClick={() => openEdit(v)}
-                        className="text-sm text-sh-blue hover:underline"
+                        className="text-sm text-brand-blue hover:underline"
                       >
                         Edit
                       </button>
@@ -333,7 +338,7 @@ export function VehiclesView() {
             required
           />
           <div className="mb-3">
-            <label htmlFor="editType" className="block text-xs font-medium text-sh-gray mb-1">
+            <label htmlFor="editType" className="block text-xs font-medium text-brand-gray mb-1">
               Type
             </label>
             <VehicleTypeSelect
@@ -355,12 +360,12 @@ export function VehiclesView() {
             onChange={(v) => setEditForm((f) => ({ ...f, capacity: v }))}
           />
           <div className="mb-3">
-            <label htmlFor="editNotes" className="block text-xs font-medium text-sh-gray mb-1">
+            <label htmlFor="editNotes" className="block text-xs font-medium text-brand-gray mb-1">
               Notes
             </label>
             <textarea
               id="editNotes"
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
               rows={2}
               value={editForm.notes}
               onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
@@ -374,7 +379,7 @@ export function VehiclesView() {
               onChange={(e) => setEditForm((f) => ({ ...f, isActive: e.target.checked }))}
               className="rounded"
             />
-            <label htmlFor="editActive" className="text-sm text-sh-gray">
+            <label htmlFor="editActive" className="text-sm text-brand-gray">
               Active
             </label>
           </div>

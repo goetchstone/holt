@@ -51,8 +51,8 @@ export function LegacyArchiveView() {
   return (
     <div className="max-w-4xl space-y-6 font-serif">
       <div>
-        <h1 className="text-2xl font-semibold text-sh-navy">Legacy Archive</h1>
-        <p className="text-sm text-sh-gray">
+        <h1 className="text-2xl font-semibold text-brand-navy">Legacy Archive</h1>
+        <p className="text-sm text-brand-gray">
           Historical sales imported from a previous system. Read-only — nothing here feeds reports
           or live data.
           {data?.meta && data.meta.archiveOrders > 0 && (
@@ -81,7 +81,7 @@ export function LegacyArchiveView() {
           type="button"
           onClick={run}
           disabled={loading || input.trim().length === 0}
-          className="min-h-[44px] rounded-lg bg-sh-navy px-6 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-brand-navy px-6 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
         >
           {loading ? "Searching..." : "Search"}
         </button>
@@ -89,48 +89,48 @@ export function LegacyArchiveView() {
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
         </div>
       )}
 
       {data && !loading && committed && data.orders.length === 0 && (
-        <p className="py-12 text-center text-sh-gray">No archive orders match that search.</p>
+        <p className="py-12 text-center text-brand-gray">No archive orders match that search.</p>
       )}
 
       {data && !loading && data.orders.length > 0 && (
         <>
-          <p className="text-sm text-sh-gray">
+          <p className="text-sm text-brand-gray">
             {data.total.toLocaleString("en-US")} match{data.total === 1 ? "" : "es"}
           </p>
           <div className="space-y-3">
             {data.orders.map((o) => (
               <div
                 key={o.id}
-                className="overflow-hidden rounded-lg border border-sh-gray/20 bg-white shadow-sm"
+                className="overflow-hidden rounded-lg border border-brand-gray/20 bg-white shadow-sm"
               >
                 <button
                   type="button"
                   onClick={() => toggle(o.id)}
-                  className="flex w-full items-start justify-between gap-4 px-4 py-3 text-left hover:bg-sh-linen"
+                  className="flex w-full items-start justify-between gap-4 px-4 py-3 text-left hover:bg-brand-linen"
                 >
                   <div>
-                    <div className="font-semibold text-sh-navy">
+                    <div className="font-semibold text-brand-navy">
                       {o.customerName || o.companyName || "(no name)"}
                       {o.companyName && o.customerName && o.companyName !== o.customerName ? (
-                        <span className="font-normal text-sh-gray"> · {o.companyName}</span>
+                        <span className="font-normal text-brand-gray"> · {o.companyName}</span>
                       ) : null}
                       {o.customerCode ? (
-                        <span className="ml-2 rounded-full bg-sh-stripe px-2 py-0.5 text-xs text-sh-gray">
+                        <span className="ml-2 rounded-full bg-brand-stripe px-2 py-0.5 text-xs text-brand-gray">
                           {o.customerCode}
                         </span>
                       ) : null}
                     </div>
-                    <div className="text-sm text-sh-gray">
+                    <div className="text-sm text-brand-gray">
                       {o.orderNumber} · {fmtDate(o.saleDate)}
                       {o.phone ? ` · ${o.phone}` : ""}
                     </div>
                     {(o.address || o.city) && (
-                      <div className="text-xs text-sh-gray">
+                      <div className="text-xs text-brand-gray">
                         {[o.address, [o.city, o.state].filter(Boolean).join(", "), o.zip]
                           .filter(Boolean)
                           .join(" · ")}
@@ -138,20 +138,20 @@ export function LegacyArchiveView() {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-semibold text-sh-navy">
+                    <span className="font-semibold text-brand-navy">
                       {o.grandTotal === null ? "--" : money(o.grandTotal)}
                     </span>
                     {expanded.has(o.id) ? (
-                      <ChevronDown className="h-4 w-4 text-sh-gray" />
+                      <ChevronDown className="h-4 w-4 text-brand-gray" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 text-sh-gray" />
+                      <ChevronRight className="h-4 w-4 text-brand-gray" />
                     )}
                   </div>
                 </button>
                 {expanded.has(o.id) && (
-                  <table className="w-full border-t border-sh-gray/10 text-sm">
+                  <table className="w-full border-t border-brand-gray/10 text-sm">
                     <thead>
-                      <tr className="bg-sh-linen text-left text-xs text-sh-gray">
+                      <tr className="bg-brand-linen text-left text-xs text-brand-gray">
                         <th className="px-4 py-2 font-semibold">SKU</th>
                         <th className="px-4 py-2 font-semibold">Description</th>
                         <th className="px-4 py-2 font-semibold">Vendor</th>
@@ -161,15 +161,15 @@ export function LegacyArchiveView() {
                     </thead>
                     <tbody>
                       {o.lines.map((l) => (
-                        <tr key={l.id} className="border-t border-sh-gray/10">
-                          <td className="px-4 py-2 text-sh-gray">{l.sku || "--"}</td>
+                        <tr key={l.id} className="border-t border-brand-gray/10">
+                          <td className="px-4 py-2 text-brand-gray">{l.sku || "--"}</td>
                           <td className="px-4 py-2">{l.description || "--"}</td>
-                          <td className="px-4 py-2 text-sh-gray">
+                          <td className="px-4 py-2 text-brand-gray">
                             {[l.vendor, l.vendorSku].filter(Boolean).join(" · ") ||
                               l.manufacturer ||
                               "--"}
                           </td>
-                          <td className="px-4 py-2 text-xs text-sh-gray">{l.misc || ""}</td>
+                          <td className="px-4 py-2 text-xs text-brand-gray">{l.misc || ""}</td>
                           <td className="px-4 py-2 text-right">
                             {l.lineTotal === null ? "--" : money(l.lineTotal)}
                           </td>
@@ -192,7 +192,7 @@ export function LegacyArchiveView() {
               >
                 Previous
               </button>
-              <span className="text-sm text-sh-gray">
+              <span className="text-sm text-brand-gray">
                 Page {page} of {totalPages}
               </span>
               <button
@@ -209,7 +209,7 @@ export function LegacyArchiveView() {
       )}
 
       {!committed && !loading && (
-        <p className="py-12 text-center text-sh-gray">
+        <p className="py-12 text-center text-brand-gray">
           Search by customer name, company, phone, address, or order number.
         </p>
       )}

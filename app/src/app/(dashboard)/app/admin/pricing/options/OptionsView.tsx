@@ -77,7 +77,7 @@ function OptionEditRow({
           aria-label="Option name"
           value={editForm.name}
           onChange={(e) => onChange({ ...editForm, name: e.target.value })}
-          className="w-full border border-sh-gray/40 rounded px-2 py-1 text-sm"
+          className="w-full border border-brand-gray/40 rounded px-2 py-1 text-sm"
         />
       </td>
       <td className="py-2 pr-2">
@@ -85,7 +85,7 @@ function OptionEditRow({
           aria-label="Surcharge type"
           value={editForm.surchargeType}
           onChange={(e) => onChange({ ...editForm, surchargeType: e.target.value })}
-          className="w-full border border-sh-gray/40 rounded px-2 py-1 text-sm bg-white"
+          className="w-full border border-brand-gray/40 rounded px-2 py-1 text-sm bg-white"
         >
           {SURCHARGE_TYPES.map((t) => (
             <option key={t.value} value={t.value}>
@@ -102,7 +102,7 @@ function OptionEditRow({
           onChange={(e) =>
             onChange({ ...editForm, defaultSurcharge: Number.parseFloat(e.target.value) || 0 })
           }
-          className="w-full border border-sh-gray/40 rounded px-2 py-1 text-sm text-right"
+          className="w-full border border-brand-gray/40 rounded px-2 py-1 text-sm text-right"
         />
       </td>
       <td className="py-2 text-right">
@@ -118,7 +118,7 @@ function OptionEditRow({
           <button
             type="button"
             onClick={onCancel}
-            className="text-sh-gray hover:text-sh-black p-1"
+            className="text-brand-gray hover:text-brand-black p-1"
             aria-label="Cancel edit"
           >
             <X className="w-3.5 h-3.5" />
@@ -140,18 +140,18 @@ function OptionDisplayRow({
 }>) {
   return (
     <>
-      <td className="py-2 text-sh-black">{opt.name}</td>
-      <td className="py-2 text-sh-gray text-xs uppercase">{opt.surchargeType}</td>
-      <td className="py-2 text-right text-sh-blue font-medium">
+      <td className="py-2 text-brand-black">{opt.name}</td>
+      <td className="py-2 text-brand-gray text-xs uppercase">{opt.surchargeType}</td>
+      <td className="py-2 text-right text-brand-blue font-medium">
         ${opt.defaultSurcharge.toFixed(0)}
-        <span className="text-xs text-sh-gray ml-1">{surchargeLabel(opt.surchargeType)}</span>
+        <span className="text-xs text-brand-gray ml-1">{surchargeLabel(opt.surchargeType)}</span>
       </td>
       <td className="py-2 text-right">
         <div className="flex gap-1 justify-end">
           <button
             type="button"
             onClick={onEdit}
-            className="text-sh-gray hover:text-sh-blue p-1"
+            className="text-brand-gray hover:text-brand-blue p-1"
             aria-label={`Edit ${opt.name}`}
           >
             <Pencil className="w-3.5 h-3.5" />
@@ -190,9 +190,9 @@ function NewOptionForm({
   onCancel: () => void;
 }>) {
   return (
-    <div className="mt-3 flex items-end gap-2 bg-sh-linen/50 rounded-lg p-3">
+    <div className="mt-3 flex items-end gap-2 bg-brand-linen/50 rounded-lg p-3">
       <div className="flex-1">
-        <label htmlFor="new-opt-name" className="block text-xs text-sh-gray mb-1">
+        <label htmlFor="new-opt-name" className="block text-xs text-brand-gray mb-1">
           Name
         </label>
         <input
@@ -200,19 +200,19 @@ function NewOptionForm({
           value={name}
           onChange={(e) => onNameChange(e.target.value)}
           placeholder="e.g. Contrast Piping"
-          className="w-full border border-sh-gray/40 rounded px-2 py-1 text-sm"
+          className="w-full border border-brand-gray/40 rounded px-2 py-1 text-sm"
           autoFocus
         />
       </div>
       <div className="w-32">
-        <label htmlFor="new-opt-type" className="block text-xs text-sh-gray mb-1">
+        <label htmlFor="new-opt-type" className="block text-xs text-brand-gray mb-1">
           Type
         </label>
         <select
           id="new-opt-type"
           value={type}
           onChange={(e) => onTypeChange(e.target.value)}
-          className="w-full border border-sh-gray/40 rounded px-2 py-1 text-sm bg-white"
+          className="w-full border border-brand-gray/40 rounded px-2 py-1 text-sm bg-white"
         >
           {SURCHARGE_TYPES.map((t) => (
             <option key={t.value} value={t.value}>
@@ -222,7 +222,7 @@ function NewOptionForm({
         </select>
       </div>
       <div className="w-24">
-        <label htmlFor="new-opt-surcharge" className="block text-xs text-sh-gray mb-1">
+        <label htmlFor="new-opt-surcharge" className="block text-xs text-brand-gray mb-1">
           Surcharge
         </label>
         <input
@@ -230,7 +230,7 @@ function NewOptionForm({
           type="number"
           value={surcharge}
           onChange={(e) => onSurchargeChange(Number.parseFloat(e.target.value) || 0)}
-          className="w-full border border-sh-gray/40 rounded px-2 py-1 text-sm text-right"
+          className="w-full border border-brand-gray/40 rounded px-2 py-1 text-sm text-right"
         />
       </div>
       <Button size="sm" onClick={onAdd}>
@@ -239,7 +239,7 @@ function NewOptionForm({
       <button
         type="button"
         onClick={onCancel}
-        className="text-sh-gray hover:text-sh-black p-1"
+        className="text-brand-gray hover:text-brand-black p-1"
         aria-label="Cancel new option"
       >
         <X className="w-4 h-4" />
@@ -434,22 +434,22 @@ export function OptionsView() {
   return (
     <div className="py-2 font-serif space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-sh-blue mb-1">Manage Vendor Options</h1>
-        <p className="text-sh-gray text-sm">
+        <h1 className="text-2xl font-semibold text-brand-blue mb-1">Manage Vendor Options</h1>
+        <p className="text-brand-gray text-sm">
           Add, edit, or remove option groups and surcharges for a vendor.
         </p>
       </div>
 
       {/* Vendor selector */}
       <div className="max-w-xs">
-        <label htmlFor="opt-vendor" className="block text-sm font-semibold text-sh-blue mb-1">
+        <label htmlFor="opt-vendor" className="block text-sm font-semibold text-brand-blue mb-1">
           Vendor
         </label>
         <select
           id="opt-vendor"
           value={selectedVendorId ?? ""}
           onChange={(e) => setSelectedVendorId(Number(e.target.value) || null)}
-          className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif bg-white"
+          className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif bg-white"
         >
           <option value="">Select a vendor…</option>
           {vendors.map((v) => (
@@ -461,7 +461,7 @@ export function OptionsView() {
       </div>
 
       {loading && (
-        <div className="flex items-center gap-2 text-sh-gray text-sm">
+        <div className="flex items-center gap-2 text-brand-gray text-sm">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading options…
         </div>
       )}
@@ -473,11 +473,11 @@ export function OptionsView() {
             {groups.map((group) => (
               <div
                 key={group.id}
-                className="bg-white border border-sh-gray/20 rounded-lg shadow-sm"
+                className="bg-white border border-brand-gray/20 rounded-lg shadow-sm"
               >
                 {/* Group header */}
                 <div
-                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-sh-linen/50 transition"
+                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-brand-linen/50 transition"
                   role="button"
                   tabIndex={0}
                   onClick={() => toggleGroup(group.id)}
@@ -490,12 +490,12 @@ export function OptionsView() {
                 >
                   <div className="flex items-center gap-2">
                     {expandedGroups.has(group.id) ? (
-                      <ChevronDown className="w-4 h-4 text-sh-gray" />
+                      <ChevronDown className="w-4 h-4 text-brand-gray" />
                     ) : (
-                      <ChevronRight className="w-4 h-4 text-sh-gray" />
+                      <ChevronRight className="w-4 h-4 text-brand-gray" />
                     )}
-                    <span className="font-semibold text-sh-blue">{group.name}</span>
-                    <span className="text-xs text-sh-gray ml-2">
+                    <span className="font-semibold text-brand-blue">{group.name}</span>
+                    <span className="text-xs text-brand-gray ml-2">
                       {group.options.length} option{group.options.length !== 1 ? "s" : ""}
                     </span>
                   </div>
@@ -514,15 +514,15 @@ export function OptionsView() {
 
                 {/* Expanded options */}
                 {expandedGroups.has(group.id) && (
-                  <div className="border-t border-sh-gray/10 px-4 pb-3">
+                  <div className="border-t border-brand-gray/10 px-4 pb-3">
                     {group.description && (
-                      <p className="text-xs text-sh-gray mt-2 mb-2">{group.description}</p>
+                      <p className="text-xs text-brand-gray mt-2 mb-2">{group.description}</p>
                     )}
 
                     {/* Options table */}
                     <table className="w-full text-sm mt-2">
                       <thead>
-                        <tr className="text-xs text-sh-gray uppercase tracking-wider border-b border-sh-gray/10">
+                        <tr className="text-xs text-brand-gray uppercase tracking-wider border-b border-brand-gray/10">
                           <th className="text-left py-1 font-normal">Option</th>
                           <th className="text-left py-1 font-normal w-32">Type</th>
                           <th className="text-right py-1 font-normal w-28">Surcharge</th>
@@ -531,7 +531,7 @@ export function OptionsView() {
                       </thead>
                       <tbody>
                         {group.options.map((opt) => (
-                          <tr key={opt.id} className="border-b border-sh-gray/5 last:border-0">
+                          <tr key={opt.id} className="border-b border-brand-gray/5 last:border-0">
                             {editingOption === opt.id ? (
                               <OptionEditRow
                                 editForm={editForm}
@@ -567,7 +567,7 @@ export function OptionsView() {
                       <button
                         type="button"
                         onClick={() => startAddOption(group.id)}
-                        className="mt-3 text-xs text-sh-blue hover:text-sh-black flex items-center gap-1"
+                        className="mt-3 text-xs text-brand-blue hover:text-brand-black flex items-center gap-1"
                       >
                         <Plus className="w-3.5 h-3.5" /> Add option
                       </button>
@@ -579,16 +579,16 @@ export function OptionsView() {
           </div>
 
           {groups.length === 0 && !loading && (
-            <p className="text-sh-gray text-sm">No option groups for this vendor yet.</p>
+            <p className="text-brand-gray text-sm">No option groups for this vendor yet.</p>
           )}
 
           {/* New group form */}
           {showNewGroup ? (
-            <div className="bg-sh-linen/50 border border-sh-gray/20 rounded-lg p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-sh-blue">New Option Group</h3>
+            <div className="bg-brand-linen/50 border border-brand-gray/20 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-brand-blue">New Option Group</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="new-group-name" className="block text-xs text-sh-gray mb-1">
+                  <label htmlFor="new-group-name" className="block text-xs text-brand-gray mb-1">
                     Group Name
                   </label>
                   <input
@@ -596,12 +596,12 @@ export function OptionsView() {
                     value={newGroupName}
                     onChange={(e) => setNewGroupName(e.target.value)}
                     placeholder="e.g. Wood Finish Options"
-                    className="w-full border border-sh-gray/40 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-brand-gray/40 rounded-lg px-3 py-2 text-sm"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label htmlFor="new-group-desc" className="block text-xs text-sh-gray mb-1">
+                  <label htmlFor="new-group-desc" className="block text-xs text-brand-gray mb-1">
                     Description (optional)
                   </label>
                   <input
@@ -609,7 +609,7 @@ export function OptionsView() {
                     value={newGroupDesc}
                     onChange={(e) => setNewGroupDesc(e.target.value)}
                     placeholder="e.g. Available wood finishes and stains"
-                    className="w-full border border-sh-gray/40 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-brand-gray/40 rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
               </div>

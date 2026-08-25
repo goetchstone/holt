@@ -57,23 +57,23 @@ export function PagesListView() {
   return (
     <div className="mx-auto max-w-screen-lg px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-sh-blue">Pages</h1>
+        <h1 className="text-2xl font-semibold text-brand-blue">Pages</h1>
         <Link
           href="/app/admin/cms/pages/new"
-          className="rounded-md bg-sh-navy px-4 py-2 text-sm font-medium text-white transition hover:bg-sh-blue"
+          className="rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-blue"
         >
           New page
         </Link>
       </div>
 
       {loading ? (
-        <p className="text-sh-gray">Loading…</p>
+        <p className="text-brand-gray">Loading…</p>
       ) : pages.length === 0 ? (
-        <p className="text-sh-gray">No pages yet. Create your first one.</p>
+        <p className="text-brand-gray">No pages yet. Create your first one.</p>
       ) : (
         <div className="overflow-hidden rounded-md border border-black/10">
           <table className="w-full text-left text-sm">
-            <thead className="bg-sh-stripe text-sh-gray">
+            <thead className="bg-brand-stripe text-brand-gray">
               <tr>
                 <th className="px-4 py-2 font-medium">Title</th>
                 <th className="px-4 py-2 font-medium">Slug</th>
@@ -87,23 +87,23 @@ export function PagesListView() {
                   <td className="px-4 py-2">
                     <Link
                       href={`/app/admin/cms/pages/${page.id}`}
-                      className="font-medium text-sh-navy hover:underline"
+                      className="font-medium text-brand-navy hover:underline"
                     >
                       {page.title}
                     </Link>
                     {page.isHome ? (
-                      <span className="ml-2 rounded bg-sh-gold/20 px-1.5 py-0.5 text-xs text-sh-gold">
+                      <span className="ml-2 rounded bg-brand-gold/20 px-1.5 py-0.5 text-xs text-brand-gold">
                         Home
                       </span>
                     ) : null}
                   </td>
-                  <td className="px-4 py-2 text-sh-gray">/{page.slug}</td>
+                  <td className="px-4 py-2 text-brand-gray">/{page.slug}</td>
                   <td className="px-4 py-2">
                     <span
                       className={
                         page.status === "PUBLISHED"
                           ? "rounded bg-green-100 px-2 py-0.5 text-xs text-green-800"
-                          : "rounded bg-black/5 px-2 py-0.5 text-xs text-sh-gray"
+                          : "rounded bg-black/5 px-2 py-0.5 text-xs text-brand-gray"
                       }
                     >
                       {page.status === "PUBLISHED" ? "Published" : "Draft"}
@@ -113,7 +113,7 @@ export function PagesListView() {
                     <button
                       type="button"
                       onClick={() => remove(page.id, page.title)}
-                      className="text-sm text-sh-gray hover:text-red-600"
+                      className="text-sm text-brand-gray hover:text-red-600"
                     >
                       Delete
                     </button>

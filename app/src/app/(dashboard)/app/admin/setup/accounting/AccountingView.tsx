@@ -78,17 +78,19 @@ function GLAccountsTab({
   return (
     <>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-sh-blue">GL Accounts</h2>
+        <h2 className="text-xl font-semibold text-brand-blue">GL Accounts</h2>
         <Button onClick={onAdd}>+ Add Account</Button>
       </div>
       <table className="w-full text-left">
         <thead>
-          <tr className="border-b border-sh-gray/30">
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">Code</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">Name</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">Type</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">References</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">Status</th>
+          <tr className="border-b border-brand-gray/30">
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">Code</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">Name</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">Type</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">
+              References
+            </th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -96,7 +98,7 @@ function GLAccountsTab({
             <tr
               key={a.id}
               onClick={() => onEdit(a)}
-              className="border-b border-sh-gray/10 hover:bg-sh-linen cursor-pointer"
+              className="border-b border-brand-gray/10 hover:bg-brand-linen cursor-pointer"
             >
               <td className="py-2 px-3 font-medium">{a.code}</td>
               <td className="py-2 px-3">{a.name}</td>
@@ -115,7 +117,7 @@ function GLAccountsTab({
           ))}
           {glAccounts.length === 0 && (
             <tr>
-              <td colSpan={5} className="py-8 text-center text-sh-gray">
+              <td colSpan={5} className="py-8 text-center text-brand-gray">
                 No GL accounts configured.
               </td>
             </tr>
@@ -138,17 +140,17 @@ function AccountGroupsTab({
   return (
     <>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-sh-blue">Account Groups</h2>
+        <h2 className="text-xl font-semibold text-brand-blue">Account Groups</h2>
         <Button onClick={onAdd}>+ Add Group</Button>
       </div>
       <table className="w-full text-left">
         <thead>
-          <tr className="border-b border-sh-gray/30">
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">Name</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">COGS</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">Inventory</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">Sales</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">Returns</th>
+          <tr className="border-b border-brand-gray/30">
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">Name</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">COGS</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">Inventory</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">Sales</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">Returns</th>
           </tr>
         </thead>
         <tbody>
@@ -156,20 +158,22 @@ function AccountGroupsTab({
             <tr
               key={g.id}
               onClick={() => onEdit(g)}
-              className="border-b border-sh-gray/10 hover:bg-sh-linen cursor-pointer"
+              className="border-b border-brand-gray/10 hover:bg-brand-linen cursor-pointer"
             >
               <td className="py-2 px-3 font-medium">{g.name}</td>
-              <td className="py-2 px-3 text-sm text-sh-gray">{formatAccount(g.cogsAccount)}</td>
-              <td className="py-2 px-3 text-sm text-sh-gray">
+              <td className="py-2 px-3 text-sm text-brand-gray">{formatAccount(g.cogsAccount)}</td>
+              <td className="py-2 px-3 text-sm text-brand-gray">
                 {formatAccount(g.inventoryAccount)}
               </td>
-              <td className="py-2 px-3 text-sm text-sh-gray">{formatAccount(g.salesAccount)}</td>
-              <td className="py-2 px-3 text-sm text-sh-gray">{formatAccount(g.returnsAccount)}</td>
+              <td className="py-2 px-3 text-sm text-brand-gray">{formatAccount(g.salesAccount)}</td>
+              <td className="py-2 px-3 text-sm text-brand-gray">
+                {formatAccount(g.returnsAccount)}
+              </td>
             </tr>
           ))}
           {accountGroups.length === 0 && (
             <tr>
-              <td colSpan={5} className="py-8 text-center text-sh-gray">
+              <td colSpan={5} className="py-8 text-center text-brand-gray">
                 No account groups configured.
               </td>
             </tr>
@@ -193,19 +197,19 @@ function SystemMappingSection({
 }) {
   return (
     <div>
-      <h3 className="text-lg font-semibold text-sh-blue mb-3">{SECTION_LABELS[section]}</h3>
+      <h3 className="text-lg font-semibold text-brand-blue mb-3">{SECTION_LABELS[section]}</h3>
       <table className="w-full text-left">
         <thead>
-          <tr className="border-b border-sh-gray/30">
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium w-1/3">Label</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">GL Account</th>
+          <tr className="border-b border-brand-gray/30">
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium w-1/3">Label</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">GL Account</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((m) => {
             const selectId = `system-mapping-${m.id}`;
             return (
-              <tr key={m.id} className="border-b border-sh-gray/10">
+              <tr key={m.id} className="border-b border-brand-gray/10">
                 <td className="py-2 px-3 font-medium">
                   <label htmlFor={selectId}>{m.label}</label>
                 </td>
@@ -214,7 +218,7 @@ function SystemMappingSection({
                     id={selectId}
                     value={m.glAccountId?.toString() || ""}
                     onChange={(e) => onChange(m.id, e.target.value)}
-                    className="w-full border border-sh-gray/30 rounded px-2 py-1.5 text-sm font-serif"
+                    className="w-full border border-brand-gray/30 rounded px-2 py-1.5 text-sm font-serif"
                   >
                     <option value="">-- None --</option>
                     {glAccounts.map((a) => (
@@ -248,14 +252,14 @@ function SystemAccountsTab({
 }) {
   return (
     <>
-      <h2 className="text-xl font-semibold text-sh-blue mb-2">System Account Mappings</h2>
-      <p className="text-sm text-sh-gray mb-6">
+      <h2 className="text-xl font-semibold text-brand-blue mb-2">System Account Mappings</h2>
+      <p className="text-sm text-brand-gray mb-6">
         GL account assignments for POS payments, transaction postings, AR, and inventory
         adjustments. These are set during the nominal codes import and can be adjusted here.
       </p>
 
       {systemMappings.length === 0 ? (
-        <p className="py-8 text-center text-sh-gray">
+        <p className="py-8 text-center text-brand-gray">
           No system mappings configured. Run the Nominal Codes import to populate defaults.
         </p>
       ) : (
@@ -334,7 +338,7 @@ export function AccountingView() {
 
   return (
     <div className="py-8 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue mb-6">Chart of Accounts</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue mb-6">Chart of Accounts</h1>
 
       <Tabs defaultValue="gl-accounts">
         <TabsList>

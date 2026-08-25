@@ -81,15 +81,15 @@ export function BuyerDraftsArchiveView() {
       <header className="mb-6">
         <Link
           href="/app/admin/buyer-drafts"
-          className="text-sm text-sh-blue hover:underline inline-flex items-center gap-1"
+          className="text-sm text-brand-blue hover:underline inline-flex items-center gap-1"
         >
           <ArrowLeft className="h-3 w-3" /> Back to buyer drafts
         </Link>
         <div className="flex items-center gap-2 mt-2">
-          <Archive className="h-6 w-6 text-sh-gray" />
-          <h1 className="font-serif text-3xl text-sh-navy">Past Buys</h1>
+          <Archive className="h-6 w-6 text-brand-gray" />
+          <h1 className="font-serif text-3xl text-brand-navy">Past Buys</h1>
         </div>
-        <p className="text-sm text-sh-gray mt-2 max-w-2xl">
+        <p className="text-sm text-brand-gray mt-2 max-w-2xl">
           Closed buys archive. Use this page to look back at completed buys, pull up the performance
           report for any of them, or drill into the items that landed in each. The main buyer-drafts
           page only shows active buys (planning, open, or in-flight) so you have a clean slate to
@@ -109,7 +109,7 @@ function ArchiveBody({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-sh-gold" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
       </div>
     );
   }
@@ -121,10 +121,10 @@ function ArchiveBody({
 
 function EmptyState() {
   return (
-    <div className="bg-sh-stripe/30 border border-sh-stripe rounded-lg p-12 text-center">
-      <Archive className="h-12 w-12 text-sh-gray mx-auto mb-3" />
-      <h2 className="font-serif text-xl text-sh-navy mb-2">No closed buys yet</h2>
-      <p className="text-sm text-sh-gray max-w-md mx-auto">
+    <div className="bg-brand-stripe/30 border border-brand-stripe rounded-lg p-12 text-center">
+      <Archive className="h-12 w-12 text-brand-gray mx-auto mb-3" />
+      <h2 className="font-serif text-xl text-brand-navy mb-2">No closed buys yet</h2>
+      <p className="text-sm text-brand-gray max-w-md mx-auto">
         Once a buy is finished, set its status to <code>CLOSED</code> from the edit modal and it
         will appear here for historical reporting.
       </p>
@@ -137,19 +137,22 @@ function ArchiveTable({ buys }: Readonly<{ buys: readonly ArchivedBuy[] }>) {
   return (
     <div className="space-y-6">
       {groups.map(([year, yearBuys]) => (
-        <section key={year} className="bg-white border border-sh-stripe rounded-lg overflow-hidden">
-          <div className="px-4 py-2 bg-sh-stripe/50 border-b border-sh-stripe">
-            <h2 className="font-serif text-lg text-sh-navy">
+        <section
+          key={year}
+          className="bg-white border border-brand-stripe rounded-lg overflow-hidden"
+        >
+          <div className="px-4 py-2 bg-brand-stripe/50 border-b border-brand-stripe">
+            <h2 className="font-serif text-lg text-brand-navy">
               {year}{" "}
-              <span className="text-sm text-sh-gray font-sans">
+              <span className="text-sm text-brand-gray font-sans">
                 · {yearBuys.length} {yearBuys.length === 1 ? "buy" : "buys"}
               </span>
             </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase text-sh-gray tracking-wide">
-                <tr className="border-b border-sh-stripe">
+              <thead className="text-left text-xs uppercase text-brand-gray tracking-wide">
+                <tr className="border-b border-brand-stripe">
                   <th className="py-2 px-4">Buy</th>
                   <th className="py-2 px-4">Closed</th>
                   <th className="py-2 px-4 text-right">Budget</th>
@@ -180,20 +183,20 @@ function BuyRow({ buy }: Readonly<{ buy: ArchivedBuy }>) {
     ? `Over budget by ${formatMoney(buy.spent - (budget ?? 0), { whole: true })}`
     : undefined;
   return (
-    <tr className="border-b border-sh-stripe/40 last:border-0 hover:bg-sh-stripe/20">
+    <tr className="border-b border-brand-stripe/40 last:border-0 hover:bg-brand-stripe/20">
       <td className="py-3 px-4">
-        <div className="font-semibold text-sh-navy">{buy.name}</div>
-        {buy.season && <div className="text-xs text-sh-gray">{buy.season}</div>}
+        <div className="font-semibold text-brand-navy">{buy.name}</div>
+        {buy.season && <div className="text-xs text-brand-gray">{buy.season}</div>}
       </td>
-      <td className="py-3 px-4 text-sh-gray text-xs">
+      <td className="py-3 px-4 text-brand-gray text-xs">
         {buy.closedAt ? formatDate(buy.closedAt) : "—"}
       </td>
-      <td className="py-3 px-4 text-right tabular-nums text-sh-gray">
+      <td className="py-3 px-4 text-right tabular-nums text-brand-gray">
         {budget === null ? "—" : formatMoney(budget, { whole: true })}
       </td>
       <td
         className={`py-3 px-4 text-right tabular-nums font-semibold ${
-          overBudget ? "text-red-700" : "text-sh-navy"
+          overBudget ? "text-red-700" : "text-brand-navy"
         }`}
         title={overByTitle}
       >
@@ -205,14 +208,14 @@ function BuyRow({ buy }: Readonly<{ buy: ArchivedBuy }>) {
         <div className="flex items-center justify-end gap-2">
           <Link
             href={`/app/admin/buyer-drafts/buy/${buy.id}/performance`}
-            className="inline-flex items-center gap-1 text-xs text-sh-blue hover:underline min-h-[44px] px-2"
+            className="inline-flex items-center gap-1 text-xs text-brand-blue hover:underline min-h-[44px] px-2"
             title="View performance report"
           >
             <TrendingUp className="h-3.5 w-3.5" /> Performance
           </Link>
           <Link
             href={`/app/admin/buyer-drafts?buyId=${buy.id}`}
-            className="inline-flex items-center gap-1 text-xs text-sh-blue hover:underline min-h-[44px] px-2"
+            className="inline-flex items-center gap-1 text-xs text-brand-blue hover:underline min-h-[44px] px-2"
             title="View items in this buy on the main page"
           >
             <ListChecks className="h-3.5 w-3.5" /> Items

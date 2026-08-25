@@ -49,7 +49,7 @@ const STATUS_BADGE: Record<string, string> = {
   SOLD: "bg-blue-100 text-blue-800",
   RETURNED_VENDOR: "bg-gray-100 text-gray-600",
   MISSING: "bg-red-100 text-red-800",
-  PAID: "bg-sh-gold/20 text-sh-gold",
+  PAID: "bg-brand-gold/20 text-brand-gold",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -129,21 +129,21 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
   }
 
   if (loading) {
-    return <div className="py-8 text-center text-sh-gray font-serif">Loading...</div>;
+    return <div className="py-8 text-center text-brand-gray font-serif">Loading...</div>;
   }
 
   if (!item) {
-    return <div className="py-8 text-center text-sh-gray font-serif">Item not found.</div>;
+    return <div className="py-8 text-center text-brand-gray font-serif">Item not found.</div>;
   }
 
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center gap-3">
-        <Link href="/app/inventory/consignment" className="text-sh-blue hover:underline text-sm">
+        <Link href="/app/inventory/consignment" className="text-brand-blue hover:underline text-sm">
           Consignment
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">{item.barcode}</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">{item.barcode}</h1>
         <span
           className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${badgeClass(
             item.status,
@@ -215,7 +215,7 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
         <ModalShell title="Send on Approval" onClose={() => setApprovalOpen(false)}>
           <div className="space-y-3">
             <div>
-              <label htmlFor="approval-customer" className="block text-xs text-sh-gray mb-1">
+              <label htmlFor="approval-customer" className="block text-xs text-brand-gray mb-1">
                 Customer Name
               </label>
               <input
@@ -223,11 +223,11 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
                 type="text"
                 value={approvalCustomer}
                 onChange={(e) => setApprovalCustomer(e.target.value)}
-                className="border border-sh-gray/40 rounded-lg px-3 min-h-[44px] w-full font-serif text-sh-black"
+                className="border border-brand-gray/40 rounded-lg px-3 min-h-[44px] w-full font-serif text-brand-black"
               />
             </div>
             <div>
-              <label htmlFor="approval-notes" className="block text-xs text-sh-gray mb-1">
+              <label htmlFor="approval-notes" className="block text-xs text-brand-gray mb-1">
                 Notes
               </label>
               <textarea
@@ -235,7 +235,7 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
                 value={approvalNotes}
                 onChange={(e) => setApprovalNotes(e.target.value)}
                 rows={3}
-                className="border border-sh-gray/40 rounded-lg px-3 py-2 w-full font-serif text-sh-black"
+                className="border border-brand-gray/40 rounded-lg px-3 py-2 w-full font-serif text-brand-black"
               />
             </div>
             <Button
@@ -258,7 +258,7 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
         <ModalShell title="Mark as Sold" onClose={() => setSoldOpen(false)}>
           <div className="space-y-3">
             <div>
-              <label htmlFor="sold-customer" className="block text-xs text-sh-gray mb-1">
+              <label htmlFor="sold-customer" className="block text-xs text-brand-gray mb-1">
                 Customer Name
               </label>
               <input
@@ -266,11 +266,11 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
                 type="text"
                 value={soldCustomer}
                 onChange={(e) => setSoldCustomer(e.target.value)}
-                className="border border-sh-gray/40 rounded-lg px-3 min-h-[44px] w-full font-serif text-sh-black"
+                className="border border-brand-gray/40 rounded-lg px-3 min-h-[44px] w-full font-serif text-brand-black"
               />
             </div>
             <div>
-              <label htmlFor="sold-date" className="block text-xs text-sh-gray mb-1">
+              <label htmlFor="sold-date" className="block text-xs text-brand-gray mb-1">
                 Sale Date
               </label>
               <input
@@ -278,7 +278,7 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
                 type="date"
                 value={soldDate}
                 onChange={(e) => setSoldDate(e.target.value)}
-                className="border border-sh-gray/40 rounded-lg px-3 min-h-[44px] w-full font-serif text-sh-black"
+                className="border border-brand-gray/40 rounded-lg px-3 min-h-[44px] w-full font-serif text-brand-black"
               />
             </div>
             <Button
@@ -379,8 +379,8 @@ function StatusActions({
 
 function InfoCard({ title, children }: Readonly<{ title: string; children: ReactNode }>) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-5">
-      <h2 className="text-lg font-semibold text-sh-black mb-3">{title}</h2>
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5">
+      <h2 className="text-lg font-semibold text-brand-black mb-3">{title}</h2>
       <dl className="space-y-2">{children}</dl>
     </div>
   );
@@ -389,8 +389,8 @@ function InfoCard({ title, children }: Readonly<{ title: string; children: React
 function Row({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="flex justify-between text-sm">
-      <dt className="text-sh-gray">{label}</dt>
-      <dd className="text-sh-black font-medium">{value}</dd>
+      <dt className="text-brand-gray">{label}</dt>
+      <dd className="text-brand-black font-medium">{value}</dd>
     </div>
   );
 }
@@ -402,16 +402,16 @@ function ModalShell({
 }: Readonly<{ title: string; onClose: () => void; children: ReactNode }>) {
   return (
     <Dialog open onClose={onClose} className="relative z-50">
-      <DialogBackdrop className="fixed inset-0 bg-sh-black/40" />
+      <DialogBackdrop className="fixed inset-0 bg-brand-black/40" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <DialogPanel className="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-sh-black">{title}</h3>
+            <h3 className="text-lg font-semibold text-brand-black">{title}</h3>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="text-sh-gray hover:text-sh-black min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="text-brand-gray hover:text-brand-black min-h-[44px] min-w-[44px] flex items-center justify-center"
             >
               X
             </button>

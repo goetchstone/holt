@@ -39,7 +39,7 @@ export function SortableItem({
       {showHandle && (
         <button
           type="button"
-          className="flex h-[44px] w-[44px] shrink-0 cursor-grab items-center justify-center text-sh-gray/60 hover:text-sh-gray active:cursor-grabbing"
+          className="flex h-[44px] w-[44px] shrink-0 cursor-grab items-center justify-center text-brand-gray/60 hover:text-brand-gray active:cursor-grabbing"
           style={{ touchAction: "none" }}
           aria-label="Drag to reorder"
           {...listeners}

@@ -34,7 +34,7 @@ function formatPct(value: number | null): string {
 }
 
 function VarCell({ value }: Readonly<{ value: number | null }>) {
-  if (value === null) return <td className="px-3 py-2 text-center text-sm text-sh-gray">--</td>;
+  if (value === null) return <td className="px-3 py-2 text-center text-sm text-brand-gray">--</td>;
   const isNeg = value < 0;
   return (
     <td
@@ -71,42 +71,42 @@ function SectionTable({
       <table className="w-full border-collapse">
         <thead>
           <tr className={headerColor}>
-            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-sh-navy">
+            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-brand-navy">
               {title}
             </th>
             <th
               title={`${valueLabel} from the 1st of the current month through today`}
-              className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+              className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
             >
               {valueLabel} {currentYear} MTD
             </th>
             <th
               title={`${valueLabel} from the 1st of the same month last year through the same day`}
-              className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+              className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
             >
               {valueLabel} {prevYear} MTD
             </th>
             <th
               title="Month-to-date percentage change vs. the same period last year"
-              className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+              className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
             >
               VAR
             </th>
             <th
               title={`${valueLabel} from January 1 through today`}
-              className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+              className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
             >
               {valueLabel} {currentYear} YTD
             </th>
             <th
               title={`${valueLabel} for the same year-to-date period last year`}
-              className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+              className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
             >
               {valueLabel} {prevYear} YTD
             </th>
             <th
               title="Year-to-date percentage change vs. the same period last year"
-              className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+              className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
             >
               VAR
             </th>
@@ -119,10 +119,10 @@ function SectionTable({
             return (
               <tr
                 key={row.category}
-                className={`border-b border-gray-200 ${isAll ? "bg-white font-medium" : i % 2 === 0 ? "bg-sh-stripe" : "bg-white"}`}
+                className={`border-b border-gray-200 ${isAll ? "bg-white font-medium" : i % 2 === 0 ? "bg-brand-stripe" : "bg-white"}`}
               >
                 <td
-                  className={`px-3 py-2 text-sm ${isAll ? "font-semibold text-sh-navy" : "pl-6 italic text-sh-gray"}`}
+                  className={`px-3 py-2 text-sm ${isAll ? "font-semibold text-brand-navy" : "pl-6 italic text-brand-gray"}`}
                 >
                   {row.category}
                 </td>
@@ -196,14 +196,17 @@ export function DesignerDashboardView() {
       <div className="mb-6 flex items-center gap-4 print:hidden">
         {isManager && (
           <>
-            <label htmlFor="designer-dashboard-name" className="text-sm font-medium text-sh-navy">
+            <label
+              htmlFor="designer-dashboard-name"
+              className="text-sm font-medium text-brand-navy"
+            >
               Salesperson
             </label>
             <select
               id="designer-dashboard-name"
               value={selectedName}
               onChange={(e) => setSelectedName(e.target.value)}
-              className="rounded border border-gray-300 px-3 min-h-[44px] text-sm focus:border-sh-gold focus:outline-none focus:ring-1 focus:ring-sh-gold"
+              className="rounded border border-gray-300 px-3 min-h-[44px] text-sm focus:border-brand-gold focus:outline-none focus:ring-1 focus:ring-brand-gold"
             >
               <option value="">Select a salesperson...</option>
               {staff.map((s) => (
@@ -224,7 +227,7 @@ export function DesignerDashboardView() {
               };
               setTimeout(() => globalThis.print(), 100);
             }}
-            className="ml-auto flex items-center gap-2 rounded border border-gray-300 bg-white px-4 py-2 text-sm text-sh-navy hover:bg-sh-linen"
+            className="ml-auto flex items-center gap-2 rounded border border-gray-300 bg-white px-4 py-2 text-sm text-brand-navy hover:bg-brand-linen"
           >
             <Printer className="h-4 w-4" />
             Print
@@ -234,21 +237,21 @@ export function DesignerDashboardView() {
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
         </div>
       )}
 
       {!loading && isManager && !selectedName && (
-        <p className="py-8 text-center text-sm text-sh-gray">Select a salesperson.</p>
+        <p className="py-8 text-center text-sm text-brand-gray">Select a salesperson.</p>
       )}
 
       {!loading && enabled && !data && (
-        <p className="py-8 text-center text-sm text-sh-gray">No data found.</p>
+        <p className="py-8 text-center text-sm text-brand-gray">No data found.</p>
       )}
 
       {data && !loading && (
         <div className="space-y-8">
-          <h2 className="text-lg font-semibold text-sh-navy">
+          <h2 className="text-lg font-semibold text-brand-navy">
             {data.salesperson} Dashboard &mdash; Through{" "}
             {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })} YTD
           </h2>
@@ -266,25 +269,25 @@ export function DesignerDashboardView() {
               <>
                 <th
                   title="Current YTD sales pace projected to a full 12 months"
-                  className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+                  className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
                 >
                   {data.currentYear} Annualized
                 </th>
                 <th
                   title="Number of completed sales orders placed with this designer year-to-date"
-                  className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+                  className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
                 >
                   # Orders {data.currentYear} YTD
                 </th>
                 <th
                   title="Average dollar value per completed sales order this year"
-                  className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+                  className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
                 >
                   Avg Order Value
                 </th>
                 <th
                   title="Average gross margin percentage (selling price minus cost) across all orders this year"
-                  className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+                  className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
                 >
                   Avg Margin YTD
                 </th>
@@ -321,25 +324,25 @@ export function DesignerDashboardView() {
               <>
                 <th
                   title="Number of quotes created by this designer year-to-date"
-                  className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+                  className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
                 >
                   # Quotes {data.currentYear} YTD
                 </th>
                 <th
                   title="Quotes that became orders — count and conversion rate percentage"
-                  className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+                  className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
                 >
                   Converted {data.currentYear} YTD
                 </th>
                 <th
                   title="Average dollar value of quotes created this year"
-                  className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+                  className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
                 >
                   Avg Quote Value
                 </th>
                 <th
                   title="Total value of open quotes not yet converted to orders"
-                  className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+                  className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
                 >
                   Open Quotes Value
                 </th>
@@ -368,66 +371,66 @@ export function DesignerDashboardView() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-yellow-50">
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-sh-navy">
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-brand-navy">
                     HOUSE CALLS
                   </th>
                   <th
                     title="Number of house call appointments completed this month"
-                    className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+                    className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
                   >
                     # Calls {data.currentYear} MTD
                   </th>
                   <th
                     title="Number of house call appointments completed in the same month last year"
-                    className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+                    className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
                   >
                     # Calls {data.prevYear} MTD
                   </th>
                   <th
                     title="Month-to-date percentage change in house calls vs. last year"
-                    className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+                    className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
                   >
                     VAR
                   </th>
                   <th
                     title="Number of house call appointments completed year-to-date"
-                    className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+                    className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
                   >
                     # Calls {data.currentYear} YTD
                   </th>
                   <th
                     title="Number of house call appointments completed in the same period last year"
-                    className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+                    className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
                   >
                     # Calls {data.prevYear} YTD
                   </th>
                   <th
                     title="Year-to-date percentage change in house calls vs. last year"
-                    className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+                    className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
                   >
                     VAR
                   </th>
                   <th
                     title="Average value of quotes created during or after a house call appointment"
-                    className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+                    className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
                   >
                     Avg HCall Quote Value
                   </th>
                   <th
                     title="House call quotes that converted to placed orders — count and rate"
-                    className="px-3 py-2 text-center text-xs font-semibold text-sh-navy"
+                    className="px-3 py-2 text-center text-xs font-semibold text-brand-navy"
                   >
                     Converted HCall Quotes
                   </th>
                   <th
                     title="Total revenue from orders that originated from a house call appointment"
-                    className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+                    className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
                   >
                     Total HCall Sales YTD
                   </th>
                   <th
                     title="Average order value for sales that started as house calls"
-                    className="px-3 py-2 text-right text-xs font-semibold text-sh-navy"
+                    className="px-3 py-2 text-right text-xs font-semibold text-brand-navy"
                   >
                     Avg HCall Sale Value
                   </th>
@@ -435,7 +438,7 @@ export function DesignerDashboardView() {
               </thead>
               <tbody>
                 <tr className="border-b border-gray-200 bg-white">
-                  <td className="px-3 py-2 text-sm font-semibold text-sh-navy" />
+                  <td className="px-3 py-2 text-sm font-semibold text-brand-navy" />
                   <td className="px-3 py-2 text-center text-sm font-medium">
                     {data.houseCalls.mtd}
                   </td>

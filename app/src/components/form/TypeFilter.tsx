@@ -15,7 +15,7 @@ export default function TypeFilter({
 }) {
   return (
     <div>
-      <label className="font-serif text-sh-black mb-1 block">Type</label>
+      <label className="font-serif text-brand-black mb-1 block">Type</label>
       <select
         name="typeId"
         value={value}

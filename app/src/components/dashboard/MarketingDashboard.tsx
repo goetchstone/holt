@@ -65,12 +65,12 @@ export default function MarketingDashboard() {
     <div className="flex flex-col md:flex-row gap-6">
       {/* Campaign List */}
       <div className="md:w-1/2 border rounded p-4 bg-white shadow">
-        <h2 className="text-xl font-serif text-sh-blue mb-2">Campaigns</h2>
+        <h2 className="text-xl font-serif text-brand-blue mb-2">Campaigns</h2>
         <ul className="space-y-2">
           {campaigns.map((campaign) => (
             <li
               key={campaign.id}
-              className="cursor-pointer hover:bg-sh-gray p-2 rounded transition"
+              className="cursor-pointer hover:bg-brand-gray p-2 rounded transition"
               role="button"
               tabIndex={0}
               onClick={() => handleCampaignClick(campaign)}
@@ -82,7 +82,7 @@ export default function MarketingDashboard() {
               }}
             >
               <div className="font-semibold">{campaign.title}</div>
-              <div className="text-sm text-sh-black">
+              <div className="text-sm text-brand-black">
                 {campaign.status} • {campaign.emails_sent} sent •{" "}
                 {campaign.send_time ? format(new Date(campaign.send_time), "PPpp") : "Not sent"}
               </div>
@@ -93,7 +93,7 @@ export default function MarketingDashboard() {
 
       {/* Campaign Report */}
       <div className="md:w-1/2 border rounded p-4 bg-white shadow">
-        <h2 className="text-xl font-serif text-sh-blue mb-2">Campaign Report</h2>
+        <h2 className="text-xl font-serif text-brand-blue mb-2">Campaign Report</h2>
         {selectedCampaign && campaignReport ? (
           <div className="space-y-2">
             <div className="font-serif text-lg">{campaignReport.subject_line}</div>
@@ -110,7 +110,7 @@ export default function MarketingDashboard() {
             <div>Unsubscribes: {campaignReport.unsubscribes}</div>
           </div>
         ) : (
-          <div className="text-sh-black">Select a campaign to view details.</div>
+          <div className="text-brand-black">Select a campaign to view details.</div>
         )}
       </div>
     </div>

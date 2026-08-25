@@ -143,14 +143,14 @@ export function GenericImportView() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-serif text-sh-navy">Import Data</h1>
-        <p className="mt-1 text-sm text-sh-gray">
+        <h1 className="text-2xl font-serif text-brand-navy">Import Data</h1>
+        <p className="mt-1 text-sm text-brand-gray">
           Upload a spreadsheet exported from any system and map its columns to the fields below.
         </p>
       </div>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-sh-navy">What are you importing?</legend>
+        <legend className="text-sm font-medium text-brand-navy">What are you importing?</legend>
         <div className="flex flex-wrap gap-2">
           {IMPORT_ENTITIES.map((e) => (
             <button
@@ -159,19 +159,19 @@ export function GenericImportView() {
               onClick={() => handleEntityChange(e.key)}
               className={`min-h-[44px] rounded border px-4 text-sm transition-colors ${
                 e.key === entityKey
-                  ? "border-sh-navy bg-sh-navy text-white"
-                  : "border-gray-300 bg-white text-sh-navy hover:bg-sh-linen"
+                  ? "border-brand-navy bg-brand-navy text-white"
+                  : "border-gray-300 bg-white text-brand-navy hover:bg-brand-linen"
               }`}
             >
               {e.label}
             </button>
           ))}
         </div>
-        <p className="text-sm text-sh-gray">{entity.description}</p>
+        <p className="text-sm text-brand-gray">{entity.description}</p>
       </fieldset>
 
       <div className="rounded-lg border border-gray-200 p-4">
-        <label htmlFor="generic-import-file" className="block text-sm font-medium text-sh-navy">
+        <label htmlFor="generic-import-file" className="block text-sm font-medium text-brand-navy">
           CSV file
         </label>
         <input
@@ -179,10 +179,10 @@ export function GenericImportView() {
           type="file"
           accept=".csv,text/csv"
           onChange={(e) => handleFile(e.target.files?.[0])}
-          className="mt-2 block w-full text-sm text-sh-gray file:mr-4 file:min-h-[44px] file:rounded file:border-0 file:bg-sh-navy file:px-4 file:text-sm file:text-white hover:file:bg-sh-navy/90"
+          className="mt-2 block w-full text-sm text-brand-gray file:mr-4 file:min-h-[44px] file:rounded file:border-0 file:bg-brand-navy file:px-4 file:text-sm file:text-white hover:file:bg-brand-navy/90"
         />
         {fileName && (
-          <p className="mt-2 text-xs text-sh-gray">
+          <p className="mt-2 text-xs text-brand-gray">
             {fileName} — {pluralRows(rows.length)}
           </p>
         )}
@@ -191,15 +191,15 @@ export function GenericImportView() {
       {headers.length > 0 && (
         <>
           <div className="rounded-lg border border-gray-200 overflow-hidden">
-            <div className="bg-sh-linen px-4 py-3">
-              <h2 className="text-sm font-medium text-sh-navy">Map columns</h2>
-              <p className="text-xs text-sh-gray">
+            <div className="bg-brand-linen px-4 py-3">
+              <h2 className="text-sm font-medium text-brand-navy">Map columns</h2>
+              <p className="text-xs text-brand-gray">
                 We matched your columns automatically. Adjust any that are wrong.
               </p>
             </div>
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 text-left text-xs text-sh-gray">
+                <tr className="border-b border-gray-200 text-left text-xs text-brand-gray">
                   <th className="px-4 py-2 font-medium">Field</th>
                   <th className="px-4 py-2 font-medium">Your column</th>
                 </tr>
@@ -208,14 +208,14 @@ export function GenericImportView() {
                 {entity.fields.map((field, i) => (
                   <tr
                     key={field.key}
-                    className={`border-b border-gray-100 ${i % 2 === 1 ? "bg-sh-stripe" : "bg-white"}`}
+                    className={`border-b border-gray-100 ${i % 2 === 1 ? "bg-brand-stripe" : "bg-white"}`}
                   >
                     <td className="px-4 py-3 align-top">
-                      <label htmlFor={`map-${field.key}`} className="font-medium text-sh-navy">
+                      <label htmlFor={`map-${field.key}`} className="font-medium text-brand-navy">
                         {field.label}
                         {field.required && <span className="ml-1 text-red-600">*</span>}
                       </label>
-                      {field.help && <p className="mt-0.5 text-xs text-sh-gray">{field.help}</p>}
+                      {field.help && <p className="mt-0.5 text-xs text-brand-gray">{field.help}</p>}
                     </td>
                     <td className="px-4 py-3">
                       <select
@@ -246,14 +246,14 @@ export function GenericImportView() {
 
           {mappedFields.length > 0 && (
             <div className="rounded-lg border border-gray-200 overflow-x-auto">
-              <div className="bg-sh-linen px-4 py-3">
-                <h2 className="text-sm font-medium text-sh-navy">
+              <div className="bg-brand-linen px-4 py-3">
+                <h2 className="text-sm font-medium text-brand-navy">
                   Preview (first {Math.min(PREVIEW_ROWS, rows.length)} rows)
                 </h2>
               </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 text-left text-xs text-sh-gray">
+                  <tr className="border-b border-gray-200 text-left text-xs text-brand-gray">
                     {mappedFields.map((f) => (
                       <th key={f.key} className="whitespace-nowrap px-4 py-2 font-medium">
                         {f.label}
@@ -265,10 +265,10 @@ export function GenericImportView() {
                   {rows.slice(0, PREVIEW_ROWS).map((row, idx) => (
                     <tr
                       key={idx}
-                      className={`border-b border-gray-100 ${idx % 2 === 1 ? "bg-sh-stripe" : "bg-white"}`}
+                      className={`border-b border-gray-100 ${idx % 2 === 1 ? "bg-brand-stripe" : "bg-white"}`}
                     >
                       {mappedFields.map((f) => (
-                        <td key={f.key} className="whitespace-nowrap px-4 py-2 text-sh-navy">
+                        <td key={f.key} className="whitespace-nowrap px-4 py-2 text-brand-navy">
                           {row[mapping[f.key] as string] ?? ""}
                         </td>
                       ))}
@@ -289,7 +289,7 @@ export function GenericImportView() {
 
       {result && (
         <div className="rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-sh-navy">
+          <p className="text-sm text-brand-navy">
             Imported <span className="font-medium">{result.imported}</span>, skipped{" "}
             <span className="font-medium">{result.skipped}</span>.
           </p>
@@ -298,7 +298,7 @@ export function GenericImportView() {
               <p className="text-sm font-medium text-red-600">
                 {pluralRows(result.errors.length)} had errors:
               </p>
-              <ul className="mt-1 list-inside list-disc text-xs text-sh-gray">
+              <ul className="mt-1 list-inside list-disc text-xs text-brand-gray">
                 {result.errors.slice(0, 10).map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}

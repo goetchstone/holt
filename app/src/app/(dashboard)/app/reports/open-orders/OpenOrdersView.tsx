@@ -45,8 +45,8 @@ export function OpenOrdersView({ data }: { data: OpenOrdersReport }) {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-serif font-semibold text-sh-black">Open Orders</h1>
-        <p className="text-xs text-sh-gray mt-1 font-sans">
+        <h1 className="text-2xl font-serif font-semibold text-brand-black">Open Orders</h1>
+        <p className="text-xs text-brand-gray mt-1 font-sans">
           Outstanding purchase orders and customer deposit balances
         </p>
       </div>

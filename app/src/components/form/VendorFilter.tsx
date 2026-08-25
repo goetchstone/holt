@@ -18,7 +18,7 @@ export default function VendorFilter({
   if (loading) {
     return (
       <div>
-        <label className="font-serif text-sh-black mb-1 block">Vendor</label>
+        <label className="font-serif text-brand-black mb-1 block">Vendor</label>
         <select disabled className="border p-2 w-full">
           <option value="">Loading Vendors...</option>
         </select>
@@ -29,7 +29,7 @@ export default function VendorFilter({
   if (error) {
     return (
       <div>
-        <label className="font-serif text-sh-black mb-1 block">Vendor</label>
+        <label className="font-serif text-brand-black mb-1 block">Vendor</label>
         <select disabled className="border p-2 w-full text-red-600">
           <option value="">Error loading Vendors</option>
         </select>
@@ -39,7 +39,7 @@ export default function VendorFilter({
 
   return (
     <div>
-      <label className="font-serif text-sh-black mb-1 block">Vendor</label>
+      <label className="font-serif text-brand-black mb-1 block">Vendor</label>
       <select
         name="vendorId"
         value={value}

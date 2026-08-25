@@ -64,7 +64,7 @@ interface PODetails {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-sh-gray/20 text-sh-gray",
+  DRAFT: "bg-brand-gray/20 text-brand-gray",
   SUBMITTED: "bg-blue-100 text-blue-800",
   CONFIRMED: "bg-yellow-100 text-yellow-800",
   RECEIVED_PARTIAL: "bg-orange-100 text-orange-800",
@@ -178,7 +178,7 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
     // A 0-qty line came across from the POS as an effectively-cancelled
     // line. Mark it "N/A" so it doesn't read as blocking receipt. GitHub #113.
     if (item.orderedQuantity <= 0) {
-      return { label: "N/A", style: "bg-sh-gray/10 text-sh-gray italic" };
+      return { label: "N/A", style: "bg-brand-gray/10 text-brand-gray italic" };
     }
     if (item.totalReceived >= item.orderedQuantity) {
       return { label: "Received", style: "bg-green-100 text-green-800" };
@@ -186,7 +186,7 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
     if (item.totalReceived > 0) {
       return { label: "Partial", style: "bg-orange-100 text-orange-800" };
     }
-    return { label: "Pending", style: "bg-sh-gray/20 text-sh-gray" };
+    return { label: "Pending", style: "bg-brand-gray/20 text-brand-gray" };
   }
 
   const canSubmit = po.status === "DRAFT";
@@ -198,8 +198,8 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
       {/* Header */}
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue">PO {po.poNumber}</h1>
-          <p className="text-sm text-sh-gray mt-1">
+          <h1 className="text-2xl font-semibold text-brand-blue">PO {po.poNumber}</h1>
+          <p className="text-sm text-brand-gray mt-1">
             {po.vendor.name} -- Ordered {format(new Date(po.orderDate), "PPP")}
           </p>
           <span
@@ -209,15 +209,15 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
           </span>
           {po.salesOrder && (
             <p className="text-sm mt-2">
-              <span className="text-sh-gray">Sales Order: </span>
+              <span className="text-brand-gray">Sales Order: </span>
               <Link
                 href={`/app/sales/orders/${po.salesOrder.id}`}
-                className="text-sh-blue hover:underline font-medium"
+                className="text-brand-blue hover:underline font-medium"
               >
                 {po.salesOrder.orderno}
               </Link>
               {po.salesOrder.customerName && (
-                <span className="text-sh-gray ml-2">({po.salesOrder.customerName})</span>
+                <span className="text-brand-gray ml-2">({po.salesOrder.customerName})</span>
               )}
             </p>
           )}
@@ -302,13 +302,13 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
         <h2 className="text-xl font-semibold mb-3">Acknowledgement</h2>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <label className="block text-sh-gray mb-1" htmlFor="ack-number">
+            <label className="block text-brand-gray mb-1" htmlFor="ack-number">
               Vendor Ack #
             </label>
             <input
               id="ack-number"
               type="text"
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm disabled:bg-sh-linen"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm disabled:bg-brand-linen"
               value={ackNumber}
               onChange={(e) => setAckNumber(e.target.value)}
               onBlur={() => saveField("vendorAckNumber", ackNumber)}
@@ -317,13 +317,13 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
             />
           </div>
           <div>
-            <label className="block text-sh-gray mb-1" htmlFor="ack-date">
+            <label className="block text-brand-gray mb-1" htmlFor="ack-date">
               Ack Date
             </label>
             <input
               id="ack-date"
               type="date"
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm disabled:bg-sh-linen"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm disabled:bg-brand-linen"
               value={ackDate}
               onChange={(e) => {
                 setAckDate(e.target.value);
@@ -333,13 +333,13 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
             />
           </div>
           <div>
-            <label className="block text-sh-gray mb-1" htmlFor="ship-date">
+            <label className="block text-brand-gray mb-1" htmlFor="ship-date">
               Estimated Ship Date
             </label>
             <input
               id="ship-date"
               type="date"
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm disabled:bg-sh-linen"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm disabled:bg-brand-linen"
               value={shipDate}
               onChange={(e) => {
                 setShipDate(e.target.value);
@@ -349,13 +349,13 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
             />
           </div>
           <div>
-            <label className="block text-sh-gray mb-1" htmlFor="delivery-date">
+            <label className="block text-brand-gray mb-1" htmlFor="delivery-date">
               Expected Delivery
             </label>
             <input
               id="delivery-date"
               type="date"
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm disabled:bg-sh-linen"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm disabled:bg-brand-linen"
               value={deliveryDate}
               onChange={(e) => {
                 setDeliveryDate(e.target.value);
@@ -372,7 +372,7 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
         <h2 className="text-xl font-semibold mb-3">Line Items</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-sh-linen text-sh-black">
+            <thead className="bg-brand-linen text-brand-black">
               <tr>
                 <th className="p-2 border-b">Part #</th>
                 <th className="p-2 border-b">Product</th>
@@ -387,15 +387,17 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
               {po.lineItems.map((item) => {
                 const status = lineStatus(item);
                 return (
-                  <tr key={item.id} className="odd:bg-white even:bg-sh-stripe">
+                  <tr key={item.id} className="odd:bg-white even:bg-brand-stripe">
                     <td className="p-2 border-b">{item.partNo || item.productNumber || "--"}</td>
                     <td className="p-2 border-b max-w-[200px] truncate">
                       {item.productName || "--"}
                       {item.selectedGrade && (
-                        <span className="text-xs text-sh-gray ml-1">({item.selectedGrade})</span>
+                        <span className="text-xs text-brand-gray ml-1">({item.selectedGrade})</span>
                       )}
                       {item.salesOrderNo && (
-                        <span className="text-xs text-sh-blue ml-2">SO: {item.salesOrderNo}</span>
+                        <span className="text-xs text-brand-blue ml-2">
+                          SO: {item.salesOrderNo}
+                        </span>
                       )}
                     </td>
                     <td className="p-2 border-b">{item.orderedQuantity}</td>
@@ -423,7 +425,7 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
           <h2 className="text-xl font-semibold mb-3">Receiving Records</h2>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-sh-linen text-sh-black">
+              <thead className="bg-brand-linen text-brand-black">
                 <tr>
                   <th className="p-2 border-b">Date</th>
                   <th className="p-2 border-b">POR #</th>
@@ -436,7 +438,7 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
               </thead>
               <tbody>
                 {allReceivingRecords.map((r) => (
-                  <tr key={r.id} className="odd:bg-white even:bg-sh-stripe">
+                  <tr key={r.id} className="odd:bg-white even:bg-brand-stripe">
                     <td className="p-2 border-b">
                       {r.receivedDate ? format(new Date(r.receivedDate), "PPP") : "--"}
                     </td>
@@ -457,7 +459,7 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
       )}
 
       {/* Audit */}
-      <div className="text-xs text-sh-gray mb-8">
+      <div className="text-xs text-brand-gray mb-8">
         Created: {po.created ? format(new Date(po.created), "PPP") : "N/A"}
         {po.updated && <> | Updated: {format(new Date(po.updated), "PPP")}</>}
       </div>

@@ -85,21 +85,21 @@ export function ReconciliationView() {
   }, [load]);
 
   if (loading) {
-    return <div className="py-8 text-center text-sh-gray font-serif">Loading...</div>;
+    return <div className="py-8 text-center text-brand-gray font-serif">Loading...</div>;
   }
 
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center gap-3">
-        <Link href="/app/inventory/consignment" className="text-sh-blue hover:underline text-sm">
+        <Link href="/app/inventory/consignment" className="text-brand-blue hover:underline text-sm">
           Consignment
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">Reconciliation</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">Reconciliation</h1>
         <div className="ml-auto">
           <Link
             href="/app/inventory/consignment/receiving-gaps"
-            className="text-sm text-sh-blue hover:underline"
+            className="text-sm text-brand-blue hover:underline"
           >
             Receiving Gaps (Manager)
           </Link>
@@ -115,46 +115,46 @@ export function ReconciliationView() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
-        <div className="px-5 py-4 border-b border-sh-gray/20">
-          <h2 className="text-lg font-semibold text-sh-black">On Approval</h2>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
+        <div className="px-5 py-4 border-b border-brand-gray/20">
+          <h2 className="text-lg font-semibold text-brand-black">On Approval</h2>
         </div>
         {approvalItems.length === 0 ? (
-          <div className="px-5 py-6 text-sh-gray text-sm text-center">
+          <div className="px-5 py-6 text-brand-gray text-sm text-center">
             No items currently on approval.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Barcode</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Quality</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Size</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Customer</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Date</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Notes</th>
+                <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Barcode</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Quality</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Size</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Customer</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Date</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Notes</th>
                 </tr>
               </thead>
               <tbody>
                 {approvalItems.map((item, i) => (
                   <tr
                     key={item.id}
-                    className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                    className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
                   >
                     <td className="px-4 py-3">
                       <Link
                         href={`/app/inventory/consignment/${item.id}`}
-                        className="text-sh-blue hover:underline"
+                        className="text-brand-blue hover:underline"
                       >
                         {item.barcode}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-sh-black">{item.quality}</td>
-                    <td className="px-4 py-3 text-sh-black">{item.size}</td>
-                    <td className="px-4 py-3 text-sh-black">{item.approvalCustomerName}</td>
-                    <td className="px-4 py-3 text-sh-black">{formatDate(item.approvalDate)}</td>
-                    <td className="px-4 py-3 text-sh-gray">{item.approvalNotes || "-"}</td>
+                    <td className="px-4 py-3 text-brand-black">{item.quality}</td>
+                    <td className="px-4 py-3 text-brand-black">{item.size}</td>
+                    <td className="px-4 py-3 text-brand-black">{item.approvalCustomerName}</td>
+                    <td className="px-4 py-3 text-brand-black">{formatDate(item.approvalDate)}</td>
+                    <td className="px-4 py-3 text-brand-gray">{item.approvalNotes || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -163,42 +163,46 @@ export function ReconciliationView() {
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
-        <div className="px-5 py-4 border-b border-sh-gray/20">
-          <h2 className="text-lg font-semibold text-sh-black">Missing Items</h2>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
+        <div className="px-5 py-4 border-b border-brand-gray/20">
+          <h2 className="text-lg font-semibold text-brand-black">Missing Items</h2>
         </div>
         {missingItems.length === 0 ? (
-          <div className="px-5 py-6 text-sh-gray text-sm text-center">
+          <div className="px-5 py-6 text-brand-gray text-sm text-center">
             No items currently missing.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Barcode</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Quality</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Size</th>
-                  <th className="text-left px-4 py-3 text-sh-gray font-semibold">Last Location</th>
+                <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Barcode</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Quality</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">Size</th>
+                  <th className="text-left px-4 py-3 text-brand-gray font-semibold">
+                    Last Location
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {missingItems.map((item, i) => (
                   <tr
                     key={item.id}
-                    className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                    className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
                   >
                     <td className="px-4 py-3">
                       <Link
                         href={`/app/inventory/consignment/${item.id}`}
-                        className="text-sh-blue hover:underline"
+                        className="text-brand-blue hover:underline"
                       >
                         {item.barcode}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-sh-black">{item.quality}</td>
-                    <td className="px-4 py-3 text-sh-black">{item.size}</td>
-                    <td className="px-4 py-3 text-sh-black">{item.storeLocation?.name || "-"}</td>
+                    <td className="px-4 py-3 text-brand-black">{item.quality}</td>
+                    <td className="px-4 py-3 text-brand-black">{item.size}</td>
+                    <td className="px-4 py-3 text-brand-black">
+                      {item.storeLocation?.name || "-"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -218,9 +222,9 @@ interface StatCardProps {
 
 function StatCard({ label, value, color }: Readonly<StatCardProps>) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-5 text-center">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5 text-center">
       <div className={`text-3xl font-semibold ${color}`}>{value}</div>
-      <div className="text-sm text-sh-gray mt-1">{label}</div>
+      <div className="text-sm text-brand-gray mt-1">{label}</div>
     </div>
   );
 }

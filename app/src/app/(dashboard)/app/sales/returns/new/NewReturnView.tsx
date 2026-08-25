@@ -204,13 +204,13 @@ export function NewReturnView() {
     <div className="max-w-3xl mx-auto mt-8 font-serif">
       <Link
         href="/app/sales/returns"
-        className="inline-flex items-center text-sm text-sh-gray hover:text-sh-blue transition mb-4"
+        className="inline-flex items-center text-sm text-brand-gray hover:text-brand-blue transition mb-4"
       >
         <ArrowLeft className="w-4 h-4 mr-1" />
         Back to Returns
       </Link>
 
-      <h1 className="text-2xl font-bold text-sh-blue mb-6">Initiate Return</h1>
+      <h1 className="text-2xl font-bold text-brand-blue mb-6">Initiate Return</h1>
 
       {/* Step indicators */}
       <div className="flex items-center gap-2 mb-6">
@@ -219,18 +219,20 @@ export function NewReturnView() {
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
                 step === s
-                  ? "bg-sh-blue text-white"
+                  ? "bg-brand-blue text-white"
                   : step > s
-                    ? "bg-sh-gold text-white"
-                    : "bg-sh-gray/20 text-sh-gray"
+                    ? "bg-brand-gold text-white"
+                    : "bg-brand-gray/20 text-brand-gray"
               }`}
             >
               {s}
             </div>
-            <span className={`text-sm ${step === s ? "text-sh-blue font-medium" : "text-sh-gray"}`}>
+            <span
+              className={`text-sm ${step === s ? "text-brand-blue font-medium" : "text-brand-gray"}`}
+            >
               {s === 1 ? "Find Order" : s === 2 ? "Select Item" : "Return Details"}
             </span>
-            {s < 3 && <div className="w-8 h-px bg-sh-gray/30" />}
+            {s < 3 && <div className="w-8 h-px bg-brand-gray/30" />}
           </div>
         ))}
       </div>
@@ -247,9 +249,9 @@ export function NewReturnView() {
                 onChange={(e) => setOrderSearchInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && searchOrders()}
                 placeholder="Enter order number..."
-                className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm pr-10"
+                className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm pr-10"
               />
-              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sh-gray" />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
             </div>
             <Button size="sm" onClick={searchOrders} disabled={searchLoading}>
               {searchLoading ? "Searching..." : "Search"}
@@ -257,23 +259,23 @@ export function NewReturnView() {
           </div>
 
           {orderSearchResults.length > 0 && (
-            <div className="border border-sh-gray/20 rounded-lg overflow-hidden">
+            <div className="border border-brand-gray/20 rounded-lg overflow-hidden">
               {orderSearchResults.map((order) => (
                 <button
                   key={order.id}
                   onClick={() => handleSelectOrder(order)}
-                  className="w-full text-left px-4 py-3 text-sm hover:bg-sh-linen border-b border-sh-gray/10 last:border-0 transition"
+                  className="w-full text-left px-4 py-3 text-sm hover:bg-brand-linen border-b border-brand-gray/10 last:border-0 transition"
                 >
                   <div className="flex justify-between items-center">
                     <div>
-                      <span className="font-medium text-sh-blue">{order.orderno}</span>
+                      <span className="font-medium text-brand-blue">{order.orderno}</span>
                       {order.customer && (
-                        <span className="text-sh-gray ml-3">
+                        <span className="text-brand-gray ml-3">
                           {order.customer.firstName} {order.customer.lastName}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-sh-gray">
+                    <div className="text-xs text-brand-gray">
                       {order.orderDate
                         ? format(parseLocalDate(order.orderDate), "MM/dd/yyyy")
                         : "-"}
@@ -284,7 +286,7 @@ export function NewReturnView() {
             </div>
           )}
 
-          {orderLoading && <p className="text-sm text-sh-gray mt-3">Loading order details...</p>}
+          {orderLoading && <p className="text-sm text-brand-gray mt-3">Loading order details...</p>}
         </div>
       )}
 
@@ -301,7 +303,7 @@ export function NewReturnView() {
           </div>
 
           {selectedOrder.customer && (
-            <p className="text-sm text-sh-gray mb-4">
+            <p className="text-sm text-brand-gray mb-4">
               Customer: {selectedOrder.customer.firstName} {selectedOrder.customer.lastName}
             </p>
           )}
@@ -312,8 +314,8 @@ export function NewReturnView() {
                 key={item.id}
                 className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
                   selectedLineItemId === item.id
-                    ? "border-sh-blue bg-sh-blue/5"
-                    : "border-sh-gray/20 hover:border-sh-gray/40"
+                    ? "border-brand-blue bg-brand-blue/5"
+                    : "border-brand-gray/20 hover:border-brand-gray/40"
                 }`}
               >
                 <input
@@ -321,11 +323,11 @@ export function NewReturnView() {
                   name="lineItem"
                   checked={selectedLineItemId === item.id}
                   onChange={() => setSelectedLineItemId(item.id)}
-                  className="accent-sh-blue"
+                  className="accent-brand-blue"
                 />
                 <div className="flex-1 text-sm">
                   <p className="font-medium">{item.productName}</p>
-                  <p className="text-sh-gray">
+                  <p className="text-brand-gray">
                     {item.partNo && `Part # ${item.partNo}`}
                     {item.partNo && " | "}
                     Qty: {item.orderedQuantity} | {formatCurrency(item.netPrice)}
@@ -351,7 +353,7 @@ export function NewReturnView() {
             </Button>
           </div>
 
-          <div className="bg-sh-linen rounded-lg p-3 mb-4 text-sm">
+          <div className="bg-brand-linen rounded-lg p-3 mb-4 text-sm">
             <p>
               <span className="font-medium">Order:</span> {selectedOrder.orderno}
             </p>
@@ -371,7 +373,7 @@ export function NewReturnView() {
                 id="return-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm"
+                className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm"
               >
                 <option value="">Select a reason...</option>
                 {REASON_OPTIONS.map((opt) => (
@@ -392,7 +394,7 @@ export function NewReturnView() {
                 value={reasonNotes}
                 onChange={(e) => setReasonNotes(e.target.value)}
                 rows={3}
-                className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm"
+                className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm"
                 placeholder="Additional details about the return..."
               />
             </div>
@@ -409,9 +411,11 @@ export function NewReturnView() {
                 max={selectedLineItem.orderedQuantity}
                 value={quantity}
                 onChange={(e) => setQuantity(Number.parseInt(e.target.value, 10) || 1)}
-                className="w-32 border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm"
+                className="w-32 border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm"
               />
-              <p className="text-xs text-sh-gray mt-1">Max: {selectedLineItem.orderedQuantity}</p>
+              <p className="text-xs text-brand-gray mt-1">
+                Max: {selectedLineItem.orderedQuantity}
+              </p>
             </div>
 
             {/* Pickup Required */}
@@ -421,7 +425,7 @@ export function NewReturnView() {
                   type="checkbox"
                   checked={pickupRequired}
                   onChange={(e) => setPickupRequired(e.target.checked)}
-                  className="accent-sh-blue w-4 h-4"
+                  className="accent-brand-blue w-4 h-4"
                 />
                 <span className="text-sm font-medium">Pickup required</span>
               </label>
@@ -429,7 +433,7 @@ export function NewReturnView() {
 
             {/* Pickup details */}
             {pickupRequired && (
-              <div className="border-l-2 border-sh-blue/20 pl-4 space-y-4">
+              <div className="border-l-2 border-brand-blue/20 pl-4 space-y-4">
                 {/* Address */}
                 <div>
                   <label htmlFor="pickup-address" className="block text-sm font-medium mb-1">
@@ -443,7 +447,7 @@ export function NewReturnView() {
                       onChange={(e) =>
                         setPickupAddressId(e.target.value ? Number(e.target.value) : "")
                       }
-                      className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm"
+                      className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm"
                     >
                       <option value="">Select address...</option>
                       {selectedOrder.customer.addresses.map((addr) => (
@@ -455,7 +459,9 @@ export function NewReturnView() {
                       ))}
                     </select>
                   ) : (
-                    <p className="text-sm text-sh-gray">No addresses on file for this customer.</p>
+                    <p className="text-sm text-brand-gray">
+                      No addresses on file for this customer.
+                    </p>
                   )}
                 </div>
 
@@ -469,7 +475,7 @@ export function NewReturnView() {
                     type="date"
                     value={pickupDate}
                     onChange={(e) => setPickupDate(e.target.value)}
-                    className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm"
+                    className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm"
                   />
                 </div>
 
@@ -482,7 +488,7 @@ export function NewReturnView() {
                     id="pickup-timeslot"
                     value={pickupTimeSlot}
                     onChange={(e) => setPickupTimeSlot(e.target.value)}
-                    className="w-full border border-sh-gray/30 rounded-lg px-3 py-2.5 text-sm"
+                    className="w-full border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm"
                   >
                     <option value="">Select time slot...</option>
                     {TIME_SLOTS.map((slot) => (
@@ -496,7 +502,7 @@ export function NewReturnView() {
             )}
 
             {/* Submit */}
-            <div className="pt-4 border-t border-sh-gray/10 flex gap-2">
+            <div className="pt-4 border-t border-brand-gray/10 flex gap-2">
               <Button onClick={handleSubmit} disabled={submitting || !reason}>
                 {submitting ? "Submitting..." : "Submit Return"}
               </Button>

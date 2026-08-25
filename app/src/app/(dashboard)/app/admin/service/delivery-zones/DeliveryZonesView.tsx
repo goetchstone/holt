@@ -55,7 +55,7 @@ const EMPTY_FORM: ZoneForm = {
 };
 
 function StatusBadge({ active }: { active: boolean }) {
-  const cls = active ? "bg-green-100 text-green-800" : "bg-sh-gray/20 text-sh-gray";
+  const cls = active ? "bg-green-100 text-green-800" : "bg-brand-gray/20 text-brand-gray";
   return (
     <span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{active ? "Active" : "Inactive"}</span>
   );
@@ -74,19 +74,19 @@ function ZoneRow({
 }) {
   return (
     <tr
-      className={`border-b border-sh-gray/10 hover:bg-sh-stripe/50 cursor-pointer ${
-        selected ? "bg-sh-linen" : ""
+      className={`border-b border-brand-gray/10 hover:bg-brand-stripe/50 cursor-pointer ${
+        selected ? "bg-brand-linen" : ""
       }`}
       onClick={onSelect}
     >
-      <td className="px-4 py-2 text-sh-black font-medium">{zone.name}</td>
-      <td className="px-4 py-2 text-sh-gray text-xs">{zone.description || "--"}</td>
-      <td className="px-4 py-2 text-right text-sh-gray">${zone.baseFee.toFixed(2)}</td>
-      <td className="px-4 py-2 text-right text-sh-gray">${zone.perPieceFee.toFixed(2)}</td>
-      <td className="px-4 py-2 text-sh-gray text-xs">
+      <td className="px-4 py-2 text-brand-black font-medium">{zone.name}</td>
+      <td className="px-4 py-2 text-brand-gray text-xs">{zone.description || "--"}</td>
+      <td className="px-4 py-2 text-right text-brand-gray">${zone.baseFee.toFixed(2)}</td>
+      <td className="px-4 py-2 text-right text-brand-gray">${zone.perPieceFee.toFixed(2)}</td>
+      <td className="px-4 py-2 text-brand-gray text-xs">
         {zone.isThirdParty ? zone.carrierName || "Yes" : "No"}
       </td>
-      <td className="px-4 py-2 text-right text-sh-gray">{zone.zipCount}</td>
+      <td className="px-4 py-2 text-right text-brand-gray">{zone.zipCount}</td>
       <td className="px-4 py-2">
         <StatusBadge active={zone.isActive} />
       </td>
@@ -96,7 +96,7 @@ function ZoneRow({
             e.stopPropagation();
             onEdit();
           }}
-          className="text-sm text-sh-blue hover:underline"
+          className="text-sm text-brand-blue hover:underline"
         >
           Edit
         </button>
@@ -199,19 +199,19 @@ function ZipManagementPanel({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-      <h2 className="text-lg font-semibold text-sh-black mb-4">ZIP Codes for {zone.name}</h2>
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+      <h2 className="text-lg font-semibold text-brand-black mb-4">ZIP Codes for {zone.name}</h2>
 
       {/* ZIP Search */}
       <div className="flex items-end gap-3 mb-6">
         <div className="flex-1 max-w-[240px]">
-          <label htmlFor="zipSearch" className="block text-xs font-medium text-sh-gray mb-1">
+          <label htmlFor="zipSearch" className="block text-xs font-medium text-brand-gray mb-1">
             Search ZIP
           </label>
           <input
             id="zipSearch"
             type="text"
-            className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+            className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
             placeholder="Enter ZIP code..."
             value={zipSearchQuery}
             onChange={(e) => {
@@ -226,18 +226,20 @@ function ZipManagementPanel({
         <Button variant="outline" size="sm" disabled={searchingZip} onClick={searchZip}>
           Search
         </Button>
-        {zipSearchResult && <p className="text-sm text-sh-gray self-center">{zipSearchResult}</p>}
+        {zipSearchResult && (
+          <p className="text-sm text-brand-gray self-center">{zipSearchResult}</p>
+        )}
       </div>
 
       {/* Add ZIPs */}
       <div className="mb-6">
-        <label htmlFor="addZips" className="block text-xs font-medium text-sh-gray mb-1">
+        <label htmlFor="addZips" className="block text-xs font-medium text-brand-gray mb-1">
           Add ZIP Codes (comma or newline separated)
         </label>
         <div className="flex gap-3">
           <textarea
             id="addZips"
-            className="border border-sh-gray/30 rounded px-3 py-2 text-sm flex-1"
+            className="border border-brand-gray/30 rounded px-3 py-2 text-sm flex-1"
             rows={3}
             placeholder="06520, 06510, 06511..."
             value={addZipsText}
@@ -267,24 +269,24 @@ function ZipList({
   loading: boolean;
   onRemove: (zip: string) => void;
 }) {
-  if (loading) return <p className="text-sh-gray text-sm">Loading ZIPs...</p>;
+  if (loading) return <p className="text-brand-gray text-sm">Loading ZIPs...</p>;
   if (zips.length === 0)
-    return <p className="text-sh-gray text-sm">No ZIP codes assigned to this zone</p>;
+    return <p className="text-brand-gray text-sm">No ZIP codes assigned to this zone</p>;
   return (
     <div>
-      <p className="text-xs font-medium text-sh-gray mb-2">
+      <p className="text-xs font-medium text-brand-gray mb-2">
         {zips.length} ZIP code{zips.length !== 1 ? "s" : ""}
       </p>
       <div className="flex flex-wrap gap-1.5 max-h-[300px] overflow-y-auto">
         {zips.map((zip) => (
           <span
             key={zip}
-            className="inline-flex items-center gap-1 bg-sh-stripe border border-sh-gray/20 rounded px-2 py-1 text-xs text-sh-black"
+            className="inline-flex items-center gap-1 bg-brand-stripe border border-brand-gray/20 rounded px-2 py-1 text-xs text-brand-black"
           >
             {zip}
             <button
               type="button"
-              className="text-sh-gray hover:text-red-600 ml-0.5 min-w-[16px] min-h-[16px] flex items-center justify-center"
+              className="text-brand-gray hover:text-red-600 ml-0.5 min-w-[16px] min-h-[16px] flex items-center justify-center"
               onClick={() => onRemove(zip)}
               title={`Remove ${zip}`}
             >
@@ -372,44 +374,46 @@ export function DeliveryZonesView() {
   const selectedZone = zones.find((z) => z.id === selectedZoneId) ?? null;
 
   if (loading) {
-    return <p className="text-sh-gray py-8">Loading...</p>;
+    return <p className="text-brand-gray py-8">Loading...</p>;
   }
 
   return (
     <>
       <div className="py-2 space-y-6 font-serif">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl text-sh-blue font-semibold">Delivery Zones</h1>
+          <h1 className="text-2xl text-brand-blue font-semibold">Delivery Zones</h1>
           <Button variant="primary" onClick={() => openZoneModal(null)}>
             Add Zone
           </Button>
         </div>
 
         {/* Zones Table */}
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/20 bg-sh-stripe">
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">Description</th>
-                <th className="text-right px-4 py-3 font-medium text-sh-gray w-[100px]">
+              <tr className="border-b border-brand-gray/20 bg-brand-stripe">
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">Description</th>
+                <th className="text-right px-4 py-3 font-medium text-brand-gray w-[100px]">
                   Base Fee
                 </th>
-                <th className="text-right px-4 py-3 font-medium text-sh-gray w-[110px]">
+                <th className="text-right px-4 py-3 font-medium text-brand-gray w-[110px]">
                   Per-Piece
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray w-[130px]">
+                <th className="text-left px-4 py-3 font-medium text-brand-gray w-[130px]">
                   Third Party
                 </th>
-                <th className="text-right px-4 py-3 font-medium text-sh-gray w-[80px]">ZIPs</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray w-[80px]">Active</th>
-                <th className="text-right px-4 py-3 font-medium text-sh-gray w-[120px]">Actions</th>
+                <th className="text-right px-4 py-3 font-medium text-brand-gray w-[80px]">ZIPs</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray w-[80px]">Active</th>
+                <th className="text-right px-4 py-3 font-medium text-brand-gray w-[120px]">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {zones.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sh-gray">
+                  <td colSpan={8} className="px-4 py-8 text-center text-brand-gray">
                     No delivery zones configured
                   </td>
                 </tr>
@@ -479,7 +483,7 @@ export function DeliveryZonesView() {
               onChange={(e) => setZoneForm((f) => ({ ...f, isThirdParty: e.target.checked }))}
               className="rounded"
             />
-            <label htmlFor="zoneThirdParty" className="text-sm text-sh-gray">
+            <label htmlFor="zoneThirdParty" className="text-sm text-brand-gray">
               Third-party carrier
             </label>
           </div>
@@ -499,7 +503,7 @@ export function DeliveryZonesView() {
               onChange={(e) => setZoneForm((f) => ({ ...f, isActive: e.target.checked }))}
               className="rounded"
             />
-            <label htmlFor="zoneActive" className="text-sm text-sh-gray">
+            <label htmlFor="zoneActive" className="text-sm text-brand-gray">
               Active
             </label>
           </div>

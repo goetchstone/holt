@@ -36,7 +36,7 @@ export default function Modal({
             transition
             className="w-full max-w-xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all font-serif duration-300 ease-out data-closed:scale-95 data-closed:opacity-0"
           >
-            <DialogTitle as="h3" className="text-xl font-semibold text-sh-blue mb-4">
+            <DialogTitle as="h3" className="text-xl font-semibold text-brand-blue mb-4">
               {title}
             </DialogTitle>
             <div className="mt-2 space-y-4">{children}</div>

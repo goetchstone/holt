@@ -29,8 +29,8 @@ export function LeadMagnetForm({
   const [done, setDone] = useState(false);
 
   const button = dark
-    ? "bg-sh-gold text-sh-navy hover:opacity-90"
-    : "bg-sh-navy text-white hover:bg-sh-blue";
+    ? "bg-brand-gold text-brand-navy hover:opacity-90"
+    : "bg-brand-navy text-white hover:bg-brand-blue";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +59,7 @@ export function LeadMagnetForm({
             Open your download
           </a>
         ) : (
-          <p className={dark ? "text-sh-stripe/80" : "text-sh-gray"}>
+          <p className={dark ? "text-brand-stripe/80" : "text-brand-gray"}>
             Thanks — we&apos;ll be in touch shortly.
           </p>
         )}
@@ -90,7 +90,7 @@ export function LeadMagnetForm({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Name (optional)"
-        className="min-h-[44px] flex-1 rounded-[2px] border border-black/15 bg-white px-3 text-sm text-sh-black"
+        className="min-h-[44px] flex-1 rounded-[2px] border border-black/15 bg-white px-3 text-sm text-brand-black"
       />
       <label className="sr-only" htmlFor="lm-email">
         Email
@@ -102,7 +102,7 @@ export function LeadMagnetForm({
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder={emailPlaceholder}
-        className="min-h-[44px] flex-1 rounded-[2px] border border-black/15 bg-white px-3 text-sm text-sh-black"
+        className="min-h-[44px] flex-1 rounded-[2px] border border-black/15 bg-white px-3 text-sm text-brand-black"
       />
       <button
         type="submit"

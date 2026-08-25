@@ -75,11 +75,11 @@ function IntegrationCard({
   onTest: (provider: string) => void;
 }>) {
   return (
-    <div className="rounded-md border border-sh-brand-gray p-4">
+    <div className="rounded-md border border-brand-accent-gray p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-sh-black">{provider.name}</h3>
-          <p className="text-xs text-sh-gray">{provider.description}</p>
+          <h3 className="text-sm font-semibold text-brand-black">{provider.name}</h3>
+          <p className="text-xs text-brand-gray">{provider.description}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <Button
@@ -99,9 +99,11 @@ function IntegrationCard({
           return (
             <div key={field.key} className="flex flex-wrap items-end gap-2">
               <div className="min-w-[200px] flex-1">
-                <label htmlFor={`cred-${draftKey}`} className="mb-1 block text-xs text-sh-gray">
+                <label htmlFor={`cred-${draftKey}`} className="mb-1 block text-xs text-brand-gray">
                   {field.label}{" "}
-                  <span className="text-sh-brand-gray">({maskFor(provider.id, field.key)})</span>
+                  <span className="text-brand-accent-gray">
+                    ({maskFor(provider.id, field.key)})
+                  </span>
                 </label>
                 <input
                   id={`cred-${draftKey}`}
@@ -110,7 +112,7 @@ function IntegrationCard({
                   placeholder={field.placeholder ?? "Enter new value"}
                   value={drafts[draftKey] ?? ""}
                   onChange={(e) => onDraft(draftKey, e.target.value)}
-                  className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+                  className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
                 />
               </div>
               <Button variant="secondary" size="sm" onClick={() => onSave(provider.id, field.key)}>
@@ -219,7 +221,7 @@ export function IntegrationsView() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 p-8 text-sh-gray">
+      <div className="flex items-center gap-2 p-8 text-brand-gray">
         <Loader2 className="h-5 w-5 animate-spin" /> Loading integrations…
       </div>
     );
@@ -228,8 +230,8 @@ export function IntegrationsView() {
   return (
     <div className="space-y-6 pb-16">
       <div>
-        <h1 className="font-serif text-2xl text-sh-blue">Integrations</h1>
-        <p className="text-xs text-sh-gray">
+        <h1 className="font-serif text-2xl text-brand-blue">Integrations</h1>
+        <p className="text-xs text-brand-gray">
           Keys are encrypted at rest and never shown again. Enter a new value to replace one.
         </p>
       </div>

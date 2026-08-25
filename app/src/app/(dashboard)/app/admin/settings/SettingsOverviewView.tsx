@@ -84,7 +84,7 @@ function BrandingSection({
 }>) {
   return (
     <section className="space-y-4">
-      <h2 className="font-serif text-lg text-sh-blue">Branding</h2>
+      <h2 className="font-serif text-lg text-brand-blue">Branding</h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {TEXT_FIELDS.map((f) =>
           f.image ? (
@@ -98,7 +98,7 @@ function BrandingSection({
             </div>
           ) : (
             <div key={f.key}>
-              <label htmlFor={`field-${f.key}`} className="mb-1 block text-sm text-sh-gray">
+              <label htmlFor={`field-${f.key}`} className="mb-1 block text-sm text-brand-gray">
                 {f.label}
               </label>
               <input
@@ -107,7 +107,7 @@ function BrandingSection({
                 value={(settings[f.key] as string | null) ?? ""}
                 placeholder={f.placeholder}
                 onChange={(e) => onChange(f.key, e.target.value)}
-                className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+                className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
               />
             </div>
           ),
@@ -128,21 +128,21 @@ function ThemeSection({
 }>) {
   return (
     <section className="space-y-4">
-      <h2 className="font-serif text-lg text-sh-blue">Theme colors</h2>
+      <h2 className="font-serif text-lg text-brand-blue">Theme colors</h2>
       <div className="max-w-xs">
-        <label htmlFor="theme-mode" className="mb-1 block text-sm text-sh-gray">
+        <label htmlFor="theme-mode" className="mb-1 block text-sm text-brand-gray">
           Public site chrome
         </label>
         <select
           id="theme-mode"
           value={settings.themeMode}
           onChange={(e) => onModeChange(e.target.value as "light" | "dark")}
-          className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-sm text-brand-black focus:border-brand-blue focus:outline-none"
         >
           <option value="light">Light (white header, linen footer)</option>
           <option value="dark">Dark (full-dark site on brand colors)</option>
         </select>
-        <p className="mt-1 text-xs text-sh-gray">
+        <p className="mt-1 text-xs text-brand-gray">
           Affects the public marketing site only — the back-office stays unchanged.
         </p>
       </div>
@@ -151,7 +151,7 @@ function ThemeSection({
           const themeKey = t.key as keyof typeof settings.theme;
           return (
             <div key={t.key}>
-              <label htmlFor={`theme-${t.key}`} className="mb-1 block text-sm text-sh-gray">
+              <label htmlFor={`theme-${t.key}`} className="mb-1 block text-sm text-brand-gray">
                 {t.label}
               </label>
               <div className="flex items-center gap-2">
@@ -160,14 +160,14 @@ function ThemeSection({
                   type="color"
                   value={settings.theme[themeKey] ?? "#000000"}
                   onChange={(e) => onChange(t.key, e.target.value)}
-                  className="h-10 w-12 cursor-pointer rounded border border-sh-brand-gray"
+                  className="h-10 w-12 cursor-pointer rounded border border-brand-accent-gray"
                 />
                 <input
                   type="text"
                   aria-label={`${t.label} hex`}
                   value={settings.theme[themeKey] ?? ""}
                   onChange={(e) => onChange(t.key, e.target.value)}
-                  className="w-full rounded-md border border-sh-brand-gray px-2 py-2 font-mono text-xs text-sh-black focus:border-sh-blue focus:outline-none"
+                  className="w-full rounded-md border border-brand-accent-gray px-2 py-2 font-mono text-xs text-brand-black focus:border-brand-blue focus:outline-none"
                 />
               </div>
             </div>
@@ -187,11 +187,11 @@ function LocalizationSection({
 }>) {
   return (
     <section className="space-y-4">
-      <h2 className="font-serif text-lg text-sh-blue">Localization</h2>
+      <h2 className="font-serif text-lg text-brand-blue">Localization</h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {(["currency", "locale"] as const).map((key) => (
           <div key={key}>
-            <label htmlFor={`loc-${key}`} className="mb-1 block text-sm capitalize text-sh-gray">
+            <label htmlFor={`loc-${key}`} className="mb-1 block text-sm capitalize text-brand-gray">
               {key}
             </label>
             <input
@@ -199,7 +199,7 @@ function LocalizationSection({
               type="text"
               value={settings[key]}
               onChange={(e) => onChange(key, e.target.value)}
-              className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+              className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
             />
           </div>
         ))}
@@ -208,14 +208,14 @@ function LocalizationSection({
             value Intl cannot parse breaks all three at once. The server
             rejects an unknown zone too -- this just stops it being typed. */}
         <div>
-          <label htmlFor="loc-timezone" className="mb-1 block text-sm text-sh-gray">
+          <label htmlFor="loc-timezone" className="mb-1 block text-sm text-brand-gray">
             Timezone
           </label>
           <select
             id="loc-timezone"
             value={settings.timezone}
             onChange={(e) => onChange("timezone", e.target.value)}
-            className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+            className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
           >
             {!TIME_ZONES.includes(settings.timezone) && (
               <option value={settings.timezone}>{settings.timezone} (not recognised)</option>
@@ -226,7 +226,7 @@ function LocalizationSection({
               </option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-sh-gray">
+          <p className="mt-1 text-xs text-brand-gray">
             The business day every report, journal and reconciliation is measured against.
           </p>
         </div>
@@ -269,15 +269,15 @@ function BookingSection({
 }>) {
   return (
     <section className="space-y-4">
-      <h2 className="font-serif text-lg text-sh-blue">Booking</h2>
-      <p className="text-xs text-sh-gray">
+      <h2 className="font-serif text-lg text-brand-blue">Booking</h2>
+      <p className="text-xs text-brand-gray">
         Controls the public availability picker: how far ahead customers can book, daily business
         hours, and the length of each slot.
       </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
         {BOOKING_FIELDS.map((f) => (
           <div key={f.key}>
-            <label htmlFor={`booking-${f.key}`} className="mb-1 block text-sm text-sh-gray">
+            <label htmlFor={`booking-${f.key}`} className="mb-1 block text-sm text-brand-gray">
               {f.label}
             </label>
             <input
@@ -287,7 +287,7 @@ function BookingSection({
               max={f.max}
               value={config[f.key]}
               onChange={(e) => onChange(f.key, Number(e.target.value))}
-              className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+              className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
             />
           </div>
         ))}
@@ -309,13 +309,13 @@ function ModulesSection({
   const toggleable = getToggleableModules(features);
   return (
     <section className="space-y-4">
-      <h2 className="font-serif text-lg text-sh-blue">Modules</h2>
+      <h2 className="font-serif text-lg text-brand-blue">Modules</h2>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {toggleable.map((m) => (
           <label
             key={m.key}
             htmlFor={`feature-${m.key}`}
-            className="flex cursor-pointer items-start gap-3 rounded-md border border-sh-brand-gray p-3"
+            className="flex cursor-pointer items-start gap-3 rounded-md border border-brand-accent-gray p-3"
           >
             <input
               id={`feature-${m.key}`}
@@ -325,8 +325,8 @@ function ModulesSection({
               className="mt-1 h-4 w-4"
             />
             <span>
-              <span className="block text-sm font-medium text-sh-black">{m.name}</span>
-              <span className="block text-xs text-sh-gray">{m.description}</span>
+              <span className="block text-sm font-medium text-brand-black">{m.name}</span>
+              <span className="block text-xs text-brand-gray">{m.description}</span>
             </span>
           </label>
         ))}
@@ -352,8 +352,8 @@ function ModuleSettingsIndex({
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="font-serif text-lg text-sh-blue">Module settings</h2>
-        <p className="text-xs text-sh-gray">
+        <h2 className="font-serif text-lg text-brand-blue">Module settings</h2>
+        <p className="text-xs text-brand-gray">
           Enabled modules with their own settings or linked pages. Disabled modules don&apos;t
           appear here.
         </p>
@@ -363,10 +363,10 @@ function ModuleSettingsIndex({
           <Link
             key={m.key}
             href={`/app/admin/settings/${m.key}`}
-            className="block rounded-md border border-sh-brand-gray p-3 transition hover:border-sh-blue"
+            className="block rounded-md border border-brand-accent-gray p-3 transition hover:border-brand-blue"
           >
-            <span className="block text-sm font-medium text-sh-black">{m.name}</span>
-            <span className="block text-xs text-sh-gray">{m.description}</span>
+            <span className="block text-sm font-medium text-brand-black">{m.name}</span>
+            <span className="block text-xs text-brand-gray">{m.description}</span>
           </Link>
         ))}
       </div>
@@ -449,7 +449,7 @@ export function SettingsOverviewView() {
 
   if (loading || !settings) {
     return (
-      <div className="flex items-center gap-2 p-8 text-sh-gray">
+      <div className="flex items-center gap-2 p-8 text-brand-gray">
         <Loader2 className="h-5 w-5 animate-spin" /> Loading settings…
       </div>
     );
@@ -458,17 +458,17 @@ export function SettingsOverviewView() {
   return (
     <div className="space-y-10 pb-16">
       <div className="flex items-center justify-between">
-        <h1 className="font-serif text-2xl text-sh-blue">Settings</h1>
+        <h1 className="font-serif text-2xl text-brand-blue">Settings</h1>
         <div className="flex items-center gap-2">
           <Link
             href="/app/admin/settings/configuration"
-            className="inline-flex items-center justify-center rounded-lg border border-sh-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-sh-blue shadow-md transition hover:bg-sh-gray/10"
+            className="inline-flex items-center justify-center rounded-lg border border-brand-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-brand-blue shadow-md transition hover:bg-brand-gray/10"
           >
             Configuration
           </Link>
           <Link
             href="/app/admin/settings/integrations"
-            className="inline-flex items-center justify-center rounded-lg border border-sh-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-sh-blue shadow-md transition hover:bg-sh-gray/10"
+            className="inline-flex items-center justify-center rounded-lg border border-brand-gray px-4 py-2 font-serif-condensed text-sm font-semibold tracking-wide text-brand-blue shadow-md transition hover:bg-brand-gray/10"
           >
             Integrations
           </Link>
