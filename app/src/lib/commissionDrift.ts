@@ -25,6 +25,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sumDesignerSales } from "@/lib/commissionSales";
+import { resolvePlanRulesForStaff } from "@/lib/commissionRules";
 
 /** Tolerance in dollars before we consider a difference "drift". */
 const DRIFT_TOLERANCE = 0.01;
@@ -100,11 +101,16 @@ export async function computeLockedPayoutDrift(opts?: {
     periodEndExclusive.setUTCDate(periodEndExclusive.getUTCDate() + 1);
 
     const matchNames = [row.staffMember.displayName, ...(row.staffMember.aliases ?? [])];
+    // Recompute on the SAME basis the payout was generated on. Comparing a
+    // DELIVERED-basis lock against a WRITTEN-basis recomputation would report
+    // drift on every payout that had none.
+    const rules = await resolvePlanRulesForStaff([row.staffMember.id]);
     const liveYtdAtEnd = await sumDesignerSales(
       row.staffMember.id,
       matchNames,
       yearStart,
       periodEndExclusive,
+      rules.get(row.staffMember.id)?.countsWhen ?? "WRITTEN",
     );
 
     const lockedYtdAtEnd = Number(row.ytdSalesAtEnd);

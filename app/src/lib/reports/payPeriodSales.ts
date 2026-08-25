@@ -20,7 +20,8 @@
 // takes a resolved `staffMemberId` and never decides visibility itself.
 
 import type { PrismaClient } from "@prisma/client";
-import { sumDesignerSales } from "@/lib/commissionSales";
+import { sumDesignerSales, saleWindowWhere } from "@/lib/commissionSales";
+import { resolvePlanRulesForStaff } from "@/lib/commissionRules";
 import { buildLineItemWhere, customerLabel } from "@/lib/salesBySalesperson";
 import {
   payPeriodForDate,
@@ -138,15 +139,21 @@ export async function getPayPeriodSales(
   const matchNames = [staff.displayName, ...(staff.aliases ?? [])];
   const yearStart = new Date(Date.UTC(period.start.getUTCFullYear(), 0, 1));
 
+  // The designer's statement has to be on the SAME basis as their payout, or
+  // the two disagree about which period a sale belongs to and the person
+  // confirming the statement is confirming a different number from the one
+  // they get paid on.
+  const planRules = await resolvePlanRulesForStaff([staff.id]);
+  const basis = planRules.get(staff.id)?.countsWhen ?? "WRITTEN";
+
   // Period + YTD totals via the SAME summer the commission engine uses —
   // designer's number can't diverge from the payout math.
   const [periodTotal, ytdTotal, detailOrders] = await Promise.all([
-    sumDesignerSales(staff.id, matchNames, period.start, period.endExclusive),
-    sumDesignerSales(staff.id, matchNames, yearStart, period.endExclusive),
+    sumDesignerSales(staff.id, matchNames, period.start, period.endExclusive, basis),
+    sumDesignerSales(staff.id, matchNames, yearStart, period.endExclusive, basis),
     prisma.salesOrder.findMany({
       where: {
-        orderDate: { gte: period.start, lt: period.endExclusive },
-        status: { in: [...SALES_REVENUE_STATUSES] },
+        ...saleWindowWhere(basis, period.start, period.endExclusive),
         OR: [
           ...matchNames.map((name) => ({
             salesperson: { equals: name, mode: "insensitive" as const },
