@@ -1,6 +1,6 @@
 // /app/src/lib/auth/builtInRoles.ts
 //
-// Reconciles the eight BUILT_IN_ROLES from permissionCatalog.ts into Role and
+// Reconciles the BUILT_IN_ROLES from permissionCatalog.ts into Role and
 // RolePermission rows. Idempotent and declarative in the same sense as
 // lib/config/applyPreset.ts (CLAUDE.md rule 63): the full diff is computed
 // before anything is written, and a second run writes nothing.

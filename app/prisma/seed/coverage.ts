@@ -28,7 +28,7 @@
 export type SeedStatus = "seeded" | "skipped" | "todo";
 
 /** Which seeder populates a model. `setup.sh` runs all three; CI runs --no-cms. */
-export type Seeder = "demo" | "cms";
+export type Seeder = "demo" | "cms" | "roles";
 
 export interface SeedCoverageEntry {
   status: SeedStatus;
@@ -59,14 +59,14 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
     status: "skipped",
     reason: "Runtime log. Written by the importer as it runs.",
   },
-  AvailabilityWindow: { status: "todo", tranche: "service-scheduling" },
+  AvailabilityWindow: { status: "seeded", seeder: "demo" },
   BlogComment: { status: "todo", tranche: "crm-pipeline" },
-  Booking: { status: "todo", tranche: "service-scheduling" },
+  Booking: { status: "seeded", seeder: "demo" },
   BuyerDraftBuy: { status: "todo", tranche: "buying-consignment" },
   BuyerDraftItem: { status: "todo", tranche: "buying-consignment" },
   BuyerDraftPoRealPoLink: { status: "todo", tranche: "buying-consignment" },
   BuyerDraftPurchaseOrder: { status: "todo", tranche: "buying-consignment" },
-  CalendarBlock: { status: "todo", tranche: "service-scheduling" },
+  CalendarBlock: { status: "seeded", seeder: "demo" },
   CampaignTarget: { status: "todo", tranche: "crm-pipeline" },
   Category: { status: "seeded" },
   Collection: { status: "todo", tranche: "catalog-depth" },
@@ -94,10 +94,10 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   CustomerInteraction: { status: "todo", tranche: "crm-pipeline" },
   CustomerLedgerEntry: { status: "todo", tranche: "money-detail" },
   DailyReconciliationLog: { status: "todo", tranche: "money-detail" },
-  DeliveryRun: { status: "todo", tranche: "geography-delivery" },
-  DeliveryStop: { status: "todo", tranche: "geography-delivery" },
-  DeliveryZone: { status: "todo", tranche: "geography-delivery" },
-  DeliveryZoneZip: { status: "todo", tranche: "geography-delivery" },
+  DeliveryRun: { status: "seeded", seeder: "demo" },
+  DeliveryStop: { status: "seeded", seeder: "demo" },
+  DeliveryZone: { status: "seeded", seeder: "demo" },
+  DeliveryZoneZip: { status: "seeded", seeder: "demo" },
   Department: { status: "seeded" },
   EmailQueue: {
     status: "skipped",
@@ -117,7 +117,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   ImportDefinition: { status: "todo", tranche: "imports" },
   ImportFieldMapping: { status: "todo", tranche: "imports" },
   ImportValueMapping: { status: "todo", tranche: "imports" },
-  Installer: { status: "todo", tranche: "geography-delivery" },
+  Installer: { status: "seeded", seeder: "demo" },
   IntegrationCredential: {
     status: "skipped",
     reason:
@@ -179,12 +179,12 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   Payment: { status: "seeded" },
   PaymentApplication: { status: "todo", tranche: "money-detail" },
   PhysicalInventoryCount: { status: "todo", tranche: "inventory-ops" },
-  PickList: { status: "todo", tranche: "geography-delivery" },
-  PickListItem: { status: "todo", tranche: "geography-delivery" },
+  PickList: { status: "seeded", seeder: "demo" },
+  PickListItem: { status: "seeded", seeder: "demo" },
   Post: { status: "seeded", seeder: "cms" },
   PriceDimensionTier: { status: "todo", tranche: "special-order-pricing" },
   PriceList: { status: "todo", tranche: "special-order-pricing" },
-  Printer: { status: "todo", tranche: "geography-delivery" },
+  Printer: { status: "seeded", seeder: "demo" },
   Product: { status: "seeded" },
   ProductAxisPrice: { status: "todo", tranche: "special-order-pricing" },
   ProductGradePrice: { status: "todo", tranche: "special-order-pricing" },
@@ -201,21 +201,26 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   Reconciliation: { status: "todo", tranche: "money-detail" },
   Register: { status: "seeded" },
   Return: { status: "seeded" },
-  Role: { status: "seeded" },
-  RolePermission: { status: "seeded" },
+  // Owned by `npm run seed:roles`, not the demo seed: docker-entrypoint.sh runs
+  // it on EVERY deploy, because a database with the tables and no roles is one
+  // where nobody can do anything. Marked so `--without roles` exempts them
+  // instead of reporting a regression that is really just a seeder that was
+  // never asked to run.
+  Role: { status: "seeded", seeder: "roles" },
+  RolePermission: { status: "seeded", seeder: "roles" },
   SEComponent: { status: "todo", tranche: "special-order-pricing" },
   SalesGoal: { status: "todo", tranche: "commission-completeness" },
   SalesGoals: { status: "todo", tranche: "commission-completeness" },
   SalesOrder: { status: "seeded" },
-  Service: { status: "todo", tranche: "service-scheduling" },
-  ServiceAppointment: { status: "todo", tranche: "service-scheduling" },
+  Service: { status: "seeded", seeder: "demo" },
+  ServiceAppointment: { status: "seeded", seeder: "demo" },
   ServiceCase: { status: "seeded" },
   ServiceCaseNote: { status: "seeded" },
   ServiceCasePriority: { status: "seeded" },
   ServiceCaseStatus: { status: "seeded" },
   ServiceCaseType: { status: "seeded" },
-  ServiceEmail: { status: "todo", tranche: "service-scheduling" },
-  ServiceTask: { status: "todo", tranche: "service-scheduling" },
+  ServiceEmail: { status: "seeded", seeder: "demo" },
+  ServiceTask: { status: "seeded", seeder: "demo" },
   Session: {
     status: "skipped",
     reason: "NextAuth session state. Created by signing in.",
@@ -230,7 +235,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   StyleSpeciesPrice: { status: "todo", tranche: "special-order-pricing" },
   SystemGLMapping: { status: "seeded" },
   TaxDistrict: { status: "seeded" },
-  TaxDistrictZipCode: { status: "todo", tranche: "geography-delivery" },
+  TaxDistrictZipCode: { status: "seeded", seeder: "demo" },
   TaxExemptReason: { status: "seeded" },
   TaxGroup: { status: "seeded" },
   TaxRule: { status: "seeded" },
@@ -256,7 +261,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   UpBoardEntry: { status: "todo", tranche: "commission-completeness" },
   Upc: { status: "todo", tranche: "catalog-depth" },
   User: { status: "seeded" },
-  Vehicle: { status: "todo", tranche: "geography-delivery" },
+  Vehicle: { status: "seeded", seeder: "demo" },
   Vendor: { status: "seeded" },
   VendorContact: { status: "todo", tranche: "special-order-pricing" },
   VendorOption: { status: "todo", tranche: "special-order-pricing" },
@@ -281,10 +286,8 @@ export const SEED_TRANCHES: readonly string[] = [
   "catalog-depth",
   "special-order-pricing",
   "crm-pipeline",
-  "geography-delivery",
   "inventory-ops",
   "commission-completeness",
-  "service-scheduling",
   "money-detail",
   "buying-consignment",
   "content-comms",

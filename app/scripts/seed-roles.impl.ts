@@ -4,7 +4,7 @@
 // file's header for why the launcher/impl split exists (same reason as
 // apply-preset.mjs: `@/` path aliases need ts-node).
 //
-// Reconciles the eight built-in roles from lib/auth/permissionCatalog.ts into
+// Reconciles the built-in roles from lib/auth/permissionCatalog.ts into
 // Role/RolePermission rows. Idempotent: a second run prints "unchanged" and
 // writes nothing.
 //
@@ -26,6 +26,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
+import { BUILT_IN_ROLES } from "@/lib/auth/permissionCatalog";
 
 async function main(): Promise<void> {
   const dryRun = process.argv.includes("--dry-run");
@@ -43,7 +44,10 @@ async function main(): Promise<void> {
   try {
     const result = await syncBuiltInRoles({ prisma, dryRun });
     if (result.unchanged) {
-      console.log(`seed-roles: unchanged (8 built-in roles already current)${dryRun ? " [dry run]" : ""}`);
+      console.log(
+        `seed-roles: unchanged (${BUILT_IN_ROLES.length} built-in roles already current)` +
+          `${dryRun ? " [dry run]" : ""}`,
+      );
     } else {
       console.log(
         `seed-roles: roles created=${result.rolesCreated} updated=${result.rolesUpdated}, ` +

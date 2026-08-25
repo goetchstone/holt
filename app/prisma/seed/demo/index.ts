@@ -58,6 +58,8 @@ async function main(): Promise<void> {
   const { seedInventory } = await import("./inventory");
   const { seedService } = await import("./service");
   const { seedOperations } = await import("./operations");
+  const { seedDelivery } = await import("./delivery");
+  const { seedScheduling } = await import("./scheduling");
   const { seedCommissionPayouts } = await import("./commissionPayouts");
   const { seedJournalEntries } = await import("./journal");
   const { ORG_SLUG } = await import("./org");
@@ -204,6 +206,19 @@ async function main(): Promise<void> {
     volume.timeEntryCount,
   );
 
+  // Fulfilment sits after service because a DeliveryStop is unique per
+  // ServiceAppointment, and after salesOrders because it delivers those orders.
+  const deliveryResult = await seedDelivery(
+    prisma,
+    rng,
+    staff,
+    locations.stores,
+    accounting.taxDistrictId,
+    new Date(),
+  );
+
+  const schedulingResult = await seedScheduling(prisma, rng, org.organizationId, staff, new Date());
+
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 
   const journalResult = await seedJournalEntries(prisma);
@@ -215,7 +230,8 @@ async function main(): Promise<void> {
   );
   console.log(
     `Service: ${serviceResult.casesCreated} cases (${serviceResult.openCases} open), ` +
-      `${serviceResult.notesCreated} notes, ${serviceResult.typesCreated} case types`,
+      `${serviceResult.notesCreated} notes, ${serviceResult.tasksCreated} tasks, ` +
+      `${serviceResult.emailsCreated} emails, ${serviceResult.typesCreated} case types`,
   );
   console.log(
     `Helpdesk: ${operationsResult.ticketsCreated} tickets (${operationsResult.openTickets} open), ` +
