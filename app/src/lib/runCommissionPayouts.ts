@@ -19,6 +19,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sumDesignerSales, loadDesignerSaleRows } from "@/lib/commissionSales";
+import type { CommissionBasis } from "@/lib/commissionSales";
 import {
   computeRulePayoutForRange,
   bridgeLegacyLockToRuleState,
@@ -77,6 +78,9 @@ export async function computeDesignerYtdSums(
   staff: ActiveDesigner,
   periodStart: Date,
   periodEndExclusive: Date,
+  /** The plan's `countsWhen`. Required, not defaulted -- a default is how the
+   *  setting came to be ignored in the first place. */
+  basis: CommissionBasis,
 ): Promise<{ ytdAtStart: number; ytdAtEnd: number; chainedFromPayoutId: number | null }> {
   const yearStart = new Date(Date.UTC(periodStart.getUTCFullYear(), 0, 1));
   const matchNames = [staff.displayName, ...(staff.aliases ?? [])];
@@ -97,8 +101,14 @@ export async function computeDesignerYtdSums(
 
   const ytdAtStart = priorLock
     ? Number(priorLock.ytdSalesAtEnd)
-    : await sumDesignerSales(staff.id, matchNames, yearStart, periodStart);
-  const ytdAtEnd = await sumDesignerSales(staff.id, matchNames, yearStart, periodEndExclusive);
+    : await sumDesignerSales(staff.id, matchNames, yearStart, periodStart, basis);
+  const ytdAtEnd = await sumDesignerSales(
+    staff.id,
+    matchNames,
+    yearStart,
+    periodEndExclusive,
+    basis,
+  );
 
   return {
     ytdAtStart,
@@ -134,6 +144,7 @@ async function computeDesignerRuleState(
   periodStart: Date,
   periodEndExclusive: Date,
   rules: readonly CommissionRuleDef[],
+  basis: CommissionBasis,
 ): Promise<{ priorState: RulePriorState[]; saleRows: CommissionSaleRow[] }> {
   const yearStart = new Date(Date.UTC(periodStart.getUTCFullYear(), 0, 1));
   const matchNames = [staff.displayName, ...(staff.aliases ?? [])];
@@ -163,7 +174,13 @@ async function computeDesignerRuleState(
   // late-landing-return scenario chain continuity + drift detection exist
   // to handle correctly (see computeRuleForYtdOrPeriod's doc comment in
   // lib/commissionRuleEngine.ts).
-  const saleRows = await loadDesignerSaleRows(staff.id, matchNames, yearStart, periodEndExclusive);
+  const saleRows = await loadDesignerSaleRows(
+    staff.id,
+    matchNames,
+    yearStart,
+    periodEndExclusive,
+    basis,
+  );
 
   if (!priorLock) {
     return { priorState: [], saleRows };
@@ -230,16 +247,22 @@ export async function previewPayoutsForPeriod(
     // path — same function, same query, same values as before the rule
     // engine. These stay REVENUE-basis designer-level totals for
     // backward-compatible display regardless of the plan's rules.
+    // The plan decides which date puts a sale in this period -- the day it was
+    // written, or the day it was delivered. `countsWhen` was resolved here and
+    // then dropped before now, so every plan behaved as WRITTEN whatever it said.
+    const basis = resolved.countsWhen;
     const { ytdAtStart, ytdAtEnd } = await computeDesignerYtdSums(
       s,
       periodStart,
       periodEndExclusive,
+      basis,
     );
     const { priorState, saleRows } = await computeDesignerRuleState(
       s,
       periodStart,
       periodEndExclusive,
       resolved.rules,
+      basis,
     );
     const computed = computeRulePayoutForRange({
       staffMemberId: s.id,
