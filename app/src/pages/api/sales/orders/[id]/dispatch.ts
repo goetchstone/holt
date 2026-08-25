@@ -5,8 +5,8 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { success, badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
-import { consume, release } from "@/lib/inventory/allocation";
-import { getActiveOrderLines } from "@/lib/inventory/orderInventorySync";
+import { release } from "@/lib/inventory/allocation";
+import { markHandedOver, handoverMethodFor } from "@/lib/fulfilment/handover";
 
 const VALID_STATUSES = [
   "PO_PLACED",
@@ -66,7 +66,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     const order = await prisma.$transaction(async (tx) => {
       const existing = await tx.salesOrder.findUnique({
         where: { id: orderId },
-        select: { dispatchStatus: true },
+        select: { dispatchStatus: true, deliveryMethod: true },
       });
 
       const updated = await tx.salesOrder.update({ where: { id: orderId }, data: updateData });
@@ -77,8 +77,16 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       // (e.g. this order's stock was already consumed via SalesOrder.status
       // -- see allocation.ts's consume()/release() headers).
       if (dispatchStatus === "FULFILLED" && existing?.dispatchStatus !== "FULFILLED") {
-        const lines = await getActiveOrderLines(orderId, tx);
-        await consume(orderId, lines, tx);
+        // This is the counter's "the customer has it" button -- a collection
+        // off the pickup queue, or a take-with rung at the till. Same event as
+        // a delivery stop completing, so it goes through the same function:
+        // one place decides what handover means.
+        await markHandedOver(tx, {
+          salesOrderId: orderId,
+          at: new Date(),
+          method: handoverMethodFor(deliveryMethod ?? existing?.deliveryMethod),
+          actor: session.user.email,
+        });
       } else if (dispatchStatus === "CANCELLED" && existing?.dispatchStatus !== "CANCELLED") {
         await release(orderId, tx);
       }

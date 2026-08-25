@@ -2550,6 +2550,21 @@ model SalesOrder {
   pickupLocationId      Int?
   pickupLocation        StoreLocation?   @relation("PickupLocation", fields: [pickupLocationId], references: [id])
   scheduledDeliveryDate DateTime?
+  /**
+   * When the goods actually reached the customer -- delivered, collected, or
+   * carried out of the shop. The single canonical handover fact.
+   *
+   * Before this there was no such fact anywhere. Three methods each recorded
+   * handover somewhere different -- DELIVERY on DeliveryStop.completedAt,
+   * PICKUP on dispatchStatus, TAKEN nowhere at all -- while SalesOrder.status
+   * moved independently of all of them from a dropdown. "Delivered" could not
+   * be asked as a question, which is why revenue recognition had nothing to
+   * key on and CommissionPlan.countsWhen = DELIVERED was an inert no-op.
+   *
+   * Written only by markHandedOver() in lib/fulfilment/handover.ts. Null means
+   * the order is still a promise.
+   */
+  deliveredAt           DateTime?
   deliveryNotes         String?
 
   lineItems           OrderLineItem[]
@@ -3886,8 +3901,23 @@ enum DeliveryStopStatus {
   EN_ROUTE
   ARRIVED
   COMPLETED
-  FAILED
 }
+
+// FAILED was removed 2026-08-25. It conflated two different things, both of
+// which are handled properly elsewhere, and served neither:
+//
+//   - The truck went and could not deliver. The delivery HAS NOT HAPPENED; the
+//     stop goes back to PENDING and is rescheduled. Nothing was recognised, so
+//     there is nothing to reverse.
+//   - It was delivered and the customer sent it back. That is a Return with a
+//     pickup: INITIATED -> PICKUP_SCHEDULED -> PICKUP_COMPLETED -> RECEIVED ->
+//     INSPECTED (see lib/returnService.ts).
+//
+// As a terminal state it was also actively harmful: DriverView picks the next
+// stop with `find(s => s.status !== "COMPLETED" && s.status !== "FAILED")`, so
+// a FAILED stop was skipped forever -- never delivered, never invoiced, nobody
+// told. Nothing ever wrote it (0 rows in every database) and the transition
+// table naming it had no callers.
 
 enum PickListStatus {
   CREATED
