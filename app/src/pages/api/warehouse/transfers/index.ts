@@ -88,6 +88,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         toLocationId,
         toStockLocationId,
         quantity,
+        salesOrderId,
         notes,
       } = req.body;
 
@@ -121,6 +122,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         return res.status(400).json({ error: "User record not found." });
       }
 
+      // A transfer FOR an order must name a real one. Accepting a dangling id
+      // would produce exactly the thing this link exists to prevent: a move
+      // nobody can trace back to the sale that needed it.
+      if (salesOrderId != null) {
+        const order = await prisma.salesOrder.findUnique({
+          where: { id: salesOrderId },
+          select: { id: true },
+        });
+        if (!order) {
+          return res.status(400).json({ error: `Sales order ${salesOrderId} not found.` });
+        }
+      }
+
       const transfer = await prisma.inventoryTransfer.create({
         data: {
           productId,
@@ -132,6 +146,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           toLocationId,
           toStockLocationId: toStockLocationId || null,
           notes: notes || null,
+          // The order this move serves, when it serves one. Validated below, so
+          // a bad id is a 400 rather than a transfer silently linked to nothing.
+          salesOrderId: salesOrderId ?? null,
           requestedByUserId: user.id,
           status: "DRAFT",
         },
