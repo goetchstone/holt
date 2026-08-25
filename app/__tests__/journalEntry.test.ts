@@ -38,6 +38,8 @@ const GL = {
   INVENTORY: 12,
   TAX: 20,
   OVER_SHORT: 30,
+  // 40 is taken by GL_SHRINKAGE further down.
+  AR: 50,
 };
 
 function makeLine(overrides: Partial<SalesLineForJournal> = {}): SalesLineForJournal {
@@ -73,6 +75,49 @@ function makePayment(overrides: Partial<SalesPayment> = {}): SalesPayment {
     },
     ...overrides,
   };
+}
+
+/**
+ * Most tests here were written when a PAYMENT recognised its order. Recognition
+ * is now its own input -- the delivery event -- so a fixture has to say which
+ * orders were delivered that day. For every test below that is "the orders these
+ * payments pay for", which is what this expresses.
+ *
+ * Refund rows are excluded: a native refund never recognises anything (see the
+ * `reversesPaymentId` guard in buildJournalLines).
+ *
+ * Tests whose SUBJECT is recognition itself call buildJournalLines directly, so
+ * the new input stays visible where it matters.
+ */
+function build(
+  payments: SalesPayment[],
+  overShortGlId: number | null,
+  depositGlId: number | null,
+  label?: string,
+  /** Withhold it (null) to make an underpayment genuinely unbookable, which is
+   *  what the plug tests need now that a short payment is a receivable. */
+  arGlId: number | null = GL.AR,
+): ReturnType<typeof buildJournalLines> {
+  // Mirror what the loader does: money against an invoiced order settles the
+  // receivable, money against an un-invoiced one is a deposit. Fixtures written
+  // before `settles` existed would otherwise credit BOTH, emitting an AR line
+  // and a deposit line that cancel.
+  const resolved = payments.map((p) =>
+    p.settles
+      ? p
+      : { ...p, settles: p.order?.hasInvoices ? ("RECEIVABLE" as const) : ("DEPOSIT" as const) },
+  );
+
+  const delivered = new Map<number, NonNullable<SalesPayment["order"]>>();
+  for (const p of resolved) {
+    if (p.order?.hasInvoices && p.reversesPaymentId == null) delivered.set(p.order.id, p.order);
+  }
+  const recognitions = [...delivered.values()].map((order) => ({
+    order,
+    priorDepositCredited: 0,
+    orderTotal: round2(order.lineItems.reduce((sum, li) => sum + li.netPrice + li.taxAmount, 0)),
+  }));
+  return buildJournalLines(resolved, overShortGlId, depositGlId, label, recognitions, arGlId);
 }
 
 // ─── Utility functions ──────────────────────────────────────────
@@ -315,7 +360,7 @@ describe("buildJournalLines — returns are sales in reverse (B3)", () => {
         lineItems: [makeLine({ netPrice: -500, cost: -200, taxAmount: -31.75 })],
       },
     };
-    const result = buildJournalLines([refundPayment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([refundPayment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
     expect(result.warnings).toEqual([]);
@@ -363,7 +408,7 @@ describe("buildJournalLines — returns are sales in reverse (B3)", () => {
         lineItems: [makeLine({ netPrice: -1000, cost: -400, taxAmount: -63.5 })],
       },
     };
-    const result = buildJournalLines([sale, ret], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([sale, ret], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(0);
     expect(result.totalCredits).toBe(0);
@@ -400,7 +445,7 @@ describe("buildJournalLines — returns are sales in reverse (B3)", () => {
         lineItems: [makeLine({ netPrice: 600, cost: 240, taxAmount: 38.1 })],
       },
     };
-    const result = buildJournalLines([refundPayment, newSale], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([refundPayment, newSale], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
     expect(result.warnings).toEqual([]);
@@ -431,7 +476,7 @@ describe("buildJournalLines — returns are sales in reverse (B3)", () => {
         lineItems: [makeLine({ netPrice: -1000, cost: -400, taxAmount: -63.5 })],
       },
     };
-    const result = buildJournalLines([refundPayment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([refundPayment], GL.OVER_SHORT, GL.DEPOSIT);
     for (const line of result.lines) {
       expect(line.debit).toBeGreaterThanOrEqual(0);
       expect(line.credit).toBeGreaterThanOrEqual(0);
@@ -479,7 +524,7 @@ describe("buildJournalLines — a native refund does not re-book the original sa
   }
 
   it("books only the cash leg — no second revenue credit", () => {
-    const result = buildJournalLines([nativeRefund()], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([nativeRefund()], GL.OVER_SHORT, GL.DEPOSIT);
 
     // Cash goes out.
     const cash = result.lines.find((l) => l.glAccountId === GL.CASH);
@@ -500,7 +545,7 @@ describe("buildJournalLines — a native refund does not re-book the original sa
     // amount, not which lines it unwinds), so the day does not balance on its
     // own. That is now a $1,063.50 plug WITH a warning -- honest -- rather
     // than a $212.70 plug plus a phantom $1,000 of revenue.
-    const result = buildJournalLines([nativeRefund()], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([nativeRefund()], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
     expect(result.overShort).toBe(-1063.5);
@@ -514,8 +559,8 @@ describe("buildJournalLines — a native refund does not re-book the original sa
     // happens to return first would decide whether the sale is ever booked.
     const sale = makePayment({ order: { ...makePayment().order!, id: 1 } });
 
-    const refundFirst = buildJournalLines([nativeRefund(), sale], GL.OVER_SHORT, GL.DEPOSIT);
-    const saleFirst = buildJournalLines([sale, nativeRefund()], GL.OVER_SHORT, GL.DEPOSIT);
+    const refundFirst = build([nativeRefund(), sale], GL.OVER_SHORT, GL.DEPOSIT);
+    const saleFirst = build([sale, nativeRefund()], GL.OVER_SHORT, GL.DEPOSIT);
 
     for (const result of [refundFirst, saleFirst]) {
       // Recognized exactly once, not zero times and not twice.
@@ -544,7 +589,7 @@ describe("buildJournalLines — a native refund does not re-book the original sa
         lineItems: [makeLine({ netPrice: -500, cost: -200, taxAmount: -31.75 })],
       },
     };
-    const result = buildJournalLines([importedReturn], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([importedReturn], GL.OVER_SHORT, GL.DEPOSIT);
 
     // Full sale-in-reverse, balanced, and with no plug at all.
     expect(result.lines.find((l) => l.glAccountId === GL.REVENUE)?.debit).toBe(500);
@@ -568,7 +613,7 @@ describe("buildJournalLines — a native refund does not re-book the original sa
         lineItems: [],
       },
     });
-    const result = buildJournalLines([depositRefund], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([depositRefund], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.lines.find((l) => l.glAccountId === GL.CASH)?.credit).toBe(500);
     expect(result.lines.find((l) => l.glAccountId === GL.DEPOSIT)?.debit).toBe(500);
@@ -744,7 +789,7 @@ describe("buildJournalLines — B3 classified return branching (restock vs. writ
       },
     };
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
     expect(result.warnings).toEqual([]);
@@ -786,7 +831,7 @@ describe("buildJournalLines — B3 classified return branching (restock vs. writ
       },
     };
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
     expect(result.warnings).toEqual([]);
@@ -844,7 +889,7 @@ describe("buildJournalLines — B3 classified return branching (restock vs. writ
       },
     };
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
     expect(result.warnings).toEqual([]);
@@ -884,7 +929,7 @@ describe("buildJournalLines — B3 classified return branching (restock vs. writ
       },
     };
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
     expect(result.warnings).toEqual(
@@ -946,7 +991,7 @@ describe("buildJournalLines — B3 classified return branching (restock vs. writ
       },
     };
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
 
@@ -1024,7 +1069,7 @@ describe("buildJournalLines", () => {
     // $1063.50 cash payment on an invoiced order:
     // Line item: $1000 net, $63.50 tax, $400 cost
     const payment = makePayment();
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
 
@@ -1076,7 +1121,7 @@ describe("buildJournalLines", () => {
       },
     });
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
 
@@ -1100,7 +1145,7 @@ describe("buildJournalLines", () => {
       },
     });
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT, undefined, null);
 
     expect(result.totalDebits).toBe(result.totalCredits);
 
@@ -1116,7 +1161,7 @@ describe("buildJournalLines", () => {
   it("warns when no Over/Short GL is configured and entry is unbalanced", () => {
     const payment = makePayment({ amount: 1063.0 });
 
-    const result = buildJournalLines([payment], null, GL.DEPOSIT);
+    const result = build([payment], null, GL.DEPOSIT, undefined, null);
 
     expect(result.totalDebits).not.toBe(result.totalCredits);
     expect(result.warnings).toEqual(
@@ -1133,6 +1178,13 @@ describe("buildJournalLines", () => {
   // after the plug the entry genuinely balances.
 
   /** A day whose payment is `short` dollars under revenue + tax. */
+  // A day where the customer paid less than the order came to.
+  //
+  // This used to be a plug outright. It is a RECEIVABLE now -- somebody who
+  // underpays an invoice owes the difference, and Over/Short is for till
+  // discrepancies, not for customers on terms. So these tests withhold the AR
+  // control account: with nowhere to book the receivable, the entry genuinely
+  // cannot balance, which is exactly when the plug should fire and say so.
   function shortDay(short: number): SalesPayment {
     return makePayment({
       amount: round2(1063.5 - short),
@@ -1147,7 +1199,7 @@ describe("buildJournalLines", () => {
   }
 
   it("warns EVERY time the plug fires, naming the amount and the journal", () => {
-    const result = buildJournalLines([shortDay(0.5)], GL.OVER_SHORT, GL.DEPOSIT, "SJ20260501");
+    const result = build([shortDay(0.5)], GL.OVER_SHORT, GL.DEPOSIT, "SJ20260501", null);
 
     // Still balances -- that was never the problem.
     expect(result.totalDebits).toBe(result.totalCredits);
@@ -1155,36 +1207,44 @@ describe("buildJournalLines", () => {
     expect(result.warnings).toEqual(
       expect.arrayContaining([expect.stringContaining("Over/Short plug of $0.50")]),
     );
-    expect(result.warnings[0]).toContain("SJ20260501");
+    // Find the plug warning rather than pinning index 0: withholding the AR
+    // account also warns about the missing mapping, and which lands first is
+    // not the thing under test.
+    expect(result.warnings.find((w) => w.includes("Over/Short plug"))).toContain("SJ20260501");
   });
 
   it("reports the absorbed imbalance as BuildResult.overShort", () => {
     // The only evidence left that the entry did not balance on its own,
     // signed the same way the builder computes it (debits - credits).
-    const short = buildJournalLines([shortDay(0.5)], GL.OVER_SHORT, GL.DEPOSIT);
+    const short = build([shortDay(0.5)], GL.OVER_SHORT, GL.DEPOSIT, undefined, null);
     expect(short.overShort).toBe(-0.5);
 
-    const over = buildJournalLines([shortDay(-0.5)], GL.OVER_SHORT, GL.DEPOSIT);
+    const over = build([shortDay(-0.5)], GL.OVER_SHORT, GL.DEPOSIT, undefined, null);
     expect(over.overShort).toBe(0.5);
   });
 
   it("reports overShort as 0 when the journal balanced on its own", () => {
-    const result = buildJournalLines([makePayment()], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([makePayment()], GL.OVER_SHORT, GL.DEPOSIT);
     expect(result.overShort).toBe(0);
     expect(result.lines.find((l) => l.glAccountId === GL.OVER_SHORT)).toBeUndefined();
     expect(result.warnings).toEqual([]);
   });
 
   it("grades a $0.02 rounding plug as noise and a $12,000 plug as a missing payment", () => {
-    const rounding = buildJournalLines([shortDay(0.02)], GL.OVER_SHORT, GL.DEPOSIT);
-    expect(rounding.warnings[0]).toContain("Over/Short plug of $0.02");
-    expect(rounding.warnings[0]).toContain("Within the $1.00 rounding threshold");
-    expect(rounding.warnings[0]).not.toContain("Do not export");
+    // Withholding the AR account also warns about the missing mapping, so pick
+    // the plug warning out rather than assuming it is first.
+    const plugWarning = (r: ReturnType<typeof build>) =>
+      r.warnings.find((w) => w.includes("Over/Short plug")) ?? "";
 
-    const material = buildJournalLines([shortDay(12000)], GL.OVER_SHORT, GL.DEPOSIT);
-    expect(material.warnings[0]).toContain("Over/Short plug of $12000.00");
-    expect(material.warnings[0]).toContain("above the $1.00 review threshold");
-    expect(material.warnings[0]).toContain("Do not export");
+    const rounding = build([shortDay(0.02)], GL.OVER_SHORT, GL.DEPOSIT, undefined, null);
+    expect(plugWarning(rounding)).toContain("Over/Short plug of $0.02");
+    expect(plugWarning(rounding)).toContain("Within the $1.00 rounding threshold");
+    expect(plugWarning(rounding)).not.toContain("Do not export");
+
+    const material = build([shortDay(12000)], GL.OVER_SHORT, GL.DEPOSIT, undefined, null);
+    expect(plugWarning(material)).toContain("Over/Short plug of $12000.00");
+    expect(plugWarning(material)).toContain("above the $1.00 review threshold");
+    expect(plugWarning(material)).toContain("Do not export");
     expect(Math.abs(material.overShort)).toBe(12000);
   });
 
@@ -1199,7 +1259,7 @@ describe("buildJournalLines", () => {
       },
     });
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.warnings).toEqual(
       expect.arrayContaining([
@@ -1228,7 +1288,7 @@ describe("buildJournalLines", () => {
       },
     });
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.warnings).toEqual(
       expect.arrayContaining([
@@ -1248,7 +1308,7 @@ describe("buildJournalLines", () => {
       },
     });
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.warnings).toEqual(
       expect.arrayContaining([expect.stringContaining('No tax GL account for district "Unknown"')]),
@@ -1267,7 +1327,7 @@ describe("buildJournalLines", () => {
       },
     });
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
 
@@ -1290,7 +1350,7 @@ describe("buildJournalLines", () => {
       order: null,
     });
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     // Negative cash payment becomes a credit (refund out of the cash account)
     const cashLine = result.lines.find((l) => l.glAccountId === GL.CASH);
@@ -1312,7 +1372,7 @@ describe("buildJournalLines", () => {
       makePayment({ amount: 1127, order: sharedOrder }),
     ];
 
-    const result = buildJournalLines(payments, GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build(payments, GL.OVER_SHORT, GL.DEPOSIT);
 
     // Revenue should be $2000 (counted once), not $4000
     const revLine = result.lines.find((l) => l.glAccountId === GL.REVENUE);
@@ -1342,7 +1402,7 @@ describe("buildJournalLines", () => {
       },
     });
 
-    const result = buildJournalLines([payment], GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build([payment], GL.OVER_SHORT, GL.DEPOSIT);
 
     // Gift card should be a debit to the liability account (reducing the liability)
     const gcLine = result.lines.find((l) => l.glAccountId === GL.GC_LIABILITY);
@@ -1408,7 +1468,7 @@ describe("buildJournalLines", () => {
       }),
     ];
 
-    const result = buildJournalLines(payments, GL.OVER_SHORT, GL.DEPOSIT);
+    const result = build(payments, GL.OVER_SHORT, GL.DEPOSIT);
 
     expect(result.totalDebits).toBe(result.totalCredits);
     expect(result.warnings).toHaveLength(0);

@@ -143,6 +143,15 @@ async function seedAccountingFixtures(): Promise<AccountingFixtures> {
   await prisma.systemGLMapping.create({
     data: { section: "POS_PAYMENTS", label: "On Account", glAccountId: deposit.id },
   });
+  // Recognising a sale raises a receivable for whatever is still owed, so the
+  // AR control account has to exist. Without it the generator warns and plugs
+  // rather than inventing a place to put it.
+  const receivable = await prisma.gLAccount.create({
+    data: { code: "1-1100", name: "Accounts Receivable", accountType: "ASSET" },
+  });
+  await prisma.systemGLMapping.create({
+    data: { section: "AR_TRANSACTIONS", label: "Accounts Receivable", glAccountId: receivable.id },
+  });
   await prisma.systemGLMapping.create({
     data: { section: "POS_TRANSACTIONS", label: "Sales Tax", glAccountId: tax.id },
   });
@@ -741,14 +750,20 @@ describe("generateSalesJournal (real DB)", () => {
         paymentAmount: 1063.5,
         withInvoice: true,
       });
-      // Move the sale's payment to the previous day: its revenue belongs to
-      // THAT day's journal, and must not reappear in this one.
+      // Move the sale to the previous day -- BOTH its payment and its invoice.
+      // The invoice date is what decides which day recognises the sale, so
+      // leaving it on today would mean today legitimately recognises this order
+      // and the test would be measuring the wrong thing.
       const salePayment = await prisma.payment.findFirstOrThrow({
         where: { salesOrderId: order.id },
       });
       await prisma.payment.update({
         where: { id: salePayment.id },
         data: { paymentDate: PRIOR_DAY_AT },
+      });
+      await prisma.invoice.updateMany({
+        where: { salesOrderId: order.id },
+        data: { invoiceDate: PRIOR_DAY_AT },
       });
       // processRefund's exact output shape: positive amount, isRefund true,
       // originalPaymentId pointing back at the sale payment.
