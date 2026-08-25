@@ -36,11 +36,23 @@ describe("brand color tokens (globals.css)", () => {
 });
 
 describe("no client initials leak into the rendered DOM", () => {
-  it("no source file uses an sh-* class", () => {
+  it("nothing in the repo names an sh-* token or cookie", () => {
+    // Scoped to src/ when first written, which is exactly how the rename missed
+    // the impersonation COOKIE in two test files: it kept its old name there, so
+    // impersonation silently stopped applying and an ADMIN acting as a DESIGNER
+    // sailed through a permission check CI had to catch.
+    //
+    // (This test cannot name the old prefix in a comment without matching
+    // itself, which is a fair price for a grep that covers everything.)
+    //
+    // Whole app tree now, minus build output and dependencies.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { execSync } = require("node:child_process");
+    const root = path.join(__dirname, "..");
     const out = execSync(
-      `grep -rhoE '\\bsh-[a-z0-9-]+' ${path.join(__dirname, "../src")} || true`,
+      `grep -rhoE '\\bsh-[a-z0-9-]+' ${root} ` +
+        `--include='*.ts' --include='*.tsx' --include='*.css' --include='*.md' --include='*.mjs' ` +
+        `--exclude-dir=node_modules --exclude-dir=.next --exclude-dir=coverage || true`,
       { encoding: "utf8" },
     ).trim();
     expect(out).toBe("");

@@ -106,7 +106,7 @@ describe("decideRoleAccess", () => {
   describe("impersonation cannot escalate", () => {
     test("ADMIN impersonating SUPER_ADMIN does not satisfy a SUPER_ADMIN gate", () => {
       // The whole point of a tier above ADMIN is that ADMIN cannot reach it.
-      // Honouring the cookie verbatim made sh-impersonate a self-serve
+      // Honouring the cookie verbatim made holt-impersonate a self-serve
       // privilege upgrade for anyone already holding ADMIN.
       const d = decideRoleAccess({
         allowedRoles: ["SUPER_ADMIN"],
