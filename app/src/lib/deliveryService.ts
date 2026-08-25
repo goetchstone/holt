@@ -10,12 +10,19 @@ const VALID_RUN_TRANSITIONS: Record<DeliveryRunStatus, DeliveryRunStatus[]> = {
   COMPLETED: [],
 };
 
+// A stop that could not be delivered goes BACK to PENDING and is rescheduled --
+// it is not a terminal failure. The truck going out and coming back is not an
+// outcome, it is an attempt; the delivery simply has not happened yet, nothing
+// was recognised, and there is nothing to reverse. (Goods that were delivered
+// and then sent back are a Return with a pickup -- lib/returnService.ts.)
+//
+// COMPLETED is terminal because handing the goods over is not undoable: it sets
+// SalesOrder.deliveredAt, which recognises the sale.
 const VALID_STOP_TRANSITIONS: Record<DeliveryStopStatus, DeliveryStopStatus[]> = {
-  PENDING: ["EN_ROUTE", "FAILED"],
-  EN_ROUTE: ["ARRIVED", "FAILED"],
-  ARRIVED: ["COMPLETED", "FAILED"],
+  PENDING: ["EN_ROUTE"],
+  EN_ROUTE: ["ARRIVED", "PENDING"],
+  ARRIVED: ["COMPLETED", "PENDING"],
   COMPLETED: [],
-  FAILED: [],
 };
 
 export function isValidRunTransition(from: DeliveryRunStatus, to: DeliveryRunStatus): boolean {
