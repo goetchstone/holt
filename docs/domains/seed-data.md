@@ -59,7 +59,7 @@ and every report would still have looked fine.
 ### Taking a tranche
 
 A **tranche is the unit of delegation**: one self-contained piece of work, and
-"seed the `geography-delivery` tranche" is a complete brief on its own. Run
+"seed the `inventory-ops` tranche" is a complete brief on its own. Run
 `npm run seed:coverage` for the current list.
 
 1. `npm run seed:coverage` — read the models in your tranche.
@@ -69,8 +69,20 @@ A **tranche is the unit of delegation**: one self-contained piece of work, and
 3. **Derive the shape from real data, never the rows.** See below.
 4. Move those models to `{ status: "seeded" }` in `coverage.ts` and drop the
    `tranche` field.
-5. Re-seed and run `npm run seed:coverage`. It must exit 0 — if a model you
+5. Remove the tranche from `SEED_TRANCHES` once it is empty. A declared tranche
+   with no models left in it fails `__tests__/seedCoverage.test.ts`, which is
+   how a finished tranche gets closed out rather than lingering as a heading
+   nobody can take.
+6. Re-seed and run `npm run seed:coverage`. It must exit 0 — if a model you
    claimed is still empty, it says so.
+
+**Which seeder owns it.** `coverage.ts` records a `seeder` per model, and the
+checker takes `--without <seeder>` to exempt the ones that did not run. Three
+exist: `demo` (the default), `cms`, and `roles` — the last because
+`npm run seed:roles` is run by `docker-entrypoint.sh` on every deploy, not by
+the demo seed. Getting this wrong does not fail quietly: a model attributed to
+`demo` but populated by another seeder reports as a REGRESSION on any run that
+did not include it.
 
 ### Deriving realistic data without copying any
 

@@ -27,6 +27,15 @@ import type { StoreSetup } from "./locations";
 
 const SEED_ACTOR = "seed:demo";
 
+const TASK_TITLES = [
+  "Chase vendor for replacement part",
+  "Book fitter for site visit",
+  "Confirm delivery window with customer",
+  "Photograph damage for the claim",
+  "Raise credit request with accounts",
+  "Order replacement hardware",
+];
+
 /** Starting vocabulary. Operator-editable rows, not code constants. */
 const TYPES = ["Warranty Claim", "Delivery Damage", "Missing Parts", "Repair Request", "Other"];
 const PRIORITIES: { name: string; level: number; color: string }[] = [
@@ -59,6 +68,8 @@ export interface ServiceResult {
   casesCreated: number;
   openCases: number;
   notesCreated: number;
+  tasksCreated: number;
+  emailsCreated: number;
 }
 
 export async function seedService(
@@ -75,6 +86,8 @@ export async function seedService(
     casesCreated: 0,
     openCases: 0,
     notesCreated: 0,
+    tasksCreated: 0,
+    emailsCreated: 0,
   };
 
   const typeRows = [];
@@ -157,6 +170,48 @@ export async function seedService(
         },
       });
       result.notesCreated++;
+    }
+
+    // A case is worked through TASKS -- "chase the vendor", "book the fitter" --
+    // and the task board is its own screen. Open cases keep at least one task
+    // outstanding, because a board where everything is done cannot show a
+    // queue, and `waitingOn` is populated on some of them since "blocked on
+    // someone else" is the state a service desk actually lives in.
+    const taskCount = randInt(svcRng, 1, 3);
+    for (let t = 0; t < taskCount; t++) {
+      const done = isClosed || t < taskCount - 1;
+      const assignee = assignees.length > 0 ? pick(svcRng, assignees) : null;
+      await prisma.serviceTask.create({
+        data: {
+          caseId: serviceCase.id,
+          title: pick(svcRng, TASK_TITLES),
+          status: done ? "COMPLETED" : pick(svcRng, ["PENDING", "IN_PROGRESS"] as const),
+          assignedToId: assignee?.id ?? null,
+          waitingOn: !done && randInt(svcRng, 1, 100) <= 40 ? "Vendor" : null,
+          dueDate: new Date(reported.getTime() + (t + 2) * 86_400_000),
+          completedAt: done ? new Date(reported.getTime() + (t + 3) * 86_400_000) : null,
+          createdBy: SEED_ACTOR,
+        },
+      });
+      result.tasksCreated++;
+    }
+
+    // Most cases send the customer at least one email. Without these the case
+    // timeline shows internal notes only, which makes the customer-facing half
+    // of the desk look like it does not exist.
+    if (randInt(svcRng, 1, 100) <= 70) {
+      await prisma.serviceEmail.create({
+        data: {
+          caseId: serviceCase.id,
+          toAddress: `customer${customer.id}@example.com`,
+          subject: `Update on your service case SC-${String(1000 + i)}`,
+          body: "Thanks for your patience -- the replacement part is on its way and we will call to book a fitting slot.",
+          sentAt: new Date(reported.getTime() + 2 * 86_400_000),
+          sentBy: SEED_ACTOR,
+          status: "SENT",
+        },
+      });
+      result.emailsCreated++;
     }
   }
 
