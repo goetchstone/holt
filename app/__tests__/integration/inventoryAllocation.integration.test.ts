@@ -15,6 +15,7 @@
 // The merge cases below are therefore the point of this file, not decoration.
 
 import { prisma } from "@/lib/prisma";
+import { toQty } from "@/lib/inventory/quantity";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { allocate, availableQuantity, consume, release } from "@/lib/inventory/allocation";
 
@@ -108,8 +109,8 @@ describe("inventory allocation (real DB)", () => {
 
     const free = await freeRows(product.id);
     const committed = await prisma.inventoryPosition.findMany({ where: { salesOrderId: order.id } });
-    expect(free.map((r) => r.quantity)).toEqual([3]);
-    expect(committed.map((r) => r.quantity)).toEqual([2]);
+    expect(free.map((r) => toQty(r.quantity))).toEqual([3]);
+    expect(committed.map((r) => toQty(r.quantity))).toEqual([2]);
   });
 
   it("cancelling MERGES stock back instead of fragmenting it", async () => {
@@ -125,7 +126,7 @@ describe("inventory allocation (real DB)", () => {
 
     const free = await freeRows(product.id);
     expect(free).toHaveLength(1);
-    expect(free[0].quantity).toBe(5);
+    expect(toQty(free[0].quantity)).toBe(5);
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(5);
   });
 
@@ -143,7 +144,7 @@ describe("inventory allocation (real DB)", () => {
 
     const free = await freeRows(product.id);
     expect(free).toHaveLength(1);
-    expect(free[0].quantity).toBe(4);
+    expect(toQty(free[0].quantity)).toBe(4);
   });
 
   it("allocating twice for one order merges into a single committed row", async () => {
@@ -158,7 +159,7 @@ describe("inventory allocation (real DB)", () => {
 
     const committed = await prisma.inventoryPosition.findMany({ where: { salesOrderId: order.id } });
     expect(committed).toHaveLength(1);
-    expect(committed[0].quantity).toBe(5);
+    expect(toQty(committed[0].quantity)).toBe(5);
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(4);
   });
 
@@ -280,7 +281,7 @@ describe("inventory allocation (real DB)", () => {
     const heldRow = await prisma.inventoryPosition.findFirst({
       where: { productId: product.id, stockLocationId: held.id },
     });
-    expect(heldRow!.quantity).toBe(6);
+    expect(toQty(heldRow!.quantity)).toBe(6);
     expect(heldRow!.salesOrderId).toBeNull();
   });
 
@@ -303,7 +304,7 @@ describe("inventory allocation (real DB)", () => {
     ]);
     // It took what existed rather than refusing or taking nothing.
     const committed = await prisma.inventoryPosition.findMany({ where: { salesOrderId: order.id } });
-    expect(committed[0].quantity).toBe(1);
+    expect(toQty(committed[0].quantity)).toBe(1);
   });
 
   it("a return line allocates nothing", async () => {
