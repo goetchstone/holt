@@ -152,11 +152,11 @@ export function ConfiguratorView() {
   return (
     <div className="space-y-6 py-2 font-serif">
       {isQuoteMode && (
-        <div className="flex items-center justify-between rounded-lg border border-sh-gold/30 bg-sh-gold/10 px-4 py-2 text-sm text-sh-black">
+        <div className="flex items-center justify-between rounded-lg border border-brand-gold/30 bg-brand-gold/10 px-4 py-2 text-sm text-brand-black">
           <span>Adding to quote -- configure an item and click Add to Quote</span>
           <button
             onClick={() => router.push("/app/sales/quotes/new")}
-            className="font-semibold text-sh-blue transition hover:text-sh-black"
+            className="font-semibold text-brand-blue transition hover:text-brand-black"
           >
             Back to Quote
           </button>
@@ -164,17 +164,17 @@ export function ConfiguratorView() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-sh-blue">Product Configurator</h1>
+        <h1 className="text-2xl font-semibold text-brand-blue">Product Configurator</h1>
 
         <div className="flex items-center gap-3">
-          <label htmlFor="vendor" className="text-sm text-sh-gray">
+          <label htmlFor="vendor" className="text-sm text-brand-gray">
             Vendor:
           </label>
           <select
             id="vendor"
             value={selectedVendorId ?? ""}
             onChange={(e) => setSelectedVendorId(e.target.value ? Number(e.target.value) : null)}
-            className="min-w-[200px] rounded-lg border border-sh-gray bg-white px-3 py-2 text-sm text-sh-black"
+            className="min-w-[200px] rounded-lg border border-brand-gray bg-white px-3 py-2 text-sm text-brand-black"
           >
             <option value="">Select a vendor...</option>
             {vendors.map((v) => (
@@ -188,11 +188,13 @@ export function ConfiguratorView() {
 
       {/* Standard / Signature Elements toggle */}
       {hasSE && !loading && (
-        <div className="flex w-fit items-center gap-1 rounded-lg bg-sh-stripe p-1">
+        <div className="flex w-fit items-center gap-1 rounded-lg bg-brand-stripe p-1">
           <button
             onClick={() => setSEMode(false)}
             className={`rounded-md px-4 py-1.5 font-sans text-sm transition ${
-              !seMode ? "bg-white text-sh-blue shadow-sm" : "text-sh-gray hover:text-sh-black"
+              !seMode
+                ? "bg-white text-brand-blue shadow-sm"
+                : "text-brand-gray hover:text-brand-black"
             }`}
           >
             Standard
@@ -200,7 +202,9 @@ export function ConfiguratorView() {
           <button
             onClick={() => setSEMode(true)}
             className={`rounded-md px-4 py-1.5 font-sans text-sm transition ${
-              seMode ? "bg-white text-sh-blue shadow-sm" : "text-sh-gray hover:text-sh-black"
+              seMode
+                ? "bg-white text-brand-blue shadow-sm"
+                : "text-brand-gray hover:text-brand-black"
             }`}
           >
             Signature Elements
@@ -210,8 +214,8 @@ export function ConfiguratorView() {
 
       {loading && (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="mr-3 h-6 w-6 animate-spin text-sh-blue" />
-          <span className="text-sh-gray">Loading products...</span>
+          <Loader2 className="mr-3 h-6 w-6 animate-spin text-brand-blue" />
+          <span className="text-brand-gray">Loading products...</span>
         </div>
       )}
 
@@ -227,7 +231,7 @@ export function ConfiguratorView() {
 
       {!selectedVendorId && !loading && (
         <div className="py-16 text-center">
-          <p className="text-sh-gray">Select a vendor above to browse products.</p>
+          <p className="text-brand-gray">Select a vendor above to browse products.</p>
         </div>
       )}
 
@@ -238,7 +242,7 @@ export function ConfiguratorView() {
         woodProducts.length === 0 &&
         (!fcData || fcData.frames.length === 0) && (
           <div className="py-16 text-center">
-            <p className="text-sh-gray">No products with pricing data found for this vendor.</p>
+            <p className="text-brand-gray">No products with pricing data found for this vendor.</p>
           </div>
         )}
 

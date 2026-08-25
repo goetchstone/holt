@@ -29,7 +29,7 @@ export default function ScannerLayout({ children, title }: ScannerLayoutProps) {
           content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
         />
       </Head>
-      <header className="w-full bg-sh-blue text-white px-4 py-2 flex items-center justify-between shadow-md">
+      <header className="w-full bg-brand-blue text-white px-4 py-2 flex items-center justify-between shadow-md">
         <h1 className="font-serif text-lg font-bold">
           {session?.user?.name ? `${session.user.name.split(" ")[0]}'s Count` : "Inventory Count"}
         </h1>

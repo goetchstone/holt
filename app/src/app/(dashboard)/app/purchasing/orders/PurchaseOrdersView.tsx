@@ -30,7 +30,7 @@ interface PurchaseOrderRow {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-sh-gray/20 text-sh-gray",
+  DRAFT: "bg-brand-gray/20 text-brand-gray",
   SUBMITTED: "bg-blue-100 text-blue-800",
   CONFIRMED: "bg-yellow-100 text-yellow-800",
   RECEIVED_PARTIAL: "bg-orange-100 text-orange-800",
@@ -108,7 +108,7 @@ export function PurchaseOrdersView() {
             <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-800">Return</span>
           )}
           <span
-            className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[row.status] || "bg-sh-gray/20 text-sh-gray"}`}
+            className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[row.status] || "bg-brand-gray/20 text-brand-gray"}`}
           >
             {STATUS_LABELS[row.status] || row.status}
           </span>
@@ -138,8 +138,8 @@ export function PurchaseOrdersView() {
   ];
 
   return (
-    <div className="py-2 font-serif text-sh-black">
-      <h1 className="mb-4 text-2xl font-semibold text-sh-blue">
+    <div className="py-2 font-serif text-brand-black">
+      <h1 className="mb-4 text-2xl font-semibold text-brand-blue">
         {isReturnView ? "Vendor Returns" : "Purchase Orders"}
       </h1>
       <TableWithFilters<PurchaseOrderRow>

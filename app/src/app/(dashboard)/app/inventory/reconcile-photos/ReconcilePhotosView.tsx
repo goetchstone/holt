@@ -38,7 +38,7 @@ function ScanCard({ scan, onIgnore, onReconcile }: Readonly<ScanCardProps>) {
     <div className="border rounded-lg shadow-sm bg-white overflow-hidden flex flex-col">
       <img src={scan.imageUrl} alt="Unidentified Item" className="w-full h-48 object-cover" />
       <div className="p-3 flex-grow flex flex-col">
-        <p className="text-xs text-sh-gray">
+        <p className="text-xs text-brand-gray">
           {format(new Date(scan.countedAt), "Pp")} by {scan.countedBy?.name || "Unknown"}
         </p>
         <p className="text-sm my-2 flex-grow">{scan.notes || <em>No notes provided.</em>}</p>
@@ -75,7 +75,7 @@ function ScanGrid({
   }
   if (scans.length === 0) {
     return (
-      <p className="text-center text-sh-gray py-8">
+      <p className="text-center text-brand-gray py-8">
         No pending photos to reconcile for {selectedLocation}.
       </p>
     );
@@ -170,7 +170,7 @@ export function ReconcilePhotosView() {
   return (
     <div className="max-w-6xl mx-auto mt-8 font-serif">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-sh-blue">Reconcile Photos</h1>
+        <h1 className="text-2xl font-semibold text-brand-blue">Reconcile Photos</h1>
         <div>
           <label htmlFor="reconcile-location" className="sr-only">
             Location
@@ -229,7 +229,10 @@ export function ReconcilePhotosView() {
           />
           <div className="max-h-60 overflow-y-auto border rounded p-2">
             {searchResults.map((p) => (
-              <div key={p.id} className="p-2 hover:bg-sh-linen flex justify-between items-center">
+              <div
+                key={p.id}
+                className="p-2 hover:bg-brand-linen flex justify-between items-center"
+              >
                 <span>
                   {p.name} ({p.productNumber})
                 </span>

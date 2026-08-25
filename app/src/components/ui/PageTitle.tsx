@@ -8,5 +8,5 @@ interface PageTitleProps {
 }
 
 export function PageTitle({ children, className }: PageTitleProps) {
-  return <h1 className={clsx("text-2xl font-semibold text-sh-blue", className)}>{children}</h1>;
+  return <h1 className={clsx("text-2xl font-semibold text-brand-blue", className)}>{children}</h1>;
 }

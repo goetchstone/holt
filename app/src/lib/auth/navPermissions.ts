@@ -214,7 +214,7 @@ export function getVisibleNavItems(
  * token minted before this shipped) resolves to NOTHING, which is the least
  * this can honestly claim and the safe direction for a menu.
  *
- * Impersonation resolves client-side from the sh-impersonate cookie exactly as
+ * Impersonation resolves client-side from the holt-impersonate cookie exactly as
  * `role` does (useEffectiveRole). The impersonated role's built-in grants are
  * INTERSECTED with what the viewer actually holds, so "View as" can only ever
  * narrow the menu — the same rule roleDecision.ts enforces on the server, where

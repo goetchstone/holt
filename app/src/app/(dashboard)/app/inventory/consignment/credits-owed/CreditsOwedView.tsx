@@ -26,12 +26,12 @@ function formatDate(s: string | null): string {
 
 const STATUS_BADGE: Record<string, string> = {
   PAID: "bg-green-100 text-green-700",
-  ON_FLOOR: "bg-sh-blue/10 text-sh-blue",
+  ON_FLOOR: "bg-brand-blue/10 text-brand-blue",
   SOLD: "bg-amber-100 text-amber-700",
 };
 
 function StatusBadge({ status }: Readonly<{ status: string }>) {
-  const cls = STATUS_BADGE[status] || "bg-gray-100 text-sh-gray";
+  const cls = STATUS_BADGE[status] || "bg-gray-100 text-brand-gray";
   return (
     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}>
       {status.replace("_", " ")}
@@ -71,21 +71,21 @@ export function CreditsOwedView() {
         <div className="flex items-center gap-3">
           <Link
             href="/app/inventory/consignment/payments"
-            className="text-sh-blue hover:underline text-sm"
+            className="text-brand-blue hover:underline text-sm"
           >
             Payments
           </Link>
-          <span className="text-sh-gray">/</span>
-          <h1 className="text-2xl font-semibold text-sh-blue">Credits Owed</h1>
+          <span className="text-brand-gray">/</span>
+          <h1 className="text-2xl font-semibold text-brand-blue">Credits Owed</h1>
         </div>
         <div className="flex gap-2">
           <Link href="/app/inventory/consignment/unpaid-sales">
-            <span className="px-4 py-2 text-sm font-semibold border border-sh-navy text-sh-navy rounded-lg hover:bg-sh-linen transition min-h-[44px] flex items-center cursor-pointer">
+            <span className="px-4 py-2 text-sm font-semibold border border-brand-navy text-brand-navy rounded-lg hover:bg-brand-linen transition min-h-[44px] flex items-center cursor-pointer">
               Unpaid Sales
             </span>
           </Link>
           <Link href="/app/inventory/consignment/po-management">
-            <span className="px-4 py-2 text-sm font-semibold border border-sh-navy text-sh-navy rounded-lg hover:bg-sh-linen transition min-h-[44px] flex items-center cursor-pointer">
+            <span className="px-4 py-2 text-sm font-semibold border border-brand-navy text-brand-navy rounded-lg hover:bg-brand-linen transition min-h-[44px] flex items-center cursor-pointer">
               PO Management
             </span>
           </Link>
@@ -94,46 +94,46 @@ export function CreditsOwedView() {
 
       {!loading && (
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-xl border border-sh-gray/15 p-4 text-center">
-            <div className="text-xs text-sh-gray mb-1">Items with Credit Owed</div>
-            <div className="text-2xl font-semibold text-sh-black">{items.length}</div>
+          <div className="bg-white rounded-xl border border-brand-gray/15 p-4 text-center">
+            <div className="text-xs text-brand-gray mb-1">Items with Credit Owed</div>
+            <div className="text-2xl font-semibold text-brand-black">{items.length}</div>
           </div>
-          <div className="bg-white rounded-xl border border-sh-gray/15 p-4 text-center">
-            <div className="text-xs text-sh-gray mb-1">Total Credit to Recoup</div>
+          <div className="bg-white rounded-xl border border-brand-gray/15 p-4 text-center">
+            <div className="text-xs text-brand-gray mb-1">Total Credit to Recoup</div>
             <div className="text-2xl font-semibold text-red-600">{fmt(totalCredit)}</div>
           </div>
         </div>
       )}
 
-      <p className="text-sm text-sh-gray">
+      <p className="text-sm text-brand-gray">
         These rugs were paid to the vendor but later returned by the customer. Apply a negative line
         on the next PO to recoup the cost.
       </p>
 
-      <div className="bg-white rounded-xl border border-sh-gray/15 overflow-hidden">
+      <div className="bg-white rounded-xl border border-brand-gray/15 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-sh-gray/20 bg-sh-linen">
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Barcode</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Quality / Size</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Customer</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Paid Date</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Status</th>
-              <th className="text-right px-4 py-3 text-sh-gray font-semibold">Credit Amount</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Order</th>
+            <tr className="border-b border-brand-gray/20 bg-brand-linen">
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Barcode</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Quality / Size</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Customer</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Paid Date</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Status</th>
+              <th className="text-right px-4 py-3 text-brand-gray font-semibold">Credit Amount</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Order</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-sh-gray">
+                <td colSpan={7} className="px-4 py-8 text-center text-brand-gray">
                   Loading...
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-sh-gray">
+                <td colSpan={7} className="px-4 py-8 text-center text-brand-gray">
                   No credits owed — all clear.
                 </td>
               </tr>
@@ -141,15 +141,15 @@ export function CreditsOwedView() {
             {items.map((item, i) => (
               <tr
                 key={item.id}
-                className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
               >
-                <td className="px-4 py-3 font-mono text-sh-black text-xs">{item.barcode}</td>
-                <td className="px-4 py-3 text-sh-black">
+                <td className="px-4 py-3 font-mono text-brand-black text-xs">{item.barcode}</td>
+                <td className="px-4 py-3 text-brand-black">
                   {item.quality || "—"}
                   {item.size ? ` / ${item.size}` : ""}
                 </td>
-                <td className="px-4 py-3 text-sh-gray">{item.customerName || "—"}</td>
-                <td className="px-4 py-3 text-sh-black">{formatDate(item.paidDate)}</td>
+                <td className="px-4 py-3 text-brand-gray">{item.customerName || "—"}</td>
+                <td className="px-4 py-3 text-brand-black">{formatDate(item.paidDate)}</td>
                 <td className="px-4 py-3">
                   <StatusBadge status={item.status} />
                 </td>
@@ -160,12 +160,12 @@ export function CreditsOwedView() {
                   {item.salesOrderId ? (
                     <Link
                       href={`/app/sales/orders/${item.salesOrderId}`}
-                      className="text-sh-blue hover:underline text-xs"
+                      className="text-brand-blue hover:underline text-xs"
                     >
                       {item.orderNumber || `#${item.salesOrderId}`}
                     </Link>
                   ) : (
-                    <span className="text-sh-gray text-xs">—</span>
+                    <span className="text-brand-gray text-xs">—</span>
                   )}
                 </td>
               </tr>

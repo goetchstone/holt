@@ -53,7 +53,7 @@ interface ProductDetails {
 }
 
 function StatusBadge({ active }: { active: boolean }) {
-  const className = active ? "bg-green-100 text-green-800" : "bg-sh-gray/20 text-sh-gray";
+  const className = active ? "bg-green-100 text-green-800" : "bg-brand-gray/20 text-brand-gray";
   return (
     <span className={`text-xs px-2 py-0.5 rounded ${className}`}>
       {active ? "Active" : "Inactive"}
@@ -122,8 +122,8 @@ export function ProductDetailView({ id }: { id: string }) {
       {/* Header */}
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue">{product.name}</h1>
-          <p className="text-sm text-sh-gray mt-1">
+          <h1 className="text-2xl font-semibold text-brand-blue">{product.name}</h1>
+          <p className="text-sm text-brand-gray mt-1">
             {product.productNumber}
             {product.vendor && <span className="ml-3">{product.vendor.name}</span>}
           </p>
@@ -149,7 +149,7 @@ export function ProductDetailView({ id }: { id: string }) {
       {/* Description */}
       {product.description && (
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-          <p className="text-sm text-sh-gray">{product.description}</p>
+          <p className="text-sm text-brand-gray">{product.description}</p>
         </div>
       )}
 
@@ -158,25 +158,25 @@ export function ProductDetailView({ id }: { id: string }) {
         <h2 className="text-xl font-semibold mb-3">Pricing</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
           <div>
-            <p className="text-sh-gray text-xs uppercase tracking-wide">Cost</p>
+            <p className="text-brand-gray text-xs uppercase tracking-wide">Cost</p>
             <p className="text-lg font-semibold">
               {product.baseCost != null ? fmt(product.baseCost) : "N/A"}
             </p>
           </div>
           <div>
-            <p className="text-sh-gray text-xs uppercase tracking-wide">Retail</p>
+            <p className="text-brand-gray text-xs uppercase tracking-wide">Retail</p>
             <p className="text-lg font-semibold">
               {product.baseRetail != null ? fmt(product.baseRetail) : "N/A"}
             </p>
           </div>
           <div>
-            <p className="text-sh-gray text-xs uppercase tracking-wide">MAP</p>
+            <p className="text-brand-gray text-xs uppercase tracking-wide">MAP</p>
             <p className="text-lg font-semibold">
               {product.mapPrice != null ? fmt(product.mapPrice) : "N/A"}
             </p>
           </div>
           <div>
-            <p className="text-sh-gray text-xs uppercase tracking-wide">Margin</p>
+            <p className="text-brand-gray text-xs uppercase tracking-wide">Margin</p>
             <p className="text-lg font-semibold">
               {margin != null ? `${margin.toFixed(1)}%` : "N/A"}
             </p>
@@ -239,7 +239,7 @@ export function ProductDetailView({ id }: { id: string }) {
           <h2 className="text-xl font-semibold mb-3">Barcodes</h2>
           <div className="flex flex-wrap gap-2">
             {product.upcs.map((u) => (
-              <span key={u.id} className="px-3 py-1 bg-sh-linen rounded text-sm font-mono">
+              <span key={u.id} className="px-3 py-1 bg-brand-linen rounded text-sm font-mono">
                 {u.upc}
               </span>
             ))}
@@ -248,7 +248,7 @@ export function ProductDetailView({ id }: { id: string }) {
       )}
 
       {/* Audit */}
-      <div className="text-xs text-sh-gray mb-8">
+      <div className="text-xs text-brand-gray mb-8">
         {product.externalId && <span>the POS ID: {product.externalId} | </span>}
         Created: {product.created ? format(new Date(product.created), "PPP") : "N/A"}
         {product.updated && <> | Updated: {format(new Date(product.updated), "PPP")}</>}

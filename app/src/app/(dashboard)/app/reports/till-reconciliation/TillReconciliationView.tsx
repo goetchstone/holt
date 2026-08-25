@@ -91,12 +91,12 @@ export function TillReconciliationView() {
 
   return (
     <div className="space-y-6 py-2 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue">Till Reconciliation</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue">Till Reconciliation</h1>
 
-      <div className="rounded-lg border border-sh-gray/20 bg-white p-4 shadow-md">
+      <div className="rounded-lg border border-brand-gray/20 bg-white p-4 shadow-md">
         <div className="flex flex-wrap items-end gap-4">
           <div>
-            <label htmlFor="from" className="mb-1 block text-sm text-sh-gray">
+            <label htmlFor="from" className="mb-1 block text-sm text-brand-gray">
               From
             </label>
             <input
@@ -104,11 +104,11 @@ export function TillReconciliationView() {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded border border-sh-gray/30 px-3 py-2 text-sm"
+              className="rounded border border-brand-gray/30 px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label htmlFor="to" className="mb-1 block text-sm text-sh-gray">
+            <label htmlFor="to" className="mb-1 block text-sm text-brand-gray">
               To
             </label>
             <input
@@ -116,18 +116,18 @@ export function TillReconciliationView() {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="rounded border border-sh-gray/30 px-3 py-2 text-sm"
+              className="rounded border border-brand-gray/30 px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label htmlFor="store" className="mb-1 block text-sm text-sh-gray">
+            <label htmlFor="store" className="mb-1 block text-sm text-brand-gray">
               Store
             </label>
             <select
               id="store"
               value={storeLocationId}
               onChange={(e) => setStoreLocationId(e.target.value)}
-              className="rounded border border-sh-gray/30 px-3 py-2 text-sm"
+              className="rounded border border-brand-gray/30 px-3 py-2 text-sm"
             >
               <option value="">All Stores</option>
               {storeLocations.map((loc) => (
@@ -144,15 +144,15 @@ export function TillReconciliationView() {
       </div>
 
       {loading ? (
-        <p className="text-sh-gray">Loading...</p>
+        <p className="text-brand-gray">Loading...</p>
       ) : tills.length === 0 ? (
-        <p className="py-8 text-center text-sh-gray">No tills found for the selected filters.</p>
+        <p className="py-8 text-center text-brand-gray">No tills found for the selected filters.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-sh-gray/20 bg-white shadow-md">
+        <div className="overflow-hidden rounded-lg border border-brand-gray/20 bg-white shadow-md">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-sh-gray/10 text-left text-sh-gray">
+                <tr className="border-b border-brand-gray/10 text-left text-brand-gray">
                   <th className="px-4 py-2 font-medium">Date</th>
                   <th className="px-4 py-2 font-medium">Register</th>
                   <th className="px-4 py-2 font-medium">Store</th>
@@ -167,18 +167,18 @@ export function TillReconciliationView() {
               </thead>
               <tbody>
                 {tills.map((t) => (
-                  <tr key={t.id} className="border-b border-sh-gray/5 hover:bg-sh-stripe/50">
-                    <td className="px-4 py-2 text-sh-black">{fmtDate(t.openedAt)}</td>
-                    <td className="px-4 py-2 text-sh-black">{t.register.name}</td>
-                    <td className="px-4 py-2 text-sh-gray">{t.register.storeLocation.name}</td>
-                    <td className="px-4 py-2 text-sh-gray">{t.openedBy.displayName}</td>
-                    <td className="px-4 py-2 text-sh-gray">{t.closedBy?.displayName || "--"}</td>
-                    <td className="px-4 py-2 text-right text-sh-black">{fmt(t.expectedCash)}</td>
-                    <td className="px-4 py-2 text-right text-sh-black">{fmt(t.actualCash)}</td>
+                  <tr key={t.id} className="border-b border-brand-gray/5 hover:bg-brand-stripe/50">
+                    <td className="px-4 py-2 text-brand-black">{fmtDate(t.openedAt)}</td>
+                    <td className="px-4 py-2 text-brand-black">{t.register.name}</td>
+                    <td className="px-4 py-2 text-brand-gray">{t.register.storeLocation.name}</td>
+                    <td className="px-4 py-2 text-brand-gray">{t.openedBy.displayName}</td>
+                    <td className="px-4 py-2 text-brand-gray">{t.closedBy?.displayName || "--"}</td>
+                    <td className="px-4 py-2 text-right text-brand-black">{fmt(t.expectedCash)}</td>
+                    <td className="px-4 py-2 text-right text-brand-black">{fmt(t.actualCash)}</td>
                     <td
                       className={`px-4 py-2 text-right font-medium ${
                         t.variance == null
-                          ? "text-sh-gray"
+                          ? "text-brand-gray"
                           : t.variance === 0
                             ? "text-green-600"
                             : "text-red-600"
@@ -188,7 +188,7 @@ export function TillReconciliationView() {
                     </td>
                     <td className="px-4 py-2">
                       <span
-                        className={`rounded px-2 py-0.5 text-xs ${STATUS_STYLES[t.status] || "bg-sh-gray/10 text-sh-gray"}`}
+                        className={`rounded px-2 py-0.5 text-xs ${STATUS_STYLES[t.status] || "bg-brand-gray/10 text-brand-gray"}`}
                       >
                         {t.status}
                       </span>
@@ -196,7 +196,7 @@ export function TillReconciliationView() {
                     <td className="px-4 py-2">
                       <Link
                         href={`/app/sales/till/${t.id}`}
-                        className="text-xs text-sh-blue hover:underline"
+                        className="text-xs text-brand-blue hover:underline"
                       >
                         View
                       </Link>
@@ -205,14 +205,14 @@ export function TillReconciliationView() {
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-sh-gray/20 bg-sh-stripe/30">
-                  <td className="px-4 py-3 font-semibold text-sh-black" colSpan={5}>
+                <tr className="border-t-2 border-brand-gray/20 bg-brand-stripe/30">
+                  <td className="px-4 py-3 font-semibold text-brand-black" colSpan={5}>
                     Totals
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-sh-black">
+                  <td className="px-4 py-3 text-right font-semibold text-brand-black">
                     {fmt(totals.expected)}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-sh-black">
+                  <td className="px-4 py-3 text-right font-semibold text-brand-black">
                     {fmt(totals.actual)}
                   </td>
                   <td

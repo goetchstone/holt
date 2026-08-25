@@ -96,11 +96,11 @@ export function ReturnRequestView({ token }: { token: string }) {
     <div className="min-h-screen bg-white flex items-start justify-center px-4 py-12">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-serif text-sh-navy">{storeName}</h1>
-          <h2 className="text-lg text-sh-gray mt-1">Return Request</h2>
+          <h1 className="text-2xl font-serif text-brand-navy">{storeName}</h1>
+          <h2 className="text-lg text-brand-gray mt-1">Return Request</h2>
         </div>
 
-        {loading && <p className="text-center text-sh-gray">Loading return details...</p>}
+        {loading && <p className="text-center text-brand-gray">Loading return details...</p>}
 
         {error && (
           <div className="rounded border border-red-200 bg-red-50 p-4 text-center">
@@ -109,18 +109,18 @@ export function ReturnRequestView({ token }: { token: string }) {
         )}
 
         {!loading && !error && submitted && (
-          <div className="rounded border border-sh-gold/30 bg-sh-linen p-6 text-center">
-            <h3 className="text-lg font-serif text-sh-navy mb-2">
+          <div className="rounded border border-brand-gold/30 bg-brand-linen p-6 text-center">
+            <h3 className="text-lg font-serif text-brand-navy mb-2">
               Your return request has been submitted
             </h3>
             {returnInfo && (
-              <div className="text-sm text-sh-gray space-y-1 mt-4">
+              <div className="text-sm text-brand-gray space-y-1 mt-4">
                 <p>Return Number: {returnInfo.returnNumber}</p>
                 {returnInfo.productName && <p>Product: {returnInfo.productName}</p>}
                 <p>Status: {returnInfo.status.replace(/_/g, " ")}</p>
               </div>
             )}
-            <p className="text-sm text-sh-gray mt-4">
+            <p className="text-sm text-brand-gray mt-4">
               You can track your return status at any time using the link provided in your email.
             </p>
           </div>
@@ -129,19 +129,19 @@ export function ReturnRequestView({ token }: { token: string }) {
         {!loading && !error && !submitted && returnInfo && (
           <form onSubmit={handleSubmit} className="space-y-6">
             {returnInfo.productName && (
-              <div className="rounded border border-sh-brand-gray/20 bg-sh-linen p-4">
-                <p className="text-sm text-sh-gray">
-                  <span className="font-medium text-sh-navy">Product:</span>{" "}
+              <div className="rounded border border-brand-accent-gray/20 bg-brand-linen p-4">
+                <p className="text-sm text-brand-gray">
+                  <span className="font-medium text-brand-navy">Product:</span>{" "}
                   {returnInfo.productName}
                 </p>
-                <p className="text-sm text-sh-gray mt-1">
-                  <span className="font-medium text-sh-navy">Qty:</span> {returnInfo.quantity}
+                <p className="text-sm text-brand-gray mt-1">
+                  <span className="font-medium text-brand-navy">Qty:</span> {returnInfo.quantity}
                 </p>
               </div>
             )}
 
             <div>
-              <label htmlFor="reason" className="block text-sm font-medium text-sh-navy mb-1">
+              <label htmlFor="reason" className="block text-sm font-medium text-brand-navy mb-1">
                 Reason for return
               </label>
               <select
@@ -149,7 +149,7 @@ export function ReturnRequestView({ token }: { token: string }) {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 required
-                className="w-full rounded border border-sh-brand-gray/40 bg-white px-3 py-2 text-sm text-sh-black focus:border-sh-navy focus:outline-none focus:ring-1 focus:ring-sh-navy"
+                className="w-full rounded border border-brand-accent-gray/40 bg-white px-3 py-2 text-sm text-brand-black focus:border-brand-navy focus:outline-none focus:ring-1 focus:ring-brand-navy"
               >
                 <option value="">Select a reason</option>
                 {REASON_OPTIONS.map((opt) => (
@@ -161,7 +161,7 @@ export function ReturnRequestView({ token }: { token: string }) {
             </div>
 
             <div>
-              <label htmlFor="notes" className="block text-sm font-medium text-sh-navy mb-1">
+              <label htmlFor="notes" className="block text-sm font-medium text-brand-navy mb-1">
                 Additional notes (optional)
               </label>
               <textarea
@@ -169,7 +169,7 @@ export function ReturnRequestView({ token }: { token: string }) {
                 value={reasonNotes}
                 onChange={(e) => setReasonNotes(e.target.value)}
                 rows={4}
-                className="w-full rounded border border-sh-brand-gray/40 bg-white px-3 py-2 text-sm text-sh-black focus:border-sh-navy focus:outline-none focus:ring-1 focus:ring-sh-navy resize-none"
+                className="w-full rounded border border-brand-accent-gray/40 bg-white px-3 py-2 text-sm text-brand-black focus:border-brand-navy focus:outline-none focus:ring-1 focus:ring-brand-navy resize-none"
                 placeholder="Please describe the issue in detail..."
               />
             </div>
@@ -177,7 +177,7 @@ export function ReturnRequestView({ token }: { token: string }) {
             <button
               type="submit"
               disabled={submitting || !reason}
-              className="w-full rounded bg-sh-navy px-4 py-3 text-sm font-medium text-white hover:bg-sh-navy/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full rounded bg-brand-navy px-4 py-3 text-sm font-medium text-white hover:bg-brand-navy/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? "Submitting..." : "Submit Return Request"}
             </button>

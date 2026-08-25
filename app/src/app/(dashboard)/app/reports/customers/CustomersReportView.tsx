@@ -136,18 +136,18 @@ export function CustomersReportView() {
   return (
     <div className="space-y-8 font-serif">
       <div>
-        <h1 className="text-2xl font-semibold text-sh-black">Customer Report</h1>
-        <p className="mt-1 font-sans text-xs text-sh-gray">
+        <h1 className="text-2xl font-semibold text-brand-black">Customer Report</h1>
+        <p className="mt-1 font-sans text-xs text-brand-gray">
           Contact list with order history, spend totals, and customer levels
         </p>
       </div>
 
-      <div className="space-y-4 rounded-xl border border-sh-gray/15 bg-white p-5">
+      <div className="space-y-4 rounded-xl border border-brand-gray/15 bg-white p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label
               htmlFor="cust-search"
-              className="mb-1 block font-sans text-xs font-semibold uppercase tracking-wider text-sh-gray"
+              className="mb-1 block font-sans text-xs font-semibold uppercase tracking-wider text-brand-gray"
             >
               Search
             </label>
@@ -158,7 +158,7 @@ export function CustomersReportView() {
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Name, email, or phone"
-              className="min-h-[44px] w-full rounded-lg border border-sh-gray/30 px-3 py-2 font-sans text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+              className="min-h-[44px] w-full rounded-lg border border-brand-gray/30 px-3 py-2 font-sans text-sm text-brand-black focus:border-brand-blue focus:outline-none"
             />
           </div>
           <div className="flex min-h-[44px] items-center gap-2">
@@ -167,11 +167,11 @@ export function CustomersReportView() {
               type="checkbox"
               checked={hasPhone}
               onChange={(e) => setHasPhone(e.target.checked)}
-              className="h-4 w-4 accent-sh-blue"
+              className="h-4 w-4 accent-brand-blue"
             />
             <label
               htmlFor="hasPhone"
-              className="cursor-pointer select-none font-sans text-sm text-sh-black"
+              className="cursor-pointer select-none font-sans text-sm text-brand-black"
             >
               Has phone only
             </label>
@@ -180,14 +180,14 @@ export function CustomersReportView() {
             type="button"
             onClick={applyFilters}
             disabled={loading}
-            className="min-h-[44px] rounded-lg bg-sh-navy px-5 py-2 font-sans text-sm font-semibold text-white transition-colors hover:bg-sh-blue disabled:opacity-50"
+            className="min-h-[44px] rounded-lg bg-brand-navy px-5 py-2 font-sans text-sm font-semibold text-white transition-colors hover:bg-brand-blue disabled:opacity-50"
           >
             {loading ? "Loading..." : "Search"}
           </button>
         </div>
 
         <div>
-          <label className="mb-2 block font-sans text-xs font-semibold uppercase tracking-wider text-sh-gray">
+          <label className="mb-2 block font-sans text-xs font-semibold uppercase tracking-wider text-brand-gray">
             Primary Group
           </label>
           <div className="flex flex-wrap gap-2">
@@ -200,8 +200,8 @@ export function CustomersReportView() {
                   onClick={() => toggleGroup(opt.id)}
                   className={`min-h-[32px] rounded-full border px-3 py-1.5 text-xs transition-colors ${
                     active
-                      ? "border-sh-blue bg-sh-blue text-white"
-                      : "border-sh-gray/30 text-sh-gray hover:border-sh-blue"
+                      ? "border-brand-blue bg-brand-blue text-white"
+                      : "border-brand-gray/30 text-brand-gray hover:border-brand-blue"
                   }`}
                 >
                   {opt.label}
@@ -212,7 +212,7 @@ export function CustomersReportView() {
               <button
                 type="button"
                 onClick={() => setSelectedGroups([])}
-                className="rounded-full px-3 py-1.5 text-xs text-sh-gray underline hover:text-sh-black"
+                className="rounded-full px-3 py-1.5 text-xs text-brand-gray underline hover:text-brand-black"
               >
                 Clear
               </button>
@@ -246,18 +246,18 @@ export function CustomersReportView() {
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1 || loading}
-              className="min-h-[44px] rounded-lg border border-sh-gray/20 px-3 py-2 text-sm hover:bg-sh-linen disabled:opacity-30"
+              className="min-h-[44px] rounded-lg border border-brand-gray/20 px-3 py-2 text-sm hover:bg-brand-linen disabled:opacity-30"
             >
               Previous
             </button>
-            <span className="text-sm text-sh-gray">
+            <span className="text-sm text-brand-gray">
               Page {page} of {totalPages}
             </span>
             <button
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages || loading}
-              className="min-h-[44px] rounded-lg border border-sh-gray/20 px-3 py-2 text-sm hover:bg-sh-linen disabled:opacity-30"
+              className="min-h-[44px] rounded-lg border border-brand-gray/20 px-3 py-2 text-sm hover:bg-brand-linen disabled:opacity-30"
             >
               Next
             </button>

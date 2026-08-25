@@ -12,10 +12,10 @@ type DateRangeFilterProps = {
 export default function DateRangeFilter({ value, onChange }: DateRangeFilterProps) {
   return (
     <div className="flex flex-col gap-2">
-      <label className="font-serif text-sh-black">Date Range</label>
+      <label className="font-serif text-brand-black">Date Range</label>
       <div className="flex gap-2">
         <div className="flex flex-col flex-1">
-          <label className="text-xs text-sh-black">Start Date</label>
+          <label className="text-xs text-brand-black">Start Date</label>
           <input
             type="date"
             value={value.startDate}
@@ -24,7 +24,7 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
           />
         </div>
         <div className="flex flex-col flex-1">
-          <label className="text-xs text-sh-black">End Date</label>
+          <label className="text-xs text-brand-black">End Date</label>
           <input
             type="date"
             value={value.endDate}

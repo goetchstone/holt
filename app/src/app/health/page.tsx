@@ -12,8 +12,8 @@ export default async function HealthPage() {
   const branding = await getPublicBranding();
   return (
     <main className="mx-auto max-w-screen-lg px-4 py-10 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-navy">App Router is live</h1>
-      <p className="mt-2 text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-navy">App Router is live</h1>
+      <p className="mt-2 text-brand-gray">
         {branding.appName} foundation OK — App Router and Pages Router are running side-by-side.
       </p>
       <HealthPing />

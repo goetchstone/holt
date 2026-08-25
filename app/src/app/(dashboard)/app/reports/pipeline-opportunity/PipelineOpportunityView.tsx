@@ -130,15 +130,15 @@ export function PipelineOpportunityView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Pipeline Opportunity</span>
+        <span className="text-brand-black">Pipeline Opportunity</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">Pipeline Opportunity</h1>
-      <p className="text-sm text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-navy">Pipeline Opportunity</h1>
+      <p className="text-sm text-brand-gray">
         Open quotes by salesperson. Click a name to see their individual quotes.
       </p>
 
@@ -152,21 +152,21 @@ export function PipelineOpportunityView() {
           </div>
 
           <div className="flex items-center gap-4">
-            <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-sh-gray">
+            <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-brand-gray">
               <input
                 type="checkbox"
                 checked={includeInactive}
                 onChange={(e) => setIncludeInactive(e.target.checked)}
-                className="h-5 w-5 accent-sh-blue"
+                className="h-5 w-5 accent-brand-blue"
               />
               Show inactive employees
             </label>
-            <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-sh-gray">
+            <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-brand-gray">
               <input
                 type="checkbox"
                 checked={includeArchived}
                 onChange={(e) => setIncludeArchived(e.target.checked)}
-                className="h-5 w-5 accent-sh-blue"
+                className="h-5 w-5 accent-brand-blue"
               />
               Include archived quotes
             </label>
@@ -190,29 +190,29 @@ export function PipelineOpportunityView() {
                     onClick={() => handleExpandSp(row.salesperson)}
                     className={`flex min-h-[44px] w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition ${
                       expandedSp === row.salesperson
-                        ? "border border-sh-blue/20 bg-sh-blue/5"
-                        : "border border-sh-gray/10 bg-white hover:border-sh-gray/30"
+                        ? "border border-brand-blue/20 bg-brand-blue/5"
+                        : "border border-brand-gray/10 bg-white hover:border-brand-gray/30"
                     }`}
                   >
                     {expandedSp === row.salesperson ? (
-                      <ChevronDown className="h-4 w-4 flex-shrink-0 text-sh-gray" />
+                      <ChevronDown className="h-4 w-4 flex-shrink-0 text-brand-gray" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 flex-shrink-0 text-sh-gray" />
+                      <ChevronRight className="h-4 w-4 flex-shrink-0 text-brand-gray" />
                     )}
-                    <span className="flex-1 font-semibold text-sh-navy">
+                    <span className="flex-1 font-semibold text-brand-navy">
                       {row.salesperson}
                       {!row.isActive && (
                         <span className="ml-1 font-normal text-amber-600">(inactive)</span>
                       )}
                     </span>
-                    <span className="text-sm text-sh-gray">{row.openQuotes} quotes</span>
-                    <span className="min-w-[100px] text-right text-sm font-semibold text-sh-navy">
+                    <span className="text-sm text-brand-gray">{row.openQuotes} quotes</span>
+                    <span className="min-w-[100px] text-right text-sm font-semibold text-brand-navy">
                       {currency(row.openQuoteValue)}
                     </span>
-                    <span className="min-w-[60px] text-right text-xs text-sh-gray">
+                    <span className="min-w-[60px] text-right text-xs text-brand-gray">
                       {row.conversionPct}% conv
                     </span>
-                    <span className="min-w-[50px] text-right text-xs text-sh-gray">
+                    <span className="min-w-[50px] text-right text-xs text-brand-gray">
                       {row.avgQuoteAgeDays ?? 0}d avg
                     </span>
                   </button>
@@ -220,39 +220,39 @@ export function PipelineOpportunityView() {
                   {expandedSp === row.salesperson && (
                     <div className="mb-4 ml-7 mt-2">
                       {detailLoading && (
-                        <p className="py-4 text-sm text-sh-gray">Loading quotes...</p>
+                        <p className="py-4 text-sm text-brand-gray">Loading quotes...</p>
                       )}
                       {!detailLoading && detailRows.length === 0 && (
-                        <p className="py-4 text-sm text-sh-gray">No open quotes</p>
+                        <p className="py-4 text-sm text-brand-gray">No open quotes</p>
                       )}
                       {!detailLoading && detailRows.length > 0 && (
                         <>
-                          <div className="overflow-hidden rounded-xl border border-sh-gray/15 bg-white">
+                          <div className="overflow-hidden rounded-xl border border-brand-gray/15 bg-white">
                             <table className="w-full text-sm">
                               <thead>
-                                <tr className="border-b border-sh-gray/15 bg-sh-linen">
-                                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-sh-gray">
+                                <tr className="border-b border-brand-gray/15 bg-brand-linen">
+                                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-brand-gray">
                                     Quote
                                   </th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-sh-gray">
+                                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-brand-gray">
                                     Customer
                                   </th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-sh-gray">
+                                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-brand-gray">
                                     Date
                                   </th>
-                                  <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-sh-gray">
+                                  <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-brand-gray">
                                     Age
                                   </th>
-                                  <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-sh-gray">
+                                  <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-brand-gray">
                                     Value
                                   </th>
-                                  <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-sh-gray">
+                                  <th className="px-4 py-2 text-right text-xs font-semibold uppercase text-brand-gray">
                                     Items
                                   </th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-sh-gray">
+                                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-brand-gray">
                                     Contact
                                   </th>
-                                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-sh-gray">
+                                  <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-brand-gray">
                                     Note
                                   </th>
                                 </tr>
@@ -261,7 +261,7 @@ export function PipelineOpportunityView() {
                                 {detailRows.map((q, qi) => (
                                   <React.Fragment key={q.id}>
                                     <tr
-                                      className={`cursor-pointer border-b border-sh-gray/10 transition hover:bg-sh-linen ${qi % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                                      className={`cursor-pointer border-b border-brand-gray/10 transition hover:bg-brand-linen ${qi % 2 === 1 ? "bg-brand-stripe" : ""}`}
                                       onClick={() =>
                                         setExpandedQuote(expandedQuote === q.id ? null : q.id)
                                       }
@@ -269,7 +269,7 @@ export function PipelineOpportunityView() {
                                       <td className="px-4 py-2">
                                         <Link
                                           href={`/app/sales/orders/${q.id}`}
-                                          className="text-sh-blue hover:underline"
+                                          className="text-brand-blue hover:underline"
                                           onClick={(e) => e.stopPropagation()}
                                         >
                                           {q.orderno}
@@ -280,7 +280,7 @@ export function PipelineOpportunityView() {
                                           {q.customerId ? (
                                             <Link
                                               href={`/app/sales/customers/${q.customerId}`}
-                                              className="text-sh-blue hover:underline"
+                                              className="text-brand-blue hover:underline"
                                               onClick={(e) => e.stopPropagation()}
                                             >
                                               {q.customerName}
@@ -291,14 +291,14 @@ export function PipelineOpportunityView() {
                                           <LeadScoreBadge tier={q.leadTier} score={q.leadScore} />
                                         </div>
                                       </td>
-                                      <td className="px-4 py-2 text-sh-gray">
+                                      <td className="px-4 py-2 text-brand-gray">
                                         {q.quoteDate ?? "—"}
                                       </td>
                                       <td className="px-4 py-2 text-right">{q.ageDays ?? 0}d</td>
                                       <td className="px-4 py-2 text-right font-medium">
                                         {currency(q.quoteValue)}
                                       </td>
-                                      <td className="px-4 py-2 text-right text-sh-gray">
+                                      <td className="px-4 py-2 text-right text-brand-gray">
                                         <span className="inline-flex items-center gap-1">
                                           {q.lineItemCount}
                                           {expandedQuote === q.id ? (
@@ -308,19 +308,19 @@ export function PipelineOpportunityView() {
                                           )}
                                         </span>
                                       </td>
-                                      <td className="px-4 py-2 text-xs text-sh-gray">
+                                      <td className="px-4 py-2 text-xs text-brand-gray">
                                         {q.lastInteraction ?? "None"}
                                       </td>
-                                      <td className="px-4 py-2 text-xs text-sh-gray">
+                                      <td className="px-4 py-2 text-xs text-brand-gray">
                                         {notePreview(q.lastNote)}
                                       </td>
                                     </tr>
                                     {expandedQuote === q.id && q.lineItems.length > 0 && (
                                       <tr>
-                                        <td colSpan={8} className="bg-sh-linen/50 px-4 py-2">
+                                        <td colSpan={8} className="bg-brand-linen/50 px-4 py-2">
                                           <table className="ml-4 w-full text-xs">
                                             <thead>
-                                              <tr className="text-sh-gray">
+                                              <tr className="text-brand-gray">
                                                 <th className="py-1 text-left font-medium">Item</th>
                                                 <th className="py-1 text-left font-medium">
                                                   Part #
@@ -338,12 +338,12 @@ export function PipelineOpportunityView() {
                                               {q.lineItems.map((li) => (
                                                 <tr
                                                   key={li.id}
-                                                  className="border-t border-sh-gray/10"
+                                                  className="border-t border-brand-gray/10"
                                                 >
-                                                  <td className="py-1 text-sh-black">
+                                                  <td className="py-1 text-brand-black">
                                                     {li.productName || "—"}
                                                   </td>
-                                                  <td className="py-1 text-sh-gray">
+                                                  <td className="py-1 text-brand-gray">
                                                     {li.partNo || "—"}
                                                   </td>
                                                   <td className="py-1 text-right">{li.quantity}</td>
@@ -369,7 +369,7 @@ export function PipelineOpportunityView() {
                           {/* Inline note form */}
                           <div className="mt-3 space-y-2">
                             <div className="flex flex-wrap items-center gap-2">
-                              <label className="text-xs font-semibold uppercase tracking-wider text-sh-gray">
+                              <label className="text-xs font-semibold uppercase tracking-wider text-brand-gray">
                                 Add note to quote:
                               </label>
                               <select
@@ -377,7 +377,7 @@ export function PipelineOpportunityView() {
                                 onChange={(e) =>
                                   setNoteOrderId(e.target.value ? Number(e.target.value) : null)
                                 }
-                                className="min-h-[44px] rounded border border-sh-gray/30 px-2 py-1 text-sm"
+                                className="min-h-[44px] rounded border border-brand-gray/30 px-2 py-1 text-sm"
                               >
                                 <option value="">Select quote...</option>
                                 {detailRows.map((q) => (
@@ -400,7 +400,7 @@ export function PipelineOpportunityView() {
                                     }
                                   }}
                                   placeholder="Type a note and press Enter..."
-                                  className="min-h-[44px] flex-1 rounded border border-sh-gray/30 px-3 py-2 text-sm"
+                                  className="min-h-[44px] flex-1 rounded border border-brand-gray/30 px-3 py-2 text-sm"
                                 />
                                 <Button
                                   size="sm"
@@ -428,19 +428,19 @@ export function PipelineOpportunityView() {
           {/* Reassign panel */}
           {includeInactive && inactiveRows.length > 0 && (
             <div className="space-y-3 rounded-xl border border-amber-200 bg-white p-5">
-              <h3 className="text-sm font-semibold text-sh-navy">Reassign Inactive Pipeline</h3>
-              <p className="text-xs text-sh-gray">
+              <h3 className="text-sm font-semibold text-brand-navy">Reassign Inactive Pipeline</h3>
+              <p className="text-xs text-brand-gray">
                 Move all open quotes and orders from an inactive salesperson to an active one.
               </p>
               <div className="flex flex-wrap items-end gap-3">
                 <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-sh-gray">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-brand-gray">
                     From (inactive)
                   </label>
                   <select
                     value={reassignFrom || ""}
                     onChange={(e) => setReassignFrom(e.target.value || null)}
-                    className="min-h-[44px] rounded-lg border border-sh-gray/30 px-3 py-2 text-sm"
+                    className="min-h-[44px] rounded-lg border border-brand-gray/30 px-3 py-2 text-sm"
                   >
                     <option value="">Select...</option>
                     {inactiveRows.map((r) => (
@@ -451,13 +451,13 @@ export function PipelineOpportunityView() {
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-sh-gray">
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-brand-gray">
                     To (active)
                   </label>
                   <select
                     value={reassignTo}
                     onChange={(e) => setReassignTo(e.target.value)}
-                    className="min-h-[44px] rounded-lg border border-sh-gray/30 px-3 py-2 text-sm"
+                    className="min-h-[44px] rounded-lg border border-brand-gray/30 px-3 py-2 text-sm"
                   >
                     <option value="">Select...</option>
                     {(data.activeSalespeople || []).map((sp) => (
@@ -480,7 +480,7 @@ export function PipelineOpportunityView() {
         </>
       )}
 
-      {loading && <p className="py-16 text-center text-sh-gray">Loading...</p>}
+      {loading && <p className="py-16 text-center text-brand-gray">Loading...</p>}
     </div>
   );
 }

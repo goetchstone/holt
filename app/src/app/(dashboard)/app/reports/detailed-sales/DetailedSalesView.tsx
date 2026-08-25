@@ -67,16 +67,16 @@ function StoreDrilldownContent({
 }>) {
   const fmt = useMoneyFormatter();
   if (isLoading) {
-    return <p className="text-sm text-sh-gray">Loading line items…</p>;
+    return <p className="text-sm text-brand-gray">Loading line items…</p>;
   }
   if (!items || items.length === 0) {
-    return <p className="text-sm text-sh-gray">No line items in this store.</p>;
+    return <p className="text-sm text-brand-gray">No line items in this store.</p>;
   }
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-left text-sh-gray border-b border-sh-gray/20">
+          <tr className="text-left text-brand-gray border-b border-brand-gray/20">
             <th className="py-1.5 pr-3">Order</th>
             <th className="py-1.5 pr-3">Customer</th>
             <th className="py-1.5 pr-3">Date</th>
@@ -88,22 +88,24 @@ function StoreDrilldownContent({
         </thead>
         <tbody>
           {items.map((it) => (
-            <tr key={it.id} className="border-b border-sh-gray/10">
+            <tr key={it.id} className="border-b border-brand-gray/10">
               <td className="py-1.5 pr-3">
                 <Link
                   href={`/app/sales/orders/${it.orderId}`}
-                  className="text-sh-blue hover:underline"
+                  className="text-brand-blue hover:underline"
                 >
                   {it.orderno}
                 </Link>
               </td>
-              <td className="py-1.5 pr-3 text-sh-black">{it.customerName ?? "—"}</td>
-              <td className="py-1.5 pr-3 text-sh-gray">
+              <td className="py-1.5 pr-3 text-brand-black">{it.customerName ?? "—"}</td>
+              <td className="py-1.5 pr-3 text-brand-gray">
                 {it.orderDate ? parseLocalDate(it.orderDate).toLocaleDateString() : "—"}
               </td>
-              <td className="py-1.5 pr-3 text-sh-gray">{it.departmentName ?? "Uncategorized"}</td>
+              <td className="py-1.5 pr-3 text-brand-gray">
+                {it.departmentName ?? "Uncategorized"}
+              </td>
               <td className="py-1.5 pr-3 font-mono text-[11px]">{it.partNo ?? ""}</td>
-              <td className="py-1.5 pr-3 text-sh-black max-w-[260px] truncate">
+              <td className="py-1.5 pr-3 text-brand-black max-w-[260px] truncate">
                 {it.productName ?? "—"}
               </td>
               <td className="py-1.5 pr-3 text-right">{fmt(it.netPrice)}</td>
@@ -112,7 +114,7 @@ function StoreDrilldownContent({
         </tbody>
       </table>
       {items.length >= 500 && (
-        <p className="text-xs text-sh-gray mt-2">
+        <p className="text-xs text-brand-gray mt-2">
           Showing first 500 items. Narrow the date range or department filter to see others.
         </p>
       )}
@@ -168,7 +170,7 @@ function SupplierPivotView({
     .sort((a, b) => b.netSales - a.netSales);
 
   if (vendorRows.length === 0) {
-    return <p className="text-sh-gray text-center py-8">No vendor data to pivot.</p>;
+    return <p className="text-brand-gray text-center py-8">No vendor data to pivot.</p>;
   }
 
   return (
@@ -179,22 +181,22 @@ function SupplierPivotView({
         return (
           <div
             key={vRow.vendor}
-            className="bg-white border border-sh-gray/20 rounded-lg shadow-sm overflow-hidden"
+            className="bg-white border border-brand-gray/20 rounded-lg shadow-sm overflow-hidden"
           >
             <button
               type="button"
               onClick={() => setExpandedKey(vExpanded ? null : vKey)}
-              className={`w-full text-left bg-sh-linen px-3 py-2 border-b border-sh-gray/20 transition flex items-center justify-between ${
-                vExpanded ? "bg-sh-linen/80" : "hover:bg-sh-linen/60"
+              className={`w-full text-left bg-brand-linen px-3 py-2 border-b border-brand-gray/20 transition flex items-center justify-between ${
+                vExpanded ? "bg-brand-linen/80" : "hover:bg-brand-linen/60"
               }`}
             >
-              <h3 className="text-sm font-semibold text-sh-blue flex items-center gap-2">
-                <span className="inline-block w-3 text-sh-gray">{vExpanded ? "▾" : "▸"}</span>
+              <h3 className="text-sm font-semibold text-brand-blue flex items-center gap-2">
+                <span className="inline-block w-3 text-brand-gray">{vExpanded ? "▾" : "▸"}</span>
                 {vRow.vendor}
               </h3>
-              <span className="text-xs text-sh-gray">
+              <span className="text-xs text-brand-gray">
                 {vRow.itemCount.toLocaleString()} item{vRow.itemCount === 1 ? "" : "s"} ·{" "}
-                <span className="font-semibold text-sh-black">{fmt(vRow.netSales)}</span>
+                <span className="font-semibold text-brand-black">{fmt(vRow.netSales)}</span>
               </span>
             </button>
             {vExpanded && (
@@ -246,18 +248,18 @@ function SupplierDeptTable({
         const dKey = `vendor:${vendor}|${dRow.dept}`;
         const dExpanded = expandedKey === dKey || expandedKey?.startsWith(`${dKey}|`);
         return (
-          <div key={dRow.dept} className="border-b border-sh-gray/10 last:border-b-0">
+          <div key={dRow.dept} className="border-b border-brand-gray/10 last:border-b-0">
             <button
               type="button"
               onClick={() => setExpandedKey(dExpanded ? null : dKey)}
-              className="w-full flex items-center justify-between py-2 px-2 text-sm hover:bg-sh-stripe transition"
+              className="w-full flex items-center justify-between py-2 px-2 text-sm hover:bg-brand-stripe transition"
             >
-              <span className="text-sh-black font-medium flex items-center gap-2">
-                <span className="inline-block w-3 text-sh-gray">{dExpanded ? "▾" : "▸"}</span>
+              <span className="text-brand-black font-medium flex items-center gap-2">
+                <span className="inline-block w-3 text-brand-gray">{dExpanded ? "▾" : "▸"}</span>
                 {dRow.dept}
               </span>
-              <span className="text-xs text-sh-gray">
-                {dRow.itemCount} · <span className="text-sh-black">{fmt(dRow.netSales)}</span>
+              <span className="text-xs text-brand-gray">
+                {dRow.itemCount} · <span className="text-brand-black">{fmt(dRow.netSales)}</span>
               </span>
             </button>
             {dExpanded && (
@@ -315,18 +317,18 @@ function SupplierCategoryRows({
             <button
               type="button"
               onClick={() => onCategoryDrill(vendor, dept, cRow.cat)}
-              className="w-full flex items-center justify-between py-1.5 px-2 text-xs hover:bg-sh-stripe transition"
+              className="w-full flex items-center justify-between py-1.5 px-2 text-xs hover:bg-brand-stripe transition"
             >
-              <span className="text-sh-gray flex items-center gap-2">
+              <span className="text-brand-gray flex items-center gap-2">
                 <span className="inline-block w-3">{cExpanded ? "▾" : "▸"}</span>
                 {cRow.cat}
               </span>
-              <span className="text-sh-gray">
+              <span className="text-brand-gray">
                 {cRow.itemCount} · {fmt(cRow.netSales)}
               </span>
             </button>
             {cExpanded && (
-              <div className="bg-sh-linen/30 px-3 py-2 border border-sh-gray/10">
+              <div className="bg-brand-linen/30 px-3 py-2 border border-brand-gray/10">
                 <SupplierItemList isLoading={isLoading} items={items} onEdit={onEdit} />
               </div>
             )}
@@ -347,15 +349,15 @@ function SupplierItemList({
   onEdit: (item: DrilldownItem) => void;
 }>) {
   const fmt = useMoneyFormatter();
-  if (isLoading) return <p className="text-xs text-sh-gray">Loading line items…</p>;
+  if (isLoading) return <p className="text-xs text-brand-gray">Loading line items…</p>;
   if (!items || items.length === 0) {
-    return <p className="text-xs text-sh-gray">No line items in this bucket.</p>;
+    return <p className="text-xs text-brand-gray">No line items in this bucket.</p>;
   }
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-left text-sh-gray border-b border-sh-gray/20">
+          <tr className="text-left text-brand-gray border-b border-brand-gray/20">
             <th className="py-1.5 pr-3">Order</th>
             <th className="py-1.5 pr-3">Customer</th>
             <th className="py-1.5 pr-3">Date</th>
@@ -368,22 +370,22 @@ function SupplierItemList({
         </thead>
         <tbody>
           {items.map((it) => (
-            <tr key={it.id} className="border-b border-sh-gray/10">
+            <tr key={it.id} className="border-b border-brand-gray/10">
               <td className="py-1.5 pr-3">
                 <Link
                   href={`/app/sales/orders/${it.orderId}`}
-                  className="text-sh-blue hover:underline"
+                  className="text-brand-blue hover:underline"
                 >
                   {it.orderno}
                 </Link>
               </td>
-              <td className="py-1.5 pr-3 text-sh-black">{it.customerName ?? "—"}</td>
-              <td className="py-1.5 pr-3 text-sh-gray">
+              <td className="py-1.5 pr-3 text-brand-black">{it.customerName ?? "—"}</td>
+              <td className="py-1.5 pr-3 text-brand-gray">
                 {it.orderDate ? parseLocalDate(it.orderDate).toLocaleDateString() : "—"}
               </td>
-              <td className="py-1.5 pr-3 text-sh-gray">{it.typeName ?? "—"}</td>
+              <td className="py-1.5 pr-3 text-brand-gray">{it.typeName ?? "—"}</td>
               <td className="py-1.5 pr-3 font-mono text-[11px]">{it.partNo ?? ""}</td>
-              <td className="py-1.5 pr-3 text-sh-black max-w-[260px] truncate">
+              <td className="py-1.5 pr-3 text-brand-black max-w-[260px] truncate">
                 {it.productName ?? "—"}
               </td>
               <td className="py-1.5 pr-3 text-right">{fmt(it.netPrice)}</td>
@@ -394,7 +396,7 @@ function SupplierItemList({
                     e.stopPropagation();
                     onEdit(it);
                   }}
-                  className="text-sh-blue hover:underline"
+                  className="text-brand-blue hover:underline"
                 >
                   Edit
                 </button>
@@ -404,7 +406,7 @@ function SupplierItemList({
         </tbody>
       </table>
       {items.length >= 500 && (
-        <p className="text-xs text-sh-gray mt-2">
+        <p className="text-xs text-brand-gray mt-2">
           Showing first 500 items. Narrow the date range or filters to see others.
         </p>
       )}
@@ -749,16 +751,16 @@ export function DetailedSalesView() {
 
   return (
     <div className="max-w-screen-lg mx-auto py-2 font-serif space-y-6">
-      <h1 className="text-2xl font-semibold text-sh-blue">Sales by Department</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue">Sales by Department</h1>
 
       {/* Filter bar: date range + dept filter + run + relink */}
-      <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-4">
+      <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-4">
         <div className="flex items-end gap-3 flex-wrap">
           <div className="flex-1 min-w-[240px]">
             <DateRangeFilter value={dateRange} onChange={setDateRange} />
           </div>
           <div>
-            <p className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+            <p className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
               Stores
             </p>
             <MultiSelectDropdown
@@ -770,7 +772,7 @@ export function DetailedSalesView() {
             />
           </div>
           <div>
-            <p className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+            <p className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
               Departments
             </p>
             <MultiSelectDropdown
@@ -782,7 +784,7 @@ export function DetailedSalesView() {
             />
           </div>
           <div>
-            <p className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+            <p className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
               Vendors
             </p>
             <MultiSelectDropdown
@@ -801,7 +803,7 @@ export function DetailedSalesView() {
             onClick={exportCsv}
             disabled={!hasRun || filteredSales.length === 0}
             title="Download the current rolled-up view as CSV (store / department / category / vendor)."
-            className="h-[42px] px-4 text-sm border border-sh-gray/30 text-sh-gray hover:bg-sh-linen rounded-lg transition disabled:opacity-50"
+            className="h-[42px] px-4 text-sm border border-brand-gray/30 text-brand-gray hover:bg-brand-linen rounded-lg transition disabled:opacity-50"
           >
             Export CSV
           </button>
@@ -810,7 +812,7 @@ export function DetailedSalesView() {
             onClick={handleRelinkAll}
             disabled={relinking || loading}
             title="Match all unlinked line items to products by part number / UPC. Run this after a product import to fix Uncategorized rows."
-            className="h-[42px] px-4 text-sm border border-sh-gray/30 text-sh-gray hover:bg-sh-linen rounded-lg transition disabled:opacity-50"
+            className="h-[42px] px-4 text-sm border border-brand-gray/30 text-brand-gray hover:bg-brand-linen rounded-lg transition disabled:opacity-50"
           >
             {relinking ? "Relinking…" : "Relink Line Items"}
           </button>
@@ -820,10 +822,10 @@ export function DetailedSalesView() {
             Supplier pivots to vendor→dept→category→items, cross-store. */}
         {hasRun && (
           <div className="mt-3 flex items-center gap-2 text-sm">
-            <span className="text-xs font-semibold text-sh-gray uppercase tracking-wide">
+            <span className="text-xs font-semibold text-brand-gray uppercase tracking-wide">
               Pivot:
             </span>
-            <div className="inline-flex rounded-lg border border-sh-gray/30 overflow-hidden">
+            <div className="inline-flex rounded-lg border border-brand-gray/30 overflow-hidden">
               <button
                 type="button"
                 onClick={() => {
@@ -832,8 +834,8 @@ export function DetailedSalesView() {
                 }}
                 className={`px-3 py-1.5 transition ${
                   pivot === "department"
-                    ? "bg-sh-blue text-white"
-                    : "bg-white text-sh-gray hover:bg-sh-linen"
+                    ? "bg-brand-blue text-white"
+                    : "bg-white text-brand-gray hover:bg-brand-linen"
                 }`}
               >
                 By Department
@@ -844,10 +846,10 @@ export function DetailedSalesView() {
                   setPivot("vendor");
                   setExpandedKey(null);
                 }}
-                className={`px-3 py-1.5 transition border-l border-sh-gray/30 ${
+                className={`px-3 py-1.5 transition border-l border-brand-gray/30 ${
                   pivot === "vendor"
-                    ? "bg-sh-blue text-white"
-                    : "bg-white text-sh-gray hover:bg-sh-linen"
+                    ? "bg-brand-blue text-white"
+                    : "bg-white text-brand-gray hover:bg-brand-linen"
                 }`}
               >
                 By Supplier
@@ -873,56 +875,56 @@ export function DetailedSalesView() {
   // nested ternary chain but extracted to a helper for readability (S3358).
   function renderBody() {
     if (loading) {
-      return <p className="text-sh-gray text-center py-8">Loading...</p>;
+      return <p className="text-brand-gray text-center py-8">Loading...</p>;
     }
     if (!hasRun) {
       return (
-        <p className="text-sh-gray text-center py-8">Set a date range and click Run Report.</p>
+        <p className="text-brand-gray text-center py-8">Set a date range and click Run Report.</p>
       );
     }
     if (filteredSales.length === 0) {
-      return <p className="text-sh-gray text-center py-8">No sales data for this period.</p>;
+      return <p className="text-brand-gray text-center py-8">No sales data for this period.</p>;
     }
     return (
       <>
         {/* Summary by store */}
-        <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-sh-linen border-b border-sh-gray/20">
-                <th className="text-left p-3 font-semibold text-sh-black">Store</th>
-                <th className="text-right p-3 font-semibold text-sh-black">Items</th>
-                <th className="text-right p-3 font-semibold text-sh-black">Net Sales</th>
-                <th className="text-right p-3 font-semibold text-sh-black">Tax</th>
-                <th className="text-right p-3 font-semibold text-sh-black">Total</th>
+              <tr className="bg-brand-linen border-b border-brand-gray/20">
+                <th className="text-left p-3 font-semibold text-brand-black">Store</th>
+                <th className="text-right p-3 font-semibold text-brand-black">Items</th>
+                <th className="text-right p-3 font-semibold text-brand-black">Net Sales</th>
+                <th className="text-right p-3 font-semibold text-brand-black">Tax</th>
+                <th className="text-right p-3 font-semibold text-brand-black">Total</th>
               </tr>
             </thead>
             <tbody>
               {storeSummary.map((row) => (
-                <tr key={row.store} className="border-b border-sh-gray/10 hover:bg-sh-stripe">
-                  <td className="p-3 text-sh-black font-medium">{row.store}</td>
-                  <td className="p-3 text-right text-sh-gray">{row.itemCount}</td>
-                  <td className="p-3 text-right text-sh-black">{fmt(row.netSales)}</td>
-                  <td className="p-3 text-right text-sh-gray">{fmt(row.taxCollected)}</td>
-                  <td className="p-3 text-right font-medium text-sh-black">
+                <tr key={row.store} className="border-b border-brand-gray/10 hover:bg-brand-stripe">
+                  <td className="p-3 text-brand-black font-medium">{row.store}</td>
+                  <td className="p-3 text-right text-brand-gray">{row.itemCount}</td>
+                  <td className="p-3 text-right text-brand-black">{fmt(row.netSales)}</td>
+                  <td className="p-3 text-right text-brand-gray">{fmt(row.taxCollected)}</td>
+                  <td className="p-3 text-right font-medium text-brand-black">
                     {fmt(row.netSales + row.taxCollected)}
                   </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-sh-linen border-t-2 border-sh-gray/30">
-                <td className="p-3 font-semibold text-sh-black">Total</td>
-                <td className="p-3 text-right font-semibold text-sh-black">
+              <tr className="bg-brand-linen border-t-2 border-brand-gray/30">
+                <td className="p-3 font-semibold text-brand-black">Total</td>
+                <td className="p-3 text-right font-semibold text-brand-black">
                   {grandTotal.itemCount}
                 </td>
-                <td className="p-3 text-right font-semibold text-sh-black">
+                <td className="p-3 text-right font-semibold text-brand-black">
                   {fmt(grandTotal.netSales)}
                 </td>
-                <td className="p-3 text-right font-semibold text-sh-gray">
+                <td className="p-3 text-right font-semibold text-brand-gray">
                   {fmt(grandTotal.taxCollected)}
                 </td>
-                <td className="p-3 text-right font-semibold text-sh-black">
+                <td className="p-3 text-right font-semibold text-brand-black">
                   {fmt(grandTotal.netSales + grandTotal.taxCollected)}
                 </td>
               </tr>
@@ -967,46 +969,48 @@ export function DetailedSalesView() {
             return (
               <div
                 key={store}
-                className="bg-white border border-sh-gray/20 rounded-lg shadow-sm overflow-hidden"
+                className="bg-white border border-brand-gray/20 rounded-lg shadow-sm overflow-hidden"
               >
                 <button
                   type="button"
                   onClick={() => toggleStoreDrilldown(store)}
-                  className={`w-full text-left bg-sh-linen px-3 py-2 border-b border-sh-gray/20 cursor-pointer transition flex items-center justify-between ${
-                    storeExpanded ? "bg-sh-linen/80" : "hover:bg-sh-linen/60"
+                  className={`w-full text-left bg-brand-linen px-3 py-2 border-b border-brand-gray/20 cursor-pointer transition flex items-center justify-between ${
+                    storeExpanded ? "bg-brand-linen/80" : "hover:bg-brand-linen/60"
                   }`}
                   title="Click to drill down to all line items in this store"
                 >
-                  <h3 className="text-sm font-semibold text-sh-blue flex items-center gap-2">
-                    <span className="inline-block w-3 text-sh-gray">
+                  <h3 className="text-sm font-semibold text-brand-blue flex items-center gap-2">
+                    <span className="inline-block w-3 text-brand-gray">
                       {storeExpanded ? "▾" : "▸"}
                     </span>
                     {store}
                   </h3>
-                  <span className="text-xs text-sh-gray">
+                  <span className="text-xs text-brand-gray">
                     {storeTotals.itemCount.toLocaleString()} item
                     {storeTotals.itemCount === 1 ? "" : "s"} ·{" "}
-                    <span className="font-semibold text-sh-black">{fmt(storeTotals.netSales)}</span>
+                    <span className="font-semibold text-brand-black">
+                      {fmt(storeTotals.netSales)}
+                    </span>
                   </span>
                 </button>
                 {storeExpanded && (
-                  <div className="bg-sh-linen/30 px-4 py-3 border-b border-sh-gray/20">
+                  <div className="bg-brand-linen/30 px-4 py-3 border-b border-brand-gray/20">
                     <StoreDrilldownContent isLoading={storeLoading} items={storeItems} />
                   </div>
                 )}
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-sh-gray/10">
-                      <th className="text-left p-3 text-xs font-semibold text-sh-gray uppercase tracking-wide">
+                    <tr className="border-b border-brand-gray/10">
+                      <th className="text-left p-3 text-xs font-semibold text-brand-gray uppercase tracking-wide">
                         Department
                       </th>
-                      <th className="text-right p-3 text-xs font-semibold text-sh-gray uppercase tracking-wide">
+                      <th className="text-right p-3 text-xs font-semibold text-brand-gray uppercase tracking-wide">
                         Items
                       </th>
-                      <th className="text-right p-3 text-xs font-semibold text-sh-gray uppercase tracking-wide">
+                      <th className="text-right p-3 text-xs font-semibold text-brand-gray uppercase tracking-wide">
                         Net Sales
                       </th>
-                      <th className="text-right p-3 text-xs font-semibold text-sh-gray uppercase tracking-wide">
+                      <th className="text-right p-3 text-xs font-semibold text-brand-gray uppercase tracking-wide">
                         Tax
                       </th>
                     </tr>
@@ -1022,23 +1026,25 @@ export function DetailedSalesView() {
                         <Fragment key={row.department}>
                           <tr
                             onClick={() => toggleDrilldown(store, row.department)}
-                            className={`border-b border-sh-gray/10 cursor-pointer transition ${
-                              isExpanded ? "bg-sh-linen/60" : "hover:bg-sh-stripe"
+                            className={`border-b border-brand-gray/10 cursor-pointer transition ${
+                              isExpanded ? "bg-brand-linen/60" : "hover:bg-brand-stripe"
                             } ${isUncategorized ? "text-amber-700" : ""}`}
                           >
                             <td className="p-3 font-medium">
-                              <span className="inline-block w-4 text-sh-gray">
+                              <span className="inline-block w-4 text-brand-gray">
                                 {isExpanded ? "▾" : "▸"}
                               </span>
                               {row.department}
                             </td>
-                            <td className="p-3 text-right text-sh-gray">{row.itemCount}</td>
+                            <td className="p-3 text-right text-brand-gray">{row.itemCount}</td>
                             <td className="p-3 text-right">{fmt(row.netSales)}</td>
-                            <td className="p-3 text-right text-sh-gray">{fmt(row.taxCollected)}</td>
+                            <td className="p-3 text-right text-brand-gray">
+                              {fmt(row.taxCollected)}
+                            </td>
                           </tr>
                           {isExpanded && (
                             <tr>
-                              <td colSpan={4} className="bg-sh-linen/30 px-4 py-3">
+                              <td colSpan={4} className="bg-brand-linen/30 px-4 py-3">
                                 <DeptDrilldownContent
                                   isLoading={isLoading}
                                   items={items}
@@ -1076,16 +1082,16 @@ function DeptDrilldownContent({
 }>) {
   const fmt = useMoneyFormatter();
   if (isLoading) {
-    return <p className="text-sm text-sh-gray">Loading line items…</p>;
+    return <p className="text-sm text-brand-gray">Loading line items…</p>;
   }
   if (!items || items.length === 0) {
-    return <p className="text-sm text-sh-gray">No line items for this bucket.</p>;
+    return <p className="text-sm text-brand-gray">No line items for this bucket.</p>;
   }
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-left text-sh-gray border-b border-sh-gray/20">
+          <tr className="text-left text-brand-gray border-b border-brand-gray/20">
             <th className="py-1.5 pr-3">Order</th>
             <th className="py-1.5 pr-3">Customer</th>
             <th className="py-1.5 pr-3">Date</th>
@@ -1097,21 +1103,21 @@ function DeptDrilldownContent({
         </thead>
         <tbody>
           {items.map((it) => (
-            <tr key={it.id} className="border-b border-sh-gray/10">
+            <tr key={it.id} className="border-b border-brand-gray/10">
               <td className="py-1.5 pr-3">
                 <Link
                   href={`/app/sales/orders/${it.orderId}`}
-                  className="text-sh-blue hover:underline"
+                  className="text-brand-blue hover:underline"
                 >
                   {it.orderno}
                 </Link>
               </td>
-              <td className="py-1.5 pr-3 text-sh-black">{it.customerName ?? "—"}</td>
-              <td className="py-1.5 pr-3 text-sh-gray">
+              <td className="py-1.5 pr-3 text-brand-black">{it.customerName ?? "—"}</td>
+              <td className="py-1.5 pr-3 text-brand-gray">
                 {it.orderDate ? parseLocalDate(it.orderDate).toLocaleDateString() : "—"}
               </td>
               <td className="py-1.5 pr-3 font-mono text-[11px]">{it.partNo ?? ""}</td>
-              <td className="py-1.5 pr-3 text-sh-black max-w-[320px] truncate">
+              <td className="py-1.5 pr-3 text-brand-black max-w-[320px] truncate">
                 {it.productName ?? "—"}
               </td>
               <td className="py-1.5 pr-3 text-right">{fmt(it.netPrice)}</td>
@@ -1122,7 +1128,7 @@ function DeptDrilldownContent({
                     e.stopPropagation();
                     onEdit(it);
                   }}
-                  className="text-sh-blue hover:underline"
+                  className="text-brand-blue hover:underline"
                 >
                   Edit
                 </button>
@@ -1132,7 +1138,7 @@ function DeptDrilldownContent({
         </tbody>
       </table>
       {items.length >= 500 && (
-        <p className="text-xs text-sh-gray mt-2">
+        <p className="text-xs text-brand-gray mt-2">
           Showing first 500 items. Narrow the date range or department filter to see others.
         </p>
       )}
@@ -1284,13 +1290,13 @@ function EditLineItemModal({
     >
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
         <div>
-          <h2 className="text-lg font-semibold text-sh-black font-serif">Edit Line Item</h2>
-          <p className="text-sm text-sh-gray mt-0.5">
+          <h2 className="text-lg font-semibold text-brand-black font-serif">Edit Line Item</h2>
+          <p className="text-sm text-brand-gray mt-0.5">
             {item.orderno} · {item.customerName ?? "no customer"} ·{" "}
             {item.orderDate ? parseLocalDate(item.orderDate).toLocaleDateString() : "—"} ·{" "}
             {fmt(item.netPrice)}
           </p>
-          <p className="text-xs text-sh-gray mt-1">
+          <p className="text-xs text-brand-gray mt-1">
             Part # <span className="font-mono">{item.partNo ?? "—"}</span> · Currently:{" "}
             {item.departmentName ? (
               <>
@@ -1303,14 +1309,14 @@ function EditLineItemModal({
           </p>
         </div>
 
-        <div className="flex gap-2 border-b border-sh-gray/20">
+        <div className="flex gap-2 border-b border-brand-gray/20">
           <button
             type="button"
             onClick={() => setTab("link")}
             className={`px-4 py-2 text-sm font-semibold min-h-[40px] transition ${
               tab === "link"
-                ? "text-sh-blue border-b-2 border-sh-blue"
-                : "text-sh-gray hover:text-sh-black"
+                ? "text-brand-blue border-b-2 border-brand-blue"
+                : "text-brand-gray hover:text-brand-black"
             }`}
           >
             Link to existing
@@ -1320,8 +1326,8 @@ function EditLineItemModal({
             onClick={() => setTab("create")}
             className={`px-4 py-2 text-sm font-semibold min-h-[40px] transition ${
               tab === "create"
-                ? "text-sh-blue border-b-2 border-sh-blue"
-                : "text-sh-gray hover:text-sh-black"
+                ? "text-brand-blue border-b-2 border-brand-blue"
+                : "text-brand-gray hover:text-brand-black"
             }`}
           >
             Create new product
@@ -1332,7 +1338,7 @@ function EditLineItemModal({
           <div>
             <label
               htmlFor="detailed-sales-product-search"
-              className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1"
+              className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1"
             >
               Search product (by name, part #, or UPC)
             </label>
@@ -1344,7 +1350,7 @@ function EditLineItemModal({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") runSearch();
                 }}
-                className="flex-1 border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black focus:outline-none focus:ring-1 focus:ring-sh-blue"
+                className="flex-1 border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black focus:outline-none focus:ring-1 focus:ring-brand-blue"
                 placeholder={item.partNo ?? "e.g. SKU-217029, ACC-9381"}
               />
               <Button
@@ -1359,20 +1365,20 @@ function EditLineItemModal({
         )}
 
         {tab === "link" && hits.length > 0 && (
-          <div className="border border-sh-gray/20 rounded-lg divide-y divide-sh-gray/10 max-h-64 overflow-y-auto">
+          <div className="border border-brand-gray/20 rounded-lg divide-y divide-brand-gray/10 max-h-64 overflow-y-auto">
             {hits.map((h) => (
               <button
                 type="button"
                 key={h.id}
                 onClick={() => setSelectedProductId(h.id)}
-                className={`w-full text-left px-3 py-2 hover:bg-sh-linen transition ${
-                  selectedProductId === h.id ? "bg-sh-linen" : ""
+                className={`w-full text-left px-3 py-2 hover:bg-brand-linen transition ${
+                  selectedProductId === h.id ? "bg-brand-linen" : ""
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-sh-black truncate">{h.name}</p>
-                    <p className="text-xs text-sh-gray">
+                    <p className="text-sm font-medium text-brand-black truncate">{h.name}</p>
+                    <p className="text-xs text-brand-gray">
                       <span className="font-mono">{h.productNumber}</span>
                       {h.vendorName ? ` · ${h.vendorName}` : ""}
                       {h.departmentName ? ` · ${h.departmentName}` : ""}
@@ -1380,7 +1386,7 @@ function EditLineItemModal({
                     </p>
                   </div>
                   {selectedProductId === h.id && (
-                    <span className="text-sh-blue text-xs font-semibold shrink-0">Selected</span>
+                    <span className="text-brand-blue text-xs font-semibold shrink-0">Selected</span>
                   )}
                 </div>
               </button>
@@ -1389,12 +1395,12 @@ function EditLineItemModal({
         )}
 
         {tab === "link" && query && !searching && hits.length === 0 && (
-          <p className="text-sm text-sh-gray italic">
+          <p className="text-sm text-brand-gray italic">
             No matches. Switch to{" "}
             <button
               type="button"
               onClick={() => setTab("create")}
-              className="text-sh-blue underline"
+              className="text-brand-blue underline"
             >
               Create new product
             </button>{" "}
@@ -1408,7 +1414,7 @@ function EditLineItemModal({
               <div>
                 <label
                   htmlFor="detailed-sales-new-name"
-                  className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1"
+                  className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1"
                 >
                   Name <span className="text-red-500">*</span>
                 </label>
@@ -1416,13 +1422,13 @@ function EditLineItemModal({
                   id="detailed-sales-new-name"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black min-h-[40px] focus:outline-none focus:ring-1 focus:ring-sh-blue"
+                  className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black min-h-[40px] focus:outline-none focus:ring-1 focus:ring-brand-blue"
                 />
               </div>
               <div>
                 <label
                   htmlFor="detailed-sales-new-partno"
-                  className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1"
+                  className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1"
                 >
                   Part Number <span className="text-red-500">*</span>
                 </label>
@@ -1430,13 +1436,13 @@ function EditLineItemModal({
                   id="detailed-sales-new-partno"
                   value={newPartNo}
                   onChange={(e) => setNewPartNo(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black font-mono min-h-[40px] focus:outline-none focus:ring-1 focus:ring-sh-blue"
+                  className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black font-mono min-h-[40px] focus:outline-none focus:ring-1 focus:ring-brand-blue"
                 />
               </div>
               <div>
                 <label
                   htmlFor="detailed-sales-new-upc"
-                  className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1"
+                  className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1"
                 >
                   UPC / Barcode
                 </label>
@@ -1444,14 +1450,14 @@ function EditLineItemModal({
                   id="detailed-sales-new-upc"
                   value={newUpc}
                   onChange={(e) => setNewUpc(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black font-mono min-h-[40px] focus:outline-none focus:ring-1 focus:ring-sh-blue"
+                  className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black font-mono min-h-[40px] focus:outline-none focus:ring-1 focus:ring-brand-blue"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label
                     htmlFor="detailed-sales-new-cost"
-                    className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1"
+                    className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1"
                   >
                     Cost
                   </label>
@@ -1461,13 +1467,13 @@ function EditLineItemModal({
                     onChange={(e) => setNewCost(e.target.value)}
                     type="number"
                     step="0.01"
-                    className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black min-h-[40px] focus:outline-none focus:ring-1 focus:ring-sh-blue"
+                    className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black min-h-[40px] focus:outline-none focus:ring-1 focus:ring-brand-blue"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="detailed-sales-new-retail"
-                    className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1"
+                    className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1"
                   >
                     Retail
                   </label>
@@ -1477,7 +1483,7 @@ function EditLineItemModal({
                     onChange={(e) => setNewRetail(e.target.value)}
                     type="number"
                     step="0.01"
-                    className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black min-h-[40px] focus:outline-none focus:ring-1 focus:ring-sh-blue"
+                    className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black min-h-[40px] focus:outline-none focus:ring-1 focus:ring-brand-blue"
                   />
                 </div>
               </div>
@@ -1493,7 +1499,7 @@ function EditLineItemModal({
           </div>
         )}
 
-        <div className="flex gap-3 pt-2 border-t border-sh-gray/10">
+        <div className="flex gap-3 pt-2 border-t border-brand-gray/10">
           {tab === "link" ? (
             <>
               <Button onClick={handleSave} disabled={saving} className="flex-1 min-h-[44px]">
@@ -1506,7 +1512,7 @@ function EditLineItemModal({
                     setTimeout(handleSave, 0);
                   }}
                   disabled={saving}
-                  className="min-h-[44px] px-4 bg-sh-gray hover:bg-sh-black"
+                  className="min-h-[44px] px-4 bg-brand-gray hover:bg-brand-black"
                 >
                   Clear Link
                 </Button>
@@ -1520,7 +1526,7 @@ function EditLineItemModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-sh-gray/30 text-sh-gray text-sm min-h-[44px]"
+            className="px-4 py-2 rounded-lg border border-brand-gray/30 text-brand-gray text-sm min-h-[44px]"
           >
             Cancel
           </button>

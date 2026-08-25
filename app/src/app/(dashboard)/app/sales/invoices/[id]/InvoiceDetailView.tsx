@@ -18,7 +18,7 @@ import { api } from "@/lib/trpc/client";
 import { INVOICE_PAYMENT_METHODS, type InvoicePaymentMethod } from "@/lib/billing/invoiceShared";
 
 const STATUS_BADGE: Record<string, string> = {
-  DRAFT: "bg-sh-stripe text-sh-gray",
+  DRAFT: "bg-brand-stripe text-brand-gray",
   ISSUED: "bg-amber-100 text-amber-800",
   PAID: "bg-green-100 text-green-800",
   VOID: "bg-red-100 text-red-800",
@@ -148,12 +148,12 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
   if (query.isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
       </div>
     );
   }
   if (!invoice) {
-    return <p className="py-16 text-center text-sh-gray">Invoice not found.</p>;
+    return <p className="py-16 text-center text-brand-gray">Invoice not found.</p>;
   }
 
   const busy =
@@ -166,18 +166,18 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
 
   return (
     <div className="max-w-3xl space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/sales/invoices" className="hover:underline">
           Invoices
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">{invoice.invoiceNo}</span>
+        <span className="text-brand-black">{invoice.invoiceNo}</span>
       </nav>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-navy">{invoice.invoiceNo}</h1>
-          <p className="text-sm text-sh-gray">
+          <h1 className="text-2xl font-semibold text-brand-navy">{invoice.invoiceNo}</h1>
+          <p className="text-sm text-brand-gray">
             {invoice.customerName}
             {invoice.customerEmail ? ` · ${invoice.customerEmail}` : ""}
           </p>
@@ -192,7 +192,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
           <>
             <Link
               href={`/app/sales/invoices/${invoiceId}/edit`}
-              className="inline-flex min-h-[44px] items-center rounded-lg border border-gray-300 px-4 text-sm text-sh-black transition hover:bg-sh-linen"
+              className="inline-flex min-h-[44px] items-center rounded-lg border border-gray-300 px-4 text-sm text-brand-black transition hover:bg-brand-linen"
             >
               Edit
             </Link>
@@ -200,7 +200,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
               type="button"
               onClick={onIssue}
               disabled={busy}
-              className="min-h-[44px] rounded-lg bg-sh-navy px-5 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+              className="min-h-[44px] rounded-lg bg-brand-navy px-5 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
             >
               {issue.isPending ? "Issuing..." : "Issue Invoice"}
             </button>
@@ -220,7 +220,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
               type="button"
               onClick={() => setShowPaymentForm((v) => !v)}
               disabled={busy}
-              className="min-h-[44px] rounded-lg bg-sh-navy px-5 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+              className="min-h-[44px] rounded-lg bg-brand-navy px-5 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
             >
               Record Payment
             </button>
@@ -228,11 +228,11 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
               type="button"
               onClick={onSendEmail}
               disabled={busy || !invoice.customerEmail}
-              className="min-h-[44px] rounded-lg border border-gray-300 px-4 text-sm text-sh-black transition hover:bg-sh-linen disabled:opacity-50"
+              className="min-h-[44px] rounded-lg border border-gray-300 px-4 text-sm text-brand-black transition hover:bg-brand-linen disabled:opacity-50"
             >
               {sendEmail.isPending ? "Sending..." : "Email Invoice"}
             </button>
-            <label className="flex items-center gap-1 text-xs text-sh-gray">
+            <label className="flex items-center gap-1 text-xs text-brand-gray">
               <input
                 type="checkbox"
                 checked={includeLink}
@@ -244,7 +244,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
               type="button"
               onClick={onPaymentLink}
               disabled={busy}
-              className="min-h-[44px] rounded-lg border border-gray-300 px-4 text-sm text-sh-black transition hover:bg-sh-linen disabled:opacity-50"
+              className="min-h-[44px] rounded-lg border border-gray-300 px-4 text-sm text-brand-black transition hover:bg-brand-linen disabled:opacity-50"
             >
               {paymentLink.isPending ? "Creating..." : "Copy Payment Link"}
             </button>
@@ -252,7 +252,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
               type="button"
               onClick={onPortalLink}
               disabled={busy || portalLink.isPending}
-              className="min-h-[44px] rounded-lg border border-gray-300 px-4 text-sm text-sh-black transition hover:bg-sh-linen disabled:opacity-50"
+              className="min-h-[44px] rounded-lg border border-gray-300 px-4 text-sm text-brand-black transition hover:bg-brand-linen disabled:opacity-50"
             >
               {portalLink.isPending ? "Creating..." : "Copy Portal Link"}
             </button>
@@ -268,16 +268,16 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
         )}
         <a
           href={`/api/billing/invoices/${invoiceId}/pdf`}
-          className="inline-flex min-h-[44px] items-center rounded-lg border border-gray-300 px-4 text-sm text-sh-black transition hover:bg-sh-linen"
+          className="inline-flex min-h-[44px] items-center rounded-lg border border-gray-300 px-4 text-sm text-brand-black transition hover:bg-brand-linen"
         >
           Download PDF
         </a>
       </div>
 
       {showPaymentForm && invoice.status === "ISSUED" && (
-        <div className="flex flex-wrap items-end gap-3 rounded-lg border border-sh-gray/20 bg-sh-linen p-4">
+        <div className="flex flex-wrap items-end gap-3 rounded-lg border border-brand-gray/20 bg-brand-linen p-4">
           <div>
-            <label htmlFor="payAmount" className="mb-1 block text-xs font-medium text-sh-gray">
+            <label htmlFor="payAmount" className="mb-1 block text-xs font-medium text-brand-gray">
               Amount (open: {money(invoice.openBalance)})
             </label>
             <input
@@ -291,7 +291,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
             />
           </div>
           <div>
-            <label htmlFor="payMethod" className="mb-1 block text-xs font-medium text-sh-gray">
+            <label htmlFor="payMethod" className="mb-1 block text-xs font-medium text-brand-gray">
               Method
             </label>
             <select
@@ -308,7 +308,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
             </select>
           </div>
           <div>
-            <label htmlFor="payRef" className="mb-1 block text-xs font-medium text-sh-gray">
+            <label htmlFor="payRef" className="mb-1 block text-xs font-medium text-brand-gray">
               Reference (check #)
             </label>
             <input
@@ -323,57 +323,57 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
             type="button"
             onClick={onRecordPayment}
             disabled={recordPayment.isPending || Number(payAmount) <= 0}
-            className="min-h-[44px] rounded-lg bg-sh-navy px-5 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+            className="min-h-[44px] rounded-lg bg-brand-navy px-5 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
           >
             {recordPayment.isPending ? "Recording..." : "Record"}
           </button>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-sh-gray/20 bg-white shadow-md">
+      <div className="overflow-hidden rounded-lg border border-brand-gray/20 bg-white shadow-md">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-sh-gray/20 bg-sh-linen">
-              <th className="px-4 py-3 text-left font-semibold text-sh-gray">Description</th>
-              <th className="px-4 py-3 text-right font-semibold text-sh-gray">Qty</th>
-              <th className="px-4 py-3 text-right font-semibold text-sh-gray">Unit</th>
-              <th className="px-4 py-3 text-right font-semibold text-sh-gray">Amount</th>
+            <tr className="border-b border-brand-gray/20 bg-brand-linen">
+              <th className="px-4 py-3 text-left font-semibold text-brand-gray">Description</th>
+              <th className="px-4 py-3 text-right font-semibold text-brand-gray">Qty</th>
+              <th className="px-4 py-3 text-right font-semibold text-brand-gray">Unit</th>
+              <th className="px-4 py-3 text-right font-semibold text-brand-gray">Amount</th>
             </tr>
           </thead>
           <tbody>
             {invoice.lines.map((l, i) => (
               <tr
                 key={l.id}
-                className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
               >
                 <td className="px-4 py-3">{l.description}</td>
                 <td className="px-4 py-3 text-right">{l.quantity}</td>
-                <td className="px-4 py-3 text-right text-sh-gray">{money(l.unitPrice)}</td>
+                <td className="px-4 py-3 text-right text-brand-gray">{money(l.unitPrice)}</td>
                 <td className="px-4 py-3 text-right">{money(l.amount)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot>
-            <tr className="bg-sh-linen text-sh-gray">
+            <tr className="bg-brand-linen text-brand-gray">
               <td colSpan={3} className="px-4 py-2 text-right">
                 Subtotal
               </td>
               <td className="px-4 py-2 text-right">{money(invoice.subtotal)}</td>
             </tr>
-            <tr className="bg-sh-linen text-sh-gray">
+            <tr className="bg-brand-linen text-brand-gray">
               <td colSpan={3} className="px-4 py-2 text-right">
                 Tax
               </td>
               <td className="px-4 py-2 text-right">{money(invoice.taxAmount)}</td>
             </tr>
-            <tr className="border-t-2 border-sh-navy bg-sh-linen font-semibold text-sh-navy">
+            <tr className="border-t-2 border-brand-navy bg-brand-linen font-semibold text-brand-navy">
               <td colSpan={3} className="px-4 py-3 text-right">
                 Total
               </td>
               <td className="px-4 py-3 text-right">{money(invoice.total)}</td>
             </tr>
             {invoice.status === "ISSUED" && (
-              <tr className="bg-sh-linen font-semibold text-amber-800">
+              <tr className="bg-brand-linen font-semibold text-amber-800">
                 <td colSpan={3} className="px-4 py-2 text-right">
                   Balance due
                 </td>
@@ -386,26 +386,26 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
 
       {invoice.payments.length > 0 && (
         <div>
-          <h2 className="mb-2 text-lg font-semibold text-sh-navy">Payments</h2>
-          <div className="overflow-hidden rounded-lg border border-sh-gray/20 bg-white shadow-md">
+          <h2 className="mb-2 text-lg font-semibold text-brand-navy">Payments</h2>
+          <div className="overflow-hidden rounded-lg border border-brand-gray/20 bg-white shadow-md">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                  <th className="px-4 py-3 text-left font-semibold text-sh-gray">Date</th>
-                  <th className="px-4 py-3 text-left font-semibold text-sh-gray">Type</th>
-                  <th className="px-4 py-3 text-right font-semibold text-sh-gray">Applied</th>
-                  <th className="px-4 py-3 text-left font-semibold text-sh-gray">Status</th>
+                <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                  <th className="px-4 py-3 text-left font-semibold text-brand-gray">Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-brand-gray">Type</th>
+                  <th className="px-4 py-3 text-right font-semibold text-brand-gray">Applied</th>
+                  <th className="px-4 py-3 text-left font-semibold text-brand-gray">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {invoice.payments.map((p) => (
-                  <tr key={p.paymentId} className="border-b border-sh-gray/10">
+                  <tr key={p.paymentId} className="border-b border-brand-gray/10">
                     <td className="px-4 py-3">
                       {new Date(p.paymentDate).toLocaleDateString("en-US", { timeZone: "UTC" })}
                     </td>
                     <td className="px-4 py-3">{p.paymentType}</td>
                     <td className="px-4 py-3 text-right">{money(p.amountApplied)}</td>
-                    <td className="px-4 py-3 text-sh-gray">{p.status ?? "--"}</td>
+                    <td className="px-4 py-3 text-brand-gray">{p.status ?? "--"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -416,8 +416,8 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
 
       {invoice.notes && (
         <div>
-          <h2 className="mb-1 text-lg font-semibold text-sh-navy">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-sh-gray">{invoice.notes}</p>
+          <h2 className="mb-1 text-lg font-semibold text-brand-navy">Notes</h2>
+          <p className="whitespace-pre-wrap text-sm text-brand-gray">{invoice.notes}</p>
         </div>
       )}
     </div>

@@ -550,7 +550,7 @@ describe("requirePermission on POST /api/sales/orders/[id]/refunds", () => {
 
     const res = makeRes();
     await refundsRoute(
-      makeReq({ query: { id: "1" }, cookies: { "sh-impersonate": "DESIGNER" } }),
+      makeReq({ query: { id: "1" }, cookies: { "holt-impersonate": "DESIGNER" } }),
       res,
     );
     expect(res.statusCode).toBe(403);

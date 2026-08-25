@@ -23,12 +23,12 @@ function LinkCard({
   return (
     <Link
       href={href}
-      className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-5 hover:shadow-lg transition block group"
+      className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5 hover:shadow-lg transition block group"
     >
-      <h2 className="text-lg font-semibold text-sh-black mb-1 group-hover:text-sh-blue transition">
+      <h2 className="text-lg font-semibold text-brand-black mb-1 group-hover:text-brand-blue transition">
         {title}
       </h2>
-      <p className="text-sh-gray text-sm">{description}</p>
+      <p className="text-brand-gray text-sm">{description}</p>
     </Link>
   );
 }
@@ -88,12 +88,12 @@ function GenerateSnapshotCard() {
       type="button"
       onClick={handleGenerate}
       disabled={generating}
-      className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-5 hover:shadow-lg transition block group text-left w-full disabled:opacity-60 disabled:cursor-wait"
+      className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5 hover:shadow-lg transition block group text-left w-full disabled:opacity-60 disabled:cursor-wait"
     >
-      <h2 className="text-lg font-semibold text-sh-black mb-1 group-hover:text-sh-blue transition">
+      <h2 className="text-lg font-semibold text-brand-black mb-1 group-hover:text-brand-blue transition">
         {generating ? "Generating..." : "Step 1: Generate Snapshot"}
       </h2>
-      <p className="text-sh-gray text-sm">
+      <p className="text-brand-gray text-sm">
         Freeze today&apos;s expected on-hand baseline from current inventory data.
       </p>
     </button>
@@ -120,7 +120,7 @@ function HubDangerZone({
       <h2 className="text-xl font-semibold text-red-600 mb-2">Danger Zone</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         <div>
-          <p className="text-sh-gray text-sm mb-2">
+          <p className="text-brand-gray text-sm mb-2">
             Clear data for a single location. This is for correcting mistakes and cannot be undone.
           </p>
           <div className="flex items-end gap-2">
@@ -132,7 +132,7 @@ function HubDangerZone({
                 id="clear-location"
                 value={selectedLocation}
                 onChange={(e) => onSelectLocation(e.target.value)}
-                className="border border-sh-gray rounded-lg px-3 py-2 w-full text-sh-black font-serif"
+                className="border border-brand-gray rounded-lg px-3 py-2 w-full text-brand-black font-serif"
                 disabled={locations.length === 0}
               >
                 {locations.length === 0 && <option>No locations found</option>}
@@ -149,7 +149,7 @@ function HubDangerZone({
           </div>
         </div>
         <div className="border-t md:border-t-0 md:border-l border-gray-200/80 pl-6 pt-6 md:pt-0">
-          <p className="text-sh-gray text-sm mb-2">
+          <p className="text-brand-gray text-sm mb-2">
             Clear ALL inventory data to prepare for a new, company-wide count. This is irreversible.
           </p>
           <Button variant="secondary" onClick={onClearAll}>
@@ -224,8 +224,8 @@ export function InventoryHubView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div>
-        <h1 className="text-2xl font-semibold text-sh-blue mb-2">Physical Inventory Hub</h1>
-        <p className="text-sh-gray">Start here for all physical inventory tasks.</p>
+        <h1 className="text-2xl font-semibold text-brand-blue mb-2">Physical Inventory Hub</h1>
+        <p className="text-brand-gray">Start here for all physical inventory tasks.</p>
       </div>
 
       {/* Core Actions */}
@@ -245,7 +245,7 @@ export function InventoryHubView() {
 
       {/* Consignment */}
       <div>
-        <h2 className="text-xl font-semibold text-sh-blue mb-3">Consignment</h2>
+        <h2 className="text-xl font-semibold text-brand-blue mb-3">Consignment</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <LinkCard
             href="/app/inventory/consignment"
@@ -267,7 +267,7 @@ export function InventoryHubView() {
 
       {/* Inventory Freeze */}
       <div>
-        <h2 className="text-xl font-semibold text-sh-blue mb-3">Snapshots</h2>
+        <h2 className="text-xl font-semibold text-brand-blue mb-3">Snapshots</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <LinkCard
             href="/app/inventory/freeze"
@@ -279,7 +279,7 @@ export function InventoryHubView() {
 
       {/* Reconciliation Reports */}
       <div>
-        <h2 className="text-xl font-semibold text-sh-blue mb-3">Reconciliation Reports</h2>
+        <h2 className="text-xl font-semibold text-brand-blue mb-3">Reconciliation Reports</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <LinkCard
             href="/app/inventory/variance-apparel"
@@ -299,7 +299,7 @@ export function InventoryHubView() {
           the cutover; see InventorySnapshot's schema comment. */}
       <div>
         <h2 className="text-xl font-semibold text-amber-800 mb-1">Migration &amp; Cutover Tools</h2>
-        <p className="text-sh-gray text-sm mb-3">
+        <p className="text-brand-gray text-sm mb-3">
           Not part of the normal count flow. Use only to parallel-run a POS export against
           holt&apos;s own snapshot (Step 1 above) while validating a cutover.
         </p>

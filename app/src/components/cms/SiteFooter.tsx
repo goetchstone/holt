@@ -17,15 +17,17 @@ interface SiteFooterProps {
 
 export function SiteFooter({ appName, items, year, variant = "light" }: SiteFooterProps) {
   const dark = variant === "dark";
-  const text = dark ? "text-sm text-sh-stripe/50" : "text-sm text-sh-gray";
+  const text = dark ? "text-sm text-brand-stripe/50" : "text-sm text-brand-gray";
   const link = dark
-    ? "text-sm text-sh-stripe/50 transition hover:text-sh-gold"
-    : "text-sm text-sh-gray transition hover:text-sh-navy";
+    ? "text-sm text-brand-stripe/50 transition hover:text-brand-gold"
+    : "text-sm text-brand-gray transition hover:text-brand-navy";
 
   return (
     <footer
       className={
-        dark ? "border-t border-white/10 bg-sh-navy" : "mt-16 border-t border-black/10 bg-sh-linen"
+        dark
+          ? "border-t border-white/10 bg-brand-navy"
+          : "mt-16 border-t border-black/10 bg-brand-linen"
       }
     >
       <div className="mx-auto flex max-w-screen-lg flex-col gap-4 px-6 py-10 sm:flex-row sm:items-center sm:justify-between">

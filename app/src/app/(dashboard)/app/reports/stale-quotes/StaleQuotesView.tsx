@@ -55,24 +55,24 @@ export function StaleQuotesView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Stale Quote Cleanup</span>
+        <span className="text-brand-black">Stale Quote Cleanup</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">Stale Quote Cleanup</h1>
-      <p className="text-sm text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-navy">Stale Quote Cleanup</h1>
+      <p className="text-sm text-brand-gray">
         Old quotes that need follow-up or closure. Clean the pipeline and surface forgotten
         opportunities.
       </p>
 
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-sh-gray/15 bg-white p-5">
+      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-brand-gray/15 bg-white p-5">
         <div>
           <label
             htmlFor="min-age"
-            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-sh-gray"
+            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-brand-gray"
           >
             Min Age
           </label>
@@ -80,7 +80,7 @@ export function StaleQuotesView() {
             id="min-age"
             value={minAge}
             onChange={(e) => setMinAge(Number(e.target.value))}
-            className="min-h-[44px] rounded-lg border border-sh-gray/30 px-3 py-2 text-sm"
+            className="min-h-[44px] rounded-lg border border-brand-gray/30 px-3 py-2 text-sm"
           >
             <option value={30}>30+ days</option>
             <option value={60}>60+ days</option>
@@ -91,7 +91,7 @@ export function StaleQuotesView() {
         <div>
           <label
             htmlFor="min-value"
-            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-sh-gray"
+            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-brand-gray"
           >
             Min Value
           </label>
@@ -99,7 +99,7 @@ export function StaleQuotesView() {
             id="min-value"
             value={minValue}
             onChange={(e) => setMinValue(Number(e.target.value))}
-            className="min-h-[44px] rounded-lg border border-sh-gray/30 px-3 py-2 text-sm"
+            className="min-h-[44px] rounded-lg border border-brand-gray/30 px-3 py-2 text-sm"
           >
             <option value={0}>Any value</option>
             <option value={500}>$500+</option>
@@ -111,7 +111,7 @@ export function StaleQuotesView() {
           type="button"
           onClick={() => setCommitted({ minAge, minValue })}
           disabled={query.isFetching}
-          className="min-h-[44px] rounded-lg bg-sh-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-brand-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
         >
           {query.isFetching ? "Loading..." : "Run Report"}
         </button>
@@ -142,7 +142,7 @@ export function StaleQuotesView() {
       )}
 
       {committed === null && (
-        <p className="py-16 text-center text-sh-gray">Select filters and click Run Report</p>
+        <p className="py-16 text-center text-brand-gray">Select filters and click Run Report</p>
       )}
     </div>
   );

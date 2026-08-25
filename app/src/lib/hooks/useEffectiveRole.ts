@@ -6,7 +6,7 @@
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 
-const COOKIE_NAME = "sh-impersonate";
+const COOKIE_NAME = "holt-impersonate";
 
 // Cookie lookup without RegExp -- avoids the Semgrep detect-non-literal-
 // regexp warning (though the input was a literal constant anyway) and is

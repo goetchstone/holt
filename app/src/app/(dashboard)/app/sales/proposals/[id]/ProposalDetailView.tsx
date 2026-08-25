@@ -81,8 +81,8 @@ function marginPct(cost: number, retail: number): string {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  DRAFT: "bg-sh-gray/20 text-sh-gray",
-  SENT: "bg-sh-blue/15 text-sh-blue",
+  DRAFT: "bg-brand-gray/20 text-brand-gray",
+  SENT: "bg-brand-blue/15 text-brand-blue",
   ACCEPTED: "bg-green-100 text-green-800",
   DECLINED: "bg-red-100 text-red-700",
   EXPIRED: "bg-amber-100 text-amber-700",
@@ -277,7 +277,7 @@ export function ProposalDetailView({ id }: { id: string }) {
   }
 
   if (loading || !proposal) {
-    return <div className="py-16 text-center text-sh-gray font-serif">Loading...</div>;
+    return <div className="py-16 text-center text-brand-gray font-serif">Loading...</div>;
   }
 
   const items = proposal.lineItems;
@@ -289,7 +289,7 @@ export function ProposalDetailView({ id }: { id: string }) {
   return (
     <div className="py-2 space-y-4 font-serif">
       {/* Breadcrumb + header */}
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/sales" className="hover:underline">
           Sales
         </Link>
@@ -298,12 +298,12 @@ export function ProposalDetailView({ id }: { id: string }) {
           Proposals
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">{proposal.proposalNumber}</span>
+        <span className="text-brand-black">{proposal.proposalNumber}</span>
       </nav>
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold text-sh-navy">{proposal.proposalNumber}</h1>
+          <h1 className="text-2xl font-semibold text-brand-navy">{proposal.proposalNumber}</h1>
           <span
             className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[proposal.status] || ""}`}
           >
@@ -338,15 +338,15 @@ export function ProposalDetailView({ id }: { id: string }) {
       </div>
 
       {/* Tab bar */}
-      <div className="flex border-b border-sh-gray/15">
+      <div className="flex border-b border-brand-gray/15">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`px-5 py-3 text-sm font-medium min-h-[44px] transition border-b-2 ${
               activeTab === tab
-                ? "border-sh-blue text-sh-blue"
-                : "border-transparent text-sh-gray hover:text-sh-black"
+                ? "border-brand-blue text-brand-blue"
+                : "border-transparent text-brand-gray hover:text-brand-black"
             }`}
           >
             {tab}
@@ -360,7 +360,7 @@ export function ProposalDetailView({ id }: { id: string }) {
           <div>
             <label
               htmlFor="proposal-project-name"
-              className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+              className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
             >
               Project Name
             </label>
@@ -370,14 +370,14 @@ export function ProposalDetailView({ id }: { id: string }) {
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
               placeholder="e.g., Marriott Lobby Renovation"
-              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
               disabled={!isEditable}
             />
           </div>
           <div>
             <label
               htmlFor="proposal-company-name"
-              className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+              className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
             >
               Company Name
             </label>
@@ -387,22 +387,22 @@ export function ProposalDetailView({ id }: { id: string }) {
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="Client company name"
-              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
               disabled={!isEditable}
             />
           </div>
           {proposal.customer && (
-            <div className="bg-sh-linen rounded-lg p-4">
-              <p className="text-sm font-semibold text-sh-navy">
+            <div className="bg-brand-linen rounded-lg p-4">
+              <p className="text-sm font-semibold text-brand-navy">
                 {[proposal.customer.firstName, proposal.customer.lastName]
                   .filter(Boolean)
                   .join(" ")}
               </p>
               {proposal.customer.email && (
-                <p className="text-xs text-sh-gray">{proposal.customer.email}</p>
+                <p className="text-xs text-brand-gray">{proposal.customer.email}</p>
               )}
               {proposal.customer.phone && (
-                <p className="text-xs text-sh-gray">{proposal.customer.phone}</p>
+                <p className="text-xs text-brand-gray">{proposal.customer.phone}</p>
               )}
             </div>
           )}
@@ -413,39 +413,39 @@ export function ProposalDetailView({ id }: { id: string }) {
       {activeTab === "Items" && (
         <div className="space-y-4">
           {/* Summary bar */}
-          <div className="bg-sh-linen rounded-lg p-4 flex flex-wrap gap-6 text-sm">
+          <div className="bg-brand-linen rounded-lg p-4 flex flex-wrap gap-6 text-sm">
             <div>
-              Items: <strong className="text-sh-navy">{items.length}</strong>
+              Items: <strong className="text-brand-navy">{items.length}</strong>
             </div>
             <div>
-              Total Cost: <strong className="text-sh-navy">{currency(totalCost)}</strong>
+              Total Cost: <strong className="text-brand-navy">{currency(totalCost)}</strong>
             </div>
             <div>
-              Total Retail: <strong className="text-sh-navy">{currency(totalRetail)}</strong>
+              Total Retail: <strong className="text-brand-navy">{currency(totalRetail)}</strong>
             </div>
             <div>
-              Blended Margin: <strong className="text-sh-navy">{blendedMargin}</strong>
+              Blended Margin: <strong className="text-brand-navy">{blendedMargin}</strong>
             </div>
           </div>
 
           {/* Line items */}
           {items.map((li) => (
-            <div key={li.id} className="bg-white rounded-xl border border-sh-gray/15 p-4">
+            <div key={li.id} className="bg-white rounded-xl border border-brand-gray/15 p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-sh-navy">{li.itemName}</span>
-                    <span className="text-xs text-sh-gray px-1.5 py-0.5 rounded bg-sh-gray/10">
+                    <span className="font-semibold text-brand-navy">{li.itemName}</span>
+                    <span className="text-xs text-brand-gray px-1.5 py-0.5 rounded bg-brand-gray/10">
                       {li.type}
                     </span>
                   </div>
                   {(li.vendorName || li.partNumber) && (
-                    <p className="text-xs text-sh-gray">
+                    <p className="text-xs text-brand-gray">
                       {[li.vendorName, li.partNumber].filter(Boolean).join(" | ")}
                     </p>
                   )}
                   {li.itemDescription && (
-                    <p className="text-xs text-sh-gray mt-1">{li.itemDescription}</p>
+                    <p className="text-xs text-brand-gray mt-1">{li.itemDescription}</p>
                   )}
                 </div>
                 {isEditable && (
@@ -461,7 +461,7 @@ export function ProposalDetailView({ id }: { id: string }) {
               {/* Pricing row */}
               <div className="flex flex-wrap items-center gap-4 mt-3">
                 <div>
-                  <label htmlFor={`li-cost-${li.id}`} className="text-xs text-sh-gray">
+                  <label htmlFor={`li-cost-${li.id}`} className="text-xs text-brand-gray">
                     Cost
                   </label>
                   <input
@@ -470,12 +470,12 @@ export function ProposalDetailView({ id }: { id: string }) {
                     step="0.01"
                     value={li.cost}
                     onChange={(e) => handleUpdateItem(li.id, "cost", Number(e.target.value))}
-                    className="block w-28 border border-sh-gray/30 rounded px-2 py-1 text-sm min-h-[44px]"
+                    className="block w-28 border border-brand-gray/30 rounded px-2 py-1 text-sm min-h-[44px]"
                     disabled={!isEditable}
                   />
                 </div>
                 <div>
-                  <label htmlFor={`li-retail-${li.id}`} className="text-xs text-sh-gray">
+                  <label htmlFor={`li-retail-${li.id}`} className="text-xs text-brand-gray">
                     Retail
                   </label>
                   <input
@@ -484,12 +484,12 @@ export function ProposalDetailView({ id }: { id: string }) {
                     step="0.01"
                     value={li.retailPrice}
                     onChange={(e) => handleUpdateItem(li.id, "retailPrice", Number(e.target.value))}
-                    className="block w-28 border border-sh-gray/30 rounded px-2 py-1 text-sm min-h-[44px]"
+                    className="block w-28 border border-brand-gray/30 rounded px-2 py-1 text-sm min-h-[44px]"
                     disabled={!isEditable}
                   />
                 </div>
                 <div>
-                  <label htmlFor={`li-qty-${li.id}`} className="text-xs text-sh-gray">
+                  <label htmlFor={`li-qty-${li.id}`} className="text-xs text-brand-gray">
                     Qty
                   </label>
                   <input
@@ -498,17 +498,17 @@ export function ProposalDetailView({ id }: { id: string }) {
                     min="1"
                     value={li.quantity}
                     onChange={(e) => handleUpdateItem(li.id, "quantity", Number(e.target.value))}
-                    className="block w-16 border border-sh-gray/30 rounded px-2 py-1 text-sm min-h-[44px]"
+                    className="block w-16 border border-brand-gray/30 rounded px-2 py-1 text-sm min-h-[44px]"
                     disabled={!isEditable}
                   />
                 </div>
                 <div className="pt-4">
-                  <span className="text-xs text-sh-gray">
+                  <span className="text-xs text-brand-gray">
                     Margin: {marginPct(Number(li.cost), Number(li.retailPrice))}
                   </span>
                 </div>
                 <div className="pt-4">
-                  <span className="text-sm font-semibold text-sh-navy">
+                  <span className="text-sm font-semibold text-brand-navy">
                     {currency(Number(li.retailPrice) * li.quantity)}
                   </span>
                 </div>
@@ -522,7 +522,7 @@ export function ProposalDetailView({ id }: { id: string }) {
                     value={li.itemNotes || ""}
                     onChange={(e) => handleUpdateItem(li.id, "itemNotes", e.target.value)}
                     placeholder="Item notes (shown to client)"
-                    className="w-full border border-sh-gray/20 rounded px-2 py-1 text-xs min-h-[44px]"
+                    className="w-full border border-brand-gray/20 rounded px-2 py-1 text-xs min-h-[44px]"
                   />
                 </div>
               )}
@@ -532,7 +532,7 @@ export function ProposalDetailView({ id }: { id: string }) {
                 {li.images.map((img) => (
                   <div
                     key={img.id}
-                    className="relative w-20 h-20 rounded overflow-hidden border border-sh-gray/20"
+                    className="relative w-20 h-20 rounded overflow-hidden border border-brand-gray/20"
                   >
                     <img
                       src={`/api/uploads${img.imageUrl}`}
@@ -550,8 +550,8 @@ export function ProposalDetailView({ id }: { id: string }) {
                   </div>
                 ))}
                 {isEditable && (
-                  <label className="w-20 h-20 rounded border-2 border-dashed border-sh-gray/30 flex items-center justify-center cursor-pointer hover:border-sh-blue transition">
-                    <Upload className="w-5 h-5 text-sh-gray" />
+                  <label className="w-20 h-20 rounded border-2 border-dashed border-brand-gray/30 flex items-center justify-center cursor-pointer hover:border-brand-blue transition">
+                    <Upload className="w-5 h-5 text-brand-gray" />
                     <input
                       type="file"
                       accept="image/*"
@@ -572,7 +572,7 @@ export function ProposalDetailView({ id }: { id: string }) {
           {isEditable && !showAddForm && (
             <button
               onClick={() => setShowAddForm(true)}
-              className="w-full py-4 border-2 border-dashed border-sh-gray/30 rounded-xl text-sh-gray hover:border-sh-blue hover:text-sh-blue transition flex items-center justify-center gap-2 min-h-[44px]"
+              className="w-full py-4 border-2 border-dashed border-brand-gray/30 rounded-xl text-brand-gray hover:border-brand-blue hover:text-brand-blue transition flex items-center justify-center gap-2 min-h-[44px]"
             >
               <Plus className="w-5 h-5" />
               Add Custom Item
@@ -580,36 +580,36 @@ export function ProposalDetailView({ id }: { id: string }) {
           )}
 
           {isEditable && showAddForm && (
-            <div className="bg-white rounded-xl border border-sh-blue/30 p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-sh-navy">Add Custom Item</h3>
+            <div className="bg-white rounded-xl border border-brand-blue/30 p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-brand-navy">Add Custom Item</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
                   type="text"
                   value={newItem.itemName}
                   onChange={(e) => setNewItem({ ...newItem, itemName: e.target.value })}
                   placeholder="Item name *"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
                 />
                 <input
                   type="text"
                   value={newItem.vendorName}
                   onChange={(e) => setNewItem({ ...newItem, vendorName: e.target.value })}
                   placeholder="Vendor"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
                 />
                 <input
                   type="text"
                   value={newItem.partNumber}
                   onChange={(e) => setNewItem({ ...newItem, partNumber: e.target.value })}
                   placeholder="Part number"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
                 />
                 <input
                   type="text"
                   value={newItem.itemDescription}
                   onChange={(e) => setNewItem({ ...newItem, itemDescription: e.target.value })}
                   placeholder="Description"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
                 />
                 <input
                   type="number"
@@ -617,7 +617,7 @@ export function ProposalDetailView({ id }: { id: string }) {
                   value={newItem.cost}
                   onChange={(e) => setNewItem({ ...newItem, cost: e.target.value })}
                   placeholder="Cost *"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
                 />
                 <input
                   type="number"
@@ -625,7 +625,7 @@ export function ProposalDetailView({ id }: { id: string }) {
                   value={newItem.retailPrice}
                   onChange={(e) => setNewItem({ ...newItem, retailPrice: e.target.value })}
                   placeholder="Retail price *"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
                 />
                 <input
                   type="number"
@@ -633,7 +633,7 @@ export function ProposalDetailView({ id }: { id: string }) {
                   value={newItem.quantity}
                   onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
                   placeholder="Qty"
-                  className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
+                  className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-h-[44px]"
                 />
               </div>
               <div className="flex gap-2">
@@ -659,7 +659,7 @@ export function ProposalDetailView({ id }: { id: string }) {
           <div>
             <label
               htmlFor="proposal-cover-letter"
-              className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+              className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
             >
               Cover Letter
             </label>
@@ -669,14 +669,14 @@ export function ProposalDetailView({ id }: { id: string }) {
               onChange={(e) => setCoverLetter(e.target.value)}
               rows={6}
               placeholder="Introduction text for the proposal cover page..."
-              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
               disabled={!isEditable}
             />
           </div>
           <div>
             <label
               htmlFor="proposal-terms"
-              className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+              className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
             >
               Terms and Conditions
             </label>
@@ -686,14 +686,14 @@ export function ProposalDetailView({ id }: { id: string }) {
               onChange={(e) => setTerms(e.target.value)}
               rows={4}
               placeholder="Payment terms, delivery conditions, warranty information..."
-              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
               disabled={!isEditable}
             />
           </div>
           <div>
             <label
               htmlFor="proposal-internal-notes"
-              className="block text-xs font-semibold text-sh-gray uppercase tracking-wider mb-1"
+              className="block text-xs font-semibold text-brand-gray uppercase tracking-wider mb-1"
             >
               Internal Notes
             </label>
@@ -704,7 +704,7 @@ export function ProposalDetailView({ id }: { id: string }) {
               onChange={(e) => setInternalNotes(e.target.value)}
               rows={3}
               placeholder="Notes for internal reference only..."
-              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
               disabled={!isEditable}
             />
           </div>
@@ -715,68 +715,68 @@ export function ProposalDetailView({ id }: { id: string }) {
       {activeTab === "Review" && (
         <div className="space-y-6">
           {/* Project info */}
-          <div className="bg-white rounded-xl border border-sh-gray/15 p-5">
-            <h3 className="text-sm font-semibold text-sh-navy uppercase tracking-widest mb-3">
+          <div className="bg-white rounded-xl border border-brand-gray/15 p-5">
+            <h3 className="text-sm font-semibold text-brand-navy uppercase tracking-widest mb-3">
               Proposal Details
             </h3>
             <div className="grid grid-cols-2 gap-y-2 text-sm">
-              <span className="text-sh-gray">Project:</span>
-              <span className="text-sh-navy">{projectName || "—"}</span>
-              <span className="text-sh-gray">Company:</span>
-              <span className="text-sh-navy">{companyName || "—"}</span>
-              <span className="text-sh-gray">Customer:</span>
-              <span className="text-sh-navy">
+              <span className="text-brand-gray">Project:</span>
+              <span className="text-brand-navy">{projectName || "—"}</span>
+              <span className="text-brand-gray">Company:</span>
+              <span className="text-brand-navy">{companyName || "—"}</span>
+              <span className="text-brand-gray">Customer:</span>
+              <span className="text-brand-navy">
                 {proposal.customer
                   ? [proposal.customer.firstName, proposal.customer.lastName]
                       .filter(Boolean)
                       .join(" ")
                   : "—"}
               </span>
-              <span className="text-sh-gray">Prepared by:</span>
-              <span className="text-sh-navy">{proposal.salesPerson?.displayName || "—"}</span>
+              <span className="text-brand-gray">Prepared by:</span>
+              <span className="text-brand-navy">{proposal.salesPerson?.displayName || "—"}</span>
             </div>
           </div>
 
           {/* Line item summary */}
-          <div className="bg-white rounded-xl border border-sh-gray/15 overflow-hidden">
+          <div className="bg-white rounded-xl border border-brand-gray/15 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-sh-gray/15 bg-sh-stripe">
-                  <th className="text-left px-4 py-3 font-medium text-sh-gray">Item</th>
-                  <th className="text-right px-4 py-3 font-medium text-sh-gray">Cost</th>
-                  <th className="text-right px-4 py-3 font-medium text-sh-gray">Retail</th>
-                  <th className="text-right px-4 py-3 font-medium text-sh-gray">Qty</th>
-                  <th className="text-right px-4 py-3 font-medium text-sh-gray">Line Total</th>
-                  <th className="text-right px-4 py-3 font-medium text-sh-gray">Margin</th>
+                <tr className="border-b border-brand-gray/15 bg-brand-stripe">
+                  <th className="text-left px-4 py-3 font-medium text-brand-gray">Item</th>
+                  <th className="text-right px-4 py-3 font-medium text-brand-gray">Cost</th>
+                  <th className="text-right px-4 py-3 font-medium text-brand-gray">Retail</th>
+                  <th className="text-right px-4 py-3 font-medium text-brand-gray">Qty</th>
+                  <th className="text-right px-4 py-3 font-medium text-brand-gray">Line Total</th>
+                  <th className="text-right px-4 py-3 font-medium text-brand-gray">Margin</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((li, idx) => (
-                  <tr key={li.id} className={idx % 2 === 1 ? "bg-sh-stripe" : ""}>
-                    <td className="px-4 py-2 text-sh-navy">{li.itemName}</td>
-                    <td className="px-4 py-2 text-right text-sh-gray">
+                  <tr key={li.id} className={idx % 2 === 1 ? "bg-brand-stripe" : ""}>
+                    <td className="px-4 py-2 text-brand-navy">{li.itemName}</td>
+                    <td className="px-4 py-2 text-right text-brand-gray">
                       {currency(Number(li.cost))}
                     </td>
                     <td className="px-4 py-2 text-right">{currency(Number(li.retailPrice))}</td>
-                    <td className="px-4 py-2 text-right text-sh-gray">{li.quantity}</td>
+                    <td className="px-4 py-2 text-right text-brand-gray">{li.quantity}</td>
                     <td className="px-4 py-2 text-right font-medium">
                       {currency(Number(li.retailPrice) * li.quantity)}
                     </td>
-                    <td className="px-4 py-2 text-right text-sh-gray">
+                    <td className="px-4 py-2 text-right text-brand-gray">
                       {marginPct(Number(li.cost), Number(li.retailPrice))}
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-sh-navy">
-                  <td className="px-4 py-3 font-semibold text-sh-navy">Totals</td>
-                  <td className="px-4 py-3 text-right text-sh-gray">{currency(totalCost)}</td>
+                <tr className="border-t-2 border-brand-navy">
+                  <td className="px-4 py-3 font-semibold text-brand-navy">Totals</td>
+                  <td className="px-4 py-3 text-right text-brand-gray">{currency(totalCost)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{currency(totalRetail)}</td>
-                  <td className="px-4 py-3 text-right text-sh-gray">
+                  <td className="px-4 py-3 text-right text-brand-gray">
                     {items.reduce((s, li) => s + li.quantity, 0)}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-sh-navy">
+                  <td className="px-4 py-3 text-right font-semibold text-brand-navy">
                     {currency(totalRetail)}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold">{blendedMargin}</td>
@@ -790,7 +790,7 @@ export function ProposalDetailView({ id }: { id: string }) {
               This proposal has been converted to{" "}
               <Link
                 href={`/app/sales/orders/${proposal.salesOrderId}`}
-                className="text-sh-blue hover:underline font-semibold"
+                className="text-brand-blue hover:underline font-semibold"
               >
                 Sales Order
               </Link>

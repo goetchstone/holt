@@ -78,59 +78,59 @@ export function UnpaidSalesView() {
       <div className="flex items-center gap-3">
         <Link
           href="/app/inventory/consignment/payments"
-          className="text-sh-blue hover:underline text-sm"
+          className="text-brand-blue hover:underline text-sm"
         >
           Payments
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">Unpaid Sales</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">Unpaid Sales</h1>
       </div>
 
       {!loading && (
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-sh-gray/15 p-4 text-center">
-            <div className="text-xs text-sh-gray mb-1">Total Unpaid</div>
-            <div className="text-2xl font-semibold text-sh-black">{items.length}</div>
+          <div className="bg-white rounded-xl border border-brand-gray/15 p-4 text-center">
+            <div className="text-xs text-brand-gray mb-1">Total Unpaid</div>
+            <div className="text-2xl font-semibold text-brand-black">{items.length}</div>
           </div>
-          <div className="bg-white rounded-xl border border-sh-gray/15 p-4 text-center">
-            <div className="text-xs text-sh-gray mb-1">Over 14 Days Old</div>
+          <div className="bg-white rounded-xl border border-brand-gray/15 p-4 text-center">
+            <div className="text-xs text-brand-gray mb-1">Over 14 Days Old</div>
             <div
-              className={`text-2xl font-semibold ${overdue > 0 ? "text-red-600" : "text-sh-black"}`}
+              className={`text-2xl font-semibold ${overdue > 0 ? "text-red-600" : "text-brand-black"}`}
             >
               {overdue}
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-sh-gray/15 p-4 text-center">
-            <div className="text-xs text-sh-gray mb-1">Total Cost Owed</div>
-            <div className="text-2xl font-semibold text-sh-black">{fmt(total)}</div>
+          <div className="bg-white rounded-xl border border-brand-gray/15 p-4 text-center">
+            <div className="text-xs text-brand-gray mb-1">Total Cost Owed</div>
+            <div className="text-2xl font-semibold text-brand-black">{fmt(total)}</div>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-sh-gray/15 overflow-hidden">
+      <div className="bg-white rounded-xl border border-brand-gray/15 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-sh-gray/20 bg-sh-linen">
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Barcode</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Quality / Size</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Customer</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Sale Date</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Age</th>
-              <th className="text-right px-4 py-3 text-sh-gray font-semibold">Cost</th>
-              <th className="text-left px-4 py-3 text-sh-gray font-semibold">Order</th>
+            <tr className="border-b border-brand-gray/20 bg-brand-linen">
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Barcode</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Quality / Size</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Customer</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Sale Date</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Age</th>
+              <th className="text-right px-4 py-3 text-brand-gray font-semibold">Cost</th>
+              <th className="text-left px-4 py-3 text-brand-gray font-semibold">Order</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-sh-gray">
+                <td colSpan={7} className="px-4 py-8 text-center text-brand-gray">
                   Loading...
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-sh-gray">
+                <td colSpan={7} className="px-4 py-8 text-center text-brand-gray">
                   No unpaid sales — all clear.
                 </td>
               </tr>
@@ -138,29 +138,29 @@ export function UnpaidSalesView() {
             {items.map((item, i) => (
               <tr
                 key={item.id}
-                className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
               >
-                <td className="px-4 py-3 font-mono text-sh-black text-xs">{item.barcode}</td>
-                <td className="px-4 py-3 text-sh-black">
+                <td className="px-4 py-3 font-mono text-brand-black text-xs">{item.barcode}</td>
+                <td className="px-4 py-3 text-brand-black">
                   {item.quality || "—"}
                   {item.size ? ` / ${item.size}` : ""}
                 </td>
-                <td className="px-4 py-3 text-sh-gray">{item.saleCustomerName || "—"}</td>
-                <td className="px-4 py-3 text-sh-black">{formatDate(item.saleDate)}</td>
+                <td className="px-4 py-3 text-brand-gray">{item.saleCustomerName || "—"}</td>
+                <td className="px-4 py-3 text-brand-black">{formatDate(item.saleDate)}</td>
                 <td className="px-4 py-3">
                   <AgeBadge saleDate={item.saleDate} />
                 </td>
-                <td className="px-4 py-3 text-right text-sh-black">{fmt(item.cost)}</td>
+                <td className="px-4 py-3 text-right text-brand-black">{fmt(item.cost)}</td>
                 <td className="px-4 py-3">
                   {item.salesOrderId ? (
                     <Link
                       href={`/app/sales/orders/${item.salesOrderId}`}
-                      className="text-sh-blue hover:underline text-xs"
+                      className="text-brand-blue hover:underline text-xs"
                     >
                       {item.orderNumber || `#${item.salesOrderId}`}
                     </Link>
                   ) : (
-                    <span className="text-sh-gray text-xs">—</span>
+                    <span className="text-brand-gray text-xs">—</span>
                   )}
                 </td>
               </tr>

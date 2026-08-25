@@ -61,7 +61,7 @@ export function UnmappedPaymentsView() {
     >
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div>
-          <label htmlFor="from" className="mb-1 block text-sm text-sh-gray">
+          <label htmlFor="from" className="mb-1 block text-sm text-brand-gray">
             From (optional)
           </label>
           <input
@@ -69,11 +69,11 @@ export function UnmappedPaymentsView() {
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="rounded-md border border-sh-brand-gray px-3 py-2"
+            className="rounded-md border border-brand-accent-gray px-3 py-2"
           />
         </div>
         <div>
-          <label htmlFor="to" className="mb-1 block text-sm text-sh-gray">
+          <label htmlFor="to" className="mb-1 block text-sm text-brand-gray">
             To (optional)
           </label>
           <input
@@ -81,13 +81,13 @@ export function UnmappedPaymentsView() {
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="rounded-md border border-sh-brand-gray px-3 py-2"
+            className="rounded-md border border-brand-accent-gray px-3 py-2"
           />
         </div>
         <button
           type="button"
           onClick={() => setApplied({ startDate, endDate })}
-          className="rounded-md bg-sh-blue px-4 py-2 text-white"
+          className="rounded-md bg-brand-blue px-4 py-2 text-white"
         >
           Apply filter
         </button>
@@ -99,7 +99,7 @@ export function UnmappedPaymentsView() {
               setEndDate("");
               setApplied({});
             }}
-            className="rounded-md border border-sh-brand-gray px-4 py-2"
+            className="rounded-md border border-brand-accent-gray px-4 py-2"
           >
             All time
           </button>
@@ -107,7 +107,7 @@ export function UnmappedPaymentsView() {
       </div>
 
       {error && <p className="text-red-700">Could not load the report: {error.message}</p>}
-      {isLoading && <p className="text-sh-gray">Loading…</p>}
+      {isLoading && <p className="text-brand-gray">Loading…</p>}
 
       {data && (
         <>
@@ -121,7 +121,7 @@ export function UnmappedPaymentsView() {
           </div>
 
           {data.rows.length === 0 ? (
-            <p className="text-sh-gray">
+            <p className="text-brand-gray">
               Every tender type in this range maps to a GL account. Nothing is being dropped from
               the journal.
             </p>
@@ -130,7 +130,7 @@ export function UnmappedPaymentsView() {
           )}
 
           {data.unusedMappingLabels.length > 0 && (
-            <p className="mt-6 text-sm text-sh-gray">
+            <p className="mt-6 text-sm text-brand-gray">
               Configured mapping labels matching no payment:{" "}
               <strong>{data.unusedMappingLabels.join(", ")}</strong>. Not an error on its own — a
               deployment may keep a label for a tender it no longer takes — but a label that never
@@ -139,7 +139,7 @@ export function UnmappedPaymentsView() {
             </p>
           )}
 
-          <p className="mt-6 text-sm text-sh-gray">
+          <p className="mt-6 text-sm text-brand-gray">
             Mappings live on{" "}
             <Link href="/app/admin/accounting/gl-mappings" className="underline">
               GL Mappings

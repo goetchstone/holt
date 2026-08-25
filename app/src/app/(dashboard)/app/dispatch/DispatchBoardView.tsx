@@ -368,15 +368,15 @@ export function DispatchBoardView() {
     <div className="font-serif">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <h1 className="text-2xl text-sh-navy font-semibold">Delivery Dispatch</h1>
+        <h1 className="text-2xl text-brand-navy font-semibold">Delivery Dispatch</h1>
         <div className="flex items-center gap-2">
           <Link href="/app/dispatch/ready-to-deliver">
-            <span className="px-4 py-2 text-sm font-semibold border border-sh-navy text-sh-navy rounded-lg hover:bg-sh-linen transition min-h-[44px] flex items-center cursor-pointer">
+            <span className="px-4 py-2 text-sm font-semibold border border-brand-navy text-brand-navy rounded-lg hover:bg-brand-linen transition min-h-[44px] flex items-center cursor-pointer">
               Ready to Deliver
             </span>
           </Link>
           <Link href="/app/dispatch/planner">
-            <span className="px-4 py-2 text-sm font-semibold border border-sh-navy text-sh-navy rounded-lg hover:bg-sh-linen transition min-h-[44px] flex items-center cursor-pointer">
+            <span className="px-4 py-2 text-sm font-semibold border border-brand-navy text-brand-navy rounded-lg hover:bg-brand-linen transition min-h-[44px] flex items-center cursor-pointer">
               Planner
             </span>
           </Link>
@@ -387,38 +387,38 @@ export function DispatchBoardView() {
       <div className="flex items-center gap-3 mb-5">
         <button
           onClick={prevDay}
-          className="p-3 rounded-lg border border-sh-gray/20 hover:bg-sh-linen transition min-w-[44px] min-h-[44px] flex items-center justify-center"
+          className="p-3 rounded-lg border border-brand-gray/20 hover:bg-brand-linen transition min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          <ChevronLeft className="w-5 h-5 text-sh-navy" />
+          <ChevronLeft className="w-5 h-5 text-brand-navy" />
         </button>
         <input
           type="date"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+          className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm min-h-[44px]"
         />
-        <span className="text-sh-gray text-sm hidden sm:inline">{displayDate}</span>
+        <span className="text-brand-gray text-sm hidden sm:inline">{displayDate}</span>
         <button
           onClick={nextDay}
-          className="p-3 rounded-lg border border-sh-gray/20 hover:bg-sh-linen transition min-w-[44px] min-h-[44px] flex items-center justify-center"
+          className="p-3 rounded-lg border border-brand-gray/20 hover:bg-brand-linen transition min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
-          <ChevronRight className="w-5 h-5 text-sh-navy" />
+          <ChevronRight className="w-5 h-5 text-brand-navy" />
         </button>
       </div>
 
       {/* Filter bar */}
       {!loading && (
         <div className="flex items-center gap-4 mb-4">
-          <label className="flex items-center gap-2 text-sm text-sh-gray cursor-pointer min-h-[44px]">
+          <label className="flex items-center gap-2 text-sm text-brand-gray cursor-pointer min-h-[44px]">
             <input
               type="checkbox"
               checked={showInStockOnly}
               onChange={(e) => setShowInStockOnly(e.target.checked)}
-              className="w-5 h-5 accent-sh-blue"
+              className="w-5 h-5 accent-brand-blue"
             />
             In-stock only
           </label>
-          <span className="text-sm text-sh-gray">
+          <span className="text-sm text-brand-gray">
             {inStockCount} in-stock / {totalAll} total
           </span>
         </div>
@@ -426,8 +426,8 @@ export function DispatchBoardView() {
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-sh-blue mr-3" />
-          <span className="text-sh-gray">Loading dispatch board...</span>
+          <Loader2 className="w-6 h-6 animate-spin text-brand-blue mr-3" />
+          <span className="text-brand-gray">Loading dispatch board...</span>
         </div>
       ) : (
         <DndBoard
@@ -435,9 +435,9 @@ export function DispatchBoardView() {
           onDragEnd={handleDragEnd}
           overlayContent={
             activeItem ? (
-              <div className="bg-white border-2 border-sh-gold rounded-lg p-3 shadow-xl w-64 opacity-90">
-                <div className="font-semibold text-sh-navy text-sm">{activeItem.name}</div>
-                <div className="text-xs text-sh-gray">{activeItem.city || "—"}</div>
+              <div className="bg-white border-2 border-brand-gold rounded-lg p-3 shadow-xl w-64 opacity-90">
+                <div className="font-semibold text-brand-navy text-sm">{activeItem.name}</div>
+                <div className="text-xs text-brand-gray">{activeItem.city || "—"}</div>
               </div>
             ) : null
           }
@@ -445,18 +445,18 @@ export function DispatchBoardView() {
           <div className="grid grid-cols-[320px_1fr] gap-6">
             {/* Left: Unassigned by zone */}
             <div className="overflow-y-auto max-h-[calc(100vh-220px)]">
-              <h2 className="text-lg text-sh-navy font-semibold mb-3 flex items-center gap-2">
+              <h2 className="text-lg text-brand-navy font-semibold mb-3 flex items-center gap-2">
                 <Package className="w-5 h-5" />
                 Unassigned
                 {totalUnassigned > 0 && (
-                  <span className="bg-sh-gold text-white text-xs font-sans px-2 py-0.5 rounded-full">
+                  <span className="bg-brand-gold text-white text-xs font-sans px-2 py-0.5 rounded-full">
                     {totalUnassigned}
                   </span>
                 )}
               </h2>
 
               {totalUnassigned === 0 ? (
-                <div className="bg-white border border-sh-gray/10 rounded-lg p-6 text-center text-sh-gray text-sm">
+                <div className="bg-white border border-brand-gray/10 rounded-lg p-6 text-center text-brand-gray text-sm">
                   No unassigned deliveries
                 </div>
               ) : (
@@ -468,12 +468,12 @@ export function DispatchBoardView() {
                         className="flex items-center gap-2 mb-2 min-h-[44px] w-full text-left"
                       >
                         <ChevronDown
-                          className={`w-4 h-4 text-sh-gray transition ${expanded[zone.zoneName] ? "" : "-rotate-90"}`}
+                          className={`w-4 h-4 text-brand-gray transition ${expanded[zone.zoneName] ? "" : "-rotate-90"}`}
                         />
-                        <span className="text-sm font-semibold text-sh-gray uppercase tracking-wide">
+                        <span className="text-sm font-semibold text-brand-gray uppercase tracking-wide">
                           {zone.zoneName}
                         </span>
-                        <span className="text-xs text-sh-gray">({zone.customers.length})</span>
+                        <span className="text-xs text-brand-gray">({zone.customers.length})</span>
                       </button>
                       {expanded[zone.zoneName] && (
                         <DroppableColumn id={`zone-${zone.zoneName}`} emptyMessage="All assigned">
@@ -507,12 +507,12 @@ export function DispatchBoardView() {
                         className="flex items-center gap-2 mb-2 min-h-[44px] w-full text-left"
                       >
                         <ChevronDown
-                          className={`w-4 h-4 text-sh-gray transition ${expanded["unzoned"] ? "" : "-rotate-90"}`}
+                          className={`w-4 h-4 text-brand-gray transition ${expanded["unzoned"] ? "" : "-rotate-90"}`}
                         />
-                        <span className="text-sm font-semibold text-sh-gray uppercase tracking-wide">
+                        <span className="text-sm font-semibold text-brand-gray uppercase tracking-wide">
                           No Zone
                         </span>
-                        <span className="text-xs text-sh-gray">({filteredUnzoned.length})</span>
+                        <span className="text-xs text-brand-gray">({filteredUnzoned.length})</span>
                       </button>
                       {expanded["unzoned"] && (
                         <DroppableColumn id="zone-unzoned" emptyMessage="All assigned">
@@ -545,7 +545,7 @@ export function DispatchBoardView() {
 
             {/* Right: Trucks */}
             <div className="overflow-y-auto max-h-[calc(100vh-220px)]">
-              <h2 className="text-lg text-sh-navy font-semibold mb-3 flex items-center gap-2">
+              <h2 className="text-lg text-brand-navy font-semibold mb-3 flex items-center gap-2">
                 <Truck className="w-5 h-5" />
                 Trucks
               </h2>
@@ -554,13 +554,13 @@ export function DispatchBoardView() {
                 {runs.map((run) => (
                   <div
                     key={run.id}
-                    className="bg-white border border-sh-gray/10 rounded-lg overflow-hidden"
+                    className="bg-white border border-brand-gray/10 rounded-lg overflow-hidden"
                   >
                     {/* Truck header */}
-                    <div className="px-4 py-3 bg-sh-linen border-b border-sh-gray/10 flex items-center justify-between">
+                    <div className="px-4 py-3 bg-brand-linen border-b border-brand-gray/10 flex items-center justify-between">
                       <div>
-                        <h3 className="font-semibold text-sh-navy">{run.vehicle.name}</h3>
-                        <span className="text-xs text-sh-gray">
+                        <h3 className="font-semibold text-brand-navy">{run.vehicle.name}</h3>
+                        <span className="text-xs text-brand-gray">
                           {run.driver?.displayName || "No driver"} — {run.stops.length}{" "}
                           {run.stops.length === 1 ? "stop" : "stops"}
                         </span>
@@ -569,7 +569,7 @@ export function DispatchBoardView() {
                         <StatusBadge status={run.status} />
                         <Link
                           href={`/app/dispatch/run/${run.id}`}
-                          className="text-xs text-sh-blue hover:underline min-h-[44px] flex items-center"
+                          className="text-xs text-brand-blue hover:underline min-h-[44px] flex items-center"
                         >
                           Details
                         </Link>
@@ -595,11 +595,11 @@ export function DispatchBoardView() {
                 {vehiclesWithoutRuns.map((v) => (
                   <div
                     key={v.id}
-                    className="bg-white border border-dashed border-sh-gray/30 rounded-lg p-4 flex items-center justify-between"
+                    className="bg-white border border-dashed border-brand-gray/30 rounded-lg p-4 flex items-center justify-between"
                   >
                     <div>
-                      <h3 className="font-semibold text-sh-gray">{v.name}</h3>
-                      <span className="text-xs text-sh-gray">No run for this date</span>
+                      <h3 className="font-semibold text-brand-gray">{v.name}</h3>
+                      <span className="text-xs text-brand-gray">No run for this date</span>
                     </div>
                     <Button size="sm" onClick={() => createRun(v.id)}>
                       Create Run
@@ -632,8 +632,10 @@ function CustomerCard({
     <div className="flex-1 min-w-0">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-semibold text-sh-navy text-sm truncate">{customer.customerName}</div>
-          <div className="text-xs text-sh-gray truncate">{customer.city || "—"}</div>
+          <div className="font-semibold text-brand-navy text-sm truncate">
+            {customer.customerName}
+          </div>
+          <div className="text-xs text-brand-gray truncate">{customer.city || "—"}</div>
           {!customer.allInStock && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 mt-0.5 inline-block">
               Pending Items
@@ -642,11 +644,11 @@ function CustomerCard({
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {hasMultiple && (
-            <span className="bg-sh-gold/20 text-sh-gold text-xs px-2 py-0.5 rounded-full font-semibold">
+            <span className="bg-brand-gold/20 text-brand-gold text-xs px-2 py-0.5 rounded-full font-semibold">
               {customer.orders.length} orders
             </span>
           )}
-          <span className="bg-sh-linen text-sh-navy text-xs px-2 py-0.5 rounded-full">
+          <span className="bg-brand-linen text-brand-navy text-xs px-2 py-0.5 rounded-full">
             {customer.totalItems}
           </span>
           {customer.totalBalanceDue > 0 && (
@@ -662,7 +664,7 @@ function CustomerCard({
         {customer.orders.map((order) => {
           const isExpanded = expandedOrder === order.id;
           return (
-            <div key={order.id} className="border-t border-sh-gray/10 pt-1">
+            <div key={order.id} className="border-t border-brand-gray/10 pt-1">
               <div
                 className="flex items-center justify-between cursor-pointer"
                 role="button"
@@ -682,12 +684,12 @@ function CustomerCard({
                 <div className="flex items-center gap-2">
                   <Link
                     href={`/app/sales/orders/${order.id}`}
-                    className="text-xs text-sh-blue hover:underline"
+                    className="text-xs text-brand-blue hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {order.orderno}
                   </Link>
-                  <span className="text-xs text-sh-gray">{order.lineItemCount} items</span>
+                  <span className="text-xs text-brand-gray">{order.lineItemCount} items</span>
                   {order.balanceDue > 0 && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-red-50 text-red-700 font-semibold">
                       {fmt(order.balanceDue)}
@@ -700,7 +702,7 @@ function CustomerCard({
                   )}
                 </div>
                 <ChevronDown
-                  className={`w-3.5 h-3.5 text-sh-gray transition ${isExpanded ? "" : "-rotate-90"}`}
+                  className={`w-3.5 h-3.5 text-brand-gray transition ${isExpanded ? "" : "-rotate-90"}`}
                 />
               </div>
 
@@ -708,19 +710,21 @@ function CustomerCard({
                 <div className="mt-1 pl-2 space-y-0.5">
                   {order.lineItems.map((li) => (
                     <div key={li.id} className="flex items-center justify-between text-xs">
-                      <span className="text-sh-black truncate">
+                      <span className="text-brand-black truncate">
                         {li.productName || li.partNo || "—"}
                       </span>
-                      <span className="text-sh-gray flex-shrink-0 ml-2">x{li.orderedQuantity}</span>
+                      <span className="text-brand-gray flex-shrink-0 ml-2">
+                        x{li.orderedQuantity}
+                      </span>
                     </div>
                   ))}
                   {order.purchaseOrders.length > 0 && (
-                    <div className="border-t border-sh-gray/10 pt-0.5 mt-0.5">
+                    <div className="border-t border-brand-gray/10 pt-0.5 mt-0.5">
                       {order.purchaseOrders.map((po) => (
                         <div key={po.id} className="flex items-center gap-1.5 text-xs">
                           <Link
                             href={`/app/purchasing/orders/${po.id}`}
-                            className="text-sh-blue hover:underline font-mono"
+                            className="text-brand-blue hover:underline font-mono"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {po.poNumber}
@@ -731,7 +735,7 @@ function CustomerCard({
                                 ? "bg-green-100 text-green-700"
                                 : po.status === "RECEIVED_PARTIAL"
                                   ? "bg-amber-100 text-amber-700"
-                                  : "bg-sh-blue/10 text-sh-blue"
+                                  : "bg-brand-blue/10 text-brand-blue"
                             }`}
                           >
                             {po.status === "RECEIVED_FULL"
@@ -764,15 +768,15 @@ function StopCard({ stop }: { stop: RunStop }) {
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-sh-gray font-mono">#{stop.stopOrder}</span>
-            <span className="font-semibold text-sh-navy text-sm truncate">{customerName}</span>
+            <span className="text-xs text-brand-gray font-mono">#{stop.stopOrder}</span>
+            <span className="font-semibold text-brand-navy text-sm truncate">{customerName}</span>
           </div>
-          <div className="text-xs text-sh-gray truncate">
+          <div className="text-xs text-brand-gray truncate">
             {delivery.address?.city || "—"}
             {delivery.salesOrder && (
               <Link
                 href={`/app/sales/orders/${delivery.salesOrder.id}`}
-                className="ml-1.5 text-sh-blue hover:underline"
+                className="ml-1.5 text-brand-blue hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {delivery.salesOrder.orderno}
@@ -781,7 +785,7 @@ function StopCard({ stop }: { stop: RunStop }) {
           </div>
         </div>
         {itemCount > 0 && (
-          <span className="bg-sh-linen text-sh-navy text-xs px-2 py-0.5 rounded-full flex-shrink-0">
+          <span className="bg-brand-linen text-brand-navy text-xs px-2 py-0.5 rounded-full flex-shrink-0">
             {itemCount}
           </span>
         )}
@@ -792,15 +796,15 @@ function StopCard({ stop }: { stop: RunStop }) {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    PLANNING: "bg-sh-linen text-sh-gray",
-    LOADED: "bg-sh-gold/10 text-sh-gold",
-    IN_PROGRESS: "bg-sh-blue/10 text-sh-blue",
+    PLANNING: "bg-brand-linen text-brand-gray",
+    LOADED: "bg-brand-gold/10 text-brand-gold",
+    IN_PROGRESS: "bg-brand-blue/10 text-brand-blue",
     COMPLETED: "bg-green-50 text-green-700",
   };
 
   return (
     <span
-      className={`text-xs px-2 py-0.5 rounded-full ${colors[status] || "bg-sh-linen text-sh-gray"}`}
+      className={`text-xs px-2 py-0.5 rounded-full ${colors[status] || "bg-brand-linen text-brand-gray"}`}
     >
       {status.replace("_", " ")}
     </span>

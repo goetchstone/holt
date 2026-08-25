@@ -43,7 +43,7 @@ function ReconciledTableBody({ loading, items, onUndo }: Readonly<TableBodyProps
   if (loading) {
     return (
       <tr>
-        <td colSpan={7} className="p-4 text-center text-sh-gray">
+        <td colSpan={7} className="p-4 text-center text-brand-gray">
           Loading...
         </td>
       </tr>
@@ -52,7 +52,7 @@ function ReconciledTableBody({ loading, items, onUndo }: Readonly<TableBodyProps
   if (items.length === 0) {
     return (
       <tr>
-        <td colSpan={7} className="p-4 text-center text-sh-gray">
+        <td colSpan={7} className="p-4 text-center text-brand-gray">
           No items have been reconciled for this location yet.
         </td>
       </tr>
@@ -61,7 +61,7 @@ function ReconciledTableBody({ loading, items, onUndo }: Readonly<TableBodyProps
   return (
     <>
       {items.map((item) => (
-        <tr key={item.id} className="odd:bg-white even:bg-sh-stripe">
+        <tr key={item.id} className="odd:bg-white even:bg-brand-stripe">
           <td className="p-2">
             <div className="truncate" title={item.product.name}>
               {item.product.name} ({item.product.productNumber})
@@ -129,21 +129,21 @@ export function ReconciledItemsView() {
     <div className="max-w-6xl mx-auto mt-8 font-serif">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue">Reconciled Items</h1>
-          <p className="text-sh-gray">Showing reconciled items for {location}.</p>
+          <h1 className="text-2xl font-semibold text-brand-blue">Reconciled Items</h1>
+          <p className="text-brand-gray">Showing reconciled items for {location}.</p>
         </div>
         <Link
           href={backHrefFor(reportType, location)}
-          className="flex items-center gap-2 text-sh-blue hover:underline"
+          className="flex items-center gap-2 text-brand-blue hover:underline"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Variance Report
         </Link>
       </div>
 
-      <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+      <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
         <table className="min-w-full text-left text-sm whitespace-nowrap">
-          <thead className="bg-sh-linen text-sh-black">
+          <thead className="bg-brand-linen text-brand-black">
             <tr>
               <th className="p-2">Product</th>
               <th className="p-2">Barcode</th>

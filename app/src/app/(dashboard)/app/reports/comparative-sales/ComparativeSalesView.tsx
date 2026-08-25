@@ -76,7 +76,7 @@ export function ComparativeSalesView() {
     });
 
   function VarianceBadge({ value, pct }: Readonly<{ value: number; pct: number | null }>) {
-    if (value === 0 && pct === null) return <span className="text-sh-gray">--</span>;
+    if (value === 0 && pct === null) return <span className="text-brand-gray">--</span>;
     const isPositive = value >= 0;
     return (
       <span
@@ -96,12 +96,12 @@ export function ComparativeSalesView() {
     const conv = conversionPct(cell.orderCount, cell.visitors);
     return (
       <div className="flex flex-col items-end leading-tight">
-        <span className="text-sh-black">{fmt(cell.netSales)}</span>
-        <span className="text-xs text-sh-gray">
+        <span className="text-brand-black">{fmt(cell.netSales)}</span>
+        <span className="text-xs text-brand-gray">
           {cell.visitors > 0 ? `${intFmt.format(cell.visitors)} visitors` : "no traffic"}
         </span>
         {showConversion && conv !== null && (
-          <span className="text-xs text-sh-gold" title="Orders divided by visitors">
+          <span className="text-xs text-brand-gold" title="Orders divided by visitors">
             {conv.toFixed(1)}% conv
           </span>
         )}
@@ -127,18 +127,18 @@ export function ComparativeSalesView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Comparative Sales</span>
+        <span className="text-brand-black">Comparative Sales</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">Comparative Sales</h1>
+      <h1 className="text-2xl font-semibold text-brand-navy">Comparative Sales</h1>
 
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <label htmlFor="p1Start" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="p1Start" className="mb-1 block text-xs font-medium text-brand-gray">
             Current Start
           </label>
           <input
@@ -150,7 +150,7 @@ export function ComparativeSalesView() {
           />
         </div>
         <div>
-          <label htmlFor="p1End" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="p1End" className="mb-1 block text-xs font-medium text-brand-gray">
             Current End
           </label>
           <input
@@ -161,9 +161,9 @@ export function ComparativeSalesView() {
             className="min-h-[44px] rounded border border-gray-300 px-3 text-sm"
           />
         </div>
-        <div className="self-center px-2 text-sm font-semibold text-sh-gray">vs</div>
+        <div className="self-center px-2 text-sm font-semibold text-brand-gray">vs</div>
         <div>
-          <label htmlFor="p2Start" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="p2Start" className="mb-1 block text-xs font-medium text-brand-gray">
             Compare Start
           </label>
           <input
@@ -175,7 +175,7 @@ export function ComparativeSalesView() {
           />
         </div>
         <div>
-          <label htmlFor="p2End" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="p2End" className="mb-1 block text-xs font-medium text-brand-gray">
             Compare End
           </label>
           <input
@@ -187,7 +187,7 @@ export function ComparativeSalesView() {
           />
         </div>
         <div>
-          <label htmlFor="dept" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="dept" className="mb-1 block text-xs font-medium text-brand-gray">
             Department
           </label>
           <select
@@ -211,7 +211,7 @@ export function ComparativeSalesView() {
           type="button"
           onClick={run}
           disabled={loading}
-          className="min-h-[44px] rounded-lg bg-sh-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-brand-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
         >
           {loading ? "Loading..." : "Run Report"}
         </button>
@@ -219,32 +219,32 @@ export function ComparativeSalesView() {
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
         </div>
       )}
 
       {data && !loading && (
-        <div className="overflow-hidden rounded-lg border border-sh-gray/20 bg-white shadow-md">
+        <div className="overflow-hidden rounded-lg border border-brand-gray/20 bg-white shadow-md">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                <th className="px-4 py-3 text-left font-semibold text-sh-gray">Store</th>
-                <th className="px-4 py-3 text-right font-semibold text-sh-gray">
+              <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                <th className="px-4 py-3 text-left font-semibold text-brand-gray">Store</th>
+                <th className="px-4 py-3 text-right font-semibold text-brand-gray">
                   {data.period1Label}
                 </th>
-                <th className="px-4 py-3 text-right font-semibold text-sh-gray">
+                <th className="px-4 py-3 text-right font-semibold text-brand-gray">
                   {data.period2Label}
                 </th>
-                <th className="px-4 py-3 text-right font-semibold text-sh-gray">Variance</th>
+                <th className="px-4 py-3 text-right font-semibold text-brand-gray">Variance</th>
               </tr>
             </thead>
             <tbody>
               {data.rows.map((row, i) => (
                 <tr
                   key={row.store}
-                  className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                  className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
                 >
-                  <td className="px-4 py-3 align-top font-semibold text-sh-navy">{row.store}</td>
+                  <td className="px-4 py-3 align-top font-semibold text-brand-navy">{row.store}</td>
                   <td className="px-4 py-3 text-right align-top">
                     <PeriodCell cell={row.period1} showConversion={showConversion} />
                   </td>
@@ -261,12 +261,12 @@ export function ComparativeSalesView() {
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-sh-navy bg-sh-linen">
-                <td className="px-4 py-3 align-top font-semibold text-sh-navy">Total</td>
-                <td className="px-4 py-3 text-right align-top font-semibold text-sh-navy">
+              <tr className="border-t-2 border-brand-navy bg-brand-linen">
+                <td className="px-4 py-3 align-top font-semibold text-brand-navy">Total</td>
+                <td className="px-4 py-3 text-right align-top font-semibold text-brand-navy">
                   <PeriodCell cell={data.totals.period1} showConversion={showConversion} />
                 </td>
-                <td className="px-4 py-3 text-right align-top font-semibold text-sh-navy">
+                <td className="px-4 py-3 text-right align-top font-semibold text-brand-navy">
                   <PeriodCell cell={data.totals.period2} showConversion={showConversion} />
                 </td>
                 <td className="px-4 py-3 text-right align-top font-semibold">
@@ -285,7 +285,7 @@ export function ComparativeSalesView() {
       )}
 
       {data && !loading && data.departmentFiltered && (
-        <p className="text-xs text-sh-gray">
+        <p className="text-xs text-brand-gray">
           Visitor counts are store-wide foot traffic (door counters), not department-specific —
           conversion % is hidden while a department filter is active. Co-located counters for the
           same store are summed together. Customers who enter through a side or back entrance may be
@@ -294,7 +294,7 @@ export function ComparativeSalesView() {
       )}
 
       {data && !loading && !data.departmentFiltered && (
-        <p className="text-xs text-sh-gray">
+        <p className="text-xs text-brand-gray">
           Visitors = door-counter foot traffic (co-located counters summed into one store).
           Conversion % = orders ÷ visitors. Customers who enter through a side or back entrance may
           be under-counted, so conversion can run slightly low.
@@ -302,11 +302,11 @@ export function ComparativeSalesView() {
       )}
 
       {data && !loading && data.rows.length === 0 && (
-        <p className="py-8 text-center text-sh-gray">No sales data for the selected periods.</p>
+        <p className="py-8 text-center text-brand-gray">No sales data for the selected periods.</p>
       )}
 
       {committed === null && !loading && (
-        <p className="py-16 text-center text-sh-gray">Pick two periods and click Run Report</p>
+        <p className="py-16 text-center text-brand-gray">Pick two periods and click Run Report</p>
       )}
     </div>
   );

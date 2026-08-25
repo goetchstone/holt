@@ -61,17 +61,17 @@ export function SalesDailyView() {
 
   return (
     <div className="py-2 font-serif">
-      <h1 className="mb-4 text-2xl font-semibold text-sh-blue">Daily Sales Report</h1>
-      <div className="mb-4 flex flex-wrap items-end gap-4 rounded-lg bg-sh-linen p-4">
+      <h1 className="mb-4 text-2xl font-semibold text-brand-blue">Daily Sales Report</h1>
+      <div className="mb-4 flex flex-wrap items-end gap-4 rounded-lg bg-brand-linen p-4">
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
         <div className="flex flex-col">
-          <label htmlFor="dept-filter" className="mb-1 font-serif text-sh-black">
+          <label htmlFor="dept-filter" className="mb-1 font-serif text-brand-black">
             Filter by Department
           </label>
           <select
             id="dept-filter"
             multiple
-            className="h-24 rounded-lg border border-sh-gray px-3 py-2"
+            className="h-24 rounded-lg border border-brand-gray px-3 py-2"
             value={selectedDepartments}
             onChange={(e) =>
               setSelectedDepartments(Array.from(e.target.selectedOptions, (o) => o.value))

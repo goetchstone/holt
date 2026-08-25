@@ -8,8 +8,11 @@ import type { LeadTier } from "@/lib/leadScore";
 const TIER_CONFIG: Record<LeadTier, { label: string; className: string }> = {
   HOT: { label: "Hot Lead", className: "bg-red-100 text-red-700 border border-red-200" },
   WARM: { label: "Warm", className: "bg-amber-100 text-amber-700 border border-amber-200" },
-  COOL: { label: "Cool", className: "bg-sh-blue/10 text-sh-blue border border-sh-blue/20" },
-  NEW: { label: "New", className: "bg-sh-gray/10 text-sh-gray border border-sh-gray/20" },
+  COOL: {
+    label: "Cool",
+    className: "bg-brand-blue/10 text-brand-blue border border-brand-blue/20",
+  },
+  NEW: { label: "New", className: "bg-brand-gray/10 text-brand-gray border border-brand-gray/20" },
 };
 
 interface Props {

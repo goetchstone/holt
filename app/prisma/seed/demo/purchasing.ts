@@ -24,7 +24,23 @@ const STATUS_MIX: readonly (readonly [PurchaseOrderStatus, number])[] = [
   ["CANCELLED", 2],
 ];
 
+/**
+ * When a special order is due in, spread across the buckets the Delivery
+ * Planner groups by. A planner where everything lands in one bucket cannot
+ * show that it groups, and "No ESD" is the row that matters most: a vendor who
+ * has not given a ship date is the one the buyer has to chase.
+ */
+function expectedArrival(rng: Rng, today: Date): Date | null {
+  const roll = randInt(rng, 1, 100);
+  if (roll <= 20) return null; // vendor has not committed to a date
+  const days =
+    roll <= 45 ? randInt(rng, 1, 6) : roll <= 70 ? randInt(rng, 7, 13) : randInt(rng, 14, 28);
+  return new Date(today.getTime() + days * 86_400_000);
+}
+
 export interface PurchasingResult {
+  /** POs raised against a customer order -- the special-order chain. */
+  specialOrdersCreated: number;
   purchaseOrdersCreated: number;
   receivingRecordsCreated: number;
 }
@@ -37,6 +53,9 @@ export async function seedPurchasing(
   stores: readonly StoreSetup[],
   warehouseStaff: readonly SeededStaffMember[],
   purchaseOrderCount: number,
+  /** Today, for dating special orders relative to now rather than to the
+   *  historical window the stock POs live in. */
+  today: Date,
 ): Promise<PurchasingResult> {
   const poRng = subRng(rng, "purchasing");
 
@@ -124,5 +143,75 @@ export async function seedPurchasing(
     }
   }
 
-  return { purchaseOrdersCreated, receivingRecordsCreated };
+  // ---- SPECIAL ORDERS: a PO raised BECAUSE a customer bought something ----
+  //
+  // Every PO above is a stock buy. That left the Delivery Planner empty, because
+  // it deliberately shows only POs carrying a `salesOrderId` -- the ones where a
+  // named customer is waiting on a named vendor. That chain is the whole
+  // furniture special-order thought process: the customer orders it, the buyer
+  // raises it with the vendor, the warehouse watches it land, dispatch schedules
+  // it, the driver delivers it, and only then is it a sale.
+  //
+  // Raised against orders whose goods have not arrived (dispatchStatus
+  // PO_PLACED), which is exactly what that status means.
+  const awaitingGoods = await prisma.salesOrder.findMany({
+    where: { dispatchStatus: "PO_PLACED", deliveredAt: null },
+    select: {
+      id: true,
+      orderno: true,
+      orderDate: true,
+      lineItems: {
+        where: { productId: { not: null } },
+        select: { id: true, productId: true, orderedQuantity: true },
+      },
+    },
+    orderBy: { orderDate: "desc" },
+    take: 45,
+  });
+
+  let specialOrdersCreated = 0;
+  for (const [i, order] of awaitingGoods.entries()) {
+    const lines = order.lineItems.filter((li) => li.productId != null);
+    if (lines.length === 0) continue;
+
+    const product = products.find((pr) => pr.id === lines[0].productId);
+    if (!product) continue;
+
+    // A special order goes to the vendor who makes the thing, not a random one.
+    const vendorId = product.vendorId;
+    const arrival = expectedArrival(poRng, today);
+
+    await prisma.purchaseOrder.create({
+      data: {
+        poNumber: `PO-SO-${order.orderno.replace(/[^0-9]/g, "").slice(-6)}-${i + 1}`,
+        vendorId,
+        salesOrderId: order.id,
+        orderDate: new Date(order.orderDate ?? today),
+        expectedDelivery: arrival,
+        estimatedShipDate: arrival,
+        // Nothing received yet -- these are the ones still coming.
+        status: chance(poRng, 0.6) ? "CONFIRMED" : "SUBMITTED",
+        vendorAckNumber: chance(poRng, 0.5) ? `ACK-${randInt(poRng, 10000, 99999)}` : null,
+        notes: "Special order — customer waiting.",
+        createdBy: SEED_ACTOR,
+        lineItems: {
+          create: lines.map((li) => {
+            const p = products.find((pr) => pr.id === li.productId);
+            return {
+              productId: li.productId!,
+              orderLineItemId: li.id,
+              partNo: p?.productNumber ?? null,
+              productName: p?.name ?? null,
+              orderedQuantity: Number(li.orderedQuantity ?? 1),
+              unitCost: round2((p?.baseCost ?? 0) * (0.95 + poRng() * 0.1)),
+            };
+          }),
+        },
+      },
+    });
+    purchaseOrdersCreated += 1;
+    specialOrdersCreated += 1;
+  }
+
+  return { purchaseOrdersCreated, receivingRecordsCreated, specialOrdersCreated };
 }

@@ -111,7 +111,7 @@ export function requireAuthWithRole(roles: string[], handler: AuthenticatedHandl
     }
 
     const realRole = staff?.role || "DESIGNER";
-    const impersonate = req.cookies?.["sh-impersonate"] || null;
+    const impersonate = req.cookies?.["holt-impersonate"] || null;
 
     // Only pay for the privileged-count query when the role check might fail
     // (the bootstrap safeguard is the sole consumer of it).
@@ -172,7 +172,7 @@ export function requirePermission(permission: string, handler: AuthenticatedHand
     const result = await resolvePermissionAccess({
       userId,
       permission,
-      impersonate: req.cookies?.["sh-impersonate"] || null,
+      impersonate: req.cookies?.["holt-impersonate"] || null,
     });
 
     if (!result.allowed) {

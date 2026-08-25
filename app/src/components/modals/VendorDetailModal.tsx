@@ -109,7 +109,7 @@ export default function VendorDetailModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full font-serif">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-sh-blue">Vendor: {vendor.name}</h2>
+          <h2 className="text-xl font-semibold text-brand-blue">Vendor: {vendor.name}</h2>
           <Button variant="secondary" size="sm" onClick={onClose}>
             Close
           </Button>
@@ -124,7 +124,7 @@ export default function VendorDetailModal({
               placeholder={field.toUpperCase()}
               value={form[field] || ""}
               onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-              className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif"
+              className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
             />
           ))}
         </div>
@@ -162,7 +162,7 @@ export default function VendorDetailModal({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-sh-gray">No contacts</p>
+            <p className="text-sm text-brand-gray">No contacts</p>
           )}
 
           <div className="mt-4 space-y-2">
@@ -173,28 +173,28 @@ export default function VendorDetailModal({
                 placeholder="Name"
                 value={newContact.name}
                 onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
-                className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif"
+                className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
               />
               <input
                 type="text"
                 placeholder="Role"
                 value={newContact.role}
                 onChange={(e) => setNewContact({ ...newContact, role: e.target.value })}
-                className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif"
+                className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
               />
               <input
                 type="email"
                 placeholder="Email"
                 value={newContact.email}
                 onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif"
+                className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
               />
               <input
                 type="text"
                 placeholder="Phone"
                 value={newContact.phone}
                 onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
-                className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif"
+                className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
               />
             </div>
             <div className="text-right mt-2">

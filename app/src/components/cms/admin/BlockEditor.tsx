@@ -71,19 +71,19 @@ function SortableBlock({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="cursor-grab touch-none text-sh-gray hover:text-sh-navy"
+            className="cursor-grab touch-none text-brand-gray hover:text-brand-navy"
             aria-label="Drag to reorder"
             {...attributes}
             {...listeners}
           >
             <GripVertical size={18} />
           </button>
-          <span className="text-sm font-medium text-sh-navy">{BLOCK_LABELS[block.type]}</span>
+          <span className="text-sm font-medium text-brand-navy">{BLOCK_LABELS[block.type]}</span>
         </div>
         <button
           type="button"
           onClick={onRemove}
-          className="text-sh-gray hover:text-red-600"
+          className="text-brand-gray hover:text-red-600"
           aria-label="Remove block"
         >
           <Trash2 size={16} />
@@ -136,7 +136,7 @@ export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
       </DndContext>
 
       {blocks.length === 0 ? (
-        <p className="py-6 text-center text-sm text-sh-gray">
+        <p className="py-6 text-center text-sm text-brand-gray">
           No blocks yet. Add one below to start building this {""}page.
         </p>
       ) : null}
@@ -147,7 +147,7 @@ export function BlockEditor({ blocks, onChange }: BlockEditorProps) {
             key={type}
             type="button"
             onClick={() => addBlock(type)}
-            className="inline-flex items-center gap-1 rounded-md border border-sh-navy/30 px-3 py-1.5 text-sm text-sh-navy transition hover:bg-sh-linen"
+            className="inline-flex items-center gap-1 rounded-md border border-brand-navy/30 px-3 py-1.5 text-sm text-brand-navy transition hover:bg-brand-linen"
           >
             <Plus size={14} /> {BLOCK_LABELS[type]}
           </button>

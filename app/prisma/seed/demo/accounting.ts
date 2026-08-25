@@ -56,6 +56,10 @@ export async function seedAccounting(prisma: PrismaClient): Promise<AccountingSe
 
   // --- Static (non-department) accounts ------------------------------
   await upsertGl("1-1006", "Cash / Combined Receipts", "ASSET");
+  await upsertGl("1-1100", "Accounts Receivable", "ASSET");
+  // Authored invoices have no department, so they cannot use a 4-40XX
+  // department sales account the way an order's lines do.
+  await upsertGl("4-4900", "Sales: Invoiced Services", "REVENUE");
   await upsertGl("1-1200", "Pmt On Acct (Customer Deposits)", "ASSET");
   await upsertGl("1-1203", "Pmt On Acct (Layaway)", "ASSET");
   await upsertGl("2-2120", "CT Sales Tax Payable", "LIABILITY");
@@ -145,6 +149,16 @@ export async function seedAccounting(prisma: PrismaClient): Promise<AccountingSe
   // section -- this is what makes an un-invoiced order's payment book as
   // "Pmt On Acct" instead of falling through unmapped.
   await upsertMapping("POS_PAYMENTS", "On Account", "1-1200");
+
+  // --- SystemGLMapping: AR_TRANSACTIONS -------------------------------
+  // Recognising a sale raises a receivable for whatever the customer still
+  // owes at the moment of delivery, so the control account has to exist.
+  // Without it generateSalesJournal warns per order and the difference falls
+  // into the Over/Short plug. Same rows lib/billing/invoiceService.ts resolves
+  // for authored invoices -- deliberately the same account, so a receivable
+  // raised by a delivery and one raised by the billing screen land together.
+  await upsertMapping("AR_TRANSACTIONS", "Accounts Receivable", "1-1100");
+  await upsertMapping("AR_TRANSACTIONS", "Invoice Sales", "4-4900");
 
   // --- SystemGLMapping: POS_TRANSACTIONS ------------------------------
   await upsertMapping("POS_TRANSACTIONS", "Sales Tax", "2-2120");

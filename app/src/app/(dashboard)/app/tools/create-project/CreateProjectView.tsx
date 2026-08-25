@@ -42,8 +42,8 @@ export function CreateProjectView() {
 
   return (
     <div className="mx-auto mt-8 max-w-2xl text-center font-serif">
-      <h1 className="mb-4 text-2xl font-semibold text-sh-blue">New Customer Project</h1>
-      <p className="mb-8 text-sh-gray">
+      <h1 className="mb-4 text-2xl font-semibold text-brand-blue">New Customer Project</h1>
+      <p className="mb-8 text-brand-gray">
         Click the button below to create a new project folder structure in Google Drive for a new
         customer.
       </p>

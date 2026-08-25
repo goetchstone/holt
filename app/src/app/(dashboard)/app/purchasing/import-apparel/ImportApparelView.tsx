@@ -183,16 +183,16 @@ export function ImportApparelView() {
       {/* Step 1: Upload */}
       {!preview && !result && (
         <>
-          <p className="text-sm text-sh-gray">
+          <p className="text-sm text-brand-gray">
             Upload an apparel vendor purchase order or invoice PDF. Select the vendor format,
             preview the parsed items, then assign a department and category before importing.
           </p>
           <div className="mb-4">
-            <label className="mb-1 block text-xs text-sh-gray">Vendor Format</label>
+            <label className="mb-1 block text-xs text-brand-gray">Vendor Format</label>
             <select
               value={vendorFormat}
               onChange={(e) => setVendorFormat(e.target.value as VendorFormat)}
-              className="rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+              className="rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
             >
               {VENDOR_FORMATS.map((vf) => (
                 <option key={vf.value} value={vf.value}>
@@ -202,7 +202,7 @@ export function ImportApparelView() {
             </select>
           </div>
           <div className="flex items-center gap-4">
-            <label className="flex cursor-pointer items-center gap-2 rounded border border-gray-300 px-4 py-2 text-sm hover:bg-sh-stripe">
+            <label className="flex cursor-pointer items-center gap-2 rounded border border-gray-300 px-4 py-2 text-sm hover:bg-brand-stripe">
               <Upload className="h-4 w-4" />
               {file ? file.name : "Choose PDF..."}
               <input
@@ -225,29 +225,29 @@ export function ImportApparelView() {
       {/* Step 2: Preview + department/category selection */}
       {preview && !result && (
         <>
-          <div className="rounded border border-sh-gold/30 bg-amber-50 p-4">
-            <h3 className="mb-2 font-serif text-base font-semibold text-sh-navy">
+          <div className="rounded border border-brand-gold/30 bg-amber-50 p-4">
+            <h3 className="mb-2 font-serif text-base font-semibold text-brand-navy">
               {preview.vendorName || "Vendor"} -- Order {preview.orderNumber}
             </h3>
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
-                <span className="text-sh-gray">PO#:</span> {preview.poNumber}
+                <span className="text-brand-gray">PO#:</span> {preview.poNumber}
               </div>
               <div>
-                <span className="text-sh-gray">Date:</span> {preview.orderDate}
+                <span className="text-brand-gray">Date:</span> {preview.orderDate}
               </div>
               <div>
-                <span className="text-sh-gray">Delivery:</span> {preview.deliveryStart} -{" "}
+                <span className="text-brand-gray">Delivery:</span> {preview.deliveryStart} -{" "}
                 {preview.deliveryEnd}
               </div>
               <div>
-                <span className="text-sh-gray">Total Units:</span> {preview.totalUnits}
+                <span className="text-brand-gray">Total Units:</span> {preview.totalUnits}
               </div>
               <div>
-                <span className="text-sh-gray">Total Cost:</span> {fmt(preview.totalPrice)}
+                <span className="text-brand-gray">Total Cost:</span> {fmt(preview.totalPrice)}
               </div>
               <div>
-                <span className="text-sh-gray">Terms:</span> {preview.terms}
+                <span className="text-brand-gray">Terms:</span> {preview.terms}
               </div>
             </div>
           </div>
@@ -256,7 +256,7 @@ export function ImportApparelView() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 text-left text-xs text-sh-gray">
+                <tr className="border-b border-gray-200 text-left text-xs text-brand-gray">
                   <th className="px-2 py-2">Style #</th>
                   <th className="px-2 py-2">Product</th>
                   <th className="px-2 py-2">Color</th>
@@ -268,14 +268,17 @@ export function ImportApparelView() {
               </thead>
               <tbody>
                 {preview.items.map((item, i) => (
-                  <tr key={item.styleNumber} className={i % 2 === 0 ? "bg-sh-stripe" : "bg-white"}>
+                  <tr
+                    key={item.styleNumber}
+                    className={i % 2 === 0 ? "bg-brand-stripe" : "bg-white"}
+                  >
                     <td className="px-2 py-2 font-mono text-xs">{item.styleNumber}</td>
                     <td className="px-2 py-2">{item.productName}</td>
                     <td className="px-2 py-2">{item.color}</td>
                     <td className="px-2 py-2 text-right">{fmt(item.msrp)}</td>
                     <td className="px-2 py-2 text-right">{fmt(item.unitPrice)}</td>
                     <td className="px-2 py-2 text-center">{item.totalUnits}</td>
-                    <td className="px-2 py-2 text-xs text-sh-gray">
+                    <td className="px-2 py-2 text-xs text-brand-gray">
                       {item.sizes.map((s) => `${s.size}:${s.quantity}`).join(", ")}
                     </td>
                   </tr>
@@ -286,12 +289,12 @@ export function ImportApparelView() {
 
           {/* Department and category selection */}
           <div className="rounded border border-gray-200 bg-white p-4">
-            <h4 className="mb-3 text-sm font-semibold text-sh-navy">
+            <h4 className="mb-3 text-sm font-semibold text-brand-navy">
               Assign department and category for new products
             </h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-xs text-sh-gray">Department</label>
+                <label className="mb-1 block text-xs text-brand-gray">Department</label>
                 <select
                   value={selectedDeptId || ""}
                   onChange={(e) => {
@@ -299,7 +302,7 @@ export function ImportApparelView() {
                     setSelectedDeptId(id);
                     setSelectedCatId(null);
                   }}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                 >
                   <option value="">Select department...</option>
                   {departments.map((d) => (
@@ -310,11 +313,11 @@ export function ImportApparelView() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs text-sh-gray">Category</label>
+                <label className="mb-1 block text-xs text-brand-gray">Category</label>
                 <select
                   value={selectedCatId || ""}
                   onChange={(e) => setSelectedCatId(Number.parseInt(e.target.value) || null)}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                   disabled={!selectedDeptId}
                 >
                   <option value="">
@@ -357,26 +360,26 @@ export function ImportApparelView() {
               </span>
             </div>
             <dl className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
-              <dt className="text-sh-gray">PO Number</dt>
+              <dt className="text-brand-gray">PO Number</dt>
               <dd className="font-medium">
                 <a
                   href={`/app/purchasing/orders/${result.poId}`}
-                  className="text-sh-gold underline"
+                  className="text-brand-gold underline"
                 >
                   {result.poNumber}
                 </a>
               </dd>
-              <dt className="text-sh-gray">Vendor</dt>
+              <dt className="text-brand-gray">Vendor</dt>
               <dd>{result.vendor}</dd>
-              <dt className="text-sh-gray">Line Items</dt>
+              <dt className="text-brand-gray">Line Items</dt>
               <dd>{result.itemCount}</dd>
-              <dt className="text-sh-gray">Total Units</dt>
+              <dt className="text-brand-gray">Total Units</dt>
               <dd>{result.totalUnits}</dd>
-              <dt className="text-sh-gray">Total Cost</dt>
+              <dt className="text-brand-gray">Total Cost</dt>
               <dd>{fmt(result.totalCost)}</dd>
-              <dt className="text-sh-gray">Products Created</dt>
+              <dt className="text-brand-gray">Products Created</dt>
               <dd>{result.productsCreated}</dd>
-              <dt className="text-sh-gray">Variants Created</dt>
+              <dt className="text-brand-gray">Variants Created</dt>
               <dd>{result.variantsCreated}</dd>
             </dl>
           </div>

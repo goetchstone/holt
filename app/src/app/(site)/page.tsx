@@ -31,13 +31,13 @@ export default async function SiteHome() {
   const settings = await getAppSettings();
   return (
     <section className="mx-auto flex min-h-[60vh] max-w-screen-lg flex-col items-center justify-center px-6 text-center">
-      <h1 className="font-serif text-4xl text-sh-navy sm:text-5xl">{settings.appName}</h1>
+      <h1 className="font-serif text-4xl text-brand-navy sm:text-5xl">{settings.appName}</h1>
       {settings.tagline ? (
-        <p className="mt-4 max-w-xl text-lg text-sh-gray">{settings.tagline}</p>
+        <p className="mt-4 max-w-xl text-lg text-brand-gray">{settings.tagline}</p>
       ) : null}
       <Link
         href="/app"
-        className="mt-10 rounded-md bg-sh-navy px-6 py-3 text-sm font-medium text-white transition hover:bg-sh-blue"
+        className="mt-10 rounded-md bg-brand-navy px-6 py-3 text-sm font-medium text-white transition hover:bg-brand-blue"
       >
         Staff sign in
       </Link>

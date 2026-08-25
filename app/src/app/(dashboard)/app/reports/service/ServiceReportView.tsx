@@ -154,22 +154,22 @@ interface ChartCardProps {
 
 function ChartCard({ title, hasData, emptyText, children }: Readonly<ChartCardProps>) {
   return (
-    <div className="rounded-lg border border-sh-stripe bg-white p-4">
-      <h3 className="mb-3 text-sm font-semibold text-sh-navy">{title}</h3>
-      {hasData ? children : <p className="text-sm text-sh-gray">{emptyText}</p>}
+    <div className="rounded-lg border border-brand-stripe bg-white p-4">
+      <h3 className="mb-3 text-sm font-semibold text-brand-navy">{title}</h3>
+      {hasData ? children : <p className="text-sm text-brand-gray">{emptyText}</p>}
     </div>
   );
 }
 
 function OldestOpenTable({ rows }: Readonly<{ rows: OldestOpenRow[] }>) {
   return (
-    <div className="overflow-hidden rounded-lg border border-sh-stripe bg-white">
-      <div className="flex items-center justify-between border-b border-sh-stripe p-4">
-        <h3 className="text-sm font-semibold text-sh-navy">10 oldest open cases</h3>
-        <span className="text-xs text-sh-gray">click a row to open</span>
+    <div className="overflow-hidden rounded-lg border border-brand-stripe bg-white">
+      <div className="flex items-center justify-between border-b border-brand-stripe p-4">
+        <h3 className="text-sm font-semibold text-brand-navy">10 oldest open cases</h3>
+        <span className="text-xs text-brand-gray">click a row to open</span>
       </div>
       <table className="min-w-full text-left text-sm">
-        <thead className="bg-sh-stripe text-sh-black">
+        <thead className="bg-brand-stripe text-brand-black">
           <tr>
             <th className="p-3 font-medium">Case #</th>
             <th className="p-3 font-medium">Customer</th>
@@ -182,14 +182,14 @@ function OldestOpenTable({ rows }: Readonly<{ rows: OldestOpenRow[] }>) {
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={6} className="p-4 text-center text-sh-gray">
+              <td colSpan={6} className="p-4 text-center text-brand-gray">
                 No open cases.
               </td>
             </tr>
           ) : (
             rows.map((c) => (
-              <tr key={c.id} className="border-t border-sh-stripe hover:bg-sh-linen">
-                <td className="p-3 font-medium text-sh-blue">
+              <tr key={c.id} className="border-t border-brand-stripe hover:bg-brand-linen">
+                <td className="p-3 font-medium text-brand-blue">
                   <Link href={`/app/service/cases/${c.id}`} className="hover:underline">
                     {c.caseNumber}
                   </Link>
@@ -203,9 +203,9 @@ function OldestOpenTable({ rows }: Readonly<{ rows: OldestOpenRow[] }>) {
                     {c.status.name}
                   </span>
                 </td>
-                <td className="whitespace-nowrap p-3 text-sh-gray">{c.ageDays} days</td>
+                <td className="whitespace-nowrap p-3 text-brand-gray">{c.ageDays} days</td>
                 <td className="p-3">{c.assignedTo?.displayName ?? "—"}</td>
-                <td className="max-w-md truncate p-3 text-sh-gray">{c.summary}</td>
+                <td className="max-w-md truncate p-3 text-brand-gray">{c.summary}</td>
               </tr>
             ))
           )}
@@ -230,19 +230,19 @@ export function ServiceReportView() {
     <div className="space-y-6 py-2 font-serif">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-3xl text-sh-navy">Service KPIs</h1>
-          <p className="mt-1 text-sm text-sh-gray">
+          <h1 className="text-3xl text-brand-navy">Service KPIs</h1>
+          <p className="mt-1 text-sm text-brand-gray">
             Open queue health + resolution-time metrics. Closed-case window: last{" "}
             {data?.windowDays ?? 90} days.
           </p>
         </div>
-        <Link href="/app/service" className="text-sm text-sh-gold hover:underline">
+        <Link href="/app/service" className="text-sm text-brand-gold hover:underline">
           ← Back to cases
         </Link>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-sh-stripe bg-white p-4">
-        <label htmlFor="goal-days" className="text-sm font-medium text-sh-navy">
+      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-brand-stripe bg-white p-4">
+        <label htmlFor="goal-days" className="text-sm font-medium text-brand-navy">
           Resolution goal:
         </label>
         <input
@@ -255,19 +255,19 @@ export function ServiceReportView() {
           onChange={(e) => setGoalDays(Number.parseInt(e.target.value))}
           className="max-w-xs flex-1"
         />
-        <span className="w-24 text-sm font-medium text-sh-navy">
+        <span className="w-24 text-sm font-medium text-brand-navy">
           {goalDays} day{goalDays === 1 ? "" : "s"}
         </span>
         {k && (
-          <span className="text-sm text-sh-gray">
-            <strong className="text-sh-navy">{k.goalMetPercent}%</strong> of last{" "}
+          <span className="text-sm text-brand-gray">
+            <strong className="text-brand-navy">{k.goalMetPercent}%</strong> of last{" "}
             {k.closedInWindowCount} closed cases hit this goal
           </span>
         )}
       </div>
 
       {loading || !k ? (
-        <p className="text-sh-gray">Loading…</p>
+        <p className="text-brand-gray">Loading…</p>
       ) : (
         <>
           <KpiCardsRow k={k} />

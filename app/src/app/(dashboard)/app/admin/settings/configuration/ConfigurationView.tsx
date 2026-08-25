@@ -35,14 +35,14 @@ function DiskReportBanner({
 }: Readonly<{ diskReport: PresetsGetResponse["diskReport"] }>) {
   if (diskReport.errors.length === 0 && diskReport.overrides.length === 0) return null;
   return (
-    <div className="space-y-2 rounded-md border border-sh-gold/50 bg-sh-gold/5 p-4 text-sm">
+    <div className="space-y-2 rounded-md border border-brand-gold/50 bg-brand-gold/5 p-4 text-sm">
       {diskReport.overrides.length > 0 && (
         <div>
-          <p className="font-medium text-sh-black">
+          <p className="font-medium text-brand-black">
             config/local/ is overriding {diskReport.overrides.length} shipped preset
             {diskReport.overrides.length === 1 ? "" : "s"}
           </p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-sh-gray">
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-brand-gray">
             {diskReport.overrides.map((o) => (
               // Keyed by the file pair, not by kind/name: a preset can be
               // overridden more than once in a chain (shipped -> A -> B), and
@@ -52,7 +52,7 @@ function DiskReportBanner({
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-xs text-sh-gray">
+          <p className="mt-1 text-xs text-brand-gray">
             The next GitOps apply of that file will overwrite whatever is saved here for the same
             preset.
           </p>
@@ -98,7 +98,7 @@ export function ConfigurationView() {
 
   if (loading || !state) {
     return (
-      <div className="flex items-center gap-2 p-8 text-sh-gray">
+      <div className="flex items-center gap-2 p-8 text-brand-gray">
         <Loader2 className="h-5 w-5 animate-spin" /> Loading configuration…
       </div>
     );
@@ -111,11 +111,11 @@ export function ConfigurationView() {
   return (
     <div className="space-y-6 pb-16">
       <div>
-        <h1 className="font-serif text-2xl text-sh-blue">Configuration</h1>
-        <p className="text-xs text-sh-gray">
+        <h1 className="font-serif text-2xl text-brand-blue">Configuration</h1>
+        <p className="text-xs text-brand-gray">
           Per-deployment mappings — same schema and same rows as the YAML/JSON files under{" "}
-          <code className="text-sh-black">config/</code>. A change made here can be exported back to
-          a file and committed.
+          <code className="text-brand-black">config/</code>. A change made here can be exported back
+          to a file and committed.
         </p>
       </div>
 

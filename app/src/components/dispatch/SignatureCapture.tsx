@@ -151,11 +151,11 @@ export default function SignatureCapture({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm text-sh-gray">Sign below</span>
+        <span className="text-sm text-brand-gray">Sign below</span>
         <button
           type="button"
           onClick={clearCanvas}
-          className="text-xs text-sh-blue hover:underline min-h-[44px] min-w-[44px] flex items-center justify-center"
+          className="text-xs text-brand-blue hover:underline min-h-[44px] min-w-[44px] flex items-center justify-center"
         >
           Clear
         </button>
@@ -165,7 +165,7 @@ export default function SignatureCapture({
         ref={canvasRef}
         width={width}
         height={height}
-        className="w-full border border-sh-gray/30 rounded-lg bg-white touch-none"
+        className="w-full border border-brand-gray/30 rounded-lg bg-white touch-none"
         style={{ minWidth: 300, minHeight: 150 }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}

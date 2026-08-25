@@ -133,21 +133,21 @@ export function TaxSummaryView() {
 
   return (
     <div className="space-y-8 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Tax Summary</span>
+        <span className="text-brand-black">Tax Summary</span>
       </nav>
       <div>
-        <h1 className="text-2xl font-semibold text-sh-black">Tax Summary</h1>
-        <p className="mt-1 font-sans text-xs text-sh-gray">
+        <h1 className="text-2xl font-semibold text-brand-black">Tax Summary</h1>
+        <p className="mt-1 font-sans text-xs text-brand-gray">
           Tax collected by period and store, sourced from invoices
         </p>
       </div>
 
-      <div className="rounded-xl border border-sh-gray/15 bg-white p-5">
+      <div className="rounded-xl border border-brand-gray/15 bg-white p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
           <div className="flex-1">
             <DateRangeFilter value={dateRange} onChange={setDateRange} />
@@ -156,7 +156,7 @@ export function TaxSummaryView() {
             type="button"
             onClick={() => setCommitted(dateRange)}
             disabled={loading}
-            className="min-h-[44px] rounded-lg bg-sh-navy px-5 py-2 font-sans text-sm font-semibold text-white transition-colors hover:bg-sh-blue disabled:opacity-50"
+            className="min-h-[44px] rounded-lg bg-brand-navy px-5 py-2 font-sans text-sm font-semibold text-white transition-colors hover:bg-brand-blue disabled:opacity-50"
           >
             {loading ? "Loading..." : "Apply"}
           </button>
@@ -227,7 +227,7 @@ export function TaxSummaryView() {
         />
       </ReportSection>
 
-      <p className="font-sans text-xs text-sh-gray">
+      <p className="font-sans text-xs text-brand-gray">
         Tax figures sourced from invoices. Based on invoice date, not payment date.
       </p>
     </div>

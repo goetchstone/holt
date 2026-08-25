@@ -24,7 +24,7 @@ async function stopImpersonation(): Promise<void> {
     // must still work. document.cookie deletion needs the same Path
     // attribute the cookie was set with.
     if (typeof document !== "undefined") {
-      document.cookie = "sh-impersonate=; Path=/; Max-Age=0; SameSite=Lax";
+      document.cookie = "holt-impersonate=; Path=/; Max-Age=0; SameSite=Lax";
     }
     globalThis.location.reload();
   }

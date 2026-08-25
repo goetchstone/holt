@@ -125,7 +125,7 @@ function InlineNameEditor({
         type="button"
         aria-label="Cancel editing"
         onClick={onCancel}
-        className="p-0.5 text-sh-gray hover:text-sh-black"
+        className="p-0.5 text-brand-gray hover:text-brand-black"
       >
         <X className="w-4 h-4" />
       </button>
@@ -162,7 +162,7 @@ function GridCardImage({
 }>) {
   return (
     <div
-      className="relative aspect-square bg-sh-linen flex items-center justify-center cursor-pointer"
+      className="relative aspect-square bg-brand-linen flex items-center justify-center cursor-pointer"
       role="button"
       tabIndex={0}
       onClick={onOpenModal}
@@ -173,7 +173,7 @@ function GridCardImage({
         }
       }}
     >
-      {isUploading && <Loader2 className="w-8 h-8 text-sh-blue animate-spin" />}
+      {isUploading && <Loader2 className="w-8 h-8 text-brand-blue animate-spin" />}
       {!isUploading && style.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element -- vendor image URLs are arbitrary remote hosts; no next/image loader configured for them
         <img
@@ -184,8 +184,8 @@ function GridCardImage({
       )}
       {!isUploading && !style.imageUrl && (
         <div className="text-center">
-          <ImageIcon className="w-12 h-12 text-sh-gray/30 mx-auto" />
-          <span className="text-xs text-sh-gray/50 mt-1 block">No image</span>
+          <ImageIcon className="w-12 h-12 text-brand-gray/30 mx-auto" />
+          <span className="text-xs text-brand-gray/50 mt-1 block">No image</span>
         </div>
       )}
       <button
@@ -194,7 +194,7 @@ function GridCardImage({
           e.stopPropagation();
           onStartImageUpload();
         }}
-        className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/80 text-sh-gray hover:bg-sh-blue hover:text-white transition opacity-0 group-hover:opacity-100"
+        className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/80 text-brand-gray hover:bg-brand-blue hover:text-white transition opacity-0 group-hover:opacity-100"
         title="Replace image"
         aria-label="Replace image"
       >
@@ -220,7 +220,7 @@ function GridCardName({
         <InlineNameEditor
           value={editingNameValue}
           saving={isSavingName}
-          inputClassName="flex-1 border border-sh-blue/30 rounded px-1.5 py-0.5 text-xs text-sh-black min-w-0"
+          inputClassName="flex-1 border border-brand-blue/30 rounded px-1.5 py-0.5 text-xs text-brand-black min-w-0"
           onChange={onNameChange}
           onSave={onNameSave}
           onCancel={onNameCancel}
@@ -244,23 +244,23 @@ function GridCardName({
         onStartNameEdit();
       }}
     >
-      <span className="text-xs text-sh-gray truncate flex-1">{style.name || "--"}</span>
-      <Pencil className="w-3 h-3 text-sh-gray/40 opacity-0 group-hover/name:opacity-100 transition flex-shrink-0" />
+      <span className="text-xs text-brand-gray truncate flex-1">{style.name || "--"}</span>
+      <Pencil className="w-3 h-3 text-brand-gray/40 opacity-0 group-hover/name:opacity-100 transition flex-shrink-0" />
     </div>
   );
 }
 
 function GridCard(props: Readonly<GridCardProps>) {
   return (
-    <div className="border border-sh-gray/20 rounded-lg overflow-hidden shadow-sm bg-white hover:shadow-md transition group">
+    <div className="border border-brand-gray/20 rounded-lg overflow-hidden shadow-sm bg-white hover:shadow-md transition group">
       <GridCardImage
         style={props.style}
         isUploading={props.isUploadingImage}
         onOpenModal={props.onOpenModal}
         onStartImageUpload={props.onStartImageUpload}
       />
-      <div className="px-3 py-2 border-t border-sh-gray/10">
-        <div className="font-semibold text-sh-blue text-sm">{props.style.productNumber}</div>
+      <div className="px-3 py-2 border-t border-brand-gray/10">
+        <div className="font-semibold text-brand-blue text-sm">{props.style.productNumber}</div>
         <GridCardName
           style={props.style}
           isEditingName={props.isEditingName}
@@ -271,7 +271,7 @@ function GridCard(props: Readonly<GridCardProps>) {
           onNameSave={props.onNameSave}
           onNameCancel={props.onNameCancel}
         />
-        <div className="text-xs text-sh-gray/60 mt-0.5 truncate">
+        <div className="text-xs text-brand-gray/60 mt-0.5 truncate">
           {formatDimensions(props.style)}
         </div>
       </div>
@@ -310,7 +310,7 @@ function ListRowName({
       <InlineNameEditor
         value={editingNameValue}
         saving={isSavingName}
-        inputClassName="flex-1 border border-sh-blue/30 rounded px-2 py-1 text-sm text-sh-black min-w-0"
+        inputClassName="flex-1 border border-brand-blue/30 rounded px-2 py-1 text-sm text-brand-black min-w-0"
         onChange={onNameChange}
         onSave={onNameSave}
         onCancel={onNameCancel}
@@ -319,7 +319,7 @@ function ListRowName({
   }
   return (
     <span
-      className="text-sh-black cursor-pointer hover:text-sh-blue group/name inline-flex items-center gap-1"
+      className="text-brand-black cursor-pointer hover:text-brand-blue group/name inline-flex items-center gap-1"
       role="button"
       tabIndex={0}
       onClick={onStartNameEdit}
@@ -330,25 +330,25 @@ function ListRowName({
       }}
     >
       {style.name || "--"}
-      <Pencil className="w-3 h-3 text-sh-gray/40 opacity-0 group-hover/name:opacity-100 transition" />
+      <Pencil className="w-3 h-3 text-brand-gray/40 opacity-0 group-hover/name:opacity-100 transition" />
     </span>
   );
 }
 
 function ListRow(props: Readonly<ListRowProps>) {
   return (
-    <tr className="border-t border-sh-gray/10 hover:bg-sh-linen/40 transition">
+    <tr className="border-t border-brand-gray/10 hover:bg-brand-linen/40 transition">
       <td className="px-3 py-2">
-        <div className="w-12 h-12 rounded overflow-hidden bg-sh-linen flex items-center justify-center">
+        <div className="w-12 h-12 rounded overflow-hidden bg-brand-linen flex items-center justify-center">
           {props.style.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- vendor image URLs are arbitrary remote hosts; no next/image loader configured for them
             <img src={props.style.imageUrl} alt="" className="w-full h-full object-contain" />
           ) : (
-            <ImageIcon className="w-5 h-5 text-sh-gray/30" />
+            <ImageIcon className="w-5 h-5 text-brand-gray/30" />
           )}
         </div>
       </td>
-      <td className="px-3 py-2 font-semibold text-sh-blue whitespace-nowrap">
+      <td className="px-3 py-2 font-semibold text-brand-blue whitespace-nowrap">
         {props.style.productNumber}
       </td>
       <td className="px-3 py-2">
@@ -363,14 +363,16 @@ function ListRow(props: Readonly<ListRowProps>) {
           onNameCancel={props.onNameCancel}
         />
       </td>
-      <td className="px-3 py-2 text-sh-gray whitespace-nowrap">{formatDimensions(props.style)}</td>
-      <td className="px-3 py-2 text-sh-gray">{props.style.finish || "--"}</td>
+      <td className="px-3 py-2 text-brand-gray whitespace-nowrap">
+        {formatDimensions(props.style)}
+      </td>
+      <td className="px-3 py-2 text-brand-gray">{props.style.finish || "--"}</td>
       <td className="px-3 py-2">
         <div className="flex items-center justify-center gap-1">
           <button
             type="button"
             onClick={props.onStartImageUpload}
-            className="p-1.5 rounded text-sh-gray hover:text-sh-blue hover:bg-sh-linen transition"
+            className="p-1.5 rounded text-brand-gray hover:text-brand-blue hover:bg-brand-linen transition"
             title="Replace image"
             aria-label="Replace image"
           >
@@ -383,7 +385,7 @@ function ListRow(props: Readonly<ListRowProps>) {
           <button
             type="button"
             onClick={props.onOpenModal}
-            className="p-1.5 rounded text-sh-gray hover:text-sh-blue hover:bg-sh-linen transition"
+            className="p-1.5 rounded text-brand-gray hover:text-brand-blue hover:bg-brand-linen transition"
             title="Edit all fields"
             aria-label="Edit all fields"
           >
@@ -415,8 +417,8 @@ function VendorSelector({
           onClick={() => onSelect(v.id)}
           className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
             selectedVendorId === v.id
-              ? "bg-sh-blue text-white shadow-md"
-              : "bg-white text-sh-gray border border-sh-gray/30 hover:border-sh-blue hover:text-sh-blue"
+              ? "bg-brand-blue text-white shadow-md"
+              : "bg-white text-brand-gray border border-brand-gray/30 hover:border-brand-blue hover:text-brand-blue"
           }`}
         >
           {v.name}
@@ -443,14 +445,14 @@ function Toolbar(props: Readonly<ToolbarProps>) {
   return (
     <div className="flex items-center gap-3 flex-wrap">
       <div className="relative flex-1 max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sh-gray" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
         <input
           type="text"
           aria-label="Search styles"
           value={props.searchQuery}
           onChange={(e) => props.onSearchChange(e.target.value)}
           placeholder="Search by style number or name..."
-          className="w-full pl-10 pr-3 py-2 border border-sh-gray/30 rounded-lg text-sm text-sh-black font-serif"
+          className="w-full pl-10 pr-3 py-2 border border-brand-gray/30 rounded-lg text-sm text-brand-black font-serif"
         />
       </div>
       <button
@@ -458,14 +460,14 @@ function Toolbar(props: Readonly<ToolbarProps>) {
         onClick={props.onToggleMissing}
         className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold transition ${
           props.filterMissingImage
-            ? "bg-sh-blue text-white shadow-md"
-            : "bg-white text-sh-gray border border-sh-gray/30 hover:border-sh-blue hover:text-sh-blue"
+            ? "bg-brand-blue text-white shadow-md"
+            : "bg-white text-brand-gray border border-brand-gray/30 hover:border-brand-blue hover:text-brand-blue"
         }`}
       >
         <ImageOff className="w-4 h-4" />
         Missing ({props.missingCount})
       </button>
-      <div className="flex border border-sh-gray/30 rounded-lg overflow-hidden">
+      <div className="flex border border-brand-gray/30 rounded-lg overflow-hidden">
         <button
           type="button"
           aria-label="Grid view"
@@ -473,8 +475,8 @@ function Toolbar(props: Readonly<ToolbarProps>) {
           onClick={() => props.onViewModeChange("grid")}
           className={`px-3 py-2 transition ${
             props.viewMode === "grid"
-              ? "bg-sh-blue text-white"
-              : "bg-white text-sh-gray hover:bg-sh-linen"
+              ? "bg-brand-blue text-white"
+              : "bg-white text-brand-gray hover:bg-brand-linen"
           }`}
         >
           <LayoutGrid className="w-4 h-4" />
@@ -484,16 +486,16 @@ function Toolbar(props: Readonly<ToolbarProps>) {
           aria-label="List view"
           aria-pressed={props.viewMode === "list"}
           onClick={() => props.onViewModeChange("list")}
-          className={`px-3 py-2 transition border-l border-sh-gray/30 ${
+          className={`px-3 py-2 transition border-l border-brand-gray/30 ${
             props.viewMode === "list"
-              ? "bg-sh-blue text-white"
-              : "bg-white text-sh-gray hover:bg-sh-linen"
+              ? "bg-brand-blue text-white"
+              : "bg-white text-brand-gray hover:bg-brand-linen"
           }`}
         >
           <List className="w-4 h-4" />
         </button>
       </div>
-      <span className="text-sm text-sh-gray">
+      <span className="text-sm text-brand-gray">
         {props.filteredCount} of {props.totalCount} styles ({props.imageCount} with images)
       </span>
     </div>
@@ -679,8 +681,8 @@ export function ProductReviewView() {
     <div className="py-2 font-serif space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-sh-blue mb-1">Product Review</h1>
-        <p className="text-sh-gray text-sm">
+        <h1 className="text-2xl font-semibold text-brand-blue mb-1">Product Review</h1>
+        <p className="text-brand-gray text-sm">
           Review imported products. Click a card for full editing, or use inline controls to fix
           names and images.
         </p>
@@ -688,7 +690,7 @@ export function ProductReviewView() {
 
       {/* Vendor selector */}
       {vendorsLoading ? (
-        <div className="flex items-center gap-2 text-sh-gray text-sm">
+        <div className="flex items-center gap-2 text-brand-gray text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading vendors...
         </div>
@@ -736,13 +738,13 @@ export function ProductReviewView() {
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 text-sh-blue animate-spin" />
+          <Loader2 className="w-8 h-8 text-brand-blue animate-spin" />
         </div>
       )}
 
       {/* Empty state */}
       {showEmpty && (
-        <div className="text-center py-16 text-sh-gray">
+        <div className="text-center py-16 text-brand-gray">
           <p>{searchQuery ? "No styles match your search." : "No styles found."}</p>
         </div>
       )}
@@ -780,11 +782,11 @@ export function ProductReviewView() {
       {/* List view */}
       {showList && (
         <>
-          <div className="border border-sh-gray/20 rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray/20 rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-sh-linen text-sh-gray text-xs uppercase tracking-wider">
+                  <tr className="bg-brand-linen text-brand-gray text-xs uppercase tracking-wider">
                     <th className="text-left px-3 py-2.5 font-medium w-16">Image</th>
                     <th className="text-left px-3 py-2.5 font-medium">Style</th>
                     <th className="text-left px-3 py-2.5 font-medium">Name</th>

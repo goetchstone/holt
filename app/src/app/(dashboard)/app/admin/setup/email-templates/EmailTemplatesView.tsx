@@ -36,7 +36,7 @@ const CATEGORIES = ["CUSTOMER", "INTERNAL", "VENDOR"];
 
 const CATEGORY_COLORS: Record<string, string> = {
   CUSTOMER: "bg-blue-50 text-blue-700",
-  INTERNAL: "bg-sh-gray/10 text-sh-gray",
+  INTERNAL: "bg-brand-gray/10 text-brand-gray",
   VENDOR: "bg-yellow-50 text-yellow-800",
 };
 
@@ -126,21 +126,21 @@ export function EmailTemplatesView() {
   };
 
   if (loading) {
-    return <p className="text-sh-gray py-8">Loading...</p>;
+    return <p className="text-brand-gray py-8">Loading...</p>;
   }
 
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl text-sh-blue font-semibold">Email Templates</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">Email Templates</h1>
         <Button variant="primary" size="sm" onClick={() => openModal(null)}>
           Add Template
         </Button>
       </div>
 
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-sh-linen text-sh-black">
+          <thead className="bg-brand-linen text-brand-black">
             <tr>
               <th className="p-3 border-b font-medium">Name</th>
               <th className="p-3 border-b font-medium">Category</th>
@@ -151,8 +151,8 @@ export function EmailTemplatesView() {
           </thead>
           <tbody>
             {templates.map((t) => (
-              <tr key={t.id} className="odd:bg-white even:bg-sh-stripe">
-                <td className="p-3 border-b font-medium text-sh-black">{t.name}</td>
+              <tr key={t.id} className="odd:bg-white even:bg-brand-stripe">
+                <td className="p-3 border-b font-medium text-brand-black">{t.name}</td>
                 <td className="p-3 border-b">
                   <span
                     className={`text-xs px-2 py-0.5 rounded ${CATEGORY_COLORS[t.category] || ""}`}
@@ -160,13 +160,15 @@ export function EmailTemplatesView() {
                     {t.category}
                   </span>
                 </td>
-                <td className="p-3 border-b text-sh-gray max-w-xs truncate">{t.subject}</td>
+                <td className="p-3 border-b text-brand-gray max-w-xs truncate">{t.subject}</td>
                 <td className="p-3 border-b">
                   <button
                     type="button"
                     onClick={() => toggleActive(t)}
                     className={`text-xs px-2 py-1 rounded ${
-                      t.isActive ? "bg-green-100 text-green-800" : "bg-sh-gray/10 text-sh-gray"
+                      t.isActive
+                        ? "bg-green-100 text-green-800"
+                        : "bg-brand-gray/10 text-brand-gray"
                     }`}
                   >
                     {t.isActive ? "Active" : "Inactive"}
@@ -176,7 +178,7 @@ export function EmailTemplatesView() {
                   <button
                     type="button"
                     onClick={() => openModal(t)}
-                    className="text-sm text-sh-blue hover:underline"
+                    className="text-sm text-brand-blue hover:underline"
                   >
                     Edit
                   </button>
@@ -185,7 +187,7 @@ export function EmailTemplatesView() {
             ))}
             {templates.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-4 text-center text-sh-gray">
+                <td colSpan={5} className="p-4 text-center text-brand-gray">
                   No email templates configured
                 </td>
               </tr>
@@ -209,14 +211,14 @@ export function EmailTemplatesView() {
             required
           />
           <div className="mb-4">
-            <label htmlFor="templateCategory" className="block text-sh-blue font-serif mb-1">
+            <label htmlFor="templateCategory" className="block text-brand-blue font-serif mb-1">
               Category
             </label>
             <select
               id="templateCategory"
               value={form.category}
               onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-              className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif"
+              className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
@@ -233,7 +235,7 @@ export function EmailTemplatesView() {
             required
           />
           <div className="mb-4">
-            <label htmlFor="templateBody" className="block text-sh-blue font-serif mb-1">
+            <label htmlFor="templateBody" className="block text-brand-blue font-serif mb-1">
               Body
             </label>
             <textarea
@@ -241,9 +243,9 @@ export function EmailTemplatesView() {
               value={form.body}
               onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
               rows={8}
-              className="w-full border border-sh-gray rounded-lg px-3 py-2 text-sh-black font-serif"
+              className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
             />
-            <p className="text-xs text-sh-gray mt-1">
+            <p className="text-xs text-brand-gray mt-1">
               {"Mustache variables: {{customerName}}, {{orderno}}, {{caseNumber}}, {{summary}}"}
             </p>
           </div>
@@ -255,7 +257,7 @@ export function EmailTemplatesView() {
               onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
               className="rounded"
             />
-            <label htmlFor="templateActive" className="text-sm text-sh-gray">
+            <label htmlFor="templateActive" className="text-sm text-brand-gray">
               Active
             </label>
           </div>

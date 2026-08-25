@@ -225,7 +225,7 @@ function CustomerField({
     return (
       <p>
         <strong>Customer:</strong>{" "}
-        <Link href={`/app/sales/customers/${customer.id}`} className="text-sh-gold underline">
+        <Link href={`/app/sales/customers/${customer.id}`} className="text-brand-gold underline">
           {customer.firstName} {customer.lastName}
         </Link>
       </p>
@@ -238,7 +238,7 @@ function CustomerField({
         <strong>Customer:</strong>{" "}
         <button
           onClick={() => setSearching(true)}
-          className="inline-flex items-center gap-1 rounded border border-sh-gold px-2 py-1 text-xs text-sh-gold hover:bg-sh-gold/10"
+          className="inline-flex items-center gap-1 rounded border border-brand-gold px-2 py-1 text-xs text-brand-gold hover:bg-brand-gold/10"
         >
           <Search className="h-3 w-3" /> Add Customer
         </button>
@@ -258,10 +258,13 @@ function CustomerField({
             doSearch(e.target.value);
           }}
           placeholder="Search by name..."
-          className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-sh-gold focus:outline-none"
+          className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-brand-gold focus:outline-none"
           aria-label="Search customers by name"
         />
-        <button onClick={() => setSearching(false)} className="text-sh-gray hover:text-sh-black">
+        <button
+          onClick={() => setSearching(false)}
+          className="text-brand-gray hover:text-brand-black"
+        >
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -271,7 +274,7 @@ function CustomerField({
             <li key={c.id}>
               <button
                 onClick={() => linkCustomer(c.id)}
-                className="w-full px-3 py-2 text-left hover:bg-sh-stripe"
+                className="w-full px-3 py-2 text-left hover:bg-brand-stripe"
               >
                 {c.firstName} {c.lastName}
               </button>
@@ -631,14 +634,14 @@ export function OrderDetailView({ id }: { id: string }) {
       <div className="flex justify-between items-start mb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-bold text-sh-blue">{orderDetails.orderno}</h1>
+            <h1 className="text-2xl font-bold text-brand-blue">{orderDetails.orderno}</h1>
             <span
               className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[orderDetails.status] || "bg-gray-100 text-gray-800"}`}
             >
               {STATUS_LABELS[orderDetails.status] || orderDetails.status}
             </span>
           </div>
-          <p className="text-sm text-sh-gray">
+          <p className="text-sm text-brand-gray">
             {format(parseLocalDate(orderDetails.orderDate), "PPP")}
           </p>
           <div className="flex gap-1.5 mt-2">
@@ -649,8 +652,8 @@ export function OrderDetailView({ id }: { id: string }) {
                 onClick={() => handleStatusChange(s)}
                 className={`px-2.5 py-1 text-xs rounded border transition ${
                   orderDetails.status === s
-                    ? "bg-sh-blue text-white border-sh-blue cursor-default"
-                    : "bg-white text-sh-gray border-sh-gray/30 hover:border-sh-blue disabled:opacity-40"
+                    ? "bg-brand-blue text-white border-brand-blue cursor-default"
+                    : "bg-white text-brand-gray border-brand-gray/30 hover:border-brand-blue disabled:opacity-40"
                 }`}
               >
                 {STATUS_LABELS[s]}
@@ -706,15 +709,15 @@ export function OrderDetailView({ id }: { id: string }) {
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-3">Change History</h2>
           {changeLog.length === 0 ? (
-            <p className="text-sm text-sh-gray">No changes recorded yet.</p>
+            <p className="text-sm text-brand-gray">No changes recorded yet.</p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {changeLog.map((entry) => (
                 <div
                   key={entry.id}
-                  className="flex items-start gap-3 text-sm border-b border-sh-gray/10 pb-2"
+                  className="flex items-start gap-3 text-sm border-b border-brand-gray/10 pb-2"
                 >
-                  <div className="text-xs text-sh-gray whitespace-nowrap pt-0.5">
+                  <div className="text-xs text-brand-gray whitespace-nowrap pt-0.5">
                     {format(new Date(entry.created), "MMM d, h:mm a")}
                   </div>
                   <div className="flex-1">
@@ -722,20 +725,22 @@ export function OrderDetailView({ id }: { id: string }) {
                       {CHANGE_TYPE_LABELS[entry.changeType] || entry.changeType}
                     </span>
                     {entry.previousValue && entry.newValue && (
-                      <span className="text-sh-gray">
+                      <span className="text-brand-gray">
                         {" "}
                         {entry.previousValue} &rarr; {entry.newValue}
                       </span>
                     )}
                     {!entry.previousValue && entry.newValue && (
-                      <span className="text-sh-gray"> {entry.newValue}</span>
+                      <span className="text-brand-gray"> {entry.newValue}</span>
                     )}
                     {entry.previousValue && !entry.newValue && (
-                      <span className="text-sh-gray"> {entry.previousValue}</span>
+                      <span className="text-brand-gray"> {entry.previousValue}</span>
                     )}
-                    {entry.reason && <span className="text-sh-gray italic"> — {entry.reason}</span>}
+                    {entry.reason && (
+                      <span className="text-brand-gray italic"> — {entry.reason}</span>
+                    )}
                   </div>
-                  <div className="text-xs text-sh-gray whitespace-nowrap">
+                  <div className="text-xs text-brand-gray whitespace-nowrap">
                     {entry.changedBy?.split("@")[0]}
                   </div>
                 </div>
@@ -768,7 +773,7 @@ export function OrderDetailView({ id }: { id: string }) {
               {isManager && (
                 <button
                   onClick={openSalespersonModal}
-                  className="p-1 text-sh-gray hover:text-sh-blue transition"
+                  className="p-1 text-brand-gray hover:text-brand-blue transition"
                   title="Change salesperson"
                 >
                   <UserCog className="w-4 h-4" />
@@ -785,7 +790,7 @@ export function OrderDetailView({ id }: { id: string }) {
                   aria-label="Conveyance method"
                   value={orderDetails.deliveryMethod || ""}
                   onChange={(e) => handleConveyanceChange(e.target.value)}
-                  className="border border-sh-gray/30 rounded px-2 py-1 text-sm"
+                  className="border border-brand-gray/30 rounded px-2 py-1 text-sm"
                 >
                   <option value="">Not set</option>
                   {Object.entries(DELIVERY_METHOD_LABELS).map(([value, label]) => (
@@ -823,8 +828,8 @@ export function OrderDetailView({ id }: { id: string }) {
               <strong>Balance Due:</strong> {formatCurrency(balanceDue)}
             </p>
             {isManager && balanceDue > 0 && (
-              <div className="mt-4 border-t border-sh-gray/20 pt-3">
-                <p className="text-xs text-sh-gray mb-2">Payment Request</p>
+              <div className="mt-4 border-t border-brand-gray/20 pt-3">
+                <p className="text-xs text-brand-gray mb-2">Payment Request</p>
                 <div className="flex items-center gap-2 mb-2">
                   {(["full", "50", "custom"] as const).map((mode) => (
                     <button
@@ -832,8 +837,8 @@ export function OrderDetailView({ id }: { id: string }) {
                       onClick={() => setDepositMode(mode)}
                       className={`px-2.5 py-1 text-xs rounded border transition ${
                         depositMode === mode
-                          ? "bg-sh-blue text-white border-sh-blue"
-                          : "bg-white text-sh-gray border-sh-gray/30 hover:border-sh-blue"
+                          ? "bg-brand-blue text-white border-brand-blue"
+                          : "bg-white text-brand-gray border-brand-gray/30 hover:border-brand-blue"
                       }`}
                     >
                       {DEPOSIT_MODE_LABELS[mode]}
@@ -848,11 +853,11 @@ export function OrderDetailView({ id }: { id: string }) {
                       onChange={(e) => setCustomAmount(e.target.value)}
                       placeholder="Amount"
                       aria-label="Custom payment amount"
-                      className="w-24 text-xs border border-sh-gray/30 rounded px-2 py-1"
+                      className="w-24 text-xs border border-brand-gray/30 rounded px-2 py-1"
                     />
                   )}
                   {depositMode === "50" && (
-                    <span className="text-xs text-sh-gray">
+                    <span className="text-xs text-brand-gray">
                       {formatCurrency(Math.ceil(balanceDue * 0.5))}
                     </span>
                   )}
@@ -868,7 +873,7 @@ export function OrderDetailView({ id }: { id: string }) {
                         readOnly
                         value={paymentLinkUrl}
                         aria-label="Payment link"
-                        className="flex-1 text-xs border border-sh-gray/30 rounded px-2 py-1 bg-sh-linen truncate"
+                        className="flex-1 text-xs border border-brand-gray/30 rounded px-2 py-1 bg-brand-linen truncate"
                       />
                       <Button size="sm" variant="outline" onClick={handleCopyLink}>
                         {copied ? "Copied!" : "Copy"}
@@ -886,7 +891,7 @@ export function OrderDetailView({ id }: { id: string }) {
       {isManager && (
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-3">Customer Portal (Test Mode)</h2>
-          <p className="text-xs text-sh-gray mb-3">
+          <p className="text-xs text-brand-gray mb-3">
             Generate a shareable link for the customer to view their order and make payments. Links
             expire after 7 days.
           </p>
@@ -901,7 +906,7 @@ export function OrderDetailView({ id }: { id: string }) {
                   readOnly
                   value={portalLinkUrl}
                   aria-label="Customer portal link"
-                  className="flex-1 text-xs border border-sh-gray/30 rounded px-2 py-1 bg-sh-linen truncate"
+                  className="flex-1 text-xs border border-brand-gray/30 rounded px-2 py-1 bg-brand-linen truncate"
                 />
                 <Button size="sm" variant="outline" onClick={handleCopyPortalLink}>
                   {portalLinkCopied ? "Copied!" : "Copy"}
@@ -927,7 +932,7 @@ export function OrderDetailView({ id }: { id: string }) {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-sh-linen text-sh-black">
+            <thead className="bg-brand-linen text-brand-black">
               <tr>
                 <th className="p-2 border-b">Item</th>
                 <th className="p-2 border-b text-right whitespace-nowrap">Qty</th>
@@ -948,7 +953,7 @@ export function OrderDetailView({ id }: { id: string }) {
                 return (
                   <tr
                     key={item.id}
-                    className={`${isInactive ? "opacity-50" : ""} odd:bg-white even:bg-sh-stripe`}
+                    className={`${isInactive ? "opacity-50" : ""} odd:bg-white even:bg-brand-stripe`}
                   >
                     <td className="p-2 border-b">
                       <div className="min-w-0">
@@ -956,12 +961,14 @@ export function OrderDetailView({ id }: { id: string }) {
                           {item.partNo || item.productName}
                         </span>
                         {item.partNo && item.productName && (
-                          <p className="text-xs text-sh-gray" title={item.productName}>
+                          <p className="text-xs text-brand-gray" title={item.productName}>
                             {item.productName}
                           </p>
                         )}
                         {item.selectedGrade && (
-                          <span className="text-xs text-sh-gray ml-1">({item.selectedGrade})</span>
+                          <span className="text-xs text-brand-gray ml-1">
+                            ({item.selectedGrade})
+                          </span>
                         )}
                         {item.cancelReason && (
                           <p className="text-xs text-red-600 mt-0.5">{item.cancelReason}</p>
@@ -998,7 +1005,7 @@ export function OrderDetailView({ id }: { id: string }) {
                             {isQuote && (
                               <button
                                 onClick={() => handleRemoveLineItem(item)}
-                                className="p-1 text-sh-gray hover:text-red-600 transition"
+                                className="p-1 text-brand-gray hover:text-red-600 transition"
                                 title="Remove from quote"
                               >
                                 <X className="w-4 h-4" />
@@ -1009,7 +1016,7 @@ export function OrderDetailView({ id }: { id: string }) {
                                 setCancelModalItem(item);
                                 setCancelReason("");
                               }}
-                              className="p-1 text-sh-gray hover:text-red-600 transition"
+                              className="p-1 text-brand-gray hover:text-red-600 transition"
                               title="Cancel item"
                             >
                               <X className="w-4 h-4" />
@@ -1022,7 +1029,7 @@ export function OrderDetailView({ id }: { id: string }) {
                                 setReplacementGrade(item.selectedGrade || "");
                                 setReplaceReason("");
                               }}
-                              className="p-1 text-sh-gray hover:text-blue-600 transition"
+                              className="p-1 text-brand-gray hover:text-blue-600 transition"
                               title="Replace item"
                             >
                               <RefreshCw className="w-4 h-4" />
@@ -1036,7 +1043,7 @@ export function OrderDetailView({ id }: { id: string }) {
               })}
             </tbody>
             <tfoot>
-              <tr className="font-semibold bg-sh-linen">
+              <tr className="font-semibold bg-brand-linen">
                 <td className="p-2" colSpan={2}>
                   Totals (active items)
                 </td>
@@ -1054,7 +1061,7 @@ export function OrderDetailView({ id }: { id: string }) {
         <h2 className="text-xl font-semibold mb-3">Invoices</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-sh-linen text-sh-black">
+            <thead className="bg-brand-linen text-brand-black">
               <tr>
                 <th className="p-2 border-b">Invoice No</th>
                 <th className="p-2 border-b">Date</th>
@@ -1064,7 +1071,7 @@ export function OrderDetailView({ id }: { id: string }) {
             </thead>
             <tbody>
               {orderDetails.invoices.map((invoice) => (
-                <tr key={invoice.id} className="odd:bg-white even:bg-sh-stripe">
+                <tr key={invoice.id} className="odd:bg-white even:bg-brand-stripe">
                   <td className="p-2 border-b">{invoice.invoiceNo}</td>
                   <td className="p-2 border-b">
                     {format(parseLocalDate(invoice.invoiceDate), "PPP")}
@@ -1087,7 +1094,7 @@ export function OrderDetailView({ id }: { id: string }) {
         <h2 className="text-xl font-semibold mb-3">Payments</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-sh-linen text-sh-black">
+            <thead className="bg-brand-linen text-brand-black">
               <tr>
                 <th className="p-2 border-b">Date</th>
                 <th className="p-2 border-b">Type</th>
@@ -1098,7 +1105,7 @@ export function OrderDetailView({ id }: { id: string }) {
             </thead>
             <tbody>
               {orderDetails.payments.map((payment) => (
-                <tr key={payment.id} className="odd:bg-white even:bg-sh-stripe">
+                <tr key={payment.id} className="odd:bg-white even:bg-brand-stripe">
                   <td className="p-2 border-b">
                     {format(parseLocalDate(payment.paymentDate), "PPP")}
                   </td>
@@ -1134,7 +1141,7 @@ export function OrderDetailView({ id }: { id: string }) {
           onSave={handleCancelLineItem}
           saveLabel="Cancel Item"
         >
-          <p className="text-sm text-sh-gray mb-3">
+          <p className="text-sm text-brand-gray mb-3">
             This will mark the item as cancelled. It will remain on the order for record-keeping but
             won&apos;t count toward totals.
           </p>
@@ -1145,7 +1152,7 @@ export function OrderDetailView({ id }: { id: string }) {
             id="cancel-reason"
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
-            className="w-full border border-sh-gray/30 rounded px-3 py-2.5 text-sm mb-2"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-sm mb-2"
           >
             <option value="">Select a reason...</option>
             <option value="Customer changed mind">Customer changed mind</option>
@@ -1163,7 +1170,7 @@ export function OrderDetailView({ id }: { id: string }) {
               value=""
               onChange={(e) => setCancelReason(e.target.value)}
               aria-label="Specify cancellation reason"
-              className="w-full border border-sh-gray/30 rounded px-3 py-2.5 text-sm"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-sm"
             />
           )}
         </Modal>
@@ -1191,7 +1198,7 @@ export function OrderDetailView({ id }: { id: string }) {
                 setEditSplitWithId(null);
               }
             }}
-            className="w-full border border-sh-gray/30 rounded px-3 py-2.5 text-sm mb-4"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-sm mb-4"
           >
             <option value="">-- Select --</option>
             {staffList.map((s) => (
@@ -1210,7 +1217,7 @@ export function OrderDetailView({ id }: { id: string }) {
             onChange={(e) =>
               setEditSplitWithId(e.target.value ? Number.parseInt(e.target.value) : null)
             }
-            className="w-full border border-sh-gray/30 rounded px-3 py-2.5 text-sm mb-2"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-sm mb-2"
           >
             <option value="">-- None --</option>
             {staffList
@@ -1239,7 +1246,7 @@ export function OrderDetailView({ id }: { id: string }) {
           onSave={handleReplaceLineItem}
           saveLabel="Replace Item"
         >
-          <p className="text-sm text-sh-gray mb-3">
+          <p className="text-sm text-brand-gray mb-3">
             The original item will be marked as &quot;Replaced&quot; and a new line item will be
             created with the same quantity and price.
           </p>
@@ -1250,7 +1257,7 @@ export function OrderDetailView({ id }: { id: string }) {
             id="replace-reason"
             value={replaceReason}
             onChange={(e) => setReplaceReason(e.target.value)}
-            className="w-full border border-sh-gray/30 rounded px-3 py-2.5 text-sm mb-3"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-sm mb-3"
           >
             <option value="">Select a reason...</option>
             <option value="Fabric out of stock">Fabric out of stock</option>
@@ -1266,7 +1273,7 @@ export function OrderDetailView({ id }: { id: string }) {
             type="text"
             value={replacementName}
             onChange={(e) => setReplacementName(e.target.value)}
-            className="w-full border border-sh-gray/30 rounded px-3 py-2.5 text-sm mb-3"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-sm mb-3"
             placeholder="e.g., Same frame, new fabric"
           />
           <div className="grid grid-cols-2 gap-3">
@@ -1279,7 +1286,7 @@ export function OrderDetailView({ id }: { id: string }) {
                 type="text"
                 value={replacementPartNo}
                 onChange={(e) => setReplacementPartNo(e.target.value)}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2.5 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-sm"
               />
             </div>
             <div>
@@ -1291,7 +1298,7 @@ export function OrderDetailView({ id }: { id: string }) {
                 type="text"
                 value={replacementGrade}
                 onChange={(e) => setReplacementGrade(e.target.value)}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2.5 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-sm"
               />
             </div>
           </div>

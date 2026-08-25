@@ -60,9 +60,9 @@ interface PlannerData {
 // --- Helpers ---
 
 const STATUS_COLORS: Record<string, string> = {
-  SUBMITTED: "bg-sh-brand-blue/20 text-sh-brand-blue",
-  CONFIRMED: "bg-sh-gold/20 text-sh-gold",
-  RECEIVED_PARTIAL: "bg-sh-blue/15 text-sh-blue",
+  SUBMITTED: "bg-brand-accent-blue/20 text-brand-accent-blue",
+  CONFIRMED: "bg-brand-gold/20 text-brand-gold",
+  RECEIVED_PARTIAL: "bg-brand-blue/15 text-brand-blue",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -85,7 +85,7 @@ function formatShortDate(iso: string): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const color = STATUS_COLORS[status] || "bg-sh-gray/15 text-sh-gray";
+  const color = STATUS_COLORS[status] || "bg-brand-gray/15 text-brand-gray";
   const label = STATUS_LABELS[status] || status;
   return (
     <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded ${color}`}>{label}</span>
@@ -122,11 +122,11 @@ function MetricCard({
       type="button"
       onClick={onClick}
       className={`bg-white rounded-xl border-2 p-4 text-center transition min-h-[44px] ${
-        active ? "border-sh-blue shadow-sm" : "border-sh-gray/15 hover:border-sh-gray/30"
+        active ? "border-brand-blue shadow-sm" : "border-brand-gray/15 hover:border-brand-gray/30"
       }`}
     >
-      <p className="text-sm text-sh-gray mb-1">{label}</p>
-      <p className={`text-2xl font-semibold ${highlight || "text-sh-black"}`}>{value}</p>
+      <p className="text-sm text-brand-gray mb-1">{label}</p>
+      <p className={`text-2xl font-semibold ${highlight || "text-brand-black"}`}>{value}</p>
     </button>
   );
 }
@@ -164,7 +164,7 @@ function PencilInButton({
       <input
         type="date"
         autoFocus
-        className="border border-sh-gray/30 rounded px-2 py-1 text-xs min-h-[44px] w-32"
+        className="border border-brand-gray/30 rounded px-2 py-1 text-xs min-h-[44px] w-32"
         onBlur={() => setShowPicker(false)}
         onChange={(e) => {
           if (e.target.value) {
@@ -183,7 +183,7 @@ function PencilInButton({
         e.stopPropagation();
         setShowPicker(true);
       }}
-      className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded text-sh-blue hover:bg-sh-blue/10 transition min-h-[44px]"
+      className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded text-brand-blue hover:bg-brand-blue/10 transition min-h-[44px]"
       title="Plan delivery date"
     >
       <CalendarPlus className="w-3.5 h-3.5" />
@@ -204,35 +204,35 @@ function WeekTable({
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="border-b border-sh-gray/15 bg-sh-stripe">
-          <th className="text-left px-4 py-3 font-medium text-sh-gray">PO #</th>
-          <th className="text-left px-4 py-3 font-medium text-sh-gray">Vendor</th>
-          <th className="text-left px-4 py-3 font-medium text-sh-gray">ESD</th>
-          <th className="text-left px-4 py-3 font-medium text-sh-gray">Status</th>
-          <th className="text-left px-4 py-3 font-medium text-sh-gray">Customer</th>
-          <th className="text-left px-4 py-3 font-medium text-sh-gray">Order #</th>
-          <th className="text-right px-4 py-3 font-medium text-sh-gray">Items</th>
-          <th className="text-center px-4 py-3 font-medium text-sh-gray">Plan</th>
+        <tr className="border-b border-brand-gray/15 bg-brand-stripe">
+          <th className="text-left px-4 py-3 font-medium text-brand-gray">PO #</th>
+          <th className="text-left px-4 py-3 font-medium text-brand-gray">Vendor</th>
+          <th className="text-left px-4 py-3 font-medium text-brand-gray">ESD</th>
+          <th className="text-left px-4 py-3 font-medium text-brand-gray">Status</th>
+          <th className="text-left px-4 py-3 font-medium text-brand-gray">Customer</th>
+          <th className="text-left px-4 py-3 font-medium text-brand-gray">Order #</th>
+          <th className="text-right px-4 py-3 font-medium text-brand-gray">Items</th>
+          <th className="text-center px-4 py-3 font-medium text-brand-gray">Plan</th>
         </tr>
       </thead>
       <tbody>
         {orders.map((order, idx) => (
           <tr
             key={order.poId}
-            className={`border-b border-sh-gray/10 ${idx % 2 === 1 ? "bg-sh-stripe" : ""}`}
+            className={`border-b border-brand-gray/10 ${idx % 2 === 1 ? "bg-brand-stripe" : ""}`}
           >
             <td className="px-4 py-3">
               <Link
                 href={`/app/purchasing/orders/${order.poId}`}
-                className="text-sh-blue hover:underline font-medium min-h-[44px] inline-flex items-center"
+                className="text-brand-blue hover:underline font-medium min-h-[44px] inline-flex items-center"
               >
                 {order.poNumber}
               </Link>
             </td>
-            <td className="px-4 py-3 text-sh-black">{order.vendorName}</td>
+            <td className="px-4 py-3 text-brand-black">{order.vendorName}</td>
             <td className="px-4 py-3">
               {order.expectedDelivery ? (
-                <span className="text-sh-gray">{formatDate(order.expectedDelivery)}</span>
+                <span className="text-brand-gray">{formatDate(order.expectedDelivery)}</span>
               ) : (
                 <span className="text-amber-600 font-medium">No ESD</span>
               )}
@@ -241,7 +241,7 @@ function WeekTable({
               <StatusBadge status={order.status} />
             </td>
             <td className="px-4 py-3">
-              <div className="text-sh-black">{order.customerName}</div>
+              <div className="text-brand-black">{order.customerName}</div>
               <div className="flex items-center gap-1 mt-0.5">
                 {order.inStockCount > 0 && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">
@@ -249,7 +249,7 @@ function WeekTable({
                   </span>
                 )}
                 {order.inboundCount > 0 && (
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-sh-blue/10 text-sh-blue">
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-brand-blue/10 text-brand-blue">
                     {order.inboundCount} more inbound
                   </span>
                 )}
@@ -258,12 +258,12 @@ function WeekTable({
             <td className="px-4 py-3">
               <Link
                 href={`/app/sales/orders/${order.salesOrderId}`}
-                className="text-sh-blue hover:underline min-h-[44px] inline-flex items-center"
+                className="text-brand-blue hover:underline min-h-[44px] inline-flex items-center"
               >
                 {order.orderno}
               </Link>
             </td>
-            <td className="px-4 py-3 text-right text-sh-gray">{order.lineItemCount}</td>
+            <td className="px-4 py-3 text-right text-brand-gray">{order.lineItemCount}</td>
             <td className="px-4 py-3 text-center">
               <PencilInButton order={order} onPencilIn={onPencilIn} onRemove={onRemove} />
             </td>
@@ -299,7 +299,7 @@ function CollapsibleZone({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 w-full text-left py-2 min-h-[44px] text-sh-black"
+        className="flex items-center gap-2 w-full text-left py-2 min-h-[44px] text-brand-black"
       >
         {open ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
         <span className="text-lg font-semibold">
@@ -310,11 +310,11 @@ function CollapsibleZone({
         <div className="mt-2 space-y-4">
           {weeks.map((week) => (
             <div key={week.weekLabel}>
-              <h4 className="text-sm font-semibold text-sh-gray uppercase tracking-wide mb-2 pl-2">
+              <h4 className="text-sm font-semibold text-brand-gray uppercase tracking-wide mb-2 pl-2">
                 {week.weekLabel}
-                <span className="ml-2 font-normal text-sh-gray/70">({week.orders.length})</span>
+                <span className="ml-2 font-normal text-brand-gray/70">({week.orders.length})</span>
               </h4>
-              <div className="bg-white rounded-xl border border-sh-gray/15 overflow-hidden">
+              <div className="bg-white rounded-xl border border-brand-gray/15 overflow-hidden">
                 <WeekTable orders={week.orders} onPencilIn={onPencilIn} onRemove={onRemove} />
               </div>
             </div>
@@ -386,8 +386,8 @@ export function DeliveryPlannerView() {
     return (
       <div className="py-2 font-serif">
         <div className="flex items-center gap-3">
-          <Loader2 className="w-5 h-5 animate-spin text-sh-gray" />
-          <p className="text-sh-gray">Loading delivery planner...</p>
+          <Loader2 className="w-5 h-5 animate-spin text-brand-gray" />
+          <p className="text-brand-gray">Loading delivery planner...</p>
         </div>
       </div>
     );
@@ -396,7 +396,7 @@ export function DeliveryPlannerView() {
   if (error || !data) {
     return (
       <div className="py-2 font-serif">
-        <p className="text-sh-gray mb-4">Failed to load delivery planner.</p>
+        <p className="text-brand-gray mb-4">Failed to load delivery planner.</p>
         <Button variant="outline" onClick={fetchData}>
           Retry
         </Button>
@@ -409,17 +409,17 @@ export function DeliveryPlannerView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       {/* Breadcrumb */}
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/dispatch" className="hover:underline">
           Dispatch
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Delivery Planner</span>
+        <span className="text-brand-black">Delivery Planner</span>
       </nav>
 
       {/* Header with nav links */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="font-serif text-2xl text-sh-navy">Delivery Planner</h1>
+        <h1 className="font-serif text-2xl text-brand-navy">Delivery Planner</h1>
         <div className="flex items-center gap-2">
           <Link href="/app/dispatch">
             <Button variant="outline" size="sm">
@@ -446,7 +446,7 @@ export function DeliveryPlannerView() {
           label="Due This Week"
           value={summary.dueThisWeek}
           active={activeFilter === "thisWeek"}
-          highlight="text-sh-blue"
+          highlight="text-brand-blue"
           onClick={() => toggleFilter("thisWeek")}
         />
         <MetricCard
@@ -484,7 +484,7 @@ export function DeliveryPlannerView() {
       </div>
 
       {summary.total === 0 && (
-        <p className="text-sh-gray text-center py-8">No inbound purchase orders.</p>
+        <p className="text-brand-gray text-center py-8">No inbound purchase orders.</p>
       )}
     </div>
   );

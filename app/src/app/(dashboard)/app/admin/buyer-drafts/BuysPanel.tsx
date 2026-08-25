@@ -78,11 +78,11 @@ export function BuysPanel({
   );
 
   return (
-    <div className="bg-white border border-sh-stripe rounded-lg p-4">
-      <h2 className="font-serif text-lg text-sh-navy mb-3">Buys</h2>
+    <div className="bg-white border border-brand-stripe rounded-lg p-4">
+      <h2 className="font-serif text-lg text-brand-navy mb-3">Buys</h2>
 
       <div
-        className="flex items-center gap-1 mb-3 border-b border-sh-stripe"
+        className="flex items-center gap-1 mb-3 border-b border-brand-stripe"
         role="tablist"
         aria-label="Buy status"
       >
@@ -97,13 +97,13 @@ export function BuysPanel({
               onClick={() => setTab(t)}
               className={`px-3 py-2 text-xs font-semibold border-b-2 -mb-px min-h-[44px] ${
                 active
-                  ? "border-sh-navy text-sh-navy"
-                  : "border-transparent text-sh-gray hover:text-sh-navy"
+                  ? "border-brand-navy text-brand-navy"
+                  : "border-transparent text-brand-gray hover:text-brand-navy"
               }`}
             >
               {BUY_TAB_LABELS[t]}
               {counts[t] > 0 && (
-                <span className="ml-1 text-sh-gray font-normal">({counts[t]})</span>
+                <span className="ml-1 text-brand-gray font-normal">({counts[t]})</span>
               )}
             </button>
           );
@@ -124,10 +124,10 @@ export function BuysPanel({
       {/* Closed-tab footer — link to the richer archive table view. Hidden on
           Draft / Open tabs to keep the workspace focused. */}
       {tab === "CLOSED" && counts.CLOSED > 0 && (
-        <div className="mt-3 pt-3 border-t border-sh-stripe">
+        <div className="mt-3 pt-3 border-t border-brand-stripe">
           <Link
             href="/app/admin/buyer-drafts/archive"
-            className="inline-flex items-center gap-1 text-xs text-sh-blue hover:underline"
+            className="inline-flex items-center gap-1 text-xs text-brand-blue hover:underline"
           >
             <Archive className="h-3 w-3" /> Full archive report →
           </Link>
@@ -159,7 +159,7 @@ function BuysPanelBody({
   onImportHistorical,
 }: Readonly<BuysPanelBodyProps>) {
   if (bucketed.length === 0) {
-    return <p className="text-sm text-sh-gray italic">{EMPTY_TAB_COPY[tab]}</p>;
+    return <p className="text-sm text-brand-gray italic">{EMPTY_TAB_COPY[tab]}</p>;
   }
   return (
     <ul className="space-y-2">
@@ -197,9 +197,9 @@ interface BuyCardProps {
 }
 
 function buyCardStyle(isOver: boolean, selected: boolean): string {
-  if (isOver) return "bg-sh-gold/30 border-2 border-sh-gold";
-  if (selected) return "bg-sh-blue/10 border border-sh-blue";
-  return "border border-sh-stripe hover:bg-sh-stripe/40";
+  if (isOver) return "bg-brand-gold/30 border-2 border-brand-gold";
+  if (selected) return "bg-brand-blue/10 border border-brand-blue";
+  return "border border-brand-stripe hover:bg-brand-stripe/40";
 }
 
 function BuyCard({
@@ -232,10 +232,10 @@ function BuyCard({
           className="flex-1 text-left min-w-0"
           aria-label={`Filter to buy ${buy.name}`}
         >
-          <div className="font-semibold text-sh-navy truncate" title={buy.name}>
+          <div className="font-semibold text-brand-navy truncate" title={buy.name}>
             {buy.name}
           </div>
-          <div className="text-xs text-sh-gray mt-0.5">{seasonYear}</div>
+          <div className="text-xs text-brand-gray mt-0.5">{seasonYear}</div>
         </button>
         <div className="flex items-center gap-1 shrink-0">
           <span
@@ -247,7 +247,7 @@ function BuyCard({
             type="button"
             onClick={onEdit}
             aria-label={`Edit buy ${buy.name}`}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-sh-gray hover:text-sh-navy hover:bg-sh-stripe rounded"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-brand-gray hover:text-brand-navy hover:bg-brand-stripe rounded"
           >
             <Pencil className="h-4 w-4" />
           </button>
@@ -259,7 +259,7 @@ function BuyCard({
         <a
           href={`/app/admin/buyer-drafts/buy/${buy.id}/performance`}
           onClick={(e) => e.stopPropagation()}
-          className="text-sh-blue hover:underline"
+          className="text-brand-blue hover:underline"
         >
           View performance →
         </a>
@@ -269,7 +269,7 @@ function BuyCard({
             e.stopPropagation();
             onImportHistorical();
           }}
-          className="text-sh-blue hover:underline"
+          className="text-brand-blue hover:underline"
         >
           Import historical PO
         </button>
@@ -306,21 +306,23 @@ function BuyBudgetBar({
 }: Readonly<BuyBudgetBarProps>) {
   if (!hasBudget) {
     return (
-      <div className="text-xs text-sh-gray mt-2">{formatMoney(spent)} planned · no budget set</div>
+      <div className="text-xs text-brand-gray mt-2">
+        {formatMoney(spent)} planned · no budget set
+      </div>
     );
   }
   return (
     <div className="mt-2">
       <div className="flex justify-between text-xs">
-        <span className="text-sh-gray">{formatMoney(spent)} spent</span>
-        <span className={overBudget ? "text-red-700 font-semibold" : "text-sh-gray"}>
+        <span className="text-brand-gray">{formatMoney(spent)} spent</span>
+        <span className={overBudget ? "text-red-700 font-semibold" : "text-brand-gray"}>
           {formatMoney(budget)} budget
         </span>
       </div>
       {ratio !== null && (
-        <div className="h-1.5 w-full bg-sh-stripe rounded-full overflow-hidden mt-1">
+        <div className="h-1.5 w-full bg-brand-stripe rounded-full overflow-hidden mt-1">
           <div
-            className={`h-full transition-all ${overBudget ? "bg-red-500" : "bg-sh-blue"}`}
+            className={`h-full transition-all ${overBudget ? "bg-red-500" : "bg-brand-blue"}`}
             style={{ width: `${Math.round(ratio * 100)}%` }}
           />
         </div>
@@ -335,12 +337,12 @@ function BuyBudgetBar({
 function UnassignedBuyDropZone() {
   const { isOver, setNodeRef } = useDroppable({ id: "buy-unassigned" });
   const style = isOver
-    ? "border-2 border-dashed border-sh-gold bg-sh-gold/10"
-    : "border-2 border-dashed border-sh-stripe";
+    ? "border-2 border-dashed border-brand-gold bg-brand-gold/10"
+    : "border-2 border-dashed border-brand-stripe";
   return (
     <div
       ref={setNodeRef}
-      className={`p-3 rounded text-xs text-center text-sh-gray transition-colors ${style}`}
+      className={`p-3 rounded text-xs text-center text-brand-gray transition-colors ${style}`}
     >
       Drop a PO here to unassign it from its buy
     </div>

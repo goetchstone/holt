@@ -28,9 +28,9 @@ const dateTimeFmt = new Intl.DateTimeFormat(undefined, {
 });
 
 const STATUS_STYLES: Record<BookingRow["status"], string> = {
-  PENDING: "bg-sh-gold/20 text-sh-gold",
+  PENDING: "bg-brand-gold/20 text-brand-gold",
   CONFIRMED: "bg-green-100 text-green-800",
-  CANCELLED: "bg-black/5 text-sh-gray",
+  CANCELLED: "bg-black/5 text-brand-gray",
 };
 
 export function BookingsView({ feedUrl }: Readonly<{ feedUrl: string | null }>) {
@@ -66,12 +66,12 @@ export function BookingsView({ feedUrl }: Readonly<{ feedUrl: string | null }>) 
   }
 
   function renderBookings() {
-    if (loading) return <p className="text-sh-gray">Loading…</p>;
-    if (bookings.length === 0) return <p className="text-sh-gray">No bookings yet.</p>;
+    if (loading) return <p className="text-brand-gray">Loading…</p>;
+    if (bookings.length === 0) return <p className="text-brand-gray">No bookings yet.</p>;
     return (
       <div className="overflow-hidden rounded-md border border-black/10">
         <table className="w-full text-left text-sm">
-          <thead className="bg-sh-stripe text-sh-gray">
+          <thead className="bg-brand-stripe text-brand-gray">
             <tr>
               <th className="px-4 py-2 font-medium">When</th>
               <th className="px-4 py-2 font-medium">Name</th>
@@ -91,32 +91,32 @@ export function BookingsView({ feedUrl }: Readonly<{ feedUrl: string | null }>) 
 
   return (
     <div className="mx-auto max-w-screen-lg px-4 py-6">
-      <h1 className="text-2xl font-semibold text-sh-blue">Bookings</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue">Bookings</h1>
 
-      <section className="mt-6 rounded-md border border-sh-gray/20 bg-sh-linen p-5">
-        <h2 className="text-lg font-semibold text-sh-black">Staff calendar subscription</h2>
+      <section className="mt-6 rounded-md border border-brand-gray/20 bg-brand-linen p-5">
+        <h2 className="text-lg font-semibold text-brand-black">Staff calendar subscription</h2>
         {feedUrl ? (
           <>
-            <p className="mt-1 text-sm text-sh-gray">
+            <p className="mt-1 text-sm text-brand-gray">
               Subscribe to this iCal feed in Google, Outlook, or Apple Calendar to see new bookings
               automatically. Add it as a calendar &ldquo;from URL&rdquo; (not a one-time import) so
               it keeps refreshing.
             </p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <code className="flex-1 truncate rounded border border-sh-gray/20 bg-white px-3 py-2 text-xs text-sh-black">
+              <code className="flex-1 truncate rounded border border-brand-gray/20 bg-white px-3 py-2 text-xs text-brand-black">
                 {feedUrl}
               </code>
               <button
                 type="button"
                 onClick={copyFeed}
-                className="min-h-[44px] rounded-md bg-sh-navy px-4 py-2 text-sm font-medium text-white transition hover:bg-sh-blue"
+                className="min-h-[44px] rounded-md bg-brand-navy px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-blue"
               >
                 Copy URL
               </button>
             </div>
           </>
         ) : (
-          <p className="mt-1 text-sm text-sh-gray">
+          <p className="mt-1 text-sm text-brand-gray">
             The subscription feed is disabled. Set the{" "}
             <code className="rounded bg-white px-1 py-0.5 text-xs">BOOKING_FEED_TOKEN</code>{" "}
             environment variable to enable a secure staff feed URL.
@@ -132,14 +132,16 @@ export function BookingsView({ feedUrl }: Readonly<{ feedUrl: string | null }>) 
 function BookingRowItem({ booking }: Readonly<{ booking: BookingRow }>) {
   return (
     <tr className="border-t border-black/5 align-top">
-      <td className="px-4 py-2 text-sh-black">{dateTimeFmt.format(new Date(booking.startsAt))}</td>
-      <td className="px-4 py-2 text-sh-black">
+      <td className="px-4 py-2 text-brand-black">
+        {dateTimeFmt.format(new Date(booking.startsAt))}
+      </td>
+      <td className="px-4 py-2 text-brand-black">
         {booking.customerName}
         {booking.serviceType ? (
-          <span className="block text-xs text-sh-gray">{booking.serviceType}</span>
+          <span className="block text-xs text-brand-gray">{booking.serviceType}</span>
         ) : null}
       </td>
-      <td className="px-4 py-2 text-sh-gray">
+      <td className="px-4 py-2 text-brand-gray">
         {booking.customerEmail}
         {booking.customerPhone ? (
           <span className="block text-xs">{booking.customerPhone}</span>

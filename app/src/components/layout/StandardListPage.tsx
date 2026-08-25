@@ -60,9 +60,9 @@ export default function StandardListPage<T>({
 
   return (
     <MainLayout title={title}>
-      <div className="py-2 font-serif text-sh-black">
+      <div className="py-2 font-serif text-brand-black">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-semibold text-sh-blue">{title}</h1>
+          <h1 className="text-2xl font-semibold text-brand-blue">{title}</h1>
           {headerActionComponent}
         </div>
 

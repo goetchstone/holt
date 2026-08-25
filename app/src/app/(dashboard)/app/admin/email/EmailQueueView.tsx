@@ -111,20 +111,20 @@ export function EmailQueueView() {
         </div>
       ) : null}
 
-      <p className="mb-4 text-sm text-sh-gray">
-        <span className="text-sh-black">{counts.PENDING ?? 0}</span> pending ·{" "}
-        <span className="text-sh-black">{counts.SENT ?? 0}</span> sent ·{" "}
-        <span className="text-sh-black">{counts.FAILED ?? 0}</span> failed
+      <p className="mb-4 text-sm text-brand-gray">
+        <span className="text-brand-black">{counts.PENDING ?? 0}</span> pending ·{" "}
+        <span className="text-brand-black">{counts.SENT ?? 0}</span> sent ·{" "}
+        <span className="text-brand-black">{counts.FAILED ?? 0}</span> failed
       </p>
 
       {loading ? (
-        <p className="text-sh-gray">Loading…</p>
+        <p className="text-brand-gray">Loading…</p>
       ) : rows.length === 0 ? (
-        <p className="text-sh-gray">No emails queued yet.</p>
+        <p className="text-brand-gray">No emails queued yet.</p>
       ) : (
         <div className="overflow-hidden rounded-md border border-black/10 bg-white">
           <table className="w-full text-left text-sm">
-            <thead className="bg-sh-stripe text-sh-gray">
+            <thead className="bg-brand-stripe text-brand-gray">
               <tr>
                 <th className="px-3 py-2 font-medium">To</th>
                 <th className="px-3 py-2 font-medium">Subject</th>
@@ -136,21 +136,21 @@ export function EmailQueueView() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-t border-black/5 align-top">
-                  <td className="px-3 py-2 text-sh-gray">{r.toAddress}</td>
-                  <td className="px-3 py-2 text-sh-black">
+                  <td className="px-3 py-2 text-brand-gray">{r.toAddress}</td>
+                  <td className="px-3 py-2 text-brand-black">
                     {r.subject}
                     {r.lastError ? (
                       <span className="block text-xs text-red-700">{r.lastError}</span>
                     ) : null}
                   </td>
-                  <td className="px-3 py-2 text-xs text-sh-gray">{r.templateKey ?? "—"}</td>
+                  <td className="px-3 py-2 text-xs text-brand-gray">{r.templateKey ?? "—"}</td>
                   <td className="px-3 py-2">
                     <Badge variant={STATUS_VARIANT[r.status]}>
                       {r.status}
                       {r.attempts > 1 ? ` (${r.attempts})` : ""}
                     </Badge>
                   </td>
-                  <td className="px-3 py-2 text-xs text-sh-gray">
+                  <td className="px-3 py-2 text-xs text-brand-gray">
                     {dateTimeFmt.format(new Date(r.sentAt ?? r.created))}
                   </td>
                 </tr>

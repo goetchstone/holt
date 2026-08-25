@@ -184,7 +184,7 @@ export function CreateBasicView() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-serif text-sh-blue mb-6">Create Basic Item</h1>
+      <h1 className="text-2xl font-serif text-brand-blue mb-6">Create Basic Item</h1>
       <form onSubmit={handleSubmit} className="space-y-6 font-serif">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <VendorFilter value={form.vendorId} onChange={(v) => handleChange("vendorId", v)} />
@@ -241,7 +241,7 @@ export function CreateBasicView() {
           onChange={(v) => handleChange("description", v)}
         />
 
-        <h3 className="text-xl font-serif text-sh-black mt-8 mb-2">Dimensions (inches)</h3>
+        <h3 className="text-xl font-serif text-brand-black mt-8 mb-2">Dimensions (inches)</h3>
         <div className="grid grid-cols-3 gap-4">
           <FormNumberInput
             label="Width"
@@ -263,7 +263,7 @@ export function CreateBasicView() {
           />
         </div>
 
-        <h3 className="text-xl font-serif text-sh-black mt-8 mb-2">Pricing</h3>
+        <h3 className="text-xl font-serif text-brand-black mt-8 mb-2">Pricing</h3>
         <div className="grid grid-cols-2 gap-4">
           <FormCurrencyInput
             label="Cost"
@@ -286,13 +286,13 @@ export function CreateBasicView() {
           <button
             type="button"
             onClick={handleDuplicate}
-            className="bg-gray-400 text-white px-6 py-2 rounded-2xl shadow-md hover:bg-sh-black transition font-serif text-sm"
+            className="bg-gray-400 text-white px-6 py-2 rounded-2xl shadow-md hover:bg-brand-black transition font-serif text-sm"
           >
             Duplicate Item
           </button>
           <button
             type="submit"
-            className="bg-sh-blue text-white px-6 py-2 rounded-2xl shadow-md hover:bg-sh-black transition font-serif text-sm"
+            className="bg-brand-blue text-white px-6 py-2 rounded-2xl shadow-md hover:bg-brand-black transition font-serif text-sm"
           >
             Create Item
           </button>

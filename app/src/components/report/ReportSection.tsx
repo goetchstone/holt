@@ -15,12 +15,14 @@ interface ReportSectionProps {
 export function ReportSection({ title, description, children, action }: ReportSectionProps) {
   return (
     <section className="space-y-4">
-      <div className="flex items-end justify-between gap-3 border-b border-sh-gray/15 pb-2">
+      <div className="flex items-end justify-between gap-3 border-b border-brand-gray/15 pb-2">
         <div>
-          <h2 className="text-sm font-semibold text-sh-gray uppercase tracking-widest font-sans">
+          <h2 className="text-sm font-semibold text-brand-gray uppercase tracking-widest font-sans">
             {title}
           </h2>
-          {description && <p className="text-xs text-sh-gray/70 mt-0.5 font-sans">{description}</p>}
+          {description && (
+            <p className="text-xs text-brand-gray/70 mt-0.5 font-sans">{description}</p>
+          )}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </div>

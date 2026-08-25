@@ -62,19 +62,46 @@ interface ZoneSpec {
 // Local, then progressively further out, then a carrier for anything beyond the
 // van's range. That shape -- not the specific towns -- is what every furniture
 // retailer's zone table looks like.
-const ZONES: ZoneSpec[] = [
-  { name: "Local", baseFee: 79, perPieceFee: 15, zips: ["06776", "06777", "06783", "06793"] },
-  { name: "Regional", baseFee: 149, perPieceFee: 25, zips: ["06001", "06070", "06107", "06371"] },
-  { name: "Extended", baseFee: 249, perPieceFee: 40, zips: ["02806", "02840", "10514", "10573"] },
+//
+// The ZIPS ARE DERIVED FROM THE CUSTOMERS THAT EXIST, not invented. Zones with
+// made-up zip lists look right in the admin screen and then leave every real
+// order "Unzoned" on the Delivery Planner, because no customer lives in them --
+// which is worse than no zones at all: the feature appears broken rather than
+// absent. Banding the actual customer base by zip means every order lands
+// somewhere, and the bands still read as distance because US zips are
+// allocated geographically.
+const ZONE_BANDS: Omit<ZoneSpec, "zips">[] = [
+  { name: "Local", baseFee: 79, perPieceFee: 15 },
+  { name: "Regional", baseFee: 149, perPieceFee: 25 },
+  { name: "Extended", baseFee: 249, perPieceFee: 40 },
   {
     name: "Long Haul (carrier)",
     baseFee: 425,
     perPieceFee: null,
-    zips: ["19103", "20007", "27514"],
     isThirdParty: true,
     carrierName: "Sunbelt Freight",
   },
 ];
+
+/** Split the real customer zips into four contiguous distance bands. */
+async function zonesFromCustomers(prisma: PrismaClient): Promise<ZoneSpec[]> {
+  // `zip` is non-nullable on CustomerAddress, so there is nothing to filter out
+  // but blanks (CLAUDE.md rule 51: no naked `not: null` on a column that cannot
+  // be null -- and here it would not even compile).
+  const rows = await prisma.customerAddress.findMany({
+    select: { zip: true },
+    distinct: ["zip"],
+    orderBy: { zip: "asc" },
+  });
+  const zips = rows.map((r) => r.zip).filter((z) => z.trim().length > 0);
+  if (zips.length === 0) return ZONE_BANDS.map((b) => ({ ...b, zips: [] }));
+
+  const perBand = Math.ceil(zips.length / ZONE_BANDS.length);
+  return ZONE_BANDS.map((band, i) => ({
+    ...band,
+    zips: zips.slice(i * perBand, (i + 1) * perBand),
+  }));
+}
 
 const INSTALLERS = [
   { name: "In-House Install Crew", company: null, phone: "860-555-0142" },
@@ -120,8 +147,9 @@ export async function seedDelivery(
   };
 
   // ---- zones and their zip coverage -------------------------------------
+  const zones = await zonesFromCustomers(prisma);
   const zoneIds: number[] = [];
-  for (const [i, spec] of ZONES.entries()) {
+  for (const [i, spec] of zones.entries()) {
     const zone = await prisma.deliveryZone.create({
       data: {
         name: spec.name,
@@ -147,7 +175,7 @@ export async function seedDelivery(
   // ---- the same geography, on the tax side ------------------------------
   // Every delivery zip is also a tax zip: an address the store delivers to is
   // an address it has to charge tax for.
-  for (const spec of ZONES) {
+  for (const spec of zones) {
     for (const zip of spec.zips) {
       await prisma.taxDistrictZipCode.create({
         data: { districtId: taxDistrictId, zipCode: zip },

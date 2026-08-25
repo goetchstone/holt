@@ -239,7 +239,7 @@ function hexToRgbChannels(hex: string): string | null {
 
 // Build the `:root { --brand-*: r g b; }` declaration block from a theme.
 // Tailwind tokens reference these as `rgb(var(--brand-navy) / <alpha-value>)`
-// so opacity modifiers (bg-sh-blue/50) keep working.
+// so opacity modifiers (bg-brand-blue/50) keep working.
 export function themeToCssVars(theme: Theme): string {
   const declarations: string[] = [];
   for (const key of Object.keys(THEME_CSS_VARS) as ThemeKey[]) {

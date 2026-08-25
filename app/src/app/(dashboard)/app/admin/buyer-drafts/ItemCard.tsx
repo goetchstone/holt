@@ -56,16 +56,16 @@ function ItemCard({ item, formatMoney, onEdit, onDuplicate, onDelete }: Readonly
     : (display.description ?? undefined);
 
   return (
-    <article className="bg-white border border-sh-stripe rounded-lg p-4 hover:border-sh-gold/40 transition-colors">
+    <article className="bg-white border border-brand-stripe rounded-lg p-4 hover:border-brand-gold/40 transition-colors">
       <header className="flex items-start justify-between gap-3 mb-2">
         <div className="min-w-0 flex-1">
-          <div className="text-xs text-sh-gray uppercase tracking-wide">
+          <div className="text-xs text-brand-gray uppercase tracking-wide">
             {item.vendor?.name ?? item.vendorName}
           </div>
-          <h3 className="font-semibold text-sh-navy text-base truncate" title={item.productName}>
+          <h3 className="font-semibold text-brand-navy text-base truncate" title={item.productName}>
             {item.productName}
           </h3>
-          <code className="text-xs text-sh-gray font-mono">{item.partNumber}</code>
+          <code className="text-xs text-brand-gray font-mono">{item.partNumber}</code>
         </div>
         <span
           className={`px-2 py-1 rounded text-xs font-mono whitespace-nowrap ${STATUS_BADGE[item.status]}`}
@@ -79,7 +79,7 @@ function ItemCard({ item, formatMoney, onEdit, onDuplicate, onDelete }: Readonly
       {item.fulfilledProduct && (
         <a
           href={`/products/${item.fulfilledProduct.id}`}
-          className="inline-flex items-center gap-1 text-xs text-sh-blue hover:underline mb-2"
+          className="inline-flex items-center gap-1 text-xs text-brand-blue hover:underline mb-2"
           title="Open linked catalog Product"
         >
           🔗 Linked to catalog: {item.fulfilledProduct.productNumber}
@@ -89,7 +89,7 @@ function ItemCard({ item, formatMoney, onEdit, onDuplicate, onDelete }: Readonly
       {display.description && (
         <p
           className={`text-xs line-clamp-2 mb-3 ${
-            fromCatalog("description") ? "text-sh-gray italic" : "text-sh-gray"
+            fromCatalog("description") ? "text-brand-gray italic" : "text-brand-gray"
           }`}
           title={descriptionTitle}
         >
@@ -99,49 +99,51 @@ function ItemCard({ item, formatMoney, onEdit, onDuplicate, onDelete }: Readonly
 
       <dl className="grid grid-cols-3 gap-2 text-xs mb-3">
         <div>
-          <dt className="text-sh-gray">
+          <dt className="text-brand-gray">
             Cost {fromCatalog("cost") && <span title="from catalog">·</span>}
           </dt>
-          <dd className="font-semibold text-sh-navy">{formatMoney(numOrNull(display.cost))}</dd>
+          <dd className="font-semibold text-brand-navy">{formatMoney(numOrNull(display.cost))}</dd>
         </div>
         <div>
-          <dt className="text-sh-gray">
+          <dt className="text-brand-gray">
             MSRP {fromCatalog("msrp") && <span title="from catalog">·</span>}
           </dt>
-          <dd className="font-semibold text-sh-navy">{formatMoney(numOrNull(display.msrp))}</dd>
+          <dd className="font-semibold text-brand-navy">{formatMoney(numOrNull(display.msrp))}</dd>
         </div>
         <div>
-          <dt className="text-sh-gray">
+          <dt className="text-brand-gray">
             Retail {fromCatalog("retail") && <span title="from catalog">·</span>}
           </dt>
-          <dd className="font-semibold text-sh-navy">{formatMoney(numOrNull(display.retail))}</dd>
+          <dd className="font-semibold text-brand-navy">
+            {formatMoney(numOrNull(display.retail))}
+          </dd>
         </div>
       </dl>
 
-      <div className="flex items-center gap-2 text-xs text-sh-gray mb-3 flex-wrap">
+      <div className="flex items-center gap-2 text-xs text-brand-gray mb-3 flex-wrap">
         <span className="inline-flex items-center gap-1">
           <Package className="h-3 w-3" /> Qty {item.qty}
         </span>
         {dims.length > 0 && <span>· {dims.join(" × ")} in</span>}
         {item.stockProgram && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-sh-gold/15 text-sh-gold rounded">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-gold/15 text-brand-gold rounded">
             <Tag className="h-3 w-3" /> Stocking program
             {item.stockFamily ? `: ${item.stockFamily}` : ""}
           </span>
         )}
         {item.draftPo && (
-          <span className="px-2 py-0.5 bg-sh-blue/10 text-sh-blue rounded">
+          <span className="px-2 py-0.5 bg-brand-blue/10 text-brand-blue rounded">
             PO {item.draftPo.referenceNumber ?? `#${item.draftPo.id}`}
           </span>
         )}
         {item.stockLocation && (
-          <span className="px-2 py-0.5 bg-sh-stripe rounded text-sh-gray">
+          <span className="px-2 py-0.5 bg-brand-stripe rounded text-brand-gray">
             → {item.stockLocation.code}
           </span>
         )}
       </div>
 
-      <div className="flex justify-end gap-1 border-t border-sh-stripe pt-2">
+      <div className="flex justify-end gap-1 border-t border-brand-stripe pt-2">
         <Button
           variant="secondary"
           onClick={onEdit}

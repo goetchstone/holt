@@ -77,7 +77,7 @@ export function MonthlyPercentagesView() {
   return (
     <div className="max-w-2xl mx-auto mt-8 font-serif space-y-4">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-sh-blue">Monthly Sales Percentages</h1>
+        <h1 className="text-2xl font-semibold text-brand-blue">Monthly Sales Percentages</h1>
         <div className="flex items-center gap-2">
           <label htmlFor="year-select">Year:</label>
           <input
@@ -95,18 +95,18 @@ export function MonthlyPercentagesView() {
       ) : (
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bg-sh-linen">
-              <th className="p-2 border-b-2 border-sh-gray">Month</th>
-              <th className="p-2 border-b-2 border-sh-gray text-right">Percentage (%)</th>
+            <tr className="bg-brand-linen">
+              <th className="p-2 border-b-2 border-brand-gray">Month</th>
+              <th className="p-2 border-b-2 border-brand-gray text-right">Percentage (%)</th>
             </tr>
           </thead>
           <tbody>
             {percentages.map((p) => (
               <tr key={p.id} className="odd:bg-white even:bg-gray-50">
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <label htmlFor={`pct-${p.id}`}>{p.month}</label>
                 </td>
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <input
                     id={`pct-${p.id}`}
                     type="number"
@@ -120,7 +120,7 @@ export function MonthlyPercentagesView() {
             ))}
           </tbody>
           <tfoot>
-            <tr className="font-bold bg-sh-linen">
+            <tr className="font-bold bg-brand-linen">
               <td className="p-2">Total</td>
               <td className={`p-2 text-right ${totalIsValid ? "" : "text-red-600"}`}>
                 {totalPercentage.toFixed(2)}%

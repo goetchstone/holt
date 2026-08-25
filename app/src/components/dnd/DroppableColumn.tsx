@@ -21,12 +21,16 @@ export function DroppableColumn({
   const { isOver, setNodeRef } = useDroppable({ id });
   const hasChildren = Children.count(children) > 0;
 
-  const borderStyle = isOver ? "border-sh-gold bg-sh-gold/5" : "border-dashed border-sh-gray/30";
+  const borderStyle = isOver
+    ? "border-brand-gold bg-brand-gold/5"
+    : "border-dashed border-brand-gray/30";
 
   return (
     <div className={className}>
       {label && (
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-sh-gray">{label}</h3>
+        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-brand-gray">
+          {label}
+        </h3>
       )}
       <div
         ref={setNodeRef}
@@ -35,7 +39,7 @@ export function DroppableColumn({
         {hasChildren ? (
           children
         ) : (
-          <p className="flex min-h-[100px] items-center justify-center text-sm text-sh-gray/60">
+          <p className="flex min-h-[100px] items-center justify-center text-sm text-brand-gray/60">
             {emptyMessage}
           </p>
         )}

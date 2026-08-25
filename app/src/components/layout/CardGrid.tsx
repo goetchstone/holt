@@ -37,17 +37,17 @@ export default function CardGrid({
 
   return (
     <div className="space-y-6 py-2 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue">{title}</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue">{title}</h1>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {visibleItems.map((item) => (
           <Link
             href={item.href}
             key={item.href}
-            className="block rounded-lg border border-sh-gray/20 bg-white p-5 shadow-md transition hover:shadow-lg"
+            className="block rounded-lg border border-brand-gray/20 bg-white p-5 shadow-md transition hover:shadow-lg"
           >
-            <h2 className="mb-1 text-lg font-semibold text-sh-black">{item.title}</h2>
-            <p className="text-sm text-sh-gray">{item.description}</p>
+            <h2 className="mb-1 text-lg font-semibold text-brand-black">{item.title}</h2>
+            <p className="text-sm text-brand-gray">{item.description}</p>
           </Link>
         ))}
       </div>

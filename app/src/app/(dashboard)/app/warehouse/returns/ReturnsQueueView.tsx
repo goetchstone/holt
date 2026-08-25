@@ -44,7 +44,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  INITIATED: "bg-sh-gray/20 text-sh-gray",
+  INITIATED: "bg-brand-gray/20 text-brand-gray",
   PICKUP_SCHEDULED: "bg-blue-100 text-blue-800",
   PICKUP_COMPLETED: "bg-blue-100 text-blue-800",
   RECEIVED: "bg-yellow-100 text-yellow-800",
@@ -167,17 +167,17 @@ export function ReturnsQueueView() {
 
   return (
     <div className="py-2 space-y-4 font-serif">
-      <h1 className="text-2xl text-sh-blue font-semibold">Returns Queue</h1>
+      <h1 className="text-2xl text-brand-blue font-semibold">Returns Queue</h1>
 
-      <div className="flex gap-1 border-b border-sh-gray/20">
+      <div className="flex gap-1 border-b border-brand-gray/20">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px ${
               tab === t.key
-                ? "border-sh-blue text-sh-blue"
-                : "border-transparent text-sh-gray hover:text-sh-black"
+                ? "border-brand-blue text-brand-blue"
+                : "border-transparent text-brand-gray hover:text-brand-black"
             }`}
           >
             {t.label} ({returns[t.key].length})
@@ -186,7 +186,7 @@ export function ReturnsQueueView() {
       </div>
 
       {loading ? (
-        <p className="text-sh-gray">Loading...</p>
+        <p className="text-brand-gray">Loading...</p>
       ) : tab === "pickup" ? (
         <PickupTable
           returns={returns.pickup}
@@ -227,7 +227,7 @@ export function ReturnsQueueView() {
 function StatusBadge({ status }: { status: string }) {
   return (
     <span
-      className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[status] || "bg-sh-gray/20 text-sh-gray"}`}
+      className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[status] || "bg-brand-gray/20 text-brand-gray"}`}
     >
       {STATUS_LABELS[status] || status}
     </span>
@@ -237,7 +237,7 @@ function StatusBadge({ status }: { status: string }) {
 function ConditionBadge({ condition }: { condition: string }) {
   return (
     <span
-      className={`text-xs px-2 py-0.5 rounded ${CONDITION_STYLES[condition] || "bg-sh-gray/20 text-sh-gray"}`}
+      className={`text-xs px-2 py-0.5 rounded ${CONDITION_STYLES[condition] || "bg-brand-gray/20 text-brand-gray"}`}
     >
       {CONDITION_LABELS[condition] || condition}
     </span>
@@ -247,7 +247,7 @@ function ConditionBadge({ condition }: { condition: string }) {
 function EmptyRow({ colSpan, message }: { colSpan: number; message: string }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-4 py-8 text-center text-sh-gray">
+      <td colSpan={colSpan} className="px-4 py-8 text-center text-brand-gray">
         {message}
       </td>
     </tr>
@@ -266,17 +266,19 @@ function PickupTable({
   onPickedUp: (id: number) => void;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-sh-gray/20 bg-sh-stripe">
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Return #</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Order #</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Customer</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Product</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[100px]">Pickup Date</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[120px]">Status</th>
-            <th className="text-right px-4 py-3 font-medium text-sh-gray w-[160px]">Actions</th>
+          <tr className="border-b border-brand-gray/20 bg-brand-stripe">
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Return #</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Order #</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Customer</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Product</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[100px]">
+              Pickup Date
+            </th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[120px]">Status</th>
+            <th className="text-right px-4 py-3 font-medium text-brand-gray w-[160px]">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -284,12 +286,12 @@ function PickupTable({
             <EmptyRow colSpan={7} message="No returns pending pickup" />
           ) : (
             returns.map((r) => (
-              <tr key={r.id} className="border-b border-sh-gray/10 hover:bg-sh-stripe/50">
-                <td className="px-4 py-2 text-sh-black font-medium">{r.returnNumber}</td>
-                <td className="px-4 py-2 text-sh-gray">{r.orderno}</td>
-                <td className="px-4 py-2 text-sh-gray">{r.customerName}</td>
-                <td className="px-4 py-2 text-sh-gray">{r.productName || "--"}</td>
-                <td className="px-4 py-2 text-sh-gray text-xs">
+              <tr key={r.id} className="border-b border-brand-gray/10 hover:bg-brand-stripe/50">
+                <td className="px-4 py-2 text-brand-black font-medium">{r.returnNumber}</td>
+                <td className="px-4 py-2 text-brand-gray">{r.orderno}</td>
+                <td className="px-4 py-2 text-brand-gray">{r.customerName}</td>
+                <td className="px-4 py-2 text-brand-gray">{r.productName || "--"}</td>
+                <td className="px-4 py-2 text-brand-gray text-xs">
                   {r.pickupDate ? format(new Date(r.pickupDate), "MMM d") : "--"}
                 </td>
                 <td className="px-4 py-2">
@@ -341,16 +343,16 @@ function InspectionTable({
   onSubmit: (id: number) => void;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-sh-gray/20 bg-sh-stripe">
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Return #</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Order #</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Customer</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Product</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[120px]">Location</th>
-            <th className="text-right px-4 py-3 font-medium text-sh-gray w-[100px]">Actions</th>
+          <tr className="border-b border-brand-gray/20 bg-brand-stripe">
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Return #</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Order #</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Customer</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Product</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[120px]">Location</th>
+            <th className="text-right px-4 py-3 font-medium text-brand-gray w-[100px]">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -359,12 +361,12 @@ function InspectionTable({
           ) : (
             returns.map((r) => (
               <>
-                <tr key={r.id} className="border-b border-sh-gray/10 hover:bg-sh-stripe/50">
-                  <td className="px-4 py-2 text-sh-black font-medium">{r.returnNumber}</td>
-                  <td className="px-4 py-2 text-sh-gray">{r.orderno}</td>
-                  <td className="px-4 py-2 text-sh-gray">{r.customerName}</td>
-                  <td className="px-4 py-2 text-sh-gray">{r.productName || "--"}</td>
-                  <td className="px-4 py-2 text-sh-gray text-xs">
+                <tr key={r.id} className="border-b border-brand-gray/10 hover:bg-brand-stripe/50">
+                  <td className="px-4 py-2 text-brand-black font-medium">{r.returnNumber}</td>
+                  <td className="px-4 py-2 text-brand-gray">{r.orderno}</td>
+                  <td className="px-4 py-2 text-brand-gray">{r.customerName}</td>
+                  <td className="px-4 py-2 text-brand-gray">{r.productName || "--"}</td>
+                  <td className="px-4 py-2 text-brand-gray text-xs">
                     {r.receivedLocationName || "--"}
                   </td>
                   <td className="px-4 py-2 text-right">
@@ -378,15 +380,15 @@ function InspectionTable({
                   </td>
                 </tr>
                 {expandedId === r.id && (
-                  <tr key={`${r.id}-form`} className="border-b border-sh-gray/10 bg-sh-linen">
+                  <tr key={`${r.id}-form`} className="border-b border-brand-gray/10 bg-brand-linen">
                     <td colSpan={6} className="px-4 py-4">
                       <div className="flex flex-wrap items-end gap-4">
                         <div>
-                          <label className="block text-xs font-medium text-sh-gray mb-1">
+                          <label className="block text-xs font-medium text-brand-gray mb-1">
                             Condition
                           </label>
                           <select
-                            className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-w-[180px]"
+                            className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-w-[180px]"
                             value={inspectionForm.condition}
                             onChange={(e) =>
                               onFormChange({ ...inspectionForm, condition: e.target.value })
@@ -400,11 +402,11 @@ function InspectionTable({
                           </select>
                         </div>
                         <div className="flex-1 min-w-[200px]">
-                          <label className="block text-xs font-medium text-sh-gray mb-1">
+                          <label className="block text-xs font-medium text-brand-gray mb-1">
                             Notes
                           </label>
                           <textarea
-                            className="border border-sh-gray/30 rounded px-3 py-2 text-sm w-full"
+                            className="border border-brand-gray/30 rounded px-3 py-2 text-sm w-full"
                             rows={2}
                             placeholder="Inspection notes..."
                             value={inspectionForm.notes}
@@ -441,16 +443,16 @@ function DecisionTable({
   onWriteOff: (id: number) => void;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-sh-gray/20 bg-sh-stripe">
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Return #</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Customer</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Product</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray w-[120px]">Condition</th>
-            <th className="text-left px-4 py-3 font-medium text-sh-gray">Notes</th>
-            <th className="text-right px-4 py-3 font-medium text-sh-gray w-[200px]">Actions</th>
+          <tr className="border-b border-brand-gray/20 bg-brand-stripe">
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Return #</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Customer</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Product</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[120px]">Condition</th>
+            <th className="text-left px-4 py-3 font-medium text-brand-gray">Notes</th>
+            <th className="text-right px-4 py-3 font-medium text-brand-gray w-[200px]">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -458,10 +460,10 @@ function DecisionTable({
             <EmptyRow colSpan={6} message="No returns needing a decision" />
           ) : (
             returns.map((r) => (
-              <tr key={r.id} className="border-b border-sh-gray/10 hover:bg-sh-stripe/50">
-                <td className="px-4 py-2 text-sh-black font-medium">{r.returnNumber}</td>
-                <td className="px-4 py-2 text-sh-gray">{r.customerName}</td>
-                <td className="px-4 py-2 text-sh-gray">{r.productName || "--"}</td>
+              <tr key={r.id} className="border-b border-brand-gray/10 hover:bg-brand-stripe/50">
+                <td className="px-4 py-2 text-brand-black font-medium">{r.returnNumber}</td>
+                <td className="px-4 py-2 text-brand-gray">{r.customerName}</td>
+                <td className="px-4 py-2 text-brand-gray">{r.productName || "--"}</td>
                 <td className="px-4 py-2">
                   {r.inspectionCondition ? (
                     <ConditionBadge condition={r.inspectionCondition} />
@@ -469,7 +471,7 @@ function DecisionTable({
                     "--"
                   )}
                 </td>
-                <td className="px-4 py-2 text-sh-gray text-xs">{r.inspectionNotes || "--"}</td>
+                <td className="px-4 py-2 text-brand-gray text-xs">{r.inspectionNotes || "--"}</td>
                 <td className="px-4 py-2 text-right">
                   <div className="flex gap-1 justify-end">
                     <Button

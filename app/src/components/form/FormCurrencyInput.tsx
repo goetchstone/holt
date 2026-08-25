@@ -21,11 +21,11 @@ export default function FormCurrencyInput({
 }: FormCurrencyInputProps) {
   return (
     <div className="mb-4">
-      <label htmlFor={name} className="block text-sh-blue font-serif mb-1">
+      <label htmlFor={name} className="block text-brand-blue font-serif mb-1">
         {label}
       </label>
-      <div className="flex items-center border border-sh-gray rounded-lg px-3 py-2">
-        <span className="text-sh-black mr-2 font-serif">$</span>
+      <div className="flex items-center border border-brand-gray rounded-lg px-3 py-2">
+        <span className="text-brand-black mr-2 font-serif">$</span>
         <input
           id={name}
           name={name}
@@ -35,7 +35,7 @@ export default function FormCurrencyInput({
           placeholder={placeholder}
           disabled={disabled}
           required={required}
-          className="w-full outline-none font-serif text-sh-black"
+          className="w-full outline-none font-serif text-brand-black"
         />
       </div>
     </div>

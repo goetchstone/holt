@@ -76,27 +76,27 @@ export function ReadyToDeliverView() {
     <>
       <div className="mb-6">
         {/* Breadcrumb */}
-        <div className="text-sm text-sh-gray mb-2">
-          <Link href="/app/dispatch" className="hover:text-sh-navy">
+        <div className="text-sm text-brand-gray mb-2">
+          <Link href="/app/dispatch" className="hover:text-brand-navy">
             Dispatch
           </Link>
           <span className="mx-1">/</span>
-          <span className="text-sh-navy">Ready to Deliver</span>
+          <span className="text-brand-navy">Ready to Deliver</span>
         </div>
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h1 className="font-serif text-2xl text-sh-navy">Ready to Deliver</h1>
+          <h1 className="font-serif text-2xl text-brand-navy">Ready to Deliver</h1>
           <div className="flex items-center gap-2">
             <Link
               href="/app/dispatch"
-              className="inline-flex items-center justify-center rounded-lg border border-sh-gray/30 px-4 py-2 text-sm font-semibold text-sh-navy hover:bg-sh-linen transition min-h-[44px]"
+              className="inline-flex items-center justify-center rounded-lg border border-brand-gray/30 px-4 py-2 text-sm font-semibold text-brand-navy hover:bg-brand-linen transition min-h-[44px]"
             >
               Dispatch Board
             </Link>
             <Link
               href="/app/dispatch/planner"
-              className="inline-flex items-center justify-center rounded-lg border border-sh-gray/30 px-4 py-2 text-sm font-semibold text-sh-navy hover:bg-sh-linen transition min-h-[44px]"
+              className="inline-flex items-center justify-center rounded-lg border border-brand-gray/30 px-4 py-2 text-sm font-semibold text-brand-navy hover:bg-brand-linen transition min-h-[44px]"
             >
               Delivery Planner
             </Link>
@@ -119,14 +119,14 @@ export function ReadyToDeliverView() {
       {/* Content */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-sh-gray animate-spin" />
+          <Loader2 className="w-6 h-6 text-brand-gray animate-spin" />
         </div>
       ) : error ? (
-        <div className="bg-white border border-sh-gray/10 rounded-lg p-8 text-center text-sh-gray">
+        <div className="bg-white border border-brand-gray/10 rounded-lg p-8 text-center text-brand-gray">
           {error}
         </div>
       ) : zones.length === 0 ? (
-        <div className="bg-white border border-sh-gray/10 rounded-lg p-8 text-center text-sh-gray">
+        <div className="bg-white border border-brand-gray/10 rounded-lg p-8 text-center text-brand-gray">
           No orders ready for delivery
         </div>
       ) : (
@@ -136,21 +136,21 @@ export function ReadyToDeliverView() {
             return (
               <div
                 key={zone.zoneName}
-                className="bg-white border border-sh-gray/10 rounded-lg overflow-hidden"
+                className="bg-white border border-brand-gray/10 rounded-lg overflow-hidden"
               >
                 {/* Zone Header */}
                 <button
                   onClick={() => toggleZone(zone.zoneName)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-sh-linen transition min-h-[44px]"
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-brand-linen transition min-h-[44px]"
                 >
                   <div className="flex items-center gap-2">
                     {isCollapsed ? (
-                      <ChevronRight className="w-5 h-5 text-sh-gray" />
+                      <ChevronRight className="w-5 h-5 text-brand-gray" />
                     ) : (
-                      <ChevronDown className="w-5 h-5 text-sh-gray" />
+                      <ChevronDown className="w-5 h-5 text-brand-gray" />
                     )}
-                    <h2 className="font-serif text-lg text-sh-navy">{zone.zoneName}</h2>
-                    <span className="bg-sh-linen text-sh-navy text-xs font-sans px-2 py-0.5 rounded-full">
+                    <h2 className="font-serif text-lg text-brand-navy">{zone.zoneName}</h2>
+                    <span className="bg-brand-linen text-brand-navy text-xs font-sans px-2 py-0.5 rounded-full">
                       {zone.orders.length} {zone.orders.length === 1 ? "order" : "orders"}
                     </span>
                   </div>
@@ -161,7 +161,7 @@ export function ReadyToDeliverView() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-t border-sh-gray/10 bg-sh-stripe text-left text-sh-gray">
+                        <tr className="border-t border-brand-gray/10 bg-brand-stripe text-left text-brand-gray">
                           <th className="px-4 py-2 font-medium">Order</th>
                           <th className="px-4 py-2 font-medium">Customer</th>
                           <th className="px-4 py-2 font-medium hidden sm:table-cell">Address</th>
@@ -175,24 +175,24 @@ export function ReadyToDeliverView() {
                         {zone.orders.map((order, idx) => (
                           <tr
                             key={order.id}
-                            className={idx % 2 === 1 ? "bg-sh-stripe" : "bg-white"}
+                            className={idx % 2 === 1 ? "bg-brand-stripe" : "bg-white"}
                           >
                             <td className="px-4 py-3">
                               <Link
                                 href={`/app/sales/orders/${order.id}`}
-                                className="text-sh-blue hover:underline font-medium min-h-[44px] inline-flex items-center"
+                                className="text-brand-blue hover:underline font-medium min-h-[44px] inline-flex items-center"
                               >
                                 {order.orderno}
                               </Link>
                             </td>
-                            <td className="px-4 py-3 text-sh-navy">{order.customerName}</td>
-                            <td className="px-4 py-3 text-sh-gray hidden sm:table-cell">
+                            <td className="px-4 py-3 text-brand-navy">{order.customerName}</td>
+                            <td className="px-4 py-3 text-brand-gray hidden sm:table-cell">
                               {order.address}
                             </td>
-                            <td className="px-4 py-3 text-sh-gray hidden md:table-cell">
+                            <td className="px-4 py-3 text-brand-gray hidden md:table-cell">
                               {order.city}
                             </td>
-                            <td className="px-4 py-3 text-sh-gray hidden lg:table-cell">
+                            <td className="px-4 py-3 text-brand-gray hidden lg:table-cell">
                               {order.storeName || "-"}
                             </td>
                             <td className="px-4 py-3 text-center">
@@ -231,11 +231,13 @@ function SummaryCard({
   return (
     <div
       className={`rounded-lg border p-4 ${
-        highlight ? "border-amber-300 bg-amber-50" : "border-sh-gray/10 bg-white"
+        highlight ? "border-amber-300 bg-amber-50" : "border-brand-gray/10 bg-white"
       }`}
     >
-      <div className="text-sm text-sh-gray">{label}</div>
-      <div className={`font-serif text-2xl mt-1 ${highlight ? "text-amber-700" : "text-sh-navy"}`}>
+      <div className="text-sm text-brand-gray">{label}</div>
+      <div
+        className={`font-serif text-2xl mt-1 ${highlight ? "text-amber-700" : "text-brand-navy"}`}
+      >
         {value}
       </div>
     </div>

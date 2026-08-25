@@ -46,6 +46,24 @@ import type { SeededStaffMember, StaffSetup } from "./staff";
 
 const SEED_ACTOR = "seed:demo";
 
+/**
+ * Where an undelivered order sits in the warehouse pipeline.
+ *
+ * Weighted so the Ready to Deliver board has a real queue to work from:
+ * roughly a third still waiting on the vendor, a third arrived and awaiting a
+ * slot (the ones you schedule), a fifth already booked onto a run, and a few
+ * being collected by the customer instead.
+ */
+function pendingDispatch(
+  rng: Rng,
+): "PO_PLACED" | "RECEIVED_IN_WAREHOUSE" | "SCHEDULED_DELIVERY" | "READY_FOR_PICKUP" {
+  const roll = randInt(rng, 1, 100);
+  if (roll <= 30) return "PO_PLACED";
+  if (roll <= 65) return "RECEIVED_IN_WAREHOUSE";
+  if (roll <= 88) return "SCHEDULED_DELIVERY";
+  return "READY_FOR_PICKUP";
+}
+
 export interface StoreForOrders {
   id: number;
   registerIds: number[];
@@ -141,6 +159,7 @@ export async function seedSalesOrdersAndTills(
   const openIdx = n - 1;
 
   const varianceRng = subRng(rng, "till-variance");
+  const dispatchRng = subRng(rng, "dispatch-pipeline");
   const cashFlowRng = subRng(rng, "gift-card-store-credit");
 
   const result: SalesOrdersResult = {
@@ -238,6 +257,11 @@ export async function seedSalesOrdersAndTills(
           orderno: order.orderno,
           orderDate: order.date,
           status: order.isInvoiced ? "FULFILLED" : "ORDER",
+          // An invoiced order is one that was DELIVERED -- the invoice is what
+          // delivery generates. Without this the canonical handover fact is
+          // empty on a fresh clone, so a DELIVERED-basis commission plan reads
+          // zero and nothing can be filtered by "actually gone".
+          deliveredAt: order.isInvoiced ? order.date : null,
           customerId: order.customerId,
           salesperson: order.designer.displayName,
           salesPersonId: order.designer.id,
@@ -246,7 +270,12 @@ export async function seedSalesOrdersAndTills(
           taxDistrictId,
           totalTax,
           totalPaid: totalDue,
-          dispatchStatus: order.isInvoiced ? "FULFILLED" : "SCHEDULED_DELIVERY",
+          // Undelivered orders spread across the REAL dispatch pipeline rather
+          // than all sitting at SCHEDULED_DELIVERY. A board where every open
+          // order is already scheduled has nothing to schedule, so the one
+          // thing dispatch exists to do cannot be demonstrated -- and
+          // "scheduled" was a lie anyway, since none of them were on a run.
+          dispatchStatus: order.isInvoiced ? "FULFILLED" : pendingDispatch(dispatchRng),
           deliveryMethod: order.isInvoiced ? "TAKEN" : "DELIVERY",
           createdBy: SEED_ACTOR,
         },
@@ -281,6 +310,12 @@ export async function seedSalesOrdersAndTills(
             invoiceDate: order.date,
             taxAmount: totalTax,
             salesOrderId: salesOrder.id,
+            customerId: salesOrder.customerId,
+            // A complete invoice record. The importer leaves these unset, which is
+            // its own bug -- the seed should not model the bug.
+            status: "ISSUED",
+            issuedAt: order.date,
+            organizationId: 1,
           },
         });
         result.invoicesCreated += 1;

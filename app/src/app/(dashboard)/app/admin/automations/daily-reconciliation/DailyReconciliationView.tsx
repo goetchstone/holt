@@ -111,15 +111,17 @@ export function DailyReconciliationView() {
   return (
     <div className="mx-auto max-w-screen-lg space-y-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-sh-navy">Daily Reconciliation</h1>
-        <p className="text-sm text-sh-gray">
+        <h1 className="text-2xl font-semibold text-brand-navy">Daily Reconciliation</h1>
+        <p className="text-sm text-brand-gray">
           Cross-checks the day&apos;s generated JournalEntry against the underlying source data
           (OrderLineItem + Payment totals). Drift &gt; $0.01 means the JE will misrepresent what
           actually happened. This is Phase 0 control C1.
         </p>
-        <p className="text-sm text-sh-gray">
+        <p className="text-sm text-brand-gray">
           Cron triggers this nightly via{" "}
-          <code className="rounded bg-sh-stripe px-1">/api/automations/daily-reconciliation</code>{" "}
+          <code className="rounded bg-brand-stripe px-1">
+            /api/automations/daily-reconciliation
+          </code>{" "}
           (default: yesterday in America/New_York). Below you can manually run a specific date or a
           range.
         </p>
@@ -127,10 +129,10 @@ export function DailyReconciliationView() {
 
       {/* Run controls */}
       <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-lg font-medium text-sh-navy">Run a reconciliation</h2>
+        <h2 className="mb-3 text-lg font-medium text-brand-navy">Run a reconciliation</h2>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label htmlFor="single-date" className="block text-xs font-medium text-sh-navy">
+            <label htmlFor="single-date" className="block text-xs font-medium text-brand-navy">
               Single date
             </label>
             <input
@@ -148,7 +150,7 @@ export function DailyReconciliationView() {
             />
           </div>
           <div>
-            <label htmlFor="range-start" className="block text-xs font-medium text-sh-navy">
+            <label htmlFor="range-start" className="block text-xs font-medium text-brand-navy">
               Range start
             </label>
             <input
@@ -163,7 +165,7 @@ export function DailyReconciliationView() {
             />
           </div>
           <div>
-            <label htmlFor="range-end" className="block text-xs font-medium text-sh-navy">
+            <label htmlFor="range-end" className="block text-xs font-medium text-brand-navy">
               Range end
             </label>
             <input
@@ -178,7 +180,7 @@ export function DailyReconciliationView() {
             />
           </div>
         </div>
-        <p className="mt-2 text-xs text-sh-gray">Leave all blank to reconcile yesterday (ET).</p>
+        <p className="mt-2 text-xs text-brand-gray">Leave all blank to reconcile yesterday (ET).</p>
         <div className="mt-3">
           <Button onClick={handleRun} disabled={running}>
             {running ? "Reconciling…" : "Run reconciliation"}
@@ -189,7 +191,7 @@ export function DailyReconciliationView() {
       {/* Run result */}
       {run && (
         <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-lg font-medium text-sh-navy">
+          <h2 className="mb-3 text-lg font-medium text-brand-navy">
             Run {run.runId} — {run.daysReconciled} day(s)
           </h2>
           <div className="mb-3 flex gap-2 text-sm">
@@ -204,7 +206,7 @@ export function DailyReconciliationView() {
             </span>
           </div>
           <table className="w-full text-sm">
-            <thead className="text-sh-navy">
+            <thead className="text-brand-navy">
               <tr>
                 <th className="px-2 py-1 text-left">Date</th>
                 <th className="px-2 py-1 text-left">Status</th>
@@ -257,12 +259,12 @@ export function DailyReconciliationView() {
 
       {/* Recent runs */}
       <section className="rounded border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-lg font-medium text-sh-navy">Recent (last 30 days)</h2>
+        <h2 className="mb-3 text-lg font-medium text-brand-navy">Recent (last 30 days)</h2>
         {recent.length === 0 ? (
-          <p className="text-sm text-sh-gray">No reconciliations on record yet.</p>
+          <p className="text-sm text-brand-gray">No reconciliations on record yet.</p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-sh-navy">
+            <thead className="text-brand-navy">
               <tr>
                 <th className="px-2 py-1 text-left">Date</th>
                 <th className="px-2 py-1 text-left">Balanced</th>
@@ -302,7 +304,7 @@ export function DailyReconciliationView() {
                       {formatMoney(r.journalOverShort)}
                     </td>
                     <td className="px-2 py-1">{r.journalEntryId ? `#${r.journalEntryId}` : "—"}</td>
-                    <td className="px-2 py-1 text-xs text-sh-gray">
+                    <td className="px-2 py-1 text-xs text-brand-gray">
                       {new Date(r.created).toLocaleString()}
                     </td>
                   </tr>

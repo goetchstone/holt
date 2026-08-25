@@ -90,7 +90,7 @@ const TASK_STATUS_CYCLE: Record<string, string> = {
 };
 
 const TASK_STATUS_COLORS: Record<string, string> = {
-  PENDING: "bg-sh-gray/10 text-sh-gray",
+  PENDING: "bg-brand-gray/10 text-brand-gray",
   IN_PROGRESS: "bg-blue-100 text-blue-800",
   COMPLETED: "bg-green-100 text-green-800",
   CANCELLED: "bg-red-100 text-red-800",
@@ -362,17 +362,17 @@ export function CaseDetailView({ id }: { id: string }) {
   };
 
   if (loading) {
-    return <p className="text-sh-gray py-8">Loading case...</p>;
+    return <p className="text-brand-gray py-8">Loading case...</p>;
   }
 
   if (!caseData) {
-    return <p className="text-sh-gray py-8">Case not found.</p>;
+    return <p className="text-brand-gray py-8">Case not found.</p>;
   }
 
   const ageDays = differenceInDays(new Date(), new Date(caseData.created));
 
   const badgeStyle = (color: string | null) => {
-    if (!color) return "bg-sh-gray/10 text-sh-gray";
+    if (!color) return "bg-brand-gray/10 text-brand-gray";
     return "text-white";
   };
 
@@ -381,7 +381,7 @@ export function CaseDetailView({ id }: { id: string }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl text-sh-blue font-semibold">{caseData.caseNumber}</h1>
+          <h1 className="text-2xl text-brand-blue font-semibold">{caseData.caseNumber}</h1>
           {/* Inline status changer — replaces a static badge so the
               operator can move a case Service Call → Needs Attention →
               Waiting on Vendor etc. without leaving the page. The
@@ -395,7 +395,7 @@ export function CaseDetailView({ id }: { id: string }) {
             value={caseData.status.id}
             onChange={(e) => handleStatusChange(e.target.value)}
             disabled={changingStatus || allStatuses.length === 0}
-            className="text-xs px-2 py-1 rounded border-0 text-white font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-sh-blue"
+            className="text-xs px-2 py-1 rounded border-0 text-white font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-blue"
             style={
               caseData.status.color
                 ? { backgroundColor: caseData.status.color }
@@ -423,10 +423,10 @@ export function CaseDetailView({ id }: { id: string }) {
           >
             {caseData.priority.name}
           </span>
-          <span className="text-xs px-2 py-1 rounded bg-sh-gray/10 text-sh-black">
+          <span className="text-xs px-2 py-1 rounded bg-brand-gray/10 text-brand-black">
             {caseData.type.name}
           </span>
-          <span className="text-sm text-sh-gray">
+          <span className="text-sm text-brand-gray">
             Opened {format(new Date(caseData.created), "MMM d, yyyy")} · {formatAge(ageDays)}
           </span>
         </div>
@@ -438,42 +438,48 @@ export function CaseDetailView({ id }: { id: string }) {
       </div>
 
       {/* Summary */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-4">
-        <p className="text-sm text-sh-black">{caseData.summary}</p>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-4">
+        <p className="text-sm text-brand-black">{caseData.summary}</p>
       </div>
 
       {/* Info cards row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Customer card */}
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-4">
-          <h3 className="text-sm font-semibold text-sh-gray uppercase tracking-wide mb-3">
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-4">
+          <h3 className="text-sm font-semibold text-brand-gray uppercase tracking-wide mb-3">
             Customer
           </h3>
           {caseData.customer ? (
             <div className="space-y-1 text-sm">
-              <p className="font-medium text-sh-black">
+              <p className="font-medium text-brand-black">
                 {caseData.customer.firstName} {caseData.customer.lastName}
               </p>
-              {caseData.customer.phone && <p className="text-sh-gray">{caseData.customer.phone}</p>}
-              {caseData.customer.email && <p className="text-sh-gray">{caseData.customer.email}</p>}
+              {caseData.customer.phone && (
+                <p className="text-brand-gray">{caseData.customer.phone}</p>
+              )}
+              {caseData.customer.email && (
+                <p className="text-brand-gray">{caseData.customer.email}</p>
+              )}
               {caseData.preferredContact && (
-                <p className="text-sh-gray">Preferred: {caseData.preferredContact}</p>
+                <p className="text-brand-gray">Preferred: {caseData.preferredContact}</p>
               )}
             </div>
           ) : (
-            <p className="text-sm text-sh-gray">No customer linked</p>
+            <p className="text-sm text-brand-gray">No customer linked</p>
           )}
         </div>
 
         {/* Order card */}
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-4">
-          <h3 className="text-sm font-semibold text-sh-gray uppercase tracking-wide mb-3">Order</h3>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-4">
+          <h3 className="text-sm font-semibold text-brand-gray uppercase tracking-wide mb-3">
+            Order
+          </h3>
           {caseData.salesOrder || caseData.purchaseOrder ? (
             <div className="space-y-1 text-sm">
               {caseData.salesOrder && (
                 <Link
                   href={`/app/sales/orders/${caseData.salesOrder.id}`}
-                  className="block font-medium text-sh-blue hover:underline"
+                  className="block font-medium text-brand-blue hover:underline"
                 >
                   Order #{caseData.salesOrder.orderno}
                 </Link>
@@ -481,43 +487,45 @@ export function CaseDetailView({ id }: { id: string }) {
               {caseData.purchaseOrder && (
                 <Link
                   href={`/app/purchasing/orders/${caseData.purchaseOrder.id}`}
-                  className="block font-medium text-sh-blue hover:underline"
+                  className="block font-medium text-brand-blue hover:underline"
                 >
                   PO #{caseData.purchaseOrder.poNumber}
                   {caseData.purchaseOrder.status && (
-                    <span className="ml-2 text-xs text-sh-gray">
+                    <span className="ml-2 text-xs text-brand-gray">
                       ({caseData.purchaseOrder.status})
                     </span>
                   )}
                 </Link>
               )}
-              {caseData.vendor && <p className="text-sh-gray">{caseData.vendor.name}</p>}
+              {caseData.vendor && <p className="text-brand-gray">{caseData.vendor.name}</p>}
             </div>
           ) : (
-            <p className="text-sm text-sh-gray">No linked order</p>
+            <p className="text-sm text-brand-gray">No linked order</p>
           )}
           {caseData.itemDescription && (
-            <p className="text-sm text-sh-gray mt-2">Item: {caseData.itemDescription}</p>
+            <p className="text-sm text-brand-gray mt-2">Item: {caseData.itemDescription}</p>
           )}
-          {caseData.partNo && <p className="text-sm text-sh-gray">Part #: {caseData.partNo}</p>}
+          {caseData.partNo && <p className="text-sm text-brand-gray">Part #: {caseData.partNo}</p>}
         </div>
       </div>
 
       {/* Assignment row */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-4">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-4">
         <div className="flex flex-wrap gap-6 items-center text-sm">
           {caseData.salesPerson && (
             <div>
-              <span className="text-sh-gray">Salesperson: </span>
-              <span className="text-sh-black font-medium">{caseData.salesPerson.displayName}</span>
+              <span className="text-brand-gray">Salesperson: </span>
+              <span className="text-brand-black font-medium">
+                {caseData.salesPerson.displayName}
+              </span>
             </div>
           )}
           <div className="flex items-center gap-2">
-            <span className="text-sh-gray">Assigned To:</span>
+            <span className="text-brand-gray">Assigned To:</span>
             <select
               value={caseData.assignedTo?.id || ""}
               onChange={(e) => handleAssigneeChange(e.target.value)}
-              className="border border-sh-gray/30 rounded px-2 py-1 text-sm"
+              className="border border-brand-gray/30 rounded px-2 py-1 text-sm"
             >
               <option value="">Unassigned</option>
               {staff.map((s) => (
@@ -529,32 +537,32 @@ export function CaseDetailView({ id }: { id: string }) {
           </div>
           {caseData.storeLocation && (
             <div>
-              <span className="text-sh-gray">Location: </span>
-              <span className="text-sh-black">{caseData.storeLocation}</span>
+              <span className="text-brand-gray">Location: </span>
+              <span className="text-brand-black">{caseData.storeLocation}</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Tasks */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h3 className="text-lg font-semibold text-sh-black mb-4">Tasks</h3>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h3 className="text-lg font-semibold text-brand-black mb-4">Tasks</h3>
 
         {caseData.tasks.length === 0 ? (
-          <p className="text-sm text-sh-gray mb-4">No tasks</p>
+          <p className="text-sm text-brand-gray mb-4">No tasks</p>
         ) : (
           <div className="space-y-1 mb-4">
             {caseData.tasks.map((task) => (
               <div
                 key={task.id}
-                className="flex items-center gap-3 px-3 py-2 rounded hover:bg-sh-stripe/50 text-sm group"
+                className="flex items-center gap-3 px-3 py-2 rounded hover:bg-brand-stripe/50 text-sm group"
               >
                 <button
                   onClick={() => handleCycleTaskStatus(task)}
                   className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded cursor-pointer ${
                     task.status === "COMPLETED"
                       ? "bg-green-100 text-green-800"
-                      : "bg-sh-gray/10 text-sh-gray"
+                      : "bg-brand-gray/10 text-brand-gray"
                   }`}
                   title="Click to change status"
                 >
@@ -583,31 +591,31 @@ export function CaseDetailView({ id }: { id: string }) {
                       <circle cx="12" cy="12" r="9" strokeWidth={2} />
                     </svg>
                   ) : (
-                    <span className="w-5 h-5 rounded border-2 border-sh-gray/40 block" />
+                    <span className="w-5 h-5 rounded border-2 border-brand-gray/40 block" />
                   )}
                 </button>
 
                 <div className="flex-1 min-w-0">
                   <span
-                    className={`text-sh-black ${task.status === "COMPLETED" ? "line-through text-sh-gray" : ""}`}
+                    className={`text-brand-black ${task.status === "COMPLETED" ? "line-through text-brand-gray" : ""}`}
                   >
                     {task.title}
                   </span>
                   {task.description && (
-                    <p className="text-xs text-sh-gray mt-0.5 truncate">{task.description}</p>
+                    <p className="text-xs text-brand-gray mt-0.5 truncate">{task.description}</p>
                   )}
                   <div className="flex flex-wrap gap-2 mt-1">
                     {task.linkedOrder && (
                       <span className="inline-flex items-center gap-1 text-xs">
                         <Link
                           href={`/app/sales/orders/${task.linkedOrder.id}`}
-                          className="text-sh-blue hover:underline"
+                          className="text-brand-blue hover:underline"
                         >
                           SO #{task.linkedOrder.orderno}
                         </Link>
                         <button
                           onClick={() => handleUnlink(task.id, "order")}
-                          className="text-sh-gray hover:text-red-600 ml-0.5"
+                          className="text-brand-gray hover:text-red-600 ml-0.5"
                           title="Unlink order"
                         >
                           x
@@ -618,13 +626,13 @@ export function CaseDetailView({ id }: { id: string }) {
                       <span className="inline-flex items-center gap-1 text-xs">
                         <Link
                           href={`/app/purchasing/${task.linkedPurchaseOrder.id}`}
-                          className="text-sh-blue hover:underline"
+                          className="text-brand-blue hover:underline"
                         >
                           PO #{task.linkedPurchaseOrder.poNumber}
                         </Link>
                         <button
                           onClick={() => handleUnlink(task.id, "po")}
-                          className="text-sh-gray hover:text-red-600 ml-0.5"
+                          className="text-brand-gray hover:text-red-600 ml-0.5"
                           title="Unlink PO"
                         >
                           x
@@ -641,7 +649,7 @@ export function CaseDetailView({ id }: { id: string }) {
                 </span>
 
                 {task.assignedTo && (
-                  <span className="text-xs text-sh-gray">{task.assignedTo.displayName}</span>
+                  <span className="text-xs text-brand-gray">{task.assignedTo.displayName}</span>
                 )}
                 {task.waitingOn && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-50 text-yellow-800">
@@ -649,7 +657,7 @@ export function CaseDetailView({ id }: { id: string }) {
                   </span>
                 )}
                 {task.dueDate && (
-                  <span className="text-xs text-sh-gray">
+                  <span className="text-xs text-brand-gray">
                     Due {format(new Date(task.dueDate), "MMM d")}
                   </span>
                 )}
@@ -658,7 +666,7 @@ export function CaseDetailView({ id }: { id: string }) {
                   {!task.linkedOrder && (
                     <button
                       onClick={() => openLinkModal(task.id, "order")}
-                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-sh-gray hover:text-sh-blue"
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-brand-gray hover:text-brand-blue"
                       title="Link to Sales Order"
                     >
                       +SO
@@ -667,7 +675,7 @@ export function CaseDetailView({ id }: { id: string }) {
                   {!task.linkedPurchaseOrder && (
                     <button
                       onClick={() => openLinkModal(task.id, "po")}
-                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-sh-gray hover:text-sh-blue"
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-brand-gray hover:text-brand-blue"
                       title="Link to Purchase Order"
                     >
                       +PO
@@ -675,7 +683,7 @@ export function CaseDetailView({ id }: { id: string }) {
                   )}
                   <button
                     onClick={() => handleDeleteTask(task.id)}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-sh-gray hover:text-red-600"
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-brand-gray hover:text-red-600"
                     title="Remove task"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -694,7 +702,7 @@ export function CaseDetailView({ id }: { id: string }) {
         )}
 
         {/* Add Task form */}
-        <div className="border-t border-sh-gray/10 pt-4">
+        <div className="border-t border-brand-gray/10 pt-4">
           <div className="flex flex-wrap gap-2 items-end">
             <div className="flex-1 min-w-[200px]">
               <input
@@ -705,13 +713,13 @@ export function CaseDetailView({ id }: { id: string }) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && taskTitle.trim()) handleAddTask();
                 }}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               />
             </div>
             <select
               value={taskAssigneeId}
               onChange={(e) => setTaskAssigneeId(e.target.value)}
-              className="border border-sh-gray/30 rounded px-2 py-2 text-sm"
+              className="border border-brand-gray/30 rounded px-2 py-2 text-sm"
             >
               <option value="">Assignee...</option>
               {staff.map((s) => (
@@ -723,7 +731,7 @@ export function CaseDetailView({ id }: { id: string }) {
             <select
               value={taskWaitingOn}
               onChange={(e) => setTaskWaitingOn(e.target.value)}
-              className="border border-sh-gray/30 rounded px-2 py-2 text-sm"
+              className="border border-brand-gray/30 rounded px-2 py-2 text-sm"
             >
               {WAITING_ON_OPTIONS.map((o) => (
                 <option key={o} value={o}>
@@ -735,7 +743,7 @@ export function CaseDetailView({ id }: { id: string }) {
               type="date"
               value={taskDueDate}
               onChange={(e) => setTaskDueDate(e.target.value)}
-              className="border border-sh-gray/30 rounded px-2 py-2 text-sm"
+              className="border border-brand-gray/30 rounded px-2 py-2 text-sm"
             />
             <Button
               variant="primary"
@@ -750,17 +758,17 @@ export function CaseDetailView({ id }: { id: string }) {
       </div>
 
       {/* Activity Timeline */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-        <h3 className="text-lg font-semibold text-sh-black mb-4">Activity</h3>
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+        <h3 className="text-lg font-semibold text-brand-black mb-4">Activity</h3>
 
         {caseData.notes.length === 0 ? (
-          <p className="text-sm text-sh-gray mb-4">No notes yet</p>
+          <p className="text-sm text-brand-gray mb-4">No notes yet</p>
         ) : (
           <div className="space-y-3 mb-6">
             {caseData.notes.map((note) => (
-              <div key={note.id} className="border-l-2 border-sh-gray/20 pl-4 py-1">
-                <div className="flex items-center gap-2 text-xs text-sh-gray mb-1">
-                  <span className="font-medium text-sh-black">
+              <div key={note.id} className="border-l-2 border-brand-gray/20 pl-4 py-1">
+                <div className="flex items-center gap-2 text-xs text-brand-gray mb-1">
+                  <span className="font-medium text-brand-black">
                     {note.author
                       ? note.author.displayName
                       : note.authorDisplayName || note.createdBy || "System"}
@@ -768,29 +776,31 @@ export function CaseDetailView({ id }: { id: string }) {
                   <span>{format(new Date(note.created), "MMM d, yyyy h:mm a")}</span>
                   <span
                     className={`px-1.5 py-0.5 rounded text-[10px] ${
-                      note.isInternal ? "bg-sh-gray/10 text-sh-gray" : "bg-blue-50 text-blue-700"
+                      note.isInternal
+                        ? "bg-brand-gray/10 text-brand-gray"
+                        : "bg-blue-50 text-blue-700"
                     }`}
                   >
                     {note.isInternal ? "Internal" : "External"}
                   </span>
                 </div>
-                <p className="text-sm text-sh-black whitespace-pre-wrap">{note.note}</p>
+                <p className="text-sm text-brand-black whitespace-pre-wrap">{note.note}</p>
               </div>
             ))}
           </div>
         )}
 
         {/* Add Note form */}
-        <div className="border-t border-sh-gray/10 pt-4">
+        <div className="border-t border-brand-gray/10 pt-4">
           <textarea
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             rows={3}
             placeholder="Add a note..."
-            className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm mb-2"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm mb-2"
           />
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm text-sh-gray">
+            <label className="flex items-center gap-2 text-sm text-brand-gray">
               <input
                 type="checkbox"
                 checked={noteInternal}
@@ -813,8 +823,8 @@ export function CaseDetailView({ id }: { id: string }) {
 
       {/* Resolution */}
       {!caseData.status.isClosed && (
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-          <h3 className="text-lg font-semibold text-sh-black mb-4">Resolution</h3>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+          <h3 className="text-lg font-semibold text-brand-black mb-4">Resolution</h3>
           {!showResolve ? (
             <Button variant="primary" size="sm" onClick={() => setShowResolve(true)}>
               Resolve Case
@@ -822,11 +832,11 @@ export function CaseDetailView({ id }: { id: string }) {
           ) : (
             <div className="space-y-3">
               <div>
-                <label className="block text-sm text-sh-gray mb-1">Closed Status</label>
+                <label className="block text-sm text-brand-gray mb-1">Closed Status</label>
                 <select
                   value={resolveStatusId}
                   onChange={(e) => setResolveStatusId(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 >
                   <option value="">Select status...</option>
                   {closedStatuses.map((s) => (
@@ -837,12 +847,12 @@ export function CaseDetailView({ id }: { id: string }) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-sh-gray mb-1">Resolution Notes</label>
+                <label className="block text-sm text-brand-gray mb-1">Resolution Notes</label>
                 <textarea
                   value={resolveNotes}
                   onChange={(e) => setResolveNotes(e.target.value)}
                   rows={3}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                   placeholder="How was this resolved?"
                 />
               </div>
@@ -893,7 +903,7 @@ export function CaseDetailView({ id }: { id: string }) {
               transition
               className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-xl font-serif duration-300 ease-out data-closed:scale-95 data-closed:opacity-0"
             >
-              <DialogTitle as="h3" className="text-xl font-semibold text-sh-blue mb-4">
+              <DialogTitle as="h3" className="text-xl font-semibold text-brand-blue mb-4">
                 {linkModalType === "order" ? "Link to Sales Order" : "Link to Purchase Order"}
               </DialogTitle>
 
@@ -910,7 +920,7 @@ export function CaseDetailView({ id }: { id: string }) {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleLinkSearch();
                   }}
-                  className="flex-1 border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="flex-1 border border-brand-gray/30 rounded px-3 py-2 text-sm"
                   autoFocus
                 />
                 <Button
@@ -930,11 +940,11 @@ export function CaseDetailView({ id }: { id: string }) {
                         <button
                           key={order.id}
                           onClick={() => handleSelectLink(order.id)}
-                          className="w-full text-left px-3 py-3 rounded hover:bg-sh-stripe text-sm min-h-[44px] flex items-center justify-between"
+                          className="w-full text-left px-3 py-3 rounded hover:bg-brand-stripe text-sm min-h-[44px] flex items-center justify-between"
                         >
-                          <span className="font-medium text-sh-blue">#{order.orderno}</span>
+                          <span className="font-medium text-brand-blue">#{order.orderno}</span>
                           {order.customerName && (
-                            <span className="text-sh-gray">{order.customerName}</span>
+                            <span className="text-brand-gray">{order.customerName}</span>
                           )}
                         </button>
                       ))
@@ -942,17 +952,19 @@ export function CaseDetailView({ id }: { id: string }) {
                         <button
                           key={po.id}
                           onClick={() => handleSelectLink(po.id)}
-                          className="w-full text-left px-3 py-3 rounded hover:bg-sh-stripe text-sm min-h-[44px] flex items-center justify-between"
+                          className="w-full text-left px-3 py-3 rounded hover:bg-brand-stripe text-sm min-h-[44px] flex items-center justify-between"
                         >
-                          <span className="font-medium text-sh-blue">#{po.poNumber}</span>
-                          {po.vendorName && <span className="text-sh-gray">{po.vendorName}</span>}
+                          <span className="font-medium text-brand-blue">#{po.poNumber}</span>
+                          {po.vendorName && (
+                            <span className="text-brand-gray">{po.vendorName}</span>
+                          )}
                         </button>
                       ))}
                 </div>
               )}
 
               {linkResults.length === 0 && linkSearch && !linkSearching && (
-                <p className="text-sm text-sh-gray py-4 text-center">
+                <p className="text-sm text-brand-gray py-4 text-center">
                   No results. Try a different search term.
                 </p>
               )}

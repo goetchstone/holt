@@ -71,13 +71,13 @@ function roleBadgeClass(role: string): string {
     case "SUPER_ADMIN":
       return "bg-red-100 text-red-700";
     case "DESIGNER":
-      return "bg-sh-blue/10 text-sh-blue";
+      return "bg-brand-blue/10 text-brand-blue";
     case "MANAGER":
-      return "bg-sh-gold/20 text-sh-gold";
+      return "bg-brand-gold/20 text-brand-gold";
     case "WAREHOUSE":
       return "bg-green-100 text-green-700";
     default:
-      return "bg-gray-100 text-sh-gray";
+      return "bg-gray-100 text-brand-gray";
   }
 }
 
@@ -96,12 +96,12 @@ function StaffRow({
 }>) {
   return (
     <tr
-      className={`border-b border-gray-100 last:border-0 hover:bg-sh-linen/50 transition ${
+      className={`border-b border-gray-100 last:border-0 hover:bg-brand-linen/50 transition ${
         member.isActive ? "" : "opacity-50"
       }`}
     >
-      <td className="px-4 py-2.5 font-serif text-sh-black">{member.displayName}</td>
-      <td className="px-4 py-2.5 text-sh-gray font-mono text-xs">{member.email || "—"}</td>
+      <td className="px-4 py-2.5 font-serif text-brand-black">{member.displayName}</td>
+      <td className="px-4 py-2.5 text-brand-gray font-mono text-xs">{member.email || "—"}</td>
       <td className="px-4 py-2.5">
         <span
           className={`text-xs font-sans uppercase tracking-wider px-2 py-0.5 rounded-sm ${roleBadgeClass(
@@ -120,21 +120,21 @@ function StaffRow({
         )}
         {member.commissionPlan && (
           <span
-            className="ml-1.5 text-[10px] font-sans uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-sh-gold/15 text-sh-gold"
+            className="ml-1.5 text-[10px] font-sans uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-brand-gold/15 text-brand-gold"
             title="Assigned commission plan"
           >
             {member.commissionPlan.name}
           </span>
         )}
       </td>
-      <td className="px-4 py-2.5 text-xs text-sh-gray">
+      <td className="px-4 py-2.5 text-xs text-brand-gray">
         {member.user ? (
           <span className="flex items-center gap-1.5">
             <UserCheck className="w-3.5 h-3.5 text-green-500" />
             {member.user.email}
           </span>
         ) : (
-          <span className="text-sh-gray/50 italic">Not linked</span>
+          <span className="text-brand-gray/50 italic">Not linked</span>
         )}
       </td>
       <td className="px-4 py-2.5 text-center">
@@ -149,7 +149,7 @@ function StaffRow({
         <div className="flex items-center justify-end gap-1">
           <button
             onClick={() => onEdit(member)}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-sh-gray hover:text-sh-blue active:text-sh-blue transition rounded"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-brand-gray hover:text-brand-blue active:text-brand-blue transition rounded"
             title="Edit"
           >
             <Pencil className="w-4 h-4" />
@@ -157,7 +157,7 @@ function StaffRow({
           {isAdmin && (
             <button
               onClick={() => onSetPassword(member)}
-              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-sh-gray hover:text-sh-blue active:text-sh-blue transition rounded"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-brand-gray hover:text-brand-blue active:text-brand-blue transition rounded"
               title="Set password"
             >
               <KeyRound className="w-4 h-4" />
@@ -167,8 +167,8 @@ function StaffRow({
             onClick={() => onToggleActive(member)}
             className={`min-w-[44px] min-h-[44px] flex items-center justify-center transition rounded ${
               member.isActive
-                ? "text-sh-gray hover:text-red-500 active:text-red-500"
-                : "text-sh-gray hover:text-green-500 active:text-green-500"
+                ? "text-brand-gray hover:text-red-500 active:text-red-500"
+                : "text-brand-gray hover:text-green-500 active:text-green-500"
             }`}
             title={member.isActive ? "Deactivate" : "Reactivate"}
           >
@@ -202,7 +202,7 @@ function StaffCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-serif text-sh-black text-sm font-semibold truncate">
+            <span className="font-serif text-brand-black text-sm font-semibold truncate">
               {member.displayName}
             </span>
             <span
@@ -218,12 +218,14 @@ function StaffCard({
           >
             {member.role}
           </span>
-          {member.email && <p className="text-sh-gray text-xs mt-1.5 truncate">{member.email}</p>}
+          {member.email && (
+            <p className="text-brand-gray text-xs mt-1.5 truncate">{member.email}</p>
+          )}
         </div>
         <div className="flex items-center gap-0">
           <button
             onClick={() => onEdit(member)}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-sh-gray active:text-sh-blue transition rounded"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-brand-gray active:text-brand-blue transition rounded"
             title="Edit"
           >
             <Pencil className="w-5 h-5" />
@@ -231,7 +233,7 @@ function StaffCard({
           {isAdmin && (
             <button
               onClick={() => onSetPassword(member)}
-              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-sh-gray active:text-sh-blue transition rounded"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-brand-gray active:text-brand-blue transition rounded"
               title="Set password"
             >
               <KeyRound className="w-5 h-5" />
@@ -241,8 +243,8 @@ function StaffCard({
             onClick={() => onToggleActive(member)}
             className={`min-w-[44px] min-h-[44px] flex items-center justify-center transition rounded ${
               member.isActive
-                ? "text-sh-gray active:text-red-500"
-                : "text-sh-gray active:text-green-500"
+                ? "text-brand-gray active:text-red-500"
+                : "text-brand-gray active:text-green-500"
             }`}
             title={member.isActive ? "Deactivate" : "Reactivate"}
           >
@@ -269,7 +271,7 @@ function StaffGroup({
 }>) {
   return (
     <div className="space-y-1">
-      <h3 className="text-xs font-sans uppercase tracking-[0.2em] text-sh-gray mt-4 mb-2">
+      <h3 className="text-xs font-sans uppercase tracking-[0.2em] text-brand-gray mt-4 mb-2">
         {group.label}
       </h3>
 
@@ -277,13 +279,13 @@ function StaffGroup({
       <div className="hidden sm:block bg-white border border-gray-200 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-sh-linen border-b border-gray-200">
-              <th className="text-left px-4 py-2 font-semibold text-sh-blue">Name</th>
-              <th className="text-left px-4 py-2 font-semibold text-sh-blue">Email</th>
-              <th className="text-left px-4 py-2 font-semibold text-sh-blue">Role</th>
-              <th className="text-left px-4 py-2 font-semibold text-sh-blue">Google Account</th>
-              <th className="text-center px-4 py-2 font-semibold text-sh-blue">Status</th>
-              <th className="text-right px-4 py-2 font-semibold text-sh-blue">Actions</th>
+            <tr className="bg-brand-linen border-b border-gray-200">
+              <th className="text-left px-4 py-2 font-semibold text-brand-blue">Name</th>
+              <th className="text-left px-4 py-2 font-semibold text-brand-blue">Email</th>
+              <th className="text-left px-4 py-2 font-semibold text-brand-blue">Role</th>
+              <th className="text-left px-4 py-2 font-semibold text-brand-blue">Google Account</th>
+              <th className="text-center px-4 py-2 font-semibold text-brand-blue">Status</th>
+              <th className="text-right px-4 py-2 font-semibold text-brand-blue">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -350,12 +352,12 @@ function StaffFormModal({
     >
       <div className="bg-white rounded-t-lg sm:rounded-lg shadow-xl w-full sm:max-w-md sm:mx-4 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-sh-blue">
+          <h2 className="text-lg font-semibold text-brand-blue">
             {editingId ? "Edit Staff Member" : "Add Staff Member"}
           </h2>
           <button
             onClick={onClose}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-sh-gray active:text-sh-black transition -mr-2"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-brand-gray active:text-brand-black transition -mr-2"
           >
             <X className="w-5 h-5" />
           </button>
@@ -365,7 +367,7 @@ function StaffFormModal({
           <div>
             <label
               htmlFor="staff-display-name"
-              className="block text-sm font-semibold text-sh-blue mb-1"
+              className="block text-sm font-semibold text-brand-blue mb-1"
             >
               Display Name *
             </label>
@@ -374,13 +376,16 @@ function StaffFormModal({
               type="text"
               value={form.displayName}
               onChange={(e) => onChange({ ...form, displayName: e.target.value })}
-              className="w-full border border-sh-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm"
+              className="w-full border border-brand-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm"
               placeholder="e.g. Jordan Lee"
               autoFocus
             />
           </div>
           <div>
-            <label htmlFor="staff-email" className="block text-sm font-semibold text-sh-blue mb-1">
+            <label
+              htmlFor="staff-email"
+              className="block text-sm font-semibold text-brand-blue mb-1"
+            >
               Email
             </label>
             <input
@@ -388,14 +393,19 @@ function StaffFormModal({
               type="email"
               value={form.email}
               onChange={(e) => onChange({ ...form, email: e.target.value })}
-              className="w-full border border-sh-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm"
+              className="w-full border border-brand-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm"
               placeholder="name@company.com"
             />
-            <p className="text-xs text-sh-gray mt-1">Used to auto-link with their Google sign-in</p>
+            <p className="text-xs text-brand-gray mt-1">
+              Used to auto-link with their Google sign-in
+            </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label htmlFor="staff-role" className="block text-sm font-semibold text-sh-blue mb-1">
+              <label
+                htmlFor="staff-role"
+                className="block text-sm font-semibold text-brand-blue mb-1"
+              >
                 Role
               </label>
               <select
@@ -403,7 +413,7 @@ function StaffFormModal({
                 value={form.role}
                 onChange={(e) => onChange({ ...form, role: e.target.value })}
                 disabled={!isAdmin}
-                className="w-full border border-sh-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm bg-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full border border-brand-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm bg-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
@@ -412,13 +422,13 @@ function StaffFormModal({
                 ))}
               </select>
               {!isAdmin && (
-                <p className="text-xs text-sh-gray mt-1">Only admins can change roles</p>
+                <p className="text-xs text-brand-gray mt-1">Only admins can change roles</p>
               )}
             </div>
             <div>
               <label
                 htmlFor="staff-store"
-                className="block text-sm font-semibold text-sh-blue mb-1"
+                className="block text-sm font-semibold text-brand-blue mb-1"
               >
                 Default Store
               </label>
@@ -426,7 +436,7 @@ function StaffFormModal({
                 id="staff-store"
                 value={form.defaultStore}
                 onChange={(e) => onChange({ ...form, defaultStore: e.target.value })}
-                className="w-full border border-sh-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm bg-white appearance-none"
+                className="w-full border border-brand-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm bg-white appearance-none"
               >
                 <option value="">None</option>
                 {storeNames.map((s) => (
@@ -440,14 +450,14 @@ function StaffFormModal({
 
           <label
             htmlFor="staff-is-designer"
-            className="flex items-center gap-2 text-sm text-sh-black cursor-pointer mt-3"
+            className="flex items-center gap-2 text-sm text-brand-black cursor-pointer mt-3"
           >
             <input
               id="staff-is-designer"
               type="checkbox"
               checked={form.isDesigner}
               onChange={(e) => onChange({ ...form, isDesigner: e.target.checked })}
-              className="accent-sh-blue w-4 h-4"
+              className="accent-brand-blue w-4 h-4"
             />
             <span>Show on designer-based sales &amp; commission reports</span>
           </label>
@@ -457,7 +467,7 @@ function StaffFormModal({
             <div>
               <label
                 htmlFor="staff-commission-plan"
-                className="block text-sm font-semibold text-sh-blue mb-1"
+                className="block text-sm font-semibold text-brand-blue mb-1"
               >
                 Commission plan
               </label>
@@ -470,7 +480,7 @@ function StaffFormModal({
                     commissionPlanId: e.target.value === "" ? null : Number(e.target.value),
                   })
                 }
-                className="w-full border border-sh-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm bg-white appearance-none"
+                className="w-full border border-brand-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm bg-white appearance-none"
               >
                 <option value="">Default</option>
                 {commissionPlans.map((p) => (
@@ -479,7 +489,7 @@ function StaffFormModal({
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-sh-gray mt-1">
+              <p className="text-xs text-brand-gray mt-1">
                 &ldquo;Default&rdquo; follows the default plan (or the standard tiers)
               </p>
             </div>
@@ -531,21 +541,21 @@ function SetPasswordModal({
     >
       <div className="w-full max-w-md rounded-2xl bg-white p-6 font-serif shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-xl font-semibold text-sh-blue">Set Password</h3>
+          <h3 className="text-xl font-semibold text-brand-blue">Set Password</h3>
           <button
             onClick={onClose}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center text-sh-gray hover:text-sh-black"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center text-brand-gray hover:text-brand-black"
             title="Close"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
-        <p className="mb-4 text-sm text-sh-gray">
+        <p className="mb-4 text-sm text-brand-gray">
           Set a local sign-in password for{" "}
-          <span className="font-semibold text-sh-black">{target.displayName}</span>. They can sign
-          in with their email and this password when local accounts are enabled.
+          <span className="font-semibold text-brand-black">{target.displayName}</span>. They can
+          sign in with their email and this password when local accounts are enabled.
         </p>
-        <label htmlFor="set-password" className="mb-1 block text-sm font-medium text-sh-navy">
+        <label htmlFor="set-password" className="mb-1 block text-sm font-medium text-brand-navy">
           New Password
         </label>
         <input
@@ -555,7 +565,7 @@ function SetPasswordModal({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="At least 8 characters"
-          className="mb-4 min-h-[44px] w-full rounded border border-sh-gray/30 px-3 py-2 text-sh-black focus:border-sh-navy focus:outline-none"
+          className="mb-4 min-h-[44px] w-full rounded border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
         />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>
@@ -795,8 +805,8 @@ export function StaffView() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue mb-1">Staff Members</h1>
-          <p className="text-sh-gray text-sm">
+          <h1 className="text-2xl font-semibold text-brand-blue mb-1">Staff Members</h1>
+          <p className="text-brand-gray text-sm">
             Manage designers, register staff, and managers for the up-board rotation.
           </p>
         </div>
@@ -819,18 +829,18 @@ export function StaffView() {
       <div className="flex items-center gap-4">
         <label
           htmlFor="show-inactive"
-          className="flex items-center gap-2 text-sm text-sh-gray cursor-pointer"
+          className="flex items-center gap-2 text-sm text-brand-gray cursor-pointer"
         >
           <input
             id="show-inactive"
             type="checkbox"
             checked={showInactive}
             onChange={(e) => setShowInactive(e.target.checked)}
-            className="accent-sh-blue w-4 h-4"
+            className="accent-brand-blue w-4 h-4"
           />
           Show inactive staff
         </label>
-        <span className="text-sm text-sh-gray">
+        <span className="text-sm text-brand-gray">
           {displayedStaff.length} staff member{displayedStaff.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -838,14 +848,14 @@ export function StaffView() {
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-sh-blue mr-3" />
-          <span className="text-sh-gray">Loading staff...</span>
+          <Loader2 className="w-6 h-6 animate-spin text-brand-blue mr-3" />
+          <span className="text-brand-gray">Loading staff...</span>
         </div>
       )}
 
       {/* Empty state */}
       {!loading && displayedStaff.length === 0 && (
-        <div className="text-center py-16 text-sh-gray">
+        <div className="text-center py-16 text-brand-gray">
           <p>No staff members found.</p>
           <p className="text-sm mt-2">
             Click &ldquo;Seed Staff&rdquo; to populate from company data, or add staff manually.

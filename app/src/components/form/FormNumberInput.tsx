@@ -19,7 +19,7 @@ export default function FormNumberInput({
 }: FormNumberInputProps) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={name} className="font-serif text-sh-black">
+      <label htmlFor={name} className="font-serif text-brand-black">
         {label}
       </label>
       <input

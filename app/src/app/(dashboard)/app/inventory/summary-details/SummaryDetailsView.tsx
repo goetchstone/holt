@@ -124,14 +124,14 @@ export function SummaryDetailsView() {
     <div className="max-w-6xl mx-auto mt-8 font-serif">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue">Inventory Details</h1>
-          <p className="text-sh-gray">
+          <h1 className="text-2xl font-semibold text-brand-blue">Inventory Details</h1>
+          <p className="text-brand-gray">
             Showing all items for {groupType}: {groupName}
           </p>
         </div>
         <Link
           href="/app/inventory/hub"
-          className="flex items-center gap-2 text-sh-blue hover:underline"
+          className="flex items-center gap-2 text-brand-blue hover:underline"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Inventory Hub
@@ -141,14 +141,14 @@ export function SummaryDetailsView() {
       {loading ? (
         <p>Loading details...</p>
       ) : (
-        <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+        <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
           <table className="min-w-full text-left text-sm whitespace-nowrap table-fixed w-full">
-            <thead className="bg-sh-linen text-sh-black">
+            <thead className="bg-brand-linen text-brand-black">
               <tr>
                 {HEADERS.map(({ key, label, isNumeric, width }) => (
                   <th
                     key={key}
-                    className={`p-2 border-b border-sh-gray ${isNumeric ? "text-right" : ""}`}
+                    className={`p-2 border-b border-brand-gray ${isNumeric ? "text-right" : ""}`}
                     style={{ width }}
                   >
                     <button
@@ -164,9 +164,9 @@ export function SummaryDetailsView() {
             </thead>
             <tbody>
               {sortedData.map((item) => (
-                <tr key={item.productId} className="odd:bg-white even:bg-sh-stripe">
+                <tr key={item.productId} className="odd:bg-white even:bg-brand-stripe">
                   <td
-                    className="p-2 border-b border-sh-gray font-semibold"
+                    className="p-2 border-b border-brand-gray font-semibold"
                     style={{ width: "250px" }}
                   >
                     {item.externalId == null ? (
@@ -176,7 +176,7 @@ export function SummaryDetailsView() {
                     ) : (
                       <Link
                         href={`/app/inventory/product-variance/${item.externalId}?location=${groupName}`}
-                        className="hover:underline text-sh-blue"
+                        className="hover:underline text-brand-blue"
                       >
                         <div className="truncate" title={item.name}>
                           {item.name}
@@ -184,29 +184,41 @@ export function SummaryDetailsView() {
                       </Link>
                     )}
                   </td>
-                  <td className="p-2 border-b border-sh-gray" style={{ width: "120px" }}>
+                  <td className="p-2 border-b border-brand-gray" style={{ width: "120px" }}>
                     {item.productNumber}
                   </td>
-                  <td className="p-2 border-b border-sh-gray text-right" style={{ width: "100px" }}>
+                  <td
+                    className="p-2 border-b border-brand-gray text-right"
+                    style={{ width: "100px" }}
+                  >
                     {item.expectedQty.toLocaleString()}
                   </td>
-                  <td className="p-2 border-b border-sh-gray text-right" style={{ width: "100px" }}>
+                  <td
+                    className="p-2 border-b border-brand-gray text-right"
+                    style={{ width: "100px" }}
+                  >
                     {item.countedQty.toLocaleString()}
                   </td>
                   <td
-                    className={`p-2 border-b border-sh-gray text-right font-bold ${varianceClass(item.varianceQty)}`}
+                    className={`p-2 border-b border-brand-gray text-right font-bold ${varianceClass(item.varianceQty)}`}
                     style={{ width: "100px" }}
                   >
                     {item.varianceQty.toLocaleString()}
                   </td>
-                  <td className="p-2 border-b border-sh-gray text-right" style={{ width: "150px" }}>
+                  <td
+                    className="p-2 border-b border-brand-gray text-right"
+                    style={{ width: "150px" }}
+                  >
                     {fmt(item.expectedCost)}
                   </td>
-                  <td className="p-2 border-b border-sh-gray text-right" style={{ width: "150px" }}>
+                  <td
+                    className="p-2 border-b border-brand-gray text-right"
+                    style={{ width: "150px" }}
+                  >
                     {fmt(item.countedCost)}
                   </td>
                   <td
-                    className={`p-2 border-b border-sh-gray text-right font-bold ${varianceClass(item.varianceCost)}`}
+                    className={`p-2 border-b border-brand-gray text-right font-bold ${varianceClass(item.varianceCost)}`}
                     style={{ width: "150px" }}
                   >
                     {fmt(item.varianceCost)}

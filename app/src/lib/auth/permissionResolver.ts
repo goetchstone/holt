@@ -171,7 +171,7 @@ export interface PermissionAccessInput {
   userId: string;
   /** Capability required, e.g. "payment.refund". */
   permission: string;
-  /** Value of the sh-impersonate cookie, or null. */
+  /** Value of the holt-impersonate cookie, or null. */
   impersonate: string | null;
   /** Injectable for tests. Defaults to the shared client. */
   prisma?: PrismaClient;

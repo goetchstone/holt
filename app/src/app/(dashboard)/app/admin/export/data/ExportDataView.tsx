@@ -42,24 +42,27 @@ export function ExportDataView() {
 
   return (
     <div className="mx-auto max-w-screen-lg px-4 py-6 font-serif">
-      <h1 className="mb-2 text-2xl font-semibold text-sh-navy">Export Data</h1>
-      <p className="mb-6 max-w-2xl text-sm text-sh-gray">
+      <h1 className="mb-2 text-2xl font-semibold text-brand-navy">Export Data</h1>
+      <p className="mb-6 max-w-2xl text-sm text-brand-gray">
         Download your records as CSV. Your data is always yours &mdash; export it any time, with no
         support ticket required. Files open directly in Excel, Numbers, or Google Sheets. Sign-in
         credentials are never included.
       </p>
 
       {/* Accounting: date-range General Journal for QuickBooks / accountant */}
-      <section className="mb-8 rounded-lg border border-sh-gray/20 bg-white p-5">
-        <h2 className="font-semibold text-sh-navy">General Journal (QuickBooks)</h2>
-        <p className="mb-4 mt-1 text-xs text-sh-gray">
+      <section className="mb-8 rounded-lg border border-brand-gray/20 bg-white p-5">
+        <h2 className="font-semibold text-brand-navy">General Journal (QuickBooks)</h2>
+        <p className="mb-4 mt-1 text-xs text-brand-gray">
           Export every journal entry in a date range as a General Journal CSV. Imports into
           QuickBooks (Desktop General Journal, or QuickBooks Online via SaasAnt / Transaction Pro),
           Xero, and Sage.
         </p>
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="journal-from" className="mb-1 block text-xs font-medium text-sh-navy">
+            <label
+              htmlFor="journal-from"
+              className="mb-1 block text-xs font-medium text-brand-navy"
+            >
               From
             </label>
             <input
@@ -67,11 +70,11 @@ export function ExportDataView() {
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="min-h-[44px] rounded border border-sh-gray/30 px-3 py-2 text-sh-black focus:border-sh-navy focus:outline-none"
+              className="min-h-[44px] rounded border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
             />
           </div>
           <div>
-            <label htmlFor="journal-to" className="mb-1 block text-xs font-medium text-sh-navy">
+            <label htmlFor="journal-to" className="mb-1 block text-xs font-medium text-brand-navy">
               To
             </label>
             <input
@@ -79,23 +82,23 @@ export function ExportDataView() {
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="min-h-[44px] rounded border border-sh-gray/30 px-3 py-2 text-sh-black focus:border-sh-navy focus:outline-none"
+              className="min-h-[44px] rounded border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
             />
           </div>
           <ExportJournalButton href={journalHref} disabled={!rangeValid} />
         </div>
       </section>
 
-      <h2 className="mb-3 font-semibold text-sh-navy">Records</h2>
+      <h2 className="mb-3 font-semibold text-brand-navy">Records</h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {EXPORT_ENTITIES.map((entity) => (
           <div
             key={entity.key}
-            className="flex items-center justify-between gap-4 rounded-lg border border-sh-gray/20 bg-white p-4"
+            className="flex items-center justify-between gap-4 rounded-lg border border-brand-gray/20 bg-white p-4"
           >
             <div className="min-w-0">
-              <h3 className="font-semibold text-sh-navy">{entity.label}</h3>
-              <p className="text-xs text-sh-gray">{entity.description}</p>
+              <h3 className="font-semibold text-brand-navy">{entity.label}</h3>
+              <p className="text-xs text-brand-gray">{entity.description}</p>
             </div>
             <a href={`/api/admin/export/${entity.key}`} download className="shrink-0">
               <Button variant="secondary" type="button">

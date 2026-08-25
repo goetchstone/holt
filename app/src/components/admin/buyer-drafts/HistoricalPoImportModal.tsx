@@ -232,22 +232,22 @@ export function HistoricalPoImportModal({
       <DialogBackdrop className="fixed inset-0 bg-black/50" />
       <div className="fixed inset-0 flex items-start justify-center overflow-y-auto p-4 pt-12">
         <DialogPanel className="w-full max-w-3xl rounded bg-white shadow-xl">
-          <div className="flex items-center justify-between border-b border-sh-stripe px-5 py-4">
-            <DialogTitle className="text-lg font-semibold text-sh-navy">
+          <div className="flex items-center justify-between border-b border-brand-stripe px-5 py-4">
+            <DialogTitle className="text-lg font-semibold text-brand-navy">
               Import historical PO into {buyName ?? "buy"}
             </DialogTitle>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-sh-gray hover:text-sh-navy"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-brand-gray hover:text-brand-navy"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           <div className="p-5 space-y-4">
-            <p className="text-sm text-sh-gray">
+            <p className="text-sm text-brand-gray">
               Search for a real PurchaseOrder by PON or vendor name, then click Import to add its
               line items to this buy as draft items linked to the catalog. Useful for testing
               sell-through, dead stock, and budget reports against past buys without re-typing
@@ -255,11 +255,11 @@ export function HistoricalPoImportModal({
             </p>
 
             {siblings.length > 0 && lastImportedPoNumber && (
-              <div className="border border-sh-gold/40 bg-sh-gold/10 rounded p-3 space-y-2">
-                <div className="text-sm font-semibold text-sh-navy">
+              <div className="border border-brand-gold/40 bg-brand-gold/10 rounded p-3 space-y-2">
+                <div className="text-sm font-semibold text-brand-navy">
                   Likely sibling POs of PON {lastImportedPoNumber}
                 </div>
-                <p className="text-xs text-sh-gray">
+                <p className="text-xs text-brand-gray">
                   the POS splits a PO into a new PON when a partial-receive cancels the remainder.
                   These candidates share items with what you just imported — same vendor, within 90
                   days. Import each to stitch the chain back together.
@@ -268,11 +268,11 @@ export function HistoricalPoImportModal({
                   {siblings.map((s) => (
                     <li
                       key={s.id}
-                      className="flex items-center justify-between bg-white border border-sh-stripe rounded px-3 py-2 text-sm"
+                      className="flex items-center justify-between bg-white border border-brand-stripe rounded px-3 py-2 text-sm"
                     >
                       <div className="flex items-baseline gap-2 min-w-0">
-                        <span className="font-mono text-sh-navy">{s.poNumber}</span>
-                        <span className="text-xs text-sh-gray truncate">
+                        <span className="font-mono text-brand-navy">{s.poNumber}</span>
+                        <span className="text-xs text-brand-gray truncate">
                           {s.vendor.name} · {s.orderDate.slice(0, 10)} · {s.lineCount} lines ·{" "}
                           {s.overlapCount} overlap
                           {s.fullyContainedBySource ? " · fully contained" : ""}
@@ -282,7 +282,7 @@ export function HistoricalPoImportModal({
                         type="button"
                         onClick={() => handleImportSibling(s)}
                         disabled={importingId === s.id}
-                        className="px-3 py-1 bg-sh-blue text-white rounded text-xs disabled:bg-sh-gray min-h-[36px]"
+                        className="px-3 py-1 bg-brand-blue text-white rounded text-xs disabled:bg-brand-gray min-h-[36px]"
                       >
                         {importingId === s.id ? "Importing…" : "Import"}
                       </button>
@@ -295,7 +295,7 @@ export function HistoricalPoImportModal({
             <form onSubmit={handleSearch} className="space-y-3">
               <div className="flex gap-2">
                 <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sh-gray" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-gray" />
                   <label htmlFor="historical-po-q" className="sr-only">
                     Search PON or vendor
                   </label>
@@ -305,20 +305,20 @@ export function HistoricalPoImportModal({
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="PON12345 or vendor name (2+ chars)"
-                    className="w-full pl-10 pr-3 py-2 border border-sh-stripe rounded"
+                    className="w-full pl-10 pr-3 py-2 border border-brand-stripe rounded"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={!canSearch || searching}
-                  className="px-4 py-2 bg-sh-navy text-white rounded disabled:bg-sh-gray disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-brand-navy text-white rounded disabled:bg-brand-gray disabled:cursor-not-allowed"
                 >
                   {searching ? "Searching…" : "Search"}
                 </button>
               </div>
               <div className="flex gap-3 text-sm">
                 <div className="flex-1">
-                  <label htmlFor="historical-po-start" className="block text-xs text-sh-gray">
+                  <label htmlFor="historical-po-start" className="block text-xs text-brand-gray">
                     Order date from
                   </label>
                   <input
@@ -326,11 +326,11 @@ export function HistoricalPoImportModal({
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-2 py-1 border border-sh-stripe rounded"
+                    className="w-full px-2 py-1 border border-brand-stripe rounded"
                   />
                 </div>
                 <div className="flex-1">
-                  <label htmlFor="historical-po-end" className="block text-xs text-sh-gray">
+                  <label htmlFor="historical-po-end" className="block text-xs text-brand-gray">
                     To
                   </label>
                   <input
@@ -338,20 +338,20 @@ export function HistoricalPoImportModal({
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-2 py-1 border border-sh-stripe rounded"
+                    className="w-full px-2 py-1 border border-brand-stripe rounded"
                   />
                 </div>
               </div>
             </form>
 
-            <div className="border border-sh-stripe rounded max-h-[50vh] overflow-y-auto">
+            <div className="border border-brand-stripe rounded max-h-[50vh] overflow-y-auto">
               {results.length === 0 ? (
-                <div className="p-6 text-center text-sm text-sh-gray">
+                <div className="p-6 text-center text-sm text-brand-gray">
                   {searching ? "Searching…" : "Enter a search and click Search."}
                 </div>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="bg-sh-stripe/40 text-xs uppercase tracking-wide text-sh-gray">
+                  <thead className="bg-brand-stripe/40 text-xs uppercase tracking-wide text-brand-gray">
                     <tr>
                       <th className="text-left px-3 py-2">PON</th>
                       <th className="text-left px-3 py-2">Vendor</th>
@@ -365,15 +365,15 @@ export function HistoricalPoImportModal({
                     {results.map((po) => {
                       const isAlready = po.alreadyImported !== null;
                       return (
-                        <tr key={po.id} className="border-t border-sh-stripe">
-                          <td className="px-3 py-2 font-mono text-sh-navy">{po.poNumber}</td>
+                        <tr key={po.id} className="border-t border-brand-stripe">
+                          <td className="px-3 py-2 font-mono text-brand-navy">{po.poNumber}</td>
                           <td className="px-3 py-2">{po.vendor.name}</td>
                           <td className="px-3 py-2">{po.orderDate.slice(0, 10)}</td>
                           <td className="px-3 py-2 text-right">{po.lineCount}</td>
-                          <td className="px-3 py-2 text-xs text-sh-gray">{po.status}</td>
+                          <td className="px-3 py-2 text-xs text-brand-gray">{po.status}</td>
                           <td className="px-3 py-2 text-right">
                             {isAlready ? (
-                              <span className="text-xs text-sh-gray italic">
+                              <span className="text-xs text-brand-gray italic">
                                 In {po.alreadyImported?.buyName ?? "another buy"}
                               </span>
                             ) : (
@@ -381,7 +381,7 @@ export function HistoricalPoImportModal({
                                 type="button"
                                 onClick={() => handleImport(po)}
                                 disabled={importingId === po.id}
-                                className="px-3 py-1 bg-sh-blue text-white rounded text-xs disabled:bg-sh-gray min-h-[36px]"
+                                className="px-3 py-1 bg-brand-blue text-white rounded text-xs disabled:bg-brand-gray min-h-[36px]"
                               >
                                 {importingId === po.id ? "Importing…" : "Import"}
                               </button>
@@ -395,7 +395,7 @@ export function HistoricalPoImportModal({
               )}
             </div>
             {capped && (
-              <div className="text-xs text-sh-gray">
+              <div className="text-xs text-brand-gray">
                 Showing first 50 matches. Refine the search if your PO isn&apos;t here.
               </div>
             )}

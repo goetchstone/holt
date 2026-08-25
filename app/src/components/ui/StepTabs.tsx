@@ -60,7 +60,10 @@ export default function StepTabs({
     <StepTabsContext.Provider value={{ activeTab }}>
       <div className="flex flex-col h-full">
         {/* Tab bar */}
-        <div role="tablist" className="flex border-b border-sh-gray/20 bg-white sticky top-0 z-10">
+        <div
+          role="tablist"
+          className="flex border-b border-brand-gray/20 bg-white sticky top-0 z-10"
+        >
           {tabs.map((tab) => {
             const isActive = tab.id === activeTab;
             const isDisabled = tab.disabled ?? false;
@@ -81,21 +84,25 @@ export default function StepTabs({
                   ${
                     isDisabled
                       ? "opacity-40 cursor-not-allowed"
-                      : "cursor-pointer hover:bg-sh-linen/50"
+                      : "cursor-pointer hover:bg-brand-linen/50"
                   }
                   ${
-                    isActive ? "border-b-[3px] border-sh-blue" : "border-b-[3px] border-transparent"
+                    isActive
+                      ? "border-b-[3px] border-brand-blue"
+                      : "border-b-[3px] border-transparent"
                   }
                 `}
               >
                 {/* Icon + completion dot row */}
                 <div className="flex items-center gap-1.5">
                   {tab.icon && (
-                    <span className={isActive ? "text-sh-blue" : "text-sh-gray"}>{tab.icon}</span>
+                    <span className={isActive ? "text-brand-blue" : "text-brand-gray"}>
+                      {tab.icon}
+                    </span>
                   )}
                   <span
                     className={`text-sm font-semibold ${
-                      isActive ? "text-sh-blue" : "text-sh-gray"
+                      isActive ? "text-brand-blue" : "text-brand-gray"
                     }`}
                   >
                     {tab.label}
@@ -109,7 +116,7 @@ export default function StepTabs({
 
                 {/* Subtitle */}
                 {tab.subtitle && (
-                  <span className="text-[11px] text-sh-gray truncate max-w-full mt-0.5 leading-tight">
+                  <span className="text-[11px] text-brand-gray truncate max-w-full mt-0.5 leading-tight">
                     {tab.subtitle}
                   </span>
                 )}
@@ -123,7 +130,7 @@ export default function StepTabs({
 
         {/* Optional bottom bar */}
         {bottomBar && (
-          <div className="sticky bottom-0 bg-white border-t border-sh-gray/20 px-4 py-3">
+          <div className="sticky bottom-0 bg-white border-t border-brand-gray/20 px-4 py-3">
             {bottomBar}
           </div>
         )}

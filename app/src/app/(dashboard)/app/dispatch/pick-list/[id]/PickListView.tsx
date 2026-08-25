@@ -106,13 +106,13 @@ export function PickListView({ id }: { id: string }) {
   }
 
   if (loading) {
-    return <div className="text-center py-12 text-sh-gray">Loading...</div>;
+    return <div className="text-center py-12 text-brand-gray">Loading...</div>;
   }
 
   if (!pickList) {
     return (
       <div className="text-center py-12">
-        <p className="text-sh-gray mb-4">Pick list not found</p>
+        <p className="text-brand-gray mb-4">Pick list not found</p>
         <Link href="/app/dispatch">
           <Button variant="outline">Back to Dispatch</Button>
         </Link>
@@ -134,42 +134,44 @@ export function PickListView({ id }: { id: string }) {
       <div className="mb-4 no-print">
         <Link
           href="/app/dispatch"
-          className="text-sm text-sh-blue hover:underline min-h-[44px] inline-flex items-center"
+          className="text-sm text-brand-blue hover:underline min-h-[44px] inline-flex items-center"
         >
           Back to Dispatch
         </Link>
       </div>
 
       {/* Header */}
-      <div className="bg-white border border-sh-gray/10 rounded-lg p-4 mb-6">
+      <div className="bg-white border border-brand-gray/10 rounded-lg p-4 mb-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <div>
-            <h1 className="font-serif text-xl text-sh-navy">{pickList.pickListNumber}</h1>
+            <h1 className="font-serif text-xl text-brand-navy">{pickList.pickListNumber}</h1>
             {pickList.assignedTo && (
-              <p className="text-sm text-sh-gray">Assigned to {pickList.assignedTo.displayName}</p>
+              <p className="text-sm text-brand-gray">
+                Assigned to {pickList.assignedTo.displayName}
+              </p>
             )}
           </div>
           <div className="flex items-center gap-3">
             <StatusBadge status={pickList.status} />
             <button
               onClick={() => globalThis.print()}
-              className="no-print p-3 rounded-lg border border-sh-gray/20 hover:bg-sh-linen transition min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="no-print p-3 rounded-lg border border-brand-gray/20 hover:bg-brand-linen transition min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="Print pick list"
             >
-              <Printer className="w-5 h-5 text-sh-navy" />
+              <Printer className="w-5 h-5 text-brand-navy" />
             </button>
           </div>
         </div>
 
         {/* Progress bar */}
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-3 bg-sh-stripe rounded-full overflow-hidden">
+          <div className="flex-1 h-3 bg-brand-stripe rounded-full overflow-hidden">
             <div
-              className="h-full bg-sh-gold rounded-full transition-all"
+              className="h-full bg-brand-gold rounded-full transition-all"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <span className="text-sm font-semibold text-sh-navy whitespace-nowrap">
+          <span className="text-sm font-semibold text-brand-navy whitespace-nowrap">
             {pickedCount} of {totalItems} picked
           </span>
         </div>
@@ -179,38 +181,42 @@ export function PickListView({ id }: { id: string }) {
       <div className="space-y-6">
         {grouped.map((group) => (
           <div key={group.locationName}>
-            <h2 className="font-serif text-base text-sh-navy mb-2 uppercase tracking-wide">
+            <h2 className="font-serif text-base text-brand-navy mb-2 uppercase tracking-wide">
               {group.locationName}
             </h2>
 
-            <div className="bg-white border border-sh-gray/10 rounded-lg divide-y divide-sh-gray/10">
+            <div className="bg-white border border-brand-gray/10 rounded-lg divide-y divide-brand-gray/10">
               {group.items.map((item) => (
                 <div
                   key={item.id}
-                  className={`flex items-start gap-3 p-4 ${item.picked ? "bg-sh-stripe/50" : ""}`}
+                  className={`flex items-start gap-3 p-4 ${item.picked ? "bg-brand-stripe/50" : ""}`}
                 >
                   <label className="flex items-center justify-center min-w-[44px] min-h-[44px] cursor-pointer">
                     <input
                       type="checkbox"
                       checked={item.picked}
                       onChange={() => toggleItemPicked(item.id, !item.picked)}
-                      className="w-6 h-6 rounded border-sh-gray/30 text-sh-blue focus:ring-sh-blue cursor-pointer"
+                      className="w-6 h-6 rounded border-brand-gray/30 text-brand-blue focus:ring-brand-blue cursor-pointer"
                     />
                   </label>
 
                   <div className="flex-1">
-                    <div className={item.picked ? "line-through text-sh-gray" : "text-sh-navy"}>
+                    <div
+                      className={item.picked ? "line-through text-brand-gray" : "text-brand-navy"}
+                    >
                       <span className="font-semibold text-sm">{item.product.name}</span>
                       {item.product.productNumber && (
-                        <span className="text-sh-gray text-xs ml-2">
+                        <span className="text-brand-gray text-xs ml-2">
                           {item.product.productNumber}
                         </span>
                       )}
                     </div>
 
-                    <div className="text-xs text-sh-gray mt-0.5">Qty: {item.quantity}</div>
+                    <div className="text-xs text-brand-gray mt-0.5">Qty: {item.quantity}</div>
 
-                    {item.notes && <div className="text-xs text-sh-gray mt-0.5">{item.notes}</div>}
+                    {item.notes && (
+                      <div className="text-xs text-brand-gray mt-0.5">{item.notes}</div>
+                    )}
 
                     {item.picked && item.pickedAt && (
                       <div className="text-xs text-green-600 mt-0.5">
@@ -226,7 +232,7 @@ export function PickListView({ id }: { id: string }) {
       </div>
 
       {totalItems === 0 && (
-        <div className="bg-white border border-sh-gray/10 rounded-lg p-6 text-center text-sh-gray text-sm">
+        <div className="bg-white border border-brand-gray/10 rounded-lg p-6 text-center text-brand-gray text-sm">
           No items on this pick list
         </div>
       )}
@@ -255,14 +261,14 @@ function groupByLocation(items: PickListItemData[]) {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    CREATED: "bg-sh-linen text-sh-gray",
-    IN_PROGRESS: "bg-sh-blue/10 text-sh-blue",
+    CREATED: "bg-brand-linen text-brand-gray",
+    IN_PROGRESS: "bg-brand-blue/10 text-brand-blue",
     COMPLETED: "bg-green-50 text-green-700",
   };
 
   return (
     <span
-      className={`text-xs px-2 py-1 rounded-full ${colors[status] || "bg-sh-linen text-sh-gray"}`}
+      className={`text-xs px-2 py-1 rounded-full ${colors[status] || "bg-brand-linen text-brand-gray"}`}
     >
       {status.replace("_", " ")}
     </span>

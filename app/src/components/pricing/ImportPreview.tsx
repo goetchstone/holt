@@ -136,7 +136,7 @@ function isFabricRow(p: any): p is FabricRow {
 export default function ImportPreview({ products, importType, kbData }: Props) {
   if (products.length === 0) {
     return (
-      <div className="text-center py-8 text-sh-gray">
+      <div className="text-center py-8 text-brand-gray">
         No products parsed. Try a different file or check the format.
       </div>
     );
@@ -229,21 +229,21 @@ function GradePreview({ products }: { products: ParsedWholesaleProduct[] }) {
     <div className="space-y-4">
       {/* Summary */}
       <div className="flex gap-4">
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{products.length}</span> products
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{products.length}</span> products
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{sortedGrades.length}</span> grade tiers
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{sortedGrades.length}</span> grade tiers
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">
             {products.reduce((sum, p) => sum + p.gradePrices.length, 0)}
           </span>{" "}
           price points
         </div>
         {hasDimensions && (
-          <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-            <span className="font-semibold text-sh-blue">
+          <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+            <span className="font-semibold text-brand-blue">
               {products.filter((p) => p.overallWidth || p.overallDepth || p.overallHeight).length}
             </span>{" "}
             with dimensions
@@ -252,25 +252,30 @@ function GradePreview({ products }: { products: ParsedWholesaleProduct[] }) {
       </div>
 
       {/* Preview table */}
-      <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+      <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
-              <tr className="bg-sh-linen">
-                <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[80px]">
+              <tr className="bg-brand-linen">
+                <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[80px]">
                   Style #
                 </th>
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[120px]">Description</th>
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[120px]">Name</th>
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[120px]">Description</th>
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[120px]">Name</th>
                 {sortedGrades.map((g) => (
-                  <th key={g} className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                  <th
+                    key={g}
+                    className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]"
+                  >
                     {g === "COM" ? "COM" : g === "COL" ? "COL" : `Gr ${g}`}
                   </th>
                 ))}
-                <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[60px]">Riser</th>
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[100px]">Seat</th>
+                <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[60px]">
+                  Riser
+                </th>
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[100px]">Seat</th>
                 {hasDimensions && (
-                  <th className="px-3 py-2 border-b border-sh-gray min-w-[140px]">Dimensions</th>
+                  <th className="px-3 py-2 border-b border-brand-gray min-w-[140px]">Dimensions</th>
                 )}
               </tr>
             </thead>
@@ -278,28 +283,31 @@ function GradePreview({ products }: { products: ParsedWholesaleProduct[] }) {
               {products.slice(0, 50).map((p, idx) => {
                 const gradeMap = new Map(p.gradePrices.map((gp) => [gp.grade, gp.cost]));
                 return (
-                  <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                    <td className="px-3 py-2 border-b border-sh-gray font-semibold sticky left-0 bg-inherit z-10">
+                  <tr
+                    key={idx}
+                    className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                  >
+                    <td className="px-3 py-2 border-b border-brand-gray font-semibold sticky left-0 bg-inherit z-10">
                       {p.styleNumber}
                     </td>
-                    <td className="px-3 py-2 border-b border-sh-gray">{p.description}</td>
-                    <td className="px-3 py-2 border-b border-sh-gray">{p.styleName}</td>
+                    <td className="px-3 py-2 border-b border-brand-gray">{p.description}</td>
+                    <td className="px-3 py-2 border-b border-brand-gray">{p.styleName}</td>
                     {sortedGrades.map((g) => (
                       <td
                         key={g}
-                        className="px-3 py-2 border-b border-sh-gray text-right tabular-nums"
+                        className="px-3 py-2 border-b border-brand-gray text-right tabular-nums"
                       >
                         {gradeMap.has(g) ? formatCurrency(gradeMap.get(g)!) : "—"}
                       </td>
                     ))}
-                    <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                    <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                       {p.gradeRiser ? `$${p.gradeRiser}` : "—"}
                     </td>
-                    <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                    <td className="px-3 py-2 border-b border-brand-gray text-xs">
                       {p.standardSeat || "—"}
                     </td>
                     {hasDimensions && (
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs tabular-nums">
                         {formatDims(p)}
                       </td>
                     )}
@@ -310,7 +318,7 @@ function GradePreview({ products }: { products: ParsedWholesaleProduct[] }) {
           </table>
         </div>
         {products.length > 50 && (
-          <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+          <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
             Showing first 50 of {products.length} products
           </div>
         )}
@@ -349,11 +357,11 @@ function FabricPreview({ fabrics }: { fabrics: FabricRow[] }) {
     <div className="space-y-4">
       {/* Summary */}
       <div className="flex flex-wrap gap-4">
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{fabrics.length}</span> unique fabrics
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{fabrics.length}</span> unique fabrics
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{uniqueGrades.size}</span> grades
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{uniqueGrades.size}</span> grades
         </div>
       </div>
 
@@ -362,37 +370,39 @@ function FabricPreview({ fabrics }: { fabrics: FabricRow[] }) {
         {gradeSummary.map(([grade, count]) => (
           <span
             key={grade}
-            className="inline-flex items-center gap-1 bg-white border border-sh-gray/30 rounded-full px-3 py-1 text-xs"
+            className="inline-flex items-center gap-1 bg-white border border-brand-gray/30 rounded-full px-3 py-1 text-xs"
           >
-            <span className="font-semibold text-sh-blue">
+            <span className="font-semibold text-brand-blue">
               {/^[A-Z]$/i.test(grade) ? `Leather ${grade}` : `Grade ${grade}`}
             </span>
-            <span className="text-sh-gray">({count})</span>
+            <span className="text-brand-gray">({count})</span>
           </span>
         ))}
       </div>
 
       {/* Preview table */}
-      <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+      <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
-              <tr className="bg-sh-linen">
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[200px]">Fabric Pattern</th>
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[150px]">Color</th>
-                <th className="px-3 py-2 border-b border-sh-gray text-center min-w-[80px]">
+              <tr className="bg-brand-linen">
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[200px]">
+                  Fabric Pattern
+                </th>
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[150px]">Color</th>
+                <th className="px-3 py-2 border-b border-brand-gray text-center min-w-[80px]">
                   Grade
                 </th>
               </tr>
             </thead>
             <tbody>
               {sorted.slice(0, 100).map((f, idx) => (
-                <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                  <td className="px-3 py-2 border-b border-sh-gray font-semibold">
+                <tr key={idx} className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10">
+                  <td className="px-3 py-2 border-b border-brand-gray font-semibold">
                     {f.fabricName}
                   </td>
-                  <td className="px-3 py-2 border-b border-sh-gray">{f.colorName || "—"}</td>
-                  <td className="px-3 py-2 border-b border-sh-gray text-center">
+                  <td className="px-3 py-2 border-b border-brand-gray">{f.colorName || "—"}</td>
+                  <td className="px-3 py-2 border-b border-brand-gray text-center">
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
                         /^[A-Z]$/i.test(f.grade)
@@ -409,7 +419,7 @@ function FabricPreview({ fabrics }: { fabrics: FabricRow[] }) {
           </table>
         </div>
         {sorted.length > 100 && (
-          <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+          <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
             Showing first 100 of {sorted.length} fabrics
           </div>
         )}
@@ -449,27 +459,29 @@ function GatCreekPreview({ products }: { products: ParsedGatCreekProduct[] }) {
     <div className="space-y-6">
       {/* Summary */}
       <div className="flex flex-wrap gap-4">
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{products.length}</span> products
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{products.length}</span> products
         </div>
         {speciesProducts.length > 0 && (
-          <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-            <span className="font-semibold text-sh-blue">{speciesProducts.length}</span> line items
+          <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+            <span className="font-semibold text-brand-blue">{speciesProducts.length}</span> line
+            items
           </div>
         )}
         {matrixProducts.length > 0 && (
-          <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-            <span className="font-semibold text-sh-blue">{matrixProducts.length}</span> custom
+          <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+            <span className="font-semibold text-brand-blue">{matrixProducts.length}</span> custom
             tables
           </div>
         )}
         {roundProducts.length > 0 && (
-          <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-            <span className="font-semibold text-sh-blue">{roundProducts.length}</span> round tables
+          <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+            <span className="font-semibold text-brand-blue">{roundProducts.length}</span> round
+            tables
           </div>
         )}
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">
             {speciesPricePoints + matrixPricePoints + roundPricePoints}
           </span>{" "}
           price points
@@ -479,63 +491,70 @@ function GatCreekPreview({ products }: { products: ParsedGatCreekProduct[] }) {
       {/* Species products table */}
       {speciesProducts.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Line Items ({speciesProducts.length})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[70px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[70px]">
                       SKU
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[180px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[80px]">Size</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[180px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[80px]">Size</th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Ash
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Cherry
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Maple
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Walnut
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Paint
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {speciesProducts.slice(0, 50).map((p, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray font-semibold sticky left-0 bg-inherit z-10">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray font-semibold sticky left-0 bg-inherit z-10">
                         {p.itemNumber}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{p.description}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{p.size || "—"}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray">{p.description}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {p.size || "—"}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {p.speciesPrices?.ash != null ? formatCurrency(p.speciesPrices.ash) : "—"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {p.speciesPrices?.cherry != null
                           ? formatCurrency(p.speciesPrices.cherry)
                           : "—"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {p.speciesPrices?.maple != null
                           ? formatCurrency(p.speciesPrices.maple)
                           : "—"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {p.speciesPrices?.walnut != null
                           ? formatCurrency(p.speciesPrices.walnut)
                           : "—"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {p.speciesPrices?.paint != null
                           ? formatCurrency(p.speciesPrices.paint)
                           : "—"}
@@ -546,7 +565,7 @@ function GatCreekPreview({ products }: { products: ParsedGatCreekProduct[] }) {
               </table>
             </div>
             {speciesProducts.length > 50 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 50 of {speciesProducts.length} line items
               </div>
             )}
@@ -557,26 +576,28 @@ function GatCreekPreview({ products }: { products: ParsedGatCreekProduct[] }) {
       {/* Matrix (custom table) products */}
       {matrixProducts.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Custom Shop Tables ({matrixProducts.length})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[80px]">Style</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[160px]">Variant</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[80px]">Style</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[160px]">Variant</th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Sizes
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Price Pts
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[100px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[100px]">
                       Price Range
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[100px]">Leaf Info</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[100px]">
+                      Leaf Info
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -588,23 +609,26 @@ function GatCreekPreview({ products }: { products: ParsedGatCreekProduct[] }) {
                       p.matrixPrices?.map((m) => `${m.width}×${m.length}`) || [],
                     );
                     return (
-                      <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                        <td className="px-3 py-2 border-b border-sh-gray font-semibold">
+                      <tr
+                        key={idx}
+                        className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                      >
+                        <td className="px-3 py-2 border-b border-brand-gray font-semibold">
                           {p.tableStyle}
                         </td>
-                        <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                        <td className="px-3 py-2 border-b border-brand-gray text-xs">
                           {p.tableVariant}
                         </td>
-                        <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                        <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                           {uniqueSizes.size}
                         </td>
-                        <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                        <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                           {prices.length}
                         </td>
-                        <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums text-xs">
+                        <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums text-xs">
                           {formatCurrency(min)} – {formatCurrency(max)}
                         </td>
-                        <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                        <td className="px-3 py-2 border-b border-brand-gray text-xs">
                           {p.leafInfo || "—"}
                         </td>
                       </tr>
@@ -620,23 +644,23 @@ function GatCreekPreview({ products }: { products: ParsedGatCreekProduct[] }) {
       {/* Round table products */}
       {roundProducts.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Round Tables ({roundProducts.length})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[80px]">Style</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[160px]">Variant</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[80px]">Style</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[160px]">Variant</th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Diameters
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Price Pts
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[100px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[100px]">
                       Price Range
                     </th>
                   </tr>
@@ -648,23 +672,26 @@ function GatCreekPreview({ products }: { products: ParsedGatCreekProduct[] }) {
                     const max = prices.length > 0 ? Math.max(...prices) : 0;
                     const diameters = new Set(p.roundPrices?.map((r) => r.diameter) || []);
                     return (
-                      <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                        <td className="px-3 py-2 border-b border-sh-gray font-semibold">
+                      <tr
+                        key={idx}
+                        className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                      >
+                        <td className="px-3 py-2 border-b border-brand-gray font-semibold">
                           {p.tableStyle}
                         </td>
-                        <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                        <td className="px-3 py-2 border-b border-brand-gray text-xs">
                           {p.tableVariant}
                         </td>
-                        <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                        <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                           {Array.from(diameters)
                             .sort((a, b) => a - b)
                             .map((d) => `${d}"`)
                             .join(", ")}
                         </td>
-                        <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                        <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                           {prices.length}
                         </td>
-                        <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums text-xs">
+                        <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums text-xs">
                           {formatCurrency(min)} – {formatCurrency(max)}
                         </td>
                       </tr>
@@ -700,75 +727,92 @@ function KBPreview({ kbData }: { kbData: KBData }) {
     <div className="space-y-6">
       {/* Summary */}
       <div className="flex flex-wrap gap-4">
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{frames.length}</span> frames
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{frames.length}</span> frames
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{currentCushions.length}</span> cushions
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{currentCushions.length}</span> cushions
           {discCushions.length > 0 && (
-            <span className="text-sh-gray ml-1">(+{discCushions.length} disc.)</span>
+            <span className="text-brand-gray ml-1">(+{discCushions.length} disc.)</span>
           )}
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{covers.length}</span> covers
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{covers.length}</span> covers
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{fabrics.length}</span> fabrics
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{fabrics.length}</span> fabrics
         </div>
       </div>
 
       {/* Frames */}
       {frames.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">Frames ({frames.length})</h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">Frames ({frames.length})</h3>
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[80px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[80px]">
                       Style #
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[140px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[100px]">Collection</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[140px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[100px]">
+                      Collection
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Frame
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[60px]">A</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[60px]">B</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[60px]">C</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[60px]">D</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[60px]">Cushion</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[100px]">Dims</th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[60px]">
+                      A
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[60px]">
+                      B
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[60px]">
+                      C
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[60px]">
+                      D
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[60px]">Cushion</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[100px]">Dims</th>
                   </tr>
                 </thead>
                 <tbody>
                   {frames.slice(0, 50).map((f, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray font-semibold sticky left-0 bg-inherit z-10">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray font-semibold sticky left-0 bg-inherit z-10">
                         {f.styleNumber}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{f.description}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{f.collection}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray">{f.description}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {f.collection}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {formatCurrency(f.framePrice)}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {f.combinedPrices.a != null ? formatCurrency(f.combinedPrices.a) : "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {f.combinedPrices.b != null ? formatCurrency(f.combinedPrices.b) : "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {f.combinedPrices.c != null ? formatCurrency(f.combinedPrices.c) : "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {f.combinedPrices.d != null ? formatCurrency(f.combinedPrices.d) : "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
                         {f.cushionRef || "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs tabular-nums">
                         {formatDims(f)}
                       </td>
                     </tr>
@@ -777,7 +821,7 @@ function KBPreview({ kbData }: { kbData: KBData }) {
               </table>
             </div>
             {frames.length > 50 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 50 of {frames.length} frames
               </div>
             )}
@@ -788,28 +832,38 @@ function KBPreview({ kbData }: { kbData: KBData }) {
       {/* Cushions */}
       {cushions.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Cushions ({currentCushions.length}
             {discCushions.length > 0 && ` + ${discCushions.length} discontinued`})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[70px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[70px]">
                       Code
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[140px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[80px]">Fits</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[60px]">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[140px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[80px]">Fits</th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[60px]">
                       QS
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[60px]">A</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[60px]">B</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[60px]">C</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[60px]">D</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[50px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[60px]">
+                      A
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[60px]">
+                      B
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[60px]">
+                      C
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[60px]">
+                      D
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[50px]">
                       COM
                     </th>
                   </tr>
@@ -818,34 +872,34 @@ function KBPreview({ kbData }: { kbData: KBData }) {
                   {cushions.slice(0, 50).map((c, idx) => (
                     <tr
                       key={idx}
-                      className={`hover:bg-sh-gray/10 ${c.isDiscontinued ? "text-sh-gray/60" : "odd:bg-white even:bg-sh-stripe"}`}
+                      className={`hover:bg-brand-gray/10 ${c.isDiscontinued ? "text-brand-gray/60" : "odd:bg-white even:bg-brand-stripe"}`}
                     >
-                      <td className="px-3 py-2 border-b border-sh-gray font-semibold sticky left-0 bg-inherit z-10">
+                      <td className="px-3 py-2 border-b border-brand-gray font-semibold sticky left-0 bg-inherit z-10">
                         {c.cushionCode}
                         {c.isDiscontinued && (
                           <span className="ml-1 text-xs font-normal text-amber-600">disc.</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{c.description}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                      <td className="px-3 py-2 border-b border-brand-gray">{c.description}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
                         {c.fitsFrames.join(", ") || "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {c.prices.qs != null ? formatCurrency(c.prices.qs) : "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {c.prices.a != null ? formatCurrency(c.prices.a) : "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {c.prices.b != null ? formatCurrency(c.prices.b) : "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {c.prices.c != null ? formatCurrency(c.prices.c) : "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {c.prices.d != null ? formatCurrency(c.prices.d) : "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {c.comYardage != null ? c.comYardage : "\u2014"}
                       </td>
                     </tr>
@@ -854,7 +908,7 @@ function KBPreview({ kbData }: { kbData: KBData }) {
               </table>
             </div>
             {cushions.length > 50 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 50 of {cushions.length} cushions
               </div>
             )}
@@ -865,31 +919,40 @@ function KBPreview({ kbData }: { kbData: KBData }) {
       {/* Covers */}
       {covers.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">Covers ({covers.length})</h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">Covers ({covers.length})</h3>
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[70px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[70px]">
                       Code
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[180px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[80px]">Fits Frame</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[180px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[80px]">
+                      Fits Frame
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Price
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {covers.slice(0, 50).map((cv, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray font-semibold sticky left-0 bg-inherit z-10">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray font-semibold sticky left-0 bg-inherit z-10">
                         {cv.coverCode}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{cv.description}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{cv.fitsFrame}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray">{cv.description}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {cv.fitsFrame}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {formatCurrency(cv.retailPrice)}
                       </td>
                     </tr>
@@ -898,7 +961,7 @@ function KBPreview({ kbData }: { kbData: KBData }) {
               </table>
             </div>
             {covers.length > 50 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 50 of {covers.length} covers
               </div>
             )}
@@ -909,33 +972,42 @@ function KBPreview({ kbData }: { kbData: KBData }) {
       {/* Fabrics */}
       {fabrics.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">Fabrics ({fabrics.length})</h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">Fabrics ({fabrics.length})</h3>
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[180px]">Name</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[80px]">Code</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-center min-w-[60px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[180px]">Name</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[80px]">Code</th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-center min-w-[60px]">
                       Grade
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[80px]">Welt</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[60px]">Restriction</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[80px]">Welt</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[60px]">
+                      Restriction
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {fabrics.slice(0, 50).map((fb, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray font-semibold">{fb.name}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{fb.code}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-center">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray font-semibold">
+                        {fb.name}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray">{fb.code}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-center">
                         <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">
                           {fb.grade}
                         </span>
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{fb.weltType}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {fb.weltType}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
                         {fb.restrictionCode || "\u2014"}
                       </td>
                     </tr>
@@ -944,7 +1016,7 @@ function KBPreview({ kbData }: { kbData: KBData }) {
               </table>
             </div>
             {fabrics.length > 50 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 50 of {fabrics.length} fabrics
               </div>
             )}
@@ -984,51 +1056,55 @@ function BJPreview({ bjData }: { bjData: BJData }) {
     <div className="space-y-6">
       {/* Summary */}
       <div className="flex flex-wrap gap-4">
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{seating.length}</span> seating
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{seating.length}</span> seating
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{tables.length}</span> tables
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{tables.length}</span> tables
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{fabrics.length}</span> fabrics
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{fabrics.length}</span> fabrics
         </div>
         {finishes.length > 0 && (
-          <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-            <span className="font-semibold text-sh-blue">{finishes.length}</span> finishes
+          <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+            <span className="font-semibold text-brand-blue">{finishes.length}</span> finishes
           </div>
         )}
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{collections.size}</span> collections
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{collections.size}</span> collections
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{sortedGrades.length}</span> grade tiers
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{sortedGrades.length}</span> grade tiers
         </div>
       </div>
 
       {/* Seating */}
       {seating.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">Seating ({seating.length})</h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">Seating ({seating.length})</h3>
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[90px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[90px]">
                       Style #
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[140px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[100px]">Collection</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[140px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[100px]">
+                      Collection
+                    </th>
                     {sortedGrades.map((g) => (
                       <th
                         key={g}
-                        className="px-3 py-2 border-b border-sh-gray text-right min-w-[70px]"
+                        className="px-3 py-2 border-b border-brand-gray text-right min-w-[70px]"
                       >
                         {g}
                       </th>
                     ))}
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[70px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[70px]">
                       COM
                     </th>
                   </tr>
@@ -1037,23 +1113,26 @@ function BJPreview({ bjData }: { bjData: BJData }) {
                   {seating.slice(0, 50).map((s, idx) => {
                     const gradeMap = new Map(s.gradePrices.map((gp) => [gp.grade, gp.retail]));
                     return (
-                      <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                        <td className="px-3 py-2 border-b border-sh-gray font-semibold sticky left-0 bg-inherit z-10">
+                      <tr
+                        key={idx}
+                        className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                      >
+                        <td className="px-3 py-2 border-b border-brand-gray font-semibold sticky left-0 bg-inherit z-10">
                           {s.styleNumber}
                         </td>
-                        <td className="px-3 py-2 border-b border-sh-gray">{s.description}</td>
-                        <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                        <td className="px-3 py-2 border-b border-brand-gray">{s.description}</td>
+                        <td className="px-3 py-2 border-b border-brand-gray text-xs">
                           {s.collection}
                         </td>
                         {sortedGrades.map((g) => (
                           <td
                             key={g}
-                            className="px-3 py-2 border-b border-sh-gray text-right tabular-nums"
+                            className="px-3 py-2 border-b border-brand-gray text-right tabular-nums"
                           >
                             {gradeMap.has(g) ? formatCurrency(gradeMap.get(g)!) : "\u2014"}
                           </td>
                         ))}
-                        <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                        <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                           {s.comRetail != null ? formatCurrency(s.comRetail) : "\u2014"}
                         </td>
                       </tr>
@@ -1063,7 +1142,7 @@ function BJPreview({ bjData }: { bjData: BJData }) {
               </table>
             </div>
             {seating.length > 50 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 50 of {seating.length} seating items
               </div>
             )}
@@ -1074,35 +1153,44 @@ function BJPreview({ bjData }: { bjData: BJData }) {
       {/* Tables */}
       {tables.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">Tables ({tables.length})</h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">Tables ({tables.length})</h3>
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[90px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[90px]">
                       Style #
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[140px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[100px]">Collection</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[140px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[100px]">
+                      Collection
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       MSRP
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[60px]">Top</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[60px]">Top</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tables.slice(0, 50).map((t, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray font-semibold sticky left-0 bg-inherit z-10">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray font-semibold sticky left-0 bg-inherit z-10">
                         {t.styleNumber}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{t.description}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{t.collection}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right tabular-nums">
+                      <td className="px-3 py-2 border-b border-brand-gray">{t.description}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {t.collection}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-right tabular-nums">
                         {formatCurrency(t.msrp)}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
                         {t.tableTop || "\u2014"}
                       </td>
                     </tr>
@@ -1111,7 +1199,7 @@ function BJPreview({ bjData }: { bjData: BJData }) {
               </table>
             </div>
             {tables.length > 50 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 50 of {tables.length} tables
               </div>
             )}
@@ -1122,53 +1210,58 @@ function BJPreview({ bjData }: { bjData: BJData }) {
       {/* Fabrics */}
       {fabrics.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">Fabrics ({fabrics.length})</h3>
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">Fabrics ({fabrics.length})</h3>
           <div className="flex flex-wrap gap-2 mb-3">
             {Array.from(fabricGradeMap.entries())
               .sort((a, b) => a[0].localeCompare(b[0]))
               .map(([grade, count]) => (
                 <span
                   key={grade}
-                  className="inline-flex items-center gap-1 bg-white border border-sh-gray/30 rounded-full px-3 py-1 text-xs"
+                  className="inline-flex items-center gap-1 bg-white border border-brand-gray/30 rounded-full px-3 py-1 text-xs"
                 >
-                  <span className="font-semibold text-sh-blue">Grade {grade}</span>
-                  <span className="text-sh-gray">({count})</span>
+                  <span className="font-semibold text-brand-blue">Grade {grade}</span>
+                  <span className="text-brand-gray">({count})</span>
                 </span>
               ))}
           </div>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[70px]">Fabric #</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[150px]">Name</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-center min-w-[60px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[70px]">Fabric #</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[150px]">Name</th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-center min-w-[60px]">
                       Grade
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[120px]">Type</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[120px]">Type</th>
                   </tr>
                 </thead>
                 <tbody>
                   {fabrics.slice(0, 50).map((f, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray font-semibold">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray font-semibold">
                         {f.fabricNumber}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{f.fabricName}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-center">
+                      <td className="px-3 py-2 border-b border-brand-gray">{f.fabricName}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-center">
                         <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">
                           {f.grade}
                         </span>
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{f.fabricType}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {f.fabricType}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             {fabrics.length > 50 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 50 of {fabrics.length} fabrics
               </div>
             )}
@@ -1179,23 +1272,28 @@ function BJPreview({ bjData }: { bjData: BJData }) {
       {/* Finishes */}
       {finishes.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">Finishes ({finishes.length})</h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
+            Finishes ({finishes.length})
+          </h3>
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[80px]">Code</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[200px]">Name</th>
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[80px]">Code</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[200px]">Name</th>
                   </tr>
                 </thead>
                 <tbody>
                   {finishes.map((f, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray font-semibold">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray font-semibold">
                         {f.finishCode || "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{f.finishName}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray">{f.finishName}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1222,46 +1320,55 @@ function JLPreview({ jlData }: { jlData: JLData }) {
     <div className="space-y-6">
       {/* Summary badges */}
       <div className="flex flex-wrap gap-4">
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{products.length}</span> products
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{products.length}</span> products
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{cushionedProducts.length}</span> cushioned
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{cushionedProducts.length}</span>{" "}
+          cushioned
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{frameOnlyProducts.length}</span> frame-only
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{frameOnlyProducts.length}</span>{" "}
+          frame-only
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{cushionOnlyProducts.length}</span>{" "}
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{cushionOnlyProducts.length}</span>{" "}
           cushion-only
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{collections.length}</span> collections
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{collections.length}</span> collections
         </div>
       </div>
 
       {/* Collections */}
       {collections.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Collections ({collections.length})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[150px]">Collection</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[200px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[150px]">
+                      Collection
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[200px]">
                       Material Type
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {collections.map((c, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray font-semibold">{c.name}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray font-semibold">
+                        {c.name}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
                         {c.materialType || "\u2014"}
                       </td>
                     </tr>
@@ -1276,26 +1383,30 @@ function JLPreview({ jlData }: { jlData: JLData }) {
       {/* Cushioned products */}
       {cushionedProducts.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Cushioned Products ({cushionedProducts.length})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[80px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[80px]">
                       Item #
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[200px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[120px]">Collection</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[200px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[120px]">
+                      Collection
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Frame
                     </th>
                     {GRADES.map((g) => (
                       <th
                         key={g}
-                        className="px-3 py-2 border-b border-sh-gray text-right min-w-[70px]"
+                        className="px-3 py-2 border-b border-brand-gray text-right min-w-[70px]"
                       >
                         {g}
                       </th>
@@ -1304,19 +1415,24 @@ function JLPreview({ jlData }: { jlData: JLData }) {
                 </thead>
                 <tbody>
                   {cushionedProducts.slice(0, 100).map((p, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-inherit font-semibold">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-inherit font-semibold">
                         {p.itemNumber}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{p.description}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{p.collection}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right">
+                      <td className="px-3 py-2 border-b border-brand-gray">{p.description}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {p.collection}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-right">
                         {p.framePrice ? formatCurrency(p.framePrice) : "\u2014"}
                       </td>
                       {GRADES.map((g) => {
                         const gp = p.gradePrices.find((gp) => gp.grade === g);
                         return (
-                          <td key={g} className="px-3 py-2 border-b border-sh-gray text-right">
+                          <td key={g} className="px-3 py-2 border-b border-brand-gray text-right">
                             {gp ? formatCurrency(gp.retail) : "\u2014"}
                           </td>
                         );
@@ -1327,7 +1443,7 @@ function JLPreview({ jlData }: { jlData: JLData }) {
               </table>
             </div>
             {cushionedProducts.length > 100 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 100 of {cushionedProducts.length} cushioned products
               </div>
             )}
@@ -1338,33 +1454,42 @@ function JLPreview({ jlData }: { jlData: JLData }) {
       {/* Frame-only products */}
       {frameOnlyProducts.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Frame-Only Products ({frameOnlyProducts.length})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[80px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[80px]">
                       Item #
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[250px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[120px]">Collection</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[250px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[120px]">
+                      Collection
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Retail
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {frameOnlyProducts.slice(0, 100).map((p, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-inherit font-semibold">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-inherit font-semibold">
                         {p.itemNumber}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{p.description}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{p.collection}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right">
+                      <td className="px-3 py-2 border-b border-brand-gray">{p.description}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {p.collection}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-right">
                         {p.framePrice ? formatCurrency(p.framePrice) : "\u2014"}
                       </td>
                     </tr>
@@ -1373,7 +1498,7 @@ function JLPreview({ jlData }: { jlData: JLData }) {
               </table>
             </div>
             {frameOnlyProducts.length > 100 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 100 of {frameOnlyProducts.length} frame-only products
               </div>
             )}
@@ -1384,49 +1509,58 @@ function JLPreview({ jlData }: { jlData: JLData }) {
       {/* Cushion-only products */}
       {cushionOnlyProducts.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Cushion-Only Products ({cushionOnlyProducts.length})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[80px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[80px]">
                       Item #
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[200px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[120px]">Collection</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[200px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[120px]">
+                      Collection
+                    </th>
                     {GRADES.map((g) => (
                       <th
                         key={g}
-                        className="px-3 py-2 border-b border-sh-gray text-right min-w-[70px]"
+                        className="px-3 py-2 border-b border-brand-gray text-right min-w-[70px]"
                       >
                         {g}
                       </th>
                     ))}
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[70px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[70px]">
                       COM Yds
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {cushionOnlyProducts.slice(0, 100).map((p, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-inherit font-semibold">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-inherit font-semibold">
                         {p.itemNumber}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{p.description}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{p.collection}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray">{p.description}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {p.collection}
+                      </td>
                       {GRADES.map((g) => {
                         const gp = p.gradePrices.find((gp) => gp.grade === g);
                         return (
-                          <td key={g} className="px-3 py-2 border-b border-sh-gray text-right">
+                          <td key={g} className="px-3 py-2 border-b border-brand-gray text-right">
                             {gp ? formatCurrency(gp.retail) : "\u2014"}
                           </td>
                         );
                       })}
-                      <td className="px-3 py-2 border-b border-sh-gray text-right">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right">
                         {p.comYardage ?? "\u2014"}
                       </td>
                     </tr>
@@ -1435,7 +1569,7 @@ function JLPreview({ jlData }: { jlData: JLData }) {
               </table>
             </div>
             {cushionOnlyProducts.length > 100 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 100 of {cushionOnlyProducts.length} cushion-only products
               </div>
             )}
@@ -1459,42 +1593,51 @@ function SCPreview({ scData }: { scData: SCData }) {
     <div className="space-y-6">
       {/* Summary badges */}
       <div className="flex flex-wrap gap-4">
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{products.length}</span> products
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{products.length}</span> products
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{cushionedProducts.length}</span> cushioned
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{cushionedProducts.length}</span>{" "}
+          cushioned
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{frameOnlyProducts.length}</span> frame-only
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{frameOnlyProducts.length}</span>{" "}
+          frame-only
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{collections.length}</span> collections
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{collections.length}</span> collections
         </div>
       </div>
 
       {/* Collections */}
       {collections.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Collections ({collections.length})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[150px]">Collection</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[250px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[150px]">
+                      Collection
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[250px]">
                       Available Finishes
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {collections.map((c, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray font-semibold">{c.name}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray font-semibold">
+                        {c.name}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
                         {c.availableFinishes}
                       </td>
                     </tr>
@@ -1509,30 +1652,34 @@ function SCPreview({ scData }: { scData: SCData }) {
       {/* Cushioned products */}
       {cushionedProducts.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Cushioned Products ({cushionedProducts.length})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[80px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[80px]">
                       Style #
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[80px]">Frame #</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[200px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[120px]">Collection</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[130px]">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[80px]">Frame #</th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[200px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[120px]">
+                      Collection
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[130px]">
                       Cushion Type
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Frame
                     </th>
                     {GRADES.map((g) => (
                       <th
                         key={g}
-                        className="px-3 py-2 border-b border-sh-gray text-right min-w-[70px]"
+                        className="px-3 py-2 border-b border-brand-gray text-right min-w-[70px]"
                       >
                         {g}
                       </th>
@@ -1541,23 +1688,28 @@ function SCPreview({ scData }: { scData: SCData }) {
                 </thead>
                 <tbody>
                   {cushionedProducts.slice(0, 100).map((p, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-inherit font-semibold">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-inherit font-semibold">
                         {p.styleNumber}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{p.frameNumber}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{p.description}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{p.collection}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                      <td className="px-3 py-2 border-b border-brand-gray">{p.frameNumber}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray">{p.description}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {p.collection}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
                         {p.cushionType || "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right">
                         {formatCurrency(p.framePrice)}
                       </td>
                       {GRADES.map((g) => {
                         const gp = p.gradePrices.find((gp) => gp.grade === g);
                         return (
-                          <td key={g} className="px-3 py-2 border-b border-sh-gray text-right">
+                          <td key={g} className="px-3 py-2 border-b border-brand-gray text-right">
                             {gp ? formatCurrency(gp.cost) : "\u2014"}
                           </td>
                         );
@@ -1568,7 +1720,7 @@ function SCPreview({ scData }: { scData: SCData }) {
               </table>
             </div>
             {cushionedProducts.length > 100 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 100 of {cushionedProducts.length} cushioned products
               </div>
             )}
@@ -1579,37 +1731,48 @@ function SCPreview({ scData }: { scData: SCData }) {
       {/* Frame-only products */}
       {frameOnlyProducts.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-sh-blue mb-2">
+          <h3 className="text-sm font-semibold text-brand-blue mb-2">
             Frame-Only Products ({frameOnlyProducts.length})
           </h3>
-          <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+          <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm border-collapse">
                 <thead>
-                  <tr className="bg-sh-linen">
-                    <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[100px]">
+                  <tr className="bg-brand-linen">
+                    <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[100px]">
                       Style #
                     </th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[250px]">Description</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[120px]">Collection</th>
-                    <th className="px-3 py-2 border-b border-sh-gray min-w-[160px]">Dimensions</th>
-                    <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]">
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[250px]">
+                      Description
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[120px]">
+                      Collection
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray min-w-[160px]">
+                      Dimensions
+                    </th>
+                    <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]">
                       Frame Price
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {frameOnlyProducts.slice(0, 100).map((p, idx) => (
-                    <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                      <td className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-inherit font-semibold">
+                    <tr
+                      key={idx}
+                      className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                    >
+                      <td className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-inherit font-semibold">
                         {p.styleNumber}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray">{p.description}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">{p.collection}</td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                      <td className="px-3 py-2 border-b border-brand-gray">{p.description}</td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                        {p.collection}
+                      </td>
+                      <td className="px-3 py-2 border-b border-brand-gray text-xs">
                         {p.dimensions || "\u2014"}
                       </td>
-                      <td className="px-3 py-2 border-b border-sh-gray text-right">
+                      <td className="px-3 py-2 border-b border-brand-gray text-right">
                         {formatCurrency(p.framePrice)}
                       </td>
                     </tr>
@@ -1618,7 +1781,7 @@ function SCPreview({ scData }: { scData: SCData }) {
               </table>
             </div>
             {frameOnlyProducts.length > 100 && (
-              <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+              <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
                 Showing first 100 of {frameOnlyProducts.length} frame-only products
               </div>
             )}
@@ -1686,60 +1849,70 @@ function ALPreview({ alData }: { alData: ALData }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4">
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{products.length}</span> products
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{products.length}</span> products
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{collections.length}</span> collections
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{collections.length}</span> collections
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
           {isRetail ? "Retail MRP" : "Wholesale"}
         </div>
         {detectedOptionTypes.length > 0 && (
-          <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
+          <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
             Options: {detectedOptionTypes.join(", ")}
           </div>
         )}
         {stdFeaturesCount > 0 && (
-          <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
+          <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
             Standard Features: {stdFeaturesCount} page{stdFeaturesCount !== 1 ? "s" : ""}
           </div>
         )}
       </div>
 
       {stdFeaturesPreview.length > 0 && (
-        <details className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
-          <summary className="px-4 py-2 bg-sh-linen text-sm font-medium cursor-pointer hover:bg-sh-gray/10">
+        <details className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
+          <summary className="px-4 py-2 bg-brand-linen text-sm font-medium cursor-pointer hover:bg-brand-gray/10">
             Standard Features Preview
           </summary>
           <div className="px-4 py-3 text-sm space-y-1">
             {pages
               ?.filter((pg) => pg.standardFeaturesText?.length > 0)
               .map((pg, i) => (
-                <div key={i} className="border-b border-sh-stripe last:border-b-0 pb-2 last:pb-0">
-                  <span className="font-semibold text-sh-blue">{pg.collectionName}</span>
-                  <span className="text-sh-gray ml-2 text-xs">{pg.programType}</span>
-                  <p className="text-sh-gray mt-1 whitespace-pre-line">{pg.standardFeaturesText}</p>
+                <div
+                  key={i}
+                  className="border-b border-brand-stripe last:border-b-0 pb-2 last:pb-0"
+                >
+                  <span className="font-semibold text-brand-blue">{pg.collectionName}</span>
+                  <span className="text-brand-gray ml-2 text-xs">{pg.programType}</span>
+                  <p className="text-brand-gray mt-1 whitespace-pre-line">
+                    {pg.standardFeaturesText}
+                  </p>
                 </div>
               ))}
           </div>
         </details>
       )}
 
-      <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+      <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
-              <tr className="bg-sh-linen">
-                <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[120px]">
+              <tr className="bg-brand-linen">
+                <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[120px]">
                   Frame #
                 </th>
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[180px]">Description</th>
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[120px]">Collection</th>
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[100px]">Program</th>
-                <th className="px-3 py-2 border-b border-sh-gray text-right min-w-[50px]">COM</th>
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[180px]">Description</th>
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[120px]">Collection</th>
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[100px]">Program</th>
+                <th className="px-3 py-2 border-b border-brand-gray text-right min-w-[50px]">
+                  COM
+                </th>
                 {sortedGrades.map((g) => (
-                  <th key={g} className="px-3 py-2 border-b border-sh-gray text-right min-w-[70px]">
+                  <th
+                    key={g}
+                    className="px-3 py-2 border-b border-brand-gray text-right min-w-[70px]"
+                  >
                     {g}
                   </th>
                 ))}
@@ -1749,20 +1922,25 @@ function ALPreview({ alData }: { alData: ALData }) {
               {products.slice(0, 200).map((p, idx) => {
                 const gradeMap = new Map(p.gradePrices.map((gp) => [gp.grade, gp.cost]));
                 return (
-                  <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                    <td className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-inherit font-semibold">
+                  <tr
+                    key={idx}
+                    className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                  >
+                    <td className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-inherit font-semibold">
                       {p.frameNumber}
                     </td>
-                    <td className="px-3 py-2 border-b border-sh-gray">{p.description}</td>
-                    <td className="px-3 py-2 border-b border-sh-gray text-xs">
+                    <td className="px-3 py-2 border-b border-brand-gray">{p.description}</td>
+                    <td className="px-3 py-2 border-b border-brand-gray text-xs">
                       {p.collectionName}
                     </td>
-                    <td className="px-3 py-2 border-b border-sh-gray text-xs">{p.programType}</td>
-                    <td className="px-3 py-2 border-b border-sh-gray text-right text-xs">
+                    <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                      {p.programType}
+                    </td>
+                    <td className="px-3 py-2 border-b border-brand-gray text-right text-xs">
                       {p.comUsage ?? "\u2014"}
                     </td>
                     {sortedGrades.map((g) => (
-                      <td key={g} className="px-3 py-2 border-b border-sh-gray text-right">
+                      <td key={g} className="px-3 py-2 border-b border-brand-gray text-right">
                         {gradeMap.has(g) ? formatCurrency(gradeMap.get(g)!) : "\u2014"}
                       </td>
                     ))}
@@ -1773,7 +1951,7 @@ function ALPreview({ alData }: { alData: ALData }) {
           </table>
         </div>
         {products.length > 200 && (
-          <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+          <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
             Showing first 200 of {products.length} products
           </div>
         )}
@@ -1802,21 +1980,21 @@ function EkornesPreview({ ekData }: { ekData: EkornesData }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4">
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{products.length}</span> products
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{products.length}</span> products
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{collections.length}</span> collections
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{collections.length}</span> collections
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{sortedTiers.length}</span> grade tiers
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{sortedTiers.length}</span> grade tiers
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">{fabrics?.length || 0}</span>{" "}
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">{fabrics?.length || 0}</span>{" "}
           fabrics/leathers
         </div>
-        <div className="bg-sh-linen rounded-lg px-4 py-2 text-sm">
-          <span className="font-semibold text-sh-blue">
+        <div className="bg-brand-linen rounded-lg px-4 py-2 text-sm">
+          <span className="font-semibold text-brand-blue">
             {products.reduce((sum, p) => sum + p.gradePrices.length, 0)}
           </span>{" "}
           price points
@@ -1827,31 +2005,31 @@ function EkornesPreview({ ekData }: { ekData: EkornesData }) {
         {sortedTiers.map((tier) => (
           <span
             key={tier}
-            className="inline-flex items-center gap-1 bg-white border border-sh-gray/30 rounded-full px-3 py-1 text-xs"
+            className="inline-flex items-center gap-1 bg-white border border-brand-gray/30 rounded-full px-3 py-1 text-xs"
           >
-            <span className="font-semibold text-sh-blue">{tier}</span>
-            <span className="text-sh-gray">
+            <span className="font-semibold text-brand-blue">{tier}</span>
+            <span className="text-brand-gray">
               ({products.filter((p) => p.gradePrices.some((gp) => gp.grade === tier)).length})
             </span>
           </span>
         ))}
       </div>
 
-      <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+      <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
-              <tr className="bg-sh-linen">
-                <th className="px-3 py-2 border-b border-sh-gray sticky left-0 bg-sh-linen z-10 min-w-[90px]">
+              <tr className="bg-brand-linen">
+                <th className="px-3 py-2 border-b border-brand-gray sticky left-0 bg-brand-linen z-10 min-w-[90px]">
                   Material #
                 </th>
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[100px]">Collection</th>
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[140px]">Description</th>
-                <th className="px-3 py-2 border-b border-sh-gray min-w-[70px]">Base</th>
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[100px]">Collection</th>
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[140px]">Description</th>
+                <th className="px-3 py-2 border-b border-brand-gray min-w-[70px]">Base</th>
                 {sortedTiers.map((tier) => (
                   <th
                     key={tier}
-                    className="px-3 py-2 border-b border-sh-gray text-right min-w-[80px]"
+                    className="px-3 py-2 border-b border-brand-gray text-right min-w-[80px]"
                   >
                     {tier}
                   </th>
@@ -1862,17 +2040,22 @@ function EkornesPreview({ ekData }: { ekData: EkornesData }) {
               {products.slice(0, 50).map((p, idx) => {
                 const priceMap = new Map(p.gradePrices.map((gp) => [gp.grade, gp.mrp]));
                 return (
-                  <tr key={idx} className="odd:bg-white even:bg-sh-stripe hover:bg-sh-gray/10">
-                    <td className="px-3 py-2 border-b border-sh-gray font-semibold sticky left-0 bg-inherit z-10">
+                  <tr
+                    key={idx}
+                    className="odd:bg-white even:bg-brand-stripe hover:bg-brand-gray/10"
+                  >
+                    <td className="px-3 py-2 border-b border-brand-gray font-semibold sticky left-0 bg-inherit z-10">
                       {p.materialNumber}
                     </td>
-                    <td className="px-3 py-2 border-b border-sh-gray text-xs">{p.collection}</td>
-                    <td className="px-3 py-2 border-b border-sh-gray">{p.description}</td>
-                    <td className="px-3 py-2 border-b border-sh-gray text-xs">{p.base || "—"}</td>
+                    <td className="px-3 py-2 border-b border-brand-gray text-xs">{p.collection}</td>
+                    <td className="px-3 py-2 border-b border-brand-gray">{p.description}</td>
+                    <td className="px-3 py-2 border-b border-brand-gray text-xs">
+                      {p.base || "—"}
+                    </td>
                     {sortedTiers.map((tier) => (
                       <td
                         key={tier}
-                        className="px-3 py-2 border-b border-sh-gray text-right tabular-nums"
+                        className="px-3 py-2 border-b border-brand-gray text-right tabular-nums"
                       >
                         {priceMap.has(tier) ? formatCurrency(priceMap.get(tier)!) : "—"}
                       </td>
@@ -1884,7 +2067,7 @@ function EkornesPreview({ ekData }: { ekData: EkornesData }) {
           </table>
         </div>
         {products.length > 50 && (
-          <div className="px-3 py-2 text-sm text-sh-gray bg-sh-linen text-center">
+          <div className="px-3 py-2 text-sm text-brand-gray bg-brand-linen text-center">
             Showing first 50 of {products.length} products
           </div>
         )}

@@ -75,14 +75,14 @@ function AgeBadge({ days }: { days: number }) {
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    DRAFT: "bg-gray-100 text-sh-gray",
-    SUBMITTED: "bg-sh-blue/10 text-sh-blue",
+    DRAFT: "bg-gray-100 text-brand-gray",
+    SUBMITTED: "bg-brand-blue/10 text-brand-blue",
     CONFIRMED: "bg-green-100 text-green-700",
     RECEIVED_PARTIAL: "bg-amber-100 text-amber-700",
   };
   return (
     <span
-      className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${colors[status] || "bg-gray-100 text-sh-gray"}`}
+      className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${colors[status] || "bg-gray-100 text-brand-gray"}`}
     >
       {status.replace("_", " ")}
     </span>
@@ -248,13 +248,13 @@ export function InboundDashboardView() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <Link href="/app/warehouse" className="text-sh-blue hover:underline text-sm">
+          <Link href="/app/warehouse" className="text-brand-blue hover:underline text-sm">
             Warehouse
           </Link>
-          <span className="text-sh-gray">/</span>
-          <h1 className="text-2xl font-semibold text-sh-blue">Inbound</h1>
+          <span className="text-brand-gray">/</span>
+          <h1 className="text-2xl font-semibold text-brand-blue">Inbound</h1>
           {filter !== "all" && (
-            <span className="text-sm text-sh-gray">
+            <span className="text-sm text-brand-gray">
               — {filterLabel[filter]} ({filteredPOs.length})
             </span>
           )}
@@ -263,13 +263,13 @@ export function InboundDashboardView() {
           {filter !== "all" && (
             <button
               onClick={() => setFilter("all")}
-              className="px-4 py-2 text-sm font-semibold border border-sh-navy text-sh-navy rounded-lg hover:bg-sh-linen transition min-h-[44px]"
+              className="px-4 py-2 text-sm font-semibold border border-brand-navy text-brand-navy rounded-lg hover:bg-brand-linen transition min-h-[44px]"
             >
               Clear Filter
             </button>
           )}
           <Link href="/app/warehouse/outbound">
-            <span className="px-4 py-2 text-sm font-semibold border border-sh-navy text-sh-navy rounded-lg hover:bg-sh-linen transition min-h-[44px] flex items-center cursor-pointer">
+            <span className="px-4 py-2 text-sm font-semibold border border-brand-navy text-brand-navy rounded-lg hover:bg-brand-linen transition min-h-[44px] flex items-center cursor-pointer">
               Outbound
             </span>
           </Link>
@@ -279,8 +279,8 @@ export function InboundDashboardView() {
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-sh-blue mr-3" />
-          <span className="text-sh-gray">Loading purchase orders...</span>
+          <Loader2 className="w-6 h-6 animate-spin text-brand-blue mr-3" />
+          <span className="text-brand-gray">Loading purchase orders...</span>
         </div>
       )}
 
@@ -291,34 +291,34 @@ export function InboundDashboardView() {
             onClick={() => setFilter("all")}
             className={`bg-white rounded-xl border p-4 text-center transition min-h-[44px] ${
               filter === "all"
-                ? "border-sh-blue ring-2 ring-sh-blue/20"
-                : "border-sh-gray/15 hover:border-sh-blue/30"
+                ? "border-brand-blue ring-2 ring-brand-blue/20"
+                : "border-brand-gray/15 hover:border-brand-blue/30"
             }`}
           >
-            <div className="text-xs text-sh-gray mb-1">Total Open</div>
-            <div className="text-2xl font-semibold text-sh-black">{summary.total}</div>
+            <div className="text-xs text-brand-gray mb-1">Total Open</div>
+            <div className="text-2xl font-semibold text-brand-black">{summary.total}</div>
           </button>
           <button
             onClick={() => setFilter("thisWeek")}
             className={`bg-white rounded-xl border p-4 text-center transition min-h-[44px] ${
               filter === "thisWeek"
-                ? "border-sh-blue ring-2 ring-sh-blue/20"
-                : "border-sh-gray/15 hover:border-sh-blue/30"
+                ? "border-brand-blue ring-2 ring-brand-blue/20"
+                : "border-brand-gray/15 hover:border-brand-blue/30"
             }`}
           >
-            <div className="text-xs text-sh-gray mb-1">Due This Week</div>
-            <div className="text-2xl font-semibold text-sh-black">{summary.thisWeek}</div>
+            <div className="text-xs text-brand-gray mb-1">Due This Week</div>
+            <div className="text-2xl font-semibold text-brand-black">{summary.thisWeek}</div>
           </button>
           <button
             onClick={() => setFilter("nextWeek")}
             className={`bg-white rounded-xl border p-4 text-center transition min-h-[44px] ${
               filter === "nextWeek"
-                ? "border-sh-blue ring-2 ring-sh-blue/20"
-                : "border-sh-gray/15 hover:border-sh-blue/30"
+                ? "border-brand-blue ring-2 ring-brand-blue/20"
+                : "border-brand-gray/15 hover:border-brand-blue/30"
             }`}
           >
-            <div className="text-xs text-sh-gray mb-1">Due Next Week</div>
-            <div className="text-2xl font-semibold text-sh-black">{summary.nextWeek}</div>
+            <div className="text-xs text-brand-gray mb-1">Due Next Week</div>
+            <div className="text-2xl font-semibold text-brand-black">{summary.nextWeek}</div>
           </button>
           <button
             onClick={() => setFilter("noEsd")}
@@ -327,12 +327,12 @@ export function InboundDashboardView() {
                 ? "border-red-500 ring-2 ring-red-200"
                 : summary.noEsd > 0
                   ? "border-red-200 hover:border-red-400"
-                  : "border-sh-gray/15 hover:border-sh-blue/30"
+                  : "border-brand-gray/15 hover:border-brand-blue/30"
             }`}
           >
-            <div className="text-xs text-sh-gray mb-1">Missing ESD</div>
+            <div className="text-xs text-brand-gray mb-1">Missing ESD</div>
             <div
-              className={`text-2xl font-semibold ${summary.noEsd > 0 ? "text-red-600" : "text-sh-black"}`}
+              className={`text-2xl font-semibold ${summary.noEsd > 0 ? "text-red-600" : "text-brand-black"}`}
             >
               {summary.noEsd}
             </div>
@@ -344,12 +344,12 @@ export function InboundDashboardView() {
                 ? "border-red-500 ring-2 ring-red-200"
                 : summary.overdue > 0
                   ? "border-red-200 hover:border-red-400"
-                  : "border-sh-gray/15 hover:border-sh-blue/30"
+                  : "border-brand-gray/15 hover:border-brand-blue/30"
             }`}
           >
-            <div className="text-xs text-sh-gray mb-1">Overdue</div>
+            <div className="text-xs text-brand-gray mb-1">Overdue</div>
             <div
-              className={`text-2xl font-semibold ${summary.overdue > 0 ? "text-red-600" : "text-sh-black"}`}
+              className={`text-2xl font-semibold ${summary.overdue > 0 ? "text-red-600" : "text-brand-black"}`}
             >
               {summary.overdue}
             </div>
@@ -361,14 +361,14 @@ export function InboundDashboardView() {
       {!loading && (
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="inbound-type-filter" className="block text-xs text-sh-gray mb-1">
+            <label htmlFor="inbound-type-filter" className="block text-xs text-brand-gray mb-1">
               Type
             </label>
             <select
               id="inbound-type-filter"
               value={orderTypeFilter}
               onChange={(e) => setOrderTypeFilter(e.target.value as OrderTypeFilter)}
-              className="border border-sh-gray/40 rounded-lg px-3 min-h-[44px] text-sm bg-white"
+              className="border border-brand-gray/40 rounded-lg px-3 min-h-[44px] text-sm bg-white"
             >
               <option value="all">All Orders</option>
               <option value="stock">Stock Only</option>
@@ -376,14 +376,14 @@ export function InboundDashboardView() {
             </select>
           </div>
           <div>
-            <label htmlFor="inbound-vendor-filter" className="block text-xs text-sh-gray mb-1">
+            <label htmlFor="inbound-vendor-filter" className="block text-xs text-brand-gray mb-1">
               Vendor
             </label>
             <select
               id="inbound-vendor-filter"
               value={vendorFilter}
               onChange={(e) => setVendorFilter(e.target.value)}
-              className="border border-sh-gray/40 rounded-lg px-3 min-h-[44px] text-sm bg-white"
+              className="border border-brand-gray/40 rounded-lg px-3 min-h-[44px] text-sm bg-white"
             >
               <option value="">All Vendors</option>
               {vendors.map((v) => (
@@ -394,14 +394,17 @@ export function InboundDashboardView() {
             </select>
           </div>
           <div>
-            <label htmlFor="inbound-department-filter" className="block text-xs text-sh-gray mb-1">
+            <label
+              htmlFor="inbound-department-filter"
+              className="block text-xs text-brand-gray mb-1"
+            >
               Department
             </label>
             <select
               id="inbound-department-filter"
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="border border-sh-gray/40 rounded-lg px-3 min-h-[44px] text-sm bg-white"
+              className="border border-brand-gray/40 rounded-lg px-3 min-h-[44px] text-sm bg-white"
             >
               <option value="">All Departments</option>
               {departments.map((d) => (
@@ -418,12 +421,12 @@ export function InboundDashboardView() {
                 setVendorFilter("");
                 setDepartmentFilter("");
               }}
-              className="text-sm text-sh-blue hover:underline min-h-[44px] flex items-center"
+              className="text-sm text-brand-blue hover:underline min-h-[44px] flex items-center"
             >
               Clear filters
             </button>
           )}
-          <span className="text-sm text-sh-gray ml-auto">
+          <span className="text-sm text-brand-gray ml-auto">
             {filteredPOs.length} of {allPOs.length} POs
           </span>
         </div>
@@ -440,58 +443,58 @@ export function InboundDashboardView() {
             return (
               <div
                 key={monthKey}
-                className="bg-white rounded-xl border border-sh-gray/15 overflow-hidden"
+                className="bg-white rounded-xl border border-brand-gray/15 overflow-hidden"
               >
                 {/* Month header */}
                 <button
                   onClick={() => toggleMonth(monthKey)}
-                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-sh-linen/50 transition min-h-[44px]"
+                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-brand-linen/50 transition min-h-[44px]"
                 >
                   <div className="flex items-center gap-3">
                     {isExpanded ? (
-                      <ChevronDown className="w-5 h-5 text-sh-gray" />
+                      <ChevronDown className="w-5 h-5 text-brand-gray" />
                     ) : (
-                      <ChevronRight className="w-5 h-5 text-sh-gray" />
+                      <ChevronRight className="w-5 h-5 text-brand-gray" />
                     )}
-                    <span className="text-lg font-semibold text-sh-blue">
+                    <span className="text-lg font-semibold text-brand-blue">
                       {getMonthLabel(monthKey)}
                     </span>
-                    <span className="text-sm text-sh-gray">
+                    <span className="text-sm text-brand-gray">
                       {monthPOs.length} PO{monthPOs.length !== 1 ? "s" : ""}
                     </span>
                   </div>
-                  <span className="text-sm font-semibold text-sh-black">
+                  <span className="text-sm font-semibold text-brand-black">
                     {formatCurrency(monthCost)}
                   </span>
                 </button>
 
                 {/* Weeks within month */}
                 {isExpanded && (
-                  <div className="border-t border-sh-gray/10">
+                  <div className="border-t border-brand-gray/10">
                     {weeks.map(([weekKey, weekPOs]) => {
                       const isWeekExpanded = expandedWeeks.has(weekKey);
 
                       return (
-                        <div key={weekKey} className="border-b border-sh-gray/10 last:border-0">
+                        <div key={weekKey} className="border-b border-brand-gray/10 last:border-0">
                           {/* Week header */}
                           <button
                             onClick={() => toggleWeek(weekKey)}
-                            className="w-full flex items-center justify-between px-8 py-3 hover:bg-sh-linen/30 transition min-h-[44px]"
+                            className="w-full flex items-center justify-between px-8 py-3 hover:bg-brand-linen/30 transition min-h-[44px]"
                           >
                             <div className="flex items-center gap-3">
                               {isWeekExpanded ? (
-                                <ChevronDown className="w-4 h-4 text-sh-gray" />
+                                <ChevronDown className="w-4 h-4 text-brand-gray" />
                               ) : (
-                                <ChevronRight className="w-4 h-4 text-sh-gray" />
+                                <ChevronRight className="w-4 h-4 text-brand-gray" />
                               )}
-                              <span className="font-semibold text-sh-black">
+                              <span className="font-semibold text-brand-black">
                                 {getWeekLabel(weekKey)}
                               </span>
-                              <span className="text-sm text-sh-gray">
+                              <span className="text-sm text-brand-gray">
                                 {weekPOs.length} PO{weekPOs.length !== 1 ? "s" : ""}
                               </span>
                             </div>
-                            <span className="text-sm text-sh-gray">
+                            <span className="text-sm text-brand-gray">
                               {formatCurrency(weekPOs.reduce((s, p) => s + p.totalCost, 0))}
                             </span>
                           </button>
@@ -500,29 +503,29 @@ export function InboundDashboardView() {
                           {isWeekExpanded && (
                             <table className="w-full text-sm">
                               <thead>
-                                <tr className="bg-sh-linen border-b border-sh-gray/10">
-                                  <th className="text-left px-8 py-2 text-sh-gray font-semibold">
+                                <tr className="bg-brand-linen border-b border-brand-gray/10">
+                                  <th className="text-left px-8 py-2 text-brand-gray font-semibold">
                                     PO #
                                   </th>
-                                  <th className="text-left px-4 py-2 text-sh-gray font-semibold">
+                                  <th className="text-left px-4 py-2 text-brand-gray font-semibold">
                                     Vendor
                                   </th>
-                                  <th className="text-left px-4 py-2 text-sh-gray font-semibold">
+                                  <th className="text-left px-4 py-2 text-brand-gray font-semibold">
                                     Type / Customer
                                   </th>
-                                  <th className="text-left px-4 py-2 text-sh-gray font-semibold">
+                                  <th className="text-left px-4 py-2 text-brand-gray font-semibold">
                                     ESD
                                   </th>
-                                  <th className="text-left px-4 py-2 text-sh-gray font-semibold">
+                                  <th className="text-left px-4 py-2 text-brand-gray font-semibold">
                                     Status
                                   </th>
-                                  <th className="text-right px-4 py-2 text-sh-gray font-semibold">
+                                  <th className="text-right px-4 py-2 text-brand-gray font-semibold">
                                     Items
                                   </th>
-                                  <th className="text-right px-4 py-2 text-sh-gray font-semibold">
+                                  <th className="text-right px-4 py-2 text-brand-gray font-semibold">
                                     Cost
                                   </th>
-                                  <th className="text-left px-4 py-2 text-sh-gray font-semibold">
+                                  <th className="text-left px-4 py-2 text-brand-gray font-semibold">
                                     Age
                                   </th>
                                 </tr>
@@ -531,54 +534,54 @@ export function InboundDashboardView() {
                                 {weekPOs.map((po, i) => (
                                   <tr
                                     key={po.id}
-                                    className={`border-b border-sh-gray/10 last:border-0 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                                    className={`border-b border-brand-gray/10 last:border-0 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
                                   >
                                     <td className="px-8 py-3">
                                       <Link
                                         href={`/app/purchasing/orders/${po.id}`}
-                                        className="text-sh-blue hover:underline font-mono text-xs min-h-[44px] flex items-center"
+                                        className="text-brand-blue hover:underline font-mono text-xs min-h-[44px] flex items-center"
                                       >
                                         {po.poNumber}
                                       </Link>
                                     </td>
-                                    <td className="px-4 py-3 text-sh-black text-xs">
+                                    <td className="px-4 py-3 text-brand-black text-xs">
                                       {po.vendorName}
                                     </td>
                                     <td className="px-4 py-3 text-xs">
                                       {po.orderType === "customer" ? (
                                         <span>
-                                          <span className="inline-block px-1.5 py-0.5 rounded bg-sh-gold/20 text-sh-gold text-xs font-semibold mr-1">
+                                          <span className="inline-block px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold text-xs font-semibold mr-1">
                                             Customer
                                           </span>
                                           {po.salesOrderId ? (
                                             <Link
                                               href={`/app/sales/orders/${po.salesOrderId}`}
-                                              className="text-sh-blue hover:underline"
+                                              className="text-brand-blue hover:underline"
                                             >
                                               {po.customerName || po.orderno}
                                             </Link>
                                           ) : (
-                                            <span className="text-sh-gray">
+                                            <span className="text-brand-gray">
                                               {po.customerName || "—"}
                                             </span>
                                           )}
                                         </span>
                                       ) : (
-                                        <span className="inline-block px-1.5 py-0.5 rounded bg-sh-blue/10 text-sh-blue text-xs font-semibold">
+                                        <span className="inline-block px-1.5 py-0.5 rounded bg-brand-blue/10 text-brand-blue text-xs font-semibold">
                                           Stock
                                         </span>
                                       )}
                                     </td>
-                                    <td className="px-4 py-3 text-sh-black text-xs">
+                                    <td className="px-4 py-3 text-brand-black text-xs">
                                       {formatDate(po.expectedDelivery)}
                                     </td>
                                     <td className="px-4 py-3">
                                       <StatusBadge status={po.status} />
                                     </td>
-                                    <td className="px-4 py-3 text-right text-sh-black">
+                                    <td className="px-4 py-3 text-right text-brand-black">
                                       {po.lineItemCount}
                                     </td>
-                                    <td className="px-4 py-3 text-right text-sh-black text-xs">
+                                    <td className="px-4 py-3 text-right text-brand-black text-xs">
                                       {formatCurrency(po.totalCost)}
                                     </td>
                                     <td className="px-4 py-3">
@@ -623,12 +626,14 @@ export function InboundDashboardView() {
                 <table className="w-full text-sm border-t border-red-100">
                   <thead>
                     <tr className="bg-red-50 border-b border-red-100">
-                      <th className="text-left px-5 py-2 text-sh-gray font-semibold">PO #</th>
-                      <th className="text-left px-4 py-2 text-sh-gray font-semibold">Vendor</th>
-                      <th className="text-left px-4 py-2 text-sh-gray font-semibold">Order Date</th>
-                      <th className="text-left px-4 py-2 text-sh-gray font-semibold">Status</th>
-                      <th className="text-right px-4 py-2 text-sh-gray font-semibold">Items</th>
-                      <th className="text-left px-4 py-2 text-sh-gray font-semibold">Age</th>
+                      <th className="text-left px-5 py-2 text-brand-gray font-semibold">PO #</th>
+                      <th className="text-left px-4 py-2 text-brand-gray font-semibold">Vendor</th>
+                      <th className="text-left px-4 py-2 text-brand-gray font-semibold">
+                        Order Date
+                      </th>
+                      <th className="text-left px-4 py-2 text-brand-gray font-semibold">Status</th>
+                      <th className="text-right px-4 py-2 text-brand-gray font-semibold">Items</th>
+                      <th className="text-left px-4 py-2 text-brand-gray font-semibold">Age</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -640,19 +645,21 @@ export function InboundDashboardView() {
                         <td className="px-5 py-3">
                           <Link
                             href={`/app/purchasing/orders/${po.id}`}
-                            className="text-sh-blue hover:underline font-mono text-xs min-h-[44px] flex items-center"
+                            className="text-brand-blue hover:underline font-mono text-xs min-h-[44px] flex items-center"
                           >
                             {po.poNumber}
                           </Link>
                         </td>
-                        <td className="px-4 py-3 text-sh-black text-xs">{po.vendorName}</td>
-                        <td className="px-4 py-3 text-sh-black text-xs">
+                        <td className="px-4 py-3 text-brand-black text-xs">{po.vendorName}</td>
+                        <td className="px-4 py-3 text-brand-black text-xs">
                           {formatDate(po.orderDate)}
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={po.status} />
                         </td>
-                        <td className="px-4 py-3 text-right text-sh-black">{po.lineItemCount}</td>
+                        <td className="px-4 py-3 text-right text-brand-black">
+                          {po.lineItemCount}
+                        </td>
                         <td className="px-4 py-3">
                           <AgeBadge days={po.ageInDays} />
                         </td>
@@ -666,7 +673,7 @@ export function InboundDashboardView() {
 
           {/* Empty state */}
           {!loading && filteredPOs.length === 0 && (
-            <div className="text-center py-16 text-sh-gray">
+            <div className="text-center py-16 text-brand-gray">
               {filter === "all"
                 ? "No open purchase orders."
                 : `No purchase orders matching "${filterLabel[filter]}" filter.`}

@@ -33,17 +33,17 @@ export default function CardGridPageLayout({ title, items }: Props) {
   return (
     <MainLayout>
       <div className="py-2 space-y-6 font-serif">
-        <h1 className="text-2xl text-sh-blue font-semibold">{title}</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">{title}</h1>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {visibleItems.map((item) => (
             <Link
               href={item.href}
               key={item.href}
-              className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-5 hover:shadow-lg transition block"
+              className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5 hover:shadow-lg transition block"
             >
-              <h2 className="text-lg text-sh-black font-semibold mb-1">{item.title}</h2>
-              <p className="text-sh-gray text-sm">{item.description}</p>
+              <h2 className="text-lg text-brand-black font-semibold mb-1">{item.title}</h2>
+              <p className="text-brand-gray text-sm">{item.description}</p>
             </Link>
           ))}
         </div>

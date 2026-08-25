@@ -307,7 +307,7 @@ export default function SEConfigurator({
 
   if (componentsLoading) {
     return (
-      <div className="flex items-center justify-center py-16 text-sh-gray">
+      <div className="flex items-center justify-center py-16 text-brand-gray">
         Loading components...
       </div>
     );
@@ -332,7 +332,7 @@ export default function SEConfigurator({
         <div className="overflow-y-auto px-1 pb-4 space-y-6">
           {/* Material */}
           <section>
-            <h3 className="text-sm font-semibold text-sh-blue mb-2 uppercase tracking-wider font-sans">
+            <h3 className="text-sm font-semibold text-brand-blue mb-2 uppercase tracking-wider font-sans">
               Material
             </h3>
             <div className="flex gap-3">
@@ -347,8 +347,8 @@ export default function SEConfigurator({
                   }}
                   className={`px-6 py-3 rounded-lg text-sm font-semibold border-2 transition min-w-[120px] ${
                     material === m
-                      ? "border-sh-blue bg-sh-linen text-sh-blue"
-                      : "border-sh-gray/20 bg-white text-sh-gray hover:border-sh-blue/40"
+                      ? "border-brand-blue bg-brand-linen text-brand-blue"
+                      : "border-brand-gray/20 bg-white text-brand-gray hover:border-brand-blue/40"
                   }`}
                 >
                   {m === "FABRIC" ? "Fabric" : "Leather"}
@@ -359,7 +359,7 @@ export default function SEConfigurator({
 
           {/* Piece Type */}
           <section>
-            <h3 className="text-sm font-semibold text-sh-blue mb-2 uppercase tracking-wider font-sans">
+            <h3 className="text-sm font-semibold text-brand-blue mb-2 uppercase tracking-wider font-sans">
               Piece Type
             </h3>
             <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
@@ -375,12 +375,12 @@ export default function SEConfigurator({
                     }}
                     className={`p-3 rounded-lg text-sm border-2 transition text-left ${
                       pieceType === pt.code
-                        ? "border-sh-blue bg-sh-linen text-sh-blue font-semibold"
-                        : "border-sh-gray/20 bg-white text-sh-black hover:border-sh-blue/40"
+                        ? "border-brand-blue bg-brand-linen text-brand-blue font-semibold"
+                        : "border-brand-gray/20 bg-white text-brand-black hover:border-brand-blue/40"
                     }`}
                   >
                     <div className="font-medium">{pt.name}</div>
-                    <div className="text-xs text-sh-gray mt-0.5">{pt.code}</div>
+                    <div className="text-xs text-brand-gray mt-0.5">{pt.code}</div>
                   </button>
                 ))}
             </div>
@@ -389,7 +389,7 @@ export default function SEConfigurator({
           {/* Depth (only for non-chair piece types) */}
           {pieceType && !["C15", "CMO", "CHR", "MOT", "FSL", "QSL"].includes(pieceType) && (
             <section>
-              <h3 className="text-sm font-semibold text-sh-blue mb-2 uppercase tracking-wider font-sans">
+              <h3 className="text-sm font-semibold text-brand-blue mb-2 uppercase tracking-wider font-sans">
                 Depth
               </h3>
               <div className="flex gap-3">
@@ -403,8 +403,8 @@ export default function SEConfigurator({
                     }}
                     className={`px-6 py-3 rounded-lg text-sm border-2 transition ${
                       depth === d.code
-                        ? "border-sh-blue bg-sh-linen text-sh-blue font-semibold"
-                        : "border-sh-gray/20 bg-white text-sh-gray hover:border-sh-blue/40"
+                        ? "border-brand-blue bg-brand-linen text-brand-blue font-semibold"
+                        : "border-brand-gray/20 bg-white text-brand-gray hover:border-brand-blue/40"
                     }`}
                   >
                     {d.name}
@@ -416,7 +416,7 @@ export default function SEConfigurator({
 
           {/* Base */}
           <section>
-            <h3 className="text-sm font-semibold text-sh-blue mb-2 uppercase tracking-wider font-sans">
+            <h3 className="text-sm font-semibold text-brand-blue mb-2 uppercase tracking-wider font-sans">
               Base
             </h3>
             <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
@@ -429,8 +429,8 @@ export default function SEConfigurator({
                   }}
                   className={`p-3 rounded-lg text-sm border-2 transition text-center ${
                     base === b.code
-                      ? "border-sh-blue bg-sh-linen text-sh-blue font-semibold"
-                      : "border-sh-gray/20 bg-white text-sh-black hover:border-sh-blue/40"
+                      ? "border-brand-blue bg-brand-linen text-brand-blue font-semibold"
+                      : "border-brand-gray/20 bg-white text-brand-black hover:border-brand-blue/40"
                   }`}
                 >
                   <div className="font-medium text-xs">{b.name}</div>
@@ -442,7 +442,7 @@ export default function SEConfigurator({
           {/* Castors (only for leg-type bases) */}
           {showCastors && (
             <section>
-              <h3 className="text-sm font-semibold text-sh-blue mb-2 uppercase tracking-wider font-sans">
+              <h3 className="text-sm font-semibold text-brand-blue mb-2 uppercase tracking-wider font-sans">
                 Castors
               </h3>
               <div className="flex gap-3 flex-wrap">
@@ -452,8 +452,8 @@ export default function SEConfigurator({
                     onClick={() => setCastor(c.code)}
                     className={`px-5 py-3 rounded-lg text-sm border-2 transition ${
                       castor === c.code
-                        ? "border-sh-blue bg-sh-linen text-sh-blue font-semibold"
-                        : "border-sh-gray/20 bg-white text-sh-gray hover:border-sh-blue/40"
+                        ? "border-brand-blue bg-brand-linen text-brand-blue font-semibold"
+                        : "border-brand-gray/20 bg-white text-brand-gray hover:border-brand-blue/40"
                     }`}
                   >
                     {c.name}
@@ -466,7 +466,7 @@ export default function SEConfigurator({
           {/* Arm (skip for armless pieces) */}
           {!isArmless && (
             <section>
-              <h3 className="text-sm font-semibold text-sh-blue mb-2 uppercase tracking-wider font-sans">
+              <h3 className="text-sm font-semibold text-brand-blue mb-2 uppercase tracking-wider font-sans">
                 Arm Style
               </h3>
               <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
@@ -476,8 +476,8 @@ export default function SEConfigurator({
                     onClick={() => setArm(a.code)}
                     className={`p-3 rounded-lg text-sm border-2 transition text-center ${
                       arm === a.code
-                        ? "border-sh-blue bg-sh-linen text-sh-blue font-semibold"
-                        : "border-sh-gray/20 bg-white text-sh-black hover:border-sh-blue/40"
+                        ? "border-brand-blue bg-brand-linen text-brand-blue font-semibold"
+                        : "border-brand-gray/20 bg-white text-brand-black hover:border-brand-blue/40"
                     }`}
                   >
                     <div className="font-medium text-xs">{a.name}</div>
@@ -490,7 +490,7 @@ export default function SEConfigurator({
           {/* Back Type (skip for ottomans) */}
           {!isOttoman && (
             <section>
-              <h3 className="text-sm font-semibold text-sh-blue mb-2 uppercase tracking-wider font-sans">
+              <h3 className="text-sm font-semibold text-brand-blue mb-2 uppercase tracking-wider font-sans">
                 Back Type
               </h3>
               <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
@@ -500,8 +500,8 @@ export default function SEConfigurator({
                     onClick={() => setBackType(bt.code)}
                     className={`p-3 rounded-lg text-sm border-2 transition text-center ${
                       backType === bt.code
-                        ? "border-sh-blue bg-sh-linen text-sh-blue font-semibold"
-                        : "border-sh-gray/20 bg-white text-sh-black hover:border-sh-blue/40"
+                        ? "border-brand-blue bg-brand-linen text-brand-blue font-semibold"
+                        : "border-brand-gray/20 bg-white text-brand-black hover:border-brand-blue/40"
                     }`}
                   >
                     <div className="font-medium text-xs">{bt.name}</div>
@@ -513,7 +513,7 @@ export default function SEConfigurator({
 
           {/* Cushion Fill */}
           <section>
-            <h3 className="text-sm font-semibold text-sh-blue mb-2 uppercase tracking-wider font-sans">
+            <h3 className="text-sm font-semibold text-brand-blue mb-2 uppercase tracking-wider font-sans">
               Cushion Fill
             </h3>
             <div className="flex gap-3 flex-wrap">
@@ -523,8 +523,8 @@ export default function SEConfigurator({
                   onClick={() => setCushionFill(cf.code)}
                   className={`px-5 py-3 rounded-lg text-sm border-2 transition ${
                     cushionFill === cf.code
-                      ? "border-sh-blue bg-sh-linen text-sh-blue font-semibold"
-                      : "border-sh-gray/20 bg-white text-sh-gray hover:border-sh-blue/40"
+                      ? "border-brand-blue bg-brand-linen text-brand-blue font-semibold"
+                      : "border-brand-gray/20 bg-white text-brand-gray hover:border-brand-blue/40"
                   }`}
                 >
                   {cf.name}
@@ -534,16 +534,16 @@ export default function SEConfigurator({
           </section>
 
           {/* Assembled SKU + status */}
-          <div className="bg-sh-linen/50 rounded-lg border border-sh-gray/10 p-4 flex items-center justify-between">
+          <div className="bg-brand-linen/50 rounded-lg border border-brand-gray/10 p-4 flex items-center justify-between">
             <div>
-              <div className="text-xs text-sh-gray font-sans uppercase tracking-wider mb-1">
+              <div className="text-xs text-brand-gray font-sans uppercase tracking-wider mb-1">
                 Assembled SKU
               </div>
-              <div className="text-lg font-semibold text-sh-blue font-mono tracking-wide">
+              <div className="text-lg font-semibold text-brand-blue font-mono tracking-wide">
                 {assembledSku}
               </div>
               {pieceType && (
-                <div className="text-sm text-sh-gray mt-1">
+                <div className="text-sm text-brand-gray mt-1">
                   {material === "FABRIC" ? "Fabric" : "Leather"} {pieceTypeName}
                   {styleNumber && !selectedProduct && (
                     <span className="text-red-500 ml-2 text-xs">
@@ -556,7 +556,7 @@ export default function SEConfigurator({
             {selectedProduct && (
               <Button
                 onClick={() => goToTab("grade")}
-                className="bg-sh-blue text-white hover:bg-sh-blue/90"
+                className="bg-brand-blue text-white hover:bg-brand-blue/90"
               >
                 Select Grade <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
@@ -570,10 +570,10 @@ export default function SEConfigurator({
         {selectedProduct && selectedProduct.gradePrices ? (
           <div className="overflow-y-auto px-1 pb-4">
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-sh-blue mb-1">
+              <h3 className="text-sm font-semibold text-brand-blue mb-1">
                 Select {material === "FABRIC" ? "Fabric" : "Leather"} Grade
               </h3>
-              <p className="text-xs text-sh-gray">
+              <p className="text-xs text-brand-gray">
                 {pieceTypeName} ({styleNumber})
               </p>
             </div>
@@ -592,14 +592,14 @@ export default function SEConfigurator({
               <Button
                 variant="outline"
                 onClick={() => goToTab("build")}
-                className="text-sh-gray border-sh-gray"
+                className="text-brand-gray border-brand-gray"
               >
                 <ChevronLeft className="w-4 h-4 mr-1" /> Back to Build
               </Button>
               {selectedGradeTierId && (
                 <Button
                   onClick={() => goToTab("fabric")}
-                  className="bg-sh-blue text-white hover:bg-sh-blue/90"
+                  className="bg-brand-blue text-white hover:bg-brand-blue/90"
                 >
                   {material === "FABRIC" ? "Select Fabric" : "Continue"}{" "}
                   <ChevronRight className="w-4 h-4 ml-1" />
@@ -608,7 +608,7 @@ export default function SEConfigurator({
             </div>
           </div>
         ) : (
-          <div className="text-center py-16 text-sh-gray">
+          <div className="text-center py-16 text-brand-gray">
             Select a piece type and depth first to see grade pricing.
           </div>
         )}
@@ -619,10 +619,10 @@ export default function SEConfigurator({
         <div className="overflow-y-auto px-1 pb-4">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-sh-blue">
+              <h3 className="text-sm font-semibold text-brand-blue">
                 {material === "FABRIC" ? "Select Fabric" : "Select Leather"}
               </h3>
-              <p className="text-xs text-sh-gray">
+              <p className="text-xs text-brand-gray">
                 Grade {selectedGradeTierCode} - {fabrics.length} options
               </p>
             </div>
@@ -631,7 +631,7 @@ export default function SEConfigurator({
               placeholder="Search fabrics..."
               value={fabricSearch}
               onChange={(e) => setFabricSearch(e.target.value)}
-              className="border border-sh-gray/30 rounded-lg px-3 py-2 text-sm w-48"
+              className="border border-brand-gray/30 rounded-lg px-3 py-2 text-sm w-48"
             />
           </div>
 
@@ -647,19 +647,19 @@ export default function SEConfigurator({
                   className={`p-3 rounded-lg text-sm border-2 transition text-left ${
                     selectedFabric?.fabricName === f.fabricName &&
                     selectedFabric?.colorName === (f.colorName || "")
-                      ? "border-sh-blue bg-sh-linen"
-                      : "border-sh-gray/20 bg-white hover:border-sh-blue/40"
+                      ? "border-brand-blue bg-brand-linen"
+                      : "border-brand-gray/20 bg-white hover:border-brand-blue/40"
                   }`}
                 >
-                  <div className="font-medium text-sh-black truncate">{f.fabricName}</div>
+                  <div className="font-medium text-brand-black truncate">{f.fabricName}</div>
                   {f.colorName && (
-                    <div className="text-xs text-sh-gray truncate">{f.colorName}</div>
+                    <div className="text-xs text-brand-gray truncate">{f.colorName}</div>
                   )}
                 </button>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-sh-gray text-sm">
+            <div className="text-center py-8 text-brand-gray text-sm">
               {fabrics.length === 0
                 ? "No fabrics available for this grade."
                 : "No fabrics match your search."}
@@ -670,13 +670,13 @@ export default function SEConfigurator({
             <Button
               variant="outline"
               onClick={() => goToTab("grade")}
-              className="text-sh-gray border-sh-gray"
+              className="text-brand-gray border-brand-gray"
             >
               <ChevronLeft className="w-4 h-4 mr-1" /> Back to Grade
             </Button>
             <Button
               onClick={() => goToTab("summary")}
-              className="bg-sh-blue text-white hover:bg-sh-blue/90"
+              className="bg-brand-blue text-white hover:bg-brand-blue/90"
             >
               View Summary <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
@@ -689,18 +689,18 @@ export default function SEConfigurator({
         {priceCalc && selectedProduct ? (
           <div className="w-full max-w-2xl mx-auto space-y-4 pb-4">
             {/* Product header */}
-            <div className="bg-sh-linen/50 rounded-lg border border-sh-gray/10 p-4">
+            <div className="bg-brand-linen/50 rounded-lg border border-brand-gray/10 p-4">
               <div className="space-y-1">
-                <div className="font-semibold text-sh-black text-base">
+                <div className="font-semibold text-brand-black text-base">
                   {vendorName} Signature Elements
                 </div>
-                <div className="text-sm text-sh-gray">
+                <div className="text-sm text-brand-gray">
                   {material === "FABRIC" ? "Fabric" : "Leather"} {pieceTypeName}
                 </div>
-                <div className="font-mono text-sm text-sh-blue tracking-wide mt-2">
+                <div className="font-mono text-sm text-brand-blue tracking-wide mt-2">
                   SKU: {assembledSku}
                 </div>
-                <div className="text-xs text-sh-gray">
+                <div className="text-xs text-brand-gray">
                   Style: {styleNumber} | Grade: {selectedGradeTierCode}
                   {selectedFabric && (
                     <>
@@ -714,10 +714,10 @@ export default function SEConfigurator({
             </div>
 
             {/* Price breakdown */}
-            <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
+            <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-sh-black">
+                  <span className="text-brand-black">
                     {retailOnly ? "Base Price" : "Base Cost"} ({selectedGradeTierCode})
                   </span>
                   <span className="font-semibold tabular-nums">
@@ -729,17 +729,17 @@ export default function SEConfigurator({
 
                 {selectedFabric && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-sh-gray flex items-center gap-1">
+                    <span className="text-brand-gray flex items-center gap-1">
                       <Palette className="w-3 h-3" />
                       {selectedFabric.fabricName} {selectedFabric.colorName}
                     </span>
-                    <span className="text-xs text-sh-gray">info only</span>
+                    <span className="text-xs text-brand-gray">info only</span>
                   </div>
                 )}
 
                 {priceCalc.optionLines.map((line, i) => (
                   <div key={i} className="flex justify-between text-sm">
-                    <span className="text-sh-gray flex items-center gap-1">
+                    <span className="text-brand-gray flex items-center gap-1">
                       <ChevronRight className="w-3 h-3" />
                       {line.label}
                     </span>
@@ -750,19 +750,19 @@ export default function SEConfigurator({
                 ))}
               </div>
 
-              <div className="border-t border-sh-gray/20 my-4" />
+              <div className="border-t border-brand-gray/20 my-4" />
 
               {!retailOnly && (
                 <>
                   <div className="flex justify-between text-base font-semibold">
-                    <span className="text-sh-blue">Total Wholesale</span>
-                    <span className="text-sh-black tabular-nums">
+                    <span className="text-brand-blue">Total Wholesale</span>
+                    <span className="text-brand-black tabular-nums">
                       {formatCurrency(priceCalc.totalCost)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm mt-2">
-                    <span className="text-sh-gray">Suggested Retail ({defaultMarkup}x)</span>
-                    <span className="font-semibold text-sh-black tabular-nums">
+                    <span className="text-brand-gray">Suggested Retail ({defaultMarkup}x)</span>
+                    <span className="font-semibold text-brand-black tabular-nums">
                       {formatCurrency(priceCalc.suggestedRetail)}
                     </span>
                   </div>
@@ -771,15 +771,15 @@ export default function SEConfigurator({
 
               {retailOnly && (
                 <div className="flex justify-between text-base font-semibold">
-                  <span className="text-sh-blue">Retail Price</span>
-                  <span className="text-sh-black tabular-nums">
+                  <span className="text-brand-blue">Retail Price</span>
+                  <span className="text-brand-black tabular-nums">
                     {formatCurrency(priceCalc.suggestedRetail)}
                   </span>
                 </div>
               )}
 
               <div className="flex justify-between items-center text-sm mt-2">
-                <span className="text-sh-gray flex items-center gap-2">
+                <span className="text-brand-gray flex items-center gap-2">
                   Discount
                   <input
                     type="number"
@@ -789,7 +789,7 @@ export default function SEConfigurator({
                     step="1"
                     value={Math.round(discountPercent * 100)}
                     onChange={(e) => handleDiscountChange(e.target.value)}
-                    className="w-14 border border-sh-gray rounded px-2 py-0.5 text-center text-sh-black tabular-nums text-sm"
+                    className="w-14 border border-brand-gray rounded px-2 py-0.5 text-center text-brand-black tabular-nums text-sm"
                   />
                   <span>%</span>
                 </span>
@@ -800,11 +800,11 @@ export default function SEConfigurator({
                 </span>
               </div>
 
-              <div className="border-t border-sh-gray/20 my-4" />
+              <div className="border-t border-brand-gray/20 my-4" />
 
               <div className="flex justify-between text-lg font-semibold">
-                <span className="text-sh-blue">As-Shown Price</span>
-                <span className="text-sh-gold tabular-nums">
+                <span className="text-brand-blue">As-Shown Price</span>
+                <span className="text-brand-gold tabular-nums">
                   {formatCurrency(priceCalc.asShownPrice)}
                 </span>
               </div>
@@ -821,7 +821,7 @@ export default function SEConfigurator({
 
               {!retailOnly && (
                 <div className="flex justify-between text-sm mt-3">
-                  <span className="text-sh-gray">Margin</span>
+                  <span className="text-brand-gray">Margin</span>
                   <span
                     className={`font-semibold tabular-nums ${priceCalc.margin >= 0 ? "text-green-700" : "text-red-600"}`}
                   >
@@ -833,51 +833,51 @@ export default function SEConfigurator({
             </div>
 
             {/* Component selections summary */}
-            <div className="bg-white rounded-lg border border-sh-gray/20 p-4">
-              <h3 className="text-xs font-semibold text-sh-gray uppercase tracking-wider mb-3 font-sans">
+            <div className="bg-white rounded-lg border border-brand-gray/20 p-4">
+              <h3 className="text-xs font-semibold text-brand-gray uppercase tracking-wider mb-3 font-sans">
                 Component Selections
               </h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="text-sh-gray">Material</div>
-                <div className="text-sh-black font-medium">
+                <div className="text-brand-gray">Material</div>
+                <div className="text-brand-black font-medium">
                   {material === "FABRIC" ? "Fabric" : "Leather"}
                 </div>
-                <div className="text-sh-gray">Piece Type</div>
-                <div className="text-sh-black font-medium">{pieceTypeName}</div>
-                <div className="text-sh-gray">Depth</div>
-                <div className="text-sh-black font-medium">
+                <div className="text-brand-gray">Piece Type</div>
+                <div className="text-brand-black font-medium">{pieceTypeName}</div>
+                <div className="text-brand-gray">Depth</div>
+                <div className="text-brand-black font-medium">
                   {depths.find((d) => d.code === depth)?.name || depth}
                 </div>
-                <div className="text-sh-gray">Base</div>
-                <div className="text-sh-black font-medium">
+                <div className="text-brand-gray">Base</div>
+                <div className="text-brand-black font-medium">
                   {bases.find((b) => b.code === base)?.name || base}
                 </div>
                 {showCastors && castor && (
                   <>
-                    <div className="text-sh-gray">Castors</div>
-                    <div className="text-sh-black font-medium">
+                    <div className="text-brand-gray">Castors</div>
+                    <div className="text-brand-black font-medium">
                       {castors.find((c) => c.code === castor)?.name || castor}
                     </div>
                   </>
                 )}
                 {!isArmless && (
                   <>
-                    <div className="text-sh-gray">Arm</div>
-                    <div className="text-sh-black font-medium">
+                    <div className="text-brand-gray">Arm</div>
+                    <div className="text-brand-black font-medium">
                       {arms.find((a) => a.code === arm)?.name || arm}
                     </div>
                   </>
                 )}
                 {!isOttoman && (
                   <>
-                    <div className="text-sh-gray">Back Type</div>
-                    <div className="text-sh-black font-medium">
+                    <div className="text-brand-gray">Back Type</div>
+                    <div className="text-brand-black font-medium">
                       {backTypes.find((bt) => bt.code === backType)?.name || backType}
                     </div>
                   </>
                 )}
-                <div className="text-sh-gray">Cushion Fill</div>
-                <div className="text-sh-black font-medium">
+                <div className="text-brand-gray">Cushion Fill</div>
+                <div className="text-brand-black font-medium">
                   {cushionFills.find((cf) => cf.code === cushionFill)?.name || cushionFill}
                 </div>
               </div>
@@ -887,7 +887,7 @@ export default function SEConfigurator({
               <Button
                 variant="outline"
                 onClick={() => goToTab("build")}
-                className="text-sh-gray border-sh-gray"
+                className="text-brand-gray border-brand-gray"
               >
                 <ChevronLeft className="w-4 h-4 mr-1" /> Modify Build
               </Button>
@@ -932,18 +932,18 @@ export default function SEConfigurator({
                     vendor: vendorName,
                   });
                 }}
-                className="w-full py-3 rounded-lg bg-sh-gold text-white font-semibold text-base transition hover:bg-sh-gold/90 min-h-[44px]"
+                className="w-full py-3 rounded-lg bg-brand-gold text-white font-semibold text-base transition hover:bg-brand-gold/90 min-h-[44px]"
               >
                 Add to Quote
               </button>
             )}
           </div>
         ) : (
-          <div className="text-center py-16 text-sh-gray">
+          <div className="text-center py-16 text-brand-gray">
             <p>Complete your build selections and choose a grade to see pricing.</p>
             <Button
               onClick={() => goToTab("build")}
-              className="mt-4 bg-sh-blue text-white hover:bg-sh-blue/90"
+              className="mt-4 bg-brand-blue text-white hover:bg-brand-blue/90"
             >
               <ChevronLeft className="w-4 h-4 mr-1" /> Back to Build
             </Button>

@@ -133,9 +133,9 @@ export function CustomersListView() {
         }
         if (!level) return null;
         const config: Record<number, { label: string; className: string }> = {
-          1: { label: "Occasional", className: "bg-sh-gray/20 text-sh-gray" },
-          2: { label: "Frequent", className: "bg-sh-brand-blue/20 text-sh-brand-blue" },
-          3: { label: "High Value", className: "bg-sh-gold/20 text-sh-gold" },
+          1: { label: "Occasional", className: "bg-brand-gray/20 text-brand-gray" },
+          2: { label: "Frequent", className: "bg-brand-accent-blue/20 text-brand-accent-blue" },
+          3: { label: "High Value", className: "bg-brand-gold/20 text-brand-gold" },
           4: { label: "VIP", className: "bg-green-100 text-green-800" },
         };
         const c = config[level];
@@ -157,9 +157,9 @@ export function CustomersListView() {
   ];
 
   return (
-    <div className="py-2 font-serif text-sh-black">
+    <div className="py-2 font-serif text-brand-black">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-sh-blue">Customers</h1>
+        <h1 className="text-2xl font-semibold text-brand-blue">Customers</h1>
         <div className="flex gap-2">
           {isManager && (
             <Button variant="secondary" onClick={handleRecalculateLevels} disabled={recalculating}>

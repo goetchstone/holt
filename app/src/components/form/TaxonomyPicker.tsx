@@ -108,12 +108,12 @@ export default function TaxonomyPicker({
   }
 
   const selectCls =
-    "w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black focus:outline-none focus:ring-1 focus:ring-sh-blue min-h-[40px] bg-white disabled:bg-sh-linen disabled:text-sh-gray";
+    "w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black focus:outline-none focus:ring-1 focus:ring-brand-blue min-h-[40px] bg-white disabled:bg-brand-linen disabled:text-brand-gray";
 
   return (
     <div className={`grid ${hideType ? "grid-cols-3" : "grid-cols-2 md:grid-cols-4"} gap-3`}>
       <div>
-        <label className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+        <label className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
           Vendor {requireVendor && <span className="text-red-500">*</span>}
         </label>
         <select
@@ -132,7 +132,7 @@ export default function TaxonomyPicker({
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+        <label className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
           Department <span className="text-red-500">*</span>
         </label>
         <select
@@ -153,7 +153,7 @@ export default function TaxonomyPicker({
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+        <label className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
           Category <span className="text-red-500">*</span>
         </label>
         <select
@@ -173,7 +173,7 @@ export default function TaxonomyPicker({
 
       {!hideType && (
         <div>
-          <label className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+          <label className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
             Type
           </label>
           <select

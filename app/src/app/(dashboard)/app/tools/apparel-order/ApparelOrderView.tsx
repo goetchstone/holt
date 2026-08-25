@@ -291,22 +291,22 @@ export function ApparelOrderView() {
 
   return (
     <div className="py-2 space-y-6 font-serif">
-      <h1 className="text-2xl text-sh-blue font-semibold">Apparel Order Import</h1>
-      <p className="text-sm text-sh-gray max-w-3xl">
+      <h1 className="text-2xl text-brand-blue font-semibold">Apparel Order Import</h1>
+      <p className="text-sm text-brand-gray max-w-3xl">
         Upload a vendor apparel order (PDF or CSV). This creates a draft Purchase Order and one
         draft item per size/part-number in the{" "}
-        <Link href="/app/admin/buyer-drafts" className="text-sh-blue underline">
+        <Link href="/app/admin/buyer-drafts" className="text-brand-blue underline">
           Buyer Drafts
         </Link>{" "}
         workbench — nothing is sent to the POS yet. From there, export as usual once the buyer has
         finished curating.
       </p>
 
-      <div className="bg-white border border-sh-gray/20 rounded-lg p-5 space-y-4">
+      <div className="bg-white border border-brand-gray/20 rounded-lg p-5 space-y-4">
         <div>
           <label
             htmlFor="apparel-format"
-            className="block text-sm font-semibold text-sh-black mb-1"
+            className="block text-sm font-semibold text-brand-black mb-1"
           >
             Vendor format
           </label>
@@ -314,7 +314,7 @@ export function ApparelOrderView() {
             id="apparel-format"
             value={formatId}
             onChange={(e) => setFormatId(e.target.value as ApparelVendorFormatId)}
-            className="w-full sm:w-96 border border-sh-gray/30 rounded px-3 py-2 text-sm"
+            className="w-full sm:w-96 border border-brand-gray/30 rounded px-3 py-2 text-sm"
           >
             {APPAREL_VENDOR_FORMATS.map((f) => (
               <option key={f.id} value={f.id}>
@@ -322,11 +322,14 @@ export function ApparelOrderView() {
               </option>
             ))}
           </select>
-          {format && <p className="text-xs text-sh-gray mt-1 max-w-2xl">{format.notes}</p>}
+          {format && <p className="text-xs text-brand-gray mt-1 max-w-2xl">{format.notes}</p>}
         </div>
 
         <div>
-          <label htmlFor="apparel-file" className="block text-sm font-semibold text-sh-black mb-2">
+          <label
+            htmlFor="apparel-file"
+            className="block text-sm font-semibold text-brand-black mb-2"
+          >
             Upload {format?.accepts === "csv" ? "CSV" : "PDF"}
           </label>
           <input
@@ -335,12 +338,12 @@ export function ApparelOrderView() {
             accept={format?.accepts === "csv" ? ".csv" : ".pdf"}
             onChange={handleFileChange}
             disabled={parsing}
-            className="block w-full text-sm text-sh-gray file:mr-4 file:py-2 file:px-4
+            className="block w-full text-sm text-brand-gray file:mr-4 file:py-2 file:px-4
               file:rounded file:border-0 file:text-sm file:font-semibold
-              file:bg-sh-blue file:text-white hover:file:bg-sh-navy
+              file:bg-brand-blue file:text-white hover:file:bg-brand-navy
               disabled:opacity-50"
           />
-          {parsing && <p className="text-sh-gray text-sm mt-2">Parsing...</p>}
+          {parsing && <p className="text-brand-gray text-sm mt-2">Parsing...</p>}
         </div>
       </div>
 
@@ -363,11 +366,11 @@ export function ApparelOrderView() {
 
       {draft && (
         <>
-          <div className="bg-white border border-sh-gray/20 rounded-lg p-5">
-            <h2 className="text-sm font-semibold text-sh-black mb-3">Draft purchase order</h2>
+          <div className="bg-white border border-brand-gray/20 rounded-lg p-5">
+            <h2 className="text-sm font-semibold text-brand-black mb-3">Draft purchase order</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-sh-gray mb-1">Vendor</label>
+                <label className="block text-xs font-semibold text-brand-gray mb-1">Vendor</label>
                 <select
                   value={vendorId}
                   onChange={(e) => {
@@ -375,7 +378,7 @@ export function ApparelOrderView() {
                     const v = lookups?.vendors.find((x) => String(x.id) === e.target.value);
                     if (v) setVendorName(v.name);
                   }}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 >
                   <option value="">— Free text below —</option>
                   {lookups?.vendors.map((v) => (
@@ -392,39 +395,39 @@ export function ApparelOrderView() {
                     setVendorName(e.target.value);
                   }}
                   placeholder="Vendor name"
-                  className="mt-2 w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="mt-2 w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-sh-gray mb-1">
+                <label className="block text-xs font-semibold text-brand-gray mb-1">
                   Reference number (PO#)
                 </label>
                 <input
                   type="text"
                   value={referenceNumber}
                   onChange={(e) => setReferenceNumber(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-sh-gray mb-1">
+                <label className="block text-xs font-semibold text-brand-gray mb-1">
                   Expected ship month
                 </label>
                 <input
                   type="month"
                   value={expectedShipMonth}
                   onChange={(e) => setExpectedShipMonth(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-sh-gray mb-1">
+                <label className="block text-xs font-semibold text-brand-gray mb-1">
                   Ship-to store
                 </label>
                 <select
                   value={storeLocationId}
                   onChange={(e) => setStoreLocationId(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 >
                   <option value="">—</option>
                   {lookups?.storeLocations.map((s) => (
@@ -435,13 +438,13 @@ export function ApparelOrderView() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-sh-gray mb-1">
+                <label className="block text-xs font-semibold text-brand-gray mb-1">
                   Stock location (all items)
                 </label>
                 <select
                   value={stockLocationId}
                   onChange={(e) => setStockLocationId(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 >
                   <option value="">—</option>
                   {lookups?.stockLocations.map((s) => (
@@ -452,13 +455,13 @@ export function ApparelOrderView() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-sh-gray mb-1">
+                <label className="block text-xs font-semibold text-brand-gray mb-1">
                   Buy (optional)
                 </label>
                 <select
                   value={buyId}
                   onChange={(e) => setBuyId(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 >
                   <option value="">— Unassigned —</option>
                   {lookups?.buys.map((b) => (
@@ -469,7 +472,7 @@ export function ApparelOrderView() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-sh-gray mb-1">
+                <label className="block text-xs font-semibold text-brand-gray mb-1">
                   Department (all items)
                 </label>
                 <select
@@ -478,7 +481,7 @@ export function ApparelOrderView() {
                     setDepartmentId(e.target.value);
                     setCategoryId("");
                   }}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 >
                   <option value="">—</option>
                   {lookups?.departments.map((d) => (
@@ -489,14 +492,14 @@ export function ApparelOrderView() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-sh-gray mb-1">
+                <label className="block text-xs font-semibold text-brand-gray mb-1">
                   Category (all items)
                 </label>
                 <select
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
                   disabled={!departmentId}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm disabled:opacity-50"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm disabled:opacity-50"
                 >
                   <option value="">—</option>
                   {categoriesForDepartment.map((c) => (
@@ -507,7 +510,7 @@ export function ApparelOrderView() {
                 </select>
               </div>
               <div className="flex items-end">
-                <label className="inline-flex items-center gap-2 text-sm text-sh-black">
+                <label className="inline-flex items-center gap-2 text-sm text-brand-black">
                   <input
                     type="checkbox"
                     checked={stockProgram}
@@ -520,11 +523,11 @@ export function ApparelOrderView() {
             </div>
           </div>
 
-          <div className="bg-white border border-sh-gray/20 rounded-lg overflow-hidden">
+          <div className="bg-white border border-brand-gray/20 rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[900px]">
                 <thead>
-                  <tr className="bg-sh-blue text-white text-left">
+                  <tr className="bg-brand-blue text-white text-left">
                     <th className="px-3 py-2">Part #</th>
                     <th className="px-3 py-2">Product</th>
                     <th className="px-3 py-2">Color</th>
@@ -540,34 +543,34 @@ export function ApparelOrderView() {
                   {rows.map((row, i) => (
                     <tr
                       key={`${row.partNumber}-${i}`}
-                      className={i % 2 === 0 ? "bg-white" : "bg-sh-stripe"}
+                      className={i % 2 === 0 ? "bg-white" : "bg-brand-stripe"}
                     >
                       <td className="px-3 py-1.5">
                         <input
                           value={row.partNumber}
                           onChange={(e) => updateRow(i, { partNumber: e.target.value })}
-                          className="w-32 border border-sh-gray/30 rounded px-2 py-1 text-xs"
+                          className="w-32 border border-brand-gray/30 rounded px-2 py-1 text-xs"
                         />
                       </td>
                       <td className="px-3 py-1.5">
                         <input
                           value={row.productName}
                           onChange={(e) => updateRow(i, { productName: e.target.value })}
-                          className="w-40 border border-sh-gray/30 rounded px-2 py-1 text-xs"
+                          className="w-40 border border-brand-gray/30 rounded px-2 py-1 text-xs"
                         />
                       </td>
                       <td className="px-3 py-1.5">
                         <input
                           value={row.color}
                           onChange={(e) => updateRow(i, { color: e.target.value })}
-                          className="w-28 border border-sh-gray/30 rounded px-2 py-1 text-xs"
+                          className="w-28 border border-brand-gray/30 rounded px-2 py-1 text-xs"
                         />
                       </td>
                       <td className="px-3 py-1.5">
                         <input
                           value={row.size}
                           onChange={(e) => updateRow(i, { size: e.target.value })}
-                          className="w-16 border border-sh-gray/30 rounded px-2 py-1 text-xs"
+                          className="w-16 border border-brand-gray/30 rounded px-2 py-1 text-xs"
                         />
                       </td>
                       <td className="px-3 py-1.5">
@@ -575,7 +578,7 @@ export function ApparelOrderView() {
                           type="number"
                           value={row.qty}
                           onChange={(e) => updateRow(i, { qty: Number(e.target.value) || 0 })}
-                          className="w-16 border border-sh-gray/30 rounded px-2 py-1 text-xs text-right"
+                          className="w-16 border border-brand-gray/30 rounded px-2 py-1 text-xs text-right"
                         />
                       </td>
                       <td className="px-3 py-1.5">
@@ -584,7 +587,7 @@ export function ApparelOrderView() {
                           step="0.01"
                           value={row.cost}
                           onChange={(e) => updateRow(i, { cost: Number(e.target.value) || 0 })}
-                          className="w-20 border border-sh-gray/30 rounded px-2 py-1 text-xs text-right"
+                          className="w-20 border border-brand-gray/30 rounded px-2 py-1 text-xs text-right"
                         />
                       </td>
                       <td className="px-3 py-1.5">
@@ -597,7 +600,7 @@ export function ApparelOrderView() {
                               msrp: e.target.value === "" ? null : Number(e.target.value),
                             })
                           }
-                          className="w-20 border border-sh-gray/30 rounded px-2 py-1 text-xs text-right"
+                          className="w-20 border border-brand-gray/30 rounded px-2 py-1 text-xs text-right"
                         />
                       </td>
                       <td className="px-3 py-1.5">
@@ -610,7 +613,7 @@ export function ApparelOrderView() {
                               selling: e.target.value === "" ? null : Number(e.target.value),
                             })
                           }
-                          className="w-20 border border-sh-gray/30 rounded px-2 py-1 text-xs text-right"
+                          className="w-20 border border-brand-gray/30 rounded px-2 py-1 text-xs text-right"
                         />
                       </td>
                       <td className="px-3 py-1.5 text-right">
@@ -626,12 +629,12 @@ export function ApparelOrderView() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t border-sh-gray/20 bg-sh-linen font-semibold">
+                  <tr className="border-t border-brand-gray/20 bg-brand-linen font-semibold">
                     <td colSpan={4} className="px-3 py-2">
                       {totals.count} row(s)
                     </td>
                     <td className="px-3 py-2 text-right">{totals.qty}</td>
-                    <td colSpan={2} className="px-3 py-2 text-right text-sh-gray">
+                    <td colSpan={2} className="px-3 py-2 text-right text-brand-gray">
                       Total cost
                     </td>
                     <td className="px-3 py-2 text-right">{formatMoney(totals.cost)}</td>
@@ -661,7 +664,7 @@ export function ApparelOrderView() {
           </div>
           <Link
             href="/app/admin/buyer-drafts"
-            className="px-4 py-2 bg-sh-blue text-white rounded hover:bg-sh-navy transition text-sm font-semibold"
+            className="px-4 py-2 bg-brand-blue text-white rounded hover:bg-brand-navy transition text-sm font-semibold"
           >
             Open Buyer Drafts
           </Link>

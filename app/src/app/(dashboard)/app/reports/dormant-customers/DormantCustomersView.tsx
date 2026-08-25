@@ -74,23 +74,23 @@ export function DormantCustomersView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Dormant Customer Winback</span>
+        <span className="text-brand-black">Dormant Customer Winback</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">Dormant Customer Winback</h1>
-      <p className="text-sm text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-navy">Dormant Customer Winback</h1>
+      <p className="text-sm text-brand-gray">
         High-value customers who have not been back. Who should the team call today?
       </p>
 
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-sh-gray/15 bg-white p-5">
+      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-brand-gray/15 bg-white p-5">
         <div>
           <label
             htmlFor="min-spend"
-            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-sh-gray"
+            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-brand-gray"
           >
             Min Spend
           </label>
@@ -98,7 +98,7 @@ export function DormantCustomersView() {
             id="min-spend"
             value={minSpend}
             onChange={(e) => setMinSpend(Number(e.target.value))}
-            className="min-h-[44px] rounded-lg border border-sh-gray/30 px-3 py-2 text-sm"
+            className="min-h-[44px] rounded-lg border border-brand-gray/30 px-3 py-2 text-sm"
           >
             <option value={1000}>$1,000+</option>
             <option value={2000}>$2,000+</option>
@@ -109,7 +109,7 @@ export function DormantCustomersView() {
         <div>
           <label
             htmlFor="window"
-            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-sh-gray"
+            className="mb-1 block text-xs font-semibold uppercase tracking-wider text-brand-gray"
           >
             Dormancy Window
           </label>
@@ -117,7 +117,7 @@ export function DormantCustomersView() {
             id="window"
             value={window}
             onChange={(e) => setWindow(e.target.value)}
-            className="min-h-[44px] rounded-lg border border-sh-gray/30 px-3 py-2 text-sm"
+            className="min-h-[44px] rounded-lg border border-brand-gray/30 px-3 py-2 text-sm"
           >
             <option value="6-12">6-12 months</option>
             <option value="6-36">6-36 months (all)</option>
@@ -129,7 +129,7 @@ export function DormantCustomersView() {
           type="button"
           onClick={run}
           disabled={query.isFetching}
-          className="min-h-[44px] rounded-lg bg-sh-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-brand-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
         >
           {query.isFetching ? "Loading..." : "Run Report"}
         </button>
@@ -160,7 +160,7 @@ export function DormantCustomersView() {
       )}
 
       {committed === null && (
-        <p className="py-16 text-center text-sh-gray">Select filters and click Run Report</p>
+        <p className="py-16 text-center text-brand-gray">Select filters and click Run Report</p>
       )}
     </div>
   );

@@ -76,14 +76,14 @@ export function AccurateScansView() {
     <div className="py-2 font-serif">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue">Accurate Scans Report</h1>
-          <p className="text-sh-gray">
+          <h1 className="text-2xl font-semibold text-brand-blue">Accurate Scans Report</h1>
+          <p className="text-brand-gray">
             Showing {totalCount.toLocaleString()} correctly-counted items for {location}.
           </p>
         </div>
         <Link
           href={backHrefFor(reportType, location)}
-          className="flex items-center gap-2 text-sh-blue hover:underline"
+          className="flex items-center gap-2 text-brand-blue hover:underline"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Variance Report

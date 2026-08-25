@@ -31,7 +31,7 @@ interface TransferRow {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-sh-gray/20 text-sh-gray",
+  DRAFT: "bg-brand-gray/20 text-brand-gray",
   IN_TRANSIT: "bg-blue-100 text-blue-800",
   RECEIVED: "bg-green-100 text-green-800",
   CANCELLED: "bg-red-100 text-red-800",
@@ -89,8 +89,8 @@ export function TransfersView() {
       accessor: "productName",
       render: (row: TransferRow) => (
         <div>
-          <div className="text-sh-black">{row.productName}</div>
-          <div className="text-xs text-sh-gray">{row.productNumber}</div>
+          <div className="text-brand-black">{row.productName}</div>
+          <div className="text-xs text-brand-gray">{row.productNumber}</div>
         </div>
       ),
     },
@@ -100,7 +100,7 @@ export function TransfersView() {
       accessor: "fromLocation",
       width: "160px",
       render: (row: TransferRow) => (
-        <span className="text-sh-gray text-sm">
+        <span className="text-brand-gray text-sm">
           {formatLocation(row.fromLocation, row.fromStockLocation)}
         </span>
       ),
@@ -111,7 +111,7 @@ export function TransfersView() {
       accessor: "toLocation",
       width: "160px",
       render: (row: TransferRow) => (
-        <span className="text-sh-gray text-sm">
+        <span className="text-brand-gray text-sm">
           {formatLocation(row.toLocation, row.toStockLocation)}
         </span>
       ),
@@ -130,7 +130,7 @@ export function TransfersView() {
       width: "100px",
       render: (row: TransferRow) => (
         <span
-          className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[row.status] || "bg-sh-gray/20 text-sh-gray"}`}
+          className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[row.status] || "bg-brand-gray/20 text-brand-gray"}`}
         >
           {STATUS_LABELS[row.status] || row.status}
         </span>
@@ -147,9 +147,9 @@ export function TransfersView() {
   ];
 
   return (
-    <div className="py-2 font-serif text-sh-black">
+    <div className="py-2 font-serif text-brand-black">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-sh-blue">Transfers</h1>
+        <h1 className="text-2xl font-semibold text-brand-blue">Transfers</h1>
         <Button size="sm" onClick={() => router.push("/app/warehouse/transfers/new")}>
           New Transfer
         </Button>

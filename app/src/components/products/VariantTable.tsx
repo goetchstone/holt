@@ -65,7 +65,7 @@ export default function VariantTable({
 
   return (
     <div className="mb-8">
-      <h2 className="text-xl font-serif text-sh-black mb-4">
+      <h2 className="text-xl font-serif text-brand-black mb-4">
         Variants for {selectedProduct?.name || "Selected Product"}
       </h2>
       <Button
@@ -78,32 +78,32 @@ export default function VariantTable({
         + Add Variant Row
       </Button>
 
-      <div className="overflow-x-auto border border-sh-gray rounded-lg shadow-sm">
+      <div className="overflow-x-auto border border-brand-gray rounded-lg shadow-sm">
         <table className="min-w-full text-left text-sm whitespace-nowrap table-auto">
-          <thead className="bg-sh-linen text-sh-black">
+          <thead className="bg-brand-linen text-brand-black">
             <tr>
-              <th className="p-2 border-b border-sh-gray w-[20%]">Description</th>
-              <th className="p-2 border-b border-sh-gray w-[10%]">Size</th>
-              <th className="p-2 border-b border-sh-gray w-[10%]">Color</th>
-              <th className="p-2 border-b border-sh-gray w-[15%]">SKU</th>
-              <th className="p-2 border-b border-sh-gray w-[15%]">UPC/Barcode</th>
-              <th className="p-2 border-b border-sh-gray w-[10%]">Cost</th>
-              <th className="p-2 border-b border-sh-gray w-[10%]">MSRP</th>
-              <th className="p-2 border-b border-sh-gray w-[10%]">Retail</th>
-              <th className="p-2 border-b border-sh-gray w-[15%]">Dim (WxLxH)</th>
-              <th className="p-2 border-b border-sh-gray w-[10%]">Actions</th>
+              <th className="p-2 border-b border-brand-gray w-[20%]">Description</th>
+              <th className="p-2 border-b border-brand-gray w-[10%]">Size</th>
+              <th className="p-2 border-b border-brand-gray w-[10%]">Color</th>
+              <th className="p-2 border-b border-brand-gray w-[15%]">SKU</th>
+              <th className="p-2 border-b border-brand-gray w-[15%]">UPC/Barcode</th>
+              <th className="p-2 border-b border-brand-gray w-[10%]">Cost</th>
+              <th className="p-2 border-b border-brand-gray w-[10%]">MSRP</th>
+              <th className="p-2 border-b border-brand-gray w-[10%]">Retail</th>
+              <th className="p-2 border-b border-brand-gray w-[15%]">Dim (WxLxH)</th>
+              <th className="p-2 border-b border-brand-gray w-[10%]">Actions</th>
             </tr>
           </thead>
           <tbody>
             {(variants || []).map((variant, index) => (
               <tr
                 key={variant.id || `new-${index}`}
-                className="odd:bg-white even:bg-sh-stripe h-16"
+                className="odd:bg-white even:bg-brand-stripe h-16"
               >
-                <td className="p-2 border-b border-sh-gray truncate overflow-hidden">
+                <td className="p-2 border-b border-brand-gray truncate overflow-hidden">
                   {variant.calculatedDescription}
                 </td>
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <FormInput
                     label=""
                     name={`size-${index}`}
@@ -111,7 +111,7 @@ export default function VariantTable({
                     onChange={(v) => onVariantChange(index, "size", v)}
                   />
                 </td>
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <FormInput
                     label=""
                     name={`color-${index}`}
@@ -119,7 +119,7 @@ export default function VariantTable({
                     onChange={(v) => onVariantChange(index, "color", v)}
                   />
                 </td>
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <FormInput
                     label=""
                     name={`sku-${index}`}
@@ -127,7 +127,7 @@ export default function VariantTable({
                     onChange={(v) => onVariantChange(index, "sku", v)}
                   />
                 </td>
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <FormInput
                     label=""
                     name={`upc-${index}`}
@@ -136,7 +136,7 @@ export default function VariantTable({
                     placeholder="Auto-generate"
                   />
                 </td>
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <FormCurrencyInput
                     label=""
                     name={`cost-${index}`}
@@ -144,7 +144,7 @@ export default function VariantTable({
                     onChange={(v) => onVariantChange(index, "cost", v)}
                   />
                 </td>
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <FormCurrencyInput
                     label=""
                     name={`msrp-${index}`}
@@ -152,7 +152,7 @@ export default function VariantTable({
                     onChange={(v) => onVariantChange(index, "msrp", v)}
                   />
                 </td>
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <FormCurrencyInput
                     label=""
                     name={`retail-${index}`}
@@ -160,7 +160,7 @@ export default function VariantTable({
                     onChange={(v) => onVariantChange(index, "retail", v)}
                   />
                 </td>
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <div className="flex gap-1">
                     <FormNumberInput
                       label=""
@@ -185,7 +185,7 @@ export default function VariantTable({
                     />
                   </div>
                 </td>
-                <td className="p-2 border-b border-sh-gray">
+                <td className="p-2 border-b border-brand-gray">
                   <Button
                     type="button"
                     variant="secondary"
@@ -199,7 +199,7 @@ export default function VariantTable({
             ))}
             {variants.length === 0 && (
               <tr>
-                <td colSpan={10} className="p-4 text-center text-sh-gray">
+                <td colSpan={10} className="p-4 text-center text-brand-gray">
                   Add variant rows below for this Master Product.
                 </td>
               </tr>

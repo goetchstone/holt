@@ -9,7 +9,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logger } from "@/lib/logger";
 
-const COOKIE_NAME = "sh-impersonate";
+const COOKIE_NAME = "holt-impersonate";
 const VALID_ROLES = ["DESIGNER", "REGISTER", "MANAGER", "WAREHOUSE", "INSTALLER", "MARKETING"];
 
 // SUPER_ADMIN + ADMIN can impersonate. requireAuthWithRole(["ADMIN"]) admits

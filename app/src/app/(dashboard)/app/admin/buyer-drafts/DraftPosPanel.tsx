@@ -57,10 +57,10 @@ export function DraftPosPanel({
   const hiddenCount = pos.length - visible.length;
 
   return (
-    <div className="bg-white border border-sh-stripe rounded-lg p-4">
-      <h2 className="font-serif text-lg text-sh-navy mb-3">Draft POs</h2>
+    <div className="bg-white border border-brand-stripe rounded-lg p-4">
+      <h2 className="font-serif text-lg text-brand-navy mb-3">Draft POs</h2>
       {pos.length === 0 ? (
-        <p className="text-sm text-sh-gray italic">
+        <p className="text-sm text-brand-gray italic">
           No POs yet. Group items into a PO before exporting so the POS imports the right
           relationships.
         </p>
@@ -85,7 +85,7 @@ export function DraftPosPanel({
             ))}
           </ul>
           {hiddenCount > 0 && (
-            <p className="text-xs text-sh-gray mt-3 italic">
+            <p className="text-xs text-brand-gray mt-3 italic">
               {hiddenCount} PO{hiddenCount === 1 ? "" : "s"} hidden (out of DRAFT or attached to
               another buy). Use the Buy filter to see them.
             </p>
@@ -115,9 +115,9 @@ interface DroppablePoCardProps {
 }
 
 function cardStyleFor(isOver: boolean, selected: boolean): string {
-  if (isOver) return "bg-sh-gold/30 border-2 border-sh-gold";
-  if (selected) return "bg-sh-gold/20 border border-sh-gold";
-  return "border border-sh-stripe hover:bg-sh-stripe/40";
+  if (isOver) return "bg-brand-gold/30 border-2 border-brand-gold";
+  if (selected) return "bg-brand-gold/20 border border-brand-gold";
+  return "border border-brand-stripe hover:bg-brand-stripe/40";
 }
 
 function DroppablePoCard({
@@ -157,15 +157,15 @@ function DroppablePoCard({
           className="flex-1 text-left min-w-0"
           aria-label={`Filter to PO ${po.referenceNumber ?? po.id}`}
         >
-          <div className="font-semibold text-sh-navy">{po.referenceNumber ?? "(no ref)"}</div>
-          <div className="text-xs text-sh-gray mt-0.5">{po.vendor?.name ?? po.vendorName}</div>
-          {eta && <div className="text-xs text-sh-blue mt-1 font-semibold">ETA: {eta}</div>}
-          {buyName && <div className="text-xs text-sh-gray mt-0.5">Buy: {buyName}</div>}
-          <div className="text-xs text-sh-gray flex justify-between mt-2">
+          <div className="font-semibold text-brand-navy">{po.referenceNumber ?? "(no ref)"}</div>
+          <div className="text-xs text-brand-gray mt-0.5">{po.vendor?.name ?? po.vendorName}</div>
+          {eta && <div className="text-xs text-brand-blue mt-1 font-semibold">ETA: {eta}</div>}
+          {buyName && <div className="text-xs text-brand-gray mt-0.5">Buy: {buyName}</div>}
+          <div className="text-xs text-brand-gray flex justify-between mt-2">
             <span>
               {liveItemCount} items
               {liveTotalCost > 0 && (
-                <span className="ml-2 text-sh-navy font-semibold">
+                <span className="ml-2 text-brand-navy font-semibold">
                   $
                   {liveTotalCost.toLocaleString("en-US", {
                     minimumFractionDigits: 0,
@@ -184,7 +184,7 @@ function DroppablePoCard({
             type="button"
             onClick={onEdit}
             aria-label={`Edit PO ${po.referenceNumber ?? po.id}`}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-sh-gray hover:text-sh-navy hover:bg-sh-stripe rounded"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-brand-gray hover:text-brand-navy hover:bg-brand-stripe rounded"
           >
             <Pencil className="h-4 w-4" />
           </button>
@@ -194,7 +194,7 @@ function DroppablePoCard({
             ref={setDragRef}
             type="button"
             aria-label={`Drag PO ${po.referenceNumber ?? po.id} to a buy`}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-sh-gray hover:text-sh-navy cursor-grab active:cursor-grabbing"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-brand-gray hover:text-brand-navy cursor-grab active:cursor-grabbing"
             style={{ touchAction: "none" }}
             {...listeners}
             {...attributes}
@@ -210,12 +210,12 @@ function DroppablePoCard({
 function UnassignedDropZone() {
   const { isOver, setNodeRef } = useDroppable({ id: "po-unassigned" });
   const style = isOver
-    ? "border-2 border-dashed border-sh-gold bg-sh-gold/10"
-    : "border-2 border-dashed border-sh-stripe";
+    ? "border-2 border-dashed border-brand-gold bg-brand-gold/10"
+    : "border-2 border-dashed border-brand-stripe";
   return (
     <div
       ref={setNodeRef}
-      className={`p-3 rounded text-xs text-center text-sh-gray transition-colors ${style}`}
+      className={`p-3 rounded text-xs text-center text-brand-gray transition-colors ${style}`}
     >
       Drop here to unassign
     </div>

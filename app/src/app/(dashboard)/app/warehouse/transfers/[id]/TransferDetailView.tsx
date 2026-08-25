@@ -38,7 +38,7 @@ interface TransferDetail {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  DRAFT: "bg-sh-gray/20 text-sh-gray",
+  DRAFT: "bg-brand-gray/20 text-brand-gray",
   IN_TRANSIT: "bg-blue-100 text-blue-800",
   RECEIVED: "bg-green-100 text-green-800",
   CANCELLED: "bg-red-100 text-red-800",
@@ -84,7 +84,7 @@ export function TransferDetailView({ id }: { id: string }) {
   if (loading) {
     return (
       <div className="py-2 font-serif">
-        <p className="text-sh-gray">Loading...</p>
+        <p className="text-brand-gray">Loading...</p>
       </div>
     );
   }
@@ -92,7 +92,7 @@ export function TransferDetailView({ id }: { id: string }) {
   if (!transfer) {
     return (
       <div className="py-2 font-serif">
-        <p className="text-sh-gray">Transfer not found</p>
+        <p className="text-brand-gray">Transfer not found</p>
       </div>
     );
   }
@@ -103,68 +103,68 @@ export function TransferDetailView({ id }: { id: string }) {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl text-sh-blue font-semibold">Transfer #{transfer.id}</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">Transfer #{transfer.id}</h1>
         <span
-          className={`text-sm px-3 py-1 rounded ${STATUS_STYLES[transfer.status] || "bg-sh-gray/20 text-sh-gray"}`}
+          className={`text-sm px-3 py-1 rounded ${STATUS_STYLES[transfer.status] || "bg-brand-gray/20 text-brand-gray"}`}
         >
           {STATUS_LABELS[transfer.status] || transfer.status}
         </span>
       </div>
 
       {/* Summary */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-sh-gray mb-1">Product</p>
-            <p className="text-sh-black font-medium">{transfer.productName}</p>
-            <p className="text-sh-gray text-xs">{transfer.productNumber}</p>
+            <p className="text-brand-gray mb-1">Product</p>
+            <p className="text-brand-black font-medium">{transfer.productName}</p>
+            <p className="text-brand-gray text-xs">{transfer.productNumber}</p>
           </div>
           <div>
-            <p className="text-sh-gray mb-1">Quantity</p>
-            <p className="text-sh-black font-medium">{transfer.quantity}</p>
+            <p className="text-brand-gray mb-1">Quantity</p>
+            <p className="text-brand-black font-medium">{transfer.quantity}</p>
           </div>
           <div>
-            <p className="text-sh-gray mb-1">From</p>
-            <p className="text-sh-black">
+            <p className="text-brand-gray mb-1">From</p>
+            <p className="text-brand-black">
               {formatLoc(transfer.fromLocation, transfer.fromStockLocation)}
             </p>
           </div>
           <div>
-            <p className="text-sh-gray mb-1">To</p>
-            <p className="text-sh-black">
+            <p className="text-brand-gray mb-1">To</p>
+            <p className="text-brand-black">
               {formatLoc(transfer.toLocation, transfer.toStockLocation)}
             </p>
           </div>
           <div>
-            <p className="text-sh-gray mb-1">Requested By</p>
-            <p className="text-sh-black">{transfer.requestedBy}</p>
+            <p className="text-brand-gray mb-1">Requested By</p>
+            <p className="text-brand-black">{transfer.requestedBy}</p>
           </div>
           <div>
-            <p className="text-sh-gray mb-1">Requested</p>
-            <p className="text-sh-black">
+            <p className="text-brand-gray mb-1">Requested</p>
+            <p className="text-brand-black">
               {format(new Date(transfer.created), "MMM d, yyyy h:mm a")}
             </p>
           </div>
           {transfer.shippedAt && (
             <div>
-              <p className="text-sh-gray mb-1">Shipped</p>
-              <p className="text-sh-black">
+              <p className="text-brand-gray mb-1">Shipped</p>
+              <p className="text-brand-black">
                 {format(new Date(transfer.shippedAt), "MMM d, yyyy h:mm a")}
               </p>
             </div>
           )}
           {transfer.receivedAt && (
             <div>
-              <p className="text-sh-gray mb-1">Received</p>
-              <p className="text-sh-black">
+              <p className="text-brand-gray mb-1">Received</p>
+              <p className="text-brand-black">
                 {format(new Date(transfer.receivedAt), "MMM d, yyyy h:mm a")}
               </p>
             </div>
           )}
           {transfer.notes && (
             <div className="sm:col-span-2">
-              <p className="text-sh-gray mb-1">Notes</p>
-              <p className="text-sh-black">{transfer.notes}</p>
+              <p className="text-brand-gray mb-1">Notes</p>
+              <p className="text-brand-black">{transfer.notes}</p>
             </div>
           )}
         </div>

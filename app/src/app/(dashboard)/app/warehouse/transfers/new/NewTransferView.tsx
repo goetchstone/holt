@@ -110,20 +110,20 @@ export function NewTransferView() {
 
   return (
     <div className="py-2 space-y-6 font-serif">
-      <h1 className="text-2xl text-sh-blue font-semibold">New Transfer</h1>
+      <h1 className="text-2xl text-brand-blue font-semibold">New Transfer</h1>
 
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6 space-y-5">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6 space-y-5">
         {/* Product search */}
         <div className="relative">
-          <label htmlFor="transfer-product-search" className="block text-sm text-sh-gray mb-1">
+          <label htmlFor="transfer-product-search" className="block text-sm text-brand-gray mb-1">
             Product
           </label>
           {form.productId ? (
             <div className="flex items-center gap-2">
-              <span className="text-sh-black">{form.productDisplay}</span>
+              <span className="text-brand-black">{form.productDisplay}</span>
               <button
                 onClick={() => setForm((f) => ({ ...f, productId: null, productDisplay: "" }))}
-                className="text-xs text-sh-gray hover:text-red-600"
+                className="text-xs text-brand-gray hover:text-red-600"
               >
                 Clear
               </button>
@@ -136,21 +136,21 @@ export function NewTransferView() {
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 placeholder="Search by name or product number..."
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               />
               {(productResults.length > 0 || searching) && (
-                <div className="absolute z-10 mt-1 w-full bg-white border border-sh-gray/20 rounded shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-10 mt-1 w-full bg-white border border-brand-gray/20 rounded shadow-lg max-h-48 overflow-y-auto">
                   {searching ? (
-                    <div className="px-3 py-2 text-sm text-sh-gray">Searching...</div>
+                    <div className="px-3 py-2 text-sm text-brand-gray">Searching...</div>
                   ) : (
                     productResults.map((p) => (
                       <button
                         key={p.id}
                         onClick={() => selectProduct(p)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-sh-stripe border-b border-sh-gray/10"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-brand-stripe border-b border-brand-gray/10"
                       >
-                        <span className="text-sh-black">{p.name}</span>
-                        <span className="text-sh-gray ml-2">{p.productNumber}</span>
+                        <span className="text-brand-black">{p.name}</span>
+                        <span className="text-brand-gray ml-2">{p.productNumber}</span>
                       </button>
                     ))
                   )}
@@ -163,9 +163,12 @@ export function NewTransferView() {
         {/* From / To */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-sh-black">From</h3>
+            <h3 className="text-sm font-medium text-brand-black">From</h3>
             <div>
-              <label htmlFor="transfer-from-location" className="block text-xs text-sh-gray mb-1">
+              <label
+                htmlFor="transfer-from-location"
+                className="block text-xs text-brand-gray mb-1"
+              >
                 Location
               </label>
               <select
@@ -178,7 +181,7 @@ export function NewTransferView() {
                     fromStockLocationId: "",
                   }))
                 }
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               >
                 <option value="">Select location...</option>
                 {locations.map((loc) => (
@@ -192,7 +195,7 @@ export function NewTransferView() {
               <div>
                 <label
                   htmlFor="transfer-from-stock-location"
-                  className="block text-xs text-sh-gray mb-1"
+                  className="block text-xs text-brand-gray mb-1"
                 >
                   Stock Location
                 </label>
@@ -200,7 +203,7 @@ export function NewTransferView() {
                   id="transfer-from-stock-location"
                   value={form.fromStockLocationId}
                   onChange={(e) => setForm((f) => ({ ...f, fromStockLocationId: e.target.value }))}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 >
                   <option value="">Any stock location</option>
                   {fromLocation.stockLocations.map((sl) => (
@@ -214,9 +217,9 @@ export function NewTransferView() {
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-sh-black">To</h3>
+            <h3 className="text-sm font-medium text-brand-black">To</h3>
             <div>
-              <label htmlFor="transfer-to-location" className="block text-xs text-sh-gray mb-1">
+              <label htmlFor="transfer-to-location" className="block text-xs text-brand-gray mb-1">
                 Location
               </label>
               <select
@@ -229,7 +232,7 @@ export function NewTransferView() {
                     toStockLocationId: "",
                   }))
                 }
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               >
                 <option value="">Select location...</option>
                 {locations.map((loc) => (
@@ -243,7 +246,7 @@ export function NewTransferView() {
               <div>
                 <label
                   htmlFor="transfer-to-stock-location"
-                  className="block text-xs text-sh-gray mb-1"
+                  className="block text-xs text-brand-gray mb-1"
                 >
                   Stock Location
                 </label>
@@ -251,7 +254,7 @@ export function NewTransferView() {
                   id="transfer-to-stock-location"
                   value={form.toStockLocationId}
                   onChange={(e) => setForm((f) => ({ ...f, toStockLocationId: e.target.value }))}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 >
                   <option value="">Any stock location</option>
                   {toLocation.stockLocations.map((sl) => (
@@ -268,7 +271,7 @@ export function NewTransferView() {
         {/* Quantity and notes */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="transfer-quantity" className="block text-sm text-sh-gray mb-1">
+            <label htmlFor="transfer-quantity" className="block text-sm text-brand-gray mb-1">
               Quantity
             </label>
             <input
@@ -279,11 +282,11 @@ export function NewTransferView() {
               onChange={(e) =>
                 setForm((f) => ({ ...f, quantity: Number.parseInt(e.target.value) || 1 }))
               }
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label htmlFor="transfer-notes" className="block text-sm text-sh-gray mb-1">
+            <label htmlFor="transfer-notes" className="block text-sm text-brand-gray mb-1">
               Notes
             </label>
             <input
@@ -291,7 +294,7 @@ export function NewTransferView() {
               type="text"
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               placeholder="Optional"
             />
           </div>

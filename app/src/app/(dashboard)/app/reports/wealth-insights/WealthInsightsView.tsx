@@ -54,9 +54,9 @@ const LEVEL_LABELS: Record<number, string> = {
 };
 
 const LEVEL_COLORS: Record<number, string> = {
-  1: "bg-sh-gray/20 text-sh-gray",
-  2: "bg-sh-brand-blue/20 text-sh-brand-blue",
-  3: "bg-sh-gold/20 text-sh-gold",
+  1: "bg-brand-gray/20 text-brand-gray",
+  2: "bg-brand-accent-blue/20 text-brand-accent-blue",
+  3: "bg-brand-gold/20 text-brand-gold",
   4: "bg-green-100 text-green-800",
 };
 
@@ -83,8 +83,8 @@ function CustomerLevelCell({ row }: Readonly<{ row: CustomerRow }>) {
       </span>
     );
   }
-  if (!row.customerLevel) return <span className="text-xs text-sh-gray">—</span>;
-  const color = LEVEL_COLORS[row.customerLevel] || "bg-sh-gray/20 text-sh-gray";
+  if (!row.customerLevel) return <span className="text-xs text-brand-gray">—</span>;
+  const color = LEVEL_COLORS[row.customerLevel] || "bg-brand-gray/20 text-brand-gray";
   return (
     <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${color}`}>
       {LEVEL_LABELS[row.customerLevel] || "—"}
@@ -171,15 +171,15 @@ export function WealthInsightsView() {
   return (
     <div className="space-y-6 py-2 font-serif">
       <div className="flex items-center gap-3">
-        <Link href="/app/reports" className="text-sm text-sh-blue hover:underline">
+        <Link href="/app/reports" className="text-sm text-brand-blue hover:underline">
           Reports
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">Wealth Insights</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">Wealth Insights</h1>
       </div>
 
       {loading || !data ? (
-        <p className="py-16 text-center text-sh-gray">Loading...</p>
+        <p className="py-16 text-center text-brand-gray">Loading...</p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -189,8 +189,8 @@ export function WealthInsightsView() {
             <KpiCard label="Recent Movers" value={data.recentMovers.length} />
           </div>
 
-          <div className="rounded-xl border border-sh-gray/15 bg-white p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-sh-navy">
+          <div className="rounded-xl border border-brand-gray/15 bg-white p-5">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-brand-navy">
               Wealth Tiers
             </h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -199,20 +199,20 @@ export function WealthInsightsView() {
                   key={t.tier}
                   type="button"
                   onClick={() => handleTierClick(t.tier)}
-                  className={`cursor-pointer rounded-lg bg-sh-linen p-4 text-center transition ${activeTier === t.tier ? "ring-2 ring-sh-blue" : "hover:ring-1 hover:ring-sh-gray/30"}`}
+                  className={`cursor-pointer rounded-lg bg-brand-linen p-4 text-center transition ${activeTier === t.tier ? "ring-2 ring-brand-blue" : "hover:ring-1 hover:ring-brand-gray/30"}`}
                 >
                   <WealthTierBadge tier={t.tier} />
-                  <p className="mt-2 text-2xl font-semibold text-sh-black">
+                  <p className="mt-2 text-2xl font-semibold text-brand-black">
                     {t.count.toLocaleString()}
                   </p>
-                  <p className="mt-1 text-xs text-sh-gray">{TIER_LABELS[t.tier] || t.tier}</p>
+                  <p className="mt-1 text-xs text-brand-gray">{TIER_LABELS[t.tier] || t.tier}</p>
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="rounded-xl border border-sh-gray/15 bg-white p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-sh-navy">
+          <div className="rounded-xl border border-brand-gray/15 bg-white p-5">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-brand-navy">
               Lifestyle Signals
             </h2>
             <div className="flex flex-wrap gap-3">
@@ -223,12 +223,12 @@ export function WealthInsightsView() {
                     key={s.signal}
                     type="button"
                     onClick={() => handleSignalClick(s.signal)}
-                    className={`cursor-pointer rounded-lg bg-sh-linen px-4 py-3 text-center transition ${activeSignal === field ? "ring-2 ring-sh-blue" : "hover:ring-1 hover:ring-sh-gray/30"}`}
+                    className={`cursor-pointer rounded-lg bg-brand-linen px-4 py-3 text-center transition ${activeSignal === field ? "ring-2 ring-brand-blue" : "hover:ring-1 hover:ring-brand-gray/30"}`}
                   >
-                    <p className="text-lg font-semibold text-sh-black">
+                    <p className="text-lg font-semibold text-brand-black">
                       {s.count.toLocaleString()}
                     </p>
-                    <p className="mt-0.5 text-xs text-sh-gray">{s.signal}</p>
+                    <p className="mt-0.5 text-xs text-brand-gray">{s.signal}</p>
                   </button>
                 );
               })}
@@ -236,8 +236,8 @@ export function WealthInsightsView() {
           </div>
 
           {data.levels.length > 0 && (
-            <div className="rounded-xl border border-sh-gray/15 bg-white p-5">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-sh-navy">
+            <div className="rounded-xl border border-brand-gray/15 bg-white p-5">
+              <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-brand-navy">
                 Customer Levels
               </h2>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
@@ -248,7 +248,7 @@ export function WealthInsightsView() {
                       key={l.level}
                       type="button"
                       onClick={() => handleLevelClick(l.level)}
-                      className={`cursor-pointer rounded-lg bg-sh-linen p-4 text-center transition ${activeLevel === filterValue ? "ring-2 ring-sh-blue" : "hover:ring-1 hover:ring-sh-gray/30"}`}
+                      className={`cursor-pointer rounded-lg bg-brand-linen p-4 text-center transition ${activeLevel === filterValue ? "ring-2 ring-brand-blue" : "hover:ring-1 hover:ring-brand-gray/30"}`}
                     >
                       <CustomerLevelCell
                         row={
@@ -259,7 +259,7 @@ export function WealthInsightsView() {
                           } as CustomerRow
                         }
                       />
-                      <p className="mt-2 text-2xl font-semibold text-sh-black">
+                      <p className="mt-2 text-2xl font-semibold text-brand-black">
                         {l.count.toLocaleString()}
                       </p>
                     </button>
@@ -269,8 +269,8 @@ export function WealthInsightsView() {
             </div>
           )}
 
-          <div className="rounded-xl border border-sh-gray/15 bg-white p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-sh-navy">
+          <div className="rounded-xl border border-brand-gray/15 bg-white p-5">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-brand-navy">
               Primary Customer Group
             </h2>
             <div className="flex flex-wrap gap-2">
@@ -283,8 +283,8 @@ export function WealthInsightsView() {
                     onClick={() => handleGroupClick(opt.id)}
                     className={`min-h-[32px] rounded-full border px-3 py-1.5 text-xs transition-colors ${
                       active
-                        ? "border-sh-blue bg-sh-blue text-white"
-                        : "border-sh-gray/30 text-sh-gray hover:border-sh-blue"
+                        ? "border-brand-blue bg-brand-blue text-white"
+                        : "border-brand-gray/30 text-brand-gray hover:border-brand-blue"
                     }`}
                   >
                     {opt.label}
@@ -295,9 +295,9 @@ export function WealthInsightsView() {
           </div>
 
           {data.filteredCustomers && data.filteredCustomers.length > 0 && (
-            <div className="rounded-xl border border-sh-blue/30 bg-white p-5 ring-2 ring-sh-blue/10">
+            <div className="rounded-xl border border-brand-blue/30 bg-white p-5 ring-2 ring-brand-blue/10">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-widest text-sh-navy">
+                <h2 className="text-sm font-semibold uppercase tracking-widest text-brand-navy">
                   {[
                     activeTier ? TIER_LABELS[activeTier] || activeTier : null,
                     activeLevel
@@ -332,32 +332,36 @@ export function WealthInsightsView() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-sh-gray/20">
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Customer</th>
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Email</th>
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Phone</th>
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">City</th>
-                      <th className="px-3 py-2 text-right font-semibold text-sh-gray">Net Worth</th>
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Tier</th>
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Level</th>
-                      <th className="px-3 py-2 text-right font-semibold text-sh-gray">Orders</th>
-                      <th className="px-3 py-2 text-right font-semibold text-sh-gray">Spend</th>
+                    <tr className="border-b border-brand-gray/20">
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">
+                        Customer
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">Email</th>
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">Phone</th>
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">City</th>
+                      <th className="px-3 py-2 text-right font-semibold text-brand-gray">
+                        Net Worth
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">Tier</th>
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">Level</th>
+                      <th className="px-3 py-2 text-right font-semibold text-brand-gray">Orders</th>
+                      <th className="px-3 py-2 text-right font-semibold text-brand-gray">Spend</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.filteredCustomers.slice(0, 200).map((c) => (
-                      <tr key={c.id} className="border-b border-sh-gray/10">
+                      <tr key={c.id} className="border-b border-brand-gray/10">
                         <td className="px-3 py-2">
                           <Link
                             href={`/app/sales/customers/${c.id}`}
-                            className="text-sh-blue hover:underline"
+                            className="text-brand-blue hover:underline"
                           >
                             {[c.firstName, c.lastName].filter(Boolean).join(" ") || "Unknown"}
                           </Link>
                         </td>
-                        <td className="px-3 py-2 text-xs text-sh-gray">{c.email || "—"}</td>
-                        <td className="px-3 py-2 text-xs text-sh-gray">{c.phone || "—"}</td>
-                        <td className="px-3 py-2 text-xs text-sh-gray">{c.city || "—"}</td>
+                        <td className="px-3 py-2 text-xs text-brand-gray">{c.email || "—"}</td>
+                        <td className="px-3 py-2 text-xs text-brand-gray">{c.phone || "—"}</td>
+                        <td className="px-3 py-2 text-xs text-brand-gray">{c.city || "—"}</td>
                         <td className="px-3 py-2 text-right">
                           {c.netWorth ? formatNetWorth(c.netWorth) : "—"}
                         </td>
@@ -377,7 +381,7 @@ export function WealthInsightsView() {
                 </table>
               </div>
               {data.filteredCustomers.length > 200 && (
-                <p className="mt-3 text-center text-xs text-sh-gray">
+                <p className="mt-3 text-center text-xs text-brand-gray">
                   Showing first 200 of {data.filteredCustomers.length}. Export CSV for full list.
                 </p>
               )}
@@ -385,36 +389,40 @@ export function WealthInsightsView() {
           )}
 
           {data.recentMovers.length > 0 && !hasAnyFilter && (
-            <div className="rounded-xl border border-sh-gray/15 bg-white p-5">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-sh-navy">
+            <div className="rounded-xl border border-brand-gray/15 bg-white p-5">
+              <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-brand-navy">
                 Recent Movers — Warm Leads
               </h2>
-              <p className="mb-3 text-xs text-sh-gray">
+              <p className="mb-3 text-xs text-brand-gray">
                 Customers who recently moved. New homes need furniture.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-sh-gray/20">
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Customer</th>
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Email</th>
-                      <th className="px-3 py-2 text-right font-semibold text-sh-gray">Net Worth</th>
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Tier</th>
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Level</th>
+                    <tr className="border-b border-brand-gray/20">
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">
+                        Customer
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">Email</th>
+                      <th className="px-3 py-2 text-right font-semibold text-brand-gray">
+                        Net Worth
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">Tier</th>
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">Level</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.recentMovers.map((c) => (
-                      <tr key={c.id} className="border-b border-sh-gray/10">
+                      <tr key={c.id} className="border-b border-brand-gray/10">
                         <td className="px-3 py-2">
                           <Link
                             href={`/app/sales/customers/${c.id}`}
-                            className="text-sh-blue hover:underline"
+                            className="text-brand-blue hover:underline"
                           >
                             {[c.firstName, c.lastName].filter(Boolean).join(" ") || "Unknown"}
                           </Link>
                         </td>
-                        <td className="px-3 py-2 text-xs text-sh-gray">{c.email || "—"}</td>
+                        <td className="px-3 py-2 text-xs text-brand-gray">{c.email || "—"}</td>
                         <td className="px-3 py-2 text-right">
                           {c.netWorth ? formatNetWorth(c.netWorth) : "—"}
                         </td>
@@ -433,31 +441,35 @@ export function WealthInsightsView() {
           )}
 
           {!hasAnyFilter && (
-            <div className="rounded-xl border border-sh-gray/15 bg-white p-5">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-sh-navy">
+            <div className="rounded-xl border border-brand-gray/15 bg-white p-5">
+              <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-brand-navy">
                 Top 50 Customers by Net Worth
               </h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-sh-gray/20">
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Customer</th>
-                      <th className="px-3 py-2 text-right font-semibold text-sh-gray">Net Worth</th>
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Tier</th>
-                      <th className="px-3 py-2 text-left font-semibold text-sh-gray">Level</th>
-                      <th className="px-3 py-2 text-right font-semibold text-sh-gray">Orders</th>
-                      <th className="px-3 py-2 text-right font-semibold text-sh-gray">
+                    <tr className="border-b border-brand-gray/20">
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">
+                        Customer
+                      </th>
+                      <th className="px-3 py-2 text-right font-semibold text-brand-gray">
+                        Net Worth
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">Tier</th>
+                      <th className="px-3 py-2 text-left font-semibold text-brand-gray">Level</th>
+                      <th className="px-3 py-2 text-right font-semibold text-brand-gray">Orders</th>
+                      <th className="px-3 py-2 text-right font-semibold text-brand-gray">
                         Total Spend
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.topCustomers.map((c) => (
-                      <tr key={c.id} className="border-b border-sh-gray/10">
+                      <tr key={c.id} className="border-b border-brand-gray/10">
                         <td className="px-3 py-2">
                           <Link
                             href={`/app/sales/customers/${c.id}`}
-                            className="text-sh-blue hover:underline"
+                            className="text-brand-blue hover:underline"
                           >
                             {[c.firstName, c.lastName].filter(Boolean).join(" ") || "Unknown"}
                           </Link>

@@ -125,7 +125,7 @@ export default function MasterProductSelector({
 
   // Display loading or error states for the main products dropdown
   if (loadingProducts) {
-    return <div className="p-6 text-center text-sh-black font-serif">Loading products...</div>;
+    return <div className="p-6 text-center text-brand-black font-serif">Loading products...</div>;
   }
 
   if (errorProducts) {
@@ -137,14 +137,14 @@ export default function MasterProductSelector({
   }
 
   return (
-    <div className="mb-8 border p-4 rounded-lg bg-sh-linen">
-      <h2 className="text-xl font-serif text-sh-black mb-4">Master Product</h2>
+    <div className="mb-8 border p-4 rounded-lg bg-brand-linen">
+      <h2 className="text-xl font-serif text-brand-black mb-4">Master Product</h2>
       {!isCreatingNewMaster ? (
         // Select Existing Master Product Form
         <div className="flex items-center gap-4">
           <label
             htmlFor="masterProductSelect"
-            className="font-serif text-sh-black mb-1 block min-w-[120px]"
+            className="font-serif text-brand-black mb-1 block min-w-[120px]"
           >
             Select Existing:
           </label>
@@ -182,7 +182,7 @@ export default function MasterProductSelector({
       ) : (
         // Create New Master Product Form
         <div className="space-y-4">
-          <h3 className="text-lg font-serif text-sh-blue">Create New Master Product</h3>
+          <h3 className="text-lg font-serif text-brand-blue">Create New Master Product</h3>
           <div className="grid grid-cols-2 gap-4">
             <FormInput
               label="Product Name"
@@ -255,10 +255,10 @@ export default function MasterProductSelector({
       )}
       {selectedProduct && (
         <div className="mt-4 p-3 border rounded bg-white">
-          <h3 className="text-lg font-semibold text-sh-blue">
+          <h3 className="text-lg font-semibold text-brand-blue">
             {selectedProduct.name} ({selectedProduct.productNumber})
           </h3>
-          <p className="text-sm text-sh-black">
+          <p className="text-sm text-brand-black">
             Vendor: {selectedProduct.vendorName || "N/A"} | Dept:{" "}
             {selectedProduct.departmentName || "N/A"} | Cat: {selectedProduct.categoryName || "N/A"}
           </p>

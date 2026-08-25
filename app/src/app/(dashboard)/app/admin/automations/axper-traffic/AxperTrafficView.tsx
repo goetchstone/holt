@@ -150,24 +150,24 @@ export function AxperTrafficView() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-sh-navy">Axper Traffic Sync</h1>
-        <p className="mt-1 text-sm text-sh-gray">
+        <h1 className="text-2xl font-semibold text-brand-navy">Axper Traffic Sync</h1>
+        <p className="mt-1 text-sm text-brand-gray">
           Pulls yesterday&apos;s door-counter data from Axper into <code>TrafficSnapshot</code>,
           then scans the last N days and back-fills any missing days. Today&apos;s traffic is still
           pulled live by the dashboard charts (Axper closes the day at midnight, so the cron runs at
           02:00 ET against the previous day).
         </p>
-        <p className="mt-1 text-xs text-sh-gray">
+        <p className="mt-1 text-xs text-brand-gray">
           The job runs in the background — you can navigate away and come back; the recent-runs
           table will show when it finishes.
         </p>
       </div>
 
       {/* Run Now */}
-      <section className="rounded border border-sh-stripe bg-white p-4">
+      <section className="rounded border border-brand-stripe bg-white p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="backfill-days" className="block text-xs font-medium text-sh-navy">
+            <label htmlFor="backfill-days" className="block text-xs font-medium text-brand-navy">
               Backfill window (days)
             </label>
             <input
@@ -180,9 +180,9 @@ export function AxperTrafficView() {
                 setBackfillDays(Math.max(1, Math.min(800, Number(e.target.value) || 30)))
               }
               disabled={running}
-              className="mt-1 w-24 rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-sh-stripe"
+              className="mt-1 w-24 rounded border border-gray-300 px-3 py-2 text-sm disabled:bg-brand-stripe"
             />
-            <p className="mt-1 text-[11px] text-sh-gray">
+            <p className="mt-1 text-[11px] text-brand-gray">
               30 = default daily window. 730 = ~2-year historical backfill (one-time seed).
             </p>
           </div>
@@ -203,13 +203,13 @@ export function AxperTrafficView() {
 
         {/* Running banner */}
         {activeLogId !== null && inFlightRow && (
-          <div className="mt-3 rounded border border-sh-gold/40 bg-sh-linen p-3 text-sm">
-            <p className="font-medium text-sh-navy">
+          <div className="mt-3 rounded border border-brand-gold/40 bg-brand-linen p-3 text-sm">
+            <p className="font-medium text-brand-navy">
               Job #{activeLogId} running ({fmtDuration(inFlightRow.startedAt, null)}
               {/* elapsedTick keeps this re-rendering as the wall clock advances */}
               <span className="sr-only">{elapsedTick}</span>)
             </p>
-            <p className="mt-1 text-xs text-sh-gray">
+            <p className="mt-1 text-xs text-brand-gray">
               Polling for completion every {POLL_INTERVAL_MS / 1000}s. A {backfillDays}-day backfill
               typically takes ~{Math.max(1, Math.round((backfillDays * 1) / 60))} min at ~1s per
               Axper API call.
@@ -219,12 +219,12 @@ export function AxperTrafficView() {
 
         {/* Last-completed summary */}
         {lastCompleted && (
-          <div className="mt-3 rounded border border-sh-stripe bg-sh-linen p-3 text-sm">
-            <p className="font-medium text-sh-navy">
+          <div className="mt-3 rounded border border-brand-stripe bg-brand-linen p-3 text-sm">
+            <p className="font-medium text-brand-navy">
               Synced {lastCompleted.dayFrom.slice(0, 10)} – {lastCompleted.dayTo.slice(0, 10)} in{" "}
               {fmtDuration(lastCompleted.startedAt, lastCompleted.finishedAt)}
             </p>
-            <ul className="mt-2 space-y-1 text-sh-gray">
+            <ul className="mt-2 space-y-1 text-brand-gray">
               <li>Rows fetched: {lastCompleted.rowsFetched.toLocaleString()}</li>
               <li>Rows inserted: {lastCompleted.rowsInserted.toLocaleString()}</li>
               <li>Rows updated: {lastCompleted.rowsUpdated.toLocaleString()}</li>
@@ -242,13 +242,13 @@ export function AxperTrafficView() {
 
       {/* Recent runs */}
       <section>
-        <h2 className="mb-2 text-lg font-semibold text-sh-navy">Recent runs</h2>
+        <h2 className="mb-2 text-lg font-semibold text-brand-navy">Recent runs</h2>
         {recent.length === 0 ? (
-          <p className="text-sm text-sh-gray">No runs yet.</p>
+          <p className="text-sm text-brand-gray">No runs yet.</p>
         ) : (
-          <div className="overflow-x-auto rounded border border-sh-stripe bg-white">
+          <div className="overflow-x-auto rounded border border-brand-stripe bg-white">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-sh-linen text-sh-black">
+              <thead className="bg-brand-linen text-brand-black">
                 <tr>
                   <th className="p-2 font-medium">Started</th>
                   <th className="p-2 font-medium">Duration</th>
@@ -267,12 +267,12 @@ export function AxperTrafficView() {
                   return (
                     <tr
                       key={log.id}
-                      className={`border-t border-sh-stripe ${isRunning ? "bg-sh-linen/40" : ""}`}
+                      className={`border-t border-brand-stripe ${isRunning ? "bg-brand-linen/40" : ""}`}
                     >
                       <td className="p-2 whitespace-nowrap">{fmtTime(log.startedAt)}</td>
                       <td className="p-2 text-xs whitespace-nowrap">
                         {isRunning ? (
-                          <span className="text-sh-gold font-medium">
+                          <span className="text-brand-gold font-medium">
                             running… ({fmtDuration(log.startedAt, null)})
                             <span className="sr-only">{elapsedTick}</span>
                           </span>

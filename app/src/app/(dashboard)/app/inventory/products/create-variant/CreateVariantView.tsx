@@ -276,7 +276,7 @@ export function CreateVariantView() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-serif text-sh-blue mb-6">
+      <h1 className="text-2xl font-serif text-brand-blue mb-6">
         Simple Variant Product Entry (Apparel, Case Goods)
       </h1>
 

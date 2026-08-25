@@ -96,7 +96,11 @@ function ProductNameCell({
   return (
     <div className="flex items-center gap-2">
       {href ? (
-        <Link href={href} className="hover:underline text-sh-blue truncate" title={row.productName}>
+        <Link
+          href={href}
+          className="hover:underline text-brand-blue truncate"
+          title={row.productName}
+        >
           {row.productName}
         </Link>
       ) : (

@@ -142,9 +142,9 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
         required
       />
 
-      <label className="block mb-2 text-sm text-sh-blue">Department</label>
+      <label className="block mb-2 text-sm text-brand-blue">Department</label>
       {loadingDepartments ? (
-        <p className="text-sh-black">Loading departments...</p>
+        <p className="text-brand-black">Loading departments...</p>
       ) : errorDepartments ? (
         <p className="text-red-600">Error loading departments: {errorDepartments.message}</p>
       ) : (
@@ -152,7 +152,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
           name="departmentId"
           value={form.departmentId}
           onChange={(e) => handleChange("departmentId", e.target.value)}
-          className="w-full border border-sh-gray rounded-lg px-3 py-2 mb-4 font-serif text-sh-black"
+          className="w-full border border-brand-gray rounded-lg px-3 py-2 mb-4 font-serif text-brand-black"
           required
         >
           <option value="">Select Department...</option>
@@ -164,13 +164,13 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
         </select>
       )}
 
-      <label className="block mb-2 text-sm text-sh-blue">Track Inventory</label>
+      <label className="block mb-2 text-sm text-brand-blue">Track Inventory</label>
       <input
         type="checkbox"
         name="trackInventory"
         checked={form.trackInventory}
         onChange={handleCheckboxChange}
-        className="mb-4 h-5 w-5 border border-sh-gray rounded accent-sh-blue"
+        className="mb-4 h-5 w-5 border border-brand-gray rounded accent-brand-blue"
       />
 
       <FormDropdown
@@ -180,9 +180,9 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
         onChange={(v) => handleChange("accountGroupId", v)}
       />
 
-      <label className="block mb-2 text-sm text-sh-blue">Label Template</label>
+      <label className="block mb-2 text-sm text-brand-blue">Label Template</label>
       {loadingTemplates ? (
-        <p className="text-sh-black">Loading templates...</p>
+        <p className="text-brand-black">Loading templates...</p>
       ) : errorTemplates ? (
         <p className="text-red-600">Error loading templates: {errorTemplates.message}</p>
       ) : (
@@ -190,7 +190,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
           name="labelTemplateId"
           value={form.labelTemplateId}
           onChange={(e) => handleChange("labelTemplateId", e.target.value)}
-          className="w-full border border-sh-gray rounded-lg px-3 py-2 mb-4 font-serif text-sh-black"
+          className="w-full border border-brand-gray rounded-lg px-3 py-2 mb-4 font-serif text-brand-black"
         >
           <option value="">None</option>
           {templates.map((t) => (

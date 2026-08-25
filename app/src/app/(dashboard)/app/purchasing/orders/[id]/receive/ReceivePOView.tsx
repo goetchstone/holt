@@ -205,11 +205,11 @@ export function ReceivePOView({ id }: { id: string }) {
   };
 
   if (loading) {
-    return <p className="text-sh-gray p-4">Loading...</p>;
+    return <p className="text-brand-gray p-4">Loading...</p>;
   }
 
   if (!po) {
-    return <p className="text-sh-gray p-4">Purchase order not found.</p>;
+    return <p className="text-brand-gray p-4">Purchase order not found.</p>;
   }
 
   const allReceived = po.lineItems.every((li) => li.totalReceived >= li.orderedQuantity);
@@ -217,11 +217,11 @@ export function ReceivePOView({ id }: { id: string }) {
   return (
     <div className="max-w-2xl mx-auto space-y-3">
       {/* PO Header */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-sm p-3">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-sm p-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-serif font-semibold text-sh-blue">PO {po.poNumber}</h2>
-            <p className="text-sm text-sh-gray">{po.vendor.name}</p>
+            <h2 className="text-lg font-serif font-semibold text-brand-blue">PO {po.poNumber}</h2>
+            <p className="text-sm text-brand-gray">{po.vendor.name}</p>
           </div>
           <Button
             variant="outline"
@@ -234,13 +234,13 @@ export function ReceivePOView({ id }: { id: string }) {
       </div>
 
       {/* Config bar: receiving location */}
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-sm p-3">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-sm p-3">
         <div>
-          <label className="block text-xs text-sh-gray mb-1">Receiving At</label>
+          <label className="block text-xs text-brand-gray mb-1">Receiving At</label>
           <select
             value={selectedStoreId || ""}
             onChange={(e) => handleStoreChange(Number.parseInt(e.target.value))}
-            className="w-full border border-sh-gray/30 rounded px-2 py-2 text-sm"
+            className="w-full border border-brand-gray/30 rounded px-2 py-2 text-sm"
           >
             {stores.map((s) => (
               <option key={s.id} value={s.id}>
@@ -270,7 +270,7 @@ export function ReceivePOView({ id }: { id: string }) {
                 <div
                   key={li.id}
                   className={`bg-white rounded-lg border shadow-sm p-3 ${
-                    ls.selected ? "border-sh-blue/30" : "border-sh-gray/20 opacity-60"
+                    ls.selected ? "border-brand-blue/30" : "border-brand-gray/20 opacity-60"
                   }`}
                 >
                   {/* Item header with checkbox */}
@@ -282,15 +282,15 @@ export function ReceivePOView({ id }: { id: string }) {
                       className="mt-1 rounded w-5 h-5"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-sh-black truncate">
+                      <p className="text-sm font-medium text-brand-black truncate">
                         {li.productName || li.partNo || "Unknown"}
                       </p>
-                      <p className="text-xs text-sh-gray">
+                      <p className="text-xs text-brand-gray">
                         {li.partNo && `${li.partNo} · `}
                         Ordered: {li.orderedQuantity} · Received: {li.totalReceived} · Remaining:{" "}
                         {remaining}
                         {li.salesOrderNo && (
-                          <span className="text-sh-blue ml-1">SO: {li.salesOrderNo}</span>
+                          <span className="text-brand-blue ml-1">SO: {li.salesOrderNo}</span>
                         )}
                       </p>
                     </div>
@@ -299,7 +299,7 @@ export function ReceivePOView({ id }: { id: string }) {
                   {ls.selected && (
                     <div className="grid grid-cols-2 gap-2 mt-2">
                       <div>
-                        <label className="block text-[10px] text-sh-gray mb-0.5">Qty</label>
+                        <label className="block text-[10px] text-brand-gray mb-0.5">Qty</label>
                         <input
                           type="number"
                           min={1}
@@ -308,11 +308,13 @@ export function ReceivePOView({ id }: { id: string }) {
                           onChange={(e) =>
                             updateLine(li.id, { quantity: Number.parseInt(e.target.value) || 0 })
                           }
-                          className="w-full border border-sh-gray/30 rounded px-2 py-1.5 text-sm"
+                          className="w-full border border-brand-gray/30 rounded px-2 py-1.5 text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-sh-gray mb-0.5">Destination</label>
+                        <label className="block text-[10px] text-brand-gray mb-0.5">
+                          Destination
+                        </label>
                         <select
                           value={ls.stockLocationId || ""}
                           onChange={(e) =>
@@ -322,7 +324,7 @@ export function ReceivePOView({ id }: { id: string }) {
                                 : null,
                             })
                           }
-                          className="w-full border border-sh-gray/30 rounded px-2 py-1.5 text-sm"
+                          className="w-full border border-brand-gray/30 rounded px-2 py-1.5 text-sm"
                         >
                           <option value="">Default</option>
                           {stockLocations.map((sl) => (
@@ -333,11 +335,13 @@ export function ReceivePOView({ id }: { id: string }) {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] text-sh-gray mb-0.5">Condition</label>
+                        <label className="block text-[10px] text-brand-gray mb-0.5">
+                          Condition
+                        </label>
                         <select
                           value={ls.condition}
                           onChange={(e) => updateLine(li.id, { condition: e.target.value })}
-                          className="w-full border border-sh-gray/30 rounded px-2 py-1.5 text-sm"
+                          className="w-full border border-brand-gray/30 rounded px-2 py-1.5 text-sm"
                         >
                           {CONDITIONS.map((c) => (
                             <option key={c} value={c}>
@@ -347,7 +351,7 @@ export function ReceivePOView({ id }: { id: string }) {
                         </select>
                       </div>
                       <div className="flex items-end pb-1">
-                        <label className="flex items-center gap-2 text-sm text-sh-gray cursor-pointer">
+                        <label className="flex items-center gap-2 text-sm text-brand-gray cursor-pointer">
                           <input
                             type="checkbox"
                             checked={ls.printTag}
@@ -359,7 +363,7 @@ export function ReceivePOView({ id }: { id: string }) {
                       </div>
                       {ls.needsUpc && (
                         <div className="col-span-2">
-                          <label className="block text-[10px] text-sh-gray mb-0.5">
+                          <label className="block text-[10px] text-brand-gray mb-0.5">
                             Manufacturer UPC (scan barcode)
                           </label>
                           <input
@@ -367,7 +371,7 @@ export function ReceivePOView({ id }: { id: string }) {
                             value={ls.upc}
                             onChange={(e) => updateLine(li.id, { upc: e.target.value })}
                             placeholder="Scan or enter UPC..."
-                            className="w-full border border-sh-gray/30 rounded px-2 py-1.5 text-sm"
+                            className="w-full border border-brand-gray/30 rounded px-2 py-1.5 text-sm"
                           />
                         </div>
                       )}
@@ -379,7 +383,7 @@ export function ReceivePOView({ id }: { id: string }) {
           </div>
 
           {/* Receive button */}
-          <div className="sticky bottom-0 bg-sh-linen py-3">
+          <div className="sticky bottom-0 bg-brand-linen py-3">
             <Button
               className="w-full py-3 text-base"
               onClick={handleReceive}

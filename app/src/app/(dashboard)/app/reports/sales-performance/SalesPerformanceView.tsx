@@ -127,19 +127,19 @@ export function SalesPerformanceView() {
 
   return (
     <div className="space-y-8 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Sales Performance</span>
+        <span className="text-brand-black">Sales Performance</span>
       </nav>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-black">Sales Performance</h1>
+          <h1 className="text-2xl font-semibold text-brand-black">Sales Performance</h1>
           {data && (
-            <p className="mt-1 font-sans text-xs text-sh-gray">
+            <p className="mt-1 font-sans text-xs text-brand-gray">
               {data.dateRange.start} — {data.dateRange.end}
             </p>
           )}
@@ -150,7 +150,7 @@ export function SalesPerformanceView() {
             type="button"
             onClick={() => setCommitted(dateRange)}
             disabled={loading}
-            className="min-h-[44px] shrink-0 rounded-lg bg-sh-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+            className="min-h-[44px] shrink-0 rounded-lg bg-brand-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
           >
             {loading ? "Loading..." : "Run Report"}
           </button>

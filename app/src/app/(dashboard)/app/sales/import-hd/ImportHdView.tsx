@@ -77,10 +77,10 @@ export function ImportHdView() {
 
   return (
     <div className="py-2 space-y-6 font-serif">
-      <h1 className="text-2xl text-sh-blue font-semibold">Import Hunter Douglas Proposal</h1>
+      <h1 className="text-2xl text-brand-blue font-semibold">Import Hunter Douglas Proposal</h1>
 
-      <div className="bg-white border border-sh-gray/20 rounded-lg p-5 text-sm text-sh-gray">
-        <p className="font-semibold text-sh-black mb-2">Required Export Settings</p>
+      <div className="bg-white border border-brand-gray/20 rounded-lg p-5 text-sm text-brand-gray">
+        <p className="font-semibold text-brand-black mb-2">Required Export Settings</p>
         <p>
           Export from Hunter Douglas Direct Connect as <strong>Client Proposal</strong> with the
           following options enabled:
@@ -94,10 +94,10 @@ export function ImportHdView() {
         </ul>
       </div>
 
-      <div className="bg-white border border-sh-gray/20 rounded-lg p-5">
+      <div className="bg-white border border-brand-gray/20 rounded-lg p-5">
         <label
           htmlFor="hd-proposal-file"
-          className="block text-sm font-semibold text-sh-black mb-2"
+          className="block text-sm font-semibold text-brand-black mb-2"
         >
           Upload Proposal PDF
         </label>
@@ -107,12 +107,12 @@ export function ImportHdView() {
           accept=".pdf"
           onChange={handleFileChange}
           disabled={uploading}
-          className="block w-full text-sm text-sh-gray file:mr-4 file:py-2 file:px-4
+          className="block w-full text-sm text-brand-gray file:mr-4 file:py-2 file:px-4
             file:rounded file:border-0 file:text-sm file:font-semibold
-            file:bg-sh-blue file:text-white hover:file:bg-sh-navy
+            file:bg-brand-blue file:text-white hover:file:bg-brand-navy
             disabled:opacity-50"
         />
-        {uploading && <p className="text-sh-gray text-sm mt-2">Parsing and importing...</p>}
+        {uploading && <p className="text-brand-gray text-sm mt-2">Parsing and importing...</p>}
       </div>
 
       {result && proposal && (
@@ -125,59 +125,61 @@ export function ImportHdView() {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-white border border-sh-gray/20 rounded-lg p-5">
-              <h2 className="text-sm font-semibold text-sh-black mb-3">Quote Details</h2>
+            <div className="bg-white border border-brand-gray/20 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-brand-black mb-3">Quote Details</h2>
               <dl className="text-sm space-y-1">
                 <div className="flex justify-between">
-                  <dt className="text-sh-gray">Quote #</dt>
-                  <dd className="text-sh-black">{proposal.quoteNumber}</dd>
+                  <dt className="text-brand-gray">Quote #</dt>
+                  <dd className="text-brand-black">{proposal.quoteNumber}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-sh-gray">Date</dt>
-                  <dd className="text-sh-black">{proposal.quoteDate}</dd>
+                  <dt className="text-brand-gray">Date</dt>
+                  <dd className="text-brand-black">{proposal.quoteDate}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-sh-gray">Valid Through</dt>
-                  <dd className="text-sh-black">{proposal.validThrough || "N/A"}</dd>
+                  <dt className="text-brand-gray">Valid Through</dt>
+                  <dd className="text-brand-black">{proposal.validThrough || "N/A"}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-sh-gray">Salesperson</dt>
-                  <dd className="text-sh-black">{proposal.salesperson || "N/A"}</dd>
+                  <dt className="text-brand-gray">Salesperson</dt>
+                  <dd className="text-brand-black">{proposal.salesperson || "N/A"}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-sh-gray">Sidemark</dt>
-                  <dd className="text-sh-black">{proposal.sidemark || "N/A"}</dd>
+                  <dt className="text-brand-gray">Sidemark</dt>
+                  <dd className="text-brand-black">{proposal.sidemark || "N/A"}</dd>
                 </div>
               </dl>
             </div>
 
-            <div className="bg-white border border-sh-gray/20 rounded-lg p-5">
-              <h2 className="text-sm font-semibold text-sh-black mb-3">Customer</h2>
+            <div className="bg-white border border-brand-gray/20 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-brand-black mb-3">Customer</h2>
               <dl className="text-sm space-y-1">
                 <div className="flex justify-between">
-                  <dt className="text-sh-gray">Name</dt>
-                  <dd className="text-sh-black">{proposal.customer.name}</dd>
+                  <dt className="text-brand-gray">Name</dt>
+                  <dd className="text-brand-black">{proposal.customer.name}</dd>
                 </div>
                 {proposal.customer.street && (
                   <div className="flex justify-between">
-                    <dt className="text-sh-gray">Address</dt>
-                    <dd className="text-sh-black text-right">{proposal.customer.street}</dd>
+                    <dt className="text-brand-gray">Address</dt>
+                    <dd className="text-brand-black text-right">{proposal.customer.street}</dd>
                   </div>
                 )}
                 {proposal.customer.cityStateZip && (
                   <div className="flex justify-between">
-                    <dt className="text-sh-gray" />
-                    <dd className="text-sh-black text-right">{proposal.customer.cityStateZip}</dd>
+                    <dt className="text-brand-gray" />
+                    <dd className="text-brand-black text-right">
+                      {proposal.customer.cityStateZip}
+                    </dd>
                   </div>
                 )}
               </dl>
             </div>
           </div>
 
-          <div className="bg-white border border-sh-gray/20 rounded-lg overflow-hidden">
+          <div className="bg-white border border-brand-gray/20 rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-sh-blue text-white text-left">
+                <tr className="bg-brand-blue text-white text-left">
                   <th className="px-4 py-2">#</th>
                   <th className="px-4 py-2">Room</th>
                   <th className="px-4 py-2">Description</th>
@@ -187,7 +189,10 @@ export function ImportHdView() {
               </thead>
               <tbody>
                 {proposal.items.map((item, idx) => (
-                  <tr key={item.itemNumber} className={idx % 2 === 0 ? "bg-white" : "bg-sh-stripe"}>
+                  <tr
+                    key={item.itemNumber}
+                    className={idx % 2 === 0 ? "bg-white" : "bg-brand-stripe"}
+                  >
                     <td className="px-4 py-2">{item.itemNumber}</td>
                     <td className="px-4 py-2">{item.room || "--"}</td>
                     <td className="px-4 py-2">{item.description}</td>
@@ -197,34 +202,34 @@ export function ImportHdView() {
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t border-sh-gray/20 bg-sh-linen">
+                <tr className="border-t border-brand-gray/20 bg-brand-linen">
                   <td colSpan={3} />
-                  <td className="px-4 py-2 text-right text-sh-gray">Freight</td>
+                  <td className="px-4 py-2 text-right text-brand-gray">Freight</td>
                   <td className="px-4 py-2 text-right">{formatCurrency(proposal.totalFreight)}</td>
                 </tr>
-                <tr className="bg-sh-linen">
+                <tr className="bg-brand-linen">
                   <td colSpan={3} />
-                  <td className="px-4 py-2 text-right text-sh-gray">Installation</td>
+                  <td className="px-4 py-2 text-right text-brand-gray">Installation</td>
                   <td className="px-4 py-2 text-right">{formatCurrency(proposal.totalInstall)}</td>
                 </tr>
-                <tr className="bg-sh-linen">
+                <tr className="bg-brand-linen">
                   <td colSpan={3} />
-                  <td className="px-4 py-2 text-right text-sh-gray">MSRP Total</td>
+                  <td className="px-4 py-2 text-right text-brand-gray">MSRP Total</td>
                   <td className="px-4 py-2 text-right">{formatCurrency(proposal.msrpTotal)}</td>
                 </tr>
                 {proposal.discountTotal !== 0 && (
-                  <tr className="bg-sh-linen">
+                  <tr className="bg-brand-linen">
                     <td colSpan={3} />
-                    <td className="px-4 py-2 text-right text-sh-gray">Discount</td>
+                    <td className="px-4 py-2 text-right text-brand-gray">Discount</td>
                     <td className="px-4 py-2 text-right text-red-600">
                       {formatCurrency(proposal.discountTotal)}
                     </td>
                   </tr>
                 )}
-                <tr className="bg-sh-linen font-semibold">
+                <tr className="bg-brand-linen font-semibold">
                   <td colSpan={3} />
-                  <td className="px-4 py-2 text-right text-sh-black">Client Price</td>
-                  <td className="px-4 py-2 text-right text-sh-black">
+                  <td className="px-4 py-2 text-right text-brand-black">Client Price</td>
+                  <td className="px-4 py-2 text-right text-brand-black">
                     {formatCurrency(proposal.clientPrice)}
                   </td>
                 </tr>
@@ -235,7 +240,7 @@ export function ImportHdView() {
           <div className="flex gap-4">
             <button
               onClick={() => router.push(`/app/sales/orders/${result.orderId}`)}
-              className="px-6 py-2 bg-sh-blue text-white rounded hover:bg-sh-navy transition text-sm font-semibold"
+              className="px-6 py-2 bg-brand-blue text-white rounded hover:bg-brand-navy transition text-sm font-semibold"
             >
               View Order {result.orderno}
             </button>

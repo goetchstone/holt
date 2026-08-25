@@ -102,15 +102,15 @@ export function CustomerArDriftCheckView() {
   return (
     <div className="max-w-screen-lg mx-auto py-6 space-y-4">
       <header>
-        <h1 className="font-serif text-3xl text-sh-navy">Customer AR Drift Check</h1>
-        <p className="text-sm text-sh-gray mt-1">
+        <h1 className="font-serif text-3xl text-brand-navy">Customer AR Drift Check</h1>
+        <p className="text-sm text-brand-gray mt-1">
           Compares stored <code>Customer.openArBalance</code> against the live source-of-truth
           recompute (line items minus payments, per CLAUDE.md rule 33). Runs daily via Synology Task
           Scheduler at 04:30; use the button below to run it on-demand.
         </p>
       </header>
 
-      <section className="bg-white border border-sh-stripe rounded-lg p-4 space-y-3">
+      <section className="bg-white border border-brand-stripe rounded-lg p-4 space-y-3">
         {/* Mode toggle. Lookback for daily-cron-style activity sweeps;
             hand-picked for the cutover validation pass (admin pastes the
             customer IDs they want to verify). */}
@@ -123,8 +123,8 @@ export function CustomerArDriftCheckView() {
             disabled={running}
             className={`px-4 py-2 rounded border text-sm font-semibold min-h-[44px] ${
               mode === "lookback"
-                ? "bg-sh-navy text-white border-sh-navy"
-                : "bg-white text-sh-navy border-sh-stripe hover:bg-sh-stripe"
+                ? "bg-brand-navy text-white border-brand-navy"
+                : "bg-white text-brand-navy border-brand-stripe hover:bg-brand-stripe"
             }`}
           >
             By recent activity
@@ -137,8 +137,8 @@ export function CustomerArDriftCheckView() {
             disabled={running}
             className={`px-4 py-2 rounded border text-sm font-semibold min-h-[44px] ${
               mode === "hand-picked"
-                ? "bg-sh-navy text-white border-sh-navy"
-                : "bg-white text-sh-navy border-sh-stripe hover:bg-sh-stripe"
+                ? "bg-brand-navy text-white border-brand-navy"
+                : "bg-white text-brand-navy border-brand-stripe hover:bg-brand-stripe"
             }`}
           >
             Specific customer IDs
@@ -150,7 +150,7 @@ export function CustomerArDriftCheckView() {
             <div>
               <label
                 htmlFor="lookback-hours"
-                className="block text-sm font-semibold text-sh-navy mb-1"
+                className="block text-sm font-semibold text-brand-navy mb-1"
               >
                 Lookback window
               </label>
@@ -159,7 +159,7 @@ export function CustomerArDriftCheckView() {
                 value={lookbackHours}
                 onChange={(e) => setLookbackHours(Number.parseInt(e.target.value, 10))}
                 disabled={running}
-                className="px-3 py-2 border border-sh-stripe rounded text-base min-h-[44px]"
+                className="px-3 py-2 border border-brand-stripe rounded text-base min-h-[44px]"
               >
                 {LOOKBACK_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -172,7 +172,7 @@ export function CustomerArDriftCheckView() {
               {running ? "Running…" : "Run check"}
             </Button>
             {report && (
-              <div className="ml-auto text-xs text-sh-gray text-right">
+              <div className="ml-auto text-xs text-brand-gray text-right">
                 Last run: {fmtDateTime(report.runAt)}
                 <br />
                 Mode: {report.mode}
@@ -186,7 +186,7 @@ export function CustomerArDriftCheckView() {
           <div className="space-y-2">
             <label
               htmlFor="customer-ids-input"
-              className="block text-sm font-semibold text-sh-navy"
+              className="block text-sm font-semibold text-brand-navy"
             >
               Customer IDs to validate
             </label>
@@ -197,12 +197,12 @@ export function CustomerArDriftCheckView() {
               disabled={running}
               rows={4}
               placeholder="One per line, or comma-separated. e.g. 1234, 5678, 9012"
-              className="w-full px-3 py-2 border border-sh-stripe rounded text-base font-mono"
+              className="w-full px-3 py-2 border border-brand-stripe rounded text-base font-mono"
             />
-            <div className="flex flex-wrap items-center gap-3 text-xs text-sh-gray">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-brand-gray">
               <span>{parsedCustomerIds.length} valid IDs parsed</span>
               {parsedCustomerIds.length > 0 && parsedCustomerIds.length <= 20 && (
-                <span className="text-sh-navy">[{parsedCustomerIds.join(", ")}]</span>
+                <span className="text-brand-navy">[{parsedCustomerIds.join(", ")}]</span>
               )}
             </div>
             <div className="flex flex-wrap items-end gap-3">
@@ -210,14 +210,14 @@ export function CustomerArDriftCheckView() {
                 {running ? "Running…" : "Validate these customers"}
               </Button>
               {report && (
-                <div className="ml-auto text-xs text-sh-gray text-right">
+                <div className="ml-auto text-xs text-brand-gray text-right">
                   Last run: {fmtDateTime(report.runAt)}
                   <br />
                   Mode: {report.mode}
                 </div>
               )}
             </div>
-            <p className="text-xs text-sh-gray">
+            <p className="text-xs text-brand-gray">
               Use this mode to cross-check specific customers during the AR ledger cutover — pick a
               mix of long-time regulars, customers with deposits, customers with refund chains, and
               gift-card buyers, then compare the report against the POS&apos;s balance for each.
@@ -229,13 +229,13 @@ export function CustomerArDriftCheckView() {
       {report && <ReportPanel report={report} formatMoney={formatMoney} />}
 
       {!report && (
-        <div className="bg-sh-stripe/30 border border-sh-stripe rounded-lg p-6 text-sm text-sh-gray text-center">
+        <div className="bg-brand-stripe/30 border border-brand-stripe rounded-lg p-6 text-sm text-brand-gray text-center">
           Click <strong>Run check</strong> to scan customers with recent activity. The default
           26-hour window mirrors the nightly cron — widen the window to investigate older drift.
         </div>
       )}
 
-      <footer className="text-xs text-sh-gray space-y-1 mt-6">
+      <footer className="text-xs text-brand-gray space-y-1 mt-6">
         <p>
           <strong>Drift direction</strong>: <code>diff</code> is signed.{" "}
           <span className="text-red-700">Negative</span> means stored is BELOW source (under-billed
@@ -282,7 +282,7 @@ function ReportPanel({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs uppercase text-sh-gray tracking-wide border-b border-sh-stripe">
+              <tr className="text-left text-xs uppercase text-brand-gray tracking-wide border-b border-brand-stripe">
                 <th className="py-2 pr-3">Customer</th>
                 <th className="py-2 pr-3 text-right">Stored</th>
                 <th className="py-2 pr-3 text-right">Source</th>
@@ -292,15 +292,15 @@ function ReportPanel({
             </thead>
             <tbody>
               {report.drifted.map((d) => (
-                <tr key={d.customerId} className="border-b border-sh-stripe last:border-0">
+                <tr key={d.customerId} className="border-b border-brand-stripe last:border-0">
                   <td className="py-2 pr-3">
                     <a
                       href={`/customers/${d.customerId}`}
-                      className="text-sh-navy hover:underline font-semibold"
+                      className="text-brand-navy hover:underline font-semibold"
                     >
                       {d.label}
                     </a>
-                    <div className="text-xs text-sh-gray">#{d.customerId}</div>
+                    <div className="text-xs text-brand-gray">#{d.customerId}</div>
                   </td>
                   <td className="py-2 pr-3 text-right tabular-nums">
                     {formatMoney(d.storedBalance)}
@@ -315,7 +315,7 @@ function ReportPanel({
                   >
                     {formatMoney(d.diff)}
                   </td>
-                  <td className="py-2 pr-3 text-xs text-sh-gray">{d.message}</td>
+                  <td className="py-2 pr-3 text-xs text-brand-gray">{d.message}</td>
                 </tr>
               ))}
             </tbody>
@@ -329,7 +329,7 @@ function ReportPanel({
 const KPI_ACCENT_CLASS: Record<"green" | "red" | "default", string> = {
   green: "text-green-700",
   red: "text-red-700",
-  default: "text-sh-navy",
+  default: "text-brand-navy",
 };
 
 function Kpi({
@@ -340,7 +340,7 @@ function Kpi({
   const valueClass = KPI_ACCENT_CLASS[accent ?? "default"];
   return (
     <div>
-      <div className="text-xs uppercase text-sh-gray tracking-wide">{label}</div>
+      <div className="text-xs uppercase text-brand-gray tracking-wide">{label}</div>
       <div className={`text-2xl font-serif ${valueClass}`}>{value}</div>
     </div>
   );

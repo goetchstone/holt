@@ -157,7 +157,7 @@ export function CampaignDetailView({ id }: { id: string }) {
         <span>
           {row.email}
           {row.customer && (
-            <span className="text-sh-gray ml-2 text-xs">
+            <span className="text-brand-gray ml-2 text-xs">
               ({[row.customer.firstName, row.customer.lastName].filter(Boolean).join(" ")})
             </span>
           )}
@@ -198,12 +198,12 @@ export function CampaignDetailView({ id }: { id: string }) {
     <div className="py-2 font-serif space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue">
+          <h1 className="text-2xl font-semibold text-brand-blue">
             {campaign?.name || "Campaign Details"}
           </h1>
-          {campaign?.subject && <p className="text-sm text-sh-gray mt-1">{campaign.subject}</p>}
+          {campaign?.subject && <p className="text-sm text-brand-gray mt-1">{campaign.subject}</p>}
           {campaign?.sentAt && (
-            <p className="text-xs text-sh-gray mt-0.5">
+            <p className="text-xs text-brand-gray mt-0.5">
               Sent {format(new Date(campaign.sentAt), "PPP")}
             </p>
           )}
@@ -265,16 +265,16 @@ export function CampaignDetailView({ id }: { id: string }) {
       {/* Activity table */}
       <div>
         <div className="flex items-center gap-3 mb-3">
-          <h2 className="text-lg font-semibold text-sh-black">Activity Log</h2>
+          <h2 className="text-lg font-semibold text-brand-black">Activity Log</h2>
           {actionFilter && (
-            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-sh-blue/10 text-sh-blue">
+            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-brand-blue/10 text-brand-blue">
               Filtered: {actionFilter}
               <button
                 onClick={() => {
                   setActionFilter(null);
                   setPage(1);
                 }}
-                className="ml-1 hover:text-sh-navy font-semibold"
+                className="ml-1 hover:text-brand-navy font-semibold"
                 aria-label="Clear filter"
               >
                 x
@@ -326,7 +326,7 @@ function AttributionSection({
           label="Purchasers"
           value={num(purchasers)}
           sub={
-            <span className="inline-flex items-center gap-1 text-xs text-sh-gray">
+            <span className="inline-flex items-center gap-1 text-xs text-brand-gray">
               <Users className="w-3 h-3" />
               of {num(uniqueEngaged)} engaged
             </span>
@@ -336,7 +336,7 @@ function AttributionSection({
           label="Orders"
           value={num(orderCount)}
           sub={
-            <span className="inline-flex items-center gap-1 text-xs text-sh-gray">
+            <span className="inline-flex items-center gap-1 text-xs text-brand-gray">
               <ShoppingCart className="w-3 h-3" />
               avg {money(avgOrderValue, { whole: true })}
             </span>
@@ -346,7 +346,7 @@ function AttributionSection({
           label="Attributed $"
           value={money(revenue, { whole: true })}
           sub={
-            <span className="inline-flex items-center gap-1 text-xs text-sh-gray">
+            <span className="inline-flex items-center gap-1 text-xs text-brand-gray">
               <TrendingUp className="w-3 h-3" />
               {windowDays}-day window
             </span>
@@ -356,7 +356,7 @@ function AttributionSection({
           label="Conversion"
           value={`${openConversionPct.toFixed(1)}%`}
           sub={
-            <span className="inline-flex items-center gap-1 text-xs text-sh-gray">
+            <span className="inline-flex items-center gap-1 text-xs text-brand-gray">
               <Percent className="w-3 h-3" />
               clickers: {clickConversionPct.toFixed(1)}%
             </span>
@@ -365,24 +365,27 @@ function AttributionSection({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-        <div className="bg-white border border-sh-gray/15 rounded-xl overflow-hidden">
-          <div className="px-4 py-2 border-b border-sh-gray/15 bg-sh-linen text-xs uppercase tracking-wide text-sh-gray font-semibold">
+        <div className="bg-white border border-brand-gray/15 rounded-xl overflow-hidden">
+          <div className="px-4 py-2 border-b border-brand-gray/15 bg-brand-linen text-xs uppercase tracking-wide text-brand-gray font-semibold">
             Revenue by department
           </div>
           {revenueByDepartment.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-sh-gray text-center">
+            <div className="px-4 py-6 text-sm text-brand-gray text-center">
               No attributed purchases.
             </div>
           ) : (
             <table className="w-full text-sm">
               <tbody>
                 {revenueByDepartment.map((d) => (
-                  <tr key={d.departmentName} className="border-b border-sh-gray/10 last:border-0">
-                    <td className="px-4 py-2 text-sh-black">{d.departmentName}</td>
-                    <td className="px-4 py-2 text-right text-sh-gray tabular-nums">
+                  <tr
+                    key={d.departmentName}
+                    className="border-b border-brand-gray/10 last:border-0"
+                  >
+                    <td className="px-4 py-2 text-brand-black">{d.departmentName}</td>
+                    <td className="px-4 py-2 text-right text-brand-gray tabular-nums">
                       {num(d.orderCount)} orders
                     </td>
-                    <td className="px-4 py-2 text-right font-semibold text-sh-navy tabular-nums">
+                    <td className="px-4 py-2 text-right font-semibold text-brand-navy tabular-nums">
                       {money(d.revenue, { whole: true })}
                     </td>
                   </tr>
@@ -392,32 +395,34 @@ function AttributionSection({
           )}
         </div>
 
-        <div className="bg-white border border-sh-gray/15 rounded-xl overflow-hidden">
-          <div className="px-4 py-2 border-b border-sh-gray/15 bg-sh-linen text-xs uppercase tracking-wide text-sh-gray font-semibold">
+        <div className="bg-white border border-brand-gray/15 rounded-xl overflow-hidden">
+          <div className="px-4 py-2 border-b border-brand-gray/15 bg-brand-linen text-xs uppercase tracking-wide text-brand-gray font-semibold">
             Top purchasers
           </div>
           {topPurchasers.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-sh-gray text-center">
+            <div className="px-4 py-6 text-sm text-brand-gray text-center">
               No attributed purchases.
             </div>
           ) : (
             <table className="w-full text-sm">
               <tbody>
                 {topPurchasers.map((p) => (
-                  <tr key={p.customerId} className="border-b border-sh-gray/10 last:border-0">
+                  <tr key={p.customerId} className="border-b border-brand-gray/10 last:border-0">
                     <td className="px-4 py-2">
                       <Link
                         href={`/app/sales/customers/${p.customerId}`}
-                        className="text-sh-blue hover:underline"
+                        className="text-brand-blue hover:underline"
                       >
                         {p.name || p.email || `Customer #${p.customerId}`}
                       </Link>
-                      {p.name && p.email && <div className="text-xs text-sh-gray">{p.email}</div>}
+                      {p.name && p.email && (
+                        <div className="text-xs text-brand-gray">{p.email}</div>
+                      )}
                     </td>
-                    <td className="px-4 py-2 text-right text-sh-gray tabular-nums">
+                    <td className="px-4 py-2 text-right text-brand-gray tabular-nums">
                       {num(p.orderCount)} orders
                     </td>
-                    <td className="px-4 py-2 text-right font-semibold text-sh-navy tabular-nums">
+                    <td className="px-4 py-2 text-right font-semibold text-brand-navy tabular-nums">
                       {money(p.revenue, { whole: true })}
                     </td>
                   </tr>
@@ -429,7 +434,7 @@ function AttributionSection({
       </div>
 
       {unlinkedEngagements > 0 && (
-        <p className="text-xs text-sh-gray mt-3">
+        <p className="text-xs text-brand-gray mt-3">
           {num(unlinkedEngagements)} engagement{unlinkedEngagements === 1 ? "" : "s"} could not be
           matched to a customer record and are excluded from attribution.
         </p>
@@ -459,12 +464,14 @@ function StatCard({
       onClick={onClick}
       onKeyDown={interactive ? (e) => e.key === "Enter" && onClick?.() : undefined}
       className={`rounded-lg p-3 text-center shadow-sm border transition-colors ${
-        active ? "border-sh-blue bg-sh-blue/5 ring-1 ring-sh-blue" : "border-sh-gray/20 bg-white"
-      } ${interactive ? "cursor-pointer hover:border-sh-blue/50" : ""}`}
+        active
+          ? "border-brand-blue bg-brand-blue/5 ring-1 ring-brand-blue"
+          : "border-brand-gray/20 bg-white"
+      } ${interactive ? "cursor-pointer hover:border-brand-blue/50" : ""}`}
     >
-      <p className="text-xs text-sh-gray uppercase tracking-wide">{label}</p>
-      <p className="text-lg font-semibold text-sh-black">{value}</p>
-      {sub && <p className="text-xs text-sh-gray">{sub}</p>}
+      <p className="text-xs text-brand-gray uppercase tracking-wide">{label}</p>
+      <p className="text-lg font-semibold text-brand-black">{value}</p>
+      {sub && <p className="text-xs text-brand-gray">{sub}</p>}
     </div>
   );
 }

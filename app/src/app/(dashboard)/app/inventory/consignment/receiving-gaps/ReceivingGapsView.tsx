@@ -225,11 +225,11 @@ export function ReceivingGapsView() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/app/inventory/consignment" className="text-sh-blue hover:underline text-sm">
+        <Link href="/app/inventory/consignment" className="text-brand-blue hover:underline text-sm">
           Consignment
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-serif text-sh-navy">Receiving Gaps</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-serif text-brand-navy">Receiving Gaps</h1>
       </div>
 
       {summary && <SummaryCards summary={summary} />}
@@ -242,8 +242,8 @@ export function ReceivingGapsView() {
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === t
-                ? "border-sh-navy text-sh-navy"
-                : "border-transparent text-sh-gray hover:text-sh-navy"
+                ? "border-brand-navy text-brand-navy"
+                : "border-transparent text-brand-gray hover:text-brand-navy"
             }`}
           >
             {t === "unlinked" ? "No Receipt" : "No Location"}
@@ -294,23 +294,23 @@ function SummaryCards({ summary }: Readonly<{ summary: Summary }>) {
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
         <div className="text-2xl font-semibold text-amber-600">{summary.unlinkedCount}</div>
-        <div className="text-xs text-sh-gray mt-1">No Receipt Link</div>
+        <div className="text-xs text-brand-gray mt-1">No Receipt Link</div>
       </div>
       <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
         <div className="text-2xl font-semibold text-red-600">{summary.unlocatedCount}</div>
-        <div className="text-xs text-sh-gray mt-1">No Store Location</div>
+        <div className="text-xs text-brand-gray mt-1">No Store Location</div>
       </div>
-      <div className="col-span-2 rounded-lg border border-gray-200 bg-sh-linen p-4">
-        <div className="text-xs font-semibold text-sh-navy mb-2">Existing Receipts</div>
+      <div className="col-span-2 rounded-lg border border-gray-200 bg-brand-linen p-4">
+        <div className="text-xs font-semibold text-brand-navy mb-2">Existing Receipts</div>
         {summary.receipts.length === 0 ? (
-          <p className="text-xs text-sh-gray">None yet</p>
+          <p className="text-xs text-brand-gray">None yet</p>
         ) : (
           <ul className="space-y-1">
             {summary.receipts.map((r) => (
-              <li key={r.id} className="text-xs text-sh-gray">
+              <li key={r.id} className="text-xs text-brand-gray">
                 #{r.id} — {r.vendorName} — {formatDate(r.receiptDate)}{" "}
                 {r.manifestRef ? `(${r.manifestRef}) ` : ""}
-                <span className="font-medium text-sh-navy">{r.actualCount} items linked</span>
+                <span className="font-medium text-brand-navy">{r.actualCount} items linked</span>
                 {r.claimedCount !== r.actualCount && (
                   <span className="text-amber-600 ml-1">(header says {r.claimedCount})</span>
                 )}
@@ -349,10 +349,10 @@ interface BulkActionPanelProps {
 function BulkActionPanel(props: Readonly<BulkActionPanelProps>) {
   if (props.tab === "unlocated") {
     return (
-      <div className="rounded-lg border border-gray-200 bg-sh-linen p-4">
+      <div className="rounded-lg border border-gray-200 bg-brand-linen p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="gap-location" className="block text-xs text-sh-gray mb-1">
+            <label htmlFor="gap-location" className="block text-xs text-brand-gray mb-1">
               Store Location ({props.selectedCount} selected)
             </label>
             <select
@@ -384,7 +384,7 @@ function BulkActionPanel(props: Readonly<BulkActionPanelProps>) {
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-sh-linen p-4">
+    <div className="rounded-lg border border-gray-200 bg-brand-linen p-4">
       <div className="space-y-3">
         <div className="flex items-center gap-4 flex-wrap">
           <label className="inline-flex items-center gap-2 text-sm">
@@ -409,7 +409,7 @@ function BulkActionPanel(props: Readonly<BulkActionPanelProps>) {
         <div className="flex flex-wrap items-end gap-3">
           {props.useExistingReceipt ? (
             <div>
-              <label htmlFor="gap-existing-receipt" className="block text-xs text-sh-gray mb-1">
+              <label htmlFor="gap-existing-receipt" className="block text-xs text-brand-gray mb-1">
                 Receipt ({props.selectedCount} selected)
               </label>
               <select
@@ -468,7 +468,7 @@ function NewReceiptFields(props: Readonly<NewReceiptFieldsProps>) {
   return (
     <>
       <div>
-        <label htmlFor="gap-new-vendor" className="block text-xs text-sh-gray mb-1">
+        <label htmlFor="gap-new-vendor" className="block text-xs text-brand-gray mb-1">
           Vendor
         </label>
         <select
@@ -488,7 +488,7 @@ function NewReceiptFields(props: Readonly<NewReceiptFieldsProps>) {
         </select>
       </div>
       <div>
-        <label htmlFor="gap-new-date" className="block text-xs text-sh-gray mb-1">
+        <label htmlFor="gap-new-date" className="block text-xs text-brand-gray mb-1">
           Receipt Date ({props.selectedCount} selected)
         </label>
         <input
@@ -500,7 +500,7 @@ function NewReceiptFields(props: Readonly<NewReceiptFieldsProps>) {
         />
       </div>
       <div>
-        <label htmlFor="gap-new-ref" className="block text-xs text-sh-gray mb-1">
+        <label htmlFor="gap-new-ref" className="block text-xs text-brand-gray mb-1">
           Manifest Ref (optional)
         </label>
         <input
@@ -538,14 +538,14 @@ function GapItemsTable({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+        <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
       </div>
     );
   }
 
   if (items.length === 0) {
     return (
-      <p className="text-center text-sm text-sh-gray py-10">
+      <p className="text-center text-sm text-brand-gray py-10">
         {tab === "unlinked"
           ? "All items are linked to a receipt."
           : "All items have a store location assigned."}
@@ -558,11 +558,11 @@ function GapItemsTable({
 
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <div className="px-4 py-2 bg-sh-linen text-xs text-sh-gray border-b border-gray-200">
+      <div className="px-4 py-2 bg-brand-linen text-xs text-brand-gray border-b border-gray-200">
         Showing {items.length} of {shownTotal} items
       </div>
       <table className="w-full text-sm">
-        <thead className="bg-sh-linen border-b border-gray-200">
+        <thead className="bg-brand-linen border-b border-gray-200">
           <tr>
             <th className="px-3 py-3 text-left">
               <input
@@ -573,16 +573,16 @@ function GapItemsTable({
                 className="h-5 w-5"
               />
             </th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Barcode</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Cust #</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Quality</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Size</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Status</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Barcode</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Cust #</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Quality</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Size</th>
+            <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Status</th>
             {tab === "unlinked" && (
-              <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Cost</th>
+              <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Cost</th>
             )}
             {tab === "unlocated" && (
-              <th className="px-3 py-3 text-left text-xs font-medium text-sh-gray">Receipt</th>
+              <th className="px-3 py-3 text-left text-xs font-medium text-brand-gray">Receipt</th>
             )}
           </tr>
         </thead>
@@ -613,7 +613,7 @@ interface GapItemRowProps {
 
 function rowBackground(selected: boolean, striped: boolean): string {
   if (selected) return "bg-blue-50";
-  return striped ? "bg-sh-stripe" : "bg-white";
+  return striped ? "bg-brand-stripe" : "bg-white";
 }
 
 function GapItemRow({ item, tab, striped, fmt, onToggleSelect }: Readonly<GapItemRowProps>) {
@@ -631,22 +631,22 @@ function GapItemRow({ item, tab, striped, fmt, onToggleSelect }: Readonly<GapIte
       <td className="px-3 py-2">
         <Link
           href={`/app/inventory/consignment/${item.id}`}
-          className="font-mono text-sh-navy hover:underline text-xs"
+          className="font-mono text-brand-navy hover:underline text-xs"
         >
           {item.barcode}
         </Link>
       </td>
-      <td className="px-3 py-2 text-sh-gray text-xs">{item.customerNumber || "—"}</td>
-      <td className="px-3 py-2 text-sh-navy text-xs">{item.quality || "—"}</td>
-      <td className="px-3 py-2 text-sh-gray text-xs">{item.size || "—"}</td>
+      <td className="px-3 py-2 text-brand-gray text-xs">{item.customerNumber || "—"}</td>
+      <td className="px-3 py-2 text-brand-navy text-xs">{item.quality || "—"}</td>
+      <td className="px-3 py-2 text-brand-gray text-xs">{item.size || "—"}</td>
       <td className="px-3 py-2 text-xs">{item.status}</td>
       {tab === "unlinked" && (
-        <td className="px-3 py-2 text-sh-gray text-xs">
+        <td className="px-3 py-2 text-brand-gray text-xs">
           {item.cost != null ? fmt(Number(item.cost), { whole: true }) : "—"}
         </td>
       )}
       {tab === "unlocated" && (
-        <td className="px-3 py-2 text-sh-gray text-xs">
+        <td className="px-3 py-2 text-brand-gray text-xs">
           {item.consignmentReceiptId ? `#${item.consignmentReceiptId}` : "—"}
         </td>
       )}

@@ -31,14 +31,14 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  INITIATED: "bg-sh-gray/20 text-sh-gray",
+  INITIATED: "bg-brand-gray/20 text-brand-gray",
   PICKUP_SCHEDULED: "bg-blue-100 text-blue-800",
   PICKUP_COMPLETED: "bg-blue-100 text-blue-800",
   RECEIVED: "bg-yellow-100 text-yellow-800",
   INSPECTED: "bg-orange-100 text-orange-800",
   RESTOCKED: "bg-green-100 text-green-800",
   WRITTEN_OFF: "bg-red-100 text-red-800",
-  CLOSED: "bg-sh-gray/20 text-sh-gray",
+  CLOSED: "bg-brand-gray/20 text-brand-gray",
   CANCELLED: "bg-red-100 text-red-800",
 };
 
@@ -302,11 +302,11 @@ export function ReturnDetailView({ id }: { id: string }) {
   };
 
   if (loading) {
-    return <p className="text-sh-gray">Loading return details...</p>;
+    return <p className="text-brand-gray">Loading return details...</p>;
   }
 
   if (!returnData) {
-    return <p className="text-sh-gray">Return not found.</p>;
+    return <p className="text-brand-gray">Return not found.</p>;
   }
 
   const showPickupCard = returnData.pickupRequired;
@@ -322,20 +322,20 @@ export function ReturnDetailView({ id }: { id: string }) {
         <div>
           <Link
             href="/app/sales/returns"
-            className="inline-flex items-center text-sm text-sh-gray hover:text-sh-blue transition mb-2"
+            className="inline-flex items-center text-sm text-brand-gray hover:text-brand-blue transition mb-2"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
             Back to Returns
           </Link>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-sh-blue">{returnData.returnNumber}</h1>
+            <h1 className="text-2xl font-bold text-brand-blue">{returnData.returnNumber}</h1>
             <span
               className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[returnData.status] || "bg-gray-100 text-gray-800"}`}
             >
               {STATUS_LABELS[returnData.status] || returnData.status}
             </span>
           </div>
-          <p className="text-sm text-sh-gray mt-1">
+          <p className="text-sm text-brand-gray mt-1">
             Created {format(new Date(returnData.createdAt), "PPP")}
           </p>
         </div>
@@ -347,40 +347,41 @@ export function ReturnDetailView({ id }: { id: string }) {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="space-y-1.5">
             <p>
-              <span className="font-medium text-sh-black">Order:</span>{" "}
+              <span className="font-medium text-brand-black">Order:</span>{" "}
               <Link
                 href={`/app/sales/orders/${returnData.order.id}`}
-                className="text-sh-blue hover:underline"
+                className="text-brand-blue hover:underline"
               >
                 {returnData.order.orderno}
               </Link>
             </p>
             <p>
-              <span className="font-medium text-sh-black">Customer:</span>{" "}
+              <span className="font-medium text-brand-black">Customer:</span>{" "}
               {returnData.customer
                 ? `${returnData.customer.firstName} ${returnData.customer.lastName}`
                 : "N/A"}
             </p>
             <p>
-              <span className="font-medium text-sh-black">Product:</span>{" "}
+              <span className="font-medium text-brand-black">Product:</span>{" "}
               {returnData.product?.name || "N/A"}
             </p>
             <p>
-              <span className="font-medium text-sh-black">Part #:</span>{" "}
+              <span className="font-medium text-brand-black">Part #:</span>{" "}
               {returnData.product?.productNumber || "N/A"}
             </p>
           </div>
           <div className="space-y-1.5">
             <p>
-              <span className="font-medium text-sh-black">Quantity:</span> {returnData.quantity}
+              <span className="font-medium text-brand-black">Quantity:</span> {returnData.quantity}
             </p>
             <p>
-              <span className="font-medium text-sh-black">Reason:</span>{" "}
+              <span className="font-medium text-brand-black">Reason:</span>{" "}
               {REASON_LABELS[returnData.reason] || returnData.reason}
             </p>
             {returnData.reasonNotes && (
               <p>
-                <span className="font-medium text-sh-black">Notes:</span> {returnData.reasonNotes}
+                <span className="font-medium text-brand-black">Notes:</span>{" "}
+                {returnData.reasonNotes}
               </p>
             )}
           </div>
@@ -394,25 +395,26 @@ export function ReturnDetailView({ id }: { id: string }) {
           <div className="text-sm space-y-1.5">
             {returnData.pickupAddress && (
               <p>
-                <span className="font-medium text-sh-black">Address:</span>{" "}
+                <span className="font-medium text-brand-black">Address:</span>{" "}
                 {returnData.pickupAddress}
               </p>
             )}
             {returnData.pickupDate && (
               <p>
-                <span className="font-medium text-sh-black">Date:</span>{" "}
+                <span className="font-medium text-brand-black">Date:</span>{" "}
                 {format(new Date(returnData.pickupDate), "PPP")}
               </p>
             )}
             {returnData.pickupTimeSlot && (
               <p>
-                <span className="font-medium text-sh-black">Time Slot:</span>{" "}
+                <span className="font-medium text-brand-black">Time Slot:</span>{" "}
                 {returnData.pickupTimeSlot}
               </p>
             )}
             {returnData.pickupNotes && (
               <p>
-                <span className="font-medium text-sh-black">Notes:</span> {returnData.pickupNotes}
+                <span className="font-medium text-brand-black">Notes:</span>{" "}
+                {returnData.pickupNotes}
               </p>
             )}
           </div>
@@ -448,7 +450,7 @@ export function ReturnDetailView({ id }: { id: string }) {
           {returnData.inspectionCondition ? (
             <div className="text-sm space-y-1.5">
               <p>
-                <span className="font-medium text-sh-black">Condition:</span>{" "}
+                <span className="font-medium text-brand-black">Condition:</span>{" "}
                 <span
                   className={`px-2 py-0.5 rounded-full text-xs font-medium ${CONDITION_COLORS[returnData.inspectionCondition] || "bg-gray-100 text-gray-800"}`}
                 >
@@ -458,19 +460,19 @@ export function ReturnDetailView({ id }: { id: string }) {
               </p>
               {returnData.inspectionNotes && (
                 <p>
-                  <span className="font-medium text-sh-black">Notes:</span>{" "}
+                  <span className="font-medium text-brand-black">Notes:</span>{" "}
                   {returnData.inspectionNotes}
                 </p>
               )}
               {returnData.inspectedBy && (
                 <p>
-                  <span className="font-medium text-sh-black">Inspected by:</span>{" "}
+                  <span className="font-medium text-brand-black">Inspected by:</span>{" "}
                   {returnData.inspectedBy}
                 </p>
               )}
               {returnData.inspectedAt && (
                 <p>
-                  <span className="font-medium text-sh-black">Inspected at:</span>{" "}
+                  <span className="font-medium text-brand-black">Inspected at:</span>{" "}
                   {format(new Date(returnData.inspectedAt), "PPP p")}
                 </p>
               )}
@@ -494,7 +496,7 @@ export function ReturnDetailView({ id }: { id: string }) {
                       id="inspection-condition"
                       value={inspectionCondition}
                       onChange={(e) => setInspectionCondition(e.target.value)}
-                      className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
                     >
                       <option value="">Select condition...</option>
                       <option value="LIKE_NEW">Like New</option>
@@ -512,7 +514,7 @@ export function ReturnDetailView({ id }: { id: string }) {
                       value={inspectionNotes}
                       onChange={(e) => setInspectionNotes(e.target.value)}
                       rows={3}
-                      className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
                       placeholder="Describe the item condition..."
                     />
                   </div>
@@ -536,7 +538,7 @@ export function ReturnDetailView({ id }: { id: string }) {
               )}
             </>
           ) : (
-            <p className="text-sm text-sh-gray">No inspection recorded yet.</p>
+            <p className="text-sm text-brand-gray">No inspection recorded yet.</p>
           )}
         </div>
       )}
@@ -547,12 +549,12 @@ export function ReturnDetailView({ id }: { id: string }) {
           <h2 className="text-xl font-semibold mb-3">Disposition</h2>
           {returnData.status === "RESTOCKED" && returnData.restockedLocation ? (
             <p className="text-sm">
-              <span className="font-medium text-sh-black">Restocked to:</span>{" "}
+              <span className="font-medium text-brand-black">Restocked to:</span>{" "}
               {returnData.restockedLocation}
             </p>
           ) : returnData.status === "WRITTEN_OFF" && returnData.writeOffReason ? (
             <p className="text-sm">
-              <span className="font-medium text-sh-black">Write-off reason:</span>{" "}
+              <span className="font-medium text-brand-black">Write-off reason:</span>{" "}
               {returnData.writeOffReason}
             </p>
           ) : returnData.status === "INSPECTED" ? (
@@ -578,7 +580,7 @@ export function ReturnDetailView({ id }: { id: string }) {
                       id="restock-location"
                       value={restockLocation}
                       onChange={(e) => setRestockLocation(e.target.value)}
-                      className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
                     >
                       <option value="">Select location...</option>
                       <option value="Main Showroom">Main Showroom</option>
@@ -615,7 +617,7 @@ export function ReturnDetailView({ id }: { id: string }) {
                       value={writeOffReason}
                       onChange={(e) => setWriteOffReason(e.target.value)}
                       rows={3}
-                      className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm"
+                      className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
                       placeholder="Explain why the item cannot be restocked..."
                     />
                   </div>
@@ -638,7 +640,7 @@ export function ReturnDetailView({ id }: { id: string }) {
               )}
             </div>
           ) : (
-            <p className="text-sm text-sh-gray">Pending disposition.</p>
+            <p className="text-sm text-brand-gray">Pending disposition.</p>
           )}
         </div>
       )}
@@ -649,12 +651,12 @@ export function ReturnDetailView({ id }: { id: string }) {
         {returnData.refundAmount != null ? (
           <div className="text-sm space-y-1.5">
             <p>
-              <span className="font-medium text-sh-black">Refund Amount:</span>{" "}
+              <span className="font-medium text-brand-black">Refund Amount:</span>{" "}
               {formatCurrency(returnData.refundAmount)}
             </p>
             {returnData.refundPaymentType && (
               <p>
-                <span className="font-medium text-sh-black">Payment Method:</span>{" "}
+                <span className="font-medium text-brand-black">Payment Method:</span>{" "}
                 {returnData.refundPaymentType}
               </p>
             )}
@@ -677,7 +679,7 @@ export function ReturnDetailView({ id }: { id: string }) {
                     onChange={(e) =>
                       setRefundPaymentId(e.target.value ? Number(e.target.value) : "")
                     }
-                    className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
                   >
                     <option value="">Select payment...</option>
                     {(returnData.payments || []).map((p) => (
@@ -698,7 +700,7 @@ export function ReturnDetailView({ id }: { id: string }) {
                     min="0.01"
                     value={refundAmount}
                     onChange={(e) => setRefundAmount(e.target.value)}
-                    className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
                     placeholder="0.00"
                   />
                 </div>
@@ -729,10 +731,10 @@ export function ReturnDetailView({ id }: { id: string }) {
         <h2 className="text-xl font-semibold mb-3">Exchange</h2>
         {returnData.exchangeOrderId ? (
           <p className="text-sm">
-            <span className="font-medium text-sh-black">Exchange Order:</span>{" "}
+            <span className="font-medium text-brand-black">Exchange Order:</span>{" "}
             <Link
               href={`/app/sales/orders/${returnData.exchangeOrderId}`}
-              className="text-sh-blue hover:underline"
+              className="text-brand-blue hover:underline"
             >
               {returnData.exchangeOrderNo || `Order #${returnData.exchangeOrderId}`}
             </Link>
@@ -752,13 +754,13 @@ export function ReturnDetailView({ id }: { id: string }) {
             <div className="text-sm space-y-1">
               {returnData.vendorReturnPOs.map((po) => (
                 <p key={po.id}>
-                  <span className="font-medium text-sh-black">PO:</span> {po.poNumber}
+                  <span className="font-medium text-brand-black">PO:</span> {po.poNumber}
                 </p>
               ))}
             </div>
           ) : (
             <div>
-              <p className="text-sm text-sh-gray mb-3">
+              <p className="text-sm text-brand-gray mb-3">
                 No vendor return PO created yet. Create a negative PO to return this item to the
                 vendor.
               </p>
@@ -774,28 +776,28 @@ export function ReturnDetailView({ id }: { id: string }) {
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <h2 className="text-xl font-semibold mb-3">Change History</h2>
         {changeLog.length === 0 ? (
-          <p className="text-sm text-sh-gray">No return-related changes recorded yet.</p>
+          <p className="text-sm text-brand-gray">No return-related changes recorded yet.</p>
         ) : (
           <div className="space-y-3">
             {changeLog.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-start gap-3 text-sm border-b border-sh-gray/10 pb-2 last:border-0"
+                className="flex items-start gap-3 text-sm border-b border-brand-gray/10 pb-2 last:border-0"
               >
-                <div className="w-2 h-2 rounded-full bg-sh-blue mt-1.5 shrink-0" />
+                <div className="w-2 h-2 rounded-full bg-brand-blue mt-1.5 shrink-0" />
                 <div className="flex-1">
                   <p className="font-medium">{entry.changeType.replace(/_/g, " ")}</p>
                   {entry.previousValue && entry.newValue && (
-                    <p className="text-sh-gray">
+                    <p className="text-brand-gray">
                       {entry.previousValue} &rarr; {entry.newValue}
                     </p>
                   )}
                   {!entry.previousValue && entry.newValue && (
-                    <p className="text-sh-gray">{entry.newValue}</p>
+                    <p className="text-brand-gray">{entry.newValue}</p>
                   )}
-                  {entry.reason && <p className="text-sh-gray italic">{entry.reason}</p>}
+                  {entry.reason && <p className="text-brand-gray italic">{entry.reason}</p>}
                 </div>
-                <div className="text-xs text-sh-gray whitespace-nowrap">
+                <div className="text-xs text-brand-gray whitespace-nowrap">
                   <p>{format(new Date(entry.created), "MMM d, h:mm a")}</p>
                   {entry.changedBy && <p>{entry.changedBy.split("@")[0]}</p>}
                 </div>

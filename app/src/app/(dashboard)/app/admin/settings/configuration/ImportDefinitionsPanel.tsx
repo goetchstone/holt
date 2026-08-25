@@ -350,12 +350,12 @@ export function ImportDefinitionsPanel({
                 onClick={() => selectDefinition(d.name)}
                 className={`w-full rounded-md border px-3 py-2 text-left text-sm transition ${
                   selectedName === d.name
-                    ? "border-sh-blue bg-sh-linen text-sh-blue"
-                    : "border-sh-brand-gray text-sh-black hover:border-sh-blue"
+                    ? "border-brand-blue bg-brand-linen text-brand-blue"
+                    : "border-brand-accent-gray text-brand-black hover:border-brand-blue"
                 }`}
               >
                 <span className="block font-medium">{d.name}</span>
-                <span className="flex items-center gap-1 text-xs text-sh-gray">
+                <span className="flex items-center gap-1 text-xs text-brand-gray">
                   {d.targetEntity}
                   {!d.isActive && <Badge variant="neutral">inactive</Badge>}
                 </span>
@@ -363,7 +363,7 @@ export function ImportDefinitionsPanel({
             </li>
           ))}
           {definitions.length === 0 && (
-            <li className="text-xs text-sh-gray">No import definitions yet.</li>
+            <li className="text-xs text-brand-gray">No import definitions yet.</li>
           )}
         </ul>
       </div>
@@ -372,7 +372,7 @@ export function ImportDefinitionsPanel({
         <div className="space-y-6">
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label htmlFor="def-name" className="mb-1 block text-sm text-sh-gray">
+              <label htmlFor="def-name" className="mb-1 block text-sm text-brand-gray">
                 Name
               </label>
               <input
@@ -382,11 +382,11 @@ export function ImportDefinitionsPanel({
                 disabled={!form.isNew}
                 onChange={(e) => updateForm("name", e.target.value)}
                 placeholder="lowercase-kebab-case"
-                className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none disabled:bg-sh-stripe disabled:text-sh-gray"
+                className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none disabled:bg-brand-stripe disabled:text-brand-gray"
               />
               {nameError && <p className="mt-1 text-xs text-red-600">{nameError}</p>}
               {!form.isNew && (
-                <p className="mt-1 text-xs text-sh-gray">
+                <p className="mt-1 text-xs text-brand-gray">
                   Name is the definition&apos;s identity and can&apos;t be changed here — create a
                   new definition instead of renaming.
                 </p>
@@ -394,7 +394,7 @@ export function ImportDefinitionsPanel({
             </div>
 
             <div>
-              <label htmlFor="def-entity" className="mb-1 block text-sm text-sh-gray">
+              <label htmlFor="def-entity" className="mb-1 block text-sm text-brand-gray">
                 Target entity
               </label>
               <input
@@ -403,7 +403,7 @@ export function ImportDefinitionsPanel({
                 list="import-entity-options"
                 value={form.targetEntity}
                 onChange={(e) => updateForm("targetEntity", e.target.value)}
-                className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+                className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
               />
               <datalist id="import-entity-options">
                 {IMPORT_ENTITIES.map((e) => (
@@ -412,7 +412,7 @@ export function ImportDefinitionsPanel({
                   </option>
                 ))}
               </datalist>
-              <p className="mt-1 text-xs text-sh-gray">
+              <p className="mt-1 text-xs text-brand-gray">
                 {entity
                   ? entity.description
                   : "Not a known entity yet — the definition saves but applies as inactive until it is registered."}
@@ -420,7 +420,7 @@ export function ImportDefinitionsPanel({
             </div>
 
             <div>
-              <label htmlFor="def-source-format" className="mb-1 block text-sm text-sh-gray">
+              <label htmlFor="def-source-format" className="mb-1 block text-sm text-brand-gray">
                 Source format
               </label>
               <select
@@ -429,7 +429,7 @@ export function ImportDefinitionsPanel({
                 onChange={(e) =>
                   updateForm("sourceFormat", e.target.value as DefinitionForm["sourceFormat"])
                 }
-                className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+                className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
               >
                 {importSourceFormatSchema.options.map((f) => (
                   <option key={f} value={f}>
@@ -440,7 +440,7 @@ export function ImportDefinitionsPanel({
             </div>
 
             <div>
-              <label htmlFor="def-import-mode" className="mb-1 block text-sm text-sh-gray">
+              <label htmlFor="def-import-mode" className="mb-1 block text-sm text-brand-gray">
                 Import mode
               </label>
               <select
@@ -449,7 +449,7 @@ export function ImportDefinitionsPanel({
                 onChange={(e) =>
                   updateForm("importMode", e.target.value as DefinitionForm["importMode"])
                 }
-                className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+                className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
               >
                 {importModeSchema.options.map((m) => (
                   <option key={m} value={m}>
@@ -460,7 +460,7 @@ export function ImportDefinitionsPanel({
             </div>
 
             <div>
-              <label htmlFor="def-natural-keys" className="mb-1 block text-sm text-sh-gray">
+              <label htmlFor="def-natural-keys" className="mb-1 block text-sm text-brand-gray">
                 Natural key fields
               </label>
               <input
@@ -469,13 +469,13 @@ export function ImportDefinitionsPanel({
                 value={form.naturalKeyFieldsText}
                 onChange={(e) => updateForm("naturalKeyFieldsText", e.target.value)}
                 placeholder="comma-separated, e.g. externalId"
-                className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+                className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
               />
-              <p className="mt-1 text-xs text-sh-gray">Required when import mode is UPSERT.</p>
+              <p className="mt-1 text-xs text-brand-gray">Required when import mode is UPSERT.</p>
             </div>
 
             <div>
-              <label htmlFor="def-runner-key" className="mb-1 block text-sm text-sh-gray">
+              <label htmlFor="def-runner-key" className="mb-1 block text-sm text-brand-gray">
                 Runner key (advanced)
               </label>
               <input
@@ -484,16 +484,16 @@ export function ImportDefinitionsPanel({
                 value={form.runnerKey}
                 onChange={(e) => updateForm("runnerKey", e.target.value)}
                 placeholder="e.g. customer"
-                className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+                className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
               />
-              <p className="mt-1 text-xs text-sh-gray">
+              <p className="mt-1 text-xs text-brand-gray">
                 Names a registered runner (lib/imports/runnerRegistry.ts). Required when import mode
                 is RECONCILE; an unregistered key fails on apply.
               </p>
             </div>
 
             <div className="md:col-span-2">
-              <label htmlFor="def-description" className="mb-1 block text-sm text-sh-gray">
+              <label htmlFor="def-description" className="mb-1 block text-sm text-brand-gray">
                 Description
               </label>
               <textarea
@@ -501,11 +501,14 @@ export function ImportDefinitionsPanel({
                 rows={2}
                 value={form.description}
                 onChange={(e) => updateForm("description", e.target.value)}
-                className="w-full rounded-md border border-sh-brand-gray px-3 py-2 text-sh-black focus:border-sh-blue focus:outline-none"
+                className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
               />
             </div>
 
-            <label htmlFor="def-active" className="flex items-center gap-2 text-sm text-sh-black">
+            <label
+              htmlFor="def-active"
+              className="flex items-center gap-2 text-sm text-brand-black"
+            >
               <input
                 id="def-active"
                 type="checkbox"
@@ -519,7 +522,7 @@ export function ImportDefinitionsPanel({
 
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-serif text-base text-sh-blue">Field mappings</h3>
+              <h3 className="font-serif text-base text-brand-blue">Field mappings</h3>
               <Button variant="outline" size="sm" onClick={addFieldMapping}>
                 <Plus className="mr-1 h-4 w-4" /> Add field mapping
               </Button>
@@ -528,12 +531,12 @@ export function ImportDefinitionsPanel({
               {form.fieldMappings.map((fm, index) => (
                 <div
                   key={index}
-                  className="grid grid-cols-1 items-end gap-2 rounded-md border border-sh-brand-gray p-3 sm:grid-cols-[1fr_1fr_140px_auto_auto]"
+                  className="grid grid-cols-1 items-end gap-2 rounded-md border border-brand-accent-gray p-3 sm:grid-cols-[1fr_1fr_140px_auto_auto]"
                 >
                   <div>
                     <label
                       htmlFor={`fm-source-${index}`}
-                      className="mb-1 block text-xs text-sh-gray"
+                      className="mb-1 block text-xs text-brand-gray"
                     >
                       Source column
                     </label>
@@ -542,13 +545,13 @@ export function ImportDefinitionsPanel({
                       type="text"
                       value={fm.sourceColumn}
                       onChange={(e) => updateFieldMapping(index, { sourceColumn: e.target.value })}
-                      className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+                      className="w-full rounded-md border border-brand-accent-gray px-2 py-1.5 text-sm text-brand-black focus:border-brand-blue focus:outline-none"
                     />
                   </div>
                   <div>
                     <label
                       htmlFor={`fm-target-${index}`}
-                      className="mb-1 block text-xs text-sh-gray"
+                      className="mb-1 block text-xs text-brand-gray"
                     >
                       Target field
                     </label>
@@ -558,13 +561,13 @@ export function ImportDefinitionsPanel({
                       list="import-field-options"
                       value={fm.targetField}
                       onChange={(e) => updateFieldMapping(index, { targetField: e.target.value })}
-                      className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+                      className="w-full rounded-md border border-brand-accent-gray px-2 py-1.5 text-sm text-brand-black focus:border-brand-blue focus:outline-none"
                     />
                   </div>
                   <div>
                     <label
                       htmlFor={`fm-transform-${index}`}
-                      className="mb-1 block text-xs text-sh-gray"
+                      className="mb-1 block text-xs text-brand-gray"
                     >
                       Transform
                     </label>
@@ -574,7 +577,7 @@ export function ImportDefinitionsPanel({
                       onChange={(e) =>
                         updateFieldMapping(index, { transform: e.target.value as TransformValue })
                       }
-                      className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+                      className="w-full rounded-md border border-brand-accent-gray px-2 py-1.5 text-sm text-brand-black focus:border-brand-blue focus:outline-none"
                     >
                       <option value="">(none)</option>
                       {importTransformSchema.options.map((t) => (
@@ -586,7 +589,7 @@ export function ImportDefinitionsPanel({
                   </div>
                   <label
                     htmlFor={`fm-required-${index}`}
-                    className="flex items-center gap-1.5 pb-2 text-xs text-sh-black"
+                    className="flex items-center gap-1.5 pb-2 text-xs text-brand-black"
                   >
                     <input
                       id={`fm-required-${index}`}
@@ -608,7 +611,7 @@ export function ImportDefinitionsPanel({
                 </div>
               ))}
               {form.fieldMappings.length === 0 && (
-                <p className="text-xs italic text-sh-gray">No field mappings yet.</p>
+                <p className="text-xs italic text-brand-gray">No field mappings yet.</p>
               )}
             </div>
             <datalist id="import-field-options">
@@ -622,15 +625,18 @@ export function ImportDefinitionsPanel({
 
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-serif text-base text-sh-blue">Value mappings</h3>
+              <h3 className="font-serif text-base text-brand-blue">Value mappings</h3>
               <Button variant="outline" size="sm" onClick={() => addValueMapping("")}>
                 <Plus className="mr-1 h-4 w-4" /> Add value mapping
               </Button>
             </div>
             <div className="space-y-4">
               {groupValueMappings(form.valueMappings).map((group) => (
-                <div key={group.targetField} className="rounded-md border border-sh-brand-gray p-3">
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-sh-gray">
+                <div
+                  key={group.targetField}
+                  className="rounded-md border border-brand-accent-gray p-3"
+                >
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-brand-gray">
                     {group.targetField}
                   </p>
                   <div className="space-y-2">
@@ -644,7 +650,7 @@ export function ImportDefinitionsPanel({
                           <div>
                             <label
                               htmlFor={`vm-field-${index}`}
-                              className="mb-1 block text-xs text-sh-gray"
+                              className="mb-1 block text-xs text-brand-gray"
                             >
                               Target field
                             </label>
@@ -656,13 +662,13 @@ export function ImportDefinitionsPanel({
                               onChange={(e) =>
                                 updateValueMapping(index, { targetField: e.target.value })
                               }
-                              className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+                              className="w-full rounded-md border border-brand-accent-gray px-2 py-1.5 text-sm text-brand-black focus:border-brand-blue focus:outline-none"
                             />
                           </div>
                           <div>
                             <label
                               htmlFor={`vm-source-${index}`}
-                              className="mb-1 block text-xs text-sh-gray"
+                              className="mb-1 block text-xs text-brand-gray"
                             >
                               Source value
                             </label>
@@ -673,13 +679,13 @@ export function ImportDefinitionsPanel({
                               onChange={(e) =>
                                 updateValueMapping(index, { sourceValue: e.target.value })
                               }
-                              className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+                              className="w-full rounded-md border border-brand-accent-gray px-2 py-1.5 text-sm text-brand-black focus:border-brand-blue focus:outline-none"
                             />
                           </div>
                           <div>
                             <label
                               htmlFor={`vm-target-${index}`}
-                              className="mb-1 block text-xs text-sh-gray"
+                              className="mb-1 block text-xs text-brand-gray"
                             >
                               Target value
                             </label>
@@ -690,7 +696,7 @@ export function ImportDefinitionsPanel({
                               onChange={(e) =>
                                 updateValueMapping(index, { targetValue: e.target.value })
                               }
-                              className="w-full rounded-md border border-sh-brand-gray px-2 py-1.5 text-sm text-sh-black focus:border-sh-blue focus:outline-none"
+                              className="w-full rounded-md border border-brand-accent-gray px-2 py-1.5 text-sm text-brand-black focus:border-brand-blue focus:outline-none"
                             />
                           </div>
                           <Button
@@ -708,7 +714,7 @@ export function ImportDefinitionsPanel({
                 </div>
               ))}
               {form.valueMappings.length === 0 && (
-                <p className="text-xs italic text-sh-gray">No value mappings yet.</p>
+                <p className="text-xs italic text-brand-gray">No value mappings yet.</p>
               )}
             </div>
           </section>
@@ -729,8 +735,8 @@ export function ImportDefinitionsPanel({
           </div>
 
           {preview && (
-            <section className="space-y-3 rounded-md border border-sh-brand-gray p-4">
-              <h3 className="font-serif text-base text-sh-blue">Preview</h3>
+            <section className="space-y-3 rounded-md border border-brand-accent-gray p-4">
+              <h3 className="font-serif text-base text-brand-blue">Preview</h3>
               <ApplyPreview results={preview} />
               {pendingBundle && (
                 <div className="flex gap-2">

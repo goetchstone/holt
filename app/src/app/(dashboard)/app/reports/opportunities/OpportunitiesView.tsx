@@ -29,7 +29,10 @@ const formatDate = (iso: string | null) => {
 };
 
 const GROUP_CHIP: Record<string, { label: string; className: string }> = {
-  FURNITURE: { label: "Furniture", className: "bg-sh-blue/10 text-sh-blue border-sh-blue/20" },
+  FURNITURE: {
+    label: "Furniture",
+    className: "bg-brand-blue/10 text-brand-blue border-brand-blue/20",
+  },
   HOME_ACC: { label: "Home Acc", className: "bg-amber-50 text-amber-700 border-amber-200" },
   APPAREL: { label: "Apparel", className: "bg-purple-50 text-purple-700 border-purple-200" },
   CHRISTMAS: { label: "Christmas", className: "bg-red-50 text-red-700 border-red-200" },
@@ -80,7 +83,7 @@ export function OpportunitiesView() {
         sortable: true,
         render: (r) => (
           <span className={r.daysSinceLastSent !== null ? "opacity-60" : ""}>
-            <Link href={`/app/sales/customers/${r.id}`} className="text-sh-blue hover:underline">
+            <Link href={`/app/sales/customers/${r.id}`} className="text-brand-blue hover:underline">
               {customerName(r)}
             </Link>
             {renderGroupChip(r.customerGroup)}
@@ -213,28 +216,28 @@ export function OpportunitiesView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Opportunities</span>
+        <span className="text-brand-black">Opportunities</span>
       </nav>
       <div>
-        <h1 className="text-2xl font-semibold text-sh-navy">Opportunities</h1>
-        <p className="mt-1 text-sm text-sh-gray">
+        <h1 className="text-2xl font-semibold text-brand-navy">Opportunities</h1>
+        <p className="mt-1 text-sm text-brand-gray">
           These are the customer lists worth sending an email to this week. Click any tile to see
           the customers and download a spreadsheet.{" "}
           <Link
             href="/app/admin/setup/product-pairings"
-            className="whitespace-nowrap text-sh-blue hover:underline"
+            className="whitespace-nowrap text-brand-blue hover:underline"
           >
             Edit product pairings &rarr;
           </Link>
         </p>
       </div>
 
-      {loading && <p className="py-8 text-sh-gray">Loading...</p>}
+      {loading && <p className="py-8 text-brand-gray">Loading...</p>}
 
       {data && (
         <div className="space-y-3">
@@ -252,7 +255,7 @@ export function OpportunitiesView() {
             />
           ))}
           {data.tiles.length === 0 && (
-            <p className="py-16 text-center text-sh-gray">
+            <p className="py-16 text-center text-brand-gray">
               No opportunities at the moment. Check back after the next data refresh.
             </p>
           )}
@@ -295,7 +298,9 @@ function TileBlock({
   return (
     <div
       className={`rounded-xl border bg-white transition ${
-        expanded ? "border-sh-blue/40 shadow-md" : "border-sh-gray/15 hover:border-sh-gray/30"
+        expanded
+          ? "border-brand-blue/40 shadow-md"
+          : "border-brand-gray/15 hover:border-brand-gray/30"
       }`}
     >
       <button
@@ -305,22 +310,22 @@ function TileBlock({
       >
         <div className="flex-shrink-0 pt-1">
           {expanded ? (
-            <ChevronDown className="h-5 w-5 text-sh-gray" />
+            <ChevronDown className="h-5 w-5 text-brand-gray" />
           ) : (
-            <ChevronRight className="h-5 w-5 text-sh-gray" />
+            <ChevronRight className="h-5 w-5 text-brand-gray" />
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold text-sh-navy">{tile.title}</h2>
-          <p className="mt-0.5 text-sm text-sh-gray">{tile.description}</p>
+          <h2 className="text-base font-semibold text-brand-navy">{tile.title}</h2>
+          <p className="mt-0.5 text-sm text-brand-gray">{tile.description}</p>
         </div>
         <div className="flex-shrink-0 text-right">
-          <p className="text-2xl font-semibold tabular-nums text-sh-navy">
+          <p className="text-2xl font-semibold tabular-nums text-brand-navy">
             {tile.count.toLocaleString()}
           </p>
-          <p className="mt-0.5 text-xs text-sh-gray">~{currency(tile.estPotential)} potential</p>
+          <p className="mt-0.5 text-xs text-brand-gray">~{currency(tile.estPotential)} potential</p>
           <p
-            className={`mt-0.5 text-xs ${sent.tone === "amber" ? "font-medium text-amber-700" : "text-sh-gray"}`}
+            className={`mt-0.5 text-xs ${sent.tone === "amber" ? "font-medium text-amber-700" : "text-brand-gray"}`}
           >
             {sent.text}
           </p>
@@ -328,14 +333,14 @@ function TileBlock({
       </button>
 
       {expanded && (
-        <div className="space-y-3 border-t border-sh-gray/10 p-5">
+        <div className="space-y-3 border-t border-brand-gray/10 p-5">
           <div className="flex flex-wrap items-center gap-4">
-            <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-sh-gray">
+            <label className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-brand-gray">
               <input
                 type="checkbox"
                 checked={drill?.dedup ?? true}
                 onChange={(e) => onDedupChange(e.target.checked)}
-                className="h-5 w-5 accent-sh-blue"
+                className="h-5 w-5 accent-brand-blue"
                 disabled={drill?.loading}
               />
               Hide customers emailed in last 30 days
@@ -345,7 +350,7 @@ function TileBlock({
                 type="button"
                 onClick={onMarkSent}
                 disabled={drill.marking}
-                className="min-h-[44px] rounded-lg bg-sh-navy px-4 py-2 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+                className="min-h-[44px] rounded-lg bg-brand-navy px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
                 title="Record that you sent this segment to the customers shown. Hides them for 30 days."
               >
                 {drill.marking
@@ -355,9 +360,9 @@ function TileBlock({
             )}
           </div>
 
-          {drill?.loading && <p className="py-4 text-sm text-sh-gray">Loading list...</p>}
+          {drill?.loading && <p className="py-4 text-sm text-brand-gray">Loading list...</p>}
           {drill && !drill.loading && drill.rows.length === 0 && (
-            <p className="py-4 text-sm text-sh-gray">
+            <p className="py-4 text-sm text-brand-gray">
               {drill.dedup
                 ? "No customers in this list right now (everyone here has been emailed in the last 30 days). Turn off the dedup filter to see the full list."
                 : "No customers in this list right now."}

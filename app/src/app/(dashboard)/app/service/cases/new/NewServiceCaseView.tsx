@@ -181,21 +181,21 @@ export function NewServiceCaseView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl text-sh-blue font-semibold">New Service Case</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">New Service Case</h1>
       </div>
 
       <div className="space-y-6">
         {/* Customer Section */}
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-          <h2 className="text-lg font-semibold text-sh-black mb-4">Customer</h2>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+          <h2 className="text-lg font-semibold text-brand-black mb-4">Customer</h2>
           <div ref={customerDropdownRef} className="relative">
             {selectedCustomer ? (
-              <div className="flex items-center justify-between bg-sh-linen rounded px-4 py-3">
+              <div className="flex items-center justify-between bg-brand-linen rounded px-4 py-3">
                 <div>
-                  <p className="font-medium text-sh-black">
+                  <p className="font-medium text-brand-black">
                     {selectedCustomer.firstName} {selectedCustomer.lastName}
                   </p>
-                  <p className="text-sm text-sh-gray">
+                  <p className="text-sm text-brand-gray">
                     {[selectedCustomer.phone, selectedCustomer.email].filter(Boolean).join(" | ")}
                   </p>
                 </div>
@@ -204,7 +204,7 @@ export function NewServiceCaseView() {
                     setSelectedCustomer(null);
                     clearCustomerSearch();
                   }}
-                  className="text-sm text-sh-gray hover:text-sh-blue"
+                  className="text-sm text-brand-gray hover:text-brand-blue"
                 >
                   Change
                 </button>
@@ -216,10 +216,10 @@ export function NewServiceCaseView() {
                   placeholder="Search by customer name..."
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 />
                 {showCustomerDropdown && customerResults.length > 0 && (
-                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-sh-gray/20 rounded shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-brand-gray/20 rounded shadow-lg max-h-48 overflow-y-auto">
                     {customerResults.map((c) => (
                       <button
                         key={c.id}
@@ -228,12 +228,12 @@ export function NewServiceCaseView() {
                           setShowCustomerDropdown(false);
                           clearCustomerSearch();
                         }}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-sh-linen transition"
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-brand-linen transition"
                       >
                         <span className="font-medium">
                           {c.firstName} {c.lastName}
                         </span>
-                        {c.email && <span className="text-sh-gray ml-2">{c.email}</span>}
+                        {c.email && <span className="text-brand-gray ml-2">{c.email}</span>}
                       </button>
                     ))}
                   </div>
@@ -244,15 +244,15 @@ export function NewServiceCaseView() {
         </div>
 
         {/* Order Section */}
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-          <h2 className="text-lg font-semibold text-sh-black mb-4">Order (optional)</h2>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+          <h2 className="text-lg font-semibold text-brand-black mb-4">Order (optional)</h2>
           <div ref={orderDropdownRef} className="relative">
             {selectedOrder ? (
-              <div className="flex items-center justify-between bg-sh-linen rounded px-4 py-3">
+              <div className="flex items-center justify-between bg-brand-linen rounded px-4 py-3">
                 <div>
-                  <p className="font-medium text-sh-black">Order #{selectedOrder.orderno}</p>
+                  <p className="font-medium text-brand-black">Order #{selectedOrder.orderno}</p>
                   {selectedOrder.vendor && (
-                    <p className="text-sm text-sh-gray">{selectedOrder.vendor.name}</p>
+                    <p className="text-sm text-brand-gray">{selectedOrder.vendor.name}</p>
                   )}
                 </div>
                 <button
@@ -260,7 +260,7 @@ export function NewServiceCaseView() {
                     setSelectedOrder(null);
                     setOrderSearch("");
                   }}
-                  className="text-sm text-sh-gray hover:text-sh-blue"
+                  className="text-sm text-brand-gray hover:text-brand-blue"
                 >
                   Change
                 </button>
@@ -272,10 +272,10 @@ export function NewServiceCaseView() {
                   placeholder="Search by order number..."
                   value={orderSearch}
                   onChange={(e) => setOrderSearch(e.target.value)}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 />
                 {showOrderDropdown && orderResults.length > 0 && (
-                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-sh-gray/20 rounded shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-brand-gray/20 rounded shadow-lg max-h-48 overflow-y-auto">
                     {orderResults.map((o) => (
                       <button
                         key={o.id}
@@ -284,7 +284,7 @@ export function NewServiceCaseView() {
                           setShowOrderDropdown(false);
                           setOrderSearch("");
                         }}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-sh-linen transition"
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-brand-linen transition"
                       >
                         <span className="font-medium">#{o.orderno}</span>
                       </button>
@@ -297,15 +297,15 @@ export function NewServiceCaseView() {
         </div>
 
         {/* Case Details Section */}
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-          <h2 className="text-lg font-semibold text-sh-black mb-4">Case Details</h2>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+          <h2 className="text-lg font-semibold text-brand-black mb-4">Case Details</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-sh-gray mb-1">Type</label>
+              <label className="block text-sm text-brand-gray mb-1">Type</label>
               <select
                 value={typeId}
                 onChange={(e) => setTypeId(e.target.value)}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               >
                 <option value="">Select type...</option>
                 {types.map((t) => (
@@ -316,11 +316,11 @@ export function NewServiceCaseView() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-sh-gray mb-1">Priority</label>
+              <label className="block text-sm text-brand-gray mb-1">Priority</label>
               <select
                 value={priorityId}
                 onChange={(e) => setPriorityId(e.target.value)}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               >
                 <option value="">Select priority...</option>
                 {priorities.map((p) => (
@@ -332,52 +332,52 @@ export function NewServiceCaseView() {
             </div>
           </div>
           <div className="mt-4">
-            <label className="block text-sm text-sh-gray mb-1">Summary</label>
+            <label className="block text-sm text-brand-gray mb-1">Summary</label>
             <textarea
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
               rows={3}
-              className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               placeholder="Describe the issue..."
             />
           </div>
         </div>
 
         {/* Item Info Section */}
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-          <h2 className="text-lg font-semibold text-sh-black mb-4">Item Info (optional)</h2>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+          <h2 className="text-lg font-semibold text-brand-black mb-4">Item Info (optional)</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-sh-gray mb-1">Item Description</label>
+              <label className="block text-sm text-brand-gray mb-1">Item Description</label>
               <input
                 type="text"
                 value={itemDescription}
                 onChange={(e) => setItemDescription(e.target.value)}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm text-sh-gray mb-1">Part Number</label>
+              <label className="block text-sm text-brand-gray mb-1">Part Number</label>
               <input
                 type="text"
                 value={partNo}
                 onChange={(e) => setPartNo(e.target.value)}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               />
             </div>
           </div>
         </div>
 
         {/* Assignment Section */}
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-          <h2 className="text-lg font-semibold text-sh-black mb-4">Assignment</h2>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+          <h2 className="text-lg font-semibold text-brand-black mb-4">Assignment</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm text-sh-gray mb-1">Assigned To</label>
+              <label className="block text-sm text-brand-gray mb-1">Assigned To</label>
               <select
                 value={assignedToId}
                 onChange={(e) => setAssignedToId(e.target.value)}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               >
                 <option value="">Unassigned</option>
                 {staff.map((s) => (
@@ -388,11 +388,11 @@ export function NewServiceCaseView() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-sh-gray mb-1">Store Location</label>
+              <label className="block text-sm text-brand-gray mb-1">Store Location</label>
               <select
                 value={storeLocation}
                 onChange={(e) => setStoreLocation(e.target.value)}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               >
                 <option value="">Select location...</option>
                 {locations.map((l) => (
@@ -403,11 +403,11 @@ export function NewServiceCaseView() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-sh-gray mb-1">Preferred Contact</label>
+              <label className="block text-sm text-brand-gray mb-1">Preferred Contact</label>
               <select
                 value={preferredContact}
                 onChange={(e) => setPreferredContact(e.target.value)}
-                className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+                className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
               >
                 <option value="">Select...</option>
                 {CONTACT_METHODS.map((m) => (
@@ -421,13 +421,13 @@ export function NewServiceCaseView() {
         </div>
 
         {/* Initial Note */}
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-6">
-          <h2 className="text-lg font-semibold text-sh-black mb-4">Initial Note</h2>
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-6">
+          <h2 className="text-lg font-semibold text-brand-black mb-4">Initial Note</h2>
           <textarea
             value={initialNote}
             onChange={(e) => setInitialNote(e.target.value)}
             rows={4}
-            className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
             placeholder="Add any initial notes..."
           />
         </div>

@@ -72,7 +72,7 @@ export async function requirePage(
     redirect("/app");
   }
 
-  const impersonateCookie = cookieStore.get("sh-impersonate")?.value ?? null;
+  const impersonateCookie = cookieStore.get("holt-impersonate")?.value ?? null;
 
   // Capability gate. Shares resolvePermissionAccess with requirePermission, so
   // a page and its API routes cannot disagree about who may be here, and the

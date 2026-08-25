@@ -409,25 +409,25 @@ export function HomeAccessoryOrderView() {
 
   return (
     <div className="py-2 space-y-6 font-serif">
-      <h1 className="text-2xl text-sh-blue font-semibold">Home Accessory Order Import</h1>
+      <h1 className="text-2xl text-brand-blue font-semibold">Home Accessory Order Import</h1>
 
       {!draft && (
         <>
-          <p className="text-sm text-sh-gray">
+          <p className="text-sm text-brand-gray">
             Parse a home accessory vendor order, classify each item, split sets into their pieces,
             and create draft purchase orders + items in Buyer Drafts. Nothing is written until you
             press &quot;Create draft PO(s) + items&quot; at the bottom of the preview.
           </p>
-          <div className="flex flex-wrap items-end gap-4 rounded-lg border border-sh-gray/20 bg-white p-5">
+          <div className="flex flex-wrap items-end gap-4 rounded-lg border border-brand-gray/20 bg-white p-5">
             <div>
-              <label htmlFor="ha-format" className="mb-1 block text-xs text-sh-gray">
+              <label htmlFor="ha-format" className="mb-1 block text-xs text-brand-gray">
                 Vendor format
               </label>
               <select
                 id="ha-format"
                 value={format}
                 onChange={(e) => setFormat(e.target.value as HomeAccessoryFormatId)}
-                className="w-72 rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                className="w-72 rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
               >
                 {HOME_ACCESSORY_FORMATS.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -435,14 +435,14 @@ export function HomeAccessoryOrderView() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 max-w-md text-xs text-sh-gray">
+              <p className="mt-1 max-w-md text-xs text-brand-gray">
                 {HOME_ACCESSORY_FORMATS.find((f) => f.id === format)?.notes}
               </p>
             </div>
             <div>
               <label
                 htmlFor="ha-file"
-                className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded bg-sh-blue px-4 py-2 text-sm font-semibold text-white hover:bg-sh-navy"
+                className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded bg-brand-blue px-4 py-2 text-sm font-semibold text-white hover:bg-brand-navy"
               >
                 <Upload className="h-4 w-4" />
                 {loading ? "Parsing…" : `Upload ${uploadKind}`}
@@ -485,29 +485,29 @@ export function HomeAccessoryOrderView() {
 
       {draft && !result && (
         <>
-          <div className="rounded-lg border border-sh-gray/20 bg-white p-5">
+          <div className="rounded-lg border border-brand-gray/20 bg-white p-5">
             <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
               <div>
-                <span className="mb-1 block text-xs text-sh-gray">Vendor (document)</span>
-                <p className="text-sh-black">{draft.vendorName}</p>
+                <span className="mb-1 block text-xs text-brand-gray">Vendor (document)</span>
+                <p className="text-brand-black">{draft.vendorName}</p>
               </div>
               <div>
-                <span className="mb-1 block text-xs text-sh-gray">Order date</span>
-                <p className="text-sh-black">{draft.orderDate || "--"}</p>
+                <span className="mb-1 block text-xs text-brand-gray">Order date</span>
+                <p className="text-brand-black">{draft.orderDate || "--"}</p>
               </div>
               <div>
-                <span className="mb-1 block text-xs text-sh-gray">Orders</span>
-                <p className="text-sh-black">{orderCount}</p>
+                <span className="mb-1 block text-xs text-brand-gray">Orders</span>
+                <p className="text-brand-black">{orderCount}</p>
               </div>
               <div>
-                <span className="mb-1 block text-xs text-sh-gray">Lines parsed</span>
-                <p className="text-sh-black">{draft.rows.length}</p>
+                <span className="mb-1 block text-xs text-brand-gray">Lines parsed</span>
+                <p className="text-brand-black">{draft.rows.length}</p>
               </div>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
               <div>
-                <label htmlFor="ha-supplier" className="mb-1 block text-xs text-sh-gray">
+                <label htmlFor="ha-supplier" className="mb-1 block text-xs text-brand-gray">
                   Supplier
                 </label>
                 <input
@@ -515,7 +515,7 @@ export function HomeAccessoryOrderView() {
                   type="text"
                   value={supplier}
                   onChange={(e) => setSupplier(e.target.value)}
-                  className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                 />
                 {!supplierEntry && (
                   <p className="mt-1 text-xs text-amber-700">
@@ -525,7 +525,7 @@ export function HomeAccessoryOrderView() {
                 )}
               </div>
               <div>
-                <label htmlFor="ha-markup" className="mb-1 block text-xs text-sh-gray">
+                <label htmlFor="ha-markup" className="mb-1 block text-xs text-brand-gray">
                   Markup (optional — e.g. 2.5 for 2.5x cost)
                 </label>
                 <input
@@ -536,11 +536,11 @@ export function HomeAccessoryOrderView() {
                   value={defaults.markup}
                   onChange={(e) => setDefaults({ ...defaults, markup: e.target.value })}
                   title="Fills Selling + MSRP for rows without their own typed price. Rounds up to a price ending in 5 or 9."
-                  className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                 />
               </div>
               <div>
-                <label htmlFor="ha-stock-family" className="mb-1 block text-xs text-sh-gray">
+                <label htmlFor="ha-stock-family" className="mb-1 block text-xs text-brand-gray">
                   Stock family (optional)
                 </label>
                 <input
@@ -548,11 +548,11 @@ export function HomeAccessoryOrderView() {
                   type="text"
                   value={defaults.stockFamily}
                   onChange={(e) => setDefaults({ ...defaults, stockFamily: e.target.value })}
-                  className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                 />
               </div>
               <div>
-                <span className="mb-1 block text-xs text-sh-gray">
+                <span className="mb-1 block text-xs text-brand-gray">
                   {orderCount > 1
                     ? "PO numbers (optional) — one per order"
                     : "PO number (optional)"}
@@ -563,7 +563,7 @@ export function HomeAccessoryOrderView() {
                       {orderCount > 1 && (
                         <label
                           htmlFor={`ha-po-${o.orderNumber}`}
-                          className="w-28 shrink-0 truncate text-xs text-sh-gray"
+                          className="w-28 shrink-0 truncate text-xs text-brand-gray"
                           title={`Order ${o.orderNumber} — ${o.itemCount} item(s)`}
                         >
                           {o.orderNumber}
@@ -578,7 +578,7 @@ export function HomeAccessoryOrderView() {
                           setPoNumbers({ ...poNumbers, [o.orderNumber]: e.target.value })
                         }
                         title="Leave blank to use the vendor's own order number as the draft PO's reference. Type a number to land this order's lines on a different reference instead."
-                        className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                        className="min-h-[44px] w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                       />
                     </div>
                   ))}
@@ -588,7 +588,7 @@ export function HomeAccessoryOrderView() {
                 )}
               </div>
               <div>
-                <label htmlFor="ha-location" className="mb-1 block text-xs text-sh-gray">
+                <label htmlFor="ha-location" className="mb-1 block text-xs text-brand-gray">
                   Stock location (where items will land)
                 </label>
                 <select
@@ -600,7 +600,7 @@ export function HomeAccessoryOrderView() {
                       stockLocationId: Number.parseInt(e.target.value) || null,
                     })
                   }
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                 >
                   <option value="">None — set it later</option>
                   {stockLocations.map((l) => (
@@ -611,7 +611,7 @@ export function HomeAccessoryOrderView() {
                 </select>
               </div>
               <div>
-                <label htmlFor="ha-buy" className="mb-1 block text-xs text-sh-gray">
+                <label htmlFor="ha-buy" className="mb-1 block text-xs text-brand-gray">
                   Buy (optional)
                 </label>
                 <select
@@ -620,7 +620,7 @@ export function HomeAccessoryOrderView() {
                   onChange={(e) =>
                     setDefaults({ ...defaults, buyId: Number.parseInt(e.target.value) || null })
                   }
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                 >
                   <option value="">Unassigned</option>
                   {buys.map((b) => (
@@ -631,7 +631,7 @@ export function HomeAccessoryOrderView() {
                 </select>
               </div>
               <div>
-                <label htmlFor="ha-def-dept" className="mb-1 block text-xs text-sh-gray">
+                <label htmlFor="ha-def-dept" className="mb-1 block text-xs text-brand-gray">
                   Default department (rows without a pick)
                 </label>
                 <select
@@ -644,7 +644,7 @@ export function HomeAccessoryOrderView() {
                       categoryId: null,
                     })
                   }
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                 >
                   <option value="">None</option>
                   {departments.map((d) => (
@@ -655,7 +655,7 @@ export function HomeAccessoryOrderView() {
                 </select>
               </div>
               <div>
-                <label htmlFor="ha-def-cat" className="mb-1 block text-xs text-sh-gray">
+                <label htmlFor="ha-def-cat" className="mb-1 block text-xs text-brand-gray">
                   Default category
                 </label>
                 <select
@@ -668,7 +668,7 @@ export function HomeAccessoryOrderView() {
                     })
                   }
                   disabled={!defaults.departmentId}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-sh-gold focus:outline-none"
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-brand-gold focus:outline-none"
                 >
                   <option value="">
                     {defaults.departmentId ? "None" : "Pick a department first"}
@@ -720,7 +720,7 @@ export function HomeAccessoryOrderView() {
           <div
             className={
               totalsAgree
-                ? "rounded border border-gray-200 bg-sh-linen p-3 text-sm text-sh-gray"
+                ? "rounded border border-gray-200 bg-brand-linen p-3 text-sm text-brand-gray"
                 : "rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800"
             }
           >
@@ -782,13 +782,13 @@ function SplitControls({
       <div className="mt-1 space-y-1">
         {presets.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 text-xs">
-            <span className="text-sh-gray">Shape:</span>
+            <span className="text-brand-gray">Shape:</span>
             {presets.map((p) => (
               <button
                 key={p.label}
                 type="button"
                 onClick={() => onApplyPreset(row.rowIndex, [...p.percents])}
-                className="rounded border border-gray-300 px-1.5 py-0.5 text-xs text-sh-gray hover:border-sh-gold hover:text-sh-navy"
+                className="rounded border border-gray-300 px-1.5 py-0.5 text-xs text-brand-gray hover:border-brand-gold hover:text-brand-navy"
               >
                 {p.label}
               </button>
@@ -798,7 +798,7 @@ function SplitControls({
         <button
           type="button"
           onClick={() => onUnsplit(row.rowIndex)}
-          className="flex items-center gap-1 text-xs text-sh-gray underline"
+          className="flex items-center gap-1 text-xs text-brand-gray underline"
         >
           <Undo2 className="h-3 w-3" />
           Undo split
@@ -812,7 +812,7 @@ function SplitControls({
       type="button"
       onClick={() => onSplit(row.rowIndex, row.setSize ?? 2)}
       title={`The description says a set of ${row.setSize}. Split it into ${row.setSize} items, sharing the set's cost.`}
-      className="mt-1 flex items-center gap-1 text-xs text-sh-gold underline"
+      className="mt-1 flex items-center gap-1 text-xs text-brand-gold underline"
     >
       <Scissors className="h-3 w-3" />
       Split into {row.setSize}
@@ -856,7 +856,7 @@ function CategoryCell({
       value={catId}
       onChange={(e) => onPickCat(Number.parseInt(e.target.value))}
       disabled={!row.department}
-      className="w-full rounded border border-gray-300 px-1 py-1 text-xs focus:border-sh-gold focus:outline-none"
+      className="w-full rounded border border-gray-300 px-1 py-1 text-xs focus:border-brand-gold focus:outline-none"
     >
       <option value="">--</option>
       {outsideDeptCat && (
@@ -898,11 +898,11 @@ function PartNumberCell({
         value={row.partNumber}
         onChange={(e) => onEditPartNumber(e.target.value)}
         title="Clear it to go back to the composed default (vendor code + item number)."
-        className="min-h-[44px] w-44 rounded border border-gray-300 px-2 py-1 font-mono text-xs focus:border-sh-gold focus:outline-none"
+        className="min-h-[44px] w-44 rounded border border-gray-300 px-2 py-1 font-mono text-xs focus:border-brand-gold focus:outline-none"
       />
       {row.isSplitChild && splitParts && (
         <>
-          <span className="ml-1 whitespace-nowrap rounded bg-sh-gold/15 px-1 py-0.5 text-[10px] text-sh-gray">
+          <span className="ml-1 whitespace-nowrap rounded bg-brand-gold/15 px-1 py-0.5 text-[10px] text-brand-gray">
             piece {partIndex + 1} of {splitParts.length}
           </span>
           <input
@@ -910,7 +910,7 @@ function PartNumberCell({
             aria-label="Size marker"
             value={splitParts[partIndex]?.suffix ?? ""}
             onChange={(e) => onEditSplit(row.rowIndex, partIndex, { suffix: e.target.value })}
-            className="ml-1 w-14 rounded border border-gray-300 px-1 py-0.5 text-xs focus:border-sh-gold focus:outline-none"
+            className="ml-1 w-14 rounded border border-gray-300 px-1 py-0.5 text-xs focus:border-brand-gold focus:outline-none"
           />
         </>
       )}
@@ -931,7 +931,7 @@ function splitRowState(
 
 function FieldLabel({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <span className="mb-0.5 block text-[10px] uppercase tracking-wide text-sh-gray">
+    <span className="mb-0.5 block text-[10px] uppercase tracking-wide text-brand-gray">
       {children}
     </span>
   );
@@ -945,8 +945,8 @@ function FieldLabel({ children }: Readonly<{ children: ReactNode }>) {
  * accent colour so two groups in a row never blur together.
  */
 const GROUP_ACCENTS = [
-  { border: "border-sh-gold/60", bg: "bg-sh-gold/5", text: "text-sh-gold" },
-  { border: "border-sh-blue/60", bg: "bg-sh-blue/10", text: "text-sh-blue" },
+  { border: "border-brand-gold/60", bg: "bg-brand-gold/5", text: "text-brand-gold" },
+  { border: "border-brand-blue/60", bg: "bg-brand-blue/10", text: "text-brand-blue" },
 ] as const;
 
 function SplitGroupCard({
@@ -973,11 +973,11 @@ function SplitGroupCard({
           <Scissors className="h-4 w-4" />
           Split set
         </span>
-        <span className="text-sm text-sh-black">{setName}</span>
-        <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-sh-gray">
+        <span className="text-sm text-brand-black">{setName}</span>
+        <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-brand-gray">
           {block.rows.length} pieces
         </span>
-        <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-sh-gray">
+        <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-brand-gray">
           set cost {formatCurrency(setCost)}
         </span>
         {reconciled ? (
@@ -1062,7 +1062,7 @@ function HomeAccessoryRow({
             aria-label="Item name"
             value={row.productName}
             onChange={(e) => onEditName(e.target.value)}
-            className="mb-1 w-full rounded border border-gray-300 px-2 py-1 text-sm font-semibold focus:border-sh-gold focus:outline-none"
+            className="mb-1 w-full rounded border border-gray-300 px-2 py-1 text-sm font-semibold focus:border-brand-gold focus:outline-none"
           />
           <textarea
             aria-label="Description"
@@ -1070,7 +1070,7 @@ function HomeAccessoryRow({
             onChange={(e) => onEditDescription(e.target.value)}
             placeholder="Description (optional)"
             rows={2}
-            className="w-full resize-none rounded border border-gray-300 px-2 py-1 text-xs text-sh-gray focus:border-sh-gold focus:outline-none"
+            className="w-full resize-none rounded border border-gray-300 px-2 py-1 text-xs text-brand-gray focus:border-brand-gold focus:outline-none"
           />
           <SplitControls
             row={row}
@@ -1110,7 +1110,7 @@ function HomeAccessoryRow({
                 aria-label="Piece cost"
                 value={splitParts[partIndex]?.cost ?? ""}
                 onChange={(e) => onEditSplit(row.rowIndex, partIndex, { cost: e.target.value })}
-                className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-sh-gold focus:outline-none"
+                className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-brand-gold focus:outline-none"
               />
               <input
                 type="text"
@@ -1118,7 +1118,7 @@ function HomeAccessoryRow({
                 aria-label="Piece percent"
                 placeholder="%"
                 onChange={(e) => onEditPercent(row.rowIndex, partIndex, e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-0.5 text-xs text-sh-gray focus:border-sh-gold focus:outline-none"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-0.5 text-xs text-brand-gray focus:border-brand-gold focus:outline-none"
               />
               {splitOff && firstOfSplit && (
                 <p className="mt-0.5 text-[11px] text-amber-700">pieces don&apos;t add up yet</p>
@@ -1138,7 +1138,7 @@ function HomeAccessoryRow({
             value={row.selling ?? ""}
             onChange={(e) => onEditSelling(e.target.value)}
             placeholder="--"
-            className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-sh-gold focus:outline-none"
+            className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-brand-gold focus:outline-none"
           />
         </div>
 
@@ -1151,7 +1151,7 @@ function HomeAccessoryRow({
             value={row.msrp ?? ""}
             onChange={(e) => onEditMsrp(e.target.value)}
             placeholder="--"
-            className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-sh-gold focus:outline-none"
+            className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-brand-gold focus:outline-none"
           />
         </div>
 
@@ -1163,7 +1163,7 @@ function HomeAccessoryRow({
             value={row.barcode}
             onChange={(e) => onEditBarcode(e.target.value)}
             placeholder="none"
-            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs focus:border-sh-gold focus:outline-none"
+            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs focus:border-brand-gold focus:outline-none"
           />
         </div>
 
@@ -1173,7 +1173,7 @@ function HomeAccessoryRow({
             aria-label="Department"
             value={deptId}
             onChange={(e) => onPickDept(Number.parseInt(e.target.value))}
-            className="w-full rounded border border-gray-300 px-1 py-1 text-xs focus:border-sh-gold focus:outline-none"
+            className="w-full rounded border border-gray-300 px-1 py-1 text-xs focus:border-brand-gold focus:outline-none"
           >
             <option value="">--</option>
             {departments.map((d) => (

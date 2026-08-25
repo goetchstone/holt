@@ -406,8 +406,8 @@ export function BuyerDraftsView() {
     <div className="px-6 py-8 max-w-screen-xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="font-serif text-3xl text-sh-navy">Buyer Drafts</h1>
-        <p className="text-sm text-sh-gray mt-2 max-w-3xl">
+        <h1 className="font-serif text-3xl text-brand-navy">Buyer Drafts</h1>
+        <p className="text-sm text-brand-gray mt-2 max-w-3xl">
           Workbench for new items + POs. Drafts here aren&apos;t live products — they live here
           while specs are being negotiated, then export to the POS-import-format CSVs. Once the POS
           imports them and the items flow back through Stock-by-Item, drafts auto-link to the real
@@ -417,7 +417,7 @@ export function BuyerDraftsView() {
 
       {/* Action bar */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <Button onClick={handleOpenWizardForNew} className="bg-sh-gold text-white min-h-[44px]">
+        <Button onClick={handleOpenWizardForNew} className="bg-brand-gold text-white min-h-[44px]">
           <Plus className="h-4 w-4 mr-1" /> Add item
         </Button>
         <Button
@@ -436,7 +436,7 @@ export function BuyerDraftsView() {
         <div className="flex-1" />
         <Button
           onClick={() => handleExport("workbook")}
-          className="bg-sh-blue text-white min-h-[44px]"
+          className="bg-brand-blue text-white min-h-[44px]"
           title="Buyer-side review workbook with per-vendor sheets, TOTAL pivot, and Floor Plan by vignette"
         >
           <Download className="h-4 w-4 mr-1" /> Buyer Workbook (XLSX)
@@ -460,7 +460,7 @@ export function BuyerDraftsView() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-4 mb-6 p-4 bg-sh-stripe/40 rounded-lg">
+      <div className="flex flex-wrap gap-4 mb-6 p-4 bg-brand-stripe/40 rounded-lg">
         <FilterDropdown
           label="Status"
           value={statusFilter}
@@ -512,7 +512,7 @@ export function BuyerDraftsView() {
 
       {loading ? (
         <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-sh-gold" />
+          <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
         </div>
       ) : (
         <DndContext sensors={dndSensors} onDragEnd={handleDragEnd}>
@@ -520,8 +520,8 @@ export function BuyerDraftsView() {
             {/* Items as cards */}
             <div>
               {filteredItems.length === 0 ? (
-                <div className="text-center py-16 bg-white border border-sh-stripe rounded-lg">
-                  <p className="text-sh-gray">No items match this filter.</p>
+                <div className="text-center py-16 bg-white border border-brand-stripe rounded-lg">
+                  <p className="text-brand-gray">No items match this filter.</p>
                   <Button
                     onClick={handleOpenWizardForNew}
                     variant="secondary"
@@ -544,7 +544,7 @@ export function BuyerDraftsView() {
                   ))}
                 </div>
               )}
-              <div className="mt-3 text-xs text-sh-gray">
+              <div className="mt-3 text-xs text-brand-gray">
                 {filteredItems.length} item{filteredItems.length === 1 ? "" : "s"} shown
                 {items.length > filteredItems.length && ` (${items.length} total)`}
                 {pos.length > 0 && (

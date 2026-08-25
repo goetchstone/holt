@@ -82,7 +82,7 @@ function ReconciliationPanel({
     <div className={`mb-4 p-3 rounded border text-sm ${reconciliationPanelClass(result.balanced)}`}>
       <div className="font-semibold mb-1">{reconciliationHeader(result)}</div>
       <table className="w-full text-xs mt-2">
-        <thead className="text-sh-gray">
+        <thead className="text-brand-gray">
           <tr>
             <th className="text-left">Category</th>
             <th className="text-right">Source</th>
@@ -132,14 +132,17 @@ function EntryActions({
 }>) {
   return (
     <div className="flex gap-2">
-      <button onClick={() => onExport(entry.id, "tab")} className="text-xs text-sh-blue underline">
+      <button
+        onClick={() => onExport(entry.id, "tab")}
+        className="text-xs text-brand-blue underline"
+      >
         Export
       </button>
       {entry.status === "DRAFT" && (
         <>
           <button
             onClick={() => onStatusChange(entry.id, "POSTED")}
-            className="text-xs text-sh-blue underline"
+            className="text-xs text-brand-blue underline"
           >
             Post
           </button>
@@ -151,7 +154,7 @@ function EntryActions({
       {entry.status === "POSTED" && (
         <button
           onClick={() => onStatusChange(entry.id, "EXPORTED")}
-          className="text-xs text-sh-blue underline"
+          className="text-xs text-brand-blue underline"
         >
           Mark Exported
         </button>
@@ -288,14 +291,14 @@ export function JournalEntriesView() {
 
   return (
     <div className="py-8 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue mb-6">Sales Journal Entries</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue mb-6">Sales Journal Entries</h1>
 
       {/* Generate section */}
-      <div className="bg-white border border-sh-gray/20 rounded-lg p-4 mb-6">
-        <h2 className="text-lg font-semibold text-sh-blue mb-3">Generate Daily Sales Journal</h2>
+      <div className="bg-white border border-brand-gray/20 rounded-lg p-4 mb-6">
+        <h2 className="text-lg font-semibold text-brand-blue mb-3">Generate Daily Sales Journal</h2>
         <div className="flex items-end gap-4">
           <div>
-            <label htmlFor="generate-date" className="block text-sm text-sh-gray mb-1">
+            <label htmlFor="generate-date" className="block text-sm text-brand-gray mb-1">
               Date
             </label>
             <input
@@ -303,7 +306,7 @@ export function JournalEntriesView() {
               type="date"
               value={generateDate}
               onChange={(e) => setGenerateDate(e.target.value)}
-              className="border border-sh-gray/30 rounded px-3 py-2 text-sm font-serif"
+              className="border border-brand-gray/30 rounded px-3 py-2 text-sm font-serif"
             />
           </div>
           <Button onClick={handleGenerate} disabled={generating}>
@@ -315,14 +318,14 @@ export function JournalEntriesView() {
       {/* Entries list */}
       <table className="w-full text-left mb-6">
         <thead>
-          <tr className="border-b border-sh-gray/30">
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">Journal #</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">Date</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">Status</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium text-right">Debits</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium text-right">Credits</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium text-center">Lines</th>
-            <th className="py-2 px-3 text-sh-gray text-sm font-medium">Actions</th>
+          <tr className="border-b border-brand-gray/30">
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">Journal #</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">Date</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">Status</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium text-right">Debits</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium text-right">Credits</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">Lines</th>
+            <th className="py-2 px-3 text-brand-gray text-sm font-medium">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -330,8 +333,8 @@ export function JournalEntriesView() {
             <tr
               key={e.id}
               onClick={() => handleSelectEntry(e.id)}
-              className={`border-b border-sh-gray/10 cursor-pointer ${
-                selectedEntry?.id === e.id ? "bg-sh-linen" : "hover:bg-sh-linen/50"
+              className={`border-b border-brand-gray/10 cursor-pointer ${
+                selectedEntry?.id === e.id ? "bg-brand-linen" : "hover:bg-brand-linen/50"
               }`}
             >
               <td className="py-2 px-3 font-medium">{e.journalNumber}</td>
@@ -356,7 +359,7 @@ export function JournalEntriesView() {
           ))}
           {entries.length === 0 && (
             <tr>
-              <td colSpan={7} className="py-8 text-center text-sh-gray">
+              <td colSpan={7} className="py-8 text-center text-brand-gray">
                 No journal entries. Select a date and click Generate.
               </td>
             </tr>
@@ -366,9 +369,9 @@ export function JournalEntriesView() {
 
       {/* Detail view */}
       {selectedEntry && (
-        <div className="bg-white border border-sh-gray/20 rounded-lg p-4">
+        <div className="bg-white border border-brand-gray/20 rounded-lg p-4">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-sh-blue">
+            <h2 className="text-lg font-semibold text-brand-blue">
               {selectedEntry.journalNumber} -- {formatJournalDate(selectedEntry.journalDate)}
             </h2>
             <div className="flex gap-2">
@@ -395,25 +398,25 @@ export function JournalEntriesView() {
 
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/30">
-                <th className="py-1.5 px-3 text-sh-gray font-medium">Memo</th>
-                <th className="py-1.5 px-3 text-sh-gray font-medium">Acct #</th>
-                <th className="py-1.5 px-3 text-sh-gray font-medium">Account Name</th>
-                <th className="py-1.5 px-3 text-sh-gray font-medium text-right">Debit</th>
-                <th className="py-1.5 px-3 text-sh-gray font-medium text-right">Credit</th>
+              <tr className="border-b border-brand-gray/30">
+                <th className="py-1.5 px-3 text-brand-gray font-medium">Memo</th>
+                <th className="py-1.5 px-3 text-brand-gray font-medium">Acct #</th>
+                <th className="py-1.5 px-3 text-brand-gray font-medium">Account Name</th>
+                <th className="py-1.5 px-3 text-brand-gray font-medium text-right">Debit</th>
+                <th className="py-1.5 px-3 text-brand-gray font-medium text-right">Credit</th>
               </tr>
             </thead>
             <tbody>
               {selectedEntry.lines.map((l) => (
-                <tr key={l.id} className="border-b border-sh-gray/10">
+                <tr key={l.id} className="border-b border-brand-gray/10">
                   <td className="py-1.5 px-3">{l.memo}</td>
                   <td className="py-1.5 px-3 font-mono text-xs">{l.glAccount.code}</td>
-                  <td className="py-1.5 px-3 text-sh-gray">{l.glAccount.name}</td>
+                  <td className="py-1.5 px-3 text-brand-gray">{l.glAccount.name}</td>
                   <td className="py-1.5 px-3 text-right">{l.debit > 0 ? fmt(l.debit) : ""}</td>
                   <td className="py-1.5 px-3 text-right">{l.credit > 0 ? fmt(l.credit) : ""}</td>
                 </tr>
               ))}
-              <tr className="border-t-2 border-sh-blue font-semibold">
+              <tr className="border-t-2 border-brand-blue font-semibold">
                 <td colSpan={3} className="py-2 px-3 text-right">
                   Totals
                 </td>

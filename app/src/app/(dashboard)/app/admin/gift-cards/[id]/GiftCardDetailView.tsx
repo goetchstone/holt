@@ -58,12 +58,12 @@ const TX_TYPE_COLOR: Record<string, string> = {
   RELOAD: "text-green-700",
   ADJUSTMENT: "text-yellow-700",
   VOID: "text-red-700",
-  IMPORT: "text-sh-gray",
+  IMPORT: "text-brand-gray",
 };
 
 const STATUS_STYLES: Record<string, string> = {
   ACTIVE: "bg-green-100 text-green-800",
-  REDEEMED: "bg-sh-gray/20 text-sh-gray",
+  REDEEMED: "bg-brand-gray/20 text-brand-gray",
   VOIDED: "bg-red-100 text-red-800",
 };
 
@@ -183,7 +183,7 @@ export function GiftCardDetailView({ id }: { id: string }) {
   };
 
   if (loading) {
-    return <p className="text-sh-gray font-serif">Loading...</p>;
+    return <p className="text-brand-gray font-serif">Loading...</p>;
   }
 
   if (!card) return null;
@@ -192,19 +192,21 @@ export function GiftCardDetailView({ id }: { id: string }) {
     <div className="font-serif">
       <button
         onClick={() => router.push("/app/admin/gift-cards")}
-        className="flex items-center gap-1 text-sh-blue font-serif mb-4 hover:underline"
+        className="flex items-center gap-1 text-brand-blue font-serif mb-4 hover:underline"
       >
         <ArrowLeft className="w-4 h-4" /> Back to Gift Cards
       </button>
 
       {/* Card summary */}
-      <div className="bg-white border border-sh-gray/20 rounded-xl p-6 mb-6">
+      <div className="bg-white border border-brand-gray/20 rounded-xl p-6 mb-6">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-sh-gray font-serif mb-1">Barcode</p>
-            <p className="font-mono text-lg text-sh-black">{card.barcode}</p>
+            <p className="text-sm text-brand-gray font-serif mb-1">Barcode</p>
+            <p className="font-mono text-lg text-brand-black">{card.barcode}</p>
             {card.externalCode && (
-              <p className="text-sm text-sh-gray font-serif mt-1">the POS: {card.externalCode}</p>
+              <p className="text-sm text-brand-gray font-serif mt-1">
+                the POS: {card.externalCode}
+              </p>
             )}
           </div>
           <span
@@ -218,18 +220,18 @@ export function GiftCardDetailView({ id }: { id: string }) {
 
         <div className="grid grid-cols-3 gap-6 mt-6">
           <div>
-            <p className="text-sm text-sh-gray font-serif">Current Balance</p>
-            <p className="text-3xl font-serif font-semibold text-sh-blue">
+            <p className="text-sm text-brand-gray font-serif">Current Balance</p>
+            <p className="text-3xl font-serif font-semibold text-brand-blue">
               {formatMoney(card.currentBalance)}
             </p>
           </div>
           <div>
-            <p className="text-sm text-sh-gray font-serif">Initial Amount</p>
-            <p className="text-lg font-serif text-sh-black">{formatMoney(card.initialAmount)}</p>
+            <p className="text-sm text-brand-gray font-serif">Initial Amount</p>
+            <p className="text-lg font-serif text-brand-black">{formatMoney(card.initialAmount)}</p>
           </div>
           <div>
-            <p className="text-sm text-sh-gray font-serif">Activated</p>
-            <p className="text-lg font-serif text-sh-black">
+            <p className="text-sm text-brand-gray font-serif">Activated</p>
+            <p className="text-lg font-serif text-brand-black">
               {card.activatedAt ? new Date(card.activatedAt).toLocaleDateString() : "-"}
             </p>
           </div>
@@ -253,32 +255,34 @@ export function GiftCardDetailView({ id }: { id: string }) {
       </div>
 
       {/* Transaction history */}
-      <h3 className="text-lg font-serif font-semibold text-sh-blue mb-3">Transaction History</h3>
+      <h3 className="text-lg font-serif font-semibold text-brand-blue mb-3">Transaction History</h3>
       <table className="w-full border-collapse">
         <thead>
-          <tr className="border-b border-sh-gray/30 text-left">
-            <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm">Date</th>
-            <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm">Type</th>
-            <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm text-right">
+          <tr className="border-b border-brand-gray/30 text-left">
+            <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm">Date</th>
+            <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm">Type</th>
+            <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm text-right">
               Amount
             </th>
-            <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm text-right">
+            <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm text-right">
               Before
             </th>
-            <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm text-right">
+            <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm text-right">
               After
             </th>
-            <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm">Reference</th>
-            <th className="py-2 px-3 font-serif font-semibold text-sh-blue text-sm">By</th>
+            <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm">
+              Reference
+            </th>
+            <th className="py-2 px-3 font-serif font-semibold text-brand-blue text-sm">By</th>
           </tr>
         </thead>
         <tbody>
           {card.transactions.map((t, i) => (
             <tr
               key={t.id}
-              className={`border-b border-sh-gray/10 ${i % 2 === 0 ? "bg-white" : "bg-sh-stripe"}`}
+              className={`border-b border-brand-gray/10 ${i % 2 === 0 ? "bg-white" : "bg-brand-stripe"}`}
             >
-              <td className="py-2 px-3 font-serif text-sm text-sh-black">
+              <td className="py-2 px-3 font-serif text-sm text-brand-black">
                 {new Date(t.created).toLocaleDateString()}
               </td>
               <td
@@ -288,22 +292,22 @@ export function GiftCardDetailView({ id }: { id: string }) {
               >
                 {TX_TYPE_LABEL[t.transactionType] ?? t.transactionType}
               </td>
-              <td className="py-2 px-3 font-serif text-sm text-sh-black text-right">
+              <td className="py-2 px-3 font-serif text-sm text-brand-black text-right">
                 {formatMoney(t.amount)}
               </td>
-              <td className="py-2 px-3 font-serif text-sm text-sh-gray text-right">
+              <td className="py-2 px-3 font-serif text-sm text-brand-gray text-right">
                 {formatMoney(t.balanceBefore)}
               </td>
-              <td className="py-2 px-3 font-serif text-sm text-sh-black text-right font-semibold">
+              <td className="py-2 px-3 font-serif text-sm text-brand-black text-right font-semibold">
                 {formatMoney(t.balanceAfter)}
               </td>
-              <td className="py-2 px-3 font-serif text-sm text-sh-gray">{t.reference || "-"}</td>
-              <td className="py-2 px-3 font-serif text-sm text-sh-gray">{t.createdBy || "-"}</td>
+              <td className="py-2 px-3 font-serif text-sm text-brand-gray">{t.reference || "-"}</td>
+              <td className="py-2 px-3 font-serif text-sm text-brand-gray">{t.createdBy || "-"}</td>
             </tr>
           ))}
           {card.transactions.length === 0 && (
             <tr>
-              <td colSpan={7} className="py-4 text-center text-sh-gray font-serif">
+              <td colSpan={7} className="py-4 text-center text-brand-gray font-serif">
                 No transactions
               </td>
             </tr>
@@ -343,7 +347,7 @@ export function GiftCardDetailView({ id }: { id: string }) {
           onSave={handleAdjust}
           saving={saving}
         >
-          <p className="text-sm text-sh-gray font-serif mb-2">
+          <p className="text-sm text-brand-gray font-serif mb-2">
             Current balance:{" "}
             <span className="font-semibold">{formatMoney(card.currentBalance)}</span>
           </p>
@@ -373,7 +377,7 @@ export function GiftCardDetailView({ id }: { id: string }) {
           onSave={handleVoid}
           saving={saving}
         >
-          <p className="font-serif text-sh-black">
+          <p className="font-serif text-brand-black">
             This will permanently void this gift card and zero out the remaining balance of{" "}
             <span className="font-semibold">{formatMoney(card.currentBalance)}</span>.
           </p>

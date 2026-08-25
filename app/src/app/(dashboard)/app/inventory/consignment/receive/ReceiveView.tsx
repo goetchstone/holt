@@ -205,16 +205,16 @@ export function ReceiveView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center gap-3">
-        <Link href="/app/inventory/consignment" className="text-sh-blue hover:underline text-sm">
+        <Link href="/app/inventory/consignment" className="text-brand-blue hover:underline text-sm">
           Consignment
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">Receive Shipment</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">Receive Shipment</h1>
       </div>
 
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-5 space-y-4">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5 space-y-4">
         <div>
-          <label htmlFor="manifest-file" className="block text-sm text-sh-gray mb-1">
+          <label htmlFor="manifest-file" className="block text-sm text-brand-gray mb-1">
             Upload Vendor Manifest (XLS/XLSX)
           </label>
           <input
@@ -223,21 +223,21 @@ export function ReceiveView() {
             type="file"
             accept=".xls,.xlsx"
             onChange={handleFile}
-            className="block w-full text-sm text-sh-black file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sh-blue file:text-white hover:file:bg-sh-black file:min-h-[44px] file:cursor-pointer"
+            className="block w-full text-sm text-brand-black file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-blue file:text-white hover:file:bg-brand-black file:min-h-[44px] file:cursor-pointer"
           />
         </div>
 
         {rows.length > 0 && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="receiving-location" className="block text-sm text-sh-gray mb-1">
+              <label htmlFor="receiving-location" className="block text-sm text-brand-gray mb-1">
                 Receiving Location
               </label>
               <select
                 id="receiving-location"
                 value={storeLocationId}
                 onChange={(e) => setStoreLocationId(e.target.value ? Number(e.target.value) : "")}
-                className="border border-sh-gray/40 rounded-lg px-3 min-h-[44px] w-full font-serif text-sh-black"
+                className="border border-brand-gray/40 rounded-lg px-3 min-h-[44px] w-full font-serif text-brand-black"
               >
                 <option value="">Select store location</option>
                 {storeLocations.map((loc) => (
@@ -248,7 +248,7 @@ export function ReceiveView() {
               </select>
             </div>
             <div>
-              <label htmlFor="manifest-reference" className="block text-sm text-sh-gray mb-1">
+              <label htmlFor="manifest-reference" className="block text-sm text-brand-gray mb-1">
                 Manifest Reference
               </label>
               <input
@@ -257,7 +257,7 @@ export function ReceiveView() {
                 value={manifestRef}
                 onChange={(e) => setManifestRef(e.target.value)}
                 placeholder="Optional reference number"
-                className="border border-sh-gray/40 rounded-lg px-3 min-h-[44px] w-full font-serif text-sh-black"
+                className="border border-brand-gray/40 rounded-lg px-3 min-h-[44px] w-full font-serif text-brand-black"
               />
             </div>
           </div>
@@ -266,37 +266,45 @@ export function ReceiveView() {
 
       {rows.length > 0 && (
         <>
-          <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+          <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                    <th className="text-left px-4 py-3 text-sh-gray font-semibold">Row</th>
-                    <th className="text-left px-4 py-3 text-sh-gray font-semibold">Rug Number</th>
-                    <th className="text-left px-4 py-3 text-sh-gray font-semibold">Customer #</th>
-                    <th className="text-left px-4 py-3 text-sh-gray font-semibold">Quality</th>
-                    <th className="text-left px-4 py-3 text-sh-gray font-semibold">Size</th>
-                    <th className="text-right px-4 py-3 text-sh-gray font-semibold">Cost</th>
-                    <th className="text-right px-4 py-3 text-sh-gray font-semibold">Anchor</th>
-                    <th className="text-right px-4 py-3 text-sh-gray font-semibold">Retail</th>
+                  <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                    <th className="text-left px-4 py-3 text-brand-gray font-semibold">Row</th>
+                    <th className="text-left px-4 py-3 text-brand-gray font-semibold">
+                      Rug Number
+                    </th>
+                    <th className="text-left px-4 py-3 text-brand-gray font-semibold">
+                      Customer #
+                    </th>
+                    <th className="text-left px-4 py-3 text-brand-gray font-semibold">Quality</th>
+                    <th className="text-left px-4 py-3 text-brand-gray font-semibold">Size</th>
+                    <th className="text-right px-4 py-3 text-brand-gray font-semibold">Cost</th>
+                    <th className="text-right px-4 py-3 text-brand-gray font-semibold">Anchor</th>
+                    <th className="text-right px-4 py-3 text-brand-gray font-semibold">Retail</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row) => (
                     <tr
                       key={row.rowNumber}
-                      className={`border-b border-sh-gray/10 ${
-                        row.rowNumber % 2 === 0 ? "bg-sh-stripe" : ""
+                      className={`border-b border-brand-gray/10 ${
+                        row.rowNumber % 2 === 0 ? "bg-brand-stripe" : ""
                       }`}
                     >
-                      <td className="px-4 py-3 text-sh-gray">{row.rowNumber}</td>
-                      <td className="px-4 py-3 text-sh-black">{row.rugNumber}</td>
-                      <td className="px-4 py-3 text-sh-black">{row.customerNumber}</td>
-                      <td className="px-4 py-3 text-sh-black">{row.quality}</td>
-                      <td className="px-4 py-3 text-sh-black">{row.size}</td>
-                      <td className="px-4 py-3 text-sh-black text-right">{fmt(row.cost)}</td>
-                      <td className="px-4 py-3 text-sh-black text-right">{fmt(row.anchorPrice)}</td>
-                      <td className="px-4 py-3 text-sh-black text-right">{fmt(row.retailPrice)}</td>
+                      <td className="px-4 py-3 text-brand-gray">{row.rowNumber}</td>
+                      <td className="px-4 py-3 text-brand-black">{row.rugNumber}</td>
+                      <td className="px-4 py-3 text-brand-black">{row.customerNumber}</td>
+                      <td className="px-4 py-3 text-brand-black">{row.quality}</td>
+                      <td className="px-4 py-3 text-brand-black">{row.size}</td>
+                      <td className="px-4 py-3 text-brand-black text-right">{fmt(row.cost)}</td>
+                      <td className="px-4 py-3 text-brand-black text-right">
+                        {fmt(row.anchorPrice)}
+                      </td>
+                      <td className="px-4 py-3 text-brand-black text-right">
+                        {fmt(row.retailPrice)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

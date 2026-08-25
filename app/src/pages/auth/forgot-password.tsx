@@ -40,29 +40,29 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-sh-linen px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-brand-linen px-4">
       <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg">
         <div className="mb-6 flex justify-center">
           <BrandLogo
             appName={branding.appName}
             logoUrl={branding.loginLogoUrl ?? branding.logoUrl}
             className="h-14 w-auto"
-            wordmarkClassName="font-serif text-3xl font-semibold text-sh-navy"
+            wordmarkClassName="font-serif text-3xl font-semibold text-brand-navy"
           />
         </div>
 
         {sent ? (
-          <p className="text-center text-sm text-sh-gray">
+          <p className="text-center text-sm text-brand-gray">
             If an account exists for that email, a reset link is on its way. The link works once and
             expires in 1 hour.
           </p>
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-3">
-            <p className="text-sm text-sh-gray">
+            <p className="text-sm text-brand-gray">
               Enter your account email and we&apos;ll send a password-reset link.
             </p>
             <div>
-              <label htmlFor="fp-email" className="mb-1 block text-sm font-medium text-sh-navy">
+              <label htmlFor="fp-email" className="mb-1 block text-sm font-medium text-brand-navy">
                 Email
               </label>
               <input
@@ -72,7 +72,7 @@ export default function ForgotPassword() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="min-h-[44px] w-full rounded border border-sh-gray/30 px-3 py-2 text-sh-black focus:border-sh-navy focus:outline-none"
+                className="min-h-[44px] w-full rounded border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
               />
             </div>
             <Button type="submit" fullWidth disabled={submitting}>
@@ -82,7 +82,7 @@ export default function ForgotPassword() {
         )}
 
         <p className="mt-4 text-center text-sm">
-          <Link href="/auth/login" className="text-sh-navy hover:underline">
+          <Link href="/auth/login" className="text-brand-navy hover:underline">
             Back to sign in
           </Link>
         </p>

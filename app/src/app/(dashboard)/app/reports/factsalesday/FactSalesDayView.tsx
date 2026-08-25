@@ -48,7 +48,7 @@ export function FactSalesDayView({ rows }: { rows: FactSalesDayRow[] }) {
 
   return (
     <div className="py-2 font-serif">
-      <h1 className="mb-4 text-2xl font-semibold text-sh-blue">Daily Sales Summary</h1>
+      <h1 className="mb-4 text-2xl font-semibold text-brand-blue">Daily Sales Summary</h1>
       <PaginatedTable
         data={paginated}
         columns={columns}

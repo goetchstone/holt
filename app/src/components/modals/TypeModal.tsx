@@ -126,12 +126,12 @@ export default function TypeModal({ type, onClose, onRefresh }: Props) {
         required
       />
 
-      <label className="block mb-2 text-sm text-sh-blue">Category</label>
+      <label className="block mb-2 text-sm text-brand-blue">Category</label>
       <select
         name="categoryId"
         value={form.categoryId}
         onChange={(e) => handleChange("categoryId", e.target.value)}
-        className="w-full border border-sh-gray rounded-lg px-3 py-2 mb-4 font-serif text-sh-black"
+        className="w-full border border-brand-gray rounded-lg px-3 py-2 mb-4 font-serif text-brand-black"
         required
       >
         <option value="">Select Category...</option>

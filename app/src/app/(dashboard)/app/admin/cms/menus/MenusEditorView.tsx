@@ -58,9 +58,9 @@ function MenuSection({ location, title }: { location: MenuLocation; title: strin
 
   return (
     <section className="rounded-md border border-black/10 bg-white p-4">
-      <h2 className="mb-3 text-lg font-semibold text-sh-navy">{title}</h2>
+      <h2 className="mb-3 text-lg font-semibold text-brand-navy">{title}</h2>
       {loading ? (
-        <p className="text-sh-gray">Loading…</p>
+        <p className="text-brand-gray">Loading…</p>
       ) : (
         <>
           <div className="flex flex-col gap-2">
@@ -71,20 +71,20 @@ function MenuSection({ location, title }: { location: MenuLocation; title: strin
                   value={item.label}
                   placeholder="Label"
                   onChange={(e) => update(i, { label: e.target.value })}
-                  className="w-1/3 rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+                  className="w-1/3 rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
                 />
                 <input
                   type="text"
                   value={item.href}
                   placeholder="/about or https://..."
                   onChange={(e) => update(i, { href: e.target.value })}
-                  className="flex-1 rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+                  className="flex-1 rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
                 />
                 <button
                   type="button"
                   aria-label="Remove item"
                   onClick={() => setItems(items.filter((_, j) => j !== i))}
-                  className="text-sh-gray hover:text-red-600"
+                  className="text-brand-gray hover:text-red-600"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -95,7 +95,7 @@ function MenuSection({ location, title }: { location: MenuLocation; title: strin
             <button
               type="button"
               onClick={() => setItems([...items, { label: "", href: "", children: [] }])}
-              className="inline-flex items-center gap-1 rounded-md border border-sh-navy/30 px-3 py-1.5 text-sm text-sh-navy hover:bg-sh-linen"
+              className="inline-flex items-center gap-1 rounded-md border border-brand-navy/30 px-3 py-1.5 text-sm text-brand-navy hover:bg-brand-linen"
             >
               <Plus size={14} /> Add item
             </button>
@@ -103,7 +103,7 @@ function MenuSection({ location, title }: { location: MenuLocation; title: strin
               type="button"
               onClick={save}
               disabled={saving}
-              className="rounded-md bg-sh-navy px-4 py-1.5 text-sm font-medium text-white transition hover:bg-sh-blue disabled:opacity-50"
+              className="rounded-md bg-brand-navy px-4 py-1.5 text-sm font-medium text-white transition hover:bg-brand-blue disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save"}
             </button>
@@ -117,7 +117,7 @@ function MenuSection({ location, title }: { location: MenuLocation; title: strin
 export function MenusEditorView() {
   return (
     <div className="mx-auto flex max-w-screen-lg flex-col gap-6 px-4 py-6">
-      <h1 className="text-2xl font-semibold text-sh-blue">Menus</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue">Menus</h1>
       <MenuSection location="header" title="Header navigation" />
       <MenuSection location="footer" title="Footer navigation" />
     </div>

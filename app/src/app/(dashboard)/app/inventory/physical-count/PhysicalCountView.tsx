@@ -204,9 +204,9 @@ export function PhysicalCountView() {
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] -mt-4">
       <CountHeader />
-      <div className="p-2 bg-sh-linen border-b border-sh-gray space-y-2">
+      <div className="p-2 bg-brand-linen border-b border-brand-gray space-y-2">
         <div>
-          <label htmlFor="count-location" className="block text-sh-black mb-1 text-sm">
+          <label htmlFor="count-location" className="block text-brand-black mb-1 text-sm">
             Counting Location
           </label>
           <select
@@ -226,7 +226,7 @@ export function PhysicalCountView() {
         </div>
         <div className="grid grid-cols-4 gap-2">
           <div className="col-span-1">
-            <label htmlFor="count-qty" className="block text-sh-black mb-1 text-sm">
+            <label htmlFor="count-qty" className="block text-brand-black mb-1 text-sm">
               Qty
             </label>
             <input
@@ -238,7 +238,7 @@ export function PhysicalCountView() {
             />
           </div>
           <div className="col-span-3">
-            <label htmlFor="count-identifier" className="block text-sh-black mb-1 text-sm">
+            <label htmlFor="count-identifier" className="block text-brand-black mb-1 text-sm">
               Scan Barcode or Part #
             </label>
             <input
@@ -271,7 +271,7 @@ export function PhysicalCountView() {
         onScroll={handleScroll}
         className="flex-grow overflow-y-auto p-2"
       >
-        <h2 className="font-bold text-sh-blue mb-2">Your Recent Scans in {location}</h2>
+        <h2 className="font-bold text-brand-blue mb-2">Your Recent Scans in {location}</h2>
         {scanHistory.map((scan) => (
           <div
             key={scan.id}
@@ -279,9 +279,9 @@ export function PhysicalCountView() {
           >
             <div>
               <p className="font-bold">{scan.product.name}</p>
-              <p className="text-sm text-sh-gray">
+              <p className="text-sm text-brand-gray">
                 {scan.product.productNumber} -
-                <span className="font-semibold text-sh-black"> Qty: {scan.quantity} </span>(
+                <span className="font-semibold text-brand-black"> Qty: {scan.quantity} </span>(
                 {format(new Date(scan.countedAt), "p")})
               </p>
             </div>
@@ -290,9 +290,9 @@ export function PhysicalCountView() {
             </Button>
           </div>
         ))}
-        {loadingHistory && <p className="text-center text-sh-gray py-4">Loading more...</p>}
+        {loadingHistory && <p className="text-center text-brand-gray py-4">Loading more...</p>}
         {nextCursor === null && scanHistory.length > 0 && (
-          <p className="text-center text-sh-gray py-4">End of list.</p>
+          <p className="text-center text-brand-gray py-4">End of list.</p>
         )}
       </div>
 
@@ -321,7 +321,7 @@ function CountHeader() {
   };
 
   return (
-    <header className="w-full bg-sh-blue text-white px-4 py-2 flex items-center justify-between shadow-md">
+    <header className="w-full bg-brand-blue text-white px-4 py-2 flex items-center justify-between shadow-md">
       <h1 className="font-serif text-lg font-bold">
         {firstName ? `${firstName}'s Count` : "Inventory Count"}
       </h1>
@@ -353,11 +353,11 @@ function UnidentifiedModal({
 }: Readonly<UnidentifiedModalProps>) {
   return (
     <Modal title="Log Unidentified Item" onClose={onClose} onSave={onSave} saving={saving}>
-      <p className="text-sm text-sh-gray mb-4">
+      <p className="text-sm text-brand-gray mb-4">
         If an item doesn&apos;t have a barcode, take a clear photo of it and add any helpful notes.
       </p>
       <div>
-        <label htmlFor="unidentified-photo" className="block text-sh-blue font-serif mb-1">
+        <label htmlFor="unidentified-photo" className="block text-brand-blue font-serif mb-1">
           Photo
         </label>
         <input
@@ -366,12 +366,12 @@ function UnidentifiedModal({
           accept="image/*"
           capture="environment"
           onChange={(e) => onFileChange(e.target.files ? e.target.files[0] : null)}
-          className="block w-full text-sm text-sh-black
+          className="block w-full text-sm text-brand-black
                     file:mr-4 file:py-2 file:px-4
                     file:rounded-full file:border-0
                     file:text-sm file:font-semibold
-                    file:bg-sh-blue file:text-white
-                    hover:file:bg-sh-black"
+                    file:bg-brand-blue file:text-white
+                    hover:file:bg-brand-black"
         />
       </div>
       <FormTextArea

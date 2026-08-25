@@ -13,7 +13,7 @@ export default function CategoryFilter({
 }) {
   return (
     <div>
-      <label className="font-serif text-sh-black mb-1 block">Category</label>
+      <label className="font-serif text-brand-black mb-1 block">Category</label>
       <select
         name="categoryId"
         value={value}

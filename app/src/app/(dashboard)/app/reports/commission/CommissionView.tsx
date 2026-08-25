@@ -20,7 +20,7 @@ const utcDate = (d: Date | string) =>
 
 function PaidCell({ paidOn }: Readonly<{ paidOn: Date | string | null }>) {
   if (paidOn) return <span className="text-green-700">{utcDate(paidOn)}</span>;
-  return <span className="text-sh-gray">—</span>;
+  return <span className="text-brand-gray">—</span>;
 }
 
 export function CommissionView() {
@@ -35,21 +35,21 @@ export function CommissionView() {
   return (
     <div className="mx-auto mt-8 max-w-5xl space-y-6 font-serif">
       <div>
-        <h1 className="text-2xl font-semibold text-sh-blue">Team Commission</h1>
-        <p className="mt-1 text-sm text-sh-gray">
+        <h1 className="text-2xl font-semibold text-brand-blue">Team Commission</h1>
+        <p className="mt-1 text-sm text-brand-gray">
           Locked commission payouts by designer and pay period. View only — the commission plan and
           payout locking are managed separately.
         </p>
       </div>
 
-      {loading && <p className="text-sh-gray">Loading…</p>}
+      {loading && <p className="text-brand-gray">Loading…</p>}
       {!loading && rows.length === 0 && (
-        <p className="p-4 text-center text-sh-gray">No locked commission payouts yet.</p>
+        <p className="p-4 text-center text-brand-gray">No locked commission payouts yet.</p>
       )}
       {!loading && rows.length > 0 && (
-        <div className="overflow-x-auto rounded border border-sh-stripe bg-white">
+        <div className="overflow-x-auto rounded border border-brand-stripe bg-white">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-sh-linen text-sh-black">
+            <thead className="bg-brand-linen text-brand-black">
               <tr>
                 <th className="p-2 font-medium">Designer</th>
                 <th className="p-2 font-medium">Pay Period</th>
@@ -62,14 +62,14 @@ export function CommissionView() {
               {rows.map((r, i) => (
                 <tr
                   key={r.id}
-                  className={`border-t border-sh-stripe ${i % 2 === 1 ? "bg-sh-stripe/40" : ""}`}
+                  className={`border-t border-brand-stripe ${i % 2 === 1 ? "bg-brand-stripe/40" : ""}`}
                 >
                   <td className="p-2">{r.staffMemberName}</td>
                   <td className="whitespace-nowrap p-2">
                     {utcDate(r.periodStart)} – {utcDate(r.periodEnd)}
                   </td>
                   <td className="p-2 text-right tabular-nums">{currency(r.periodSalesAmount)}</td>
-                  <td className="p-2 text-right font-semibold tabular-nums text-sh-navy">
+                  <td className="p-2 text-right font-semibold tabular-nums text-brand-navy">
                     {currency(r.commissionAmount)}
                   </td>
                   <td className="p-2">
@@ -79,11 +79,11 @@ export function CommissionView() {
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-sh-navy bg-sh-linen">
-                <td className="p-2 font-semibold text-sh-navy" colSpan={3}>
+              <tr className="border-t-2 border-brand-navy bg-brand-linen">
+                <td className="p-2 font-semibold text-brand-navy" colSpan={3}>
                   Total commission
                 </td>
-                <td className="p-2 text-right font-semibold tabular-nums text-sh-navy">
+                <td className="p-2 text-right font-semibold tabular-nums text-brand-navy">
                   {currency(total)}
                 </td>
                 <td className="p-2" />

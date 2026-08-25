@@ -108,12 +108,12 @@ export function TicketStatusView({ token }: Readonly<{ token: string }>) {
     }
   }
 
-  if (loading) return <p className="text-sh-gray">Loading…</p>;
+  if (loading) return <p className="text-brand-gray">Loading…</p>;
   if (notFound)
     return (
       <div>
-        <h1 className="font-serif text-3xl text-sh-navy">Request not found</h1>
-        <p className="mt-2 text-sh-gray">
+        <h1 className="font-serif text-3xl text-brand-navy">Request not found</h1>
+        <p className="mt-2 text-brand-gray">
           This link doesn&apos;t match an open request. Check the link in your email, or start a new
           request on the support page.
         </p>
@@ -124,11 +124,13 @@ export function TicketStatusView({ token }: Readonly<{ token: string }>) {
   return (
     <div>
       <header>
-        <h1 className="font-serif text-3xl text-sh-navy">{ticket.subject}</h1>
-        <p className="mt-1 text-sm text-sh-gray">
+        <h1 className="font-serif text-3xl text-brand-navy">{ticket.subject}</h1>
+        <p className="mt-1 text-sm text-brand-gray">
           <span className="font-mono">{ticket.ticketNumber}</span> · opened{" "}
           {dateTimeFmt.format(new Date(ticket.created))} ·{" "}
-          <span className="font-medium text-sh-black">{TICKET_STATUS_LABELS[ticket.status]}</span>
+          <span className="font-medium text-brand-black">
+            {TICKET_STATUS_LABELS[ticket.status]}
+          </span>
         </p>
       </header>
 
@@ -137,22 +139,22 @@ export function TicketStatusView({ token }: Readonly<{ token: string }>) {
           <div
             key={m.id}
             className={`rounded-md border p-3 text-sm ${
-              m.fromStaff ? "border-sh-blue/20 bg-sh-blue/5" : "border-black/10 bg-white"
+              m.fromStaff ? "border-brand-blue/20 bg-brand-blue/5" : "border-black/10 bg-white"
             }`}
           >
-            <div className="mb-1 flex items-center justify-between text-xs text-sh-gray">
-              <span className="font-medium text-sh-black">{m.author}</span>
+            <div className="mb-1 flex items-center justify-between text-xs text-brand-gray">
+              <span className="font-medium text-brand-black">{m.author}</span>
               <span>{dateTimeFmt.format(new Date(m.created))}</span>
             </div>
-            <p className="whitespace-pre-wrap text-sh-black">{m.body}</p>
+            <p className="whitespace-pre-wrap text-brand-black">{m.body}</p>
           </div>
         ))}
       </section>
 
       <section className="mt-6">
-        <h2 className="text-sm font-medium text-sh-black">Attachments</h2>
+        <h2 className="text-sm font-medium text-brand-black">Attachments</h2>
         {ticket.attachments.length === 0 ? (
-          <p className="mt-1 text-sm text-sh-gray">No files attached yet.</p>
+          <p className="mt-1 text-sm text-brand-gray">No files attached yet.</p>
         ) : (
           <ul className="mt-1 space-y-1">
             {ticket.attachments.map((a) => (
@@ -161,16 +163,16 @@ export function TicketStatusView({ token }: Readonly<{ token: string }>) {
                   href={a.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-sh-navy hover:underline"
+                  className="text-brand-navy hover:underline"
                 >
                   {a.filename}
                 </a>
-                <span className="text-sh-gray"> · {a.uploadedBy ?? ""}</span>
+                <span className="text-brand-gray"> · {a.uploadedBy ?? ""}</span>
               </li>
             ))}
           </ul>
         )}
-        <label className="mt-2 inline-flex min-h-[44px] cursor-pointer items-center rounded-md border border-black/15 px-4 text-sm text-sh-navy transition hover:bg-black/5">
+        <label className="mt-2 inline-flex min-h-[44px] cursor-pointer items-center rounded-md border border-black/15 px-4 text-sm text-brand-navy transition hover:bg-black/5">
           {uploading ? "Uploading…" : "Attach a file (image or PDF, max 10MB)"}
           <input
             type="file"
@@ -187,20 +189,20 @@ export function TicketStatusView({ token }: Readonly<{ token: string }>) {
       </section>
 
       <section className="mt-6">
-        <label className="block text-sm font-medium text-sh-black">
+        <label className="block text-sm font-medium text-brand-black">
           Add a reply
           <textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
             rows={4}
-            className="mt-1 w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+            className="mt-1 w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
           />
         </label>
         <button
           type="button"
           onClick={sendReply}
           disabled={sending || !reply.trim()}
-          className="mt-2 min-h-[44px] rounded-md bg-sh-navy px-6 py-3 text-sm font-medium text-white transition hover:bg-sh-blue disabled:opacity-60"
+          className="mt-2 min-h-[44px] rounded-md bg-brand-navy px-6 py-3 text-sm font-medium text-white transition hover:bg-brand-blue disabled:opacity-60"
         >
           {sending ? "Sending…" : "Send reply"}
         </button>

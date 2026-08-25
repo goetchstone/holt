@@ -181,7 +181,7 @@ export function DriverView() {
   if (loading) {
     return (
       <DriverLayout>
-        <div className="text-center py-12 text-sh-gray">Loading...</div>
+        <div className="text-center py-12 text-brand-gray">Loading...</div>
       </DriverLayout>
     );
   }
@@ -190,11 +190,11 @@ export function DriverView() {
     return (
       <DriverLayout>
         <div className="text-center py-16 px-6">
-          <Truck className="w-12 h-12 text-sh-gray/40 mx-auto mb-4" />
-          <p className="text-sh-gray text-lg mb-6">No active delivery run</p>
+          <Truck className="w-12 h-12 text-brand-gray/40 mx-auto mb-4" />
+          <p className="text-brand-gray text-lg mb-6">No active delivery run</p>
           <Link
             href="/app/dispatch"
-            className="text-sh-blue hover:underline min-h-[60px] inline-flex items-center text-base"
+            className="text-brand-blue hover:underline min-h-[60px] inline-flex items-center text-base"
           >
             Back to Dispatch Board
           </Link>
@@ -212,9 +212,9 @@ export function DriverView() {
             <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
               <Check className="w-8 h-8 text-green-600" />
             </div>
-            <h2 className="font-serif text-xl text-sh-navy mb-2">All Deliveries Complete</h2>
-            <p className="text-sh-gray mb-2">{totalStops} stops completed</p>
-            <p className="text-sh-gray text-sm mb-8">Return to base</p>
+            <h2 className="font-serif text-xl text-brand-navy mb-2">All Deliveries Complete</h2>
+            <p className="text-brand-gray mb-2">{totalStops} stops completed</p>
+            <p className="text-brand-gray text-sm mb-8">Return to base</p>
             <Button
               fullWidth
               onClick={completeRun}
@@ -231,24 +231,24 @@ export function DriverView() {
   return (
     <DriverLayout>
       {/* Header */}
-      <div className="px-4 py-3 bg-white border-b border-sh-gray/10">
+      <div className="px-4 py-3 bg-white border-b border-brand-gray/10">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-serif text-lg text-sh-navy">{run.runNumber}</h1>
-            <p className="text-xs text-sh-gray">{run.vehicle.name}</p>
+            <h1 className="font-serif text-lg text-brand-navy">{run.runNumber}</h1>
+            <p className="text-xs text-brand-gray">{run.vehicle.name}</p>
           </div>
           <div className="text-right">
-            <span className="text-sm font-semibold text-sh-navy">
+            <span className="text-sm font-semibold text-brand-navy">
               {completedCount} of {totalStops}
             </span>
-            <p className="text-xs text-sh-gray">completed</p>
+            <p className="text-xs text-brand-gray">completed</p>
           </div>
         </div>
 
         {/* Progress bar */}
-        <div className="mt-2 h-2 bg-sh-stripe rounded-full overflow-hidden">
+        <div className="mt-2 h-2 bg-brand-stripe rounded-full overflow-hidden">
           <div
-            className="h-full bg-sh-gold rounded-full transition-all"
+            className="h-full bg-brand-gold rounded-full transition-all"
             style={{ width: totalStops > 0 ? `${(completedCount / totalStops) * 100}%` : "0%" }}
           />
         </div>
@@ -281,10 +281,10 @@ export function DriverView() {
               key={stop.id}
               className={`bg-white rounded-lg border p-4 ${
                 isNext && stop.status !== "COMPLETED"
-                  ? "border-sh-blue border-2 shadow-md"
+                  ? "border-brand-blue border-2 shadow-md"
                   : stop.status === "COMPLETED"
                     ? "border-green-200 bg-green-50/30"
-                    : "border-sh-gray/10"
+                    : "border-brand-gray/10"
               }`}
             >
               {/* Stop header */}
@@ -294,7 +294,7 @@ export function DriverView() {
                     className={`text-sm font-semibold w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
                       stop.status === "COMPLETED"
                         ? "bg-green-100 text-green-700"
-                        : "bg-sh-blue text-white"
+                        : "bg-brand-blue text-white"
                     }`}
                   >
                     {stop.status === "COMPLETED" ? <Check className="w-4 h-4" /> : stop.stopOrder}
@@ -304,13 +304,13 @@ export function DriverView() {
               </div>
 
               {/* Customer name */}
-              <h3 className="text-lg font-semibold text-sh-navy mb-1">{customerName}</h3>
+              <h3 className="text-lg font-semibold text-brand-navy mb-1">{customerName}</h3>
 
               {/* Address as map link */}
               {fullAddress && encodedAddress && (
                 <a
                   href={`https://maps.apple.com/?daddr=${encodedAddress}`}
-                  className="flex items-start gap-2 text-sm text-sh-blue hover:underline mb-2 min-h-[44px]"
+                  className="flex items-start gap-2 text-sm text-brand-blue hover:underline mb-2 min-h-[44px]"
                 >
                   <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
                   <span>{fullAddress}</span>
@@ -321,7 +321,7 @@ export function DriverView() {
               {appt.customer?.phone && (
                 <a
                   href={`tel:${appt.customer.phone}`}
-                  className="flex items-center gap-2 text-sm text-sh-blue hover:underline mb-2 min-h-[44px]"
+                  className="flex items-center gap-2 text-sm text-brand-blue hover:underline mb-2 min-h-[44px]"
                 >
                   <Phone className="w-4 h-4 shrink-0" />
                   <span>{appt.customer.phone}</span>
@@ -330,15 +330,15 @@ export function DriverView() {
 
               {/* Items */}
               {appt.salesOrder && appt.salesOrder.lineItems.length > 0 && (
-                <div className="mt-2 bg-sh-linen rounded-lg p-3">
-                  <p className="text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1">
+                <div className="mt-2 bg-brand-linen rounded-lg p-3">
+                  <p className="text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
                     Items
                   </p>
                   {appt.salesOrder.lineItems.map((li) => (
-                    <div key={li.id} className="text-sm text-sh-navy">
+                    <div key={li.id} className="text-sm text-brand-navy">
                       {li.productName || "Unnamed item"}
                       {Number(li.orderedQuantity) > 1 && (
-                        <span className="text-sh-gray ml-1">x{Number(li.orderedQuantity)}</span>
+                        <span className="text-brand-gray ml-1">x{Number(li.orderedQuantity)}</span>
                       )}
                     </div>
                   ))}
@@ -347,7 +347,7 @@ export function DriverView() {
 
               {/* Access instructions */}
               {appt.accessInstructions && (
-                <div className="mt-2 text-sm text-sh-gray">
+                <div className="mt-2 text-sm text-brand-gray">
                   <span className="font-semibold">Access: </span>
                   {appt.accessInstructions}
                 </div>
@@ -355,7 +355,7 @@ export function DriverView() {
 
               {/* Notes */}
               {appt.notes && (
-                <div className="mt-1 text-sm text-sh-gray">
+                <div className="mt-1 text-sm text-brand-gray">
                   <span className="font-semibold">Notes: </span>
                   {appt.notes}
                 </div>
@@ -366,7 +366,7 @@ export function DriverView() {
                 {stop.status === "PENDING" && (
                   <button
                     onClick={() => markArrived(stop.id)}
-                    className="w-full min-h-[60px] bg-sh-blue text-white font-serif font-semibold text-base rounded-lg shadow-md hover:bg-sh-black transition"
+                    className="w-full min-h-[60px] bg-brand-blue text-white font-serif font-semibold text-base rounded-lg shadow-md hover:bg-brand-black transition"
                   >
                     Mark Arrived
                   </button>
@@ -382,7 +382,7 @@ export function DriverView() {
                 )}
 
                 {isCompleting && (
-                  <div className="space-y-4 border-t border-sh-gray/10 pt-4">
+                  <div className="space-y-4 border-t border-brand-gray/10 pt-4">
                     <SignatureCapture
                       onSave={(data) => setSignatureData(data)}
                       width={600}
@@ -394,7 +394,7 @@ export function DriverView() {
                     )}
 
                     <div>
-                      <label className="block text-sm text-sh-gray mb-1">Photo (optional)</label>
+                      <label className="block text-sm text-brand-gray mb-1">Photo (optional)</label>
                       <input
                         type="file"
                         accept="image/*"
@@ -403,7 +403,7 @@ export function DriverView() {
                           const file = e.target.files?.[0] || null;
                           setPhotoFile(file);
                         }}
-                        className="block w-full text-sm text-sh-gray min-h-[44px]"
+                        className="block w-full text-sm text-brand-gray min-h-[44px]"
                       />
                     </div>
 
@@ -423,12 +423,12 @@ export function DriverView() {
                     <span>
                       Completed
                       {stop.completedAt && (
-                        <span className="text-sh-gray ml-1">
+                        <span className="text-brand-gray ml-1">
                           at {format(new Date(stop.completedAt), "h:mm a")}
                         </span>
                       )}
                       {stop.recipientName && (
-                        <span className="text-sh-gray ml-1">- {stop.recipientName}</span>
+                        <span className="text-brand-gray ml-1">- {stop.recipientName}</span>
                       )}
                     </span>
                   </div>
@@ -444,7 +444,7 @@ export function DriverView() {
 
 function DriverLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-sh-linen" style={{ minWidth: 375 }}>
+    <div className="min-h-screen bg-brand-linen" style={{ minWidth: 375 }}>
       {children}
     </div>
   );
@@ -452,15 +452,15 @@ function DriverLayout({ children }: { children: React.ReactNode }) {
 
 function StopStatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    PENDING: "bg-sh-stripe text-sh-gray",
-    EN_ROUTE: "bg-sh-blue/10 text-sh-blue",
-    ARRIVED: "bg-sh-gold/10 text-sh-gold",
+    PENDING: "bg-brand-stripe text-brand-gray",
+    EN_ROUTE: "bg-brand-blue/10 text-brand-blue",
+    ARRIVED: "bg-brand-gold/10 text-brand-gold",
     COMPLETED: "bg-green-50 text-green-700",
   };
 
   return (
     <span
-      className={`text-xs px-2 py-0.5 rounded-full ${colors[status] || "bg-sh-stripe text-sh-gray"}`}
+      className={`text-xs px-2 py-0.5 rounded-full ${colors[status] || "bg-brand-stripe text-brand-gray"}`}
     >
       {status.replace("_", " ")}
     </span>

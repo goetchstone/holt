@@ -185,13 +185,13 @@ export function TrafficReportView() {
     <div className="space-y-6 font-serif">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-navy">Store Traffic</h1>
-          <p className="mt-1 text-sm text-sh-gray">
+          <h1 className="text-2xl font-semibold text-brand-navy">Store Traffic</h1>
+          <p className="mt-1 text-sm text-brand-gray">
             Per-store door-counter visitors from Axper. Historical days read from{" "}
             <code>TrafficSnapshot</code>; today is live-pulled from Axper on every load.
           </p>
           {data?.liveTodayPulled && (
-            <p className="mt-1 text-xs text-sh-gold">Today included via live Axper pull.</p>
+            <p className="mt-1 text-xs text-brand-gold">Today included via live Axper pull.</p>
           )}
         </div>
         <Button onClick={handleExport} variant="outline" disabled={loading || !data}>
@@ -199,10 +199,10 @@ export function TrafficReportView() {
         </Button>
       </div>
 
-      <section className="rounded border border-sh-stripe bg-white p-4">
+      <section className="rounded border border-brand-stripe bg-white p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="from" className="block text-xs font-medium text-sh-navy">
+            <label htmlFor="from" className="block text-xs font-medium text-brand-navy">
               From
             </label>
             <input
@@ -214,7 +214,7 @@ export function TrafficReportView() {
             />
           </div>
           <div>
-            <label htmlFor="to" className="block text-xs font-medium text-sh-navy">
+            <label htmlFor="to" className="block text-xs font-medium text-brand-navy">
               To
             </label>
             <input
@@ -267,7 +267,7 @@ export function TrafficReportView() {
 
         {allStores.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-sh-navy">Stores:</span>
+            <span className="text-xs font-medium text-brand-navy">Stores:</span>
             {allStores.map((name) => {
               const display =
                 data?.byStore.find((s) => s.sourceStoreName === name)?.displayName ?? name;
@@ -288,7 +288,7 @@ export function TrafficReportView() {
               <button
                 type="button"
                 onClick={() => setStoreFilter(null)}
-                className="ml-2 text-xs text-sh-gold hover:underline"
+                className="ml-2 text-xs text-brand-gold hover:underline"
               >
                 Clear
               </button>
@@ -419,10 +419,10 @@ export function TrafficReportView() {
 
       {data && data.byStore.length > 0 && (
         <section>
-          <h2 className="mb-2 text-lg font-semibold text-sh-navy">Per-store totals</h2>
-          <div className="overflow-x-auto rounded border border-sh-stripe bg-white">
+          <h2 className="mb-2 text-lg font-semibold text-brand-navy">Per-store totals</h2>
+          <div className="overflow-x-auto rounded border border-brand-stripe bg-white">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-sh-linen text-sh-black">
+              <thead className="bg-brand-linen text-brand-black">
                 <tr>
                   <th className="p-2 font-medium">Store (Axper)</th>
                   <th className="p-2 font-medium">Display name</th>
@@ -438,7 +438,7 @@ export function TrafficReportView() {
                       ? `${((s.visitors / data.totals.visitors) * 100).toFixed(1)}%`
                       : "—";
                   return (
-                    <tr key={s.sourceStoreName} className="border-t border-sh-stripe">
+                    <tr key={s.sourceStoreName} className="border-t border-brand-stripe">
                       <td className="p-2 font-mono text-xs">{s.sourceStoreName}</td>
                       <td className="p-2">{s.displayName}</td>
                       <td className="p-2 text-right tabular-nums">{s.visitors.toLocaleString()}</td>

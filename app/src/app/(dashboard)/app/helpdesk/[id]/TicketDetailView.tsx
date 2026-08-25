@@ -188,19 +188,19 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
     }
   }
 
-  if (loading) return <p className="text-sh-gray">Loading…</p>;
-  if (!ticket) return <p className="text-sh-gray">Ticket not found.</p>;
+  if (loading) return <p className="text-brand-gray">Loading…</p>;
+  if (!ticket) return <p className="text-brand-gray">Ticket not found.</p>;
 
   return (
     <div>
-      <Link href="/app/helpdesk" className="text-sm text-sh-blue hover:underline">
+      <Link href="/app/helpdesk" className="text-sm text-brand-blue hover:underline">
         ← Back to queue
       </Link>
 
       <div className="mt-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue">{ticket.subject}</h1>
-          <p className="text-sm text-sh-gray">
+          <h1 className="text-2xl font-semibold text-brand-blue">{ticket.subject}</h1>
+          <p className="text-sm text-brand-gray">
             <span className="font-mono">{ticket.ticketNumber}</span> · opened{" "}
             {dateTimeFmt.format(new Date(ticket.created))} by {ticket.submitterName ?? "—"}
             {ticket.submitterEmail ? ` (${ticket.submitterEmail})` : ""}
@@ -209,15 +209,15 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
         <button
           type="button"
           onClick={copyPublicLink}
-          className="min-h-[44px] self-start rounded-md border border-sh-gray/30 px-4 text-sm font-medium text-sh-blue transition hover:bg-sh-stripe"
+          className="min-h-[44px] self-start rounded-md border border-brand-gray/30 px-4 text-sm font-medium text-brand-blue transition hover:bg-brand-stripe"
         >
           Copy customer link
         </button>
       </div>
 
-      <section className="mt-5 grid gap-3 rounded-md border border-black/10 bg-sh-linen p-4 sm:grid-cols-4 sm:items-end">
+      <section className="mt-5 grid gap-3 rounded-md border border-black/10 bg-brand-linen p-4 sm:grid-cols-4 sm:items-end">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-sh-black">Status</span>
+          <span className="mb-1 block font-medium text-brand-black">Status</span>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as TicketStatusValue)}
@@ -231,7 +231,7 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
           </select>
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-sh-black">Priority</span>
+          <span className="mb-1 block font-medium text-brand-black">Priority</span>
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value as TicketPriorityValue)}
@@ -245,7 +245,7 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
           </select>
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-sh-black">Owner</span>
+          <span className="mb-1 block font-medium text-brand-black">Owner</span>
           <select
             value={assigneeId}
             onChange={(e) => setAssigneeId(e.target.value)}
@@ -263,7 +263,7 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
           type="button"
           onClick={saveTriage}
           disabled={saving}
-          className="min-h-[44px] rounded-md bg-sh-navy px-4 text-sm font-medium text-white transition hover:bg-sh-blue disabled:opacity-60"
+          className="min-h-[44px] rounded-md bg-brand-navy px-4 text-sm font-medium text-white transition hover:bg-brand-blue disabled:opacity-60"
         >
           {saving ? "Saving…" : "Save"}
         </button>
@@ -276,9 +276,9 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
       </section>
 
       <section className="mt-6 rounded-md border border-black/10 p-4">
-        <h2 className="mb-2 text-sm font-semibold text-sh-navy">Attachments</h2>
+        <h2 className="mb-2 text-sm font-semibold text-brand-navy">Attachments</h2>
         {ticket.attachments.length === 0 && (
-          <p className="text-sm text-sh-gray">No files attached.</p>
+          <p className="text-sm text-brand-gray">No files attached.</p>
         )}
         <ul className="space-y-1">
           {ticket.attachments.map((a) => (
@@ -287,18 +287,18 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
                 href={a.url}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sh-navy hover:underline"
+                className="text-brand-navy hover:underline"
               >
                 {a.filename}
               </a>
-              <span className="text-sh-gray">
+              <span className="text-brand-gray">
                 {" "}
                 · {a.uploadedBy ?? "unknown"} · {dateTimeFmt.format(new Date(a.created))}
               </span>
             </li>
           ))}
         </ul>
-        <label className="mt-3 inline-flex min-h-[44px] cursor-pointer items-center rounded-md border border-black/15 px-4 text-sm text-sh-navy transition hover:bg-black/5">
+        <label className="mt-3 inline-flex min-h-[44px] cursor-pointer items-center rounded-md border border-black/15 px-4 text-sm text-brand-navy transition hover:bg-black/5">
           {uploading ? "Uploading…" : "Attach a file"}
           <input
             type="file"
@@ -323,7 +323,7 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
           className="w-full rounded-md border border-black/15 px-3 py-2 text-sm"
         />
         <div className="mt-2 flex items-center justify-between">
-          <label className="flex items-center gap-2 text-sm text-sh-gray">
+          <label className="flex items-center gap-2 text-sm text-brand-gray">
             <input
               type="checkbox"
               checked={internal}
@@ -336,7 +336,7 @@ export function TicketDetailView({ ticketId }: Readonly<{ ticketId: number }>) {
             type="button"
             onClick={sendReply}
             disabled={sending || !reply.trim()}
-            className="min-h-[44px] rounded-md bg-sh-navy px-5 text-sm font-medium text-white transition hover:bg-sh-blue disabled:opacity-60"
+            className="min-h-[44px] rounded-md bg-brand-navy px-5 text-sm font-medium text-white transition hover:bg-brand-blue disabled:opacity-60"
           >
             {sending ? "Sending…" : internal ? "Add note" : "Send reply"}
           </button>
@@ -353,12 +353,12 @@ function MessageBubble({ message }: Readonly<{ message: TicketMessage }>) {
   const tone = message.isInternal
     ? "border-amber-200 bg-amber-50"
     : fromStaff
-      ? "border-sh-blue/20 bg-sh-blue/5"
+      ? "border-brand-blue/20 bg-brand-blue/5"
       : "border-black/10 bg-white";
   return (
     <div className={`${base} ${tone}`}>
-      <div className="mb-1 flex items-center justify-between text-xs text-sh-gray">
-        <span className="font-medium text-sh-black">
+      <div className="mb-1 flex items-center justify-between text-xs text-brand-gray">
+        <span className="font-medium text-brand-black">
           {author}
           {message.isInternal ? (
             <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-900">
@@ -368,7 +368,7 @@ function MessageBubble({ message }: Readonly<{ message: TicketMessage }>) {
         </span>
         <span>{dateTimeFmt.format(new Date(message.created))}</span>
       </div>
-      <p className="whitespace-pre-wrap text-sh-black">{message.body}</p>
+      <p className="whitespace-pre-wrap text-brand-black">{message.body}</p>
     </div>
   );
 }

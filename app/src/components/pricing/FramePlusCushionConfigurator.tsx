@@ -477,15 +477,15 @@ export default function FramePlusCushionConfigurator({
     >
       {/* ─── Frame Tab ─────────────────────────────────────── */}
       <StepTabPanel tabId="frame">
-        <div className="sticky top-0 z-10 bg-white -mx-4 -mt-4 px-4 pt-4 pb-3 border-b border-sh-gray/10">
+        <div className="sticky top-0 z-10 bg-white -mx-4 -mt-4 px-4 pt-4 pb-3 border-b border-brand-gray/10">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sh-gray" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by style number, name, or collection..."
-              className="w-full border border-sh-gray rounded-lg pl-10 pr-3 py-2 text-sh-black font-serif"
+              className="w-full border border-brand-gray rounded-lg pl-10 pr-3 py-2 text-brand-black font-serif"
             />
           </div>
         </div>
@@ -501,8 +501,8 @@ export default function FramePlusCushionConfigurator({
                 onClick={() => handleSelectFrame(f)}
                 className={`text-left rounded-lg border-2 p-4 transition-all ${
                   isSelected
-                    ? "border-sh-blue bg-sh-linen shadow-md"
-                    : "border-sh-gray/20 bg-white hover:border-sh-blue/40 hover:shadow-sm"
+                    ? "border-brand-blue bg-brand-linen shadow-md"
+                    : "border-brand-gray/20 bg-white hover:border-brand-blue/40 hover:shadow-sm"
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -517,24 +517,24 @@ export default function FramePlusCushionConfigurator({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="font-semibold text-sh-black">{f.productNumber}</div>
-                        <div className="text-sm text-sh-gray">{f.name}</div>
+                        <div className="font-semibold text-brand-black">{f.productNumber}</div>
+                        <div className="text-sm text-brand-gray">{f.name}</div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <div className="text-sm font-semibold text-sh-blue tabular-nums">
+                        <div className="text-sm font-semibold text-brand-blue tabular-nums">
                           {formatCurrency(f.framePrice)}
                         </div>
-                        {cushion && <div className="text-xs text-sh-gray">+ {f.cushionRef}</div>}
+                        {cushion && <div className="text-xs text-brand-gray">+ {f.cushionRef}</div>}
                         {!cushion && !f.cushionRef && (
-                          <div className="text-xs text-sh-gray">Frame only</div>
+                          <div className="text-xs text-brand-gray">Frame only</div>
                         )}
                       </div>
                     </div>
                     {f.collection && (
-                      <div className="text-xs text-sh-gray mt-1">{f.collection}</div>
+                      <div className="text-xs text-brand-gray mt-1">{f.collection}</div>
                     )}
                     {(f.width || f.depth || f.height) && (
-                      <div className="text-xs text-sh-gray/70 mt-0.5">
+                      <div className="text-xs text-brand-gray/70 mt-0.5">
                         {[
                           f.width && `${f.width}"W`,
                           f.depth && `${f.depth}"D`,
@@ -551,10 +551,10 @@ export default function FramePlusCushionConfigurator({
           })}
         </div>
         {filteredFrames.length === 0 && (
-          <div className="text-center py-8 text-sh-gray">No frames match your search.</div>
+          <div className="text-center py-8 text-brand-gray">No frames match your search.</div>
         )}
         {filteredFrames.length > 100 && (
-          <div className="text-center py-2 text-sm text-sh-gray">
+          <div className="text-center py-2 text-sm text-brand-gray">
             Showing 100 of {filteredFrames.length} -- refine your search to see more.
           </div>
         )}
@@ -570,16 +570,16 @@ export default function FramePlusCushionConfigurator({
                 <img
                   src={selectedFrame.imageUrl}
                   alt={selectedFrame.productNumber}
-                  className="w-16 h-16 object-contain rounded border border-sh-gray/20 bg-white"
+                  className="w-16 h-16 object-contain rounded border border-brand-gray/20 bg-white"
                 />
               ) : (
-                <Package className="w-5 h-5 text-sh-blue flex-shrink-0" />
+                <Package className="w-5 h-5 text-brand-blue flex-shrink-0" />
               )}
               <div>
-                <span className="font-semibold text-sh-black">
+                <span className="font-semibold text-brand-black">
                   {selectedFrame.productNumber} -- {selectedFrame.name}
                 </span>
-                <div className="text-sm text-sh-gray mt-0.5">
+                <div className="text-sm text-brand-gray mt-0.5">
                   Frame: {formatCurrency(selectedFrame.framePrice)}
                 </div>
               </div>
@@ -589,7 +589,7 @@ export default function FramePlusCushionConfigurator({
             {stockedFinishes.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-sm font-semibold text-sh-black">Stocked Finishes</h3>
+                  <h3 className="text-sm font-semibold text-brand-black">Stocked Finishes</h3>
                   <span className="text-[10px] font-sans font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-100 text-green-800">
                     In stock
                   </span>
@@ -606,13 +606,13 @@ export default function FramePlusCushionConfigurator({
                         onClick={() => setSelectedFinish(pf)}
                         className={`text-left rounded-lg border-2 p-4 transition-all ${
                           isSelected
-                            ? "border-sh-blue bg-sh-linen shadow-md"
-                            : "border-sh-gray/20 bg-white hover:border-sh-blue/40 hover:shadow-sm"
+                            ? "border-brand-blue bg-brand-linen shadow-md"
+                            : "border-brand-gray/20 bg-white hover:border-brand-blue/40 hover:shadow-sm"
                         }`}
                       >
-                        <div className="font-semibold text-sm text-sh-black">{pf.material}</div>
+                        <div className="font-semibold text-sm text-brand-black">{pf.material}</div>
                         {pf.codes.length > 0 && (
-                          <div className="text-xs text-sh-gray mt-1">{pf.codes.join(", ")}</div>
+                          <div className="text-xs text-brand-gray mt-1">{pf.codes.join(", ")}</div>
                         )}
                       </button>
                     );
@@ -625,7 +625,7 @@ export default function FramePlusCushionConfigurator({
             {specialOrderFinishes.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <h3 className="text-sm font-semibold text-sh-black">Special Order Finishes</h3>
+                  <h3 className="text-sm font-semibold text-brand-black">Special Order Finishes</h3>
                   <span className="text-[10px] font-sans font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
                     Special order
                   </span>
@@ -642,13 +642,13 @@ export default function FramePlusCushionConfigurator({
                         onClick={() => setSelectedFinish(pf)}
                         className={`text-left rounded-lg border-2 p-4 transition-all ${
                           isSelected
-                            ? "border-sh-blue bg-sh-linen shadow-md"
-                            : "border-sh-gray/20 bg-white hover:border-sh-blue/40 hover:shadow-sm"
+                            ? "border-brand-blue bg-brand-linen shadow-md"
+                            : "border-brand-gray/20 bg-white hover:border-brand-blue/40 hover:shadow-sm"
                         }`}
                       >
-                        <div className="font-semibold text-sm text-sh-black">{pf.material}</div>
+                        <div className="font-semibold text-sm text-brand-black">{pf.material}</div>
                         {pf.codes.length > 0 && (
-                          <div className="text-xs text-sh-gray mt-1">{pf.codes.join(", ")}</div>
+                          <div className="text-xs text-brand-gray mt-1">{pf.codes.join(", ")}</div>
                         )}
                       </button>
                     );
@@ -659,11 +659,11 @@ export default function FramePlusCushionConfigurator({
 
             {/* Cushion toggle -- only if frame has a linked cushion */}
             {linkedCushion && (
-              <div className="bg-white rounded-lg border border-sh-gray/20 p-4">
+              <div className="bg-white rounded-lg border border-brand-gray/20 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold text-sh-black">Include Cushion?</h3>
-                    <p className="text-xs text-sh-gray mt-0.5">
+                    <h3 className="text-sm font-semibold text-brand-black">Include Cushion?</h3>
+                    <p className="text-xs text-brand-gray mt-0.5">
                       {linkedCushion.cushionCode} -- {linkedCushion.name}
                     </p>
                   </div>
@@ -672,7 +672,7 @@ export default function FramePlusCushionConfigurator({
                     aria-checked={includeCushion}
                     onClick={handleCushionToggle}
                     className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors min-w-[48px] ${
-                      includeCushion ? "bg-sh-blue" : "bg-sh-gray/30"
+                      includeCushion ? "bg-brand-blue" : "bg-brand-gray/30"
                     }`}
                   >
                     <span
@@ -683,12 +683,12 @@ export default function FramePlusCushionConfigurator({
                   </button>
                 </div>
                 {includeCushion && (
-                  <p className="text-xs text-sh-gray mt-2">
+                  <p className="text-xs text-brand-gray mt-2">
                     Select a fabric grade and fabric on the next steps.
                   </p>
                 )}
                 {!includeCushion && (
-                  <p className="text-xs text-sh-gray mt-2">Frame only -- no cushion pricing.</p>
+                  <p className="text-xs text-brand-gray mt-2">Frame only -- no cushion pricing.</p>
                 )}
               </div>
             )}
@@ -705,23 +705,23 @@ export default function FramePlusCushionConfigurator({
                 <img
                   src={selectedFrame.imageUrl}
                   alt={selectedFrame.productNumber}
-                  className="w-16 h-16 object-contain rounded border border-sh-gray/20 bg-white"
+                  className="w-16 h-16 object-contain rounded border border-brand-gray/20 bg-white"
                 />
               ) : (
-                <Package className="w-5 h-5 text-sh-blue flex-shrink-0" />
+                <Package className="w-5 h-5 text-brand-blue flex-shrink-0" />
               )}
               <div>
-                <span className="font-semibold text-sh-black">
+                <span className="font-semibold text-brand-black">
                   {selectedFrame.productNumber} -- {selectedFrame.name}
                 </span>
-                <div className="text-sm text-sh-gray mt-0.5">
+                <div className="text-sm text-brand-gray mt-0.5">
                   Frame: {formatCurrency(selectedFrame.framePrice)} + Cushion{" "}
                   {linkedCushion.cushionCode}
                 </div>
               </div>
             </div>
 
-            <p className="text-sm text-sh-gray mb-4">
+            <p className="text-sm text-brand-gray mb-4">
               Select a fabric grade to see the cushion price at that grade.
             </p>
 
@@ -737,19 +737,19 @@ export default function FramePlusCushionConfigurator({
                     onClick={() => handleSelectGrade(gp.tierId)}
                     className={`text-left rounded-lg border-2 p-4 transition-all ${
                       isSelected
-                        ? "border-sh-blue bg-sh-linen shadow-md"
-                        : "border-sh-gray/20 bg-white hover:border-sh-blue/40 hover:shadow-sm"
+                        ? "border-brand-blue bg-brand-linen shadow-md"
+                        : "border-brand-gray/20 bg-white hover:border-brand-blue/40 hover:shadow-sm"
                     }`}
                   >
-                    <div className="font-semibold text-sh-black">Grade {gp.tierCode}</div>
-                    <div className="text-sm text-sh-gray mt-1">
+                    <div className="font-semibold text-brand-black">Grade {gp.tierCode}</div>
+                    <div className="text-sm text-brand-gray mt-1">
                       Cushion: {formatCurrency(cushionComponent)}
                     </div>
-                    <div className="text-sm font-semibold text-sh-blue mt-2 tabular-nums">
+                    <div className="text-sm font-semibold text-brand-blue mt-2 tabular-nums">
                       Total: {formatCurrency(gp.retail)}
                     </div>
                     {totalCost != null && (
-                      <div className="text-xs text-sh-gray mt-1 tabular-nums">
+                      <div className="text-xs text-brand-gray mt-1 tabular-nums">
                         Cost: {formatCurrency(totalCost)}
                       </div>
                     )}
@@ -759,7 +759,7 @@ export default function FramePlusCushionConfigurator({
             </div>
 
             {linkedCushion.comYardage != null && (
-              <div className="mt-4 text-sm text-sh-gray">
+              <div className="mt-4 text-sm text-brand-gray">
                 COM yardage: {linkedCushion.comYardage} yds
               </div>
             )}
@@ -772,40 +772,40 @@ export default function FramePlusCushionConfigurator({
         {selectedFrame && selectedGradeTier && (
           <>
             <div className="mb-4">
-              <span className="font-semibold text-sh-black">{selectedFrame.productNumber}</span>
-              <span className="text-sh-gray mx-2">--</span>
-              <span className="text-sh-gray">
+              <span className="font-semibold text-brand-black">{selectedFrame.productNumber}</span>
+              <span className="text-brand-gray mx-2">--</span>
+              <span className="text-brand-gray">
                 {selectedGradeTier.tierCode === "QS"
                   ? "Quick Ship"
                   : `Grade ${selectedGradeTier.tierCode}`}
               </span>
             </div>
 
-            <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pb-3 border-b border-sh-gray/10">
+            <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pb-3 border-b border-brand-gray/10">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sh-gray" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" />
                 <input
                   type="text"
                   value={fabricSearch}
                   onChange={(e) => setFabricSearch(e.target.value)}
                   placeholder="Search fabrics..."
-                  className="w-full border border-sh-gray rounded-lg pl-10 pr-3 py-2 text-sh-black font-serif"
+                  className="w-full border border-brand-gray rounded-lg pl-10 pr-3 py-2 text-brand-black font-serif"
                 />
               </div>
             </div>
 
             {fabricsLoading && (
-              <div className="text-center py-8 text-sh-gray">Loading fabrics...</div>
+              <div className="text-center py-8 text-brand-gray">Loading fabrics...</div>
             )}
 
             {!fabricsLoading && filteredFabrics.length === 0 && fabrics.length === 0 && (
-              <div className="text-center py-8 text-sh-gray">
+              <div className="text-center py-8 text-brand-gray">
                 No fabrics cataloged for this grade. You can skip to Summary.
               </div>
             )}
 
             {!fabricsLoading && filteredFabrics.length === 0 && fabrics.length > 0 && (
-              <div className="text-center py-8 text-sh-gray">No fabrics match your search.</div>
+              <div className="text-center py-8 text-brand-gray">No fabrics match your search.</div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-3">
@@ -820,18 +820,18 @@ export default function FramePlusCushionConfigurator({
                     }}
                     className={`text-left rounded-lg border px-4 py-3 transition-all ${
                       isSelected
-                        ? "border-sh-blue bg-sh-linen shadow-sm"
-                        : "border-sh-gray/20 bg-white hover:border-sh-blue/40"
+                        ? "border-brand-blue bg-brand-linen shadow-sm"
+                        : "border-brand-gray/20 bg-white hover:border-brand-blue/40"
                     }`}
                   >
-                    <div className="font-semibold text-sm text-sh-black">{f.fabricName}</div>
-                    {f.colorName && <div className="text-xs text-sh-gray">{f.colorName}</div>}
+                    <div className="font-semibold text-sm text-brand-black">{f.fabricName}</div>
+                    {f.colorName && <div className="text-xs text-brand-gray">{f.colorName}</div>}
                   </button>
                 );
               })}
             </div>
             {filteredFabrics.length > 100 && (
-              <div className="text-center py-2 text-sm text-sh-gray">
+              <div className="text-center py-2 text-sm text-brand-gray">
                 Showing 100 of {filteredFabrics.length} -- refine your search.
               </div>
             )}
@@ -849,23 +849,23 @@ export default function FramePlusCushionConfigurator({
                 <img
                   src={selectedFrame.imageUrl}
                   alt={selectedFrame.productNumber}
-                  className="w-20 h-20 object-contain rounded border border-sh-gray/20 bg-white"
+                  className="w-20 h-20 object-contain rounded border border-brand-gray/20 bg-white"
                 />
               ) : (
-                <div className="w-20 h-20 bg-sh-linen rounded flex items-center justify-center">
-                  <Package className="w-8 h-8 text-sh-gray" />
+                <div className="w-20 h-20 bg-brand-linen rounded flex items-center justify-center">
+                  <Package className="w-8 h-8 text-brand-gray" />
                 </div>
               )}
               <div>
-                <div className="font-semibold text-lg text-sh-black">
+                <div className="font-semibold text-lg text-brand-black">
                   {selectedFrame.productNumber}
                 </div>
-                <div className="text-sh-gray">{selectedFrame.name}</div>
+                <div className="text-brand-gray">{selectedFrame.name}</div>
                 {selectedFrame.collection && (
-                  <div className="text-xs text-sh-gray mt-0.5">{selectedFrame.collection}</div>
+                  <div className="text-xs text-brand-gray mt-0.5">{selectedFrame.collection}</div>
                 )}
                 {(selectedFrame.width || selectedFrame.depth || selectedFrame.height) && (
-                  <div className="text-xs text-sh-gray mt-0.5">
+                  <div className="text-xs text-brand-gray mt-0.5">
                     {[
                       selectedFrame.width && `${selectedFrame.width}"W`,
                       selectedFrame.depth && `${selectedFrame.depth}"D`,
@@ -879,40 +879,40 @@ export default function FramePlusCushionConfigurator({
             </div>
 
             {/* Price breakdown */}
-            <div className="bg-white rounded-lg border border-sh-gray/20 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg border border-brand-gray/20 shadow-sm overflow-hidden">
               <table className="w-full text-sm">
                 {showCost && (
                   <thead>
-                    <tr className="border-b border-sh-gray/10 bg-sh-stripe">
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-sh-gray uppercase tracking-wide">
+                    <tr className="border-b border-brand-gray/10 bg-brand-stripe">
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-brand-gray uppercase tracking-wide">
                         Item
                       </th>
-                      <th className="px-4 py-2 text-right text-xs font-semibold text-sh-gray uppercase tracking-wide">
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-brand-gray uppercase tracking-wide">
                         Cost
                       </th>
-                      <th className="px-4 py-2 text-right text-xs font-semibold text-sh-gray uppercase tracking-wide">
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-brand-gray uppercase tracking-wide">
                         Retail
                       </th>
                     </tr>
                   </thead>
                 )}
                 <tbody>
-                  <tr className="border-b border-sh-gray/10">
-                    <td className="px-4 py-3 text-sh-gray">Frame</td>
+                  <tr className="border-b border-brand-gray/10">
+                    <td className="px-4 py-3 text-brand-gray">Frame</td>
                     {showCost && (
-                      <td className="px-4 py-3 text-right tabular-nums text-sh-gray">
+                      <td className="px-4 py-3 text-right tabular-nums text-brand-gray">
                         {priceCalc.frameCost != null
                           ? formatCurrency(priceCalc.frameCost)
                           : "\u2014"}
                       </td>
                     )}
-                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-sh-black">
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-brand-black">
                       {formatCurrency(priceCalc.framePrice)}
                     </td>
                   </tr>
                   {selectedFinish && (
-                    <tr className="border-b border-sh-gray/10">
-                      <td className="px-4 py-3 text-sh-gray" colSpan={showCost ? 2 : 1}>
+                    <tr className="border-b border-brand-gray/10">
+                      <td className="px-4 py-3 text-brand-gray" colSpan={showCost ? 2 : 1}>
                         Finish: {selectedFinish.material}
                         {selectedFinish.codes.length > 0 && (
                           <span className="ml-1 text-xs">({selectedFinish.codes.join(", ")})</span>
@@ -927,12 +927,12 @@ export default function FramePlusCushionConfigurator({
                           {selectedFinish.isStocked ? "Stocked" : "Special order"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-xs text-sh-gray">included</td>
+                      <td className="px-4 py-3 text-right text-xs text-brand-gray">included</td>
                     </tr>
                   )}
                   {includeCushion && linkedCushion && selectedGradeTier && (
-                    <tr className="border-b border-sh-gray/10">
-                      <td className="px-4 py-3 text-sh-gray">
+                    <tr className="border-b border-brand-gray/10">
+                      <td className="px-4 py-3 text-brand-gray">
                         Cushion {linkedCushion.cushionCode}
                         <span className="ml-1 text-xs">
                           (
@@ -943,57 +943,59 @@ export default function FramePlusCushionConfigurator({
                         </span>
                       </td>
                       {showCost && (
-                        <td className="px-4 py-3 text-right tabular-nums text-sh-gray">
+                        <td className="px-4 py-3 text-right tabular-nums text-brand-gray">
                           {priceCalc.cushionCost != null
                             ? formatCurrency(priceCalc.cushionCost)
                             : "\u2014"}
                         </td>
                       )}
-                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-sh-black">
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-brand-black">
                         {formatCurrency(priceCalc.cushionPrice)}
                       </td>
                     </tr>
                   )}
                   {includeCushion && selectedFabric && (
-                    <tr className="border-b border-sh-gray/10">
-                      <td className="px-4 py-3 text-sh-gray" colSpan={showCost ? 2 : 1}>
+                    <tr className="border-b border-brand-gray/10">
+                      <td className="px-4 py-3 text-brand-gray" colSpan={showCost ? 2 : 1}>
                         Fabric: {selectedFabric.fabricName}
                         {selectedFabric.colorName && ` -- ${selectedFabric.colorName}`}
                       </td>
-                      <td className="px-4 py-3 text-right text-xs text-sh-gray">included</td>
+                      <td className="px-4 py-3 text-right text-xs text-brand-gray">included</td>
                     </tr>
                   )}
                   {!includeCushion && linkedCushion && (
-                    <tr className="border-b border-sh-gray/10">
-                      <td className="px-4 py-3 text-sh-gray/50" colSpan={showCost ? 2 : 1}>
+                    <tr className="border-b border-brand-gray/10">
+                      <td className="px-4 py-3 text-brand-gray/50" colSpan={showCost ? 2 : 1}>
                         Cushion
                       </td>
-                      <td className="px-4 py-3 text-right text-xs text-sh-gray/50">not included</td>
+                      <td className="px-4 py-3 text-right text-xs text-brand-gray/50">
+                        not included
+                      </td>
                     </tr>
                   )}
                 </tbody>
                 <tfoot>
                   {showCost && priceCalc.totalCost != null && (
-                    <tr className="border-t border-sh-gray/10">
-                      <td className="px-4 py-2 text-sh-gray text-xs">Total Cost</td>
-                      <td className="px-4 py-2 text-right tabular-nums text-sh-gray">
+                    <tr className="border-t border-brand-gray/10">
+                      <td className="px-4 py-2 text-brand-gray text-xs">Total Cost</td>
+                      <td className="px-4 py-2 text-right tabular-nums text-brand-gray">
                         {formatCurrency(priceCalc.totalCost)}
                       </td>
                       <td />
                     </tr>
                   )}
-                  <tr className="bg-sh-linen">
-                    <td className="px-4 py-3 font-semibold text-sh-blue">Suggested Retail</td>
+                  <tr className="bg-brand-linen">
+                    <td className="px-4 py-3 font-semibold text-brand-blue">Suggested Retail</td>
                     {showCost && <td />}
-                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-sh-blue text-lg">
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-brand-blue text-lg">
                       {formatCurrency(priceCalc.totalRetail)}
                     </td>
                   </tr>
                   {showCost && priceCalc.margin != null && priceCalc.marginPercent != null && (
                     <tr>
-                      <td className="px-4 py-2 text-sh-gray text-xs">Margin</td>
+                      <td className="px-4 py-2 text-brand-gray text-xs">Margin</td>
                       <td />
-                      <td className="px-4 py-2 text-right tabular-nums text-xs text-sh-gray">
+                      <td className="px-4 py-2 text-right tabular-nums text-xs text-brand-gray">
                         {formatCurrency(priceCalc.margin)} (
                         {(priceCalc.marginPercent * 100).toFixed(1)}%)
                       </td>
@@ -1005,21 +1007,21 @@ export default function FramePlusCushionConfigurator({
 
             {/* Matching covers */}
             {matchingCovers.length > 0 && (
-              <div className="bg-white rounded-lg border border-sh-gray/20 p-4">
-                <h4 className="text-sm font-semibold text-sh-blue mb-2">
+              <div className="bg-white rounded-lg border border-brand-gray/20 p-4">
+                <h4 className="text-sm font-semibold text-brand-blue mb-2">
                   Available Covers ({matchingCovers.length})
                 </h4>
                 <div className="space-y-2">
                   {matchingCovers.map((cv) => (
                     <div
                       key={cv.id}
-                      className="flex items-center justify-between text-sm border-b border-sh-gray/10 pb-2 last:border-0 last:pb-0"
+                      className="flex items-center justify-between text-sm border-b border-brand-gray/10 pb-2 last:border-0 last:pb-0"
                     >
                       <div>
-                        <span className="font-semibold text-sh-black">{cv.coverCode}</span>
-                        <span className="text-sh-gray ml-2">{cv.description}</span>
+                        <span className="font-semibold text-brand-black">{cv.coverCode}</span>
+                        <span className="text-brand-gray ml-2">{cv.description}</span>
                       </div>
-                      <span className="tabular-nums font-semibold text-sh-blue">
+                      <span className="tabular-nums font-semibold text-brand-blue">
                         {cv.retailPrice != null ? formatCurrency(cv.retailPrice) : "\u2014"}
                       </span>
                     </div>
@@ -1059,7 +1061,7 @@ export default function FramePlusCushionConfigurator({
                     vendor: vendorName,
                   });
                 }}
-                className="w-full py-3 rounded-lg bg-sh-gold text-white font-semibold text-base transition hover:bg-sh-gold/90 min-h-[44px]"
+                className="w-full py-3 rounded-lg bg-brand-gold text-white font-semibold text-base transition hover:bg-brand-gold/90 min-h-[44px]"
               >
                 Add to Quote
               </button>

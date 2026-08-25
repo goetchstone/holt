@@ -23,7 +23,7 @@ export default async function TimePage() {
     permission: "staff.self",
     feature: "timeTracking",
   });
-  const impersonate = (await cookies()).get("sh-impersonate")?.value ?? null;
+  const impersonate = (await cookies()).get("holt-impersonate")?.value ?? null;
   const { allowed: canSeeAll } = await resolvePermissionAccess({
     userId,
     permission: "staff.time",

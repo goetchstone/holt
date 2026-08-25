@@ -144,12 +144,14 @@ export function DatabaseBackupView() {
   return (
     <div className="space-y-6">
       {/* Backup section */}
-      <div className="bg-white border border-sh-gray/20 rounded-xl p-6">
+      <div className="bg-white border border-brand-gray/20 rounded-xl p-6">
         <div className="flex items-start gap-4">
-          <Download className="w-8 h-8 text-sh-blue flex-shrink-0 mt-1" />
+          <Download className="w-8 h-8 text-brand-blue flex-shrink-0 mt-1" />
           <div className="flex-1">
-            <h2 className="text-lg font-serif font-semibold text-sh-blue mb-1">Download Backup</h2>
-            <p className="text-sh-gray font-serif mb-4">
+            <h2 className="text-lg font-serif font-semibold text-brand-blue mb-1">
+              Download Backup
+            </h2>
+            <p className="text-brand-gray font-serif mb-4">
               Downloads a complete database dump as a .sql file. This includes all data, schema, and
               sequences. Store the file somewhere safe.
             </p>
@@ -158,7 +160,9 @@ export function DatabaseBackupView() {
                 {downloading ? "Downloading..." : "Download Backup"}
               </Button>
               {lastBackup && (
-                <span className="text-sm text-sh-gray font-serif">Last backup: {lastBackup}</span>
+                <span className="text-sm text-brand-gray font-serif">
+                  Last backup: {lastBackup}
+                </span>
               )}
             </div>
           </div>
@@ -205,9 +209,9 @@ export function DatabaseBackupView() {
               </Button>
             ) : (
               <div className="border border-red-200 rounded-lg p-4 bg-red-50/50">
-                <p className="font-serif text-sh-black mb-2">
+                <p className="font-serif text-brand-black mb-2">
                   File: <span className="font-semibold">{restoreFile?.name}</span>
-                  <span className="text-sh-gray text-sm ml-2">
+                  <span className="text-brand-gray text-sm ml-2">
                     ({((restoreFile?.size || 0) / 1024 / 1024).toFixed(1)} MB)
                   </span>
                 </p>
@@ -223,7 +227,7 @@ export function DatabaseBackupView() {
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
                   placeholder="Type RESTORE"
-                  className="w-full max-w-xs border border-red-300 rounded-lg px-3 py-2 font-mono text-sh-black mb-3"
+                  className="w-full max-w-xs border border-red-300 rounded-lg px-3 py-2 font-mono text-brand-black mb-3"
                   autoComplete="off"
                 />
                 <div className="flex gap-2">

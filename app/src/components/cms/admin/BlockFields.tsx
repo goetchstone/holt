@@ -29,13 +29,13 @@ function TextField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-sh-gray">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-brand-gray">{label}</span>
       <input
         type="text"
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+        className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
       />
     </label>
   );
@@ -54,12 +54,12 @@ function TextArea({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-sh-gray">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-brand-gray">{label}</span>
       <textarea
         value={value}
         rows={rows}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-black/15 px-3 py-2 font-mono text-sm focus:border-sh-navy focus:outline-none"
+        className="w-full rounded-md border border-black/15 px-3 py-2 font-mono text-sm focus:border-brand-navy focus:outline-none"
       />
     </label>
   );
@@ -74,11 +74,11 @@ function BackgroundField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-sh-gray">Background</span>
+      <span className="mb-1 block text-xs font-medium text-brand-gray">Background</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as SectionBackground)}
-        className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+        className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
       >
         {SECTION_BACKGROUNDS.map((b) => (
           <option key={b} value={b}>
@@ -132,11 +132,11 @@ export function BlockFields({
             onChange={(v) => onPatch({ imageUrl: v })}
           />
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-sh-gray">Alignment</span>
+            <span className="mb-1 block text-xs font-medium text-brand-gray">Alignment</span>
             <select
               value={block.align}
               onChange={(e) => onPatch({ align: e.target.value as (typeof ALIGNMENTS)[number] })}
-              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
             >
               {ALIGNMENTS.map((a) => (
                 <option key={a} value={a}>
@@ -220,7 +220,7 @@ export function BlockFields({
                 type="button"
                 aria-label="Remove feature"
                 onClick={() => onPatch({ items: block.items.filter((_, j) => j !== i) })}
-                className="mt-6 text-sh-gray hover:text-red-600"
+                className="mt-6 text-brand-gray hover:text-red-600"
               >
                 <Trash2 size={16} />
               </button>
@@ -229,7 +229,7 @@ export function BlockFields({
           <button
             type="button"
             onClick={() => onPatch({ items: [...block.items, { title: "", body: "" }] })}
-            className="inline-flex w-fit items-center gap-1 rounded-md border border-sh-navy/30 px-3 py-1.5 text-sm text-sh-navy hover:bg-sh-linen"
+            className="inline-flex w-fit items-center gap-1 rounded-md border border-brand-navy/30 px-3 py-1.5 text-sm text-brand-navy hover:bg-brand-linen"
           >
             <Plus size={14} /> Add feature
           </button>
@@ -240,11 +240,11 @@ export function BlockFields({
         <div className="flex flex-col gap-2">
           <BackgroundField value={block.background} onChange={(v) => onPatch({ background: v })} />
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-sh-gray">Layout</span>
+            <span className="mb-1 block text-xs font-medium text-brand-gray">Layout</span>
             <select
               value={block.variant}
               onChange={(e) => onPatch({ variant: e.target.value as "stats" | "checklist" })}
-              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-sh-navy focus:outline-none"
+              className="w-full rounded-md border border-black/15 px-3 py-2 text-sm focus:border-brand-navy focus:outline-none"
             >
               <option value="stats">Stats (big numbers grid)</option>
               <option value="checklist">Checklist (inline trust strip)</option>
@@ -276,7 +276,7 @@ export function BlockFields({
                 type="button"
                 aria-label="Remove stat"
                 onClick={() => onPatch({ items: block.items.filter((_, j) => j !== i) })}
-                className="mb-2 text-sh-gray hover:text-red-600"
+                className="mb-2 text-brand-gray hover:text-red-600"
               >
                 <Trash2 size={16} />
               </button>
@@ -285,7 +285,7 @@ export function BlockFields({
           <button
             type="button"
             onClick={() => onPatch({ items: [...block.items, { value: "", label: "" }] })}
-            className="inline-flex w-fit items-center gap-1 rounded-md border border-sh-navy/30 px-3 py-1.5 text-sm text-sh-navy hover:bg-sh-linen"
+            className="inline-flex w-fit items-center gap-1 rounded-md border border-brand-navy/30 px-3 py-1.5 text-sm text-brand-navy hover:bg-brand-linen"
           >
             <Plus size={14} /> Add stat
           </button>
@@ -375,7 +375,7 @@ export function BlockFields({
                 type="button"
                 aria-label="Remove image"
                 onClick={() => onPatch({ images: block.images.filter((_, j) => j !== i) })}
-                className="mb-2 text-sh-gray hover:text-red-600"
+                className="mb-2 text-brand-gray hover:text-red-600"
               >
                 <Trash2 size={16} />
               </button>
@@ -384,7 +384,7 @@ export function BlockFields({
           <button
             type="button"
             onClick={() => onPatch({ images: [...block.images, { url: "", alt: "" }] })}
-            className="inline-flex w-fit items-center gap-1 rounded-md border border-sh-navy/30 px-3 py-1.5 text-sm text-sh-navy hover:bg-sh-linen"
+            className="inline-flex w-fit items-center gap-1 rounded-md border border-brand-navy/30 px-3 py-1.5 text-sm text-brand-navy hover:bg-brand-linen"
           >
             <Plus size={14} /> Add image
           </button>

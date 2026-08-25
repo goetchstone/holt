@@ -122,9 +122,9 @@ export function SalesGoalsView() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-serif text-sh-navy">Salesperson Goals</h1>
+        <h1 className="text-2xl font-serif text-brand-navy">Salesperson Goals</h1>
         <div className="flex items-center gap-2">
-          <label htmlFor="goal-year" className="text-sm text-sh-gray">
+          <label htmlFor="goal-year" className="text-sm text-brand-gray">
             Year
           </label>
           <select
@@ -142,14 +142,14 @@ export function SalesGoalsView() {
         </div>
       </div>
 
-      <p className="text-sm text-sh-gray">
+      <p className="text-sm text-brand-gray">
         Goals are used by the Monthly Performance report to calculate variance and bonus. Bonus =
         (sales over monthly goal) × bonus rate. The yearly goal is allocated evenly across the
         twelve months.
       </p>
 
       {loading ? (
-        <p className="text-center text-sm text-sh-gray py-8">Loading…</p>
+        <p className="text-center text-sm text-brand-gray py-8">Loading…</p>
       ) : (
         <GoalsTable staff={staff} goalFor={goalFor} money={money} onEdit={openEdit} />
       )}
@@ -182,12 +182,16 @@ function GoalsTable({ staff, goalFor, money, onEdit }: Readonly<GoalsTableProps>
   return (
     <div className="rounded-lg border border-gray-200 overflow-hidden">
       <table className="w-full text-sm">
-        <thead className="bg-sh-linen">
+        <thead className="bg-brand-linen">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium text-sh-gray">Name</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-sh-gray">Yearly Goal</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-sh-gray">Bonus Rate</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-sh-gray">Monthly Avg</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-brand-gray">Name</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-brand-gray">
+              Yearly Goal
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-brand-gray">Bonus Rate</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-brand-gray">
+              Monthly Avg
+            </th>
             <th className="px-4 py-3"></th>
           </tr>
         </thead>
@@ -199,27 +203,27 @@ function GoalsTable({ staff, goalFor, money, onEdit }: Readonly<GoalsTableProps>
             return (
               <tr
                 key={s.id}
-                className={`border-b border-gray-100 ${i % 2 === 1 ? "bg-sh-stripe" : "bg-white"}`}
+                className={`border-b border-gray-100 ${i % 2 === 1 ? "bg-brand-stripe" : "bg-white"}`}
               >
-                <td className="px-4 py-3 font-medium text-sh-navy">{s.displayName}</td>
-                <td className="px-4 py-3 text-right text-sh-navy">
+                <td className="px-4 py-3 font-medium text-brand-navy">{s.displayName}</td>
+                <td className="px-4 py-3 text-right text-brand-navy">
                   {yearly != null ? (
                     money(yearly, { whole: true })
                   ) : (
-                    <span className="text-sh-gray">—</span>
+                    <span className="text-brand-gray">—</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-right text-sh-gray">
+                <td className="px-4 py-3 text-right text-brand-gray">
                   {g ? `${Math.round(g.bonusRate * 100)}%` : "—"}
                 </td>
-                <td className="px-4 py-3 text-right text-sh-gray">
+                <td className="px-4 py-3 text-right text-brand-gray">
                   {avgMonthly != null ? money(avgMonthly, { whole: true }) : "—"}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button
                     type="button"
                     onClick={() => onEdit(s)}
-                    className="text-xs text-sh-blue hover:underline min-h-[44px] px-2"
+                    className="text-xs text-brand-blue hover:underline min-h-[44px] px-2"
                   >
                     {g ? "Edit" : "Set Goal"}
                   </button>
@@ -263,13 +267,13 @@ function GoalEditModal({
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-serif text-sh-navy">
+          <h2 className="text-lg font-serif text-brand-navy">
             {year} Goal — {editing.name}
           </h2>
         </div>
         <div className="px-6 py-5 space-y-4">
           <div>
-            <label htmlFor="goal-yearly" className="block text-xs text-sh-gray mb-1">
+            <label htmlFor="goal-yearly" className="block text-xs text-brand-gray mb-1">
               Yearly Goal ($)
             </label>
             <input
@@ -282,7 +286,7 @@ function GoalEditModal({
             />
           </div>
           <div>
-            <label htmlFor="goal-bonus" className="block text-xs text-sh-gray mb-1">
+            <label htmlFor="goal-bonus" className="block text-xs text-brand-gray mb-1">
               Bonus Rate (%)
             </label>
             <input
@@ -296,19 +300,19 @@ function GoalEditModal({
               max="100"
               className="border border-gray-300 rounded px-3 min-h-[44px] w-40 text-sm"
             />
-            <p className="text-xs text-sh-gray mt-1">
+            <p className="text-xs text-brand-gray mt-1">
               Percentage of sales above monthly goal paid as bonus.
             </p>
           </div>
 
           {showBreakdown && (
             <div>
-              <p className="text-xs font-medium text-sh-navy mb-2">Monthly breakdown</p>
-              <div className="grid grid-cols-4 gap-1 text-xs text-sh-gray">
+              <p className="text-xs font-medium text-brand-navy mb-2">Monthly breakdown</p>
+              <div className="grid grid-cols-4 gap-1 text-xs text-brand-gray">
                 {monthlyBreakdown(parsedYearly).map((amt, idx) => (
                   <div
                     key={MONTH_LABELS[idx]}
-                    className="flex justify-between bg-sh-linen rounded px-2 py-1"
+                    className="flex justify-between bg-brand-linen rounded px-2 py-1"
                   >
                     <span>{MONTH_LABELS[idx]}</span>
                     <span className="font-medium">{money(amt, { whole: true })}</span>

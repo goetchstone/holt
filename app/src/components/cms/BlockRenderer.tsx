@@ -32,27 +32,27 @@ const SECTION_PAD = "py-24";
 const SECTION_THEME = {
   default: {
     section: "",
-    heading: "text-sh-navy",
-    sub: "text-sh-gray",
-    body: "text-sh-gray",
+    heading: "text-brand-navy",
+    sub: "text-brand-gray",
+    body: "text-brand-gray",
     card: "border-black/10 bg-white",
-    eyebrow: "text-sh-gold",
+    eyebrow: "text-brand-gold",
   },
   muted: {
-    section: "bg-sh-linen",
-    heading: "text-sh-navy",
-    sub: "text-sh-gray",
-    body: "text-sh-gray",
+    section: "bg-brand-linen",
+    heading: "text-brand-navy",
+    sub: "text-brand-gray",
+    body: "text-brand-gray",
     card: "border-black/10 bg-white",
-    eyebrow: "text-sh-gold",
+    eyebrow: "text-brand-gold",
   },
   dark: {
-    section: "bg-sh-navy text-white",
+    section: "bg-brand-navy text-white",
     heading: "text-white",
     sub: "text-white/80",
     body: "text-white/80",
     card: "border-white/15 bg-white/5",
-    eyebrow: "text-sh-gold",
+    eyebrow: "text-brand-gold",
   },
 } as const;
 
@@ -66,7 +66,7 @@ function Eyebrow({ text, className }: { text: string; className: string }) {
 function HeroBlockView({ block }: { block: Extract<ContentBlock, { type: "hero" }> }) {
   return (
     <section
-      className="relative flex min-h-screen flex-col justify-center bg-sh-navy bg-cover bg-center px-6 pb-24 pt-32 text-white"
+      className="relative flex min-h-screen flex-col justify-center bg-brand-navy bg-cover bg-center px-6 pb-24 pt-32 text-white"
       style={block.imageUrl ? { backgroundImage: `url(${block.imageUrl})` } : undefined}
     >
       {block.imageUrl ? <div className="absolute inset-0 bg-black/40" aria-hidden /> : null}
@@ -78,7 +78,7 @@ function HeroBlockView({ block }: { block: Extract<ContentBlock, { type: "hero" 
           <img src={block.markUrl} alt="" aria-hidden className="mb-6 h-12 w-auto" />
         ) : null}
         {block.eyebrow ? (
-          <p className="mb-3 text-xs font-medium uppercase tracking-[0.15em] text-sh-gold">
+          <p className="mb-3 text-xs font-medium uppercase tracking-[0.15em] text-brand-gold">
             {block.eyebrow}
           </p>
         ) : null}
@@ -86,7 +86,7 @@ function HeroBlockView({ block }: { block: Extract<ContentBlock, { type: "hero" 
           <h1 className="font-serif text-4xl leading-tight sm:text-5xl lg:text-[56px]">
             {block.heading}
             {block.headingAccent ? (
-              <span className="block text-sh-gold">{block.headingAccent}</span>
+              <span className="block text-brand-gold">{block.headingAccent}</span>
             ) : null}
           </h1>
         ) : null}
@@ -98,7 +98,7 @@ function HeroBlockView({ block }: { block: Extract<ContentBlock, { type: "hero" 
             {block.ctaLabel && block.ctaHref ? (
               <Link
                 href={block.ctaHref}
-                className="inline-flex items-center gap-2 rounded-[2px] bg-sh-gold px-6 py-3 text-sm font-medium text-sh-navy transition hover:opacity-90"
+                className="inline-flex items-center gap-2 rounded-[2px] bg-brand-gold px-6 py-3 text-sm font-medium text-brand-navy transition hover:opacity-90"
               >
                 {block.ctaLabel} <ArrowRight className="h-4 w-4" />
               </Link>
@@ -106,7 +106,7 @@ function HeroBlockView({ block }: { block: Extract<ContentBlock, { type: "hero" 
             {block.ctaLabel2 && block.ctaHref2 ? (
               <Link
                 href={block.ctaHref2}
-                className="inline-block rounded-[2px] border border-white/30 px-6 py-3 text-sm font-medium text-white transition hover:border-sh-gold hover:text-sh-gold"
+                className="inline-block rounded-[2px] border border-white/30 px-6 py-3 text-sm font-medium text-white transition hover:border-brand-gold hover:text-brand-gold"
               >
                 {block.ctaLabel2}
               </Link>
@@ -125,7 +125,9 @@ function ImageBlockView({ block }: { block: Extract<ContentBlock, { type: "image
       {/* eslint-disable-next-line @next/next/no-img-element -- CMS images are arbitrary external URLs */}
       <img src={block.url} alt={block.alt} className="mx-auto h-auto w-full rounded-md" />
       {block.caption ? (
-        <figcaption className="mt-2 text-center text-sm text-sh-gray">{block.caption}</figcaption>
+        <figcaption className="mt-2 text-center text-sm text-brand-gray">
+          {block.caption}
+        </figcaption>
       ) : null}
     </figure>
   );
@@ -148,8 +150,8 @@ function CtaBlockView({ block }: { block: Extract<ContentBlock, { type: "cta" }>
   // Navy button reads well on light bands; on a dark band use the gold accent.
   const button =
     block.background === "dark"
-      ? "bg-sh-gold text-sh-navy hover:opacity-90"
-      : "bg-sh-navy text-white hover:bg-sh-blue";
+      ? "bg-brand-gold text-brand-navy hover:opacity-90"
+      : "bg-brand-navy text-white hover:bg-brand-blue";
   return (
     <section className={`px-6 text-center ${SECTION_PAD} ${t.section}`}>
       <div className="mx-auto max-w-screen-md">
@@ -234,7 +236,7 @@ function StatsBlockView({ block }: { block: Extract<ContentBlock, { type: "stats
         <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-center gap-x-8 gap-y-3">
           {block.items.map((item, i) => (
             <span key={i} className={`inline-flex items-center gap-2 text-sm ${t.body}`}>
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-sh-gold" strokeWidth={1.5} />
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-gold" strokeWidth={1.5} />
               {item.value}
               {item.label ? <span className="opacity-60">— {item.label}</span> : null}
             </span>
@@ -249,7 +251,7 @@ function StatsBlockView({ block }: { block: Extract<ContentBlock, { type: "stats
       <div className="mx-auto grid w-full max-w-[1200px] grid-cols-2 gap-8 text-center sm:grid-cols-4">
         {block.items.map((item, i) => (
           <div key={i}>
-            <div className="font-serif text-4xl text-sh-gold">{item.value}</div>
+            <div className="font-serif text-4xl text-brand-gold">{item.value}</div>
             <div className={`mt-1 text-sm ${t.body}`}>{item.label}</div>
           </div>
         ))}
@@ -294,8 +296,8 @@ function renderBlock(block: ContentBlock) {
           <div
             className={`prose mx-auto max-w-screen-md px-6 py-12 ${
               block.background === "dark"
-                ? "prose-invert text-sh-stripe/70 prose-a:text-sh-gold"
-                : "text-sh-black"
+                ? "prose-invert text-brand-stripe/70 prose-a:text-brand-gold"
+                : "text-brand-black"
             }`}
             dangerouslySetInnerHTML={{ __html: sanitizeCmsHtml(block.html) }}
           />

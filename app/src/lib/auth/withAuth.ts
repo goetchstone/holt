@@ -40,12 +40,12 @@ interface WithAuthOptions {
  * - The real role comes from the JWT session (`session.role`, defaulting
  *   to DESIGNER if unset).
  * - SUPER_ADMIN and ADMIN can impersonate other roles via the
- *   `sh-impersonate` cookie; the impersonated role replaces the real
+ *   `holt-impersonate` cookie; the impersonated role replaces the real
  *   role for the check.
  */
 function resolveEffectiveRole(session: Session, ctx: GetServerSidePropsContext): string {
   const realRole = (session as unknown as { role?: string }).role || "DESIGNER";
-  const impersonate = ctx.req.cookies?.["sh-impersonate"] || null;
+  const impersonate = ctx.req.cookies?.["holt-impersonate"] || null;
   const canImpersonate = realRole === "SUPER_ADMIN" || realRole === "ADMIN";
   return canImpersonate && impersonate ? impersonate : realRole;
 }

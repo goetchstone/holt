@@ -4,9 +4,9 @@
 // Returns null for unknown or low tiers to keep the UI clean.
 
 const TIER_CONFIG: Record<string, { label: string; className: string }> = {
-  ULTRA_HIGH: { label: "$10M+", className: "bg-sh-gold/20 text-sh-gold" },
+  ULTRA_HIGH: { label: "$10M+", className: "bg-brand-gold/20 text-brand-gold" },
   VERY_HIGH: { label: "$5-10M", className: "bg-purple-100 text-purple-800" },
-  HIGH: { label: "$1-5M", className: "bg-sh-blue/15 text-sh-blue" },
+  HIGH: { label: "$1-5M", className: "bg-brand-blue/15 text-brand-blue" },
   AFFLUENT: { label: "$500K+", className: "bg-teal-100 text-teal-700" },
 };
 

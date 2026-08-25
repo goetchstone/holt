@@ -57,12 +57,13 @@ function ProductTableRow({
   selected,
   onToggle,
 }: Readonly<{ product: ProductRow; selected: boolean; onToggle: (id: number) => void }>) {
-  const deptClass = product.departmentName === "Uncategorized" ? "text-amber-700" : "text-sh-black";
+  const deptClass =
+    product.departmentName === "Uncategorized" ? "text-amber-700" : "text-brand-black";
   return (
     <tr
       onClick={() => onToggle(product.id)}
-      className={`border-b border-sh-gray/10 cursor-pointer transition ${
-        selected ? "bg-sh-linen" : "hover:bg-sh-stripe"
+      className={`border-b border-brand-gray/10 cursor-pointer transition ${
+        selected ? "bg-brand-linen" : "hover:bg-brand-stripe"
       }`}
     >
       <td className="px-3 py-2">
@@ -74,11 +75,11 @@ function ProductTableRow({
           onClick={(e) => e.stopPropagation()}
         />
       </td>
-      <td className="px-3 py-2 text-sh-black max-w-[300px] truncate">{product.name}</td>
-      <td className="px-3 py-2 font-mono text-xs text-sh-gray">{product.productNumber}</td>
-      <td className="px-3 py-2 text-sh-black">{product.vendorName ?? "—"}</td>
+      <td className="px-3 py-2 text-brand-black max-w-[300px] truncate">{product.name}</td>
+      <td className="px-3 py-2 font-mono text-xs text-brand-gray">{product.productNumber}</td>
+      <td className="px-3 py-2 text-brand-black">{product.vendorName ?? "—"}</td>
       <td className={`px-3 py-2 ${deptClass}`}>{product.departmentName ?? "—"}</td>
-      <td className="px-3 py-2 text-sh-gray">{product.categoryName ?? "—"}</td>
+      <td className="px-3 py-2 text-brand-gray">{product.categoryName ?? "—"}</td>
     </tr>
   );
 }
@@ -178,25 +179,25 @@ export function CategorizeProductsView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center gap-3">
-        <Link href="/app/admin/tools" className="text-sh-blue hover:underline text-sm">
+        <Link href="/app/admin/tools" className="text-brand-blue hover:underline text-sm">
           Admin Tools
         </Link>
-        <span className="text-sh-gray">/</span>
-        <h1 className="text-2xl font-semibold text-sh-blue">Categorize Products</h1>
+        <span className="text-brand-gray">/</span>
+        <h1 className="text-2xl font-semibold text-brand-blue">Categorize Products</h1>
       </div>
 
-      <p className="text-sm text-sh-gray">
+      <p className="text-sm text-brand-gray">
         Assign department, category, vendor, and type to products in bulk. Rows default-filter to
         those in the &quot;Uncategorized&quot; department so you can clean up imports quickly.
       </p>
 
       {/* Filter bar */}
-      <div className="bg-white border border-sh-gray/20 rounded-lg p-4 space-y-3">
+      <div className="bg-white border border-brand-gray/20 rounded-lg p-4 space-y-3">
         <div className="flex items-end gap-3 flex-wrap">
           <div className="flex-1 min-w-[200px]">
             <label
               htmlFor="categorize-search"
-              className="block text-xs font-semibold text-sh-gray uppercase tracking-wide mb-1"
+              className="block text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1"
             >
               Search (name / part no)
             </label>
@@ -208,7 +209,7 @@ export function CategorizeProductsView() {
                 if (e.key === "Enter") runSearch();
               }}
               placeholder="e.g. sofa, vendor name, 9381"
-              className="w-full border border-sh-gray/30 rounded-lg px-3 py-2 text-sm text-sh-black min-h-[40px] focus:outline-none focus:ring-1 focus:ring-sh-blue"
+              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black min-h-[40px] focus:outline-none focus:ring-1 focus:ring-brand-blue"
             />
           </div>
           <Button onClick={runSearch} className="min-h-[40px] px-4">
@@ -216,7 +217,7 @@ export function CategorizeProductsView() {
           </Button>
           <label
             htmlFor="categorize-only-uncategorized"
-            className="flex items-center gap-2 text-sm text-sh-black min-h-[40px] cursor-pointer"
+            className="flex items-center gap-2 text-sm text-brand-black min-h-[40px] cursor-pointer"
           >
             <input
               id="categorize-only-uncategorized"
@@ -234,8 +235,8 @@ export function CategorizeProductsView() {
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="bg-sh-linen border border-sh-blue/40 rounded-lg p-4 space-y-3">
-          <p className="text-sm font-semibold text-sh-blue">
+        <div className="bg-brand-linen border border-brand-blue/40 rounded-lg p-4 space-y-3">
+          <p className="text-sm font-semibold text-brand-blue">
             Assign to {selected.size.toLocaleString()} selected product
             {selected.size === 1 ? "" : "s"}
           </p>
@@ -253,7 +254,7 @@ export function CategorizeProductsView() {
             </Button>
             <button
               onClick={() => setSelected(new Set())}
-              className="text-sm text-sh-gray hover:text-sh-black underline"
+              className="text-sm text-brand-gray hover:text-brand-black underline"
             >
               Clear selection
             </button>
@@ -262,9 +263,9 @@ export function CategorizeProductsView() {
       )}
 
       {/* Products table */}
-      <div className="bg-white border border-sh-gray/20 rounded-lg overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-sh-gray/20 bg-sh-linen">
-          <p className="text-sm text-sh-gray">
+      <div className="bg-white border border-brand-gray/20 rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-brand-gray/20 bg-brand-linen">
+          <p className="text-sm text-brand-gray">
             {loading
               ? "Loading…"
               : `${total.toLocaleString()} product${total === 1 ? "" : "s"} — page ${page} of ${totalPages}`}
@@ -273,14 +274,14 @@ export function CategorizeProductsView() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-2 py-1 text-sm text-sh-blue disabled:text-sh-gray/50"
+              className="px-2 py-1 text-sm text-brand-blue disabled:text-brand-gray/50"
             >
               ← Prev
             </button>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="px-2 py-1 text-sm text-sh-blue disabled:text-sh-gray/50"
+              className="px-2 py-1 text-sm text-brand-blue disabled:text-brand-gray/50"
             >
               Next →
             </button>
@@ -288,7 +289,7 @@ export function CategorizeProductsView() {
         </div>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-sh-gray/20 text-left text-xs text-sh-gray uppercase tracking-wide">
+            <tr className="border-b border-brand-gray/20 text-left text-xs text-brand-gray uppercase tracking-wide">
               <th className="px-3 py-2 w-8">
                 <input
                   type="checkbox"
@@ -307,7 +308,7 @@ export function CategorizeProductsView() {
           <tbody>
             {!loading && products.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-sh-gray">
+                <td colSpan={6} className="px-3 py-8 text-center text-brand-gray">
                   No products match.
                 </td>
               </tr>

@@ -73,14 +73,14 @@ export function ConsignmentReportView({ data }: Readonly<{ data: ConsignmentSumm
 
   return (
     <div className="space-y-8 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Consignment Summary</span>
+        <span className="text-brand-black">Consignment Summary</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">Consignment Summary</h1>
+      <h1 className="text-2xl font-semibold text-brand-navy">Consignment Summary</h1>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard label="Items on Floor" value={totals.onFloor} />

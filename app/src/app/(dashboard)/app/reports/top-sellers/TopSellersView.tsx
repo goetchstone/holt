@@ -61,32 +61,32 @@ export function TopSellersView() {
   function SellersTable({ title, rows }: Readonly<{ title: string; rows: TopSellerRow[] }>) {
     return (
       <div>
-        <h2 className="mb-2 text-lg font-semibold text-sh-navy">{title}</h2>
-        <div className="overflow-hidden rounded-lg border border-sh-gray/20 bg-white shadow-md">
+        <h2 className="mb-2 text-lg font-semibold text-brand-navy">{title}</h2>
+        <div className="overflow-hidden rounded-lg border border-brand-gray/20 bg-white shadow-md">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                <th className="px-3 py-2 text-left font-semibold text-sh-gray">Product</th>
-                <th className="px-3 py-2 text-left font-semibold text-sh-gray">Dept / Vendor</th>
-                <th className="px-3 py-2 text-right font-semibold text-sh-gray">Units</th>
-                <th className="px-3 py-2 text-right font-semibold text-sh-gray">Revenue</th>
-                <th className="px-3 py-2 text-right font-semibold text-sh-gray">Margin</th>
-                <th className="px-3 py-2 text-right font-semibold text-sh-gray">Margin %</th>
+              <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                <th className="px-3 py-2 text-left font-semibold text-brand-gray">Product</th>
+                <th className="px-3 py-2 text-left font-semibold text-brand-gray">Dept / Vendor</th>
+                <th className="px-3 py-2 text-right font-semibold text-brand-gray">Units</th>
+                <th className="px-3 py-2 text-right font-semibold text-brand-gray">Revenue</th>
+                <th className="px-3 py-2 text-right font-semibold text-brand-gray">Margin</th>
+                <th className="px-3 py-2 text-right font-semibold text-brand-gray">Margin %</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
                 <tr
                   key={`${r.productNumber ?? "x"}-${i}`}
-                  className={`border-b border-sh-gray/10 ${i % 2 === 1 ? "bg-sh-stripe" : ""}`}
+                  className={`border-b border-brand-gray/10 ${i % 2 === 1 ? "bg-brand-stripe" : ""}`}
                 >
                   <td className="px-3 py-2">
-                    <div className="font-semibold text-sh-navy">{r.name}</div>
+                    <div className="font-semibold text-brand-navy">{r.name}</div>
                     {r.productNumber && (
-                      <div className="text-xs text-sh-gray">{r.productNumber}</div>
+                      <div className="text-xs text-brand-gray">{r.productNumber}</div>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-xs text-sh-gray">
+                  <td className="px-3 py-2 text-xs text-brand-gray">
                     {r.department}
                     <br />
                     {r.vendor}
@@ -100,7 +100,7 @@ export function TopSellersView() {
                   >
                     {fmt(r.margin)}
                   </td>
-                  <td className="px-3 py-2 text-right text-sh-gray">
+                  <td className="px-3 py-2 text-right text-brand-gray">
                     {r.marginPct === null ? "--" : `${r.marginPct.toFixed(1)}%`}
                   </td>
                 </tr>
@@ -114,22 +114,22 @@ export function TopSellersView() {
 
   return (
     <div className="space-y-6 font-serif">
-      <nav className="text-sm text-sh-gray">
+      <nav className="text-sm text-brand-gray">
         <Link href="/app/reports" className="hover:underline">
           Reports
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-sh-black">Top &amp; Bottom Sellers</span>
+        <span className="text-brand-black">Top &amp; Bottom Sellers</span>
       </nav>
-      <h1 className="text-2xl font-semibold text-sh-navy">Top &amp; Bottom Sellers</h1>
-      <p className="text-sm text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-navy">Top &amp; Bottom Sellers</h1>
+      <p className="text-sm text-brand-gray">
         Best and worst products by your chosen metric. Delivery, labor, and freight appear as
         products in sales data — pick a department to keep the ranking to real merchandise.
       </p>
 
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <label htmlFor="tsStart" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="tsStart" className="mb-1 block text-xs font-medium text-brand-gray">
             Start
           </label>
           <input
@@ -141,7 +141,7 @@ export function TopSellersView() {
           />
         </div>
         <div>
-          <label htmlFor="tsEnd" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="tsEnd" className="mb-1 block text-xs font-medium text-brand-gray">
             End
           </label>
           <input
@@ -153,7 +153,7 @@ export function TopSellersView() {
           />
         </div>
         <div>
-          <label htmlFor="tsMetric" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="tsMetric" className="mb-1 block text-xs font-medium text-brand-gray">
             Rank by
           </label>
           <select
@@ -168,7 +168,7 @@ export function TopSellersView() {
           </select>
         </div>
         <div>
-          <label htmlFor="tsDept" className="mb-1 block text-xs font-medium text-sh-gray">
+          <label htmlFor="tsDept" className="mb-1 block text-xs font-medium text-brand-gray">
             Department
           </label>
           <select
@@ -189,7 +189,7 @@ export function TopSellersView() {
           type="button"
           onClick={run}
           disabled={loading}
-          className="min-h-[44px] rounded-lg bg-sh-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-sh-blue disabled:opacity-50"
+          className="min-h-[44px] rounded-lg bg-brand-navy px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-blue disabled:opacity-50"
         >
           {loading ? "Loading..." : "Run Report"}
         </button>
@@ -197,7 +197,7 @@ export function TopSellersView() {
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-sh-gold" />
+          <Loader2 className="h-6 w-6 animate-spin text-brand-gold" />
         </div>
       )}
 
@@ -215,11 +215,11 @@ export function TopSellersView() {
       )}
 
       {data && !loading && data.top.length === 0 && (
-        <p className="py-8 text-center text-sh-gray">No sales in the selected period.</p>
+        <p className="py-8 text-center text-brand-gray">No sales in the selected period.</p>
       )}
 
       {committed === null && !loading && (
-        <p className="py-16 text-center text-sh-gray">Pick a range and click Run Report</p>
+        <p className="py-16 text-center text-brand-gray">Pick a range and click Run Report</p>
       )}
     </div>
   );

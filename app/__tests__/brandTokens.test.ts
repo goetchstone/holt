@@ -19,9 +19,42 @@ describe("brand color tokens (globals.css)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("still defines the core sh-* tokens", () => {
-    for (const token of ["--color-sh-navy", "--color-sh-blue", "--color-sh-gold"]) {
+  it("still defines the core brand-* tokens", () => {
+    for (const token of ["--color-brand-navy", "--color-brand-blue", "--color-brand-gold"]) {
       expect(css).toContain(token);
     }
+  });
+
+  it("carries no client's initials in a token name", () => {
+    // These were `sh-*` -- the initials of one deployment, baked into the
+    // design system and therefore into every class name in the rendered DOM.
+    // holt is white-label: the palette re-skins per deployment at runtime from
+    // AppSettings.theme, so naming the tokens after one client was wrong even
+    // before it became something a prospect could read in devtools.
+    expect(css).not.toMatch(/--color-sh-/);
+  });
+});
+
+describe("no client initials leak into the rendered DOM", () => {
+  it("nothing in the repo names an sh-* token or cookie", () => {
+    // Scoped to src/ when first written, which is exactly how the rename missed
+    // the impersonation COOKIE in two test files: it kept its old name there, so
+    // impersonation silently stopped applying and an ADMIN acting as a DESIGNER
+    // sailed through a permission check CI had to catch.
+    //
+    // (This test cannot name the old prefix in a comment without matching
+    // itself, which is a fair price for a grep that covers everything.)
+    //
+    // Whole app tree now, minus build output and dependencies.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { execSync } = require("node:child_process");
+    const root = path.join(__dirname, "..");
+    const out = execSync(
+      `grep -rhoE '\\bsh-[a-z0-9-]+' ${root} ` +
+        `--include='*.ts' --include='*.tsx' --include='*.css' --include='*.md' --include='*.mjs' ` +
+        `--exclude-dir=node_modules --exclude-dir=.next --exclude-dir=coverage || true`,
+      { encoding: "utf8" },
+    ).trim();
+    expect(out).toBe("");
   });
 });

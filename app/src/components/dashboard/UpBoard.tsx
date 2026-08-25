@@ -35,30 +35,30 @@ const STATUS_CONFIG: Record<
 > = {
   UP: {
     bg: "bg-white",
-    border: "border-sh-blue",
-    text: "text-sh-blue",
-    badge: "bg-sh-blue text-white",
+    border: "border-brand-blue",
+    text: "text-brand-blue",
+    badge: "bg-brand-blue text-white",
     label: "Up Next",
   },
   WITH_CUSTOMER: {
-    bg: "bg-sh-linen",
-    border: "border-sh-gold",
-    text: "text-sh-blue",
-    badge: "bg-sh-gold/20 text-sh-gold",
+    bg: "bg-brand-linen",
+    border: "border-brand-gold",
+    text: "text-brand-blue",
+    badge: "bg-brand-gold/20 text-brand-gold",
     label: "With Client",
   },
   ON_BREAK: {
     bg: "bg-gray-50",
-    border: "border-sh-gray/40",
-    text: "text-sh-gray",
-    badge: "bg-sh-gray/10 text-sh-gray",
+    border: "border-brand-gray/40",
+    text: "text-brand-gray",
+    badge: "bg-brand-gray/10 text-brand-gray",
     label: "On Break",
   },
   AVAILABLE: {
     bg: "bg-white",
     border: "border-gray-200",
-    text: "text-sh-black",
-    badge: "bg-gray-100 text-sh-gray",
+    text: "text-brand-black",
+    badge: "bg-gray-100 text-brand-gray",
     label: "Available",
   },
 };
@@ -137,8 +137,10 @@ export default function UpBoard({ store, storeLabel }: UpBoardProps) {
   if (loading) {
     return (
       <div className="bg-white border border-gray-200 rounded-sm p-6">
-        <h3 className="font-serif-display text-sh-blue text-lg tracking-wide mb-3">{storeLabel}</h3>
-        <div className="text-sh-gray text-sm italic">Loading&hellip;</div>
+        <h3 className="font-serif-display text-brand-blue text-lg tracking-wide mb-3">
+          {storeLabel}
+        </h3>
+        <div className="text-brand-gray text-sm italic">Loading&hellip;</div>
       </div>
     );
   }
@@ -147,13 +149,13 @@ export default function UpBoard({ store, storeLabel }: UpBoardProps) {
     <div className="bg-white border border-gray-200 rounded-sm p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-        <h3 className="font-serif-display text-sh-blue text-lg tracking-wide">{storeLabel}</h3>
+        <h3 className="font-serif-display text-brand-blue text-lg tracking-wide">{storeLabel}</h3>
         <button
           onClick={() => {
             fetchStaff();
             setShowClockIn(!showClockIn);
           }}
-          className="text-sm font-serif-condensed font-semibold tracking-wide px-4 py-2 rounded-lg border border-sh-blue text-sh-blue hover:bg-sh-blue hover:text-white transition shadow-sm"
+          className="text-sm font-serif-condensed font-semibold tracking-wide px-4 py-2 rounded-lg border border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white transition shadow-sm"
         >
           Sign In
         </button>
@@ -161,9 +163,9 @@ export default function UpBoard({ store, storeLabel }: UpBoardProps) {
 
       {/* Clock-in panel */}
       {showClockIn && (
-        <div className="mb-4 border border-gray-100 bg-sh-linen p-3 max-h-52 overflow-y-auto">
+        <div className="mb-4 border border-gray-100 bg-brand-linen p-3 max-h-52 overflow-y-auto">
           {availableToClockIn.length === 0 ? (
-            <div className="text-xs text-sh-gray italic py-2 text-center">
+            <div className="text-xs text-brand-gray italic py-2 text-center">
               All designers are signed in
             </div>
           ) : (
@@ -172,10 +174,10 @@ export default function UpBoard({ store, storeLabel }: UpBoardProps) {
                 <button
                   key={s.id}
                   onClick={() => clockIn(s.id)}
-                  className="block w-full text-left px-3 py-2 text-sm font-serif text-sh-blue hover:bg-white transition-colors rounded-sm"
+                  className="block w-full text-left px-3 py-2 text-sm font-serif text-brand-blue hover:bg-white transition-colors rounded-sm"
                 >
                   {s.displayName}
-                  <span className="text-xs text-sh-gray ml-2 font-sans uppercase tracking-wider">
+                  <span className="text-xs text-brand-gray ml-2 font-sans uppercase tracking-wider">
                     {s.role}
                   </span>
                 </button>
@@ -187,7 +189,7 @@ export default function UpBoard({ store, storeLabel }: UpBoardProps) {
 
       {/* Board entries */}
       {entries.length === 0 ? (
-        <div className="text-sh-gray text-sm italic py-8 text-center">No one signed in</div>
+        <div className="text-brand-gray text-sm italic py-8 text-center">No one signed in</div>
       ) : (
         <div className="space-y-2">
           {upPerson && <EntryRow entry={upPerson} onAction={doAction} onClockOut={clockOut} isUp />}
@@ -234,7 +236,7 @@ function EntryRow({
           {cfg.label}
         </span>
         {entry.customerNote && (
-          <span className="text-xs text-sh-gray italic ml-1">&mdash; {entry.customerNote}</span>
+          <span className="text-xs text-brand-gray italic ml-1">&mdash; {entry.customerNote}</span>
         )}
       </div>
 
@@ -285,8 +287,8 @@ function ActionBtn({
   variant?: "primary" | "muted";
 }) {
   const styles = {
-    primary: "bg-sh-blue text-white hover:bg-sh-black shadow-md",
-    muted: "bg-white text-sh-blue border border-sh-blue hover:bg-sh-gray/10",
+    primary: "bg-brand-blue text-white hover:bg-brand-black shadow-md",
+    muted: "bg-white text-brand-blue border border-brand-blue hover:bg-brand-gray/10",
   };
 
   return (

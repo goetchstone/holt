@@ -49,7 +49,7 @@ const STATUS_BADGE: Record<string, string> = {
   SOLD: "bg-blue-100 text-blue-800",
   RETURNED_VENDOR: "bg-gray-100 text-gray-600",
   MISSING: "bg-red-100 text-red-800",
-  PAID: "bg-sh-gold/20 text-sh-gold",
+  PAID: "bg-brand-gold/20 text-brand-gold",
 };
 
 function statusLabel(status: string): string {
@@ -102,7 +102,7 @@ export function ConsignmentView() {
   return (
     <div className="py-2 space-y-4 font-serif">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-sh-blue">Consignment Inventory</h1>
+        <h1 className="text-2xl font-semibold text-brand-blue">Consignment Inventory</h1>
         <div className="flex gap-2">
           <Link href="/app/inventory/consignment/count">
             <Button variant="outline" className="min-h-[44px]">
@@ -137,14 +137,14 @@ export function ConsignmentView() {
 
       <div className="flex flex-wrap gap-3 items-end">
         <div>
-          <label htmlFor="consignment-status" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="consignment-status" className="block text-xs text-brand-gray mb-1">
             Status
           </label>
           <select
             id="consignment-status"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="border border-sh-gray/40 rounded-lg px-3 min-h-[44px] text-sh-black font-serif"
+            className="border border-brand-gray/40 rounded-lg px-3 min-h-[44px] text-brand-black font-serif"
           >
             {STATUS_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -154,7 +154,7 @@ export function ConsignmentView() {
           </select>
         </div>
         <div className="flex-grow">
-          <label htmlFor="consignment-search" className="block text-xs text-sh-gray mb-1">
+          <label htmlFor="consignment-search" className="block text-xs text-brand-gray mb-1">
             Search
           </label>
           <input
@@ -163,36 +163,36 @@ export function ConsignmentView() {
             placeholder="Barcode or quality..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border border-sh-gray/40 rounded-lg px-3 min-h-[44px] w-full text-sh-black font-serif"
+            className="border border-brand-gray/40 rounded-lg px-3 min-h-[44px] w-full text-brand-black font-serif"
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/20 bg-sh-linen">
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Barcode</th>
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Quality</th>
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Size</th>
-                <th className="text-right px-4 py-3 text-sh-gray font-semibold">Cost</th>
-                <th className="text-right px-4 py-3 text-sh-gray font-semibold">Retail</th>
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Status</th>
-                <th className="text-left px-4 py-3 text-sh-gray font-semibold">Location</th>
+              <tr className="border-b border-brand-gray/20 bg-brand-linen">
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Barcode</th>
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Quality</th>
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Size</th>
+                <th className="text-right px-4 py-3 text-brand-gray font-semibold">Cost</th>
+                <th className="text-right px-4 py-3 text-brand-gray font-semibold">Retail</th>
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Status</th>
+                <th className="text-left px-4 py-3 text-brand-gray font-semibold">Location</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sh-gray">
+                  <td colSpan={7} className="px-4 py-8 text-center text-brand-gray">
                     Loading...
                   </td>
                 </tr>
               )}
               {!loading && items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sh-gray">
+                  <td colSpan={7} className="px-4 py-8 text-center text-brand-gray">
                     No consignment items found.
                   </td>
                 </tr>
@@ -202,15 +202,17 @@ export function ConsignmentView() {
                   <tr
                     key={item.id}
                     onClick={() => router.push(`/app/inventory/consignment/${item.id}`)}
-                    className={`border-b border-sh-gray/10 cursor-pointer hover:bg-sh-linen transition ${
-                      i % 2 === 1 ? "bg-sh-stripe" : ""
+                    className={`border-b border-brand-gray/10 cursor-pointer hover:bg-brand-linen transition ${
+                      i % 2 === 1 ? "bg-brand-stripe" : ""
                     }`}
                   >
-                    <td className="px-4 py-3 text-sh-black">{item.barcode}</td>
-                    <td className="px-4 py-3 text-sh-black">{item.quality}</td>
-                    <td className="px-4 py-3 text-sh-black">{item.size}</td>
-                    <td className="px-4 py-3 text-sh-black text-right">{fmt(item.cost)}</td>
-                    <td className="px-4 py-3 text-sh-black text-right">{fmt(item.retailPrice)}</td>
+                    <td className="px-4 py-3 text-brand-black">{item.barcode}</td>
+                    <td className="px-4 py-3 text-brand-black">{item.quality}</td>
+                    <td className="px-4 py-3 text-brand-black">{item.size}</td>
+                    <td className="px-4 py-3 text-brand-black text-right">{fmt(item.cost)}</td>
+                    <td className="px-4 py-3 text-brand-black text-right">
+                      {fmt(item.retailPrice)}
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${badgeClass(
@@ -220,7 +222,9 @@ export function ConsignmentView() {
                         {statusLabel(item.status)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sh-black">{item.storeLocation?.name || "-"}</td>
+                    <td className="px-4 py-3 text-brand-black">
+                      {item.storeLocation?.name || "-"}
+                    </td>
                   </tr>
                 ))}
             </tbody>
@@ -228,7 +232,7 @@ export function ConsignmentView() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-sm text-sh-gray">
+      <div className="flex items-center justify-between text-sm text-brand-gray">
         <span>
           {total} item{total !== 1 ? "s" : ""}
         </span>

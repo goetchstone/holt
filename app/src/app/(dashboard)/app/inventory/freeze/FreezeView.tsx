@@ -67,7 +67,7 @@ interface ComparisonResult {
 const STATUS_STYLES: Record<string, string> = {
   COMPLETED: "bg-green-100 text-green-800",
   IN_PROGRESS: "bg-yellow-100 text-yellow-800",
-  CANCELLED: "bg-sh-gray/20 text-sh-gray",
+  CANCELLED: "bg-brand-gray/20 text-brand-gray",
 };
 
 function formatDate(dateStr: string): string {
@@ -83,7 +83,7 @@ function formatDate(dateStr: string): string {
 function diffColorClass(difference: number): string {
   if (difference > 0) return "text-green-700";
   if (difference < 0) return "text-red-700";
-  return "text-sh-gray";
+  return "text-brand-gray";
 }
 
 export function FreezeView() {
@@ -213,8 +213,8 @@ export function FreezeView() {
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue">Inventory Freeze</h1>
-          <p className="text-sh-gray text-sm mt-1">
+          <h1 className="text-2xl font-semibold text-brand-blue">Inventory Freeze</h1>
+          <p className="text-brand-gray text-sm mt-1">
             Point-in-time snapshots of current inventory positions.
           </p>
         </div>
@@ -250,7 +250,7 @@ export function FreezeView() {
       </div>
 
       {compareMode && !comparison && (
-        <p className="text-sh-gray text-sm">
+        <p className="text-brand-gray text-sm">
           Select two completed freezes to compare their inventory differences.
         </p>
       )}
@@ -299,12 +299,12 @@ function FreezeList({
   onCancel,
 }: Readonly<FreezeListProps>) {
   if (loading) {
-    return <p className="text-sh-gray">Loading...</p>;
+    return <p className="text-brand-gray">Loading...</p>;
   }
   if (freezes.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-8 text-center">
-        <p className="text-sh-gray">
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-8 text-center">
+        <p className="text-brand-gray">
           No freezes yet. Create one to snapshot the current inventory.
         </p>
       </div>
@@ -354,9 +354,9 @@ function FreezeRow({
   onCancel,
 }: Readonly<FreezeRowProps>) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md">
       <div
-        className="p-4 flex items-center justify-between cursor-pointer hover:bg-sh-stripe transition"
+        className="p-4 flex items-center justify-between cursor-pointer hover:bg-brand-stripe transition"
         role="button"
         tabIndex={0}
         onClick={() => onActivate(freeze)}
@@ -373,13 +373,15 @@ function FreezeRow({
               checked={selected}
               onChange={() => onToggleSelect(freeze.id)}
               onClick={(e) => e.stopPropagation()}
-              className="w-5 h-5 accent-sh-blue"
+              className="w-5 h-5 accent-brand-blue"
               aria-label={`Select freeze from ${formatDate(freeze.freezeDate)}`}
             />
           )}
           <div>
             <div className="flex items-center gap-3">
-              <span className="font-semibold text-sh-black">{formatDate(freeze.freezeDate)}</span>
+              <span className="font-semibold text-brand-black">
+                {formatDate(freeze.freezeDate)}
+              </span>
               <span
                 className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_STYLES[freeze.status] || ""}`}
               >
@@ -387,11 +389,11 @@ function FreezeRow({
               </span>
             </div>
             {freeze.description && (
-              <p className="text-sh-gray text-sm mt-0.5">{freeze.description}</p>
+              <p className="text-brand-gray text-sm mt-0.5">{freeze.description}</p>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-6 text-sm text-sh-gray">
+        <div className="flex items-center gap-6 text-sm text-brand-gray">
           <span>{freeze.totalItems.toLocaleString()} items</span>
           <span>{freeze.totalUnits.toLocaleString()} units</span>
           {!compareMode && freeze.status === "COMPLETED" && (
@@ -410,7 +412,7 @@ function FreezeRow({
       </div>
 
       {expanded && !compareMode && (
-        <div className="border-t border-sh-gray/10 p-4">
+        <div className="border-t border-brand-gray/10 p-4">
           <FreezeExpandedDetail loading={detailLoading} detail={detail} />
         </div>
       )}
@@ -423,7 +425,7 @@ function FreezeExpandedDetail({
   detail,
 }: Readonly<{ loading: boolean; detail: FreezeDetail | null }>) {
   if (loading) {
-    return <p className="text-sh-gray text-sm">Loading details...</p>;
+    return <p className="text-brand-gray text-sm">Loading details...</p>;
   }
   if (!detail) {
     return null;
@@ -435,7 +437,7 @@ function FreezeDetailView({ detail }: Readonly<{ detail: FreezeDetail }>) {
   const groupKeys = Object.keys(detail.groups).sort((a, b) => a.localeCompare(b));
 
   if (groupKeys.length === 0) {
-    return <p className="text-sh-gray text-sm">No items in this freeze.</p>;
+    return <p className="text-brand-gray text-sm">No items in this freeze.</p>;
   }
 
   return (
@@ -445,10 +447,10 @@ function FreezeDetailView({ detail }: Readonly<{ detail: FreezeDetail }>) {
         const locationName = group.storeLocation?.name || "Unassigned";
         return (
           <div key={key}>
-            <h3 className="text-sm font-semibold text-sh-blue mb-2">{locationName}</h3>
+            <h3 className="text-sm font-semibold text-brand-blue mb-2">{locationName}</h3>
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-sh-gray border-b border-sh-gray/10">
+                <tr className="text-left text-brand-gray border-b border-brand-gray/10">
                   <th className="pb-1 font-medium">Product Number</th>
                   <th className="pb-1 font-medium">Name</th>
                   <th className="pb-1 font-medium text-right">Qty</th>
@@ -458,11 +460,13 @@ function FreezeDetailView({ detail }: Readonly<{ detail: FreezeDetail }>) {
                 {group.items.map((item) => (
                   <tr
                     key={item.id}
-                    className="border-b border-sh-gray/5 last:border-0 hover:bg-sh-stripe"
+                    className="border-b border-brand-gray/5 last:border-0 hover:bg-brand-stripe"
                   >
-                    <td className="py-1.5 text-sh-black">{item.productNumber}</td>
-                    <td className="py-1.5 text-sh-gray">{item.productName}</td>
-                    <td className="py-1.5 text-right text-sh-black font-medium">{item.quantity}</td>
+                    <td className="py-1.5 text-brand-black">{item.productNumber}</td>
+                    <td className="py-1.5 text-brand-gray">{item.productName}</td>
+                    <td className="py-1.5 text-right text-brand-black font-medium">
+                      {item.quantity}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -479,9 +483,9 @@ function ComparisonView({
   onClose,
 }: Readonly<{ comparison: ComparisonResult; onClose: () => void }>) {
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-4 space-y-4">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-sh-blue">
+        <h2 className="text-lg font-semibold text-brand-blue">
           Comparison: {formatDate(comparison.freeze1.freezeDate)} vs{" "}
           {formatDate(comparison.freeze2.freezeDate)}
         </h2>
@@ -489,16 +493,16 @@ function ComparisonView({
           Close
         </Button>
       </div>
-      <p className="text-sh-gray text-sm">
+      <p className="text-brand-gray text-sm">
         {comparison.totalDifferences} difference{comparison.totalDifferences !== 1 ? "s" : ""}{" "}
         found.
       </p>
       {comparison.differences.length === 0 ? (
-        <p className="text-sh-gray text-sm">No differences between these two freezes.</p>
+        <p className="text-brand-gray text-sm">No differences between these two freezes.</p>
       ) : (
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-sh-gray border-b border-sh-gray/10">
+            <tr className="text-left text-brand-gray border-b border-brand-gray/10">
               <th className="pb-1 font-medium">Product</th>
               <th className="pb-1 font-medium">Location</th>
               <th className="pb-1 font-medium text-right">First</th>
@@ -510,15 +514,15 @@ function ComparisonView({
             {comparison.differences.map((diff) => (
               <tr
                 key={`${diff.productId}-${diff.storeLocationCode ?? "none"}`}
-                className="border-b border-sh-gray/5 last:border-0 hover:bg-sh-stripe"
+                className="border-b border-brand-gray/5 last:border-0 hover:bg-brand-stripe"
               >
                 <td className="py-1.5">
-                  <span className="text-sh-black">{diff.productNumber}</span>
-                  <span className="text-sh-gray ml-2">{diff.productName}</span>
+                  <span className="text-brand-black">{diff.productNumber}</span>
+                  <span className="text-brand-gray ml-2">{diff.productName}</span>
                 </td>
-                <td className="py-1.5 text-sh-gray">{diff.storeLocationName || "Unassigned"}</td>
-                <td className="py-1.5 text-right text-sh-black">{diff.quantity1}</td>
-                <td className="py-1.5 text-right text-sh-black">{diff.quantity2}</td>
+                <td className="py-1.5 text-brand-gray">{diff.storeLocationName || "Unassigned"}</td>
+                <td className="py-1.5 text-right text-brand-black">{diff.quantity1}</td>
+                <td className="py-1.5 text-right text-brand-black">{diff.quantity2}</td>
                 <td className={`py-1.5 text-right font-medium ${diffColorClass(diff.difference)}`}>
                   {diff.difference > 0 ? "+" : ""}
                   {diff.difference}

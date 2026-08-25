@@ -25,8 +25,8 @@ export default async function SupportPage() {
   return (
     <div className="mx-auto max-w-screen-md px-6 py-12">
       <header className="max-w-2xl">
-        <h1 className="font-serif text-4xl text-sh-navy">How can we help?</h1>
-        <p className="mt-3 text-sh-gray">
+        <h1 className="font-serif text-4xl text-brand-navy">How can we help?</h1>
+        <p className="mt-3 text-brand-gray">
           Send the {teamName} team a message and we&apos;ll get back to you by email. You&apos;ll
           get a link to track your request.
         </p>

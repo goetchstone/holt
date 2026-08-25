@@ -111,9 +111,9 @@ export function DepartmentsView() {
   ];
 
   return (
-    <div className="py-2 font-serif text-sh-black">
+    <div className="py-2 font-serif text-brand-black">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-sh-blue">Departments</h1>
+        <h1 className="text-2xl font-semibold text-brand-blue">Departments</h1>
         <Button variant="primary" onClick={() => setSelectedDepartment({} as Department)}>
           + Add New <Plus className="w-4 h-4 ml-2" />
         </Button>

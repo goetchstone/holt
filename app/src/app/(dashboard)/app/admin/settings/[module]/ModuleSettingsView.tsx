@@ -30,34 +30,34 @@ export function ModuleSettingsView({ module: mod }: Readonly<{ module: ModuleDef
     <div className="max-w-2xl space-y-8 pb-16">
       <div>
         <div className="flex items-center gap-2">
-          <h1 className="font-serif text-2xl text-sh-blue">{mod.name}</h1>
-          <span className="rounded-full border border-sh-brand-gray px-2 py-0.5 text-[10px] uppercase tracking-wide text-sh-gray">
+          <h1 className="font-serif text-2xl text-brand-blue">{mod.name}</h1>
+          <span className="rounded-full border border-brand-accent-gray px-2 py-0.5 text-[10px] uppercase tracking-wide text-brand-gray">
             {mod.category}
           </span>
         </div>
-        <p className="mt-1 text-sm text-sh-gray">{mod.description}</p>
+        <p className="mt-1 text-sm text-brand-gray">{mod.description}</p>
         {mod.docs && (
-          <p className="mt-2 text-xs text-sh-gray">
-            Runbook: <code className="text-sh-black">{mod.docs}</code>
+          <p className="mt-2 text-xs text-brand-gray">
+            Runbook: <code className="text-brand-black">{mod.docs}</code>
           </p>
         )}
       </div>
 
       {hasNav && (
         <section className="space-y-3">
-          <h2 className="font-serif text-lg text-sh-blue">Pages</h2>
+          <h2 className="font-serif text-lg text-brand-blue">Pages</h2>
           <div className="space-y-2">
             {mod.nav!.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center justify-between rounded-md border border-sh-brand-gray p-3 text-sm text-sh-black transition hover:border-sh-blue"
+                className="flex items-center justify-between rounded-md border border-brand-accent-gray p-3 text-sm text-brand-black transition hover:border-brand-blue"
               >
                 <span>
                   <span className="block font-medium">{item.label}</span>
-                  <span className="block text-xs text-sh-gray">{item.href}</span>
+                  <span className="block text-xs text-brand-gray">{item.href}</span>
                 </span>
-                <ArrowUpRight className="h-4 w-4 shrink-0 text-sh-gray" />
+                <ArrowUpRight className="h-4 w-4 shrink-0 text-brand-gray" />
               </Link>
             ))}
           </div>
@@ -66,16 +66,16 @@ export function ModuleSettingsView({ module: mod }: Readonly<{ module: ModuleDef
 
       {hasFields && (
         <section className="space-y-3">
-          <h2 className="font-serif text-lg text-sh-blue">Settings</h2>
-          <p className="text-xs text-sh-gray">
+          <h2 className="font-serif text-lg text-brand-blue">Settings</h2>
+          <p className="text-xs text-brand-gray">
             Declared in the manifest, not yet wired to a save endpoint -- no module ships
             configurable fields today. See docs/domains/modules.md.
           </p>
           <dl className="space-y-2">
             {mod.settings!.fields!.map((f) => (
-              <div key={f.key} className="rounded-md border border-sh-brand-gray p-3">
-                <dt className="text-sm font-medium text-sh-black">{f.label}</dt>
-                <dd className="text-xs text-sh-gray">
+              <div key={f.key} className="rounded-md border border-brand-accent-gray p-3">
+                <dt className="text-sm font-medium text-brand-black">{f.label}</dt>
+                <dd className="text-xs text-brand-gray">
                   {f.key} ({f.type ?? "text"})
                 </dd>
               </div>
@@ -85,7 +85,7 @@ export function ModuleSettingsView({ module: mod }: Readonly<{ module: ModuleDef
       )}
 
       {!hasNav && !hasFields && (
-        <p className="text-sm text-sh-gray">This module has no configurable settings.</p>
+        <p className="text-sm text-brand-gray">This module has no configurable settings.</p>
       )}
     </div>
   );

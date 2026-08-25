@@ -30,7 +30,7 @@ export default function MinimalLayout({ children, title }: MinimalLayoutProps) {
           <title>{title}</title>
         </Head>
       )}
-      <header className="w-full border-b border-sh-gray bg-white px-8 h-16 flex items-center justify-between shadow-sm">
+      <header className="w-full border-b border-brand-gray bg-white px-8 h-16 flex items-center justify-between shadow-sm">
         <div className="flex-1"></div>
         <div className="flex-1 flex justify-center">
           <BrandLogo

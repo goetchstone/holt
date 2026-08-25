@@ -25,8 +25,8 @@ export default async function BookPage() {
   return (
     <div className="mx-auto max-w-screen-lg px-6 py-12">
       <header className="max-w-2xl">
-        <h1 className="font-serif text-4xl text-sh-navy">Book a consultation</h1>
-        <p className="mt-3 text-sh-gray">
+        <h1 className="font-serif text-4xl text-brand-navy">Book a consultation</h1>
+        <p className="mt-3 text-brand-gray">
           Pick a time that works for you and we&apos;ll confirm your appointment with {studioName}.
           You&apos;ll get a calendar invite you can add to any calendar.
         </p>

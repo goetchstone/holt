@@ -717,7 +717,7 @@ export function PosView() {
   if (registersLoading) {
     return (
       <div className="max-w-3xl mx-auto py-16 text-center font-serif">
-        <p className="text-sh-gray">Loading registers...</p>
+        <p className="text-brand-gray">Loading registers...</p>
       </div>
     );
   }
@@ -737,13 +737,13 @@ export function PosView() {
     <div className="max-w-3xl mx-auto py-4 font-serif">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue">Point of Sale</h1>
+          <h1 className="text-2xl font-semibold text-brand-blue">Point of Sale</h1>
           {selectedRegister && (
-            <p className="text-xs text-sh-gray mt-0.5">
+            <p className="text-xs text-brand-gray mt-0.5">
               {selectedRegister.name} -- {selectedRegister.storeLocation?.name}
               <button
                 onClick={handleChangeRegister}
-                className="ml-2 text-sh-blue underline min-h-[44px] align-middle"
+                className="ml-2 text-brand-blue underline min-h-[44px] align-middle"
               >
                 Change
               </button>
@@ -760,7 +760,7 @@ export function PosView() {
             onChange={(e) => {
               if (e.target.value) setActiveStore(Number.parseInt(e.target.value));
             }}
-            className="border border-sh-gray/30 rounded px-2 py-1.5 text-sm"
+            className="border border-brand-gray/30 rounded px-2 py-1.5 text-sm"
           >
             <option value="">Select Store</option>
             {allStores.map((s) => (
@@ -774,7 +774,7 @@ export function PosView() {
             className={`px-3 py-1.5 text-sm rounded-full border transition ${
               returnMode
                 ? "bg-red-100 text-red-800 border-red-300"
-                : "bg-white text-sh-gray border-sh-gray/30 hover:border-sh-blue"
+                : "bg-white text-brand-gray border-brand-gray/30 hover:border-brand-blue"
             }`}
           >
             {returnMode ? "Return Mode ON" : "Return Mode"}
@@ -783,27 +783,27 @@ export function PosView() {
       </div>
 
       {/* Customer */}
-      <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-4 mb-4">
+      <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-4 mb-4">
         {selectedCustomer ? (
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-sh-black">
+              <p className="text-sm font-medium text-brand-black">
                 {selectedCustomer.firstName} {selectedCustomer.lastName}
               </p>
-              <p className="text-xs text-sh-gray">
+              <p className="text-xs text-brand-gray">
                 {selectedCustomer.email || selectedCustomer.phone || "No contact info"}
               </p>
             </div>
             <button
               onClick={() => setSelectedCustomer(null)}
-              className="text-xs text-sh-gray underline min-h-[44px] px-2"
+              className="text-xs text-brand-gray underline min-h-[44px] px-2"
             >
               Change
             </button>
           </div>
         ) : (
           <div className="relative">
-            <label htmlFor="pos-customer" className="block text-xs text-sh-gray mb-1">
+            <label htmlFor="pos-customer" className="block text-xs text-brand-gray mb-1">
               Customer
             </label>
             <input
@@ -812,10 +812,10 @@ export function PosView() {
               value={customerSearch}
               onChange={(e) => setCustomerSearch(e.target.value)}
               placeholder="Search by name, phone, or email..."
-              className="w-full border border-sh-gray/30 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-sh-blue"
+              className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand-blue"
             />
             {customerResults.length > 0 && (
-              <div className="absolute z-10 top-full left-0 right-0 bg-white border border-sh-gray/20 rounded shadow-lg mt-1 max-h-48 overflow-y-auto">
+              <div className="absolute z-10 top-full left-0 right-0 bg-white border border-brand-gray/20 rounded shadow-lg mt-1 max-h-48 overflow-y-auto">
                 {customerResults.map((c) => (
                   <button
                     key={c.id}
@@ -823,18 +823,18 @@ export function PosView() {
                       setSelectedCustomer(c);
                       clearCustomerSearch();
                     }}
-                    className="w-full text-left px-3 py-3 text-sm hover:bg-sh-linen border-b border-sh-gray/10 last:border-0 min-h-[44px]"
+                    className="w-full text-left px-3 py-3 text-sm hover:bg-brand-linen border-b border-brand-gray/10 last:border-0 min-h-[44px]"
                   >
                     <span className="font-medium">
                       {c.firstName} {c.lastName}
                     </span>
-                    {c.phone && <span className="text-sh-gray ml-2">{c.phone}</span>}
-                    {c.email && <span className="text-sh-gray ml-2">{c.email}</span>}
+                    {c.phone && <span className="text-brand-gray ml-2">{c.phone}</span>}
+                    {c.email && <span className="text-brand-gray ml-2">{c.email}</span>}
                   </button>
                 ))}
               </div>
             )}
-            {searchingCustomer && <p className="text-xs text-sh-gray mt-1">Searching...</p>}
+            {searchingCustomer && <p className="text-xs text-brand-gray mt-1">Searching...</p>}
           </div>
         )}
       </div>
@@ -842,10 +842,10 @@ export function PosView() {
       {/* Scan input */}
       <div
         className={`border rounded-lg shadow-sm p-4 mb-4 ${
-          returnMode ? "bg-red-50 border-red-200" : "bg-white border-sh-gray/20"
+          returnMode ? "bg-red-50 border-red-200" : "bg-white border-brand-gray/20"
         }`}
       >
-        <label htmlFor="pos-scan" className="block text-xs text-sh-gray mb-1">
+        <label htmlFor="pos-scan" className="block text-xs text-brand-gray mb-1">
           {returnMode ? "Scan item to return" : "Scan barcode or enter product number"}
         </label>
         <input
@@ -856,14 +856,14 @@ export function PosView() {
           onChange={(e) => setScanInput(e.target.value)}
           onKeyDown={handleScanKeyDown}
           placeholder={returnMode ? "Scan return item..." : "Scan or type..."}
-          className="w-full border border-sh-gray/30 rounded px-3 py-2.5 text-lg focus:outline-none focus:border-sh-blue"
+          className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-lg focus:outline-none focus:border-brand-blue"
           autoComplete="off"
         />
       </div>
 
       {/* Product search */}
-      <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-4 mb-4 relative">
-        <label htmlFor="pos-product-search" className="block text-xs text-sh-gray mb-1">
+      <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-4 mb-4 relative">
+        <label htmlFor="pos-product-search" className="block text-xs text-brand-gray mb-1">
           Search products by name
         </label>
         <input
@@ -872,27 +872,27 @@ export function PosView() {
           value={productSearch}
           onChange={(e) => setProductSearch(e.target.value)}
           placeholder="Type to search..."
-          className="w-full border border-sh-gray/30 rounded px-3 py-2 text-sm focus:outline-none focus:border-sh-blue"
+          className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-blue"
         />
         {productResults.length > 0 && (
-          <div className="absolute z-10 top-full left-0 right-0 bg-white border border-sh-gray/20 rounded shadow-lg mt-1 max-h-80 overflow-y-auto mx-4">
+          <div className="absolute z-10 top-full left-0 right-0 bg-white border border-brand-gray/20 rounded shadow-lg mt-1 max-h-80 overflow-y-auto mx-4">
             {productResults.map((p) => (
               <button
                 key={p.id}
                 onClick={() => addProductFromSearch(p)}
-                className="w-full text-left px-3 py-2.5 text-sm hover:bg-sh-linen border-b border-sh-gray/10 last:border-0 min-h-[44px]"
+                className="w-full text-left px-3 py-2.5 text-sm hover:bg-brand-linen border-b border-brand-gray/10 last:border-0 min-h-[44px]"
               >
                 <div className="flex justify-between items-start">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sh-black truncate">{p.name}</p>
-                    <p className="text-xs text-sh-gray">
+                    <p className="font-medium text-brand-black truncate">{p.name}</p>
+                    <p className="text-xs text-brand-gray">
                       {p.productNumber}
                       {p.vendorName && <span> -- {p.vendorName}</span>}
                       {p.categoryName && <span> -- {p.categoryName}</span>}
                     </p>
                   </div>
                   {p.baseRetail && (
-                    <span className="text-sm text-sh-black ml-3 whitespace-nowrap">
+                    <span className="text-sm text-brand-black ml-3 whitespace-nowrap">
                       {fmt(Number(p.baseRetail))}
                     </span>
                   )}
@@ -901,13 +901,13 @@ export function PosView() {
             ))}
           </div>
         )}
-        {searchingProducts && <p className="text-xs text-sh-gray mt-1">Searching...</p>}
+        {searchingProducts && <p className="text-xs text-brand-gray mt-1">Searching...</p>}
       </div>
 
       {/* Cart */}
-      <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm overflow-hidden mb-4">
+      <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm overflow-hidden mb-4">
         {cart.length === 0 ? (
-          <p className="text-sh-gray text-center py-8">Scan an item to start</p>
+          <p className="text-brand-gray text-center py-8">Scan an item to start</p>
         ) : (
           <>
             {cart.map((item, idx) => (
@@ -946,8 +946,8 @@ export function PosView() {
             ))}
 
             {/* Totals */}
-            <div className="p-4 bg-sh-linen border-t border-sh-gray/20 space-y-1">
-              <div className="flex justify-between text-sm text-sh-gray">
+            <div className="p-4 bg-brand-linen border-t border-brand-gray/20 space-y-1">
+              <div className="flex justify-between text-sm text-brand-gray">
                 <span>{cartItemCount} item(s)</span>
                 <span>Subtotal: {fmt(subtotal)}</span>
               </div>
@@ -968,18 +968,20 @@ export function PosView() {
               <div className="flex justify-between items-center pt-1">
                 <button
                   onClick={() => setShowOrderDiscount(!showOrderDiscount)}
-                  className="text-xs text-sh-blue hover:underline"
+                  className="text-xs text-brand-blue hover:underline"
                 >
                   {orderDiscount ? "Change Order Discount" : "Add Order Discount"}
                 </button>
                 <div className="text-right">
-                  <span className="text-xl font-semibold text-sh-black">{fmt(netSubtotal)}</span>
+                  <span className="text-xl font-semibold text-brand-black">{fmt(netSubtotal)}</span>
                   {/* No tax rate is known client-side (it depends on the tax
                       district/exemption resolved server-side), so this is
                       explicitly pre-tax rather than showing a guessed figure.
                       The real, tax-inclusive total appears on the payment
                       screen once the server returns it. */}
-                  <p className="text-[10px] text-sh-gray">+ tax, added when the order is created</p>
+                  <p className="text-[10px] text-brand-gray">
+                    + tax, added when the order is created
+                  </p>
                 </div>
               </div>
 
@@ -992,7 +994,7 @@ export function PosView() {
                     id="pos-order-disc-type"
                     value={orderDiscType}
                     onChange={(e) => setOrderDiscType(e.target.value as DiscountType)}
-                    className="border border-sh-gray/30 rounded px-1.5 py-1 text-xs"
+                    className="border border-brand-gray/30 rounded px-1.5 py-1 text-xs"
                   >
                     <option value="PERCENT">%</option>
                     <option value="AMOUNT">$</option>
@@ -1007,7 +1009,7 @@ export function PosView() {
                     value={orderDiscValue}
                     onChange={(e) => setOrderDiscValue(e.target.value)}
                     placeholder="Amount"
-                    className="w-24 border border-sh-gray/30 rounded px-2 py-1 text-xs"
+                    className="w-24 border border-brand-gray/30 rounded px-2 py-1 text-xs"
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter") applyOrderDiscount();
@@ -1015,13 +1017,13 @@ export function PosView() {
                   />
                   <button
                     onClick={applyOrderDiscount}
-                    className="text-xs text-sh-blue hover:underline"
+                    className="text-xs text-brand-blue hover:underline"
                   >
                     Apply
                   </button>
                   <button
                     onClick={() => setShowOrderDiscount(false)}
-                    className="text-xs text-sh-gray hover:underline"
+                    className="text-xs text-brand-gray hover:underline"
                   >
                     Cancel
                   </button>
@@ -1035,8 +1037,8 @@ export function PosView() {
       {/* Conveyance + Actions */}
       {cart.length > 0 && (
         <div className="space-y-3">
-          <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-4">
-            <p className="block text-xs text-sh-gray mb-2">Conveyance</p>
+          <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-4">
+            <p className="block text-xs text-brand-gray mb-2">Conveyance</p>
             <div className="flex gap-2">
               {DELIVERY_METHODS.map((method) => (
                 <button
@@ -1044,8 +1046,8 @@ export function PosView() {
                   onClick={() => setDeliveryMethod(method)}
                   className={`flex-1 px-3 py-2.5 text-sm rounded border transition min-h-[44px] ${
                     deliveryMethod === method
-                      ? "bg-sh-blue text-white border-sh-blue"
-                      : "bg-white text-sh-gray border-sh-gray/30 hover:border-sh-blue"
+                      ? "bg-brand-blue text-white border-brand-blue"
+                      : "bg-white text-brand-gray border-brand-gray/30 hover:border-brand-blue"
                   }`}
                 >
                   {DELIVERY_METHOD_LABELS[method]}
@@ -1090,17 +1092,19 @@ function RegisterSelect({
 
   return (
     <div className="max-w-2xl mx-auto py-8 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue text-center mb-8">Select Your Register</h1>
+      <h1 className="text-2xl font-semibold text-brand-blue text-center mb-8">
+        Select Your Register
+      </h1>
 
       {registers.length === 0 ? (
-        <p className="text-sh-gray text-center">
+        <p className="text-brand-gray text-center">
           No active registers found. Set up registers in Admin before using POS.
         </p>
       ) : (
         <div className="space-y-6">
           {Object.entries(registersByStore).map(([storeName, storeRegisters]) => (
             <div key={storeName}>
-              <h2 className="text-sm font-medium text-sh-gray uppercase tracking-wide mb-3">
+              <h2 className="text-sm font-medium text-brand-gray uppercase tracking-wide mb-3">
                 {storeName}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1108,7 +1112,7 @@ function RegisterSelect({
                   <button
                     key={r.id}
                     onClick={() => onSelect(r)}
-                    className="h-[60px] px-4 text-left bg-white border border-sh-gray/20 rounded-lg shadow-sm hover:border-sh-blue hover:shadow-md transition text-sh-black font-medium text-base"
+                    className="h-[60px] px-4 text-left bg-white border border-brand-gray/20 rounded-lg shadow-sm hover:border-brand-blue hover:shadow-md transition text-brand-black font-medium text-base"
                   >
                     {r.name}
                   </button>
@@ -1121,7 +1125,10 @@ function RegisterSelect({
 
       {showCancel && (
         <div className="mt-8 text-center">
-          <button onClick={onCancel} className="text-sm text-sh-gray underline min-h-[44px] px-4">
+          <button
+            onClick={onCancel}
+            className="text-sm text-brand-gray underline min-h-[44px] px-4"
+          >
             Cancel
           </button>
         </div>
@@ -1143,20 +1150,20 @@ function PaymentCompletePanel({
 }>) {
   return (
     <div className="max-w-lg mx-auto py-12 font-serif text-center">
-      <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-8">
-        <h2 className="text-2xl font-semibold text-sh-blue mb-6">Payment Complete</h2>
-        <div className="space-y-3 text-sm text-sh-black mb-8">
+      <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-8">
+        <h2 className="text-2xl font-semibold text-brand-blue mb-6">Payment Complete</h2>
+        <div className="space-y-3 text-sm text-brand-black mb-8">
           <p>
-            <span className="text-sh-gray">Order:</span> {summary.orderno}
+            <span className="text-brand-gray">Order:</span> {summary.orderno}
           </p>
           <p>
-            <span className="text-sh-gray">Method:</span> {summary.method}
+            <span className="text-brand-gray">Method:</span> {summary.method}
           </p>
           <p>
-            <span className="text-sh-gray">Amount:</span> {fmt(summary.amount)}
+            <span className="text-brand-gray">Amount:</span> {fmt(summary.amount)}
           </p>
           {summary.change !== undefined && summary.change > 0 && (
-            <p className="text-lg font-semibold text-sh-blue mt-4">
+            <p className="text-lg font-semibold text-brand-blue mt-4">
               Change Due: {fmt(summary.change)}
             </p>
           )}
@@ -1233,16 +1240,16 @@ function TakePaymentPanel({
 
   return (
     <div className="max-w-lg mx-auto py-8 font-serif">
-      <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-6 mb-6">
+      <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-6 mb-6">
         <div className="flex justify-between items-start mb-2">
           <div>
-            <h2 className="text-xl font-semibold text-sh-blue">Take Payment</h2>
-            <p className="text-sm text-sh-gray mt-1">Order {order.orderno}</p>
+            <h2 className="text-xl font-semibold text-brand-blue">Take Payment</h2>
+            <p className="text-sm text-brand-gray mt-1">Order {order.orderno}</p>
           </div>
           <div className="text-right">
-            <span className="text-2xl font-semibold text-sh-black">{fmt(balanceDue)}</span>
+            <span className="text-2xl font-semibold text-brand-black">{fmt(balanceDue)}</span>
             {paidSoFar > 0 && (
-              <p className="text-xs text-sh-gray mt-0.5">
+              <p className="text-xs text-brand-gray mt-0.5">
                 {fmt(paidSoFar)} paid of {fmt(order.total)}
               </p>
             )}
@@ -1250,7 +1257,7 @@ function TakePaymentPanel({
         </div>
         {/* Breakdown from the server's authoritative pricing -- the tax line
             the cart screen couldn't show, now that the rate is known. */}
-        <div className="text-xs text-sh-gray space-y-0.5 border-t border-sh-gray/10 pt-2 mt-2">
+        <div className="text-xs text-brand-gray space-y-0.5 border-t border-brand-gray/10 pt-2 mt-2">
           <div className="flex justify-between">
             <span>Subtotal</span>
             <span>{fmt(order.subtotal)}</span>
@@ -1269,8 +1276,8 @@ function TakePaymentPanel({
       </div>
 
       {paymentMethod && (
-        <div className="bg-white border border-sh-gray/20 rounded-lg p-4 mb-4">
-          <label htmlFor="pay-amount" className="mb-1 block text-sm text-sh-gray">
+        <div className="bg-white border border-brand-gray/20 rounded-lg p-4 mb-4">
+          <label htmlFor="pay-amount" className="mb-1 block text-sm text-brand-gray">
             Amount to take now
           </label>
           <div className="flex items-center gap-3">
@@ -1283,17 +1290,17 @@ function TakePaymentPanel({
               value={payAmount}
               onChange={(e) => setPayAmount(e.target.value)}
               placeholder={balanceDue.toFixed(2)}
-              className="w-40 rounded-md border border-sh-brand-gray px-3 py-2 text-right text-sh-black focus:border-sh-blue focus:outline-none"
+              className="w-40 rounded-md border border-brand-accent-gray px-3 py-2 text-right text-brand-black focus:border-brand-blue focus:outline-none"
             />
             <button
               type="button"
               onClick={() => setPayAmount(balanceDue.toFixed(2))}
-              className="rounded-md border border-sh-brand-gray px-3 py-2 text-sm"
+              className="rounded-md border border-brand-accent-gray px-3 py-2 text-sm"
             >
               Pay in full
             </button>
           </div>
-          <p className="mt-1 text-xs text-sh-gray">
+          <p className="mt-1 text-xs text-brand-gray">
             Leave blank to take the full {fmt(balanceDue)} balance. Enter less to take a deposit or
             split across tenders — the order stays open until it is paid off.
           </p>
@@ -1306,21 +1313,21 @@ function TakePaymentPanel({
             <button
               key={method}
               onClick={() => setPaymentMethod(method)}
-              className="h-[60px] bg-white border border-sh-gray/20 rounded-lg shadow-sm text-sh-black font-semibold text-lg hover:border-sh-blue hover:shadow-md transition"
+              className="h-[60px] bg-white border border-brand-gray/20 rounded-lg shadow-sm text-brand-black font-semibold text-lg hover:border-brand-blue hover:shadow-md transition"
             >
               {PAYMENT_METHOD_LABELS[method]}
             </button>
           ))}
         </div>
       ) : (
-        <div className="bg-white border border-sh-gray/20 rounded-lg shadow-sm p-6 space-y-4">
+        <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-semibold text-sh-black">
+            <h3 className="text-lg font-semibold text-brand-black">
               {PAYMENT_METHOD_LABELS[paymentMethod]} Payment
             </h3>
             <button
               onClick={onResetFlow}
-              className="text-sm text-sh-gray underline min-h-[44px] px-2"
+              className="text-sm text-brand-gray underline min-h-[44px] px-2"
             >
               Back
             </button>
@@ -1329,7 +1336,7 @@ function TakePaymentPanel({
           {paymentMethod === "CASH" && (
             <div className="space-y-4">
               <div>
-                <label htmlFor="pos-tendered" className="block text-xs text-sh-gray mb-1">
+                <label htmlFor="pos-tendered" className="block text-xs text-brand-gray mb-1">
                   Amount Tendered
                 </label>
                 <input
@@ -1340,7 +1347,7 @@ function TakePaymentPanel({
                   value={tenderedAmount}
                   onChange={(e) => setTenderedAmount(e.target.value)}
                   placeholder={payingNow.toFixed(2)}
-                  className="w-full border border-sh-gray/30 rounded px-3 py-3 text-lg focus:outline-none focus:border-sh-blue"
+                  className="w-full border border-brand-gray/30 rounded px-3 py-3 text-lg focus:outline-none focus:border-brand-blue"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onRecordPayment();
@@ -1348,9 +1355,9 @@ function TakePaymentPanel({
                 />
               </div>
               {cashChange !== null && (
-                <div className="bg-sh-linen rounded-lg p-3 text-center">
-                  <p className="text-sm text-sh-gray">Change Due</p>
-                  <p className="text-2xl font-semibold text-sh-blue">{fmt(cashChange)}</p>
+                <div className="bg-brand-linen rounded-lg p-3 text-center">
+                  <p className="text-sm text-brand-gray">Change Due</p>
+                  <p className="text-2xl font-semibold text-brand-blue">{fmt(cashChange)}</p>
                 </div>
               )}
             </div>
@@ -1358,7 +1365,7 @@ function TakePaymentPanel({
 
           {paymentMethod === "CHECK" && (
             <div>
-              <label htmlFor="pos-check-number" className="block text-xs text-sh-gray mb-1">
+              <label htmlFor="pos-check-number" className="block text-xs text-brand-gray mb-1">
                 Check Number
               </label>
               <input
@@ -1367,7 +1374,7 @@ function TakePaymentPanel({
                 value={checkNumber}
                 onChange={(e) => setCheckNumber(e.target.value)}
                 placeholder="Enter check number"
-                className="w-full border border-sh-gray/30 rounded px-3 py-3 text-lg focus:outline-none focus:border-sh-blue"
+                className="w-full border border-brand-gray/30 rounded px-3 py-3 text-lg focus:outline-none focus:border-brand-blue"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter") onRecordPayment();
@@ -1377,7 +1384,7 @@ function TakePaymentPanel({
           )}
 
           {paymentMethod === "CARD" && (
-            <p className="text-sm text-sh-gray py-2">
+            <p className="text-sm text-brand-gray py-2">
               Card payment will be recorded. Stripe reader integration coming soon.
             </p>
           )}
@@ -1385,7 +1392,7 @@ function TakePaymentPanel({
           {paymentMethod === "GIFT_CARD" && (
             <div className="space-y-3">
               <div>
-                <label htmlFor="pos-giftcard" className="block text-xs text-sh-gray mb-1">
+                <label htmlFor="pos-giftcard" className="block text-xs text-brand-gray mb-1">
                   Gift Card Barcode / Number
                 </label>
                 <div className="flex gap-2">
@@ -1399,7 +1406,7 @@ function TakePaymentPanel({
                       setGiftCardInfo(null);
                     }}
                     placeholder="Scan or enter gift card number"
-                    className="flex-1 border border-sh-gray/30 rounded px-3 py-3 text-lg focus:outline-none focus:border-sh-blue"
+                    className="flex-1 border border-brand-gray/30 rounded px-3 py-3 text-lg focus:outline-none focus:border-brand-blue"
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter") onLookupGiftCard();
@@ -1408,7 +1415,7 @@ function TakePaymentPanel({
                   <button
                     onClick={onLookupGiftCard}
                     disabled={!giftCardBarcode.trim()}
-                    className="px-4 py-3 bg-sh-blue text-white rounded font-semibold text-sm hover:bg-sh-black transition disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                    className="px-4 py-3 bg-brand-blue text-white rounded font-semibold text-sm hover:bg-brand-black transition disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
                   >
                     Look Up
                   </button>
@@ -1416,9 +1423,9 @@ function TakePaymentPanel({
               </div>
               {giftCardError && <p className="text-sm text-red-600">{giftCardError}</p>}
               {giftCardInfo && (
-                <div className="bg-sh-linen rounded-lg p-3">
-                  <p className="text-xs text-sh-gray">Card: {giftCardInfo.barcode}</p>
-                  <p className="text-sm font-medium text-sh-black">
+                <div className="bg-brand-linen rounded-lg p-3">
+                  <p className="text-xs text-brand-gray">Card: {giftCardInfo.barcode}</p>
+                  <p className="text-sm font-medium text-brand-black">
                     Balance: {fmt(giftCardInfo.currentBalance)}
                   </p>
                   {giftCardInfo.currentBalance < payingNow && (
@@ -1445,7 +1452,7 @@ function TakePaymentPanel({
       )}
 
       <div className="mt-6 text-center">
-        <button onClick={onSkip} className="text-sm text-sh-gray underline min-h-[44px] px-4">
+        <button onClick={onSkip} className="text-sm text-brand-gray underline min-h-[44px] px-4">
           Skip payment and view order
         </button>
       </div>
@@ -1508,31 +1515,31 @@ function CartRow({
   const onHandHere = registerStoreName ? onHandAt(item, registerStoreName) : 0;
 
   return (
-    <div className={`border-b border-sh-gray/10 p-3 ${item.isReturn ? "bg-red-50" : ""}`}>
+    <div className={`border-b border-brand-gray/10 p-3 ${item.isReturn ? "bg-red-50" : ""}`}>
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-sh-black truncate">{item.name}</p>
+            <p className="text-sm font-medium text-brand-black truncate">{item.name}</p>
             {item.isReturn && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-200 text-red-800">
                 RETURN
               </span>
             )}
           </div>
-          <p className="text-xs text-sh-gray">{item.productNumber}</p>
+          <p className="text-xs text-brand-gray">{item.productNumber}</p>
           {registerStoreName && (
             <p className="text-xs mt-1">
-              <span className="text-sh-gray">Source: </span>
-              <span className="font-medium text-sh-blue">{registerStoreName}</span>
+              <span className="text-brand-gray">Source: </span>
+              <span className="font-medium text-brand-blue">{registerStoreName}</span>
               {onHandHere > 0 ? (
-                <span className="text-sh-gray"> ({onHandHere} on hand)</span>
+                <span className="text-brand-gray"> ({onHandHere} on hand)</span>
               ) : (
                 <span className="text-red-700 font-medium"> -- 0 on hand here</span>
               )}
             </p>
           )}
           {item.inventorySummary.length > 0 && (
-            <p className="text-xs text-sh-gray mt-0.5">
+            <p className="text-xs text-brand-gray mt-0.5">
               <span className="uppercase tracking-wide text-[10px]">Stock:</span>{" "}
               {item.inventorySummary.map((s) => `${s.locationName} ${s.available}`).join(" · ")}
             </p>
@@ -1558,14 +1565,14 @@ function CartRow({
         <div className="flex items-center gap-1">
           <button
             onClick={onDecrementQuantity}
-            className="w-7 h-7 rounded border border-sh-gray/30 text-sh-gray hover:bg-sh-linen text-sm"
+            className="w-7 h-7 rounded border border-brand-gray/30 text-brand-gray hover:bg-brand-linen text-sm"
           >
             -
           </button>
           <span className="w-8 text-center text-sm">{item.quantity}</span>
           <button
             onClick={onIncrementQuantity}
-            className="w-7 h-7 rounded border border-sh-gray/30 text-sh-gray hover:bg-sh-linen text-sm"
+            className="w-7 h-7 rounded border border-brand-gray/30 text-brand-gray hover:bg-brand-linen text-sm"
           >
             +
           </button>
@@ -1589,28 +1596,31 @@ function CartRow({
                   if (e.key === "Enter") onApplyPriceEdit();
                   if (e.key === "Escape") onCancelPriceEdit();
                 }}
-                className="w-20 text-xs border border-sh-gray/30 rounded px-1.5 py-1 text-right"
+                className="w-20 text-xs border border-brand-gray/30 rounded px-1.5 py-1 text-right"
                 autoFocus
               />
             </div>
           ) : (
             <button
               onClick={onBeginPriceEdit}
-              className="text-sm font-medium hover:text-sh-blue"
+              className="text-sm font-medium hover:text-brand-blue"
               title="Click to edit price"
             >
               {fmt(lineTotal)}
             </button>
           )}
           {item.discounts.length > 0 && !isEditingPrice && (
-            <p className="text-[10px] text-sh-gray line-through">
+            <p className="text-[10px] text-brand-gray line-through">
               {fmt(item.price * item.quantity)}
             </p>
           )}
         </div>
 
         <div className="flex flex-col gap-1">
-          <button onClick={onToggleDiscount} className="text-[10px] text-sh-blue hover:underline">
+          <button
+            onClick={onToggleDiscount}
+            className="text-[10px] text-brand-blue hover:underline"
+          >
             Disc
           </button>
           <button onClick={onRemove} className="text-[10px] text-red-400 hover:text-red-600">
@@ -1629,7 +1639,7 @@ function CartRow({
             id={`pos-item-disc-type-${idx}`}
             value={discType}
             onChange={(e) => setDiscType(e.target.value as DiscountType)}
-            className="border border-sh-gray/30 rounded px-1.5 py-1 text-xs"
+            className="border border-brand-gray/30 rounded px-1.5 py-1 text-xs"
           >
             <option value="PERCENT">%</option>
             <option value="AMOUNT">$</option>
@@ -1644,16 +1654,19 @@ function CartRow({
             value={discValue}
             onChange={(e) => setDiscValue(e.target.value)}
             placeholder="Amount"
-            className="w-20 border border-sh-gray/30 rounded px-2 py-1 text-xs"
+            className="w-20 border border-brand-gray/30 rounded px-2 py-1 text-xs"
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter") onAddItemDiscount();
             }}
           />
-          <button onClick={onAddItemDiscount} className="text-xs text-sh-blue hover:underline">
+          <button onClick={onAddItemDiscount} className="text-xs text-brand-blue hover:underline">
             Apply
           </button>
-          <button onClick={onCancelItemDiscount} className="text-xs text-sh-gray hover:underline">
+          <button
+            onClick={onCancelItemDiscount}
+            className="text-xs text-brand-gray hover:underline"
+          >
             Cancel
           </button>
         </div>

@@ -89,14 +89,14 @@ export function ProductVarianceView({ externalId }: Readonly<{ externalId: strin
     <div className="max-w-4xl mx-auto mt-8 font-serif">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-sh-blue">Product Variance Details</h1>
+          <h1 className="text-2xl font-semibold text-brand-blue">Product Variance Details</h1>
           {data && (
-            <p className="text-sh-gray">
+            <p className="text-brand-gray">
               {data.product.name} ({data.product.productNumber})
             </p>
           )}
         </div>
-        <Link href={backHref} className="flex items-center gap-2 text-sh-blue hover:underline">
+        <Link href={backHref} className="flex items-center gap-2 text-brand-blue hover:underline">
           <ArrowLeft className="w-4 h-4" />
           Back to Report
         </Link>
@@ -118,9 +118,9 @@ function ProductVarianceBody({
     return <p>No data found.</p>;
   }
   return (
-    <div className="border border-sh-gray rounded-lg overflow-hidden shadow-sm">
+    <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
       <table className="min-w-full text-left text-sm whitespace-nowrap table-fixed w-full">
-        <thead className="bg-sh-linen text-sh-black">
+        <thead className="bg-brand-linen text-brand-black">
           <tr>
             <th className="p-2">Location</th>
             <th className="p-2 text-center">Expected</th>
@@ -130,7 +130,7 @@ function ProductVarianceBody({
         </thead>
         <tbody>
           {data.report.map((row) => (
-            <tr key={row.location} className="odd:bg-white even:bg-sh-stripe">
+            <tr key={row.location} className="odd:bg-white even:bg-brand-stripe">
               <td className="p-2 font-semibold">{row.location}</td>
               <td className="p-2 text-center">{row.expected}</td>
               <td className="p-2 text-center">{row.counted}</td>

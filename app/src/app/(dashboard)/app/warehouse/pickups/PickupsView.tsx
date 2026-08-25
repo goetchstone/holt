@@ -136,17 +136,17 @@ export function PickupsView() {
 
   return (
     <div className="py-2 space-y-6 font-serif">
-      <h1 className="text-2xl text-sh-blue font-semibold">Pickup Schedule</h1>
+      <h1 className="text-2xl text-brand-blue font-semibold">Pickup Schedule</h1>
 
       {loading ? (
-        <p className="text-sh-gray">Loading...</p>
+        <p className="text-brand-gray">Loading...</p>
       ) : groups.length === 0 ? (
-        <p className="text-sh-gray py-8 text-center">No pickups scheduled</p>
+        <p className="text-brand-gray py-8 text-center">No pickups scheduled</p>
       ) : (
         groups.map((group) => (
           <div key={group.sortKey} className="space-y-3">
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold text-sh-black">{group.label}</h2>
+              <h2 className="text-lg font-semibold text-brand-black">{group.label}</h2>
               {group.isUnscheduled && (
                 <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">
                   Needs scheduling
@@ -183,22 +183,22 @@ function PickupCard({
   const addressLines = formatAddress(pickup.address);
 
   return (
-    <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md p-5">
+    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5">
       <div className="flex justify-between items-start gap-4">
         <div className="flex-1 space-y-2">
           <div className="flex items-center gap-3">
-            <span className="text-lg font-semibold text-sh-black">{pickup.customerName}</span>
+            <span className="text-lg font-semibold text-brand-black">{pickup.customerName}</span>
             {pickup.pickupTimeSlot && (
-              <span className="text-xs px-2 py-0.5 rounded bg-sh-blue/10 text-sh-blue font-medium">
+              <span className="text-xs px-2 py-0.5 rounded bg-brand-blue/10 text-brand-blue font-medium">
                 {pickup.pickupTimeSlot}
               </span>
             )}
           </div>
 
-          <p className="text-sm text-sh-gray">{pickup.productName || "Unknown product"}</p>
+          <p className="text-sm text-brand-gray">{pickup.productName || "Unknown product"}</p>
 
           {addressLines.length > 0 && (
-            <div className="text-sm text-sh-gray leading-relaxed">
+            <div className="text-sm text-brand-gray leading-relaxed">
               {addressLines.map((line, i) => (
                 <div key={i}>{line}</div>
               ))}
@@ -206,7 +206,7 @@ function PickupCard({
           )}
 
           {pickup.customerPhone && (
-            <p className="text-sm text-sh-gray">
+            <p className="text-sm text-brand-gray">
               <a href={`tel:${pickup.customerPhone}`} className="underline">
                 {pickup.customerPhone}
               </a>
@@ -214,12 +214,12 @@ function PickupCard({
           )}
 
           {pickup.pickupNotes && (
-            <p className="text-sm text-sh-gray italic border-l-2 border-sh-gold pl-3 mt-1">
+            <p className="text-sm text-brand-gray italic border-l-2 border-brand-gold pl-3 mt-1">
               {pickup.pickupNotes}
             </p>
           )}
 
-          <div className="flex gap-4 text-xs text-sh-gray/70 pt-1">
+          <div className="flex gap-4 text-xs text-brand-gray/70 pt-1">
             <span>{pickup.returnNumber}</span>
             <span>Order {pickup.orderno}</span>
             {pickup.quantity > 1 && <span>Qty: {pickup.quantity}</span>}

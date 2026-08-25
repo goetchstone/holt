@@ -33,7 +33,7 @@ interface Designer {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  PENDING: "bg-sh-gray/20 text-sh-gray",
+  PENDING: "bg-brand-gray/20 text-brand-gray",
   SCHEDULED: "bg-blue-100 text-blue-800",
   CONFIRMED: "bg-yellow-100 text-yellow-800",
   IN_PROGRESS: "bg-orange-100 text-orange-800",
@@ -129,16 +129,16 @@ export function HouseCallsView() {
   return (
     <div className="py-2 space-y-4 font-serif">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl text-sh-blue font-semibold">House Calls</h1>
+        <h1 className="text-2xl text-brand-blue font-semibold">House Calls</h1>
         <Button onClick={() => router.push("/app/service/house-calls/new")}>New House Call</Button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-end gap-4 bg-white rounded-lg border border-sh-gray/20 shadow-sm p-4">
+      <div className="flex flex-wrap items-end gap-4 bg-white rounded-lg border border-brand-gray/20 shadow-sm p-4">
         <div>
-          <label className="block text-xs font-medium text-sh-gray mb-1">Designer</label>
+          <label className="block text-xs font-medium text-brand-gray mb-1">Designer</label>
           <select
-            className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-w-[180px]"
+            className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-w-[180px]"
             value={designerFilter}
             onChange={(e) => setDesignerFilter(e.target.value)}
           >
@@ -151,9 +151,9 @@ export function HouseCallsView() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-sh-gray mb-1">Status</label>
+          <label className="block text-xs font-medium text-brand-gray mb-1">Status</label>
           <select
-            className="border border-sh-gray/30 rounded px-3 py-2 text-sm min-w-[160px]"
+            className="border border-brand-gray/30 rounded px-3 py-2 text-sm min-w-[160px]"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -166,19 +166,19 @@ export function HouseCallsView() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-sh-gray mb-1">From</label>
+          <label className="block text-xs font-medium text-brand-gray mb-1">From</label>
           <input
             type="date"
-            className="border border-sh-gray/30 rounded px-3 py-2 text-sm"
+            className="border border-brand-gray/30 rounded px-3 py-2 text-sm"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-sh-gray mb-1">To</label>
+          <label className="block text-xs font-medium text-brand-gray mb-1">To</label>
           <input
             type="date"
-            className="border border-sh-gray/30 rounded px-3 py-2 text-sm"
+            className="border border-brand-gray/30 rounded px-3 py-2 text-sm"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
           />
@@ -187,28 +187,32 @@ export function HouseCallsView() {
 
       {/* Table */}
       {loading ? (
-        <p className="text-sh-gray">Loading...</p>
+        <p className="text-brand-gray">Loading...</p>
       ) : (
-        <div className="bg-white rounded-lg border border-sh-gray/20 shadow-md overflow-hidden">
+        <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-sh-gray/20 bg-sh-stripe">
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">Appt #</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">Customer</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">Designer</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray w-[130px]">
+              <tr className="border-b border-brand-gray/20 bg-brand-stripe">
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">Appt #</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">Customer</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">Designer</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray w-[130px]">
                   Date/Time
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray w-[80px]">Duration</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">Store</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray">Scope</th>
-                <th className="text-left px-4 py-3 font-medium text-sh-gray w-[110px]">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray w-[80px]">
+                  Duration
+                </th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">Store</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray">Scope</th>
+                <th className="text-left px-4 py-3 font-medium text-brand-gray w-[110px]">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody>
               {houseCalls.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sh-gray">
+                  <td colSpan={8} className="px-4 py-8 text-center text-brand-gray">
                     No house calls found
                   </td>
                 </tr>
@@ -217,30 +221,30 @@ export function HouseCallsView() {
                   <>
                     <tr
                       key={hc.id}
-                      className="border-b border-sh-gray/10 hover:bg-sh-stripe/50 cursor-pointer"
+                      className="border-b border-brand-gray/10 hover:bg-brand-stripe/50 cursor-pointer"
                       onClick={() => setExpandedId(expandedId === hc.id ? null : hc.id)}
                     >
-                      <td className="px-4 py-2 text-sh-black font-medium">
+                      <td className="px-4 py-2 text-brand-black font-medium">
                         {hc.appointmentNumber}
                       </td>
-                      <td className="px-4 py-2 text-sh-gray">{hc.customerName}</td>
-                      <td className="px-4 py-2 text-sh-gray">{hc.designerName || "--"}</td>
-                      <td className="px-4 py-2 text-sh-gray text-xs">
+                      <td className="px-4 py-2 text-brand-gray">{hc.customerName}</td>
+                      <td className="px-4 py-2 text-brand-gray">{hc.designerName || "--"}</td>
+                      <td className="px-4 py-2 text-brand-gray text-xs">
                         {hc.scheduledDate
                           ? format(new Date(hc.scheduledDate), "MMM d, yyyy")
                           : "--"}
                         {hc.scheduledTime ? ` ${hc.scheduledTime}` : ""}
                       </td>
-                      <td className="px-4 py-2 text-sh-gray text-xs">
+                      <td className="px-4 py-2 text-brand-gray text-xs">
                         {hc.duration ? `${hc.duration}hr` : "--"}
                       </td>
-                      <td className="px-4 py-2 text-sh-gray">{hc.storeName || "--"}</td>
-                      <td className="px-4 py-2 text-sh-gray text-xs max-w-[200px] truncate">
+                      <td className="px-4 py-2 text-brand-gray">{hc.storeName || "--"}</td>
+                      <td className="px-4 py-2 text-brand-gray text-xs max-w-[200px] truncate">
                         {hc.scope || "--"}
                       </td>
                       <td className="px-4 py-2">
                         <span
-                          className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[hc.status] || "bg-sh-gray/20 text-sh-gray"}`}
+                          className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[hc.status] || "bg-brand-gray/20 text-brand-gray"}`}
                         >
                           {STATUS_LABELS[hc.status] || hc.status}
                         </span>
@@ -249,12 +253,12 @@ export function HouseCallsView() {
                     {expandedId === hc.id && (
                       <tr
                         key={`${hc.id}-detail`}
-                        className="border-b border-sh-gray/10 bg-sh-linen"
+                        className="border-b border-brand-gray/10 bg-brand-linen"
                       >
                         <td colSpan={8} className="px-4 py-4">
-                          <div className="text-sm text-sh-gray space-y-1">
+                          <div className="text-sm text-brand-gray space-y-1">
                             <p>
-                              <span className="font-medium text-sh-black">Scope:</span>{" "}
+                              <span className="font-medium text-brand-black">Scope:</span>{" "}
                               {hc.scope || "None provided"}
                             </p>
                           </div>
@@ -269,8 +273,8 @@ export function HouseCallsView() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-sh-gray/20">
-              <p className="text-xs text-sh-gray">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-brand-gray/20">
+              <p className="text-xs text-brand-gray">
                 Showing {(page - 1) * PAGE_SIZE + 1}--
                 {Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
               </p>

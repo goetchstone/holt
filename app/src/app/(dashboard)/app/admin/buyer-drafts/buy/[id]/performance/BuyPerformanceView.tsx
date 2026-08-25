@@ -120,12 +120,12 @@ const STATUS_LABELS: Record<FrameStatus, string> = {
 };
 
 const STATUS_STYLES: Record<FrameStatus, string> = {
-  "no-link": "bg-sh-stripe text-sh-gray",
+  "no-link": "bg-brand-stripe text-brand-gray",
   dead: "bg-red-100 text-red-800",
-  underbuy: "bg-sh-gold/20 text-sh-gold",
+  underbuy: "bg-brand-gold/20 text-brand-gold",
   healthy: "bg-emerald-100 text-emerald-700",
   soft: "bg-yellow-100 text-yellow-800",
-  pending: "bg-sh-blue/10 text-sh-blue",
+  pending: "bg-brand-blue/10 text-brand-blue",
 };
 
 function fmtPct(ratio: number): string {
@@ -194,7 +194,7 @@ export function BuyPerformanceView({ id }: Readonly<{ id: string }>) {
   if (loading || !primary) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-sh-gold" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
       </div>
     );
   }
@@ -205,14 +205,14 @@ export function BuyPerformanceView({ id }: Readonly<{ id: string }>) {
         <div>
           <Link
             href="/app/admin/buyer-drafts"
-            className="text-sm text-sh-blue hover:underline inline-flex items-center gap-1"
+            className="text-sm text-brand-blue hover:underline inline-flex items-center gap-1"
           >
             <ArrowLeft className="h-3 w-3" /> Back to buyer drafts
           </Link>
-          <h1 className="font-serif text-3xl text-sh-navy mt-2">
+          <h1 className="font-serif text-3xl text-brand-navy mt-2">
             Performance — {primary.buy.name}
           </h1>
-          <p className="text-sm text-sh-gray mt-1">
+          <p className="text-sm text-brand-gray mt-1">
             Frame-aware sell-through, margin, and status hints for each frame in this Buy. Excludes
             consignment.
           </p>
@@ -238,20 +238,20 @@ function PerformancePane({
   const isFallbackWindow = salesWindow.source === "fallback-full-history";
   const overBudget = buy.budget ? Number(buy.budget) < rollup.totalSpent : false;
   return (
-    <section className="bg-white border border-sh-stripe rounded-lg p-4">
+    <section className="bg-white border border-brand-stripe rounded-lg p-4">
       <header className="mb-4">
-        <div className="text-xs uppercase tracking-wide text-sh-gray">
+        <div className="text-xs uppercase tracking-wide text-brand-gray">
           {isPrimary ? "This buy" : "Compare to"}
         </div>
-        <h2 className="font-serif text-xl text-sh-navy">
+        <h2 className="font-serif text-xl text-brand-navy">
           {buy.name}
           {buy.season && buy.year && (
-            <span className="text-sh-gray text-base ml-2">
+            <span className="text-brand-gray text-base ml-2">
               ({buy.season} {buy.year})
             </span>
           )}
         </h2>
-        <div className="text-xs text-sh-gray mt-1">
+        <div className="text-xs text-brand-gray mt-1">
           {buy.daysSinceExported} days since exported · status {buy.status}
         </div>
         {/* Slice 6.2 -- sales-window context. Yellow warning when no PO ETA is set
@@ -260,7 +260,7 @@ function PerformancePane({
           className={
             isFallbackWindow
               ? "mt-2 inline-block text-xs px-2 py-1 rounded bg-yellow-50 border border-yellow-200 text-yellow-900"
-              : "mt-2 inline-block text-xs px-2 py-1 rounded bg-sh-stripe text-sh-navy"
+              : "mt-2 inline-block text-xs px-2 py-1 rounded bg-brand-stripe text-brand-navy"
           }
         >
           {salesWindow.message}
@@ -281,7 +281,7 @@ function PerformancePane({
       </div>
 
       {buy.budget && (
-        <div className="text-xs text-sh-gray mb-3">
+        <div className="text-xs text-brand-gray mb-3">
           Budget: {formatMoney(Number(buy.budget), { whole: true })}{" "}
           {overBudget && (
             <span className="text-red-700 font-semibold ml-1">
@@ -291,9 +291,11 @@ function PerformancePane({
         </div>
       )}
 
-      <h3 className="font-semibold text-sh-navy mb-2 text-sm">Per-frame</h3>
+      <h3 className="font-semibold text-brand-navy mb-2 text-sm">Per-frame</h3>
       {frames.length === 0 ? (
-        <p className="text-sm text-sh-gray italic">No frames to report — no drafts on this Buy.</p>
+        <p className="text-sm text-brand-gray italic">
+          No frames to report — no drafts on this Buy.
+        </p>
       ) : (
         <FrameTable frames={frames} formatMoney={formatMoney} />
       )}
@@ -311,7 +313,7 @@ function FrameTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
-        <thead className="text-left text-sh-gray border-b border-sh-stripe">
+        <thead className="text-left text-brand-gray border-b border-brand-stripe">
           <tr>
             <th className="py-2 pr-2">Frame</th>
             <th className="py-2 px-2 text-right">Ordered</th>
@@ -366,10 +368,12 @@ function FrameTableRow({
       ? `Stock: ${f.qtyStockReceived} · Special: ${f.qtySpecialReceived}`
       : undefined;
   return (
-    <tr className="border-b border-sh-stripe/50">
+    <tr className="border-b border-brand-stripe/50">
       <td className="py-2 pr-2">
         <div className="font-mono">{f.frameLabel}</div>
-        {f.draftCount > 1 && <div className="text-sh-gray text-[10px]">{f.draftCount} drafts</div>}
+        {f.draftCount > 1 && (
+          <div className="text-brand-gray text-[10px]">{f.draftCount} drafts</div>
+        )}
       </td>
       <td className="py-2 px-2 text-right">{f.qtyOrdered}</td>
       <td className="py-2 px-2 text-right" title={receivedTitle}>
@@ -377,7 +381,7 @@ function FrameTableRow({
       </td>
       <td className="py-2 px-2 text-right">{f.qtyStockSold}</td>
       <td
-        className={`py-2 px-2 text-right ${f.qtySpecialSold > 0 ? "text-sh-blue" : "text-sh-gray"}`}
+        className={`py-2 px-2 text-right ${f.qtySpecialSold > 0 ? "text-brand-blue" : "text-brand-gray"}`}
       >
         {f.qtySpecialSold}
       </td>
@@ -389,7 +393,7 @@ function FrameTableRow({
             cost dilution doesn't hide stock performance. */}
         <div>{fmtPct(f.stockMarginRatio || f.marginRatio)}</div>
         {f.qtySpecialSold > 0 && (
-          <div className="text-[10px] text-sh-gray">all: {fmtPct(f.marginRatio)}</div>
+          <div className="text-[10px] text-brand-gray">all: {fmtPct(f.marginRatio)}</div>
         )}
         {f.hasEstimatedCost && <div className="text-[10px] text-amber-600">(est)</div>}
       </td>
@@ -407,10 +411,10 @@ function FrameTableRow({
 
 function Kpi({ label, value, sub }: Readonly<{ label: string; value: string; sub?: string }>) {
   return (
-    <div className="bg-sh-stripe/30 rounded p-3">
-      <div className="text-xs text-sh-gray uppercase tracking-wide">{label}</div>
-      <div className="font-semibold text-sh-navy text-base">{value}</div>
-      {sub && <div className="text-[10px] text-sh-blue mt-0.5">{sub}</div>}
+    <div className="bg-brand-stripe/30 rounded p-3">
+      <div className="text-xs text-brand-gray uppercase tracking-wide">{label}</div>
+      <div className="font-semibold text-brand-navy text-base">{value}</div>
+      {sub && <div className="text-[10px] text-brand-blue mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -529,11 +533,11 @@ function LinkedRealPosPanel({ buyId }: Readonly<{ buyId: number }>) {
 
   if (loading) {
     return (
-      <section className="mt-8 bg-white border border-sh-stripe rounded-lg p-6">
+      <section className="mt-8 bg-white border border-brand-stripe rounded-lg p-6">
         <header className="mb-3">
-          <h2 className="font-serif text-xl text-sh-navy">Linked Real Purchase Orders</h2>
+          <h2 className="font-serif text-xl text-brand-navy">Linked Real Purchase Orders</h2>
         </header>
-        <div className="flex items-center gap-2 text-sm text-sh-gray">
+        <div className="flex items-center gap-2 text-sm text-brand-gray">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading…
         </div>
       </section>
@@ -545,10 +549,10 @@ function LinkedRealPosPanel({ buyId }: Readonly<{ buyId: number }>) {
   const hasUnmatched = data.unmatchedDrafts.length > 0;
 
   return (
-    <section className="mt-8 bg-white border border-sh-stripe rounded-lg p-6">
+    <section className="mt-8 bg-white border border-brand-stripe rounded-lg p-6">
       <header className="mb-4">
-        <h2 className="font-serif text-xl text-sh-navy">Linked Real Purchase Orders</h2>
-        <p className="text-sm text-sh-gray mt-1 max-w-3xl">
+        <h2 className="font-serif text-xl text-brand-navy">Linked Real Purchase Orders</h2>
+        <p className="text-sm text-brand-gray mt-1 max-w-3xl">
           Real purchase orders that contain the items drafted under this Buy. Matched by linked
           catalog Product (productId join, not barcode). One draft PO can span multiple real POs
           when the buyer combined them for planning.
@@ -617,8 +621,8 @@ function RealPosTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="text-left text-xs uppercase text-sh-gray tracking-wide">
-          <tr className="border-b border-sh-stripe">
+        <thead className="text-left text-xs uppercase text-brand-gray tracking-wide">
+          <tr className="border-b border-brand-stripe">
             <th className="py-2 px-3 w-6" aria-label="Expand" />
             <th className="py-2 px-3">PON</th>
             <th className="py-2 px-3">Vendor</th>
@@ -631,7 +635,7 @@ function RealPosTable({
         <tbody>
           {realPos.length === 0 ? (
             <tr>
-              <td colSpan={7} className="py-4 px-3 text-sh-gray text-sm italic">
+              <td colSpan={7} className="py-4 px-3 text-brand-gray text-sm italic">
                 No real purchase orders cover this Buy yet. If items were exported and the daily
                 import has run, drafts should match here.
               </td>
@@ -661,13 +665,13 @@ function RealPoRows({
     <>
       <tr
         onClick={() => onToggle(po.id)}
-        className="border-b border-sh-stripe/40 last:border-0 cursor-pointer hover:bg-sh-stripe/40"
+        className="border-b border-brand-stripe/40 last:border-0 cursor-pointer hover:bg-brand-stripe/40"
         aria-expanded={isOpen}
       >
-        <td className="py-2 px-3 text-sh-gray text-xs">{isOpen ? "▾" : "▸"}</td>
-        <td className="py-2 px-3 font-semibold text-sh-navy">{po.poNumber}</td>
-        <td className="py-2 px-3 text-sh-gray">{po.vendor}</td>
-        <td className="py-2 px-3 text-xs text-sh-gray">{formatPoDate(po.orderDate)}</td>
+        <td className="py-2 px-3 text-brand-gray text-xs">{isOpen ? "▾" : "▸"}</td>
+        <td className="py-2 px-3 font-semibold text-brand-navy">{po.poNumber}</td>
+        <td className="py-2 px-3 text-brand-gray">{po.vendor}</td>
+        <td className="py-2 px-3 text-xs text-brand-gray">{formatPoDate(po.orderDate)}</td>
         <td className="py-2 px-3 text-xs">
           <RealPoStatusBadge status={po.status} />
         </td>
@@ -679,8 +683,8 @@ function RealPoRows({
         </td>
       </tr>
       {isOpen && (
-        <tr className="border-b border-sh-stripe/40">
-          <td colSpan={7} className="py-3 px-6 bg-sh-stripe/20">
+        <tr className="border-b border-brand-stripe/40">
+          <td colSpan={7} className="py-3 px-6 bg-brand-stripe/20">
             <RealPoLines po={po} />
           </td>
         </tr>
@@ -692,11 +696,11 @@ function RealPoRows({
 function RealPoLines({ po }: Readonly<{ po: LinkedRealPo }>) {
   const formatMoney = useMoneyFormatter();
   if (po.lines.length === 0) {
-    return <div className="text-xs italic text-sh-gray">No line items on this PO.</div>;
+    return <div className="text-xs italic text-brand-gray">No line items on this PO.</div>;
   }
   return (
     <table className="w-full text-xs">
-      <thead className="text-left uppercase text-sh-gray">
+      <thead className="text-left uppercase text-brand-gray">
         <tr>
           <th className="py-1 pr-3">In plan?</th>
           <th className="py-1 pr-3">Part #</th>
@@ -709,13 +713,13 @@ function RealPoLines({ po }: Readonly<{ po: LinkedRealPo }>) {
         {po.lines.map((line, idx) => (
           <tr
             key={`${po.id}-line-${line.productId ?? "null"}-${idx}`}
-            className="border-t border-sh-stripe/30"
+            className="border-t border-brand-stripe/30"
           >
             <td className="py-1 pr-3">
               <PlanBadge inPlan={line.matchesDraft} />
             </td>
-            <td className="py-1 pr-3 font-mono text-sh-navy">{line.partNo ?? "—"}</td>
-            <td className="py-1 pr-3 text-sh-gray">{line.productName ?? "—"}</td>
+            <td className="py-1 pr-3 font-mono text-brand-navy">{line.partNo ?? "—"}</td>
+            <td className="py-1 pr-3 text-brand-gray">{line.productName ?? "—"}</td>
             <td className="py-1 pr-3 text-right tabular-nums">{line.orderedQuantity}</td>
             <td className="py-1 pr-3 text-right tabular-nums">
               {line.unitCost == null ? "—" : formatMoney(line.unitCost)}
@@ -730,13 +734,13 @@ function RealPoLines({ po }: Readonly<{ po: LinkedRealPo }>) {
 function PlanBadge({ inPlan }: Readonly<{ inPlan: boolean }>) {
   if (inPlan) {
     return (
-      <span className="font-mono px-1.5 py-0.5 rounded bg-sh-blue/15 text-sh-blue text-[10px]">
+      <span className="font-mono px-1.5 py-0.5 rounded bg-brand-blue/15 text-brand-blue text-[10px]">
         STOCK
       </span>
     );
   }
   return (
-    <span className="font-mono px-1.5 py-0.5 rounded bg-sh-stripe text-sh-gray text-[10px]">
+    <span className="font-mono px-1.5 py-0.5 rounded bg-brand-stripe text-brand-gray text-[10px]">
       other
     </span>
   );
@@ -745,10 +749,12 @@ function PlanBadge({ inPlan }: Readonly<{ inPlan: boolean }>) {
 function DraftPosTable({ draftPos }: Readonly<{ draftPos: LinkedPosResponse["draftPos"] }>) {
   return (
     <div className="mt-6">
-      <h3 className="font-serif text-sm uppercase tracking-wide text-sh-gray mb-2">By draft PO</h3>
+      <h3 className="font-serif text-sm uppercase tracking-wide text-brand-gray mb-2">
+        By draft PO
+      </h3>
       <table className="w-full text-sm">
-        <thead className="text-left text-xs uppercase text-sh-gray tracking-wide">
-          <tr className="border-b border-sh-stripe">
+        <thead className="text-left text-xs uppercase text-brand-gray tracking-wide">
+          <tr className="border-b border-brand-stripe">
             <th className="py-2 px-3">Draft PO</th>
             <th className="py-2 px-3">Vendor</th>
             <th className="py-2 px-3 text-right">Items</th>
@@ -757,13 +763,13 @@ function DraftPosTable({ draftPos }: Readonly<{ draftPos: LinkedPosResponse["dra
         </thead>
         <tbody>
           {draftPos.map((dp) => (
-            <tr key={dp.draftPoId} className="border-b border-sh-stripe/40 last:border-0">
-              <td className="py-2 px-3 text-sh-gray">#{dp.draftPoId}</td>
+            <tr key={dp.draftPoId} className="border-b border-brand-stripe/40 last:border-0">
+              <td className="py-2 px-3 text-brand-gray">#{dp.draftPoId}</td>
               <td className="py-2 px-3">{dp.vendorName}</td>
               <td className="py-2 px-3 text-right tabular-nums">{dp.draftItemCount}</td>
               <td className="py-2 px-3 text-xs">
                 {dp.linkedRealPoNumbers.length === 0 ? (
-                  <span className="italic text-sh-gray">—</span>
+                  <span className="italic text-brand-gray">—</span>
                 ) : (
                   dp.linkedRealPoNumbers.join(", ")
                 )}
@@ -781,12 +787,12 @@ function UnmatchedDraftsDetails({
 }: Readonly<{ drafts: LinkedPosResponse["unmatchedDrafts"] }>) {
   return (
     <details className="mt-6">
-      <summary className="cursor-pointer font-semibold text-sm text-sh-navy min-h-[44px] flex items-center">
+      <summary className="cursor-pointer font-semibold text-sm text-brand-navy min-h-[44px] flex items-center">
         Unmatched drafts ({drafts.length})
       </summary>
       <table className="w-full text-sm mt-2">
-        <thead className="text-left text-xs uppercase text-sh-gray tracking-wide">
-          <tr className="border-b border-sh-stripe">
+        <thead className="text-left text-xs uppercase text-brand-gray tracking-wide">
+          <tr className="border-b border-brand-stripe">
             <th className="py-2 px-3">Part #</th>
             <th className="py-2 px-3">Product</th>
             <th className="py-2 px-3">Vendor</th>
@@ -795,10 +801,10 @@ function UnmatchedDraftsDetails({
         </thead>
         <tbody>
           {drafts.map((d) => (
-            <tr key={d.id} className="border-b border-sh-stripe/40 last:border-0">
+            <tr key={d.id} className="border-b border-brand-stripe/40 last:border-0">
               <td className="py-2 px-3 font-mono text-xs">{d.partNumber}</td>
               <td className="py-2 px-3">{d.productName}</td>
-              <td className="py-2 px-3 text-sh-gray">{d.vendorName}</td>
+              <td className="py-2 px-3 text-brand-gray">{d.vendorName}</td>
               <td className="py-2 px-3 text-xs">
                 {d.reason === "no-link"
                   ? "Not linked to a catalog Product"
@@ -817,10 +823,10 @@ function SmallStat({
   value,
   accent,
 }: Readonly<{ label: string; value: string; accent?: "ok" | "warn" }>) {
-  const color = accent === "warn" ? "text-amber-700" : "text-sh-navy";
+  const color = accent === "warn" ? "text-amber-700" : "text-brand-navy";
   return (
-    <div className="border border-sh-stripe rounded p-3">
-      <div className="text-xs uppercase tracking-wide text-sh-gray">{label}</div>
+    <div className="border border-brand-stripe rounded p-3">
+      <div className="text-xs uppercase tracking-wide text-brand-gray">{label}</div>
       <div className={`font-serif text-2xl ${color}`}>{value}</div>
     </div>
   );
@@ -829,8 +835,8 @@ function SmallStat({
 function statusBadgeStyles(status: string): string {
   if (status === "RECEIVED_FULL") return "bg-emerald-100 text-emerald-700";
   if (status === "RECEIVED_PARTIAL") return "bg-amber-100 text-amber-700";
-  if (status === "CONFIRMED" || status === "SUBMITTED") return "bg-sh-blue/15 text-sh-blue";
-  return "bg-sh-stripe text-sh-gray";
+  if (status === "CONFIRMED" || status === "SUBMITTED") return "bg-brand-blue/15 text-brand-blue";
+  return "bg-brand-stripe text-brand-gray";
 }
 
 function RealPoStatusBadge({ status }: Readonly<{ status: string }>) {

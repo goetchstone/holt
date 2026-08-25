@@ -16,7 +16,7 @@ interface Props {
 
 export default function GradePriceGrid({ gradePrices, selectedTierId, onSelect, markup }: Props) {
   if (gradePrices.length === 0) {
-    return <div className="text-sh-gray text-sm">No grade pricing available.</div>;
+    return <div className="text-brand-gray text-sm">No grade pricing available.</div>;
   }
 
   const formatPrice = (val: number) =>
@@ -35,15 +35,15 @@ export default function GradePriceGrid({ gradePrices, selectedTierId, onSelect, 
             onClick={() => onSelect(gp.tierId)}
             className={`rounded-lg px-2 py-3 text-center transition-all ${
               isSelected
-                ? "border-2 border-sh-blue bg-sh-linen shadow-md scale-105"
+                ? "border-2 border-brand-blue bg-brand-linen shadow-md scale-105"
                 : isExtrapolated
-                  ? "border-2 border-dashed border-sh-gray/30 bg-white hover:border-sh-blue/40 hover:shadow-sm"
-                  : "border-2 border-sh-gray/20 bg-white hover:border-sh-blue/40 hover:shadow-sm"
+                  ? "border-2 border-dashed border-brand-gray/30 bg-white hover:border-brand-blue/40 hover:shadow-sm"
+                  : "border-2 border-brand-gray/20 bg-white hover:border-brand-blue/40 hover:shadow-sm"
             }`}
           >
             <div
               className={`text-xs font-semibold mb-1 ${
-                isSelected ? "text-sh-blue" : "text-sh-gray"
+                isSelected ? "text-brand-blue" : "text-brand-gray"
               }`}
             >
               {gp.tierCode === "COM" ? "COM" : `Grade ${gp.tierCode}`}
@@ -51,17 +51,17 @@ export default function GradePriceGrid({ gradePrices, selectedTierId, onSelect, 
             <div
               className={`text-sm font-semibold tabular-nums ${
                 isSelected
-                  ? "text-sh-black"
+                  ? "text-brand-black"
                   : isExtrapolated
-                    ? "text-sh-black/50"
-                    : "text-sh-black/70"
+                    ? "text-brand-black/50"
+                    : "text-brand-black/70"
               }`}
             >
               {formatPrice(displayPrice)}
             </div>
-            {isExtrapolated && <div className="text-[10px] text-sh-gray/60 mt-0.5">(est.)</div>}
+            {isExtrapolated && <div className="text-[10px] text-brand-gray/60 mt-0.5">(est.)</div>}
             {(gp.fabricCount ?? 0) > 0 && (
-              <div className="text-[10px] text-sh-blue/60 mt-0.5">
+              <div className="text-[10px] text-brand-blue/60 mt-0.5">
                 {gp.fabricCount} fabric{gp.fabricCount !== 1 ? "s" : ""}
               </div>
             )}

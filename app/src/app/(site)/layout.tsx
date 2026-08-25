@@ -30,7 +30,7 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
 
   return (
     <div
-      className={`flex min-h-screen flex-col ${dark ? "bg-sh-navy text-sh-stripe" : "bg-white text-sh-black"}`}
+      className={`flex min-h-screen flex-col ${dark ? "bg-brand-navy text-brand-stripe" : "bg-white text-brand-black"}`}
     >
       <SiteHeader
         appName={settings.appName}

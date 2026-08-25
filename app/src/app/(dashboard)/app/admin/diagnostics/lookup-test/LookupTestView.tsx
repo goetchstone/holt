@@ -51,8 +51,8 @@ export function LookupTestView() {
 
   return (
     <div className="max-w-2xl mx-auto mt-8 font-serif">
-      <h1 className="text-2xl font-semibold text-sh-blue mb-4">Diagnostic Lookup Tool</h1>
-      <p className="mb-4 text-sh-gray">
+      <h1 className="text-2xl font-semibold text-brand-blue mb-4">Diagnostic Lookup Tool</h1>
+      <p className="mb-4 text-brand-gray">
         This tool bypasses the scanning UI to test the backend lookup directly. Copy a known-good
         barcode from the UPC Viewer and paste it here to see the raw API response.
       </p>
