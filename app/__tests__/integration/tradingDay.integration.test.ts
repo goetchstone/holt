@@ -559,10 +559,16 @@ describe("a complete trading day (real DB)", () => {
     const credits = entry.lines.reduce((sum, l) => sum + Number(l.credit ?? 0), 0);
     expect(Math.abs(debits - credits)).toBeLessThan(0.005);
 
-    const debit = (code: string) =>
-      Number(entry.lines.find((l) => l.glAccount?.code === code)?.debit ?? 0);
-    const credit = (code: string) =>
-      Number(entry.lines.find((l) => l.glAccount?.code === code)?.credit ?? 0);
+    // SUM, not find: one account can now legitimately carry two lines in a
+    // single entry -- Customer Deposits is credited as money arrives and
+    // debited when the sale is recognised -- and `find` would silently report
+    // whichever the emitter happened to order first.
+    const sideTotal = (code: string, side: "debit" | "credit") =>
+      entry.lines
+        .filter((l) => l.glAccount?.code === code)
+        .reduce((sum, l) => sum + Number(l[side] ?? 0), 0);
+    const debit = (code: string) => sideTotal(code, "debit");
+    const credit = (code: string) => sideTotal(code, "credit");
 
     // SEAM: the money the register took is the money the journal reports --
     // BOTH tenders, each to its own receipt account.
@@ -670,14 +676,22 @@ describe("a complete trading day (real DB)", () => {
     });
     world.journalEntryId = entry.id;
 
-    const credit = (code: string) =>
-      Number(entry.lines.find((l) => l.glAccount?.code === code)?.credit ?? 0);
-    const debit = (code: string) =>
-      Number(entry.lines.find((l) => l.glAccount?.code === code)?.debit ?? 0);
+    const sideTotal = (code: string, side: "debit" | "credit") =>
+      entry.lines
+        .filter((l) => l.glAccount?.code === code)
+        .reduce((sum, l) => sum + Number(l[side] ?? 0), 0);
+    const credit = (code: string) => sideTotal(code, "credit");
+    const debit = (code: string) => sideTotal(code, "debit");
 
     // The card deposit is a LIABILITY: the store owes a sectional, not $1,000
-    // of income. It belongs in Customer Deposits.
-    expect(credit("2-2200")).toBe(1000);
+    // of income. It belongs in Customer Deposits -- and it is still there at
+    // the end of the day, because nothing has been delivered against it.
+    //
+    // The NET is what matters, because this entry touches the deposit account
+    // twice: it credits every deposit taken today (both orders) and debits back
+    // the one that was delivered and invoiced today. What is left is exactly
+    // the money the business is still holding against an undelivered promise.
+    expect(credit("2-2200") - debit("2-2200")).toBe(1000);
 
     // And it must not have been plugged. Before the fix this line read 1000:
     // the card debit had no offsetting credit, so the balancer put it in the

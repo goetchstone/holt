@@ -63,6 +63,33 @@ export interface SalesPayment {
    * separates the two (CLAUDE.md rule 60).
    */
   reversesPaymentId?: number | null;
+  /**
+   * What this money settles, resolved by the loader from recorded facts: the
+   * payment date against the order's earliest non-VOID invoice date.
+   *
+   * DEPOSIT     -- paid before the order was invoiced, so it is a liability.
+   * RECEIVABLE  -- paid on or after the invoice date, so it relieves AR.
+   *
+   * Optional, defaulting to DEPOSIT, for fixtures and callers that predate it:
+   * an order with no invoice can only ever be a deposit.
+   */
+  settles?: "DEPOSIT" | "RECEIVABLE";
+}
+
+/**
+ * One order being recognised on this journal's day, because that is when its
+ * invoice is dated -- which is to say, when it was delivered.
+ */
+export interface OrderRecognition {
+  order: SalesOrderForJournal;
+  /**
+   * Everything the customer paid BEFORE the invoice date. All of it was credited
+   * to the deposit liability on the day it arrived, and all of it is debited
+   * back out now.
+   */
+  priorDepositCredited: number;
+  /** Net + tax across the order's non-cancelled lines. */
+  orderTotal: number;
 }
 
 export interface SalesOrderForJournal {
@@ -425,12 +452,124 @@ function emitSigned(
   return { glAccountId, memo, debit: 0, credit: positive, sortOrder };
 }
 
+/** The accumulators a recognition writes into. */
+interface RecognitionAccumulators {
+  revenueCredits: Map<number, { memo: string; amount: number }>;
+  cogsDebits: Map<number, { memo: string; amount: number }>;
+  inventoryCredits: Map<number, { memo: string; amount: number }>;
+  writeoffDebits: Map<number, { memo: string; amount: number }>;
+  taxCredits: Map<number, { memo: string; amount: number }>;
+}
+
+/**
+ * Book one order's lines: revenue, COGS, inventory relief and tax.
+ *
+ * Extracted from the payment loop unchanged. It only ever needed the ORDER --
+ * nothing about the payment that used to trigger it -- which is precisely why
+ * keying recognition to payments was wrong: an order was booked once per day
+ * it happened to receive money, rather than once, when it was delivered.
+ */
+function recogniseOrderLines(
+  order: SalesOrderForJournal,
+  into: RecognitionAccumulators,
+  warnings: string[],
+): void {
+  for (const li of order.lineItems) {
+    if (!li.accountGroup) {
+      warnings.push(`Line item "${li.description}" has no account group mapping`);
+      continue;
+    }
+
+    const { salesGlId, cogsGlId, inventoryGlId, shrinkageGlId, name: groupName } = li.accountGroup;
+
+    // Revenue (credit) — netPrice is the LINE TOTAL, do not multiply by quantity
+    if (salesGlId) {
+      const lineRevenue = round2(li.netPrice);
+      const acc = into.revenueCredits.get(salesGlId) || { memo: groupName, amount: 0 };
+      acc.amount = round2(acc.amount + lineRevenue);
+      into.revenueCredits.set(salesGlId, acc);
+    } else {
+      warnings.push(`Account group "${groupName}" has no sales GL account`);
+    }
+
+    // COGS (debit) — cost is the LINE COST (already multiplied by quantity).
+    // Unchanged by the B3 restock/writeoff branch below: a return always
+    // reverses the original COGS debit, regardless of what happens to the
+    // physical inventory.
+    if (cogsGlId) {
+      const lineCogs = round2(li.cost);
+      const acc = into.cogsDebits.get(cogsGlId) || { memo: groupName, amount: 0 };
+      acc.amount = round2(acc.amount + lineCogs);
+      into.cogsDebits.set(cogsGlId, acc);
+    }
+
+    // Inventory (credit -- reducing the asset) — cost is the LINE COST.
+    //
+    // B3: a NEGATIVE line here is a return. Per docs/domains/returns.md
+    // ("Accounting view — returns are sales-in-reverse"), a return either
+    // restocks (debit Inventory, via the sign-flip below) or writes off
+    // (debit the department's Loss/Shrinkage GL instead, no inventory
+    // movement -- the item never re-enters sellable stock). Which branch
+    // applies is resolved by resolveReturnBookingPath: a classified
+    // ERP-native Return record (inspectionCondition / terminal status)
+    // wins; everything else -- including every imported POS return, which
+    // carries no Return record at all -- takes the named
+    // UNCLASSIFIED_DEFAULT_RESTOCK path (owner direction 2026-04-28).
+    const lineInv = round2(li.cost);
+    if (lineInv < 0) {
+      // Return-shaped line. Resolve restock vs. writeoff BEFORE touching
+      // either GL — writeoff routes to the shrinkage GL and deliberately
+      // does NOT require inventoryGlId (a write-off never moves inventory).
+      const path = resolveReturnBookingPath({ id: li.id, productId: li.productId }, order.returns);
+      if (path === "CLASSIFIED_WRITEOFF" && shrinkageGlId) {
+        const acc = into.writeoffDebits.get(shrinkageGlId) || {
+          memo: `${groupName} Write-off`,
+          amount: 0,
+        };
+        acc.amount = round2(acc.amount + Math.abs(lineInv));
+        into.writeoffDebits.set(shrinkageGlId, acc);
+      } else {
+        if (path === "CLASSIFIED_WRITEOFF") {
+          warnings.push(
+            `Return on line "${li.description}" is classified WRITTEN_OFF but account group "${groupName}" has no shrinkage/write-off GL configured -- booked as restock instead`,
+          );
+        }
+        if (inventoryGlId) {
+          const acc = into.inventoryCredits.get(inventoryGlId) || { memo: groupName, amount: 0 };
+          acc.amount = round2(acc.amount + lineInv);
+          into.inventoryCredits.set(inventoryGlId, acc);
+        }
+      }
+    } else if (inventoryGlId) {
+      const acc = into.inventoryCredits.get(inventoryGlId) || { memo: groupName, amount: 0 };
+      acc.amount = round2(acc.amount + lineInv);
+      into.inventoryCredits.set(inventoryGlId, acc);
+    }
+
+    // Tax (credit)
+    if (li.taxAmount !== 0) {
+      if (order.taxGlId) {
+        const acc = into.taxCredits.get(order.taxGlId) || { memo: order.taxMemo, amount: 0 };
+        acc.amount = round2(acc.amount + li.taxAmount);
+        into.taxCredits.set(order.taxGlId, acc);
+      } else {
+        warnings.push(`No tax GL account for district "${order.taxMemo}"`);
+      }
+    }
+  }
+}
+
 export function buildJournalLines(
   payments: SalesPayment[],
   overShortGlId: number | null,
   depositGlId: number | null,
   /** Names the journal in plug warnings, e.g. "SJ20260501". */
   journalLabel: string = "this journal",
+  /** Orders whose invoice is dated on this day. Empty is normal: a day can take
+   *  money without delivering anything, and can deliver without taking any. */
+  recognitions: OrderRecognition[] = [],
+  /** `AR_TRANSACTIONS`/"Accounts Receivable". */
+  arGlId: number | null = null,
 ): BuildResult {
   const warnings: string[] = [];
 
@@ -444,6 +583,17 @@ export function buildJournalLines(
   // this map only ever receives return-writeoff cost, there's no "sale" of a
   // write-off to reverse). See resolveReturnBookingPath.
   const writeoffDebits = new Map<number, { memo: string; amount: number }>();
+  // Relieving the deposit liability, and the receivable the invoice creates.
+  const depositDebits = new Map<number, { memo: string; amount: number }>();
+  const arDebits = new Map<number, { memo: string; amount: number }>();
+
+  const accumulators: RecognitionAccumulators = {
+    revenueCredits,
+    cogsDebits,
+    inventoryCredits,
+    writeoffDebits,
+    taxCredits,
+  };
 
   const processedOrders = new Set<number>();
 
@@ -469,145 +619,111 @@ export function buildJournalLines(
     }
 
     const order = payment.order;
-    if (!order || processedOrders.has(order.id)) continue;
+    if (!order) continue;
 
-    if (!order.hasInvoices) {
-      // No invoice yet, so this money is a DEPOSIT: credit the deposit
-      // account for it. That is true of every tender, not just cash.
-      //
-      // This used to read `isCashGl(glCode)`, so only payments hitting the one
-      // hardcoded cash code got their offsetting credit. Everything else --
-      // card, check, ACH, wire, finance, gift card -- was debited with no
-      // matching credit, and the balancer quietly plugged the difference to
-      // Cash Over/Short. The entry balanced, so nothing complained, while the
-      // account whose entire job is surfacing till discrepancies silently
-      // absorbed every non-cash sale. For a furniture retailer, where card and
-      // finance are most of the tender, Over/Short was mostly neither.
-      //
-      // The one payment that must NOT get a deposit credit is one already
-      // posted to the deposit account: it IS the credit.
-      // Config first: DEPOSIT_GL_CODES is a hardcoded chart-of-accounts list
-      // that means nothing on a deployment using its own codes, so the
-      // configured mapping is what decides. The list stays as a fallback for
-      // charts that map more than one deposit account.
-      const alreadyOnDeposit = glAccountId === depositGlId || isDepositGl(glCode);
-      if (depositGlId && !alreadyOnDeposit) {
-        const acc = paymentCredits.get(depositGlId) || { memo: "Pmt On Acct", amount: 0 };
+    // A PAYMENT NEVER RECOGNISES REVENUE.
+    //
+    // It moves money between a tender account and the customer's position: into
+    // the deposit liability while the order is still a promise, against the
+    // receivable once it has been delivered and invoiced. Recognition is its own
+    // event, keyed to the invoice date -- see the loop after this one.
+    //
+    // This used to book the whole order every time a payment arrived for an
+    // invoiced order, and `processedOrders` is per-call, so an order paid in two
+    // instalments was recognised on BOTH days: revenue credited twice, COGS
+    // debited twice, inventory relieved twice, and the balancer hiding the
+    // difference in Over/Short each time. The file already documented that exact
+    // failure shape for native refunds and guarded it there; the same shape was
+    // left open for ordinary multi-day payments.
+    //
+    // `settles` is a recorded fact resolved by the loader (payment date against
+    // the order's invoice date), never inferred here.
+    // A NATIVE REFUND AGAINST A DELIVERED SALE GETS NO CREDIT LEG, DELIBERATELY.
+    //
+    // processRefund records an amount, not which lines it unwinds, so once the
+    // sale has been recognised there is no honest second leg to emit. Giving it
+    // one would make the day balance silently; leaving it off makes the refund
+    // show up as a plug WITH a warning, which is the point -- an unmodelled
+    // event should be visible, not tidied away. The reversing revenue/COGS/tax
+    // legs, when they exist, come from return-shaped negative OrderLineItems on
+    // a return order (the B3 path), which is why this is keyed on the recorded
+    // `reversesPaymentId` and not on `isRefund`.
+    //
+    // Refunding a DEPOSIT is different and does balance on its own: the money
+    // went back and the liability the business was carrying is discharged.
+    // Dr Deposits / Cr Cash, no plug, nothing unexplained.
+    if (payment.reversesPaymentId != null && payment.settles === "RECEIVABLE") continue;
+
+    const creditGlId = payment.settles === "RECEIVABLE" ? arGlId : depositGlId;
+    // A payment posted straight to the account it would be credited to IS the
+    // credit; crediting again would double it.
+    const alreadyThere = glAccountId === creditGlId || isDepositGl(glCode);
+    if (creditGlId && !alreadyThere) {
+      if (payment.settles === "RECEIVABLE") {
+        // Netted against the receivable the invoice raised, rather than emitted
+        // as its own credit line. An order delivered and paid the same day would
+        // otherwise show an AR debit and an equal AR credit that cancel -- true,
+        // but noise on a daily journal. Netting leaves one line for what is
+        // actually still owed, and no line at all when nothing is.
+        const acc = arDebits.get(creditGlId) || { memo: "Invoiced", amount: 0 };
+        acc.amount = round2(acc.amount - amount);
+        arDebits.set(creditGlId, acc);
+      } else {
+        const acc = paymentCredits.get(creditGlId) || { memo: "Deposit received", amount: 0 };
         acc.amount = round2(acc.amount + amount);
-        paymentCredits.set(depositGlId, acc);
+        paymentCredits.set(creditGlId, acc);
       }
-      continue;
+    } else if (!creditGlId && !alreadyThere) {
+      warnings.push(
+        payment.settles === "RECEIVABLE"
+          ? `No AR_TRANSACTIONS/"Accounts Receivable" GL mapping -- $${amount.toFixed(2)} against an invoiced order has no credit leg`
+          : `No ${POS_PAYMENTS_SECTION}/"On Account" GL mapping -- $${amount.toFixed(2)} of deposit has no credit leg`,
+      );
     }
+  }
 
-    // A native ERP refund (paymentService.processRefund) points at the
-    // ORIGINAL SalesOrder, whose line items are the original POSITIVE sale
-    // lines. Recognizing them here booked the whole sale a SECOND time -- same
-    // direction as the original, so revenue was credited twice for one sale,
-    // COGS debited twice, inventory relieved twice. The resulting imbalance
-    // then vanished into the Over/Short plug.
-    //
-    // The cash leg above is the entire correct effect of a native refund. The
-    // reversing revenue/COGS/tax legs, when they exist, come from return-shaped
-    // (negative) OrderLineItems on a return order -- the B3 path -- which is
-    // why this is keyed on `reversesPaymentId` and not on `isRefund`.
-    //
-    // Note this deliberately does NOT mark the order processed: a normal
-    // payment for the same order on the same day must still recognize it,
-    // whichever order the two rows happen to arrive in.
-    if (payment.reversesPaymentId != null) continue;
-
+  // RECOGNITION -- the delivery event.
+  //
+  // Anything not delivered is a promise, not a sale: it sits in the deposit
+  // liability. Delivery generates the invoice, and THAT is what recognises the
+  // sale, moves the money out of deposits, and puts whatever is still owed on
+  // the customer's account. Once per order, on the day its invoice is dated --
+  // not once per day it happened to receive money.
+  for (const rec of recognitions) {
+    const { order, priorDepositCredited, orderTotal } = rec;
+    if (processedOrders.has(order.id)) continue;
     processedOrders.add(order.id);
 
-    for (const li of order.lineItems) {
-      if (!li.accountGroup) {
-        warnings.push(`Line item "${li.description}" has no account group mapping`);
-        continue;
-      }
+    recogniseOrderLines(order, accumulators, warnings);
 
-      const {
-        salesGlId,
-        cogsGlId,
-        inventoryGlId,
-        shrinkageGlId,
-        name: groupName,
-      } = li.accountGroup;
-
-      // Revenue (credit) — netPrice is the LINE TOTAL, do not multiply by quantity
-      if (salesGlId) {
-        const lineRevenue = round2(li.netPrice);
-        const acc = revenueCredits.get(salesGlId) || { memo: groupName, amount: 0 };
-        acc.amount = round2(acc.amount + lineRevenue);
-        revenueCredits.set(salesGlId, acc);
+    // Move the money OUT of deposits. Everything the customer paid before the
+    // invoice date was credited to the liability on the day it arrived; the
+    // business owed them goods then and does not now.
+    if (priorDepositCredited !== 0) {
+      if (depositGlId) {
+        const acc = depositDebits.get(depositGlId) || { memo: "Deposit applied", amount: 0 };
+        acc.amount = round2(acc.amount + priorDepositCredited);
+        depositDebits.set(depositGlId, acc);
       } else {
-        warnings.push(`Account group "${groupName}" has no sales GL account`);
-      }
-
-      // COGS (debit) — cost is the LINE COST (already multiplied by quantity).
-      // Unchanged by the B3 restock/writeoff branch below: a return always
-      // reverses the original COGS debit, regardless of what happens to the
-      // physical inventory.
-      if (cogsGlId) {
-        const lineCogs = round2(li.cost);
-        const acc = cogsDebits.get(cogsGlId) || { memo: groupName, amount: 0 };
-        acc.amount = round2(acc.amount + lineCogs);
-        cogsDebits.set(cogsGlId, acc);
-      }
-
-      // Inventory (credit -- reducing the asset) — cost is the LINE COST.
-      //
-      // B3: a NEGATIVE line here is a return. Per docs/domains/returns.md
-      // ("Accounting view — returns are sales-in-reverse"), a return either
-      // restocks (debit Inventory, via the sign-flip below) or writes off
-      // (debit the department's Loss/Shrinkage GL instead, no inventory
-      // movement -- the item never re-enters sellable stock). Which branch
-      // applies is resolved by resolveReturnBookingPath: a classified
-      // ERP-native Return record (inspectionCondition / terminal status)
-      // wins; everything else -- including every imported POS return, which
-      // carries no Return record at all -- takes the named
-      // UNCLASSIFIED_DEFAULT_RESTOCK path (owner direction 2026-04-28).
-      const lineInv = round2(li.cost);
-      if (lineInv < 0) {
-        // Return-shaped line. Resolve restock vs. writeoff BEFORE touching
-        // either GL — writeoff routes to the shrinkage GL and deliberately
-        // does NOT require inventoryGlId (a write-off never moves inventory).
-        const path = resolveReturnBookingPath(
-          { id: li.id, productId: li.productId },
-          order.returns,
+        warnings.push(
+          `Order ${order.id} has $${priorDepositCredited.toFixed(2)} of deposits to relieve but no ${POS_PAYMENTS_SECTION}/"On Account" GL is mapped`,
         );
-        if (path === "CLASSIFIED_WRITEOFF" && shrinkageGlId) {
-          const acc = writeoffDebits.get(shrinkageGlId) || {
-            memo: `${groupName} Write-off`,
-            amount: 0,
-          };
-          acc.amount = round2(acc.amount + Math.abs(lineInv));
-          writeoffDebits.set(shrinkageGlId, acc);
-        } else {
-          if (path === "CLASSIFIED_WRITEOFF") {
-            warnings.push(
-              `Return on line "${li.description}" is classified WRITTEN_OFF but account group "${groupName}" has no shrinkage/write-off GL configured -- booked as restock instead`,
-            );
-          }
-          if (inventoryGlId) {
-            const acc = inventoryCredits.get(inventoryGlId) || { memo: groupName, amount: 0 };
-            acc.amount = round2(acc.amount + lineInv);
-            inventoryCredits.set(inventoryGlId, acc);
-          }
-        }
-      } else if (inventoryGlId) {
-        const acc = inventoryCredits.get(inventoryGlId) || { memo: groupName, amount: 0 };
-        acc.amount = round2(acc.amount + lineInv);
-        inventoryCredits.set(inventoryGlId, acc);
       }
+    }
 
-      // Tax (credit)
-      if (li.taxAmount !== 0) {
-        if (order.taxGlId) {
-          const acc = taxCredits.get(order.taxGlId) || { memo: order.taxMemo, amount: 0 };
-          acc.amount = round2(acc.amount + li.taxAmount);
-          taxCredits.set(order.taxGlId, acc);
-        } else {
-          warnings.push(`No tax GL account for district "${order.taxMemo}"`);
-        }
+    // Whatever is still owed after the deposit is applied is a receivable. It is
+    // credited back as the customer pays (see `settles` above), so an order
+    // settled on the delivery day nets AR to zero within the same entry.
+    const receivable = round2(orderTotal - priorDepositCredited);
+    if (receivable !== 0) {
+      if (arGlId) {
+        const acc = arDebits.get(arGlId) || { memo: "Invoiced", amount: 0 };
+        acc.amount = round2(acc.amount + receivable);
+        arDebits.set(arGlId, acc);
+      } else {
+        warnings.push(
+          `Order ${order.id} recognised $${receivable.toFixed(2)} still owing but no AR_TRANSACTIONS/"Accounts Receivable" GL is mapped`,
+        );
       }
     }
   }
@@ -630,6 +746,8 @@ export function buildJournalLines(
   };
 
   emitInto(paymentDebits, "debit", 10); // cash/card receipts, GC redemptions
+  emitInto(depositDebits, "debit", 15); // deposit liability relieved on delivery
+  emitInto(arDebits, "debit", 16); // what the invoice put on the customer's account
   emitInto(paymentCredits, "credit", 20); // deposits, on-account
   emitInto(inventoryCredits, "credit", 30); // by department
   emitInto(writeoffDebits, "debit", 35); // B3 classified-writeoff returns, by department
@@ -687,6 +805,136 @@ export function buildJournalLines(
   }
 
   return { lines, totalDebits, totalCredits, warnings, overShort };
+}
+
+/**
+ * Everything the journal builder needs off a SalesOrder.
+ *
+ * Shared by the two queries that load orders -- the day's payments and the
+ * day's recognitions. They were one query when recognition hung off payments;
+ * now that recognition is its own event they are two, and a drifting include
+ * would mean an order recognised through one path booked different lines from
+ * the same order recognised through the other.
+ */
+const ORDER_FOR_JOURNAL_INCLUDE = {
+  include: {
+    // invoiceDate decides BOTH which day recognises the order and whether a
+    // given payment was a deposit or a settlement. VOID invoices are excluded:
+    // a voided invoice never delivered anything.
+    invoices: {
+      where: { status: { not: "VOID" } },
+      select: { id: true, invoiceDate: true },
+      orderBy: { invoiceDate: "asc" },
+    },
+    taxDistrict: {
+      select: { id: true, shortName: true, glAccountId: true },
+    },
+    lineItems: {
+      // CLAUDE.md rule 33: cancelled lines must never inflate the
+      // journal entry. After PR #121 changed the sales import
+      // orphan-cleanup from deleteMany to updateMany SET CANCELLED,
+      // cancelled rows persist in the table -- they would otherwise
+      // double-count into Sales / COGS / Inventory / Tax. Same bug
+      // class as the $405 Detailed Sales discrepancy fixed in PR
+      // #125; this is the JE-side closure of that surface.
+      where: { lineItemStatus: { not: "CANCELLED" } },
+      include: {
+        product: {
+          include: {
+            category: {
+              include: {
+                accountGroup: {
+                  include: {
+                    salesAccount: { select: { id: true, code: true, name: true } },
+                    cogsAccount: { select: { id: true, code: true, name: true } },
+                    inventoryAccount: { select: { id: true, code: true, name: true } },
+                    // B3 classified-writeoff GL, department-scoped.
+                    // Previously modeled but not consumed by the JE
+                    // generator -- see docs/domains/accounting.md gap
+                    // list, "Shrinkage JE workflow."
+                    shrinkageAccount: { select: { id: true, code: true, name: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    // B3: ERP-native Return records tied to this order, used to
+    // classify return-shaped lines as restock vs. writeoff instead of
+    // defaulting every return to restock. Empty for every imported
+    // historical return (the Return table is never populated by
+    // import -- docs/domains/returns.md "the dual reality").
+    returns: {
+      select: {
+        id: true,
+        lineItemId: true,
+        productId: true,
+        status: true,
+        inspectionCondition: true,
+      },
+    },
+  },
+} as const;
+
+type OrderRow = Prisma.SalesOrderGetPayload<{ include: typeof ORDER_FOR_JOURNAL_INCLUDE.include }>;
+
+/**
+ * Prisma row -> the plain shape buildJournalLines works on.
+ *
+ * Shared by the payment path and the recognition path for the same reason the
+ * include is: the same order must book identically whichever one loaded it.
+ */
+function toOrderForJournal(o: OrderRow, fallbackTaxGlId: number | null): SalesOrderForJournal {
+  return {
+    id: o.id,
+    hasInvoices: (o.invoices?.length || 0) > 0,
+    taxGlId: o.taxDistrict?.glAccountId || fallbackTaxGlId,
+    taxMemo: o.taxDistrict?.shortName || "Tax",
+    lineItems: o.lineItems.map((li) => ({
+      id: li.id,
+      description: li.productName || li.partNo || `line ${li.id}`,
+      netPrice: toNum(li.netPrice),
+      cost: toNum(li.cost),
+      quantity: toNum(li.orderedQuantity),
+      taxAmount: toNum(li.vatAmount),
+      productId: li.productId ?? null,
+      accountGroup: li.product?.category?.accountGroup
+        ? {
+            name: li.product.category.accountGroup.name,
+            salesGlId: li.product.category.accountGroup.salesAccount?.id || null,
+            cogsGlId: li.product.category.accountGroup.cogsAccount?.id || null,
+            inventoryGlId: li.product.category.accountGroup.inventoryAccount?.id || null,
+            shrinkageGlId: li.product.category.accountGroup.shrinkageAccount?.id || null,
+          }
+        : null,
+    })),
+    // B3: hand the order's Return records through so buildJournalLines can
+    // classify each return-shaped line (resolveReturnBookingPath) instead of
+    // assuming restock for every one of them.
+    returns: o.returns.map((r) => ({
+      id: r.id,
+      lineItemId: r.lineItemId,
+      productId: r.productId,
+      status: r.status,
+      inspectionCondition: r.inspectionCondition,
+    })),
+  };
+}
+
+/**
+ * Was this money a deposit, or does it settle a receivable?
+ *
+ * Decided from two recorded dates, never inferred from status: an order can be
+ * invoiced and paid on the same day, and can be paid long after.
+ */
+function settlesOf(
+  invoiceDate: Date | null | undefined,
+  paymentDate: Date | null | undefined,
+): "DEPOSIT" | "RECEIVABLE" {
+  if (!invoiceDate || !paymentDate) return "DEPOSIT";
+  return paymentDate >= invoiceDate ? "RECEIVABLE" : "DEPOSIT";
 }
 
 export async function generateSalesJournal(
@@ -770,6 +1018,16 @@ export async function generateSalesJournal(
   const depositMapping = paymentGlMap.get("on account") || paymentGlMap.get("deposit") || null;
   const depositGlId = depositMapping?.glAccountId || null;
 
+  // The AR control account. Same row invoiceService.ts resolves for authored
+  // invoices (AR_TRANSACTIONS/"Accounts Receivable") -- deliberately the same
+  // one, so a receivable raised by a delivery and a receivable raised by the
+  // billing screen land in the same place.
+  const arMapping = await prisma.systemGLMapping.findUnique({
+    where: { section_label: { section: "AR_TRANSACTIONS", label: "Accounts Receivable" } },
+    select: { glAccountId: true },
+  });
+  const arGlId = arMapping?.glAccountId || null;
+
   // Query all payments for the date
   const paymentWhere: Record<string, unknown> = {
     paymentDate: { gte: dayStart, lt: dayEndExclusive },
@@ -782,65 +1040,32 @@ export async function generateSalesJournal(
     where: paymentWhere,
     include: {
       applications: { select: { id: true } },
-      salesOrder: {
-        include: {
-          invoices: { select: { id: true } },
-          taxDistrict: {
-            select: { id: true, shortName: true, glAccountId: true },
-          },
-          lineItems: {
-            // CLAUDE.md rule 33: cancelled lines must never inflate the
-            // journal entry. After PR #121 changed the sales import
-            // orphan-cleanup from deleteMany to updateMany SET CANCELLED,
-            // cancelled rows persist in the table -- they would otherwise
-            // double-count into Sales / COGS / Inventory / Tax. Same bug
-            // class as the $405 Detailed Sales discrepancy fixed in PR
-            // #125; this is the JE-side closure of that surface.
-            where: { lineItemStatus: { not: "CANCELLED" } },
-            include: {
-              product: {
-                include: {
-                  category: {
-                    include: {
-                      accountGroup: {
-                        include: {
-                          salesAccount: { select: { id: true, code: true, name: true } },
-                          cogsAccount: { select: { id: true, code: true, name: true } },
-                          inventoryAccount: { select: { id: true, code: true, name: true } },
-                          // B3 classified-writeoff GL, department-scoped.
-                          // Previously modeled but not consumed by the JE
-                          // generator -- see docs/domains/accounting.md gap
-                          // list, "Shrinkage JE workflow."
-                          shrinkageAccount: { select: { id: true, code: true, name: true } },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-          // B3: ERP-native Return records tied to this order, used to
-          // classify return-shaped lines as restock vs. writeoff instead of
-          // defaulting every return to restock. Empty for every imported
-          // historical return (the Return table is never populated by
-          // import -- docs/domains/returns.md "the dual reality").
-          returns: {
-            select: {
-              id: true,
-              lineItemId: true,
-              productId: true,
-              status: true,
-              inspectionCondition: true,
-            },
-          },
-        },
-      },
+      salesOrder: { include: ORDER_FOR_JOURNAL_INCLUDE.include },
     },
   });
 
-  if (payments.length === 0) {
-    throw new Error(`No payments found for ${journalNumber} (${date.toLocaleDateString()})`);
+  // Orders delivered today: their invoice is dated today, so today is when the
+  // sale is recognised. A fully pre-paid order takes no money on the day it is
+  // delivered, so this is the only thing that finds it -- keying the journal to
+  // payments alone meant such an order was never recognised at all and its
+  // deposit sat in the liability forever.
+  const recognisedOrders = await prisma.salesOrder.findMany({
+    where: {
+      ...(storeLocation ? { storeLocation } : {}),
+      invoices: {
+        some: {
+          status: { not: "VOID" },
+          invoiceDate: { gte: dayStart, lt: dayEndExclusive },
+        },
+      },
+    },
+    include: ORDER_FOR_JOURNAL_INCLUDE.include,
+  });
+
+  if (payments.length === 0 && recognisedOrders.length === 0) {
+    throw new Error(
+      `No payments or deliveries found for ${journalNumber} (${date.toLocaleDateString()})`,
+    );
   }
 
   // Map Prisma data to plain types for the pure build function
@@ -883,47 +1108,61 @@ export async function generateSalesJournal(
       // means "the order this points at was already recognized." See the
       // guard in buildJournalLines.
       reversesPaymentId: payment.originalPaymentId,
-      order: payment.salesOrder
-        ? {
-            id: payment.salesOrder.id,
-            hasInvoices: (payment.salesOrder.invoices?.length || 0) > 0,
-            taxGlId: payment.salesOrder.taxDistrict?.glAccountId || fallbackTaxGlId,
-            taxMemo: payment.salesOrder.taxDistrict?.shortName || "Tax",
-            lineItems: payment.salesOrder.lineItems.map((li) => ({
-              id: li.id,
-              description: li.productName || li.partNo || `line ${li.id}`,
-              netPrice: toNum(li.netPrice),
-              cost: toNum(li.cost),
-              quantity: toNum(li.orderedQuantity),
-              taxAmount: toNum(li.vatAmount),
-              productId: li.productId ?? null,
-              accountGroup: li.product?.category?.accountGroup
-                ? {
-                    name: li.product.category.accountGroup.name,
-                    salesGlId: li.product.category.accountGroup.salesAccount?.id || null,
-                    cogsGlId: li.product.category.accountGroup.cogsAccount?.id || null,
-                    inventoryGlId: li.product.category.accountGroup.inventoryAccount?.id || null,
-                    shrinkageGlId: li.product.category.accountGroup.shrinkageAccount?.id || null,
-                  }
-                : null,
-            })),
-            // B3: hand the order's Return records through so
-            // buildJournalLines can classify each return-shaped line
-            // (resolveReturnBookingPath) instead of assuming restock for
-            // every one of them.
-            returns: payment.salesOrder.returns.map((r) => ({
-              id: r.id,
-              lineItemId: r.lineItemId,
-              productId: r.productId,
-              status: r.status,
-              inspectionCondition: r.inspectionCondition,
-            })),
-          }
-        : null,
+      // Paid before the order was invoiced -> it was a deposit. On or after ->
+      // it settles the receivable the invoice created. No invoice at all -> it
+      // can only be a deposit.
+      settles: settlesOf(payment.salesOrder?.invoices?.[0]?.invoiceDate, payment.paymentDate),
+      order: payment.salesOrder ? toOrderForJournal(payment.salesOrder, fallbackTaxGlId) : null,
     });
   }
 
-  const result = buildJournalLines(mappedPayments, overShortGlId, depositGlId, journalNumber);
+  // What each of today's recognised orders had already taken in deposits.
+  // Queried across ALL time, not this day: the whole point is money received in
+  // an earlier period that has to come back out of the liability now.
+  const recognitions: OrderRecognition[] = [];
+  if (recognisedOrders.length > 0) {
+    const priorByOrder = new Map<number, number>();
+    const priorPayments = await prisma.payment.findMany({
+      where: { salesOrderId: { in: recognisedOrders.map((o) => o.id) } },
+      select: { salesOrderId: true, paymentAmount: true, paymentDate: true, isRefund: true },
+    });
+    const invoiceDateByOrder = new Map(
+      recognisedOrders.map((o) => [o.id, o.invoices[0]?.invoiceDate ?? null]),
+    );
+    for (const pmt of priorPayments) {
+      if (pmt.salesOrderId == null) continue;
+      const invoiceDate = invoiceDateByOrder.get(pmt.salesOrderId);
+      if (!invoiceDate || !pmt.paymentDate) continue;
+      if (pmt.paymentDate >= invoiceDate) continue; // settles AR, not a deposit
+      const raw = toNum(pmt.paymentAmount);
+      const signed = pmt.isRefund ? -Math.abs(raw) : raw;
+      priorByOrder.set(
+        pmt.salesOrderId,
+        round2((priorByOrder.get(pmt.salesOrderId) ?? 0) + signed),
+      );
+    }
+
+    for (const row of recognisedOrders) {
+      const order = toOrderForJournal(row, fallbackTaxGlId);
+      const orderTotal = round2(
+        order.lineItems.reduce((sum, li) => sum + li.netPrice + li.taxAmount, 0),
+      );
+      recognitions.push({
+        order,
+        priorDepositCredited: priorByOrder.get(row.id) ?? 0,
+        orderTotal,
+      });
+    }
+  }
+
+  const result = buildJournalLines(
+    mappedPayments,
+    overShortGlId,
+    depositGlId,
+    journalNumber,
+    recognitions,
+    arGlId,
+  );
   warnings.push(...result.warnings);
 
   // A plug big enough to be a missing payment escalates out-of-band rather
