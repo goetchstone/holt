@@ -173,7 +173,10 @@ export function DriverView() {
   const allCompleted = run ? completedCount === totalStops && totalStops > 0 : false;
 
   // Find the next incomplete stop
-  const nextStopId = run?.stops.find((s) => s.status !== "COMPLETED" && s.status !== "FAILED")?.id;
+  // Only COMPLETED is skipped. A stop that could not be delivered goes back to
+  // PENDING and stays in the queue -- skipping it here is exactly how a stop
+  // could be silently abandoned: never delivered, never invoiced, nobody told.
+  const nextStopId = run?.stops.find((s) => s.status !== "COMPLETED")?.id;
 
   if (loading) {
     return (
@@ -453,7 +456,6 @@ function StopStatusBadge({ status }: { status: string }) {
     EN_ROUTE: "bg-sh-blue/10 text-sh-blue",
     ARRIVED: "bg-sh-gold/10 text-sh-gold",
     COMPLETED: "bg-green-50 text-green-700",
-    FAILED: "bg-red-50 text-red-600",
   };
 
   return (

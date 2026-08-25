@@ -6,8 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { consume, release } from "@/lib/inventory/allocation";
-import { getActiveOrderLines } from "@/lib/inventory/orderInventorySync";
+import { release } from "@/lib/inventory/allocation";
+import { markHandedOver, handoverMethodFor } from "@/lib/fulfilment/handover";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -75,8 +75,23 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           // CANCELLED after FULFILLED already consumed it), which is correct,
           // not a bug -- see allocation.ts's consume()/release() headers.
           if (status === "FULFILLED") {
-            const lines = await getActiveOrderLines(result.id, tx);
-            await consume(result.id, lines, tx);
+            // Marking an order fulfilled by hand is a real thing a store needs
+            // -- a delivery done off-system, or history being corrected -- so
+            // it is not refused. But it is the SAME event as a stop completing
+            // or a customer collecting, and it goes through the same function
+            // rather than flipping a flag and consuming stock on the side.
+            //
+            // That is what closes the two-FULFILLED-flags gap: this route wrote
+            // `status` and never `dispatchStatus`, the dispatch route wrote
+            // `dispatchStatus` and never `status`, and an order could sit
+            // disagreeing with itself indefinitely with no way to tell which
+            // one to believe.
+            await markHandedOver(tx, {
+              salesOrderId: result.id,
+              at: new Date(),
+              method: handoverMethodFor(result.deliveryMethod),
+              actor: session.user?.email ?? null,
+            });
           } else if (status === "CANCELLED") {
             await release(result.id, tx);
           }
