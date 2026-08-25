@@ -171,7 +171,9 @@ DRAFT  ──▶  POSTED  ──▶  EXPORTED
 ```
 
 - **DRAFT**: just generated, can be edited or regenerated.
-- **POSTED**: confirmed, balanced, ready to export. Pre-POST guard (B4 in the SOR plan) refuses transition if `sum(debits) ≠ sum(credits)`.
+- **POSTED**: confirmed, balanced, ready to export. Pre-POST guard refuses the transition if the entry's **lines** do not balance.
+  - The transition table and that guard live in `transitionJournalEntry()` in `lib/journalEntry.ts`. They used to live inside `PUT /api/accounting/journal-entries/[id]`, which made HTTP the only way to post an entry by the rules — a script, a scheduled close or an importer could set `status` directly and skip both. The route now delegates; `__tests__/journalEntry.test.ts` has a tripwire that fails if it grows its own copy.
+  - The DB constraint `JournalEntry_balanced_check` does **not** cover this: it compares the header's `totalDebits`/`totalCredits` columns, so a header disagreeing with its own lines satisfies it. Both guards are needed.
 - **EXPORTED**: written out to QB. Once exported, the underlying `SalesOrder` and `Payment` rows for that date should be locked (period-lock enforcement is B4/C5 in the SOR plan).
 
 ## Journal-entry generation flow
@@ -196,14 +198,21 @@ Entry point: `generateSalesJournal(date, createdBy?, storeLocation?)` in `lib/jo
 
 ### What `buildJournalLines` produces (per payment, per order)
 
-For each payment that hits a cash GL: debit cash. If the order has invoices, also generate per-line:
+For each payment: debit the account its tender maps to. If the order has invoices, also generate per-line:
 
 - Credit the inventory GL (asset reduction) by `cost`
 - Debit the COGS GL (expense recognition) by `cost`
 - Credit the sales GL (revenue recognition) by `netPrice`
 - Credit the tax GL by `vatAmount`
 
-For each payment that hits a deposit GL: credit the deposit account.
+If the order has **no** invoice, the payment is a deposit: credit the deposit account
+(`POS_PAYMENTS`/"On Account", falling back to "Deposit") for its full amount,
+whatever it was tendered in. Before 2026-08-25 this credit was only emitted for
+payments hitting a hardcoded cash GL code — see "Every non-cash deposit was a
+plug" below.
+
+For each payment already posted to the deposit account: it **is** the credit, so no
+second one is emitted.
 
 For each payment that hits a liability-debit GL (gift card): debit the liability (we redeemed our debt to the customer).
 
@@ -314,7 +323,7 @@ It now classifies by **GL account id**, resolved by
 | revenue    | `AccountGroup.salesAccount` (all groups)                         | Per-department, so no single `SystemGLMapping` row can name them. This is the same row `buildJournalLines` reads to decide what to credit (`li.accountGroup.salesGlId`) — reading it is what makes the two sides comparable. `GLAccount.accountType` is the wrong signal: it is a label nothing enforces, and it walks straight into this change's own bug, since Over/Short was typed `REVENUE`. |
 | cost       | `AccountGroup.cogsAccount` (all groups)                          | Same reasoning.                                                                                                                                                                                                                                                                                                                                                                                   |
 | tax        | every `TaxDistrict.glAccountId` ∪ `POS_TRANSACTIONS`/"Sales Tax" | Exactly the two places `generateSalesJournal` looks. Also retires the old "we approximate by prefix 2-2120" comment — a second state's district is counted now instead of dropped.                                                                                                                                                                                                                |
-| cash       | `POS_PAYMENTS`/"Cash"                                            | A genuine singleton: every cash-like tender posts to the combined-receipts account.                                                                                                                                                                                                                                                                                                               |
+| cash       | every `POS_PAYMENTS` mapping whose label names a tender           | **Not** a singleton, though it was modelled as one until 2026-08-25 — see "The cash bucket was one account" below. `METHOD_DISPLAY` decides which labels count, so labels outside it (notably "On Account"/"Deposit", the offset leg) are excluded.                                                                                                                                                                                                                                                                                                               |
 | Over/Short | `POS_TRANSACTIONS`/"Over/Short"                                  | Singleton. Tested **first**, so a chart that wrongly also lists the plug account as a department's sales account still reports plugs as plugs.                                                                                                                                                                                                                                                    |
 
 **A missing mapping warns and fails the day** rather than reporting $0.00.
@@ -332,6 +341,88 @@ otherwise be a silently empty bucket.
 generator _writes_, not how a control _reads_, so re-deriving them changes
 journal generation and wants its own change with a before/after on real
 tenders. Marked in-place with a comment citing rule 61.
+
+## What one end-to-end trading day found (2026-08-25)
+
+Every stage of a trading day had integration coverage. The **seams between
+them** did not: each side was tested against a counterpart built to agree with
+it. `__tests__/integration/tradingDay.integration.test.ts` walks one day
+straight through — open till → sell → deposit → PO → receive → allocate →
+transfer → schedule → deliver → invoice → settle → close till → post journal →
+reconcile — and asserts across each seam. It found three real defects on the
+first run, none of which any single-stage test could see.
+
+### Every non-cash deposit was a plug
+
+`buildJournalLines` emitted the offsetting deposit credit only when the payment
+hit a **cash** GL:
+
+```ts
+if (isCashGl(glCode) && depositGlId) {   // ← the bug
+```
+
+Every other tender — card, check, ACH, wire, finance, gift card — was debited
+with no matching credit, so the balancer put the difference in **Cash
+Over/Short**. The entry balanced, so nothing complained. The one account whose
+job is surfacing till discrepancies silently absorbed every non-cash sale, and
+for a furniture retailer, where card and finance are most of the tender,
+Over/Short was mostly neither.
+
+It now credits the deposit account for every tender, and skips only a payment
+already posted to the deposit account (that one **is** the credit).
+
+`isCashGl` reads `CASH_GL_CODES = ["1-1006"]` — a literal from one chart of
+accounts. Even the cash path was wrong for any deployment numbering its
+accounts differently: no code matched, so _nothing_ got a deposit credit and
+the entire day plugged to Over/Short. The deposit check is now configuration
+first (`glAccountId === depositGlId`), with the code list kept only as a
+fallback for charts mapping more than one deposit account.
+
+### The reconciliation's cash bucket was one account
+
+`source.cash` sums **every** COMPLETED payment on the day. `journal.cash`
+counted only the single GL mapped to `POS_PAYMENTS`/"Cash". The two sides were
+measuring different things, so a deployment that took one card payment reported
+a false cash drift equal to it — every day, for as long as it kept taking
+cards. A daily control that cries wolf daily is one people stop reading.
+
+`resolveTenderAccounts()` now spans every `POS_PAYMENTS` mapping whose label
+names a tender, using `METHOD_DISPLAY` as the single source of truth for what
+counts as one.
+
+The reason this survived: `dailyReconciliation.integration.test.ts` hand-builds
+its journal entries with `prisma.journalEntry.create` and never calls
+`generateSalesJournal`. It is a good test of the comparator and no test at all
+of the seam.
+
+### The billing service could not invoice a sales order
+
+`generateSalesJournal` recognises revenue and COGS for an order only when
+`order.hasInvoices` is true. `Invoice.salesOrderId` is the link that makes it
+true — and the only writers of that column were **the Ordorite importer and the
+demo seed**. `createDraftInvoice` had no parameter for it.
+
+So on any deployment not importing from Ordorite there was no way to invoice a
+sales order, revenue was never recognised, and every sale sat in Customer
+Deposits forever with nothing reporting a problem. `CreateDraftInput` now
+takes `salesOrderId`.
+
+### Open: bookings vs recognised revenue
+
+Not a defect — a policy question the test pins rather than settles.
+
+`source.revenue` counts every order written today (`SALES_REVENUE_STATUSES`
+includes `ORDER`). `journal.revenue` counts only invoiced orders. A special
+order written today and delivered in six weeks therefore shows as revenue
+**drift** equal to its value, every day until it is invoiced. That is correct
+accrual accounting on the journal side and a real figure on the source side,
+but the comparison labels the difference "drift", which reads as an error.
+
+Whether holt recognises revenue when the **order is written** or when it is
+**invoiced** is a deployment accounting policy. Until it is decided, stage 14
+of the trading day asserts the drift equals **exactly** the un-invoiced bookings,
+so the number stays explained instead of merely tolerated. Tracked as
+[#133](https://github.com/goetchstone/holt/issues/133).
 
 ## Native refunds (2026-08-06)
 

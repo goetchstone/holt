@@ -5,7 +5,7 @@ import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { assertBalanced } from "@/lib/journalEntry";
+import { transitionJournalEntry, JournalTransitionError } from "@/lib/journalEntry";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -59,58 +59,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "PUT") {
     const { status } = req.body;
 
-    const validTransitions: Record<string, string[]> = {
-      DRAFT: ["POSTED"],
-      POSTED: ["EXPORTED"],
-      EXPORTED: [],
-    };
-
     try {
+      // The transition table and the line-balance guard used to live here,
+      // which made HTTP the only way to post an entry by the rules.
+      // lib/journalEntry.ts owns them now; this route maps the domain error
+      // onto the status codes it already promised.
+      if (status) {
+        const updated = await transitionJournalEntry(id, status, session.user?.email || null);
+        return res.status(200).json(updated);
+      }
+
+      // No status in the body: a touch, with nothing to validate.
       const entry = await prisma.journalEntry.findUnique({ where: { id } });
       if (!entry) return res.status(404).json({ error: "Journal entry not found" });
 
-      if (status) {
-        const allowed = validTransitions[entry.status] || [];
-        if (!allowed.includes(status)) {
-          return res.status(400).json({
-            error: `Cannot transition from ${entry.status} to ${status}`,
-          });
-        }
-
-        // Phase 0 BLOCKER B4: refuse DRAFT->POSTED and POSTED->EXPORTED
-        // when sum(debits) != sum(credits). Defense-in-depth: even though
-        // buildJournalLines produces balanced output today, a future
-        // hand-edit on the JE detail page or a future code change could
-        // break the invariant silently. Better to refuse at the boundary
-        // than ship an unbalanced entry to QuickBooks.
-        if (status === "POSTED" || status === "EXPORTED") {
-          const lines = await prisma.journalEntryLine.findMany({
-            where: { journalEntryId: id },
-            select: { debit: true, credit: true },
-          });
-          const balance = assertBalanced(
-            lines.map((l) => ({
-              debit: Number(l.debit),
-              credit: Number(l.credit),
-            })),
-          );
-          if (!balance.ok) {
-            return res.status(400).json({
-              error: balance.error,
-              totalDebits: balance.totalDebits,
-              totalCredits: balance.totalCredits,
-              diff: balance.diff,
-            });
-          }
-        }
-      }
-
       const updated = await prisma.journalEntry.update({
         where: { id },
-        data: {
-          status: status || undefined,
-          updatedBy: session.user?.email || null,
-        },
+        data: { updatedBy: session.user?.email || null },
       });
 
       return res.status(200).json({

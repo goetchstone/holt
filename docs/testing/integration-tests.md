@@ -170,6 +170,52 @@ Existing conversions to model from: the quotesReconcile conversion and the daily
 
 Remaining 0.6.3 placeholders: `journalEntry` orchestration, `mailchimpAudienceSync.runner`, `mailchimpLeadIngestor`, `opportunityTiles`, `leadHousekeeping`. Each can be converted independently in its own PR.
 
+## Seam tests: the trading day
+
+`__tests__/integration/tradingDay.integration.test.ts` is a different shape from
+everything else here and is worth understanding before adding to it.
+
+Every other file in this directory tests **one subsystem**. This one tests the
+**seams between them**, by walking a single trading day straight through in
+declaration order over shared state:
+
+```text
+open till → sell → split-tender deposit → PO against the order → receive
+→ allocate → transfer between stock locations → schedule delivery
+→ complete delivery (consume) → invoice → settle → close till
+→ generate + post the journal → reconcile the day
+```
+
+The assertions that earn their keep are the ones **across** a seam, not within a
+stage — stock received against a PO is stock the allocator can see; stock
+allocated to an order stops being free to sell; moving allocated stock keeps it
+allocated; completing the delivery leaves no residue; the day's payments reach
+the journal; reconciliation agrees with what the journal posted.
+
+**Why it exists.** Every stage already had coverage and the seams still held
+three real defects, because each side had been tested against a counterpart
+built to agree with it. `dailyReconciliation.integration.test.ts` hand-builds
+its journal entries and never calls `generateSalesJournal`, so a journal that
+posted card tender to the Over/Short plug reconciled perfectly against a journal
+constructed to expect that. See `docs/domains/accounting.md`, "What one
+end-to-end trading day found (2026-08-25)".
+
+**Ordered `it`s over shared state, deliberately.** Stage order is the thing under
+test, so a failure names the stage the day broke at. Do not reorder stages or
+make them independent — that removes the coverage.
+
+**The day is TODAY, also deliberately.** `recordPayment()` stamps `paymentDate`
+itself, so a backdated day records its payments outside the window the journal
+then reads: the journal finds nothing, the reconciliation compares two empty
+sets, and every assertion passes while proving nothing. `DAY` is resolved with
+`businessDayKey()` in the **business** timezone, because `generateSalesJournal`
+reads `getBusinessTimeZone()` internally — picking the day any other way makes
+the two disagree near midnight and the failure reads as drift rather than as a
+timezone bug.
+
+**Adding a stage.** Assert the seam, not the stage. If the assertion would still
+pass with the previous stage stubbed out, it is testing the stage.
+
 ## Gotchas
 
 ### TRUNCATE deadlocks under multi-file Jest workers
