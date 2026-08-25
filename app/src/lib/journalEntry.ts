@@ -472,8 +472,26 @@ export function buildJournalLines(
     if (!order || processedOrders.has(order.id)) continue;
 
     if (!order.hasInvoices) {
-      // Deposit only: if payment was to a cash account, create offsetting deposit credit
-      if (isCashGl(glCode) && depositGlId) {
+      // No invoice yet, so this money is a DEPOSIT: credit the deposit
+      // account for it. That is true of every tender, not just cash.
+      //
+      // This used to read `isCashGl(glCode)`, so only payments hitting the one
+      // hardcoded cash code got their offsetting credit. Everything else --
+      // card, check, ACH, wire, finance, gift card -- was debited with no
+      // matching credit, and the balancer quietly plugged the difference to
+      // Cash Over/Short. The entry balanced, so nothing complained, while the
+      // account whose entire job is surfacing till discrepancies silently
+      // absorbed every non-cash sale. For a furniture retailer, where card and
+      // finance are most of the tender, Over/Short was mostly neither.
+      //
+      // The one payment that must NOT get a deposit credit is one already
+      // posted to the deposit account: it IS the credit.
+      // Config first: DEPOSIT_GL_CODES is a hardcoded chart-of-accounts list
+      // that means nothing on a deployment using its own codes, so the
+      // configured mapping is what decides. The list stays as a fallback for
+      // charts that map more than one deposit account.
+      const alreadyOnDeposit = glAccountId === depositGlId || isDepositGl(glCode);
+      if (depositGlId && !alreadyOnDeposit) {
         const acc = paymentCredits.get(depositGlId) || { memo: "Pmt On Acct", amount: 0 };
         acc.amount = round2(acc.amount + amount);
         paymentCredits.set(depositGlId, acc);
@@ -997,5 +1015,95 @@ export async function generateSalesJournal(
       })),
     },
     warnings,
+  };
+}
+
+/**
+ * The journal entry lifecycle, and the rules for moving through it.
+ *
+ * This lived inside `PUT /api/accounting/journal-entries/[id]` and nowhere
+ * else, which meant the only way to post an entry *by the rules* was over
+ * HTTP. Anything else -- a script, a scheduled close, a future importer, an
+ * integration test walking a trading day -- had to either reimplement the
+ * table and the balance guard or write `status: "POSTED"` straight to the
+ * column and skip both. Two of those are a second source of truth and the
+ * third is worse.
+ *
+ * Note the DB-level `JournalEntry_balanced_check` does NOT cover this: it
+ * compares the header's `totalDebits`/`totalCredits` columns, while the guard
+ * below sums the actual lines. A header that disagrees with its own lines
+ * satisfies the constraint and fails here, which is the case worth catching.
+ */
+export const JOURNAL_ENTRY_TRANSITIONS: Record<string, readonly string[]> = {
+  DRAFT: ["POSTED"],
+  POSTED: ["EXPORTED"],
+  EXPORTED: [],
+};
+
+export class JournalTransitionError extends Error {
+  constructor(
+    message: string,
+    readonly detail?: {
+      totalDebits?: number;
+      totalCredits?: number;
+      diff?: number;
+    },
+  ) {
+    super(message);
+    this.name = "JournalTransitionError";
+  }
+}
+
+/**
+ * Move a journal entry to `status`, enforcing the transition table and -- for
+ * POSTED and EXPORTED -- that the entry's LINES balance.
+ *
+ * Throws JournalTransitionError; callers map it to their own error surface.
+ */
+export async function transitionJournalEntry(
+  id: number,
+  status: string,
+  updatedBy?: string | null,
+): Promise<{ id: number; journalNumber: string; status: string }> {
+  const entry = await prisma.journalEntry.findUnique({ where: { id } });
+  if (!entry) {
+    throw new JournalTransitionError("Journal entry not found");
+  }
+
+  const allowed = JOURNAL_ENTRY_TRANSITIONS[entry.status] ?? [];
+  if (!allowed.includes(status)) {
+    throw new JournalTransitionError(`Cannot transition from ${entry.status} to ${status}`);
+  }
+
+  if (status === "POSTED" || status === "EXPORTED") {
+    const lines = await prisma.journalEntryLine.findMany({
+      where: { journalEntryId: id },
+      select: { debit: true, credit: true },
+    });
+    const balance = assertBalanced(
+      lines.map((l) => ({ debit: Number(l.debit), credit: Number(l.credit) })),
+    );
+    if (!balance.ok) {
+      throw new JournalTransitionError(balance.error ?? "Journal entry does not balance", {
+        totalDebits: balance.totalDebits,
+        totalCredits: balance.totalCredits,
+        diff: balance.diff,
+      });
+    }
+  }
+
+  const updated = await prisma.journalEntry.update({
+    where: { id },
+    // Safe: the transition table above admits only JournalStatus members, so
+    // an unknown string from an HTTP body can never reach this line.
+    data: {
+      status: status as Prisma.JournalEntryUpdateInput["status"],
+      updatedBy: updatedBy ?? null,
+    },
+  });
+  return {
+    id: updated.id,
+    journalNumber: updated.journalNumber,
+    status: updated.status,
   };
 }

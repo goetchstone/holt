@@ -45,6 +45,17 @@ function round2(n: number): number {
 
 export interface CreateDraftInput {
   customerId: number;
+  /**
+   * The sales order this invoice bills, when there is one.
+   *
+   * Not optional decoration. `generateSalesJournal()` recognises revenue and
+   * COGS for an order only when `order.hasInvoices` is true; until this field
+   * existed the ONLY writers of `Invoice.salesOrderId` were the Ordorite
+   * importer and the demo seed, so a deployment not importing from Ordorite
+   * could never invoice an order, and every sale sat in Customer Deposits
+   * forever without anything reporting a problem.
+   */
+  salesOrderId?: number | null;
   lines: DraftLineInput[];
   taxRate?: number;
   dueDate?: Date | null;
@@ -213,6 +224,12 @@ export async function createDraftInvoice(input: CreateDraftInput): Promise<{ id:
       where: { id: input.customerId },
       select: { id: true },
     });
+    if (input.salesOrderId != null) {
+      await tx.salesOrder.findUniqueOrThrow({
+        where: { id: input.salesOrderId },
+        select: { id: true },
+      });
+    }
     const now = new Date();
     const invoice = await tx.invoice.create({
       data: {
@@ -220,6 +237,7 @@ export async function createDraftInvoice(input: CreateDraftInput): Promise<{ id:
         invoiceDate: now,
         organizationId: DEFAULT_ORG_ID,
         customerId: input.customerId,
+        salesOrderId: input.salesOrderId ?? null,
         status: "DRAFT",
         taxAmount: totals.taxAmount,
         total: totals.total,

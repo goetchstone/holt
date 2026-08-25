@@ -21,12 +21,12 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   POS_PAYMENTS_SECTION,
   POS_TRANSACTIONS_SECTION,
-  CASH_MAPPING_LABEL,
   SALES_TAX_MAPPING_LABEL,
   OVER_SHORT_MAPPING_LABEL,
   OVER_SHORT_ALERT_THRESHOLD,
 } from "./glMapping";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { businessDayRange } from "@/lib/reports/businessDay";
 
 export const RECONCILIATION_TOLERANCE = 0.01;
@@ -57,8 +57,15 @@ export interface DailyReconciliationJournal {
   /** Sum of debits − credits on the departments' COGS GL accounts
    * (`AccountGroup.cogsAccount`). Positive = net expense recognized. */
   cost: number;
-  /** Sum of debits − credits on the combined-receipts account
-   * (`POS_PAYMENTS`/"Cash"). Positive = net cash in. */
+  /** Sum of debits − credits on EVERY tender's receipt account -- each
+   * `POS_PAYMENTS` mapping whose label names a real payment method. Positive =
+   * net cash in.
+   *
+   * This must span every tender because `source.cash` above sums every
+   * COMPLETED payment regardless of method. Counting only the account mapped
+   * to "Cash" made the two sides measure different things, and a deployment
+   * that took a single card payment reported a false cash drift equal to it --
+   * every day, for as long as it kept taking cards. */
   cash: number;
   /**
    * Sum of credits − debits on the Over/Short account
@@ -218,7 +225,7 @@ function describeMappingGaps(sets: Omit<ReconciliationAccounts, "warnings">): st
   }
   if (sets.cash.size === 0) {
     warnings.push(
-      `No ${POS_PAYMENTS_SECTION}/"${CASH_MAPPING_LABEL}" GL mapping — the journal cash bucket will read $0.00.`,
+      `No ${POS_PAYMENTS_SECTION} GL mapping names a tender (expected at least one of: ${Object.values(METHOD_DISPLAY).join(", ")}) — the journal cash bucket will read $0.00.`,
     );
   }
   // An absent Over/Short mapping is a legitimate (stricter) configuration: no
@@ -264,6 +271,29 @@ function describeMappingGaps(sets: Omit<ReconciliationAccounts, "warnings">): st
  *
  * CASH and OVER/SHORT are genuine singletons and come from `SystemGLMapping`.
  */
+/**
+ * The GL accounts that receive tender.
+ *
+ * Every tender lands somewhere, and all of it is "cash in" as far as the
+ * source side of the reconciliation is concerned -- `source.cash` sums every
+ * COMPLETED payment regardless of method. METHOD_DISPLAY is the single source
+ * of truth for which POS_PAYMENTS labels name a tender; labels outside it
+ * (notably "On Account"/"Deposit", which the JE generator uses as the OFFSET
+ * leg rather than a receipt) are not tender and must not be counted.
+ */
+function resolveTenderAccounts(
+  mappings: { section: string; label: string; glAccountId: number | null }[],
+): Set<number> {
+  const tenderLabels = new Set(Object.values(METHOD_DISPLAY).map((v) => v.toLowerCase()));
+  const accounts = new Set<number>();
+  for (const m of mappings) {
+    if (m.section !== POS_PAYMENTS_SECTION) continue;
+    if (!tenderLabels.has(m.label.trim().toLowerCase())) continue;
+    if (m.glAccountId != null) accounts.add(m.glAccountId);
+  }
+  return accounts;
+}
+
 export async function resolveReconciliationAccounts(
   client: PrismaClient | Prisma.TransactionClient,
 ): Promise<ReconciliationAccounts> {
@@ -277,7 +307,9 @@ export async function resolveReconciliationAccounts(
     client.systemGLMapping.findMany({
       where: {
         OR: [
-          { section: POS_PAYMENTS_SECTION, label: CASH_MAPPING_LABEL },
+          // ALL payment mappings, not just "Cash": resolveTenderAccounts()
+          // below decides which of them are receipts.
+          { section: POS_PAYMENTS_SECTION },
           {
             section: POS_TRANSACTIONS_SECTION,
             label: { in: [SALES_TAX_MAPPING_LABEL, OVER_SHORT_MAPPING_LABEL] },
@@ -305,9 +337,7 @@ export async function resolveReconciliationAccounts(
   const taxFallbackId = mappingId(POS_TRANSACTIONS_SECTION, SALES_TAX_MAPPING_LABEL);
   if (taxFallbackId != null) tax.add(taxFallbackId);
 
-  const cash = new Set<number>();
-  const cashId = mappingId(POS_PAYMENTS_SECTION, CASH_MAPPING_LABEL);
-  if (cashId != null) cash.add(cashId);
+  const cash = resolveTenderAccounts(mappings);
 
   const overShort = new Set<number>();
   const overShortId = mappingId(POS_TRANSACTIONS_SECTION, OVER_SHORT_MAPPING_LABEL);

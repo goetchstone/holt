@@ -962,43 +962,58 @@ describe("buildJournalLines — B3 classified return branching (restock vs. writ
 
 // ─── Endpoint tripwire for B4 ───────────────────────────────────
 
-describe("Tripwire: PUT /api/accounting/journal-entries/[id] enforces balance pre-POST", () => {
-  // PLACEHOLDER TEST -- Grade: B- (source-text tripwire)
+describe("Tripwire: the POSTED/EXPORTED balance guard has exactly one owner", () => {
+  // Source-text guard. An unbalanced journal entry must never reach a
+  // customer's accounting system, so DRAFT->POSTED and POSTED->EXPORTED both
+  // have to sum the entry's LINES first. (The DB constraint does NOT cover
+  // this: JournalEntry_balanced_check compares the header's totalDebits /
+  // totalCredits columns, so a header disagreeing with its own lines passes.)
   //
-  // Source-text guard: the PUT handler MUST call assertBalanced before
-  // any DRAFT->POSTED or POSTED->EXPORTED transition so the API never
-  // ships an unbalanced JE to QuickBooks. A future refactor that drops
-  // the call (or moves it after the .update()) fails this test.
+  // The check used to live inside the PUT handler, which meant HTTP was the
+  // only way to post an entry by the rules -- a script, a scheduled close or
+  // an importer could set status directly and skip it. It now lives in
+  // lib/journalEntry.ts's transitionJournalEntry(), and this tripwire pins
+  // BOTH halves: the lib still does the check, and the route still delegates
+  // rather than growing its own copy.
   //
-  // Upgrade target: Phase 0.6 -- replace with a real-DB integration test
-  // that creates an unbalanced JE in the test DB, calls the PUT endpoint
-  // via supertest, and asserts the 400 response + the JE staying in DRAFT.
-  // See plan "Phase 0.6 -- Test infrastructure roadmap".
+  // The behaviour itself is covered against a real database by
+  // __tests__/integration/tradingDay.integration.test.ts ("refuses to export a
+  // journal whose lines have been unbalanced"), which is the upgrade this
+  // tripwire's predecessor asked for. This stays as the cheap structural
+  // guard: it fails on a refactor that relocates the check, which a
+  // behavioural test would not notice until the check was gone entirely.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const fs = require("node:fs");
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const path = require("node:path");
   const ENDPOINT = path.resolve(__dirname, "../src/pages/api/accounting/journal-entries/[id].ts");
+  const LIB = path.resolve(__dirname, "../src/lib/journalEntry.ts");
 
-  test("imports assertBalanced", () => {
-    const src = fs.readFileSync(ENDPOINT, "utf8");
-    expect(src).toMatch(/import\s+\{\s*assertBalanced\s*\}\s+from\s+["']@\/lib\/journalEntry["']/);
+  test("the lib owns the guard and covers both transitions", () => {
+    const src = fs.readFileSync(LIB, "utf8");
+    const fn = src.slice(src.indexOf("export async function transitionJournalEntry"));
+    expect(fn).toMatch(/assertBalanced\(/);
+    expect(fn).toMatch(/status\s*===\s*["']POSTED["']/);
+    expect(fn).toMatch(/status\s*===\s*["']EXPORTED["']/);
+    // The check must precede the write, not follow it.
+    expect(fn.indexOf("assertBalanced(")).toBeLessThan(fn.indexOf("journalEntry.update("));
   });
 
-  test("calls assertBalanced when transitioning to POSTED or EXPORTED", () => {
+  test("the route delegates instead of keeping its own copy", () => {
     const src = fs.readFileSync(ENDPOINT, "utf8");
-    expect(src).toMatch(/assertBalanced\(/);
-    // Must guard both transitions, not just one.
-    expect(src).toMatch(/status\s*===\s*["']POSTED["']/);
-    expect(src).toMatch(/status\s*===\s*["']EXPORTED["']/);
+    expect(src).toMatch(
+      /import\s+\{[^}]*transitionJournalEntry[^}]*\}\s+from\s+["']@\/lib\/journalEntry["']/,
+    );
+    expect(src).toMatch(/transitionJournalEntry\(/);
+    // A second implementation here is the failure this catches.
+    expect(src).not.toMatch(/assertBalanced\(/);
+    expect(src).not.toMatch(/validTransitions/);
   });
 
-  test("returns 400 when assertBalanced.ok is false", () => {
+  test("the route still answers 400 on a refused transition", () => {
     const src = fs.readFileSync(ENDPOINT, "utf8");
-    // The handler must check `balance.ok` and return a 400 with the
-    // diagnostic before attempting the update.
-    expect(src).toMatch(/balance\.ok/);
-    expect(src).toMatch(/res\.status\(400\)/);
+    expect(src).toMatch(/JournalTransitionError/);
+    expect(src).toMatch(/res\.status\(code\)|res\.status\(400\)/);
   });
 });
 

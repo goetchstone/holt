@@ -540,7 +540,14 @@ describe("computeDailyReconciliation (real DB)", () => {
       expect(result.warnings.some((w) => w.includes("sales GL account"))).toBe(true);
       expect(result.warnings.some((w) => w.includes("COGS GL account"))).toBe(true);
       expect(result.warnings.some((w) => w.includes("tax GL account"))).toBe(true);
-      expect(result.warnings.some((w) => w.includes('POS_PAYMENTS/"Cash"'))).toBe(true);
+      // The tender warning names the SECTION and what it expects to find in
+      // it, rather than one hardcoded label: the journal's cash bucket now
+      // spans every tender's receipt account, so a deployment that takes cards
+      // and not cash is configured correctly and must not be told to map an
+      // account called "Cash".
+      expect(result.warnings.some((w) => w.includes("POS_PAYMENTS") && w.includes("tender"))).toBe(
+        true,
+      );
     });
 
     it("names the Over/Short account doubling as a sales account", async () => {
