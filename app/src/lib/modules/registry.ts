@@ -178,3 +178,31 @@ export const MODULES: ModuleDef[] = [
     docs: "docs/domains/dmarc-tools.md",
   },
 ];
+
+/**
+ * Every valid module key, derived from MODULES rather than restated.
+ */
+export const MODULE_KEYS: readonly string[] = MODULES.map((m) => m.key);
+
+/**
+ * Assert that a features map names only real modules, and return it unchanged.
+ *
+ * `AppSettings.features` is loose JSON, so an unknown key is not a type error --
+ * it is silently ignored by isFeatureEnabled and the module simply stays at its
+ * registry default. The demo seed shipped four such keys (commission,
+ * storefront, invoicing, deliveryScheduling) for long enough that a fresh clone
+ * 404'd on Invoices and hid half the nav, and nothing anywhere said why.
+ *
+ * Anything writing a features map should go through here so a typo fails at the
+ * point it is written instead of becoming a missing screen weeks later.
+ */
+export function assertKnownModules<T extends Record<string, boolean>>(features: T): T {
+  const unknown = Object.keys(features).filter((k) => !MODULE_KEYS.includes(k));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unknown module key(s): ${unknown.join(", ")}. ` +
+        `Valid keys are: ${MODULE_KEYS.join(", ")}.`,
+    );
+  }
+  return features;
+}
