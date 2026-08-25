@@ -28,6 +28,7 @@ import {
   type CommissionTier,
 } from "@/lib/commissionTiers";
 import { sumDesignerSales } from "@/lib/commissionSales";
+import { resolvePlanRulesForStaff } from "@/lib/commissionRules";
 import { resolvePlanTiersForStaff, loadLegacyOrDefaultTiers } from "@/lib/commissionPlans";
 import { logError } from "@/lib/logger";
 
@@ -91,10 +92,16 @@ export default requireAuthWithRole(
         orderBy: { displayName: "asc" },
       });
 
-      const [planTiers, defaultResolution] = await Promise.all([
+      const [planTiers, defaultResolution, planRules] = await Promise.all([
         resolvePlanTiersForStaff(staff.map((s) => s.id)),
         loadLegacyOrDefaultTiers(),
+        // Tiers say how much; `countsWhen` says which sales are in the window.
+        // This screen must agree with the payout generator on the second, or a
+        // designer's projected tier is computed off a different set of orders
+        // from the one they get paid on.
+        resolvePlanRulesForStaff(staff.map((s) => s.id)),
       ]);
+      const basisFor = (staffId: number) => planRules.get(staffId)?.countsWhen ?? "WRITTEN";
 
       const rows: CommissionRow[] = [];
       for (const s of staff) {
@@ -106,8 +113,8 @@ export default requireAuthWithRole(
         // year-start → window-end (= ytdAtEnd). Marginal slice between
         // them is the commissioned window.
         const [ytdAtStart, ytdAtEnd] = await Promise.all([
-          sumDesignerSales(s.id, matchNames, yearStart, startDate),
-          sumDesignerSales(s.id, matchNames, yearStart, endExclusive),
+          sumDesignerSales(s.id, matchNames, yearStart, startDate, basisFor(s.id)),
+          sumDesignerSales(s.id, matchNames, yearStart, endExclusive, basisFor(s.id)),
         ]);
 
         const windowSales = Math.max(0, ytdAtEnd - ytdAtStart);

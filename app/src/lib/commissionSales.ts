@@ -11,6 +11,7 @@
 import { prisma } from "@/lib/prisma";
 import { buildLineItemWhere } from "@/lib/salesBySalesperson";
 import { imputeMissingCost, resolveLineCost } from "@/lib/marginMath";
+import type { CommissionCountsWhen } from "@prisma/client";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 import type { CommissionSaleRow } from "@/lib/commissionRuleEngine";
 
@@ -35,16 +36,53 @@ import type { CommissionSaleRow } from "@/lib/commissionRuleEngine";
  * split partner on the same order (impossible in current data but
  * possible in principle), they get 1×.
  */
+/**
+ * Which date puts a sale in a commission period.
+ *
+ * WRITTEN   -- the day the order was taken. The designer earned it when they
+ *              closed the sale, whatever happens to the delivery afterwards.
+ * DELIVERED -- the day the goods reached the customer, which is also the day
+ *              the sale is recognised in the accounts.
+ *
+ * Both are legitimate and stores genuinely differ, which is why
+ * `CommissionPlan.countsWhen` exists. It just never did anything: it was
+ * resolved in commissionRules.ts and then dropped, so every plan behaved as
+ * WRITTEN no matter what it said. It could not have worked before
+ * SalesOrder.deliveredAt existed -- there was no delivery date to window on.
+ */
+export type CommissionBasis = CommissionCountsWhen;
+
+/**
+ * The date window and status filter for a basis.
+ *
+ * On the DELIVERED basis an undelivered order simply has no `deliveredAt`, so
+ * it falls out of every period rather than needing a status test -- which is
+ * the point: nothing is commissionable until it has gone.
+ */
+export function saleWindowWhere(basis: CommissionBasis, fromDate: Date, toDateExclusive: Date) {
+  const window =
+    basis === "DELIVERED"
+      ? { deliveredAt: { gte: fromDate, lt: toDateExclusive } }
+      : { orderDate: { gte: fromDate, lt: toDateExclusive } };
+  return { ...window, status: { in: [...SALES_REVENUE_STATUSES] } };
+}
+
 export async function sumDesignerSales(
   staffId: number,
   matchNames: string[],
   fromDate: Date,
   toDateExclusive: Date,
+  /**
+   * REQUIRED, not defaulted. The whole defect this parameter fixes was a
+   * setting that existed and nothing read: `countsWhen` was resolved and then
+   * dropped, so every plan behaved as WRITTEN whatever it said. A default here
+   * would let the next caller reintroduce exactly that, silently.
+   */
+  basis: CommissionBasis,
 ): Promise<number> {
   const orders = await prisma.salesOrder.findMany({
     where: {
-      orderDate: { gte: fromDate, lt: toDateExclusive },
-      status: { in: [...SALES_REVENUE_STATUSES] },
+      ...saleWindowWhere(basis, fromDate, toDateExclusive),
       OR: [
         ...matchNames.map((name) => ({
           salesperson: { equals: name, mode: "insensitive" as const },
@@ -95,11 +133,12 @@ export async function loadDesignerSaleRows(
   matchNames: string[],
   fromDate: Date,
   toDateExclusive: Date,
+  /** REQUIRED -- see sumDesignerSales. */
+  basis: CommissionBasis,
 ): Promise<CommissionSaleRow[]> {
   const orders = await prisma.salesOrder.findMany({
     where: {
-      orderDate: { gte: fromDate, lt: toDateExclusive },
-      status: { in: [...SALES_REVENUE_STATUSES] },
+      ...saleWindowWhere(basis, fromDate, toDateExclusive),
       OR: [
         ...matchNames.map((name) => ({
           salesperson: { equals: name, mode: "insensitive" as const },
@@ -111,6 +150,7 @@ export async function loadDesignerSaleRows(
     select: {
       id: true,
       orderDate: true,
+      deliveredAt: true,
       splitWithId: true,
       storeLocationId: true,
       lineItems: {
@@ -139,7 +179,10 @@ export async function loadDesignerSaleRows(
     // orderDate is nullable in the schema; buildSalesOrderWhere above
     // requires it in-range, so it's non-null on every returned row, but
     // guard defensively rather than assert.
-    const occurredAt = o.orderDate ?? fromDate;
+    // Must be the SAME date the window used. Windowing on delivery and then
+    // attributing on the order date would put a sale in one period and its
+    // commission in another.
+    const occurredAt = (basis === "DELIVERED" ? o.deliveredAt : o.orderDate) ?? fromDate;
     for (const li of o.lineItems) {
       const revenue = Number(li.netPrice ?? 0) * multiplier;
       const rawCost = resolveLineCost(li);
