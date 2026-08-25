@@ -60,6 +60,7 @@ async function main(): Promise<void> {
   const { seedOperations } = await import("./operations");
   const { seedDelivery } = await import("./delivery");
   const { seedScheduling } = await import("./scheduling");
+  const { seedInventoryOps } = await import("./inventoryOps");
   const { seedCommissionPayouts } = await import("./commissionPayouts");
   const { seedJournalEntries } = await import("./journal");
   const { ORG_SLUG } = await import("./org");
@@ -218,6 +219,17 @@ async function main(): Promise<void> {
   );
 
   const schedulingResult = await seedScheduling(prisma, rng, org.organizationId, staff, new Date());
+
+  // After inventory (needs positions to exist) and after salesOrders (oversell
+  // exceptions and order-linked transfers both point at real orders).
+  const inventoryOpsResult = await seedInventoryOps(
+    prisma,
+    rng,
+    catalog.products,
+    locations.stores,
+    staff,
+    new Date(),
+  );
 
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 
