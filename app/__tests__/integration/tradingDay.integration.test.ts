@@ -362,7 +362,7 @@ describe("a complete trading day (real DB)", () => {
       where: { salesOrderId: world.order.id },
     });
     expect(held).toHaveLength(2);
-    expect(held.every((p) => p.quantity === 1)).toBe(true);
+    expect(held.every((p) => Number(p.quantity) === 1)).toBe(true);
   });
 
   it("7. moves the allocated stock to the backroom without orphaning it", async () => {
@@ -376,7 +376,7 @@ describe("a complete trading day (real DB)", () => {
         await tx.inventoryTransfer.create({
           data: {
             productId: pos.productId,
-            quantity: pos.quantity,
+            quantity: Number(pos.quantity),
             fromLocation: world.warehouse.code,
             toLocation: world.backroom.code,
             fromStockLocationId: world.warehouse.id,

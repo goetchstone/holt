@@ -68,6 +68,7 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { logger } from "@/lib/logger";
+import { toQty, roundQty, qtyEquals, qtyIsZero } from "./quantity";
 
 export type PrismaTx = PrismaClient | Prisma.TransactionClient;
 
@@ -143,19 +144,32 @@ export interface DrawPlan {
  * No I/O, no ordering decisions (the caller supplies `positions` already in
  * the order it wants them drawn), just the arithmetic.
  */
+/** Prisma rows -> the plain shape planDraw works on. */
+function asDrawable(rows: { id: number; quantity: Prisma.Decimal | number }[]): PositionForDraw[] {
+  return rows.map((r) => ({ id: r.id, quantity: toQty(r.quantity) }));
+}
+
 export function planDraw(positions: PositionForDraw[], requested: number): DrawPlan {
   const steps: DrawStep[] = [];
-  let remaining = requested > 0 ? requested : 0;
+  let remaining = requested > 0 ? roundQty(requested) : 0;
 
   for (const position of positions) {
-    if (remaining <= 0) break;
-    const take = Math.min(remaining, position.quantity);
-    if (take <= 0) continue;
-    steps.push({ id: position.id, take, exhausts: take === position.quantity });
-    remaining -= take;
+    if (qtyIsZero(remaining) || remaining < 0) break;
+    const take = roundQty(Math.min(remaining, position.quantity));
+    if (qtyIsZero(take) || take < 0) continue;
+    // `qtyEquals`, not `===`. Quantities are fractional now, and exact float
+    // equality is how a position ends up stranded at 0.0000001 -- present in
+    // every count, sellable to nobody, and never cleaned up because it never
+    // reads as exhausted.
+    steps.push({ id: position.id, take, exhausts: qtyEquals(take, position.quantity) });
+    remaining = roundQty(remaining - take);
   }
 
-  return { steps, totalTaken: requested > 0 ? requested - remaining : 0, shortfall: remaining };
+  return {
+    steps,
+    totalTaken: requested > 0 ? roundQty(requested - remaining) : 0,
+    shortfall: remaining,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +220,7 @@ export async function availableQuantity(
     where: { ...freePositionWhere(), productId, storeLocationId },
     _sum: { quantity: true },
   });
-  return result._sum.quantity ?? 0;
+  return toQty(result._sum.quantity);
 }
 
 /**
@@ -244,7 +258,7 @@ export async function allocate(
       orderBy: { id: "asc" },
     });
 
-    const plan = planDraw(freePositions, line.quantity);
+    const plan = planDraw(asDrawable(freePositions), line.quantity);
     const byId = new Map(freePositions.map((p) => [p.id, p]));
 
     for (const step of plan.steps) {
@@ -408,7 +422,7 @@ export async function consume(
       orderBy: { id: "asc" },
     });
 
-    const plan = planDraw(allocated, line.quantity);
+    const plan = planDraw(asDrawable(allocated), line.quantity);
     const byId = new Map(allocated.map((p) => [p.id, p]));
 
     for (const step of plan.steps) {

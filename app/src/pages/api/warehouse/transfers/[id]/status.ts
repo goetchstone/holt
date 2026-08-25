@@ -9,6 +9,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { allocate } from "@/lib/inventory/allocation";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { toQty, roundQty, qtyIsZero } from "@/lib/inventory/quantity";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
@@ -67,8 +68,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         });
 
         if (sourcePosition) {
-          const newQty = sourcePosition.quantity - transfer.quantity;
-          if (newQty <= 0) {
+          const newQty = roundQty(toQty(sourcePosition.quantity) - toQty(transfer.quantity));
+          if (qtyIsZero(newQty) || newQty < 0) {
             await tx.inventoryPosition.delete({ where: { id: sourcePosition.id } });
           } else {
             await tx.inventoryPosition.update({
@@ -142,7 +143,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
                 {
                   productId: transfer.productId,
                   storeLocationId: transfer.toLocationId!,
-                  quantity: transfer.quantity,
+                  quantity: toQty(transfer.quantity),
                 },
               ],
               tx,

@@ -3,6 +3,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { toQty } from "@/lib/inventory/quantity";
 import { logError } from "@/lib/logger";
 import type { Prisma } from "@prisma/client";
 
@@ -143,7 +144,7 @@ export default requirePermission(
         id: t.id,
         fromLocation: t.fromStoreLocation?.name || t.fromLocation,
         toLocation: t.toStoreLocation?.name || t.toLocation,
-        itemCount: t.quantity,
+        itemCount: toQty(t.quantity),
         status: t.status,
         shippedAt: t.shippedAt ? t.shippedAt.toISOString() : null,
       }));
