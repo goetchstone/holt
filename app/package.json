@@ -37,6 +37,7 @@
     "seed:roles": "node scripts/seed-roles.mjs",
     "seed:demo": "TZ=UTC TS_NODE_PROJECT=prisma/seed/tsconfig.seed.json ts-node -r tsconfig-paths/register prisma/seed/demo/index.ts",
     "seed:coverage": "node scripts/seed-coverage.mjs",
+    "seed:all": "npm run seed:demo -- --reset && npm run seed:roles && npm run seed:cms",
     "staff:resolve": "node scripts/resolve-salespeople.mjs"
   },
   "dependencies": {

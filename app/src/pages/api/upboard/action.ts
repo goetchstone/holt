@@ -10,6 +10,7 @@
 //   "return_from_break" — person goes back to bottom of rotation as AVAILABLE
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
@@ -40,6 +41,9 @@ async function getMaxPosition(storeLocation: string): Promise<number> {
 }
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+  if (!(await isModuleEnabled("upBoard"))) {
+    return res.status(404).json({ error: "Module not enabled" });
+  }
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
   const { staffMemberId, action, customerNote } = req.body;

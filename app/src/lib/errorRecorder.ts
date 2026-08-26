@@ -42,6 +42,15 @@ let recording = false;
  */
 const ALERT_AT_COUNTS = new Set([1, 10, 100, 1000, 10000]);
 
+/**
+ * True while an alert is being reported.
+ *
+ * Module-level and deliberately not per-request: the loop this prevents is
+ * synchronous re-entry within one process, and a request-scoped flag would not
+ * see it.
+ */
+let alerting = false;
+
 /** Truncate anything before it goes in a column or an alert body. */
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}…` : s);
 
@@ -130,12 +139,24 @@ async function persist({ message, error, context }: RecordErrorInput): Promise<v
 
   if (!ALERT_AT_COUNTS.has(row.count)) return;
 
-  await reportOpsAlert({
-    title:
-      row.count === 1
-        ? `New error: ${clip(normalized, 120)}`
-        : `Error seen ${row.count}x: ${clip(normalized, 120)}`,
-    detail: [full, stackTop ? `at ${stackTop}` : null].filter(Boolean).join("\n"),
-    context: { ...sample, occurrences: row.count, fingerprint: row.fingerprint },
-  });
+  // Belt to opsAlert.ts's braces. That file must not call logError, and says
+  // so; this makes it structurally impossible for ANY future path to turn an
+  // alert back into an error worth alerting about.
+  //
+  // Without it, one unconfigured integration produced 1,154 rows of the loop's
+  // own output and a server too busy to answer a login.
+  if (alerting) return;
+  alerting = true;
+  try {
+    await reportOpsAlert({
+      title:
+        row.count === 1
+          ? `New error: ${clip(normalized, 120)}`
+          : `Error seen ${row.count}x: ${clip(normalized, 120)}`,
+      detail: [full, stackTop ? `at ${stackTop}` : null].filter(Boolean).join("\n"),
+      context: { ...sample, occurrences: row.count, fingerprint: row.fingerprint },
+    });
+  } finally {
+    alerting = false;
+  }
 }

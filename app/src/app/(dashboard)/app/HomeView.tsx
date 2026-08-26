@@ -49,7 +49,22 @@ interface StoreSales {
 
 const REFRESH_MS = 900000;
 
-export function HomeView() {
+/**
+ * Which sections this deployment shows.
+ *
+ * Both are showroom-floor conventions rather than things every business runs:
+ * a rotation only exists where staff take turns on a floor, and traffic only
+ * exists where there is a counter at the door. Hardcoded, they put two
+ * permanently-empty cards on the FIRST screen after login for anyone else --
+ * and an empty traffic card does not read as "no counter here", it reads as
+ * "nobody came in".
+ */
+export interface HomeViewProps {
+  showTraffic: boolean;
+  showUpBoard: boolean;
+}
+
+export function HomeView({ showTraffic, showUpBoard }: HomeViewProps) {
   const formatMoney = useMoneyFormatter();
   const formatCurrency = useCallback(
     (value: number): string => formatMoney(value, { whole: true }),
@@ -209,36 +224,47 @@ export function HomeView() {
       <h1 className="font-serif-display text-2xl text-brand-blue tracking-wide mb-6">Dashboard</h1>
 
       {/* --- Traffic + Sales cards --- */}
-      <section className="mb-10">
-        <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-brand-gray mb-4">
-          Store Traffic
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {allStores.map((storeName) => (
-            <StoreCard
-              key={storeName}
-              displayName={storeName}
-              sales={salesByStore[storeName]}
-              entriesToday={todayByStore[storeName] ?? 0}
-              entriesLastYear={lastYearByStore[storeName] ?? 0}
-              inStore={occupancyByStore[storeName] ?? 0}
-              formatCurrency={formatCurrency}
-            />
-          ))}
-        </div>
-      </section>
+      {showTraffic && (
+        <section className="mb-10">
+          <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-brand-gray mb-4">
+            Store Traffic
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {allStores.map((storeName) => (
+              <StoreCard
+                key={storeName}
+                displayName={storeName}
+                sales={salesByStore[storeName]}
+                entriesToday={todayByStore[storeName] ?? 0}
+                entriesLastYear={lastYearByStore[storeName] ?? 0}
+                inStore={occupancyByStore[storeName] ?? 0}
+                formatCurrency={formatCurrency}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* --- Up-Boards --- */}
-      <section className="mb-10">
-        <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-brand-gray mb-4">
-          Designer Rotation
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {upBoardStores.map(({ store, label }) => (
-            <UpBoard key={store} store={store} storeLabel={label} />
-          ))}
-        </div>
-      </section>
+      {showUpBoard && (
+        <section className="mb-10">
+          <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-brand-gray mb-4">
+            Designer Rotation
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {upBoardStores.map(({ store, label }) => (
+              <UpBoard key={store} store={store} storeLabel={label} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!showTraffic && !showUpBoard && (
+        <p className="text-sm text-brand-gray">
+          Store Traffic and the Up Board are switched off for this deployment. Turn them on in Admin
+          &rarr; Settings &rarr; Modules.
+        </p>
+      )}
     </div>
   );
 }

@@ -130,11 +130,26 @@ export const REFUND_SHARE_OF_ALL_PAYMENTS = 0.06;
  * a freshly-dated dataset later -- the default keeps today's run and a run
  * five years from now producing the same rows.
  */
-const DEFAULT_AS_OF = "2026-08-01";
+/**
+ * The seed window ends TODAY unless something pins it.
+ *
+ * This was a hardcoded date, which meant a demo went stale a day at a time:
+ * seeded once, and from then on the dashboard's "today" had no sales, the
+ * dispatch board's "today" had no runs, and every screen keyed to now drifted
+ * further from the data behind it. Three weeks after seeding, the first screen
+ * a viewer sees reads $0.
+ *
+ * `--as-of=YYYY-MM-DD` and `HOLT_SEED_AS_OF` still pin it, which is what any
+ * caller wanting reproducibility should use. Nothing in the test suite depends
+ * on the old constant -- checked, not assumed.
+ */
+function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export function seedWindow(argv: readonly string[] = []): { start: Date; end: Date } {
   const flag = argv.find((a) => a.startsWith("--as-of="));
-  const raw = flag?.split("=")[1] || process.env.HOLT_SEED_AS_OF || DEFAULT_AS_OF;
+  const raw = flag?.split("=")[1] || process.env.HOLT_SEED_AS_OF || todayUtc();
   const end = new Date(`${raw}T00:00:00.000Z`);
   if (Number.isNaN(end.getTime())) {
     throw new Error(`Invalid --as-of/HOLT_SEED_AS_OF date "${raw}" -- expected YYYY-MM-DD.`);

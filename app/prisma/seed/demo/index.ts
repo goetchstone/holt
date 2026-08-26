@@ -61,6 +61,8 @@ async function main(): Promise<void> {
   const { seedDelivery } = await import("./delivery");
   const { seedScheduling } = await import("./scheduling");
   const { seedInventoryOps } = await import("./inventoryOps");
+  const { seedPipeline } = await import("./pipeline");
+  const { seedSetupData } = await import("./setupData");
   const { seedCommissionPayouts } = await import("./commissionPayouts");
   const { seedJournalEntries } = await import("./journal");
   const { ORG_SLUG } = await import("./org");
@@ -232,6 +234,20 @@ async function main(): Promise<void> {
     new Date(),
   );
 
+  // The front of the funnel, and the setup tables behind Admin -> Setup. Both
+  // run late because they reference customers, staff, stores and products.
+  const pipelineResult = await seedPipeline(
+    prisma,
+    rng,
+    customers,
+    staff,
+    locations.stores,
+    catalog.products,
+    new Date(),
+  );
+
+  const setupResult = await seedSetupData(prisma, rng, staff, locations.stores, new Date());
+
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 
   const journalResult = await seedJournalEntries(prisma);
@@ -369,7 +385,16 @@ async function main(): Promise<void> {
       `orders, last sale ${departedLatest?.toISOString().slice(0, 10) ?? "n/a"} ` +
       `(active staff sell through ${activeLatest?.toISOString().slice(0, 10) ?? "n/a"})`,
   );
-  {
+  // --reset truncates EVERY table, including ones this seeder does not own. Run
+  // alone it therefore deletes the CMS content and the roles and does not put
+  // them back -- which shows up later as the storefront having lost its copy,
+  // with nothing in the log to explain it.
+  if (reset) {
+    console.log("");
+    console.log("NOTE: --reset truncated tables this seeder does not own. Also run:");
+    console.log("        npm run seed:roles     (Role, RolePermission)");
+    console.log("        npm run seed:cms       (Page, Post, Menu, MediaAsset)");
+    console.log("      or use `npm run seed:all`, which runs all three in order.");
   }
 
   await prisma.$disconnect();

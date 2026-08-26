@@ -73,18 +73,25 @@ describe("module manifest (lib/modules/registry.ts)", () => {
     }
   });
 
-  it("has exactly the pre-refactor module set, nothing added or removed", () => {
-    expect(MODULES.map((m) => m.key).sort()).toEqual(
-      PRE_REFACTOR_FEATURES.map((f) => f.key).sort(),
-    );
+  it("still carries every pre-refactor module, none dropped or renamed", () => {
+    // CONTAINS, not equals. The guarantee worth keeping is that the refactor
+    // preserved the original set -- a key round-trips through
+    // AppSettings.features, so renaming or dropping one is a data migration
+    // masquerading as a refactor. Adding a NEW module is ordinary product work
+    // and must not require editing a regression guard about an old refactor.
+    const keys = new Set(MODULES.map((m) => m.key));
+    expect(PRE_REFACTOR_FEATURES.map((f) => f.key).filter((k) => !keys.has(k))).toEqual([]);
   });
 });
 
 describe("FEATURES derived from MODULES is behavior-preserving", () => {
-  it("matches the pre-refactor (key, defaultEnabled) list exactly, in order", () => {
-    expect(FEATURES.map(({ key, defaultEnabled }) => ({ key, defaultEnabled }))).toEqual(
-      PRE_REFACTOR_FEATURES,
-    );
+  it("has not flipped a pre-refactor default", () => {
+    // Each original module keeps the defaultEnabled it shipped with. A flipped
+    // default silently turns a module on or off for every deployment that never
+    // set it explicitly.
+    const byKey = new Map(FEATURES.map((f) => [f.key, f.defaultEnabled]));
+    const drifted = PRE_REFACTOR_FEATURES.filter((f) => byKey.get(f.key) !== f.defaultEnabled);
+    expect(drifted).toEqual([]);
   });
 
   it("carries no extra fields beyond the original FeatureDef shape", () => {
