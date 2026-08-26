@@ -62,7 +62,7 @@ echo "    database: $DB_NAME"
 # after the migrate step has already run. A real deployment names its database
 # something else and does not run this script.
 case "$DB_NAME" in
-  *seed*|*demo*|*scratch*|*sandbox*|*sample*) ;;
+  ci|*_ci|ci_*|*_ci_*|*seed*|*demo*|*scratch*|*sandbox*|*sample*) ;;
   *)
     fail "Refusing to set up '$DB_NAME' -- this seeds demo data, and that name
   does not read as a database created for it. Point DATABASE_URL at one whose

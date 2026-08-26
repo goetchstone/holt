@@ -34,7 +34,7 @@ const HARD_BLOCKED_DB_NAMES = ["fbc_test_db"];
  * database names, which failed OPEN: a name nobody had thought to list seeded
  * silently, and the list only ever grew by someone losing data first.
  */
-const SCRATCH_DB_NAME = /(^|_)(seed|demo|scratch|sandbox|sample)(_|$)/i;
+const SCRATCH_DB_NAME = /(^|_)(seed|demo|scratch|sandbox|sample|ci)(_|$)/i;
 
 export class UnsafeSeedTargetError extends Error {}
 
@@ -91,8 +91,8 @@ export function assertSafeSeedTarget(databaseUrl: string, opts: SafetyCheckOptio
     throw new UnsafeSeedTargetError(
       `Refusing to seed database "${dbName}" (${masked}) without an explicit override. ` +
         `Only a purpose-built scratch database seeds unattended -- one whose name ` +
-        `contains "seed", "demo", "scratch", "sandbox" or "sample" (e.g. ` +
-        `holt_seed_demo). Any other name may hold real dev, restored or curated ` +
+        `carries "seed", "demo", "scratch", "sandbox", "sample" or "ci" as a word ` +
+        `(e.g. holt_seed_demo). Any other name may hold real dev, restored or curated ` +
         `data (CLAUDE.md rule 59). If this really is the intended target, re-run ` +
         `with --force-unsafe-db or HOLT_SEED_FORCE_UNSAFE_DB=1.`,
     );

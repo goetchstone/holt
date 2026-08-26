@@ -385,8 +385,9 @@ enforces:
 - **Hard-blocked, no override, ever:** `fbc_test_db` — owned exclusively by the Jest
   integration harness (`jest.integration.setup.ts`); seeding into it would corrupt every
   integration test run until someone noticed.
-- **Allowed unattended:** a name containing `seed`, `demo`, `scratch`, `sandbox` or
-  `sample` (`holt_demo` — the `env.example` default — `holt_seed_demo`, and the like).
+- **Allowed unattended:** a name carrying `seed`, `demo`, `scratch`, `sandbox`,
+  `sample` or `ci` as a whole word (`holt_demo` — the `env.example` default —
+  `holt_seed_demo`, and the `ci` database the smoke workflow creates).
 - **Everything else needs `--force-unsafe-db` / `HOLT_SEED_FORCE_UNSAFE_DB=1`**, on the
   assumption it holds real dev, restored or curated data.
 

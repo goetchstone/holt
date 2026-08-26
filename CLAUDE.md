@@ -198,7 +198,8 @@ Full playbook: → `.claude/skills/dependency-sweep/SKILL.md`
 
 59. **`fbc_test_db` is the only database tests may write**, and the demo seed
     writes only a database whose NAME says it exists to be seeded (`holt_demo`,
-    `holt_seed_demo`, anything carrying seed/demo/scratch/sandbox/sample). Every
+    `holt_seed_demo`, `ci`, anything carrying seed/demo/scratch/sandbox/sample/ci
+    as a whole word). Every
     other database is assumed to hold restored, curated or live local data and
     needs an explicit `--force-unsafe-db`. Allowlist, not blocklist: a blocklist
     of known-dangerous names fails open for the one nobody thought of, which is
