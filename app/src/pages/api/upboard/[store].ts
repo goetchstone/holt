@@ -3,6 +3,7 @@
 // Auto-expires shifts older than 9 hours on every read.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,10 @@ import { expireStaleShifts } from "@/lib/upboard";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: "Unauthorized" });
+
+  if (!(await isModuleEnabled("upBoard"))) {
+    return res.status(404).json({ error: "Module not enabled" });
+  }
 
   const store = req.query.store as string;
 

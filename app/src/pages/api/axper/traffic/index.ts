@@ -8,6 +8,7 @@
 // query date ranges should read from the table, NOT this endpoint.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { fetchAxperTraffic } from "@/lib/axperClient";
@@ -17,6 +18,10 @@ import { getTrafficStoreMap } from "@/lib/trafficStoreMap";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getServerSession(req, res, authOptions);
   if (!session) return res.status(401).json({ error: "Unauthorized" });
+
+  if (!(await isModuleEnabled("storeTraffic"))) {
+    return res.status(404).json({ error: "Module not enabled" });
+  }
 
   const { dateFrom, dateTo } = req.query;
   if (typeof dateFrom !== "string" || typeof dateTo !== "string") {

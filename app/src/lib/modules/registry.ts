@@ -28,6 +28,22 @@ export const MODULES: ModuleDef[] = [
     category: "core",
   },
   {
+    key: "upBoard",
+    name: "Up Board (designer rotation)",
+    description:
+      "Whose turn it is to take the next customer, per store. A showroom-floor convention -- a wholesaler, a manufacturer or an online-only shop has no rotation to run.",
+    defaultEnabled: false,
+    category: "core",
+  },
+  {
+    key: "storeTraffic",
+    name: "Store Traffic",
+    description:
+      "Door-counter visitor counts and conversion. Needs a physical counter at the door; without one the cards read zero forever, which looks like nobody came in rather than like there is nothing to count.",
+    defaultEnabled: false,
+    category: "core",
+  },
+  {
     key: "dispatch",
     name: "Dispatch & Delivery",
     description: "Delivery zones, dispatch board, route planning, service appointments.",

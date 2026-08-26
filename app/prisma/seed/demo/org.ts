@@ -49,15 +49,34 @@ export async function seedOrg(prisma: PrismaClient): Promise<OrgSetup> {
       // Sensible defaults for a store that runs its whole operation on
       // the platform -- this is the "full native chain" seed, so every
       // module the seed touches is switched on.
-      features: {
+      // Every key MUST exist in lib/modules/registry.ts. Four of the seven that
+      // used to be here -- commission, storefront, invoicing, deliveryScheduling
+      // -- were not module keys at all and were silently discarded, which left
+      // seventeen real modules at their registry defaults. That is why Invoices
+      // 404'd and half the nav was missing on a fresh clone.
+      // assertKnownModules() makes a typo fail loudly instead.
+      features: assertKnownModules({
         warehousing: true,
         dispatch: true,
         consignment: true,
-        commission: true,
-        storefront: true,
-        invoicing: true,
-        deliveryScheduling: true,
-      },
+        purchasing: true,
+        pos: true,
+        giftCards: true,
+        tills: true,
+        accounting: true,
+        marketing: true,
+        cms: true,
+        blog: true,
+        booking: true,
+        helpdesk: true,
+        timeTracking: true,
+        billing: true,
+        clientPortal: true,
+        // Showroom-floor conventions, default OFF because most businesses have
+        // neither a rotation nor a door counter. This demo is a showroom.
+        upBoard: true,
+        storeTraffic: true,
+      }),
       bookingConfig: {
         windowDays: 21,
         startHour: 9,

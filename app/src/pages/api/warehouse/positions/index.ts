@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { freePositionWhere } from "@/lib/inventory/allocation";
 import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
@@ -19,6 +20,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       const stockLocationId = req.query.stockLocationId
         ? Number.parseInt(req.query.stockLocationId as string)
         : null;
+      // The POS asks "what can I sell of THIS product". It was already passing
+      // productId; the handler simply did not support it, so the register got 50
+      // arbitrary positions and concluded there was none of anything.
+      const productId = req.query.productId ? Number.parseInt(req.query.productId as string) : null;
+      // Free stock only. A position committed to somebody else's order is not
+      // available to sell again -- showing it as on-hand at the register is how
+      // the same sofa gets sold twice.
+      const freeOnly = req.query.freeOnly === "1" || req.query.freeOnly === "true";
 
       const skip = (page - 1) * limit;
 
@@ -26,6 +35,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       const conditions: Prisma.InventoryPositionWhereInput[] = [];
 
       if (locationId) conditions.push({ storeLocationId: locationId });
+      if (productId) conditions.push({ productId });
+      // freePositionWhere() is the single definition of "free to sell", shared
+      // with allocate() and availableQuantity(), so the register and the
+      // allocator can never disagree about what is sellable.
+      if (freeOnly) conditions.push(freePositionWhere());
       if (stockLocationId) conditions.push({ stockLocationId });
       if (search) {
         conditions.push({

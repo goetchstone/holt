@@ -8,6 +8,7 @@
 // 3. If they're the only one, they're automatically UP
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
@@ -15,6 +16,9 @@ import { logError } from "@/lib/logger";
 import { getErrorMessage } from "@/lib/toastError";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (!(await isModuleEnabled("upBoard"))) {
+    return res.status(404).json({ error: "Module not enabled" });
+  }
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
   const { staffMemberId, storeLocation } = req.body;
