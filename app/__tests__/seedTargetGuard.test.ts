@@ -17,6 +17,7 @@ import { assertSafeSeedTarget, UnsafeSeedTargetError } from "../prisma/seed/demo
 
 const url = (db: string) => `postgresql://user:secret@localhost:5432/${db}`;
 const safe = { forceUnsafe: false };
+const escapeRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const forced = { forceUnsafe: true };
 
 describe("assertSafeSeedTarget", () => {
@@ -41,13 +42,41 @@ describe("assertSafeSeedTarget", () => {
   });
 
   // setup.sh reimplements the same rule in shell so it can fail BEFORE running
-  // migrations. Two implementations of one rule drift; this asserts the shell
-  // one still carries every token the TypeScript one does.
-  it("keeps setup.sh's shell copy of the rule in step", () => {
+  // migrations. Two implementations of one rule drift, so compare their
+  // DECISIONS -- an earlier version of this test only checked that the shell
+  // carried the same tokens, which it did while using substring globs (*demo*)
+  // against the guard's word-bounded regex. That gap let setup.sh migrate and
+  // seed roles into `holt_samples` before the seed refused it.
+  it("makes exactly the same call as setup.sh, database by database", () => {
     const setup = readFileSync(join(__dirname, "..", "scripts", "setup.sh"), "utf8");
-    for (const token of ["seed", "demo", "scratch", "sandbox", "sample", "ci"]) {
-      expect(setup).toContain(token);
-    }
+    const arm = setup.match(/^\s*((?:[A-Za-z0-9_*|]+\|)+[A-Za-z0-9_*|]+)\)\s*;;\s*$/m);
+    expect(arm).not.toBeNull();
+    const globs = arm![1].split("|");
+
+    const shellAllows = (db: string) =>
+      globs.some((g) => new RegExp("^" + g.split("*").map(escapeRe).join(".*") + "$").test(db));
+    const guardAllows = (db: string) => {
+      try {
+        assertSafeSeedTarget(url(db), safe);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    // Names chosen to straddle the boundary in both directions: plurals,
+    // hyphens, and tokens embedded in longer words are exactly where a
+    // substring glob and a word-bounded regex part company.
+    const NAMES = [
+      "holt_demo", "holt_seed_demo", "demo", "ci", "holt_ci", "ci_main", "scratch_db",
+      "holt_sandbox", "sample_data", "holt_samples", "holt-demo", "demolition_prod",
+      "seeded_archive", "sandboxes", "scratchpad_prod", "holt_prod", "acme_restored",
+      "postgres", "holt_2026_backup", "predemo", "demo_of_prod",
+    ];
+    const disagreements = NAMES.filter((db) => shellAllows(db) !== guardAllows(db)).map(
+      (db) => `${db}: setup.sh=${shellAllows(db) ? "allow" : "refuse"} guard=${guardAllows(db) ? "allow" : "refuse"}`,
+    );
+    expect(disagreements).toEqual([]);
   });
 
   it("refuses an unfamiliar name -- the case a blocklist misses", () => {

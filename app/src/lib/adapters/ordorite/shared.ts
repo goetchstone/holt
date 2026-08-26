@@ -219,13 +219,36 @@ const RETURN_ORDER_PREFIX = /^(R|CR)-?\d/i;
 // vendor's convention; the STORE CODES are a deployment fact (CLAUDE.md 61-63),
 // so they come from config and default to "any code".
 function storeCodeFragment(): string {
-  const configured = process.env.ORDORITE_STORE_CODES?.trim();
-  if (!configured) return "[A-Z]{2,}";
-  return configured
+  const codes = splitConfiguredCodes(process.env.ORDORITE_STORE_CODES);
+  // Falling back on an EMPTY list, not just an unset one. A value of "," or
+  // " , , " is truthy, splits to nothing, and used to join to "" -- producing
+  // `^(?:)[A-Z]*A\d`, which matches a ZERO-length code and is therefore
+  // BROADER than the default. A misconfiguration must never widen the match.
+  return codes.length ? codes.join("|") : "[A-Z]{2,}";
+}
+
+/**
+ * Prefixes that mark a whole order number as a return, e.g. "RS" for returns
+ * booked to a store whose initial is S.
+ *
+ * Empty by default, and that is deliberate. This started as one hardcoded
+ * literal for one deployment; generalising it to "R followed by any letter"
+ * looked source-neutral but silently widened it 26x, so an unrelated
+ * R-prefixed series (RA for a rug account, RX for exchanges) would import as
+ * RETURNED and be subtracted from revenue. There is no safe universal default:
+ * a deployment that uses such a series must name it.
+ */
+function returnPrefixFragment(): string | null {
+  const codes = splitConfiguredCodes(process.env.ORDORITE_RETURN_PREFIXES);
+  return codes.length ? codes.join("|") : null;
+}
+
+function splitConfiguredCodes(raw: string | undefined): string[] {
+  return (raw ?? "")
     .split(",")
-    .map((code) => code.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .map((code) => code.trim())
     .filter(Boolean)
-    .join("|");
+    .map((code) => code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 }
 
 // Rewrite-suffix matching. Ordorite rewrites replace the original order; the
@@ -276,9 +299,10 @@ export function rewriteBaseOrderno(orderno: string): string | null {
 
 /** True when the order number follows Ordorite's return/credit convention. */
 export function isReturnOrder(orderno: string): boolean {
-  // "R" + a store initial (RS1234) is a return booked against that store --
-  // distinct from RETURN_ORDER_PREFIX, which is "R"/"CR" followed by digits.
-  if (/^R[A-Z]\d/i.test(orderno)) return true;
+  // A configured whole-number return prefix (RS1234) -- distinct from
+  // RETURN_ORDER_PREFIX, which is "R"/"CR" followed directly by digits.
+  const returnPrefixes = returnPrefixFragment();
+  if (returnPrefixes && new RegExp(`^(?:${returnPrefixes})\\d`, "i").test(orderno)) return true;
   const codes = storeCodeFragment();
   const returnStoreSuffix = new RegExp(`^(?:${codes})[A-Z]*A\\d`, "i");
   return RETURN_ORDER_PREFIX.test(orderno) || returnStoreSuffix.test(orderno);

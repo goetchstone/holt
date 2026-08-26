@@ -23,12 +23,23 @@ import {
 interface RouteEntry {
   // A report Ordorite names the same way for every customer.
   pattern?: RegExp;
-  // A report the DEPLOYING ORG named after itself. Ordorite lets the owner
-  // pick export filenames, so the prefix is a deployment fact, not a vendor
-  // constant (CLAUDE.md 61-63) -- set ORDORITE_REPORT_PREFIX to pin it.
-  // Unset means "any prefix", which is what discriminates these from the
-  // unprefixed vendor-standard reports of the same name.
+  // A report the DEPLOYING ORG named after itself: `<Org>_Stock_by_Item.csv`.
+  // Ordorite lets the owner choose export filenames, so the prefix is a
+  // deployment fact, not a vendor constant (CLAUDE.md 61-63) -- it comes from
+  // ORDORITE_REPORT_PREFIX, which accepts a comma-separated list because one
+  // deployment routinely uses several (a full name for some reports, an
+  // initialism for others).
+  //
+  // Matched ANCHORED, with the prefix OPTIONAL. Anchoring is the point: an
+  // earlier version matched `.+_Customers` unanchored, which quietly routed
+  // `Deleted_Customers.csv` and `Vendor_Stock_by_Item.csv` into master-data
+  // imports that had previously returned null. A router that cannot positively
+  // identify a file must refuse it, not guess.
   orgReport?: string;
+  // Set when the prefix is REQUIRED rather than optional -- true only where an
+  // unprefixed route of the same name exists and means something else. Without
+  // a configured prefix these never match, so the bare route wins.
+  orgPrefixRequired?: boolean;
   importType: string;
   runner: (data: Record<string, unknown>[], createdBy?: string) => Promise<unknown>;
   // stock-by-item wraps records in { records: [...] } -- the runner accepts
@@ -78,7 +89,10 @@ const REPORT_ROUTES: RouteEntry[] = [
     runner: runPOLineExportImport,
   },
   {
+    // `<Org>_Inbound_Items` and a bare `Inbound_Items` are DIFFERENT reports
+    // with different runners, so this one needs a real prefix to fire.
     orgReport: "Inbound_Items",
+    orgPrefixRequired: true,
     importType: "inbound-items",
     runner: runInboundItemsImport,
   },
@@ -140,17 +154,33 @@ export interface ResolvedRoute {
   runner: (data: Record<string, unknown>[], createdBy?: string) => Promise<unknown>;
 }
 
-// Regex fragment matching the deploying org's report-name prefix. Deliberately
-// permissive when unconfigured: any prefix routes, which preserves the
-// prefixed-vs-bare discrimination without any deployment naming itself in code.
-function orgPrefixFragment(): string {
-  const configured = process.env.ORDORITE_REPORT_PREFIX?.trim();
-  return configured ? configured.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : ".+";
+/**
+ * Alternation of the deploying org's report-name prefixes, or null when none
+ * is configured.
+ *
+ * Comma-separated because a single deployment commonly uses more than one --
+ * a full name on some exports and an initialism on others. A scalar could not
+ * express that, and regex-escaping meant an operator could not smuggle one in
+ * as `A|B` either: pinning the prefix silently unrouted every report under the
+ * other one.
+ */
+function orgPrefixAlternation(): string | null {
+  const parts = (process.env.ORDORITE_REPORT_PREFIX ?? "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return parts.length ? `(?:${parts.join("|")})` : null;
 }
 
-function patternFor(route: RouteEntry, prefix: string): RegExp {
+function patternFor(route: RouteEntry, prefixAlt: string | null): RegExp | null {
   if (route.pattern) return route.pattern;
-  return new RegExp(`${prefix}_(?:${route.orgReport})`, "i");
+  if (prefixAlt) return new RegExp(`^${prefixAlt}_(?:${route.orgReport})`, "i");
+  // No prefix configured. A required-prefix route cannot fire at all; the rest
+  // still match their bare name, so an org that does not prefix its exports
+  // works with no configuration.
+  if (route.orgPrefixRequired) return null;
+  return new RegExp(`^(?:${route.orgReport})`, "i");
 }
 
 export function resolveImportRoute(filename: string): ResolvedRoute | "skip" | null {
@@ -159,9 +189,13 @@ export function resolveImportRoute(filename: string): ResolvedRoute | "skip" | n
     if (skip.test(filename)) return "skip";
   }
 
-  const prefix = orgPrefixFragment();
+  // Anchored matching is on the base name, so a directory component cannot
+  // stand in for the org prefix (`.` matches `/`).
+  const base = filename.split("/").pop() ?? filename;
+  const prefixAlt = orgPrefixAlternation();
   for (const route of REPORT_ROUTES) {
-    if (patternFor(route, prefix).test(filename)) {
+    const pattern = patternFor(route, prefixAlt);
+    if (pattern && pattern.test(base)) {
       return { importType: route.importType, runner: route.runner };
     }
   }

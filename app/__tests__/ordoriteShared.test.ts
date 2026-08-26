@@ -257,11 +257,69 @@ describe("isValidEmail", () => {
 
 // ─── isUntrustedMergeEmail ──────────────────────────────────────────
 
+describe("return-order conventions are configuration", () => {
+  const P = process.env.ORDORITE_RETURN_PREFIXES;
+  const C = process.env.ORDORITE_STORE_CODES;
+  afterEach(() => {
+    if (P === undefined) delete process.env.ORDORITE_RETURN_PREFIXES;
+    else process.env.ORDORITE_RETURN_PREFIXES = P;
+    if (C === undefined) delete process.env.ORDORITE_STORE_CODES;
+    else process.env.ORDORITE_STORE_CODES = C;
+  });
+
+  // The vendor's convention is the "A" suffix on a store code; the codes are
+  // the deployment's. Both spellings must agree.
+  it("reads the A-suffix return convention against configured store codes", () => {
+    process.env.ORDORITE_STORE_CODES = "SB,GT,CH";
+    expect(isReturnOrder("SBOA1234")).toBe(true);
+    expect(isReturnOrder("CHOA1")).toBe(true);
+    expect(isReturnOrder("SBOM38721")).toBe(false);
+    // A code the deployment did not declare is not its store.
+    expect(isReturnOrder("ZZOA1234")).toBe(false);
+  });
+
+  // A whole-number return prefix is one deployment's series. Generalising the
+  // original single literal to "R + any letter" looked source-neutral and
+  // silently widened it 26x, so an unrelated R-series (RA rug account, RX
+  // exchange) imported as RETURNED and was subtracted from revenue.
+  it("only treats a CONFIGURED R-prefix as a return", () => {
+    delete process.env.ORDORITE_RETURN_PREFIXES;
+    for (const o of ["RS1234", "RA1234", "RX9999", "RB0001"]) {
+      expect(isReturnOrder(o)).toBe(false);
+    }
+    process.env.ORDORITE_RETURN_PREFIXES = "RS";
+    expect(isReturnOrder("RS1234")).toBe(true);
+    expect(isReturnOrder("rs1234")).toBe(true);
+    expect(isReturnOrder("RA1234")).toBe(false);
+    expect(isReturnOrder("RX9999")).toBe(false);
+  });
+
+  // "R"/"CR" followed directly by digits is the vendor's own convention and
+  // stands on its own, configured or not.
+  it("keeps the vendor's own R/CR-then-digits convention unconditionally", () => {
+    delete process.env.ORDORITE_RETURN_PREFIXES;
+    expect(isReturnOrder("R12345")).toBe(true);
+    expect(isReturnOrder("CR-12345")).toBe(true);
+  });
+
+  // A misconfiguration must never WIDEN the match. A stray "," used to split to
+  // nothing and join to "", producing an empty alternation that matched a
+  // zero-length store code -- broader than the default it replaced.
+  it("falls back to the default when the configured list is empty", () => {
+    for (const junk of [",", " , , ", "  "]) {
+      process.env.ORDORITE_STORE_CODES = junk;
+      expect(isReturnOrder("PA1234")).toBe(false);
+      expect(isReturnOrder("A1")).toBe(false);
+      expect(isReturnOrder("SBOA1234")).toBe(true);
+    }
+  });
+});
+
 describe("isUntrustedMergeEmail", () => {
   // Staff sometimes type their OWN email when entering customer records
   // in the POS. The shared-email merge in findOrCreateCustomer would then
   // wrongly cluster distinct customers. The guard blocks any email whose
-  // DOMAIN contains COMPANY_EMAIL_DOMAIN. A short stem ("sayb") covers
+  // DOMAIN contains COMPANY_EMAIL_DOMAIN. A short stem ("rive") covers
   // the canonical company domain plus every typo variant seen in prod
   // data. Domains here are invented -- the guard reads the stem from env and the
   // test sets it, so nothing is coupled to any real company's address.
@@ -325,7 +383,7 @@ describe("isUntrustedMergeEmail", () => {
     try {
       expect(isUntrustedMergeEmail("jmoreau@riverbendhome.com")).toBe(false);
     } finally {
-      process.env.COMPANY_EMAIL_DOMAIN = "sayb";
+      process.env.COMPANY_EMAIL_DOMAIN = "rive";
     }
   });
 });

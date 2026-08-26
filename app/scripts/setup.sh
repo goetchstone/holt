@@ -62,7 +62,13 @@ echo "    database: $DB_NAME"
 # after the migrate step has already run. A real deployment names its database
 # something else and does not run this script.
 case "$DB_NAME" in
-  ci|*_ci|ci_*|*_ci_*|*seed*|*demo*|*scratch*|*sandbox*|*sample*) ;;
+  # Word-bounded on purpose, so this stays identical to guard.ts's
+  # /(^|_)(seed|demo|scratch|sandbox|sample|ci)(_|$)/i. Substring globs (*demo*)
+  # were looser than the guard: setup.sh accepted "holt_samples" and
+  # "demolition_prod", migrated and seeded roles into them, and only THEN did
+  # the seed refuse -- leaving a half-set-up database behind. Two copies of one
+  # rule drift; seedTargetGuard.test.ts compares their decisions name by name.
+  seed|*_seed|seed_*|*_seed_*|demo|*_demo|demo_*|*_demo_*|scratch|*_scratch|scratch_*|*_scratch_*|sandbox|*_sandbox|sandbox_*|*_sandbox_*|sample|*_sample|sample_*|*_sample_*|ci|*_ci|ci_*|*_ci_*) ;;
   *)
     fail "Refusing to set up '$DB_NAME' -- this seeds demo data, and that name
   does not read as a database created for it. Point DATABASE_URL at one whose
