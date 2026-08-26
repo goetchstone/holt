@@ -49,8 +49,8 @@ describe("buildSalesExplorerOrderWhere", () => {
   });
 
   it("uses a positive `in:` allow-list for the store filter, never a `not`", () => {
-    const where = buildSalesExplorerOrderWhere({}, ["Old Saybrook", "Madison"]);
-    expect(where.storeLocation).toEqual({ in: ["Old Saybrook", "Madison"] });
+    const where = buildSalesExplorerOrderWhere({}, ["Old Harbour", "Madison"]);
+    expect(where.storeLocation).toEqual({ in: ["Old Harbour", "Madison"] });
   });
 
   it("omits the store filter entirely when no stores are selected (does not drop unfiltered rows)", () => {
@@ -84,7 +84,7 @@ describe("getSalesExplorerItems — orphan sentinel normalization", () => {
 
   it("passes real department/category/vendor names straight through unmodified", async () => {
     await getSalesExplorerItems({} as never, {
-      store: "Old Saybrook",
+      store: "Old Harbour",
       department: "Furniture",
       category: "Sofas",
       vendor: "Wesley Hall",
@@ -94,7 +94,7 @@ describe("getSalesExplorerItems — orphan sentinel normalization", () => {
     expect(mockedGetDetailedSalesItems).toHaveBeenCalledWith(
       {},
       {
-        store: "Old Saybrook",
+        store: "Old Harbour",
         department: "Furniture",
         category: "Sofas",
         vendor: "Wesley Hall",

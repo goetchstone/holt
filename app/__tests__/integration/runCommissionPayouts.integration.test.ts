@@ -326,7 +326,7 @@ describe("previewPayoutsForPeriod (real DB)", () => {
     // aliases to additionally match a variant spelling.
     const customer = await seedCustomer();
     const sandra = await seedDesigner({
-      displayName: "Sandra Matheny",
+      displayName: "Sandra Merrick",
       aliases: ["Sandy"],
     });
 
@@ -338,7 +338,7 @@ describe("previewPayoutsForPeriod (real DB)", () => {
         orderDate: new Date("2026-05-18T00:00:00Z"),
         customerId: customer.id,
         salesPersonId: null,
-        salesperson: "Sandra Matheny",
+        salesperson: "Sandra Merrick",
         lineItems: {
           create: [
             {
@@ -376,7 +376,7 @@ describe("previewPayoutsForPeriod (real DB)", () => {
     });
 
     const drafts = await previewPayoutsForPeriod(PERIOD_START, PERIOD_END);
-    const s = drafts.find((d) => d.displayName === "Sandra Matheny");
+    const s = drafts.find((d) => d.displayName === "Sandra Merrick");
     expect(s).toBeDefined();
     expect(s?.staffMemberId).toBe(sandra.id);
     expect(s?.periodSalesAmount).toBe(15_000);

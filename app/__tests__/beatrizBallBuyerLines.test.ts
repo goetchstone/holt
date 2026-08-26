@@ -2,7 +2,7 @@
 //
 // A vendor confirmation repeats the BUYER's name and address in its header, and
 // the parser skips those lines. It used to skip them by hardcoding one
-// deployment's name -- "saybrook", "old saybrook" -- which made the parser
+// deployment's own name and town, which made the parser
 // correct for exactly one company.
 //
 // The failure is quiet, which is what makes it worth a test. A line the parser
@@ -20,7 +20,7 @@ import { buyerBoilerplate, parseBeatrizBallOrderText } from "@/lib/pricing/beatr
 function confirmation(buyerName: string): string {
   return [
     "Sales Order 12345",
-    "349699.0056.0024.754GLASS Vento Medium Vase (Clear)",
+    "349672.0045.0018.004GLASS Vento Medium Vase (Clear)",
     buyerName,
     "123 Harbour Road",
   ].join("\n");
@@ -47,7 +47,7 @@ describe("the buyer's own name never lands in an item", () => {
   });
 
   it("works for any deployment, naming none of them in code", () => {
-    for (const name of ["Northwind Home", "Kestrel & Co", "Old Saybrook"]) {
+    for (const name of ["Northwind Home", "Kestrel & Co", "Old Harbour"]) {
       expect(itemNames(confirmation(name), buyerBoilerplate(name))).not.toContain(
         name.toLowerCase(),
       );

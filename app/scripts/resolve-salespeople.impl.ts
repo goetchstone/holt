@@ -9,7 +9,7 @@
 // 13,931 orders, including one seller with $2.4M unattributed. Mixed in are POS
 // terminal logins, which are not people and must never become staff.
 //
-// Amy Sage DeMik is the target shape: archived StaffMember, all 689 orders
+// Dana Whitfield is the target shape: archived StaffMember, all 689 orders
 // FK-linked. This script produces that shape for everyone else.
 //
 // DRY RUN BY DEFAULT. It prints what it would create and changes nothing until

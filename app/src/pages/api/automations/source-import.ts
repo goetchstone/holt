@@ -5,7 +5,7 @@
 // Replaces /api/automations/gmail-import, which named ONE adapter's transport
 // in the URL. Gmail is how Ordorite ships its reports; it is not what an
 // import is. That route still works and forwards here (see its header) so the
-// deployed cron on Saybrook's NAS keeps running -- renaming a URL a cron calls
+// deployed cron on the pilot deployment's NAS keeps running -- renaming a URL a cron calls
 // is how a nightly job dies silently.
 //
 // Auth is unchanged: Bearer AUTO_IMPORT_API_KEY for the cron, or an

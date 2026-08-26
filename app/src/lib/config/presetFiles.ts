@@ -11,7 +11,7 @@
 //                     database, and is what a fresh clone gets. This is the
 //                     white-box product's default configuration.
 //   config/local/     GITIGNORED. A specific deployment's real mappings —
-//                     saybrook.yaml, akritos.yaml. Tenant data, not product
+//                     riverbend.yaml, akritos.json. Tenant data, not product
 //                     code, and per docs/TENANCY.md it must not travel with
 //                     the white box.
 //   $HOLT_CONFIG_DIR  Optional override, for a deployment that keeps its
@@ -211,8 +211,8 @@ export async function loadAllPresets(
  *
  *  Accepts BOTH spellings, because both are natural and one of them is what
  *  every doc and error message shows:
- *    --file config/local/saybrook.yaml   (repo-relative, what you'd tab-complete)
- *    --file local/saybrook.yaml          (config-root-relative)
+ *    --file config/local/riverbend.yaml   (repo-relative, what you'd tab-complete)
+ *    --file local/riverbend.yaml          (config-root-relative)
  *  A leading segment equal to the config root's own directory name is dropped
  *  rather than joined, which otherwise resolves to `config/config/local/...`.
  *  Matching on `basename(root)` keeps this working when HOLT_CONFIG_DIR points

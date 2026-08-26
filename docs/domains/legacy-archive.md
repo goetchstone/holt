@@ -73,7 +73,7 @@ Example mapping (a POSIM-style export):
 ```
 
 Editions note (docs/DEPLOYMENTS.md): the mapping config + source dump live
-in the deployment layer, never in this repo. The Saybrook deployment's
+in the deployment layer, never in this repo. The pilot deployment's
 POSIM config is edition material.
 
 ## Tests

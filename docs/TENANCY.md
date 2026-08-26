@@ -31,7 +31,7 @@ newer modules.
 Tenant configuration is not product code, and does not travel with the repo:
 
 - `config/local/` is gitignored. A deployment's real store names, traffic
-  counter labels and vendor payment codes live there (`saybrook.yaml`,
+  counter labels and vendor payment codes live there (`riverbend.yaml`,
   `akritos.json`). `config/presets/` — the committed set — holds only defaults
   tuned to the demo seed, so a fresh clone works without carrying anyone's
   data. `config/example.yaml` is committed as a template — at config root,

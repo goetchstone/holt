@@ -229,16 +229,16 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
   it("creates one ServiceCase + one initial-issue note per row", async () => {
     const customerId = await seedCustomer({
       firstName: "Barbara",
-      lastName: "Panagy",
-      phone: "860-470-3653",
+      lastName: "Pallant",
+      phone: "860-555-0173",
     });
 
     const buf = buildWorkbookBuffer({
       inProcess: [
         {
           Timestamp: new Date("2025-10-03T00:00:00Z"),
-          Name: "Barbara Panagy",
-          "Phone #": "860-470-3653",
+          Name: "Barbara Pallant",
+          "Phone #": "860-555-0173",
           "Preferred Contact Method": "Phone",
           Vendor: "Hallagan",
           Status: "Service Call",
@@ -269,7 +269,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
   // QUARANTINED -- pre-existing bug: extractSalesOrderTokens does not match hyphenated
   // order numbers (SO-NNNNN); genericization miss. Tracked for a focused fix.
   it.skip("matches SalesOrder by orderno (including rewrite suffix)", async () => {
-    await seedCustomer({ firstName: "Karen", lastName: "Dwyer" });
+    await seedCustomer({ firstName: "Karen", lastName: "Dunmore" });
 
     // The orderno cell in the sheet often has multiple shapes mashed
     // together. Verify both straight + " - A" forms resolve.
@@ -285,7 +285,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
       inProcess: [
         {
           Timestamp: new Date("2025-10-03T00:00:00Z"),
-          Name: "Karen Dwyer",
+          Name: "Karen Dunmore",
           "Order #": "PONO6239/ SO-28978-A",
           "Initial Issue, Status Update, and Notes": "Replacing the seat cushion.",
         },
@@ -302,12 +302,12 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
   });
 
   it("is idempotent — re-running the same buffer creates / updates nothing new", async () => {
-    await seedCustomer({ firstName: "Alan", lastName: "Nordquist" });
+    await seedCustomer({ firstName: "Alan", lastName: "Nordlund" });
     const buf = buildWorkbookBuffer({
       inProcess: [
         {
           Timestamp: new Date("2024-05-17T00:00:00Z"),
-          Name: "Alan Nordquist",
+          Name: "Alan Nordlund",
           Vendor: "Durham",
           Status: "Needs Attention",
           "Initial Issue, Status Update, and Notes": "Bed RAF side won't latch.",
@@ -468,7 +468,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
     // name-based matcher won't resolve.
     const targetCustomer = await seedCustomer({
       firstName: "Penny",
-      lastName: "Sigal",
+      lastName: "Sarlow",
       phone: "203-555-0101",
     });
     await prisma.salesOrder.create({
@@ -484,7 +484,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
         {
           Timestamp: new Date("2025-10-03T00:00:00Z"),
           // Slash-couple name format — won't match Customer.lastName lookup
-          Name: "Penny/Steve Sigal",
+          Name: "Penny/Steve Sarlow",
           // Phone differs from the seeded Penny → can't match by phone either
           "Phone #": "860-999-9999",
           "Order #": "SO-77777",
@@ -878,13 +878,13 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
         {
           ref: "K2", // K = column 11 (Initial Issue), row 2 (first data row)
           dt: "2025-12-03T19:19:55.00",
-          author: "Rebecca Warren",
+          author: "Rebecca Wexford",
           text: "First comment — actual case start",
         },
         {
           ref: "K2",
           dt: "2026-02-04T10:00:00.00",
-          author: "Rebecca Warren",
+          author: "Rebecca Wexford",
           text: "Later follow-up",
         },
       ],

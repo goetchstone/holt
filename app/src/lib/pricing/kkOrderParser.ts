@@ -6,7 +6,7 @@
 // Each line item is a fixed block in the pdf-parse text, anchored on the
 // unit price + UOM line:
 //
-//   39.99EA                 <- unit price + UOM, concatenated
+//   44.50EA                 <- unit price + UOM, concatenated
 //   15668B                  <- vendor item number
 //   8/1/26 4                <- required date + required qty
 //   0.00                    <- ship qty (not carried on the item)

@@ -33,14 +33,14 @@ function effectiveRow(overrides: Partial<EffectiveRow> = {}): EffectiveRow {
     color: "",
     size: "",
     qty: 4,
-    cost: 39.99,
+    cost: 44.50,
     msrp: null,
     selling: null,
     department: "Home Acc",
     category: "Decor",
     supplier: "K & K Interiors",
     barcode: "842657186221",
-    reference: "0002592360",
+    reference: "0009900001",
     ...overrides,
   };
 }
@@ -73,12 +73,12 @@ describe("groupRowsByReference — multi-PO bundles", () => {
 
   it("a K&K-style two-order bundle creates two groups, not one merged group", () => {
     const rows = [
-      effectiveRow({ key: "0", reference: "0002592360" }),
-      effectiveRow({ key: "1", reference: "0002592361" }),
+      effectiveRow({ key: "0", reference: "0009900001" }),
+      effectiveRow({ key: "1", reference: "0009900002" }),
     ];
     expect(groupRowsByReference(rows).map((g) => g.reference)).toEqual([
-      "0002592360",
-      "0002592361",
+      "0009900001",
+      "0009900002",
     ]);
   });
 
@@ -128,28 +128,28 @@ describe("unassignedRows", () => {
 
 describe("buildHomeAccessoryPoCreateBody", () => {
   it("maps the group's reference to referenceNumber and carries vendor + buy context", () => {
-    const group = { reference: "0002592360", rows: [effectiveRow()] };
+    const group = { reference: "0009900001", rows: [effectiveRow()] };
     const body = buildHomeAccessoryPoCreateBody(group, ctx({ buyId: 42 }));
     expect(body).toMatchObject({
       vendorId: 7,
       vendorName: "K & K Interiors",
-      referenceNumber: "0002592360",
+      referenceNumber: "0009900001",
       buyId: 42,
     });
-    expect(body.notes).toContain("0002592360");
+    expect(body.notes).toContain("0009900001");
   });
 
   it("looks up expectedShipMonth from the context's per-reference date map", () => {
-    const group = { reference: "0002592360", rows: [effectiveRow()] };
+    const group = { reference: "0009900001", rows: [effectiveRow()] };
     const body = buildHomeAccessoryPoCreateBody(
       group,
-      ctx({ requiredDateByReference: { "0002592360": "8/1/26" } }),
+      ctx({ requiredDateByReference: { "0009900001": "8/1/26" } }),
     );
     expect(body.expectedShipMonth).toBe("8/1/26");
   });
 
   it("falls through to null when the reference has no mapped date", () => {
-    const group = { reference: "0002592360", rows: [effectiveRow()] };
+    const group = { reference: "0009900001", rows: [effectiveRow()] };
     const body = buildHomeAccessoryPoCreateBody(group, ctx());
     expect(body.expectedShipMonth).toBeNull();
   });
@@ -171,7 +171,7 @@ describe("buildHomeAccessoryItemCreateBody", () => {
       vendorName: "K & K Interiors",
       partNumber: "KKI-15668B",
       productName: "13.5 Inch Brown Resin Horse",
-      cost: 39.99,
+      cost: 44.50,
       qty: 4,
       barcode: "842657186221",
       departmentId: 1,
@@ -191,25 +191,25 @@ describe("buildHomeAccessoryItemCreateBody", () => {
 
   it("retail falls back: selling, then msrp, then cost — never left blank", () => {
     const withSelling = buildHomeAccessoryItemCreateBody(
-      effectiveRow({ selling: 99.95, msrp: 120, cost: 39.99 }),
+      effectiveRow({ selling: 99.95, msrp: 120, cost: 44.50 }),
       1,
       ctx(),
     );
     expect(withSelling.retail).toBe(99.95);
 
     const withMsrpOnly = buildHomeAccessoryItemCreateBody(
-      effectiveRow({ selling: null, msrp: 56, cost: 24.75 }),
+      effectiveRow({ selling: null, msrp: 45, cost: 18.00 }),
       1,
       ctx(),
     );
-    expect(withMsrpOnly.retail).toBe(56);
+    expect(withMsrpOnly.retail).toBe(45);
 
     const costOnly = buildHomeAccessoryItemCreateBody(
-      effectiveRow({ selling: null, msrp: null, cost: 39.99 }),
+      effectiveRow({ selling: null, msrp: null, cost: 44.50 }),
       1,
       ctx(),
     );
-    expect(costOnly.retail).toBe(39.99);
+    expect(costOnly.retail).toBe(44.50);
   });
 
   it("msrp stays null when nothing was typed and no markup applied — never guesses at retail", () => {
@@ -253,11 +253,11 @@ describe("buildHomeAccessoryItemCreateBody", () => {
 
   it("stamps notes with the source label and the row's order reference", () => {
     const body = buildHomeAccessoryItemCreateBody(
-      effectiveRow({ reference: "0002592360" }),
+      effectiveRow({ reference: "0009900001" }),
       1,
       ctx({ sourceLabel: "Home Accessory Order Import — K & K Interiors" }),
     );
-    expect(body.notes).toBe("Home Accessory Order Import — K & K Interiors — order 0002592360");
+    expect(body.notes).toBe("Home Accessory Order Import — K & K Interiors — order 0009900001");
   });
 });
 

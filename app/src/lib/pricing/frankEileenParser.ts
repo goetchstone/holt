@@ -11,7 +11,7 @@
 //   Relaxed Button-Up Shirt Pink Red Blue Flowers   <- description
 //     XXS   XS    S    M    L   XL                  <- size scale header
 //   0010_                                           <- line number
-//       1    1    1    1 112.00     4   448.00      <- qtys, price, units, extension
+//       1    1    1    1 128.00     4   512.00      <- qtys, price, units, extension
 //
 // Per-size quantities are RIGHT-ALIGNED to their size label: a quantity
 // token's END offset equals the label's END offset in the size header

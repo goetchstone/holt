@@ -236,7 +236,7 @@ describe("no plan configured — empty tiers are an answer, not a crash", () => 
   });
 
   it("a configured plan is unaffected — the equivalence that matters", () => {
-    // Saybrook's numbers must not move. Same inputs, same output as before.
+    // the pilot deployment's numbers must not move. Same inputs, same output as before.
     const result = calculateMarginalCommission(0, 1_000_000, DEFAULT_COMMISSION_TIERS);
     expect(result.commission).toBeGreaterThan(0);
     expect(resolveTier(1_000_000, DEFAULT_COMMISSION_TIERS)?.label).toBe("$1M – $1.5M");

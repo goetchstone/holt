@@ -105,10 +105,10 @@ export function HomeView({ showTraffic, showUpBoard }: HomeViewProps) {
   }, [todayTraffic, lastYearTraffic]);
 
   // One card per STORE, not per counter. A store can have several counted
-  // doors — Old Saybrook's north and south buildings are two Axper feeds — and
+  // doors — Old Harbour's north and south buildings are two Axper feeds — and
   // keying cards on the raw counter label produced one card per door, each
   // repeating the store's full sales. With three stores and four feeds that
-  // rendered six cards, three of them titled "Old Saybrook".
+  // rendered six cards, three of them titled "Old Harbour".
   //
   // Resolve every raw label to its StoreLocation first, then dedupe. An
   // unmapped label resolves to itself, so a newly-installed counter still

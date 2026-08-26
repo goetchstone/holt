@@ -196,11 +196,20 @@ Full playbook: → `.claude/skills/dependency-sweep/SKILL.md`
 
 ### Data safety
 
-59. **`fbc_test_db` is the only database tests may write.** `saybrook`,
-    `holt_saybrook`, and `akritos` hold restored or seeded data and must never
-    be written by a test or script. The `DATABASE_URL must contain 'test'` guard
-    in `src/lib/testing/withTestDb.ts` is a floor, not a substitute for pointing
-    at the right database.
+59. **`fbc_test_db` is the only database tests may write**, and the demo seed
+    writes only a database whose NAME says it exists to be seeded (`holt_demo`,
+    `holt_seed_demo`, `ci`). The token seed/demo/scratch/sandbox/sample/ci must
+    be delimited by `_` or the ends of the name, so `holt-demo`, `demo2` and
+    `holt_samples` are all refused -- near-misses are refused on purpose, since
+    a name that only nearly says "scratch" is exactly the one that turns out to
+    hold something. Every other database is assumed to hold restored, curated or
+    live local data and needs an explicit `--force-unsafe-db`; the integration
+    test database is refused even with it. Allowlist, not blocklist: a blocklist
+    of known-dangerous names fails open for the one nobody thought of, which is
+    always the one that costs someone their data. The `DATABASE_URL must contain
+    'test'` guard in `src/lib/testing/withTestDb.ts` is a floor, not a substitute
+    for pointing at the right database. Enforced by
+    `prisma/seed/demo/guard.ts`, tested in `__tests__/seedTargetGuard.test.ts`.
 
 ## Stack and gates
 

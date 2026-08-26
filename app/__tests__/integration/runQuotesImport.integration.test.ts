@@ -12,7 +12,7 @@
 // running orphan-cleanup that re-cancelled lines on rewrite-base orders
 // every time the auto-import ran.
 //
-// Real prod incident: SBOM39275 (5/3 Old Saybrook, $7,819 missing from
+// Real prod incident: SBOM39275 (5/3 Old Harbour, $7,819 missing from
 // the daily total). Caught the second time on 2026-05-07 — the FIRST
 // fix (PR #209 rewrite-freeze in runSalesImport) didn't cover the
 // quote-runner code path. See post-failure log.
@@ -58,12 +58,12 @@ interface QuoteCsvRow extends Record<string, unknown> {
 
 function quoteRow(overrides: Partial<QuoteCsvRow> & { partNo: string; price: number }): QuoteCsvRow {
   return {
-    Company: "Old Saybrook",
+    Company: "Old Harbour",
     Orderno: ORDERNO,
     Status: "active",
     Salesperson: "Molly",
     Address: "",
-    Customer: "Sandy Favale",
+    Customer: "Sandy Fenwick",
     Email: "test@example.com",
     Orderdate: "2026-05-03",
     Quotecode: "SBQT32802",
@@ -92,7 +92,7 @@ describe("runQuotesImport — promoted-order guard + rewrite-freeze", () => {
     // the Daily Quote Report. Before the fix: reconcileExistingQuoteOrder
     // overwrites netPrice with unit prices AND cancels orphan lines.
     const customer = await prisma.customer.create({
-      data: { firstName: "Sandy", lastName: "Favale" },
+      data: { firstName: "Sandy", lastName: "Fenwick" },
     });
     await prisma.salesOrder.create({
       data: {
@@ -100,7 +100,7 @@ describe("runQuotesImport — promoted-order guard + rewrite-freeze", () => {
         status: "ORDER", // promoted from QUOTE
         orderDate: new Date("2026-05-03"),
         customerId: customer.id,
-        storeLocation: "Old Saybrook",
+        storeLocation: "Old Harbour",
         salesperson: "Molly",
         quoteCode: "SBQT32802", // had a quote code at one point
         lineItems: {
@@ -174,7 +174,7 @@ describe("runQuotesImport — promoted-order guard + rewrite-freeze", () => {
         status: "RETURNED",
         orderDate: new Date("2026-04-30"),
         customerId: customer.id,
-        storeLocation: "Old Saybrook",
+        storeLocation: "Old Harbour",
         quoteCode: "Q-1",
         lineItems: {
           create: [
@@ -221,7 +221,7 @@ describe("runQuotesImport — promoted-order guard + rewrite-freeze", () => {
         status: "QUOTE",
         orderDate: new Date("2026-04-30"),
         customerId: customer.id,
-        storeLocation: "Old Saybrook",
+        storeLocation: "Old Harbour",
         quoteCode: "Q-1",
         lineItems: {
           create: [1, 2, 3, 4, 5].map((n) => ({
@@ -241,7 +241,7 @@ describe("runQuotesImport — promoted-order guard + rewrite-freeze", () => {
         status: "QUOTE",
         orderDate: new Date("2026-05-01"),
         customerId: customer.id,
-        storeLocation: "Old Saybrook",
+        storeLocation: "Old Harbour",
         quoteCode: "Q-1A",
       },
     });
@@ -274,7 +274,7 @@ describe("runQuotesImport — promoted-order guard + rewrite-freeze", () => {
         status: "QUOTE",
         orderDate: new Date("2026-04-30"),
         customerId: customer.id,
-        storeLocation: "Old Saybrook",
+        storeLocation: "Old Harbour",
         quoteCode: "Q-1",
         lineItems: {
           create: [1, 2, 3].map((n) => ({

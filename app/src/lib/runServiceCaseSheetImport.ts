@@ -371,7 +371,7 @@ function matchDesigner(name: string | undefined, caches: Caches): number | null 
   // 2. First name (single match wins; multi-match returns null — operator must reclassify)
   const candidates = caches.staffByFirstName.get(v);
   if (candidates?.length === 1) return candidates[0];
-  // 3. "Kim D" → match "Kim D" alias or "Kim Dransfield" displayName-prefix
+  // 3. "Kim D" → match "Kim D" alias or "Kim Draycott" displayName-prefix
   const collapsed = v.replaceAll(/\s+/g, " ");
   for (const [k, id] of caches.staffByName.entries()) {
     if (k.startsWith(collapsed) || collapsed.startsWith(k)) return id;

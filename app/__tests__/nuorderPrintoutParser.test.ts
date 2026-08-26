@@ -2,8 +2,9 @@
 //
 // Pins the pure core of the NuOrder "order printout" parser
 // (parseNuOrderPrintoutItems) with hand-computed positioned-item fixtures.
-// Geometry mirrors the real PDFs (Frank & Eileen PO 18573341, Hunter Bell
-// PO 18908185): size-header labels at their real x positions, quantity
+// Geometry mirrors real PDFs (two vendors' order printouts; the PO numbers and
+// every price are invented -- this repo is public and a vendor's dealer costs
+// are confidential): size-header labels at their real x positions, quantity
 // digits offset a few points from the label x, color text far left of the
 // grid. The bug shapes covered are the ones that made pdf-parse text
 // unusable for this layout: ambiguous digit runs (column binning), wrapped
@@ -22,7 +23,7 @@ function pi(str: string, x: number, y: number): PositionedItem {
 function pageHeader(): PositionedItem[] {
   return [
     pi("PO#:", 476, 791),
-    pi("18573341", 500, 791),
+    pi("19900001", 500, 791),
     pi("Created:", 55, 764),
     pi("10/07/2025", 84, 764),
     pi("Contact: Erica", 176, 764),
@@ -68,7 +69,7 @@ function letterSizeHeader(y: number): PositionedItem[] {
 function eileenBlock(): PositionedItem[] {
   return [
     pi("Relaxed Button-Up Shirt", 57, 687),
-    ...styleAnchor("EILEEN", "112.00", "258.00", 675),
+    ...styleAnchor("EILEEN", "128.00", "274.00", 675),
     ...letterSizeHeader(654),
     pi("PRBG", 183, 639),
     pi("Pink Red Blue", 202, 639),
@@ -77,7 +78,7 @@ function eileenBlock(): PositionedItem[] {
     pi("1", 369, 636),
     pi("1", 387, 636),
     pi("4", 425, 636),
-    pi("USD 448.00", 480, 636),
+    pi("USD 512.00", 480, 636),
     pi("Flowers", 183, 632),
   ];
 }
@@ -97,17 +98,17 @@ function orderSummary(qty: string, total: string): PositionedItem[] {
 describe("parseNuOrderPrintoutItems — happy paths", () => {
   it("bins letter-grid digits to size columns by nearest header x", () => {
     const parsed = parseNuOrderPrintoutItems([
-      [...pageHeader(), ...eileenBlock(), ...orderSummary("4", "448.00")],
+      [...pageHeader(), ...eileenBlock(), ...orderSummary("4", "512.00")],
     ]);
     expect(parsed.warnings).toEqual([]);
     expect(parsed.items).toHaveLength(1);
     const item = parsed.items[0];
     expect(item.styleNumber).toBe("EILEEN");
     expect(item.productName).toBe("Relaxed Button-Up Shirt");
-    expect(item.unitPrice).toBe(112);
-    expect(item.msrp).toBe(258);
+    expect(item.unitPrice).toBe(128);
+    expect(item.msrp).toBe(274);
     expect(item.totalUnits).toBe(4);
-    expect(item.totalPrice).toBe(448);
+    expect(item.totalPrice).toBe(512);
     // Digits sit under XS/S/M/L — XXS and XL stay empty.
     expect(item.sizes).toEqual([
       { size: "XS", quantity: 1 },
@@ -119,23 +120,23 @@ describe("parseNuOrderPrintoutItems — happy paths", () => {
 
   it("accumulates wrapped color rows, including the wrap below the quantity row", () => {
     const parsed = parseNuOrderPrintoutItems([
-      [...pageHeader(), ...eileenBlock(), ...orderSummary("4", "448.00")],
+      [...pageHeader(), ...eileenBlock(), ...orderSummary("4", "512.00")],
     ]);
     expect(parsed.items[0].colorCode).toBe("PRBG Pink Red Blue Flowers");
   });
 
   it("reads the order header, season, and printed totals", () => {
     const parsed = parseNuOrderPrintoutItems([
-      [...pageHeader(), ...eileenBlock(), ...orderSummary("4", "448.00")],
+      [...pageHeader(), ...eileenBlock(), ...orderSummary("4", "512.00")],
     ]);
-    expect(parsed.poNumber).toBe("18573341");
+    expect(parsed.poNumber).toBe("19900001");
     expect(parsed.orderDate).toBe("10/07/2025");
     expect(parsed.deliveryStart).toBe("06/01/2026");
     expect(parsed.deliveryEnd).toBe("06/15/2026");
     expect(parsed.terms).toBe("PRE-PAID CREDIT CARD");
     expect(parsed.season).toBe("JUNE '26");
     expect(parsed.totalUnits).toBe(4);
-    expect(parsed.totalPrice).toBe(448);
+    expect(parsed.totalPrice).toBe(512);
     // The printout renders the brand as a logo image — never text.
     expect(parsed.vendorName).toBe("");
   });
@@ -144,7 +145,7 @@ describe("parseNuOrderPrintoutItems — happy paths", () => {
     const page = [
       ...pageHeader(),
       pi('Waterford 7.5"', 57, 700),
-      ...styleAnchor("GOLFSHORT", "121.00", "278.00", 690),
+      ...styleAnchor("GOLFSHORT", "137.00", "294.00", 690),
       pi("Colors", 147, 675),
       pi("Total", 504, 675),
       pi("00", 291, 671),
@@ -167,15 +168,15 @@ describe("parseNuOrderPrintoutItems — happy paths", () => {
       pi("1", 370, 657),
       pi("1", 386, 657),
       pi("5", 438, 657),
-      pi("605.00", 497, 653),
-      ...orderSummary("5", "605.00"),
+      pi("685.00", 497, 653),
+      ...orderSummary("5", "685.00"),
     ];
     const parsed = parseNuOrderPrintoutItems([page]);
     expect(parsed.warnings).toEqual([]);
     expect(parsed.items).toHaveLength(1);
     const item = parsed.items[0];
     expect(item.colorCode).toBe("1984 Washed Blue");
-    expect(item.totalPrice).toBe(605);
+    expect(item.totalPrice).toBe(685);
     expect(item.sizes).toEqual([
       { size: "2", quantity: 1 },
       { size: "4", quantity: 1 },
@@ -189,7 +190,7 @@ describe("parseNuOrderPrintoutItems — happy paths", () => {
     const page = [
       ...pageHeader(),
       pi("Small HB Canvas Tote", 57, 700),
-      ...styleAnchor("26HSA4Nat", "42.00", "100.00", 690),
+      ...styleAnchor("26HSA4Nat", "48.00", "110.00", 690),
       pi("Colors", 147, 675),
       pi("Total", 473, 675),
       pi("OS", 352, 671),
@@ -197,8 +198,8 @@ describe("parseNuOrderPrintoutItems — happy paths", () => {
       pi("Natural Natural", 183, 650),
       pi("1", 355, 650),
       pi("1", 376, 650),
-      pi("USD 42.00", 451, 650),
-      ...orderSummary("1", "42.00"),
+      pi("USD 48.00", 451, 650),
+      ...orderSummary("1", "48.00"),
     ];
     const parsed = parseNuOrderPrintoutItems([page]);
     expect(parsed.warnings).toEqual([]);
@@ -212,7 +213,7 @@ describe("parseNuOrderPrintoutItems — refuse-to-guess", () => {
     const page = [
       ...pageHeader(),
       pi("Relaxed Button-Up Shirt", 57, 687),
-      ...styleAnchor("EILEEN", "112.00", "258.00", 675),
+      ...styleAnchor("EILEEN", "128.00", "274.00", 675),
       ...letterSizeHeader(654),
       pi("PRBG", 183, 639),
       pi("Pink Red Blue", 202, 639),
@@ -221,8 +222,8 @@ describe("parseNuOrderPrintoutItems — refuse-to-guess", () => {
       pi("1", 351, 636),
       pi("1", 369, 636),
       pi("4", 425, 636),
-      pi("USD 448.00", 480, 636),
-      ...orderSummary("4", "448.00"),
+      pi("USD 512.00", 480, 636),
+      ...orderSummary("4", "512.00"),
     ];
     const parsed = parseNuOrderPrintoutItems([page]);
     expect(parsed.items).toHaveLength(0);
@@ -235,7 +236,7 @@ describe("parseNuOrderPrintoutItems — refuse-to-guess", () => {
     const page = [
       ...pageHeader(),
       pi("Relaxed Button-Up Shirt", 57, 687),
-      ...styleAnchor("EILEEN", "112.00", "258.00", 675),
+      ...styleAnchor("EILEEN", "128.00", "274.00", 675),
       ...letterSizeHeader(654),
       pi("PRBG", 183, 639),
       pi("1", 333, 636),
@@ -244,7 +245,7 @@ describe("parseNuOrderPrintoutItems — refuse-to-guess", () => {
       pi("1", 387, 636),
       pi("4", 425, 636),
       pi("USD 500.00", 480, 636),
-      ...orderSummary("4", "500.00"),
+      ...orderSummary("4", "560.00"),
     ];
     const parsed = parseNuOrderPrintoutItems([page]);
     expect(parsed.items).toHaveLength(0);
@@ -253,12 +254,12 @@ describe("parseNuOrderPrintoutItems — refuse-to-guess", () => {
 
   it("warns when the parsed items do not add up to the printed Grand Total", () => {
     const parsed = parseNuOrderPrintoutItems([
-      [...pageHeader(), ...eileenBlock(), ...orderSummary("4", "500.00")],
+      [...pageHeader(), ...eileenBlock(), ...orderSummary("4", "560.00")],
     ]);
     // The block itself is internally consistent, so it is kept — the
     // mismatch against the document total is surfaced, not hidden.
     expect(parsed.items).toHaveLength(1);
-    expect(parsed.warnings.some((w) => /448\.00.*500\.00/.test(w))).toBe(true);
+    expect(parsed.warnings.some((w) => /512\.00.*560\.00/.test(w))).toBe(true);
   });
 });
 
@@ -271,10 +272,10 @@ describe("parseNuOrderPrintoutItems — cancelled styles", () => {
       pi("Total Quantity:", 346, 605),
       pi("4", 519, 605),
       pi("Grand Total:", 346, 600),
-      pi("USD 448.00", 461, 600),
+      pi("USD 512.00", 461, 600),
       pi("Cancelled Styles:", 57, 560),
       pi("One-Size Button-Up Dress", 57, 550),
-      ...styleAnchor("MEGAN", "143.00", "328.00", 540),
+      ...styleAnchor("MEGAN", "166.00", "350.00", 540),
       pi("Colors", 147, 522),
       pi("Total", 473, 522),
       pi("O/S", 352, 518),
@@ -282,21 +283,21 @@ describe("parseNuOrderPrintoutItems — cancelled styles", () => {
       pi("V000 White", 185, 500),
       pi("2", 355, 500),
       pi("2", 376, 500),
-      pi("USD 286.00", 451, 500),
+      pi("USD 332.00", 451, 500),
       // The summary box repeats the heading at x~346 — must not re-flip.
       pi("Cancelled Styles:", 346, 433),
       pi("Total Quantity:", 346, 426),
       pi("2", 534, 426),
       pi("Total:", 346, 419),
-      pi("USD 286.00", 497, 419),
+      pi("USD 332.00", 497, 419),
     ];
     const parsed = parseNuOrderPrintoutItems([page]);
     expect(parsed.warnings).toEqual([]);
     expect(parsed.items).toHaveLength(1);
     expect(parsed.items[0].styleNumber).toBe("EILEEN");
-    expect(parsed.cancelled).toEqual({ items: 1, units: 2, total: 286 });
+    expect(parsed.cancelled).toEqual({ items: 1, units: 2, total: 332 });
     // The cancelled section's own Total Quantity must not clobber the order's.
     expect(parsed.totalUnits).toBe(4);
-    expect(parsed.totalPrice).toBe(448);
+    expect(parsed.totalPrice).toBe(512);
   });
 });

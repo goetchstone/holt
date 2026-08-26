@@ -8,18 +8,19 @@
 //
 //   IN-8222The Cadier Wooden Wall Mirrors  23.75" x     <- SKU + description,
 //   35.5"                                                  which wraps
-//   4EA200.00800.00                                      <- qty + UOM + price +
+//   4EA250.001000.00                                     <- qty + UOM + price +
 //                                                           total, concatenated
 //
 // or the whole block arrives on one line:
 //
-//   IN-8432Chevron Wood Box- 13"x 6.5"x 3.25"4EA57.00228.00
+//   IN-8432Chevron Wood Box- 13"x 6.5"x 3.25"4EA70.00280.00
 //
 // Three things this parser gets right, verified against the real order
-// (B31669979 / PON09029, 8 items, $3,322.00):
+// (its numbers and totals withheld -- this repo is public and the vendor's
+// dealer costs are confidential):
 //
 // 1. The money line has NO "$" and NO separators — qty + UOM (letters) + unit
-//    price + line total, e.g. "4EA200.00800.00". So the price/total boundary is
+//    price + line total, e.g. "4EA250.001000.00". So the price/total boundary is
 //    settled by the arithmetic: qty x price == total.
 //
 // 2. Descriptions carry inch marks ("23.75\" x 35.5\""), so a digit can sit

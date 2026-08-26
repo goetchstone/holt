@@ -118,11 +118,11 @@ describe("value mapping", () => {
       importMode: "INSERT_ONLY",
       fieldMappings: [{ sourceColumn: "City", targetField: "city" }],
       valueMappings: [],
-      rows: [{ City: "Glastonbury" }],
+      rows: [{ City: "Wexbridge" }],
     });
     expect(result.rows[0]).toMatchObject({
       outcome: "would-create",
-      record: { city: "Glastonbury" },
+      record: { city: "Wexbridge" },
     });
   });
 });

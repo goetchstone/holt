@@ -7,7 +7,7 @@
 //
 // Usage (from app/, via the launcher):
 //   node scripts/apply-preset.mjs                          # apply all (config/presets + config/local, local wins)
-//   node scripts/apply-preset.mjs --file config/local/saybrook.yaml
+//   node scripts/apply-preset.mjs --file config/local/riverbend.yaml
 //   node scripts/apply-preset.mjs --dry-run                # print the diff, write nothing
 //   node scripts/apply-preset.mjs --actor you@example.com  # recorded on the audit trail
 //
@@ -15,8 +15,8 @@
 // was malformed -- a GitOps runner (or a human) should treat this the same
 // as any other failed deploy step.
 //
-// Data safety (CLAUDE.md rule 59): `saybrook`, `holt_saybrook` and
-// `akritos` hold restored/seeded tenant data and must never take a preset
+// Data safety (CLAUDE.md rule 59): databases other than the local dev one may
+// hold restored or curated tenant data and must never take a preset
 // apply by accident -- applying the wrong tenant's config to them is
 // exactly the kind of "wrong env" typo rule 59 exists to catch. Writing
 // (not dry-running) against any database other than fbc_dev_db requires
@@ -43,7 +43,7 @@ function printUsage(): void {
 Applies config presets (config/presets/, config/local/) to the database.
 
 Options:
-  --file <path>     Apply only this file, e.g. config/local/saybrook.yaml
+  --file <path>     Apply only this file, e.g. config/local/riverbend.yaml
   --dry-run         Compute and print the diff; write nothing (not even the audit row)
   --actor <email>   Operator email recorded on the audit trail
   --yes             Required to WRITE to any database other than ${SAFE_DEFAULT_DATABASE}
@@ -189,7 +189,7 @@ async function main(): Promise<void> {
   if (!args.dryRun && dbName !== SAFE_DEFAULT_DATABASE && !args.yes) {
     console.error(
       `Refusing to write: DATABASE_URL points at "${dbName}", not "${SAFE_DEFAULT_DATABASE}". ` +
-        "saybrook, holt_saybrook and akritos hold restored/seeded data (CLAUDE.md rule 59) -- " +
+        "Other databases may hold restored or curated data (CLAUDE.md rule 59) -- " +
         "pass --yes to confirm this is the database you mean to change, or --dry-run to preview safely.",
     );
     process.exit(1);

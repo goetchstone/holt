@@ -95,7 +95,7 @@ vocabulary drifts from its GL mapping loses money from the books quietly.
 
 That drift is the normal case after an import, not an edge case: the mapping
 labels are authored by hand while `paymentType` arrives verbatim from the source
-system. On the restored Saybrook dataset, 43,139 of 47,880 payments — a net
+system. On the restored pilot dataset, 43,139 of 47,880 payments — a net
 $31.7M across 12 tender types — had no mapping row, while six configured labels
 (Visa, MC, Discover, AMEX, On Account, Deposit) matched no payment at all. The
 dominant real value, `Card Connect`, mapped to nothing.
@@ -109,7 +109,7 @@ from a tender string is how money lands in the wrong account.
 
 ### `TaxDistrict`
 
-Has its own `glAccountId` field. `2-2120` for CT in the Saybrook chart. New districts get
+Has its own `glAccountId` field. `2-2120` for CT in the pilot chart of accounts. New districts get
 their own account when added.
 
 **How a rate is chosen.** Never from a literal, and never from the client.

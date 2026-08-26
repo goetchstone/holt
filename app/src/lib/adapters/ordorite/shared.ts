@@ -213,10 +213,50 @@ export function isRefundPayment(paymentType: string, amount: number): boolean {
 
 const RETURN_ORDER_PREFIX = /^(R|CR)-?\d/i;
 
-// Ordorite uses an "A" suffix on the store code for return/credit transactions:
-// SBOA = Saybrook Old return, GTOA = Glastonbury return, CHOA = Cheshire return.
-// The "M" suffix (SBOM, GTOM, CHOM) is for regular merchandise orders.
-const RETURN_STORE_SUFFIX = /^(SB|GT|CH|BB|WS|RS)[A-Z]*A\d/i;
+// Ordorite uses an "A" suffix on the store code for return/credit transactions
+// and an "M" suffix for regular merchandise -- e.g. a store coded "AB" writes
+// ABxxA1234 for a return and ABxxM1234 for an order. The A/M suffix is the
+// vendor's convention; the STORE CODES are a deployment fact (CLAUDE.md 61-63),
+// so they come from config and default to "any code".
+function storeCodeFragment(): string | null {
+  // Null on an EMPTY list, not just an unset one: "," and " , , " are truthy,
+  // split to nothing, and joined to "" would produce `^(?:)[A-Z]*A\d` -- a
+  // ZERO-length store code, BROADER than any default. A misconfiguration must
+  // never widen a match.
+  //
+  // And there is no safe universal default here, for the same reason as
+  // ORDORITE_RETURN_PREFIXES below. `[A-Z]{2,}` in front of `[A-Z]*A\d` matches
+  // ANY letter run whose last letter before the first digit is "A": SOFA1,
+  // MEGA1234, VIA3 all classify as RETURNED and get subtracted from revenue.
+  // Unconfigured, this rule stands down -- genuine returns are still caught by
+  // the negative-net-total check in deriveSalesOrderStatus.
+  const codes = splitConfiguredCodes(process.env.ORDORITE_STORE_CODES);
+  return codes.length ? codes.join("|") : null;
+}
+
+/**
+ * Prefixes that mark a whole order number as a return, e.g. "RS" for returns
+ * booked to a store whose initial is S.
+ *
+ * Empty by default, and that is deliberate. This started as one hardcoded
+ * literal for one deployment; generalising it to "R followed by any letter"
+ * looked source-neutral but silently widened it 26x, so an unrelated
+ * R-prefixed series (RA for a rug account, RX for exchanges) would import as
+ * RETURNED and be subtracted from revenue. There is no safe universal default:
+ * a deployment that uses such a series must name it.
+ */
+function returnPrefixFragment(): string | null {
+  const codes = splitConfiguredCodes(process.env.ORDORITE_RETURN_PREFIXES);
+  return codes.length ? codes.join("|") : null;
+}
+
+function splitConfiguredCodes(raw: string | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean)
+    .map((code) => code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+}
 
 // Rewrite-suffix matching. Ordorite rewrites replace the original order; the
 // new order number is "<base> - A" (or B/C/D up to D). Everything that was on
@@ -266,9 +306,14 @@ export function rewriteBaseOrderno(orderno: string): string | null {
 
 /** True when the order number follows Ordorite's return/credit convention. */
 export function isReturnOrder(orderno: string): boolean {
-  // RS-prefixed orders are Returns Saybrook
-  if (/^RS\d/i.test(orderno)) return true;
-  return RETURN_ORDER_PREFIX.test(orderno) || RETURN_STORE_SUFFIX.test(orderno);
+  // A configured whole-number return prefix (RS1234) -- distinct from
+  // RETURN_ORDER_PREFIX, which is "R"/"CR" followed directly by digits.
+  const returnPrefixes = returnPrefixFragment();
+  if (returnPrefixes && new RegExp(`^(?:${returnPrefixes})\\d`, "i").test(orderno)) return true;
+  if (RETURN_ORDER_PREFIX.test(orderno)) return true;
+  const codes = storeCodeFragment();
+  if (!codes) return false;
+  return new RegExp(`^(?:${codes})[A-Z]*A\\d`, "i").test(orderno);
 }
 
 /**
@@ -395,7 +440,7 @@ export function parseOrdoriteAddress(raw: unknown): ParsedAddress | null {
     parts.pop();
   }
 
-  // Drop trailing zip code that ended up as its own part (e.g. "CT, 06033")
+  // Drop trailing zip code that ended up as its own part (e.g. "CT, 99999")
   const ZIP_RE = /^\d{5}(-\d{4})?$/;
   if (parts.length >= 4 && ZIP_RE.test(parts[parts.length - 1])) {
     parts.pop();
@@ -410,7 +455,7 @@ export function parseOrdoriteAddress(raw: unknown): ParsedAddress | null {
   const city = parts[parts.length - 2];
   const address1 = parts.slice(0, parts.length - 2).join(", ");
 
-  // Strip zip code merged into state (e.g. "CT 06033" -> "CT")
+  // Strip zip code merged into state (e.g. "CT 99999" -> "CT")
   const stateZipMatch = state.match(/^([A-Z]{2})\s+\d{5}/);
   if (stateZipMatch) {
     state = stateZipMatch[1];

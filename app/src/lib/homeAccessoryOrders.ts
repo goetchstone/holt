@@ -135,7 +135,7 @@ export const HOME_ACCESSORY_FORMATS: readonly HomeAccessoryFormat[] = [
     catalogVendorName: "Zodax",
     notes:
       "BrandWise is the platform; Zodax writes orders on it. The money line is qty + UOM + " +
-      'unit price + line total with NO dollar sign ("4EA200.00800.00"), settled by qty x ' +
+      'unit price + line total with NO dollar sign ("4EA250.001000.00"), settled by qty x ' +
       "price == total. There is NO UPC column, so barcodes stay blank. BrandWise does not " +
       "print the manufacturer, so the supplier defaults to Zodax -- edit it and Re-check for " +
       "another BrandWise vendor.",
@@ -150,22 +150,22 @@ export const HOME_ACCESSORY_FORMATS: readonly HomeAccessoryFormat[] = [
     // document and this one entry serves every brand on the form.
     notes:
       "Aesthetic Movement's PO form (Printworks writes orders on it). The money line has " +
-      'dollar signs -- "12$33.00$396.00" (qty $unit price $line total) -- so the split is ' +
+      'dollar signs -- "12$25.00$300.00" (qty $unit price $line total) -- so the split is ' +
       "unambiguous, and qty x price == total is still checked. UPCs are real 13-digit " +
       "manufacturer codes when present, but an out-of-stock item can print none, in which " +
       'case the barcode stays blank. The supplier is read from the "Vendor:" line.',
   },
   {
     id: "supercat",
-    label: "SuperCatSolutions PO (Jamie Young and other repped brands)",
+    label: "SuperCatSolutions PO (Dana Whitfield and other repped brands)",
     accepts: "pdf",
     parser: "supercat",
     // NO catalogVendorName on purpose: "Powered by SuperCatSolutions.com" reps
     // several brands and the vendor's name prints at the top of the document,
     // so the supplier is read from it and this entry serves every brand.
     notes:
-      "SuperCatSolutions' order form (Jamie Young writes orders on it). Each item is one " +
-      'run-together line -- "9BOATLINEG6$285.00$1,710.00Boa Table Lamp" (item + qty + $unit ' +
+      "SuperCatSolutions' order form (Dana Whitfield writes orders on it). Each item is one " +
+      'run-together line -- "9BOATLINEG6$210.00$1,260.00Boa Table Lamp" (item + qty + $unit ' +
       "price + $extension + description) -- split by the two dollar amounts and confirmed by " +
       "qty x price == extension. There is NO UPC column, so barcodes stay blank. An " +
       "order-level discount is NOT applied to the unit costs automatically -- it is surfaced " +
@@ -578,7 +578,7 @@ export function normalizeWendoverOrder(
  * A Graf & Lantz / MarketTime order as export rows.
  *
  * The Price column here is the UNIT price already (verified in FC: qty x
- * price == total on all 11 lines of PON09057), so unlike Wendover nothing
+ * price == total on all 11 lines of PON00004), so unlike Wendover nothing
  * is derived -- the cost is taken as printed.
  */
 export function normalizeMarketTimeOrder(
@@ -670,7 +670,7 @@ export function normalizeBrandWiseOrder(
 /**
  * An Aesthetic Movement (Printworks) order as export rows. The Price column
  * is the unit price already (verified in FC: qty x price == total on
- * PON09056's 6 lines), so cost is taken as printed. A UPC is the
+ * PON00003's 6 lines), so cost is taken as printed. A UPC is the
  * manufacturer's when present and blank for an out-of-stock item that
  * prints none.
  */
@@ -712,9 +712,9 @@ export function normalizeAestheticMovementOrder(
 }
 
 /**
- * A SuperCatSolutions (Jamie Young) order as export rows. The Price column
+ * A SuperCatSolutions (Dana Whitfield) order as export rows. The Price column
  * is the unit price already (verified in FC: qty x price == extension on
- * all 20 lines of Ref 153642), so cost is taken as printed. No UPC column,
+ * all 20 lines of the reference order), so cost is taken as printed. No UPC column,
  * so barcodes stay blank. An order-level discount is NOT applied to the
  * unit costs automatically -- it is surfaced as a warning.
  */

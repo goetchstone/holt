@@ -8,9 +8,9 @@
 // names still landed on every order they wrote. Alongside them are POS terminal
 // logins, which are not people and must never become staff records.
 //
-// The reference dataset holds 34 such names across 13,931 orders. Amy Sage
-// DeMik is the shape they should all have: archived StaffMember, every one of
-// her 689 orders FK-linked. Allison is the shape they do have: no record at
+// The reference dataset holds 34 such names across 13,931 orders. Dana
+// Whitfield is the shape they should all have: archived StaffMember, every one of
+// her 689 orders FK-linked. Robin is the shape they do have: no record at
 // all, 904 orders and $2.4M unattributed.
 //
 // Pure and tested; the database work lives in scripts/resolve-salespeople.impl.ts.

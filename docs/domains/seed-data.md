@@ -86,7 +86,7 @@ did not include it.
 
 ### Deriving realistic data without copying any
 
-The restored databases (`holt_saybrook`, `saybrook`) are the reference for what
+The restored databases are the reference for what
 real usage looks like. **Read them; never write them** (CLAUDE.md rule 59), and
 **never copy a row into the seed** — holt is a public repository, and the
 restored data is a real business's customers, prices and payroll.
@@ -376,18 +376,26 @@ yet.
 
 ## Target-database safety (rule 59)
 
-CLAUDE.md rule 59: *"`fbc_test_db` is the only database tests may write. `saybrook`,
-`holt_saybrook`, and `akritos` hold restored or seeded data and must never be written by
-a test or script."* This seed writes thousands of rows outside a transaction — more
-dangerous than a test run against the wrong database, since there's no
-TRUNCATE-and-retry safety net. `guard.ts`'s `assertSafeSeedTarget()` enforces:
+CLAUDE.md rule 59: the test database is the only one tests may write, and this seed
+writes only a database named for being seeded. The seed writes thousands of rows
+outside a transaction — more dangerous than a test run against the wrong database,
+since there's no TRUNCATE-and-retry safety net. `guard.ts`'s `assertSafeSeedTarget()`
+enforces:
 
 - **Hard-blocked, no override, ever:** `fbc_test_db` — owned exclusively by the Jest
   integration harness (`jest.integration.setup.ts`); seeding into it would corrupt every
   integration test run until someone noticed.
-- **Blocked unless `--force-unsafe-db` / `HOLT_SEED_FORCE_UNSAFE_DB=1`:** `saybrook`,
-  `holt_saybrook`, `akritos`, `fbc_dev_db` — real dev/restored/curated data.
-- Anything else (e.g. a scratch database like `holt_seed_demo`) is allowed.
+- **Allowed unattended:** a name carrying `seed`, `demo`, `scratch`, `sandbox`,
+  `sample` or `ci` as a whole word (`holt_demo` — the `env.example` default —
+  `holt_seed_demo`, and the `ci` database the smoke workflow creates).
+- **Everything else needs `--force-unsafe-db` / `HOLT_SEED_FORCE_UNSAFE_DB=1`**, on the
+  assumption it holds real dev, restored or curated data.
+
+This is an allowlist on purpose. It replaced a blocklist of specific database names,
+which failed open: a name nobody had listed seeded silently, and the list only ever
+grew after someone lost data. `__tests__/seedTargetGuard.test.ts` covers it — the
+cases that matter most are the unfamiliar names, refused precisely because nobody
+thought of them.
 
 The guard runs before the shared `@/lib/prisma` singleton is even imported, so a refused
 target never gets so much as a connection pool constructed against it.

@@ -8,7 +8,7 @@
 // (RETURNED orders must be INCLUDED in customer-revenue sums so the
 // negative netPrice rows net out rewrite chains and refunds).
 //
-// User-reported origin (Barbara Germano, 2026-05-13): the Mailchimp
+// User-reported origin (Rowan Fairbairn, 2026-05-13): the Mailchimp
 // Campaign Impact report attributed $88,624 to her engagement when
 // her actual net spend was $61,922. The missing $26K was the
 // accounting return SR-013491 that the WHERE clause silently

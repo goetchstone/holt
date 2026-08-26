@@ -64,7 +64,7 @@ ignore the GUI; a shop with no engineers can ignore the files.
 | Directory          | Committed           | Purpose                                                                           |
 | ------------------ | ------------------- | --------------------------------------------------------------------------------- |
 | `config/presets/`  | **yes**             | White-box defaults, tuned to the demo seed so a fresh clone works out of the box. |
-| `config/local/`    | **no** (gitignored) | One deployment's real mappings — `saybrook.yaml`, `akritos.json`.                 |
+| `config/local/`    | **no** (gitignored) | One deployment's real mappings — `riverbend.yaml`, `akritos.json`.                 |
 | `$HOLT_CONFIG_DIR` | n/a                 | Override for config kept in a private repo or a mounted volume.                   |
 
 `config/local/` is gitignored because a tenant's store names and vendor payment
@@ -123,7 +123,7 @@ Parser safety is not left to defaults:
 ```bash
 node app/scripts/apply-preset.mjs --dry-run     # show the diff, write nothing
 node app/scripts/apply-preset.mjs               # apply everything
-node app/scripts/apply-preset.mjs --file config/local/saybrook.yaml
+node app/scripts/apply-preset.mjs --file config/local/riverbend.yaml
 ```
 
 Two properties matter more than the rest:
@@ -154,7 +154,7 @@ cannot leave a definition with half its mappings updated.
 The script prints the target database **name** before writing (never the
 password), and refuses to write to anything other than `fbc_dev_db` without an
 explicit `--yes`. Applying tenant config to the wrong database is the obvious
-foot-gun, and `saybrook` / `holt_saybrook` / `akritos` hold restored data
+foot-gun, and databases outside the seed allowlist may hold restored data
 (CLAUDE.md rule 59).
 
 ## In Docker
@@ -195,7 +195,7 @@ Two layers:
 
 - **`ConfigChangeLog`** (durable) — one row per preset applied, from either
   door: `presetKind`, `presetName`, `action` (`APPLIED` / `UNCHANGED` /
-  `FAILED`), `source` (`cli:config/local/saybrook.yaml` or `gui`), `summary`
+  `FAILED`), `source` (`cli:config/local/riverbend.yaml` or `gui`), `summary`
   (counts plus what moved), `actor`, `created`. Append-only by convention.
   Deliberately records `UNCHANGED` and `FAILED` too — "we tried and it was
   already right" and "we tried and it broke" are both things you want in the
@@ -243,7 +243,7 @@ literals in `lib/storeColors.ts`.
 
 The counter, the POS, and holt rarely agree on what a store is called, and one
 store can own several counter labels — two co-located buildings counted
-separately still roll up to one store. Saybrook's real data is exactly this
+separately still roll up to one store. The pilot deployment's real data is exactly this
 shape: `NB` and `SB` are two doors of one showroom, and reading either alone
 computes conversion against half the store's traffic.
 

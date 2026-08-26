@@ -1,6 +1,8 @@
 // /app/__tests__/simblistCsvOrderParser.test.ts
 //
-// The fixture is the real Simblist Group / Maison Zoe Ford export (PON09047, 5
+// The fixture is a real Simblist Group / Maison Zoe Ford export (PO number and every
+// price invented -- this repo is public and a vendor's dealer costs are
+// confidential). It keeps the 5
 // items). It keeps the two-table shape (order-header pair + item table) and the
 // order-level discount (line totals summing above the order total) that the
 // parser must surface rather than silently apply.
@@ -9,13 +11,13 @@ import { parseSimblistCsvText } from "@/lib/pricing/simblistCsvOrderParser";
 
 const FIXTURE = [
   "RepGroup,Manufacturer,PO #,Order Date,Request Date,Ship Date,Cancel Date,Order Total,Customer Name",
-  "Simblist Group,MAISON ZOE FORD,PON09047,2026-06-11,2026-09-01,2026-09-01,,722.74,SAYBROOK HOME",
+  "Simblist Group,MAISON ZOE FORD,PON00001,2026-06-11,2026-09-01,2026-09-01,,615.60,RIVERBEND HOME",
   "Sequence #,Item Number,Name,Description,Quantity,Unit Price,Unit Qty,Item Discount,UPC,Unit of measure,Size,Color,Style,Notes,Retailer Item Number,List Price,Item Status,Extended Price,Total Price",
-  '3,ZFUSA03-C,Big Time Brownie Mix - case pack of 6,,2,53.94,,0.0,10628678860152,,,,,"Only available to ship on September 1, 2026",,17.99,,,$107.88',
-  "6,ZFUSA07-C,Speedy Cinnamon Roll Mix - case pack of 6,,2,41.94,,0.0,10628678860176,,,,,,,13.99,,,$83.88",
-  "1,ZFUSA13-C,Extraordinary Brownie Hot Chocolate,,6,71.92,,0.0,10628678860213,,,,,,,17.99,,,$431.52",
-  "2,ZFUSA20-C,Quick Focaccia Style Flatbread Mix,,2,35.94,,0.0,10628678860299,,,,,,,11.99,,,$71.88",
-  "5,ZFUSA21-C,Outrageous Ginger Cookie Mix - case pack of 6,,2,53.94,,0.0,10628678860336,,,,,,,17.99,,,$107.88",
+  '3,ZFUSA03-C,Big Time Brownie Mix - case pack of 6,,2,48.00,,0.0,10628678860152,,,,,"Only available to ship on September 1, 2026",,15.00,,,$96.00',
+  "6,ZFUSA07-C,Speedy Cinnamon Roll Mix - case pack of 6,,2,36.00,,0.0,10628678860176,,,,,,,12.00,,,$72.00",
+  "1,ZFUSA13-C,Extraordinary Brownie Hot Chocolate,,6,60.00,,0.0,10628678860213,,,,,,,15.00,,,$360.00",
+  "2,ZFUSA20-C,Quick Focaccia Style Flatbread Mix,,2,30.00,,0.0,10628678860299,,,,,,,10.00,,,$60.00",
+  "5,ZFUSA21-C,Outrageous Ginger Cookie Mix - case pack of 6,,2,48.00,,0.0,10628678860336,,,,,,,15.00,,,$96.00",
 ].join("\n");
 
 describe("parseSimblistCsvText", () => {
@@ -24,9 +26,9 @@ describe("parseSimblistCsvText", () => {
   it("reads the manufacturer, rep group, and PO from the order-header row", () => {
     expect(order.vendorName).toBe("MAISON ZOE FORD");
     expect(order.repGroup).toBe("Simblist Group");
-    expect(order.poNumber).toBe("PON09047");
+    expect(order.poNumber).toBe("PON00001");
     expect(order.shipDate).toBe("2026-09-01");
-    expect(order.printedTotal).toBeCloseTo(722.74, 2);
+    expect(order.printedTotal).toBeCloseTo(615.6, 2);
   });
 
   it("reads columns by name and confirms qty x Unit Price == Total Price", () => {
@@ -34,9 +36,9 @@ describe("parseSimblistCsvText", () => {
     const brownie = order.items.find((i) => i.itemNumber === "ZFUSA03-C");
     expect(brownie).toMatchObject({
       qty: 2,
-      unitPrice: 53.94,
-      lineTotal: 107.88,
-      listPrice: 17.99,
+      unitPrice: 48,
+      lineTotal: 96,
+      listPrice: 15,
     });
     expect(brownie?.upc).toBe("10628678860152");
   });
@@ -47,10 +49,10 @@ describe("parseSimblistCsvText", () => {
   });
 
   it("surfaces the order-level discount rather than applying it", () => {
-    // Line totals sum to 803.04; order total is 722.74 -> an 80.30 discount.
+    // Line totals sum to 684.00; order total is 615.60 -> a 68.40 discount.
     const lineSum = order.items.reduce((s, i) => s + i.lineTotal, 0);
-    expect(lineSum).toBeCloseTo(803.04, 2);
-    expect(order.warnings.some((w) => w.includes("order-level discount of 80.30"))).toBe(true);
+    expect(lineSum).toBeCloseTo(684, 2);
+    expect(order.warnings.some((w) => w.includes("order-level discount of 68.40"))).toBe(true);
   });
 
   it("warns when it cannot find the item table", () => {

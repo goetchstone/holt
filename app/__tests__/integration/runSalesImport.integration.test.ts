@@ -45,7 +45,7 @@
 //      regression.test.ts`) exercised this logic; neither goes
 //      through Prisma/Postgres. See "Same-day rewrites — the
 //      dropped-line edge case" in the domain doc for the full
-//      incident history (2026-05-12 Cheshire $1,109 delta,
+//      incident history (2026-05-12 Brookvale $1,109 delta,
 //      2026-05-15 SBOM39618 over-cancellation, 2026-05-22 SBOM39876
 //      return-lookup bug).
 //
@@ -72,7 +72,7 @@ const ORDERNO = "SBOM38000";
 // staff-email scenarios behave deterministically, and restore the
 // original value afterwards.
 const COMPANY_DOMAIN = "holtco.example";
-const STAFF_EMAIL = `joneil@${COMPANY_DOMAIN}`;
+const STAFF_EMAIL = `jmoreau@${COMPANY_DOMAIN}`;
 const ORIGINAL_COMPANY_DOMAIN = process.env.COMPANY_EMAIL_DOMAIN;
 
 interface SalesCsvRow extends Record<string, unknown> {
@@ -100,8 +100,8 @@ function csvRow(overrides: Partial<SalesCsvRow> & { partNo: string }): SalesCsvR
     Customer: "Test Customer",
     Email: "test@example.com",
     Orderdate: "2026-04-21",
-    Company: "Old Saybrook",
-    Salesperson: "Kim Dransfield",
+    Company: "Old Harbour",
+    Salesperson: "Kim Draycott",
     "Part No": overrides.partNo,
     "Product Name": `Product ${overrides.partNo}`,
     "Barcode No": "",
@@ -141,7 +141,7 @@ describe("runSalesImport — real-DB scenarios", () => {
       // captures whatever lines moved to a different cuscode/order on a
       // subsequent date. SBOM39275 hit this exact pattern in prod.
       const customer = await prisma.customer.create({
-        data: { firstName: "Sandy", lastName: "Favale" },
+        data: { firstName: "Sandy", lastName: "Fenwick" },
       });
       await prisma.salesOrder.create({
         data: {
@@ -149,7 +149,7 @@ describe("runSalesImport — real-DB scenarios", () => {
           status: "ORDER",
           orderDate: new Date("2026-05-03"),
           customerId: customer.id,
-          storeLocation: "Old Saybrook",
+          storeLocation: "Old Harbour",
           salesperson: "Molly",
           lineItems: {
             create: [1, 2, 3, 4, 5].map((n) => ({
@@ -172,15 +172,15 @@ describe("runSalesImport — real-DB scenarios", () => {
           status: "ORDER",
           orderDate: new Date("2026-05-04"),
           customerId: customer.id,
-          storeLocation: "Old Saybrook",
+          storeLocation: "Old Harbour",
         },
       });
 
       // Re-import the base with only 2 lines (CSV legitimately shrunk
       // because the POS split the order at rewrite time).
       const csv = [
-        csvRow({ partNo: "BASE-1", Customer: "Sandy Favale" }),
-        csvRow({ partNo: "BASE-2", Customer: "Sandy Favale" }),
+        csvRow({ partNo: "BASE-1", Customer: "Sandy Fenwick" }),
+        csvRow({ partNo: "BASE-2", Customer: "Sandy Fenwick" }),
       ];
       const result = await runSalesImport(csv);
 
@@ -208,7 +208,7 @@ describe("runSalesImport — real-DB scenarios", () => {
           status: "ORDER",
           orderDate: new Date("2026-04-21"),
           customerId: customer.id,
-          storeLocation: "Old Saybrook",
+          storeLocation: "Old Harbour",
           lineItems: {
             create: [1, 2, 3, 4, 5].map((n) => ({
               lineNumber: n,
@@ -255,7 +255,7 @@ describe("runSalesImport — real-DB scenarios", () => {
           status: "ORDER",
           orderDate: new Date("2026-04-21"),
           customerId: customer.id,
-          storeLocation: "Old Saybrook",
+          storeLocation: "Old Harbour",
           lineItems: {
             create: [
               {
@@ -304,7 +304,7 @@ describe("runSalesImport — real-DB scenarios", () => {
           status: "ORDER",
           orderDate: new Date("2026-04-21"),
           customerId: customer.id,
-          storeLocation: "Old Saybrook",
+          storeLocation: "Old Harbour",
           lineItems: {
             create: [
               {
@@ -347,12 +347,12 @@ describe("runSalesImport — real-DB scenarios", () => {
   describe("findOrCreateCustomer guards (PR #210, #216)", () => {
     it("does NOT merge into existing customer when incoming email is a company-domain staff email", async () => {
       // Seed an existing customer with a company-domain email (= a
-      // historical merge seed, e.g. 'Sandy and David Favale' on a
+      // historical merge seed, e.g. 'Sandy and David Fenwick' on a
       // staff member's email).
       const seed = await prisma.customer.create({
         data: {
           firstName: "Sandy and David",
-          lastName: "Favale",
+          lastName: "Fenwick",
           email: STAFF_EMAIL,
         },
       });
@@ -544,7 +544,7 @@ describe("runSalesImport — real-DB scenarios", () => {
         csvRow({
           partNo: "M-HYDRATE-3",
           Cuscode: "SBCT-PARTIAL",
-          Customer: "Reborn Ciccone",
+          Customer: "Reborn Calloway",
           Email: "",
         }),
       ];
@@ -556,7 +556,7 @@ describe("runSalesImport — real-DB scenarios", () => {
       // firstName was already set — not overwritten.
       expect(after?.firstName).toBe("Madonna");
       // lastName was NULL — filled in from CSV.
-      expect(after?.lastName).toBe("Ciccone");
+      expect(after?.lastName).toBe("Calloway");
     });
   });
 
@@ -751,10 +751,10 @@ describe("runSalesImport — real-DB scenarios", () => {
       return csvRow({
         Orderno: orderno,
         Cuscode: CUSCODE,
-        Customer: "Brian Tenerow",
+        Customer: "Brian Thorne",
         Email: "",
         Orderdate: SAME_DAY,
-        Company: "Cheshire",
+        Company: "Brookvale",
         partNo,
         Orderqty: qty,
         netprice,
@@ -822,7 +822,7 @@ describe("runSalesImport — real-DB scenarios", () => {
       // Lines 4-5 (dropped, beyond the rewrite's footprint, no return
       // or rewrite match): CANCELLED by the post-import sweep. This is
       // exactly the SO-1726/CHOM1726 shape from the post-failure log
-      // 2026-05-12 — the $1,109 Cheshire delta.
+      // 2026-05-12 — the $1,109 Brookvale delta.
       expect(statuses.slice(3, 5)).toEqual(["CANCELLED", "CANCELLED"]);
 
       // Cross-check against the pure helper directly — the runner's
@@ -953,7 +953,7 @@ describe("runSalesImport — real-DB scenarios", () => {
           Customer: "Keep Case Customer",
           Email: "",
           Orderdate: day,
-          Company: "Cheshire",
+          Company: "Brookvale",
           partNo,
           Orderqty: qty,
           netprice,

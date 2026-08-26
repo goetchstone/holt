@@ -72,17 +72,17 @@ describe("diffDayTotals", () => {
 describe("diffStores", () => {
   it("aligns stores present on either side and reports only drifted ones", () => {
     const holt = [
-      { store: "Old Saybrook", revenue: 1000 },
-      { store: "Glastonbury", revenue: 500 },
+      { store: "Old Harbour", revenue: 1000 },
+      { store: "Wexbridge", revenue: 500 },
     ];
     const legacy = [
-      { store: "Old Saybrook", revenue: 1000 },
-      { store: "Cheshire", revenue: 75 },
+      { store: "Old Harbour", revenue: 1000 },
+      { store: "Brookvale", revenue: 75 },
     ];
     const rows = diffStores(holt, legacy, 0.01);
     expect(rows).toEqual([
-      { store: "Cheshire", holt: 0, legacy: 75, drift: -75 },
-      { store: "Glastonbury", holt: 500, legacy: 0, drift: 500 },
+      { store: "Brookvale", holt: 0, legacy: 75, drift: -75 },
+      { store: "Wexbridge", holt: 500, legacy: 0, drift: 500 },
     ]);
   });
 

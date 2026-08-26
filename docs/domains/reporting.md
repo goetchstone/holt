@@ -15,7 +15,7 @@ This bug class has hit the codebase three times so far:
 | Field                          | Bug                                                                                                                                                                                          | Resolution                                                                                                                                                                                                              |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Payment.status`               | 2026-04-17: `status: { not: "VOIDED" }` excluded 44K legacy NULL rows from till reconciliation.                                                                                              | CLAUDE.md gotcha. Use `OR: [{ status: null }, { status: { not: "VOIDED" } }]`.                                                                                                                                          |
-| `OrderLineItem.productName`    | 2026-05-05: `where.NOT = { OR: [{ productName: { equals: 'Delivery Charge' } }, ...] }` silently dropped 172 ACTIVE rows ($91K) where productName was NULL — Julia Filippone SO-1660 line 2. | Restructured `buildLineItemWhere` in `lib/salesBySalesperson.ts` to `AND: [{ OR: [{ productName: null }, { AND: [per-name not-equals clauses] }] }]`. Tripwire tests in `__tests__/salesBySalesperson.helpers.test.ts`. |
+| `OrderLineItem.productName`    | 2026-05-05: `where.NOT = { OR: [{ productName: { equals: 'Delivery Charge' } }, ...] }` silently dropped 172 ACTIVE rows ($91K) where productName was NULL — Marta Vandeleur SO-1660 line 2. | Restructured `buildLineItemWhere` in `lib/salesBySalesperson.ts` to `AND: [{ OR: [{ productName: null }, { AND: [per-name not-equals clauses] }] }]`. Tripwire tests in `__tests__/salesBySalesperson.helpers.test.ts`. |
 | `OrderLineItem.lineItemStatus` | Schema declares non-nullable but 67K legacy rows hold NULL — same trap latent.                                                                                                               | Migration `20260505_backfill_lineitem_status_nulls` UPDATE-sets all NULLs to `'ACTIVE'`. Schema and data now agree, no code-level guard required.                                                                       |
 
 **Canonical pattern for any new filter on a nullable column:**
@@ -105,7 +105,7 @@ Non-merchandise part numbers excluded from revenue totals: `DELIVERY CHARGE`, `H
 
 Use `import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue"` for any aggregation that asks "what did this customer / campaign / segment / department actually generate in revenue?" The constant is exactly `["ORDER", "FULFILLED", "RETURNED"]`. Negative netPrice rows on RETURNED orders (accounting-return rows) are what NET out the rewrite chain (base + return + rewrite). Filtering to just `["ORDER", "FULFILLED"]` silently double-counts every rewritten sale by the full base amount.
 
-**User-reported origin** (2026-05-13): Barbara Germano's Mailchimp Campaign Impact line showed "2 Orders for $88,624" when her actual net spend was $61,922. The missing $26K was a single accounting return that the report's WHERE clause filtered out via `status: { in: ["ORDER", "FULFILLED"] }`. Fix swept five surfaces in one PR (Mailchimp list + detail endpoints, Wealth Insights, three customerLeveling raw-SQL sites).
+**User-reported origin** (2026-05-13): Rowan Fairbairn's Mailchimp Campaign Impact line showed "2 Orders for $88,624" when her actual net spend was $61,922. The missing $26K was a single accounting return that the report's WHERE clause filtered out via `status: { in: ["ORDER", "FULFILLED"] }`. Fix swept five surfaces in one PR (Mailchimp list + detail endpoints, Wealth Insights, three customerLeveling raw-SQL sites).
 
 **Legitimate narrower filters** — these are NOT bugs and intentionally exclude RETURNED:
 
@@ -121,7 +121,7 @@ Each narrower-filter site has an inline comment explaining the choice so future 
 **Tripwires**:
 
 - `__tests__/reports.salesRevenueStatusFilter.test.ts` — source-text (B-) lists every revenue-aggregation surface and asserts each one uses the canonical constant or includes all three status values inline.
-- `__tests__/integration/mailchimpAttributionRewriteChain.integration.test.ts` — real-DB (B) pins the actual money math against a fixture replicating Barbara Germano's rewrite chain.
+- `__tests__/integration/mailchimpAttributionRewriteChain.integration.test.ts` — real-DB (B) pins the actual money math against a fixture replicating Rowan Fairbairn's rewrite chain.
 
 After deploying this fix (post-2026-05-13), run `POST /api/customers/recalculate-levels` once to update `Customer.lifetimeSpend` for every customer who had a rewrite or return in their history.
 
@@ -202,8 +202,8 @@ Our Sales by Salesperson report and the POS's "Salesperson Monthly Sales Table" 
 
 So differences fall into three predictable buckets:
 
-1. **Paired deltas equal to half a known split-order total** — the POS's primary-only attribution. Confirmed example 2026-04-30: SO-1671 ($4,694, Felicia/Julia) produced an exact ±$2,347 swing.
-2. **Paired deltas equal to a non-split order total** — late reassignment. Confirmed example: SO-3638 ($1,089) shows Bridgette as primary in our DB but Shannon Martin in the POS's table.
+1. **Paired deltas equal to half a known split-order total** — the POS's primary-only attribution. Confirmed example 2026-04-30: SO-1671 ($4,694, Elin/Julia) produced an exact ±$2,347 swing.
+2. **Paired deltas equal to a non-split order total** — late reassignment. Confirmed example: SO-3638 ($1,089) shows Priya as primary in our DB but Robin Santoro in the POS's table.
 3. **Small unpaired residuals (<$100)** — register-row attributions the POS's table doesn't include.
 
 Procedure for any "totals are off" report (use `psql` against a fresh prod backup):

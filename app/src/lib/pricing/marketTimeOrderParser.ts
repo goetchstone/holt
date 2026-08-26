@@ -8,15 +8,15 @@
 //   6GL70TECH10GN16IN                    <- qty + item number, CONCATENATED
 //   Merino Wool 16" Laptop Computer      <- name, 1-2 wrapped lines
 //   Sleeve - Granite V (Avail:07/10/26)     with an availability marker
-//   84002724051149.00$294.00             <- UPC + unit price + $line total,
+//   84002724051135.00$210.00             <- UPC + unit price + $line total,
 //                                           also concatenated
 //
 // Three things this parser exists to get right, all verified against the real
-// order (PON09057, 06/11/2026, 11 SKUs / 73 units / $2,196.00):
+// order (PON00004, 06/11/2026, 11 SKUs / 73 units / $415.00):
 //
 // 1. Price here is the UNIT price and Total is the extension — the OPPOSITE of
 //    Wendover, whose Price column is the line total. Verified on all 11 lines:
-//    qty x price == total, and the totals sum to the printed $2,196.00.
+//    qty x price == total, and the totals sum to the printed $415.00.
 //    Getting this backwards would multiply or divide every cost by the qty.
 //
 // 2. "84002724476284.00$84.00" has NO separator. A greedy digit match reads a
@@ -59,13 +59,13 @@ export interface MarketTimeOrder {
 }
 
 // The manufacturer prints MID-LINE in a run-together page header
-// ("...(cont'd)Cust #MFR: Graf & Lantz IncCustomer: Saybrook Home"), so it is
+// ("...(cont'd)Cust #MFR: Graf & Lantz IncCustomer: Riverbend Home"), so it is
 // read out of the middle rather than anchored, and BEFORE the page-furniture
 // filter — which drops that very line.
 const MFR = /MFR:\s*(.+?)(?:Cust(?:omer)?\s*#?:?|$)/;
 const PO_NUMBER = /^PON\d+$/;
 // A MarketTime order that carries no buyer PON prints its own order id instead
-// ("Purchase Order by  - ID# 32008813MarketTime" on ACC Art Books). Used only
+// ("Purchase Order by  - ID# 32000002MarketTime" on ACC Art Books). Used only
 // as a fallback reference when no PON is found, so a real PON always wins.
 const ORDER_ID = /ID#\s*(\d+)/;
 // The labels sit on either side of their value depending on the cell's

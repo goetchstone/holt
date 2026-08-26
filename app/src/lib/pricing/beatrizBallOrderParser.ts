@@ -7,16 +7,16 @@
 //
 // Each item is a single run-together line:
 //
-//   349699.0056.0024.754GLASS Vento Medium Vase (Clear)
+//   349672.0045.0018.004GLASS Vento Medium Vase (Clear)
 //   ^code ^amt ^msrp^whsl^qty ^description
 //
-// Verified against both real orders (SO 0063477 net $226.00; SO 0063476 net
-// $2,368.50):
+// Verified against both real orders (their numbers and totals withheld -- this
+// repo is public and the vendor's wholesale prices are confidential):
 //
 // 1. The line packs, with NO separators: item code (digits), line Amount
 //    (extended), MSRP, Wholesale UNIT price, qty, description. The item-code /
-//    Amount boundary is ambiguous by shape alone ("3496"+"99.00" vs
-//    "34969"+"9.00"), so it is settled by arithmetic: Wholesale x qty == Amount.
+//    Amount boundary is ambiguous by shape alone ("3496"+"72.00" vs
+//    "34967"+"2.00"), so it is settled by arithmetic: Wholesale x qty == Amount.
 // 2. Descriptions WRAP — a line may end "(Bordeaux and " with "White)" on the
 //    next line; continuation lines are appended until the next item or a header.
 // 3. There is NO UPC column, so barcodes export blank and Ordorite assigns them.
@@ -45,7 +45,7 @@ export interface BeatrizBallOrder {
 }
 
 const PO_NUMBER = /PO #\s*(\S+)/;
-const ORDER_NUMBER = /^0\d{6}$/; // e.g. 0063477 (order) — a 7-digit 0-lead code
+const ORDER_NUMBER = /^0\d{6}$/; // e.g. 0090001 (order) — a 7-digit 0-lead code
 const ORDER_DATE = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
 const NET_ORDER = /Net Order:\s*([\d,]+\.\d{2})/i;
 
@@ -57,7 +57,7 @@ const MONEY_TAIL = /^([\d,]+\.\d{2})([\d,]+\.\d{2})([\d,]+\.\d{2})(\d+)$/;
 // The VENDOR's own letterhead. These are safe to hardcode in a vendor-specific
 // parser: every Beatriz Ball confirmation carries them, whoever the buyer is.
 //
-// What used to be here as well was OUR name -- "saybrook", "old saybrook" --
+// What used to be here as well was OUR OWN name and town --
 // because the confirmation repeats the buyer's name and address in the header.
 // That made the parser correct for exactly one deployment: anyone else's name
 // appears in the same place and is read as an order line. Those come from

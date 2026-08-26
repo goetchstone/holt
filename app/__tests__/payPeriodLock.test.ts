@@ -106,7 +106,7 @@ describe("isOrderLockedByNameOrFk", () => {
       periodStart: PERIOD_START,
       periodEnd: PERIOD_END,
       reopenedAt: null,
-      names: ["Kim Dransfield"],
+      names: ["Kim Draycott"],
       ...over,
     };
   }
@@ -117,7 +117,7 @@ describe("isOrderLockedByNameOrFk", () => {
       orderDate: inPeriod,
       salesPersonId: null,
       splitWithId: null,
-      salesperson: "Kim Dransfield",
+      salesperson: "Kim Draycott",
     };
     expect(isOrderLockedByNameOrFk(order, [confWithNames()])).toBe(true);
   });
@@ -127,7 +127,7 @@ describe("isOrderLockedByNameOrFk", () => {
       orderDate: inPeriod,
       salesPersonId: null,
       splitWithId: null,
-      salesperson: "kim dransfield",
+      salesperson: "kim draycott",
     };
     expect(isOrderLockedByNameOrFk(order, [confWithNames()])).toBe(true);
   });
@@ -157,7 +157,7 @@ describe("isOrderLockedByNameOrFk", () => {
       orderDate: new Date("2026-07-01T12:00:00Z"),
       salesPersonId: null,
       splitWithId: null,
-      salesperson: "Kim Dransfield",
+      salesperson: "Kim Draycott",
     };
     expect(isOrderLockedByNameOrFk(order, [confWithNames()])).toBe(false);
   });
@@ -167,7 +167,7 @@ describe("isOrderLockedByNameOrFk", () => {
       orderDate: inPeriod,
       salesPersonId: null,
       splitWithId: null,
-      salesperson: "Kim Dransfield",
+      salesperson: "Kim Draycott",
     };
     expect(isOrderLockedByNameOrFk(order, [confWithNames({ reopenedAt: new Date() })])).toBe(false);
   });

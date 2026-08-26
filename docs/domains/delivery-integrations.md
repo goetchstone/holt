@@ -209,9 +209,9 @@ whether they take it before making it louder.
 
 ## Providers to evaluate
 
-Not a recommendation — a shortlist, with what to check. SureCam is what Saybrook
-runs today and is video-first, so the question there is whether its GPS side is
-exposed well enough to be the only integration.
+Not a recommendation — a shortlist, with what to check. SureCam is what the
+pilot deployment runs today and is video-first, so the question there is
+whether its GPS side is exposed well enough to be the only integration.
 
 | Provider | Why it is on the list | What to verify |
 | --- | --- | --- |
@@ -220,7 +220,7 @@ exposed well enough to be the only integration.
 | **Geotab** | Very large partner ecosystem, deep API, device-based | SDK shape is its own thing; more integration work |
 | **Azuga** | Aimed at small fleets | API completeness — thinner than the above |
 | **Verizon Connect** | Enterprise incumbent | Contract length and whether the API costs extra |
-| **SureCam** | Already in use at Saybrook | Whether GPS is available without buying the video product |
+| **SureCam** | Already in use at the pilot deployment | Whether GPS is available without buying the video product |
 
 **The thing to check first, for any of them: is API access included, or an
 upsell?** Several fleet products price the API separately, and that single fact

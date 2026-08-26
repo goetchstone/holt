@@ -323,7 +323,7 @@ export async function getDesignerDashboard(
   // Resolve the salesperson to a StaffMember row (incl. aliases) so we can
   // OR-match across (FK + displayName + every alias). Issue #274 — Sandy's row
   // has displayName='Sandy' but her POS-imported orders carry
-  // `salesperson='Sandra Matheny'`; aliases close that gap without renaming the
+  // `salesperson='Sandra Merrick'`; aliases close that gap without renaming the
   // up-board record.
   const staffRecord = await prisma.staffMember.findFirst({
     where: { displayName: { equals: salesperson, mode: "insensitive" } },

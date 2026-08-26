@@ -2,7 +2,7 @@
 //
 // Pins the K & K Interiors "Order Detail" bundle parser against synthetic
 // fixtures built from the verified OEORD_BUNDLE layout (real extraction:
-// 2 orders / 28 items / customerPo PON09025 / zero warnings, printed totals
+// 2 orders / 28 items / customerPo PON00006 / zero warnings, printed totals
 // reconciling to the penny). Fixtures below are minimal reconstructions of
 // that layout, not the real PDF text.
 

@@ -23,13 +23,13 @@ import {
 describe("parsePersonXml", () => {
   it("extracts displayName + userId for every <x18tc:person>", () => {
     const xml = `<?xml version="1.0"?><x18tc:personList xmlns:x18tc="http://example">
-      <x18tc:person displayName="Rebecca Warren" id="{aaaaaaa1-bbbb-cccc-dddd-eeeeeeeeeeee}" providerId="google-sheets"/>
-      <x18tc:person displayName="rwarren@example.com" id="{fffffff2-aaaa-bbbb-cccc-dddddddddddd}" userId="rwarren@example.com" providerId="google-sheets"/>
+      <x18tc:person displayName="Rebecca Wexford" id="{aaaaaaa1-bbbb-cccc-dddd-eeeeeeeeeeee}" providerId="google-sheets"/>
+      <x18tc:person displayName="rwexford@example.com" id="{fffffff2-aaaa-bbbb-cccc-dddddddddddd}" userId="rwexford@example.com" providerId="google-sheets"/>
     </x18tc:personList>`;
     const map = parsePersonXml(xml);
     expect(map.size).toBe(2);
-    expect(map.get("aaaaaaa1-bbbb-cccc-dddd-eeeeeeeeeeee")?.displayName).toBe("Rebecca Warren");
-    expect(map.get("fffffff2-aaaa-bbbb-cccc-dddddddddddd")?.userId).toBe("rwarren@example.com");
+    expect(map.get("aaaaaaa1-bbbb-cccc-dddd-eeeeeeeeeeee")?.displayName).toBe("Rebecca Wexford");
+    expect(map.get("fffffff2-aaaa-bbbb-cccc-dddddddddddd")?.userId).toBe("rwexford@example.com");
   });
 
   it("tolerates attribute orderings in either direction", () => {
@@ -163,10 +163,10 @@ describe("poNumberCandidates", () => {
 
 describe("normalizePhone", () => {
   it("strips formatting, drops leading 1 country code", () => {
-    expect(normalizePhone("860-470-3653")).toBe("8604703653");
-    expect(normalizePhone("(860) 470-3653")).toBe("8604703653");
-    expect(normalizePhone("1-860-470-3653")).toBe("8604703653");
-    expect(normalizePhone("+18604703653")).toBe("8604703653");
+    expect(normalizePhone("860-555-0173")).toBe("8605550173");
+    expect(normalizePhone("(860) 555-0173")).toBe("8605550173");
+    expect(normalizePhone("1-860-555-0173")).toBe("8605550173");
+    expect(normalizePhone("+18605550173")).toBe("8605550173");
   });
 
   it("returns empty string for blank input", () => {
@@ -179,17 +179,17 @@ describe("normalizePhone", () => {
 describe("resolveAuthor", () => {
   const staffByEmail = new Map([["alex@example.com", 100]]);
   const staffByName = new Map([
-    ["rebecca warren", 101],
-    ["alex robertson", 100],
+    ["rebecca wexford", 101],
+    ["alex rowntree", 100],
   ]);
 
   it("matches by email when userId is set", () => {
     const r = resolveAuthor(
-      { displayName: "Alex Robertson", userId: "alex@example.com" },
+      { displayName: "Alex Rowntree", userId: "alex@example.com" },
       staffByEmail,
       staffByName,
     );
-    expect(r).toEqual({ authorId: 100, authorDisplayName: "Alex Robertson" });
+    expect(r).toEqual({ authorId: 100, authorDisplayName: "Alex Rowntree" });
   });
 
   it("treats an @-containing displayName as the email hint", () => {
@@ -198,7 +198,7 @@ describe("resolveAuthor", () => {
   });
 
   it("falls back to displayName lookup case-insensitively", () => {
-    const r = resolveAuthor({ displayName: "Rebecca Warren" }, staffByEmail, staffByName);
+    const r = resolveAuthor({ displayName: "Rebecca Wexford" }, staffByEmail, staffByName);
     expect(r.authorId).toBe(101);
   });
 
@@ -216,12 +216,12 @@ describe("resolveAuthor", () => {
 describe("computeRowKey", () => {
   it("is stable across calls with the same inputs", () => {
     const a = computeRowKey({
-      name: "Barbara Panagy",
+      name: "Barbara Pallant",
       ordernoRaw: "SO12345",
       sheetName: "C.S. In process",
     });
     const b = computeRowKey({
-      name: "Barbara Panagy",
+      name: "Barbara Pallant",
       ordernoRaw: "SO12345",
       sheetName: "C.S. In process",
     });
@@ -231,12 +231,12 @@ describe("computeRowKey", () => {
 
   it("normalizes whitespace + case so trivial edits don't break idempotency", () => {
     const a = computeRowKey({
-      name: "Barbara Panagy",
+      name: "Barbara Pallant",
       ordernoRaw: "SO12345",
       sheetName: "C.S. In process",
     });
     const b = computeRowKey({
-      name: "  barbara panagy ",
+      name: "  barbara pallant ",
       ordernoRaw: " so12345  ",
       sheetName: "c.s. in process",
     });

@@ -257,17 +257,92 @@ describe("isValidEmail", () => {
 
 // ─── isUntrustedMergeEmail ──────────────────────────────────────────
 
+describe("return-order conventions are configuration", () => {
+  const P = process.env.ORDORITE_RETURN_PREFIXES;
+  const C = process.env.ORDORITE_STORE_CODES;
+  afterEach(() => {
+    if (P === undefined) delete process.env.ORDORITE_RETURN_PREFIXES;
+    else process.env.ORDORITE_RETURN_PREFIXES = P;
+    if (C === undefined) delete process.env.ORDORITE_STORE_CODES;
+    else process.env.ORDORITE_STORE_CODES = C;
+  });
+
+  // The vendor's convention is the "A" suffix on a store code; the codes are
+  // the deployment's. Both spellings must agree.
+  it("reads the A-suffix return convention against configured store codes", () => {
+    process.env.ORDORITE_STORE_CODES = "SB,GT,CH";
+    expect(isReturnOrder("SBOA1234")).toBe(true);
+    expect(isReturnOrder("CHOA1")).toBe(true);
+    expect(isReturnOrder("SBOM38721")).toBe(false);
+    // A code the deployment did not declare is not its store.
+    expect(isReturnOrder("ZZOA1234")).toBe(false);
+  });
+
+  // A whole-number return prefix is one deployment's series. Generalising the
+  // original single literal to "R + any letter" looked source-neutral and
+  // silently widened it 26x, so an unrelated R-series (RA rug account, RX
+  // exchange) imported as RETURNED and was subtracted from revenue.
+  it("only treats a CONFIGURED R-prefix as a return", () => {
+    delete process.env.ORDORITE_RETURN_PREFIXES;
+    for (const o of ["RS1234", "RA1234", "RX9999", "RB0001"]) {
+      expect(isReturnOrder(o)).toBe(false);
+    }
+    process.env.ORDORITE_RETURN_PREFIXES = "RS";
+    expect(isReturnOrder("RS1234")).toBe(true);
+    expect(isReturnOrder("rs1234")).toBe(true);
+    expect(isReturnOrder("RA1234")).toBe(false);
+    expect(isReturnOrder("RX9999")).toBe(false);
+  });
+
+  // "R"/"CR" followed directly by digits is the vendor's own convention and
+  // stands on its own, configured or not.
+  it("keeps the vendor's own R/CR-then-digits convention unconditionally", () => {
+    delete process.env.ORDORITE_RETURN_PREFIXES;
+    expect(isReturnOrder("R12345")).toBe(true);
+    expect(isReturnOrder("CR-12345")).toBe(true);
+  });
+
+  // A misconfiguration must never WIDEN the match. A stray "," used to split to
+  // nothing and join to "", producing an empty alternation that matched a
+  // zero-length store code -- broader than any default.
+  it("stands the rule down when the configured list is empty", () => {
+    for (const junk of [",", " , , ", "  ", undefined]) {
+      if (junk === undefined) delete process.env.ORDORITE_STORE_CODES;
+      else process.env.ORDORITE_STORE_CODES = junk;
+      expect(isReturnOrder("PA1234")).toBe(false);
+      expect(isReturnOrder("A1")).toBe(false);
+      expect(isReturnOrder("SBOA1234")).toBe(false);
+    }
+  });
+
+  // There is no safe universal default for the store codes either. Any letter
+  // run ending in "A" before a digit -- SOFA1, MEGA1234, VIA3 -- would classify
+  // as RETURNED and be subtracted from revenue. Genuine returns are still
+  // caught by the negative-net-total check, so nothing is lost by declining.
+  it("does not guess a store code, and never flags an ordinary A-ending word", () => {
+    delete process.env.ORDORITE_STORE_CODES;
+    for (const o of ["SOFA1", "MEGA1234", "VIA3", "SBOA1234"]) {
+      expect(isReturnOrder(o)).toBe(false);
+    }
+    process.env.ORDORITE_STORE_CODES = "SB,GT,CH";
+    expect(isReturnOrder("SBOA1234")).toBe(true);
+    expect(isReturnOrder("SOFA1")).toBe(false);
+    expect(isReturnOrder("MEGA1234")).toBe(false);
+  });
+});
+
 describe("isUntrustedMergeEmail", () => {
   // Staff sometimes type their OWN email when entering customer records
   // in the POS. The shared-email merge in findOrCreateCustomer would then
   // wrongly cluster distinct customers. The guard blocks any email whose
-  // DOMAIN contains COMPANY_EMAIL_DOMAIN. A short stem ("sayb") covers
+  // DOMAIN contains COMPANY_EMAIL_DOMAIN. A short stem ("rive") covers
   // the canonical company domain plus every typo variant seen in prod
-  // data (saybrookhome.com, saybrokkhome.com, saybrookhome.comf, ...).
+  // data. Domains here are invented -- the guard reads the stem from env and the
+  // test sets it, so nothing is coupled to any real company's address.
   const ORIGINAL_DOMAIN = process.env.COMPANY_EMAIL_DOMAIN;
 
   beforeAll(() => {
-    process.env.COMPANY_EMAIL_DOMAIN = "sayb";
+    process.env.COMPANY_EMAIL_DOMAIN = "rive";
   });
 
   afterAll(() => {
@@ -279,23 +354,23 @@ describe("isUntrustedMergeEmail", () => {
   });
 
   it("flags canonical staff emails", () => {
-    expect(isUntrustedMergeEmail("joneil@saybrookhome.com")).toBe(true);
-    expect(isUntrustedMergeEmail("gstone@saybrookhome.com")).toBe(true);
+    expect(isUntrustedMergeEmail("jmoreau@riverbendhome.com")).toBe(true);
+    expect(isUntrustedMergeEmail("tcaldwell@riverbendhome.com")).toBe(true);
   });
 
   it("flags case-insensitively", () => {
-    expect(isUntrustedMergeEmail("JONEIL@SAYBROOKHOME.COM")).toBe(true);
-    expect(isUntrustedMergeEmail("GStone@SaybrookHome.com")).toBe(true);
+    expect(isUntrustedMergeEmail("JMOREAU@RIVERBENDHOME.COM")).toBe(true);
+    expect(isUntrustedMergeEmail("TCaldwell@RiverbendHome.com")).toBe(true);
   });
 
   it("flags known typo domains seen in prod", () => {
-    expect(isUntrustedMergeEmail("wcope@saybrokkhome.com")).toBe(true);
-    expect(isUntrustedMergeEmail("joneil@saybrookhome.comf")).toBe(true);
+    expect(isUntrustedMergeEmail("pnowak@riverbenndhome.com")).toBe(true);
+    expect(isUntrustedMergeEmail("jmoreau@riverbendhome.comf")).toBe(true);
   });
 
   it("flags any company-like internal domain (defense in depth)", () => {
-    expect(isUntrustedMergeEmail("user@oldsaybrook-home.com")).toBe(true);
-    expect(isUntrustedMergeEmail("user@saybrookbarn.com")).toBe(true);
+    expect(isUntrustedMergeEmail("user@old-riverbend-home.com")).toBe(true);
+    expect(isUntrustedMergeEmail("user@riverbendbarn.com")).toBe(true);
   });
 
   it("passes external customer emails through", () => {
@@ -313,8 +388,8 @@ describe("isUntrustedMergeEmail", () => {
   it("does not flag external emails that mention the company in the local part", () => {
     // The stem appearing BEFORE the @ is fine — only the domain part is
     // checked (the guard slices on lastIndexOf("@") for this reason).
-    expect(isUntrustedMergeEmail("saybrook.fan@gmail.com")).toBe(false);
-    expect(isUntrustedMergeEmail("loves-saybrook@yahoo.com")).toBe(false);
+    expect(isUntrustedMergeEmail("riverbend.fan@gmail.com")).toBe(false);
+    expect(isUntrustedMergeEmail("loves-riverbend@yahoo.com")).toBe(false);
   });
 
   it("is disabled entirely when COMPANY_EMAIL_DOMAIN is unset", () => {
@@ -322,9 +397,9 @@ describe("isUntrustedMergeEmail", () => {
     // so deployments that never configure it keep plain email matching.
     delete process.env.COMPANY_EMAIL_DOMAIN;
     try {
-      expect(isUntrustedMergeEmail("joneil@saybrookhome.com")).toBe(false);
+      expect(isUntrustedMergeEmail("jmoreau@riverbendhome.com")).toBe(false);
     } finally {
-      process.env.COMPANY_EMAIL_DOMAIN = "sayb";
+      process.env.COMPANY_EMAIL_DOMAIN = "rive";
     }
   });
 });
@@ -335,16 +410,16 @@ describe("splitCustomerName", () => {
   // Used by findOrCreateCustomer's name-and-email match guard.
 
   it("splits 'First Last' into firstName + lastName", () => {
-    expect(splitCustomerName("Aimee Sorbo")).toEqual({
+    expect(splitCustomerName("Aimee Solano")).toEqual({
       firstName: "Aimee",
-      lastName: "Sorbo",
+      lastName: "Solano",
     });
   });
 
   it("treats everything after the first token as lastName", () => {
-    expect(splitCustomerName("Sandy and David Favale")).toEqual({
+    expect(splitCustomerName("Sandy and David Fenwick")).toEqual({
       firstName: "Sandy",
-      lastName: "and David Favale",
+      lastName: "and David Fenwick",
     });
   });
 
@@ -404,10 +479,10 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("parses without country (3 parts)", () => {
-    const result = parseOrdoriteAddress("45 Oak Ave, Glastonbury, CT");
+    const result = parseOrdoriteAddress("45 Oak Ave, Wexbridge, CT");
     expect(result).toEqual({
       address1: "45 Oak Ave",
-      city: "Glastonbury",
+      city: "Wexbridge",
       state: "CT",
     });
   });
@@ -432,10 +507,10 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("handles apartment/unit prefix in address", () => {
-    const result = parseOrdoriteAddress("Apt B, 298 Highland Avenue, Cheshire, CT, United States");
+    const result = parseOrdoriteAddress("Apt B, 112 Ferncliff Avenue, Brookvale, CT, United States");
     expect(result).toEqual({
-      address1: "Apt B, 298 Highland Avenue",
-      city: "Cheshire",
+      address1: "Apt B, 112 Ferncliff Avenue",
+      city: "Brookvale",
       state: "CT",
     });
   });
@@ -468,19 +543,19 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("strips zip code merged into state field", () => {
-    const result = parseOrdoriteAddress("57 Princeton Lane, Glastonbury, CT 06033");
+    const result = parseOrdoriteAddress("61 Larkfield Lane, Wexbridge, CT 06099");
     expect(result).toEqual({
-      address1: "57 Princeton Lane",
-      city: "Glastonbury",
+      address1: "61 Larkfield Lane",
+      city: "Wexbridge",
       state: "CT",
     });
   });
 
   it("drops trailing zip code as separate part", () => {
-    const result = parseOrdoriteAddress("57 Sunrise Dr., Glastonbury, CT, 06033");
+    const result = parseOrdoriteAddress("61 Sunrise Dr., Wexbridge, CT, 06099");
     expect(result).toEqual({
-      address1: "57 Sunrise Dr.",
-      city: "Glastonbury",
+      address1: "61 Sunrise Dr.",
+      city: "Wexbridge",
       state: "CT",
     });
   });
@@ -578,12 +653,19 @@ describe("isReturnOrder", () => {
     expect(isReturnOrder("cr12345")).toBe(true);
   });
 
-  it("detects A-suffix store codes as returns", () => {
+  it("detects A-suffix store codes as returns once the codes are configured", () => {
+    const prev = process.env.ORDORITE_STORE_CODES;
+    process.env.ORDORITE_STORE_CODES = "SB,GT,CH,BB,WS";
+    try {
     expect(isReturnOrder("SBOA11221")).toBe(true);
     expect(isReturnOrder("GTOA10076")).toBe(true);
     expect(isReturnOrder("CHOA1234")).toBe(true);
     expect(isReturnOrder("BBOA10012")).toBe(true);
-    expect(isReturnOrder("WSOA10001")).toBe(true);
+      expect(isReturnOrder("WSOA10001")).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.ORDORITE_STORE_CODES;
+      else process.env.ORDORITE_STORE_CODES = prev;
+    }
   });
 
   it("does not flag M-suffix store codes (regular sales)", () => {

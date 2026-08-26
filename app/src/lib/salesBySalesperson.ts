@@ -23,8 +23,8 @@ import { prisma } from "@/lib/prisma";
  * History: prior versions used `partNo contains 'delivery|freight'` plus
  * `productName contains 'delivery|freight'`. The contains-on-productName
  * arm matched real product lines whose freeform productName text
- * happened to mention delivery (e.g. SO-38708, $7,176 of Susan Roberts'
- * April sales had productName "Delivery to 8 Monticello Dr East Lyme"
+ * happened to mention delivery (e.g. SO-38708, $7,176 of Cheryl Holloway'
+ * April sales had productName "Delivery to 12 Larkfield Ln Wexbridge"
  * because the import wrote `row.ordernotes` into productName
  * when "Product Name" was empty -- see post-failure log 2026-05-01).
  * That false-positive class is closed by switching to exact match.
@@ -102,8 +102,8 @@ export function buildOrderDateFilter(
  * UNKNOWN rows). The previous implementation was
  * `where.NOT = { OR: [productName equals 'A', equals 'B', ...] }`,
  * which silently dropped EVERY line whose productName was NULL —
- * 172 ACTIVE rows totalling $91,151 across the production DB. Julia
- * Filippone's SO-1660 line 2 (Mike Recliner, $3,695, productName=NULL)
+ * 172 ACTIVE rows totalling $91,151 across the production DB. A customer
+ * order line with productName=NULL on a mid-four-figure upholstery item
  * was the user-reported instance.
  *
  * The fix below explicitly OR-clauses `productName: null` so NULL rows
@@ -180,7 +180,7 @@ export async function resolveSalesPersonFilter(
     // applied" (e.g. admin viewing all-up).
     // Aliases (Issue #274 / ROADMAP Short-Term #12) ensure designers
     // whose the POS salesperson string differs from their displayName
-    // (e.g. Sandy ↔ Sandra Matheny) still find their orders.
+    // (e.g. Sandy ↔ Sandra Merrick) still find their orders.
     let resolvedNames: string[] = [];
     if (requestedIds.length > 0) {
       const staff = await prisma.staffMember.findMany({
@@ -233,7 +233,7 @@ export async function resolveSalesPersonFilter(
  *
  * Origin: Issue #274 / ROADMAP Short-Term #12. Sandy's dashboard query
  * filtered on `displayName='Sandy'` but every imported SalesOrder had
- * `salesperson='Sandra Matheny'`. Aliases (`['Sandra Matheny']` on her
+ * `salesperson='Sandra Merrick'`. Aliases (`['Sandra Merrick']` on her
  * StaffMember row) close the gap without renaming the up-board record.
  *
  * `null` staff is acceptable — returns an empty filter (no-op when fed

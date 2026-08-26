@@ -5,11 +5,11 @@
 // per field), the printout renders each item as a size GRID: a header row of
 // size labels (XXS–XL, numeric 00–14, or one-size) with quantity digits under
 // the ordered columns. Flat text extraction (pdf-parse) concatenates those
-// digits into ambiguous runs ("1111 4USD 448.00" under "XXSXSSMLXLQty"), so
+// digits into ambiguous runs ("1111 4USD 512.00" under "XXSXSSMLXLQty"), so
 // this parser works from positioned text items (pdfjs-dist getTextContent
 // x/y): each digit is assigned to the size column with the nearest header x.
-// Verified against rendered pages of the Frank & Eileen (PO 18573341) and
-// Hunter Bell (PO 18908185) printouts.
+// Verified against rendered pages of the Frank & Eileen (PO 19900001) and
+// Hunter Bell (PO 19900002) printouts.
 //
 // REFUSE-TO-GUESS: a block is dropped (with a warning) unless its per-size
 // quantities sum to its own Qty column AND unit price x quantity equals the
@@ -142,7 +142,7 @@ function isDigits(s: string): boolean {
   return /^\d+$/.test(s);
 }
 
-/** Money amount at the END of a grid token ("USD 448.00" or a bare
+/** Money amount at the END of a grid token ("USD 512.00" or a bare
  *  "1,057.00" when NuOrder stacks the currency and amount on separate
  *  rows). Anchored so size labels and page numbers can't match. */
 function trailingMoney(s: string): number | null {

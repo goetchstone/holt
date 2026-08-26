@@ -21,7 +21,7 @@ Daily imports:
 
 - `runPurchaseOrdersImport` -- creates PO + items from `Inbound_Items`/`Prior_Day_POR_Export`
 - `runReceivedItemsImport` -- creates ReceivingRecords from `Prior_Day_Received_Items`
-- `runInboundItemsImport` -- updates ESD from `Company_Inbound_Items` (no POR#)
+- `runInboundItemsImport` -- updates ESD from `<Org>_Inbound_Items` (no POR#)
 - `runTempItemsImport` -- creates draft PO items from `Prior_Day_Temp_Items`
 
 ## PO Status
@@ -38,7 +38,7 @@ When a Marjan vendor PO transitions to RECEIVED_FULL, the import runner auto-cre
 
 ## Expected Delivery Dates
 
-The `Company_Inbound_Items` report provides ESD (`Expecteddate`). The `runInboundItemsImport` runner stores this as `PurchaseOrder.expectedDelivery`. The `Inbound_Items` report does NOT have ESD.
+The `<Org>_Inbound_Items` report provides ESD (`Expecteddate`). The `runInboundItemsImport` runner stores this as `PurchaseOrder.expectedDelivery`. The `Inbound_Items` report does NOT have ESD.
 
 ## Invoice Import and Order Rewrites
 

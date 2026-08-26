@@ -26,12 +26,12 @@ describe("backfillSalesPersonFk — real-DB", () => {
 
   it("sets salesPersonId when salesperson string matches displayName", async () => {
     const staff = await prisma.staffMember.create({
-      data: { displayName: "Cheryl Homan", role: "DESIGNER" },
+      data: { displayName: "Cheryl Holloway", role: "DESIGNER" },
     });
     const order = await prisma.salesOrder.create({
       data: {
         orderno: "SO-MATCH-NAME",
-        salesperson: "Cheryl Homan",
+        salesperson: "Cheryl Holloway",
         salesPersonId: null,
       },
     });
@@ -47,14 +47,14 @@ describe("backfillSalesPersonFk — real-DB", () => {
     const sandy = await prisma.staffMember.create({
       data: {
         displayName: "Sandy",
-        aliases: ["Sandra Matheny"],
+        aliases: ["Sandra Merrick"],
         role: "MANAGER",
       },
     });
     const order = await prisma.salesOrder.create({
       data: {
         orderno: "SO-MATCH-ALIAS",
-        salesperson: "Sandra Matheny",
+        salesperson: "Sandra Merrick",
         salesPersonId: null,
       },
     });
@@ -68,12 +68,12 @@ describe("backfillSalesPersonFk — real-DB", () => {
 
   it("matches case-insensitively and trims whitespace", async () => {
     const staff = await prisma.staffMember.create({
-      data: { displayName: "Karen West", role: "DESIGNER" },
+      data: { displayName: "Karen Weston", role: "DESIGNER" },
     });
     const order = await prisma.salesOrder.create({
       data: {
         orderno: "SO-CASE-WHITESPACE",
-        salesperson: "  karen WEST  ",
+        salesperson: "  karen WESTON  ",
         salesPersonId: null,
       },
     });

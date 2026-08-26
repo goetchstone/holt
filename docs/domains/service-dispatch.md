@@ -28,7 +28,7 @@ ZIP-based delivery zone pricing. `DeliveryZone` has `DeliveryZoneZip` children m
 - South Central (New Haven, Milford)
 - Western (Fairfield, Litchfield)
 
-**ZIP+4 handling**: the POS customer addresses include ZIP+4 format (e.g., `06475-1234`). All dispatch APIs strip ZIP to 5 digits before zone lookup. Any new zone-matching code must do the same (`zip.substring(0, 5)`).
+**ZIP+4 handling**: the POS customer addresses include ZIP+4 format (e.g., `12345-6789`). All dispatch APIs strip ZIP to 5 digits before zone lookup. Any new zone-matching code must do the same (`zip.substring(0, 5)`).
 
 **Customer address fallback**: the POS does not export delivery addresses (`SalesOrder.deliveryAddressId` is NULL for all imported orders). All dispatch APIs use the fallback chain: `deliveryAddress ?? customer.addresses[0]`. Any new dispatch code must follow this pattern.
 

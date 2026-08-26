@@ -6,7 +6,7 @@ Everything that flows data INTO our DB from the POS (or any other source). Read 
 > **Ordorite adapter** — a self-contained edition module under
 > `app/src/lib/adapters/ordorite/` (gmailClient, reportRouter, shared helpers,
 > all 13 runners, sameDayRewriteCleanup, emptyReport, orchestrator), gated by
-> the `legacyPosImport` feature flag (default OFF; the Saybrook edition turns it
+> the `legacyPosImport` feature flag (default OFF; the retail edition turns it
 > on). Source-agnostic pieces stay in core: `lib/importHelpers.ts` (coercion +
 > `findOrCreateCustomer` on `CustomerExternalId`), `lib/storeLocationResolver.ts`,
 > `lib/orderLineItemLinker.ts`, `lib/salesPersonFkBackfill.ts`, pay-period lock
@@ -37,21 +37,21 @@ Configured in `lib/adapters/ordorite/reportRouter.ts`. Each filename regex maps 
 | `Prior_Day_Sales_Data_Export` | sales → `runSalesImport` | `import-pipeline.md`, `sales-orders.md` |
 | `Daily_Quote_Report` | quotes → `runQuotesImport` | `sales-orders.md` |
 | `Customer_Deposits_Export` | deposits → `runDepositsImport` | `accounting.md` |
-| `SH_Stock_by_Item` | stock → `runStockByItemImport` | `inventory.md` |
+| `<Org>_Stock_by_Item` | stock → `runStockByItemImport` | `inventory.md` |
 | `Prior_Day_Received_Items` | received-items → `runReceivedItemsImport` | `purchasing.md` |
 | `Prior_Day_Temp_(Items\|Purchase_Orders)` | temp-items → `runTempItemsImport` | `purchasing.md` |
-| `SH_Purchase_Order_Line_Export` | po-lines → `runPOLineExportImport` | `purchasing.md` |
-| `Company_Inbound_Items` | inbound-items → `runInboundItemsImport` | `purchasing.md` |
+| `<Org>_Purchase_Order_Line_Export` | po-lines → `runPOLineExportImport` | `purchasing.md` |
+| `<Org>_Inbound_Items` | inbound-items → `runInboundItemsImport` | `purchasing.md` |
 | `Inbound_Items` (generic, fallback) | purchase-orders → `runPurchaseOrdersImport` | `purchasing.md` |
 | `Prior_Day_POR_Export` | purchase-orders → `runPurchaseOrdersImport` | `purchasing.md` |
 | `Prior_Day_Payments_Export` | payments → `runPaymentsImport` | `accounting.md`, `pos.md` |
 | `Prior_Day_Invoice_Export` | invoices → `runInvoicesImport` | `accounting.md` |
 | `Company_(Prior_Day_)?Customers` | customers → `runCustomerImport` | `customer-intelligence.md`, `import-pipeline.md` |
-| `SH_Item_Export` | products → `runProductsImport` | `import-pipeline.md` |
+| `<Org>_Item_Export` | products → `runProductsImport` | `import-pipeline.md` |
 
-**Route order matters.** First match wins. The specific `Company_Inbound_Items` pattern is listed BEFORE the generic `Inbound_Items` fallback so the more-specific runner is preferred.
+**Route order matters.** First match wins. The specific `<Org>_Inbound_Items` pattern is listed BEFORE the generic `Inbound_Items` fallback so the more-specific runner is preferred.
 
-**BOM stripping**: the gmail orchestrator (`lib/adapters/ordorite/orchestrator.ts`) passes a `transformHeader` to Papa.parse that strips the U+FEFF byte-order mark and trims surrounding whitespace from header names. the POS ships some CSVs (including `SH_Item_Export`) with a UTF-8 BOM that would otherwise become part of the first column key (the first column header would parse as `U+FEFF` + `Active` rather than `Active`) and silently break alias matching. Added 2026-05-26 with the SH Item Export wiring.
+**BOM stripping**: the gmail orchestrator (`lib/adapters/ordorite/orchestrator.ts`) passes a `transformHeader` to Papa.parse that strips the U+FEFF byte-order mark and trims surrounding whitespace from header names. the POS ships some CSVs (including `<Org>_Item_Export`) with a UTF-8 BOM that would otherwise become part of the first column key (the first column header would parse as `U+FEFF` + `Active` rather than `Active`) and silently break alias matching. Added 2026-05-26 with the <Org> Item Export wiring.
 
 ## 2026-05-20 renames (owner-side the POS changes)
 
@@ -59,7 +59,7 @@ The owner renamed two reports on the POS's side to scope them to prior-day-only 
 
 | Was | Now | Why |
 |---|---|---|
-| `Company_Customers.csv` | `Company_Prior_Day_Customers.csv` | Scope to prior-day-only data (not the entire historical customer master) |
+| `<Org>_Customers.csv` | `<Org>_Prior_Day_Customers.csv` | Scope to prior-day-only data (not the entire historical customer master) |
 | `Prior_Day_Temp_Items.csv` | `Prior_Day_Temp_Purchase_Orders.csv` | Clearer semantic name on the POS's side |
 
 Both renames are documented in `docs/domains/import-pipeline.md` and pinned by tests in `__tests__/ordoriteReportRouter.test.ts` (legacy regression + post-rename coverage both present).
@@ -68,7 +68,7 @@ Both renames are documented in `docs/domains/import-pipeline.md` and pinned by t
 
 **Two entry points, ONE runner.** Both call `runProductsImport` in `lib/adapters/ordorite/runners.ts`.
 
-### Daily auto-import — `SH_Item_Export.csv` (2026-05-26+)
+### Daily auto-import — `<Org>_Item_Export.csv` (2026-05-26+)
 
 Owner direction 2026-05-22: *"ensure this file gets imported too during the automated gmail imports."* Wired in 2026-05-26.
 

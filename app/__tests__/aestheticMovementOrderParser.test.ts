@@ -1,7 +1,8 @@
 // /app/__tests__/aestheticMovementOrderParser.test.ts
 //
-// The fixture is condensed from the real Aesthetic Movement order (Printworks,
-// PON09056, 6 items, 66 units, $2,688.00). It keeps the two shapes a naive
+// The fixture's LAYOUT is condensed from a real Aesthetic Movement order
+// (Printworks). The PO number and every price are
+// invented -- this repo is public and a vendor's dealer costs are confidential. It keeps the two shapes a naive
 // parser gets wrong: an item with an ETA/OOS status line between the name and
 // the UPC (which must not become the name or a price), and an out-of-stock item
 // that prints NO UPC (its barcode must come out blank, not steal the money).
@@ -11,27 +12,27 @@ import { parseAestheticMovementOrderText } from "@/lib/pricing/aestheticMovement
 const FIXTURE = [
   "Vendor: Printworks",
   "Date: June 12, 2026",
-  "PO: #PON09056",
+  "PO: #PON00003",
   "Earliest Ship Date October 01, 2026",
   "SKUItemQuantityPriceTotal",
   "PW00689",
   "Classic - Tic Tac Toe NEW",
   "7350108174152",
-  "12$33.00$396.00",
+  "12$25.00$300.00",
   "PW00682",
   "Classic - Backgammon NEW",
   "ETA EARLY JULY",
   "7350108174084",
-  "12$38.00$456.00",
+  "12$30.00$360.00",
   "PW00821",
   "Reverra - Mahjong",
   "OOS - ETA EARLY SEPTEMBER",
-  "6$126.00$756.00",
+  "6$90.00$540.00",
   "Number of Items: 3",
   "Total Quantity: 30",
-  "Subtotal:$1608.00",
+  "Subtotal:$1200.00",
   "Discount:$0.00",
-  "Order Total:$1608.00",
+  "Order Total:$1200.00",
 ].join("\n");
 
 describe("parseAestheticMovementOrderText", () => {
@@ -39,7 +40,7 @@ describe("parseAestheticMovementOrderText", () => {
 
   it("reads the vendor from the document and the PO number", () => {
     expect(order.vendorName).toBe("Printworks");
-    expect(order.poNumber).toBe("PON09056");
+    expect(order.poNumber).toBe("PON00003");
     expect(order.shipDate).toBe("October 01, 2026");
   });
 
@@ -49,8 +50,8 @@ describe("parseAestheticMovementOrderText", () => {
       name: "Classic - Tic Tac Toe NEW",
       upc: "7350108174152",
       qty: 12,
-      unitPrice: 33,
-      lineTotal: 396,
+      unitPrice: 25,
+      lineTotal: 300,
     });
   });
 
@@ -63,14 +64,14 @@ describe("parseAestheticMovementOrderText", () => {
 
   it("exports a blank barcode for an out-of-stock item that prints no UPC", () => {
     const oos = order.items.find((i) => i.sku === "PW00821");
-    expect(oos).toMatchObject({ name: "Reverra - Mahjong", upc: "", qty: 6, unitPrice: 126 });
-    expect(oos?.lineTotal).toBe(756);
+    expect(oos).toMatchObject({ name: "Reverra - Mahjong", upc: "", qty: 6, unitPrice: 90 });
+    expect(oos?.lineTotal).toBe(540);
   });
 
   it("reconciles item count, units, and the order total with no warnings", () => {
     expect(order.items).toHaveLength(3);
     expect(order.items.reduce((s, i) => s + i.qty, 0)).toBe(30);
-    expect(order.items.reduce((s, i) => s + i.lineTotal, 0)).toBeCloseTo(1608, 2);
+    expect(order.items.reduce((s, i) => s + i.lineTotal, 0)).toBeCloseTo(1200, 2);
     expect(order.warnings).toEqual([]);
   });
 

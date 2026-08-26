@@ -20,9 +20,10 @@
 // Reset:       --reset  (wipes every seeded row and reseeds; refuses to
 //              run at all against an existing dataset without it)
 // Date anchor: HOLT_SEED_AS_OF=YYYY-MM-DD (default 2026-08-01), or --as-of=
-// DB safety:   --force-unsafe-db / HOLT_SEED_FORCE_UNSAFE_DB=1 to target
-//              saybrook / holt_saybrook / akritos / fbc_dev_db. fbc_test_db
-//              can never be targeted, override or not (rule 59).
+// DB safety:   only a scratch-named database (holt_seed_demo and the like)
+//              seeds unattended; anything else needs --force-unsafe-db or
+//              HOLT_SEED_FORCE_UNSAFE_DB=1. The integration-test database can
+//              never be targeted, override or not (rule 59).
 //
 // Deterministic: every run with the same scale + as-of date produces
 // byte-identical rows (fixed RNG seed -- see config.ts ROOT_SEED_STRING).

@@ -16,21 +16,22 @@
 //   35.01"w x 41.01"h
 //   Frame
 //   M1123, Antique Silver, 0.38"w x 2.13"d
-//   3$1,057.62                         <- qty + LINE TOTAL (not unit price)
+//   3$1,200.00                         <- qty + LINE TOTAL (not unit price)
 //
 // Two traps this parser exists to handle, both verified against the real
-// 18-item order (#1000292821, 2026-07-13):
+// 18-item order (its number, dates and totals withheld -- this repo is public
+// and the vendor's dealer costs are confidential):
 //
 // 1. The "Price" column is the LINE TOTAL, not the unit price. Summing the
-//    printed prices reproduces the printed Subtotal ($10,976.49) to the
-//    penny, whereas qty x price would total $32,108.67. The catalog agrees
-//    independently: Wendover's costs top out at $650, so the $1,188.57 and
-//    $1,057.62 figures are impossible as unit costs, while every derived
-//    unit price lands inside the vendor's real range. Ordorite's PO import
-//    wants a UNIT cost, so unitPrice = lineTotal / qty is derived here.
+//    printed prices reproduces the printed Subtotal to the penny, whereas
+//    qty x price overshoots it roughly threefold. The catalog agrees
+//    independently: the largest printed figures are impossible as unit costs,
+//    while every derived unit price lands inside the vendor's real range.
+//    Ordorite's PO import wants a UNIT cost, so unitPrice = lineTotal / qty
+//    is derived here.
 //
 // 2. A page break can emit an item's qty+price BEFORE its own "SKU:" line,
-//    trailing the item's name ("Patterned Dignity 4 3$745.20"). Pairing is
+//    trailing the item's name ("Patterned Dignity 4 3$900.00"). Pairing is
 //    therefore positional with a one-slot carry, NOT "the next price after
 //    a SKU". Note the subtotal check CANNOT catch a mis-pairing -- a sum is
 //    order-independent -- so the pairing rule has to be structurally right
@@ -52,8 +53,8 @@ export interface WendoverOrderItem {
   treatment: string;
   size: string;
   frame: string;
-  /** Customer reference printed on made-to-order pieces ("SBOM41649/Erin
-   *  Kelly") -- the item is already sold, not stock. */
+  /** Customer reference printed on made-to-order pieces ("SBOM41649/Dana
+   *  Whitl") -- the item is already sold, not stock. */
   sideMark: string;
   extras: string[];
 }
@@ -74,7 +75,7 @@ const PLACED_ON = /^Placed on\s+(.+?)\s*$/;
 const SUBTOTAL = /^Subtotal\s+\$([\d,]+\.\d{2})/;
 const SKU_LINE = /^SKU:\s*(\S+)$/;
 
-// Qty and price render concatenated ("3$1,057.62"), optionally trailing the
+// Qty and price render concatenated ("3$1,200.00"), optionally trailing the
 // next item's name. The qty must be whitespace-separated from any lead text
 // so a name ending in digits can never be split into a quantity: refusing to
 // parse is correct there, and the missing-price check below reports it.
@@ -110,7 +111,7 @@ function parseMoney(raw: string): number {
 /**
  * Collapse the whitespace an HTML-to-PDF print leaves behind. This document
  * is a Gmail print of an HTML email, so it is full of non-breaking spaces —
- * the order number really renders as "Your Order\u00a0#1000292821", which no
+ * the order number really renders as "Your Order\u00a0#1000000001", which no
  * pattern written with an ordinary space will ever match. Runs of spaces
  * (e.g. "Before the Rain  Customized") are rendering artifacts too, so they
  * collapse to one.

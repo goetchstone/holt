@@ -34,7 +34,7 @@ function row(overrides: Partial<HomeAccessoryExportRow> = {}): HomeAccessoryExpo
     category: "",
     supplier: "K & K Interiors",
     barcode: "840220407476",
-    reference: "0002592361",
+    reference: "0009900002",
     ...overrides,
   };
 }
@@ -42,9 +42,9 @@ function row(overrides: Partial<HomeAccessoryExportRow> = {}): HomeAccessoryExpo
 function draft(rows: HomeAccessoryExportRow[]): HomeAccessoryDraft {
   return {
     vendorName: "K & K Interiors",
-    customerPo: "PON09025",
+    customerPo: "PON00006",
     orderDate: "Jun 15, 2026",
-    orders: [{ orderNumber: "0002592361", requiredDate: "9/1/26", itemCount: rows.length }],
+    orders: [{ orderNumber: "0009900002", requiredDate: "9/1/26", itemCount: rows.length }],
     rows,
     warnings: [],
   };
@@ -212,36 +212,36 @@ describe("composeHomeAccessoryRows — value precedence (no catalog match layer 
 
 describe("composeHomeAccessoryRows — PO numbers per order", () => {
   const twoOrderDraft = () => {
-    const a = row({ partNumber: "AAA", reference: "0002592360" });
-    const b = row({ partNumber: "BBB", reference: "0002592361" });
+    const a = row({ partNumber: "AAA", reference: "0009900001" });
+    const b = row({ partNumber: "BBB", reference: "0009900002" });
     return {
       ...draft([a, b]),
       orders: [
-        { orderNumber: "0002592360", requiredDate: "8/1/26", itemCount: 1 },
-        { orderNumber: "0002592361", requiredDate: "9/1/26", itemCount: 1 },
+        { orderNumber: "0009900001", requiredDate: "8/1/26", itemCount: 1 },
+        { orderNumber: "0009900002", requiredDate: "9/1/26", itemCount: 1 },
       ],
     };
   };
 
   it("leaves each order on its own vendor order number when nothing is typed", () => {
     const rows = composeHomeAccessoryRows(input({ draft: twoOrderDraft() }));
-    expect(rows.map((r) => r.reference)).toEqual(["0002592360", "0002592361"]);
+    expect(rows.map((r) => r.reference)).toEqual(["0009900001", "0009900002"]);
   });
 
   it("applies a typed PO to ONLY that order, leaving the other alone", () => {
     // The bug this guards: a single run-level PO number overriding every
     // row would silently merge a two-order bundle into ONE draft PO.
     const rows = composeHomeAccessoryRows(
-      input({ draft: twoOrderDraft(), poNumbers: { "0002592360": "PON09025" } }),
+      input({ draft: twoOrderDraft(), poNumbers: { "0009900001": "PON00006" } }),
     );
-    expect(rows.map((r) => r.reference)).toEqual(["PON09025", "0002592361"]);
+    expect(rows.map((r) => r.reference)).toEqual(["PON00006", "0009900002"]);
   });
 
   it("keeps two typed POs distinct, so two draft POs still get created", () => {
     const rows = composeHomeAccessoryRows(
       input({
         draft: twoOrderDraft(),
-        poNumbers: { "0002592360": "PO-A", "0002592361": "PO-B" },
+        poNumbers: { "0009900001": "PO-A", "0009900002": "PO-B" },
       }),
     );
     expect(rows.map((r) => r.reference)).toEqual(["PO-A", "PO-B"]);
@@ -250,31 +250,31 @@ describe("composeHomeAccessoryRows — PO numbers per order", () => {
 
   it("treats a blank or whitespace entry as 'use the vendor's number'", () => {
     const rows = composeHomeAccessoryRows(
-      input({ draft: twoOrderDraft(), poNumbers: { "0002592360": "   " } }),
+      input({ draft: twoOrderDraft(), poNumbers: { "0009900001": "   " } }),
     );
-    expect(rows[0].reference).toBe("0002592360");
+    expect(rows[0].reference).toBe("0009900001");
   });
 
   it("lets one typed PO deliberately cover both orders when that is the intent", () => {
     const rows = composeHomeAccessoryRows(
       input({
         draft: twoOrderDraft(),
-        poNumbers: { "0002592360": "PON1", "0002592361": "PON1" },
+        poNumbers: { "0009900001": "PON1", "0009900002": "PON1" },
       }),
     );
     expect(new Set(rows.map((r) => r.reference)).size).toBe(1);
   });
 
   it("carries the order's PO onto every piece of a split set", () => {
-    const setRow = row({ partNumber: "17695A", reference: "0002592360" });
+    const setRow = row({ partNumber: "17695A", reference: "0009900001" });
     const d = {
       ...draft([setRow]),
-      orders: [{ orderNumber: "0002592360", requiredDate: "", itemCount: 1 }],
+      orders: [{ orderNumber: "0009900001", requiredDate: "", itemCount: 1 }],
     };
     const rows = composeHomeAccessoryRows(
       input({
         draft: d,
-        poNumbers: { "0002592360": "PON09025" },
+        poNumbers: { "0009900001": "PON00006" },
         splits: {
           0: [
             { suffix: "LG", cost: "22.79" },
@@ -285,7 +285,7 @@ describe("composeHomeAccessoryRows — PO numbers per order", () => {
       }),
     );
     expect(rows).toHaveLength(3);
-    expect(rows.every((r) => r.reference === "PON09025")).toBe(true);
+    expect(rows.every((r) => r.reference === "PON00006")).toBe(true);
   });
 });
 

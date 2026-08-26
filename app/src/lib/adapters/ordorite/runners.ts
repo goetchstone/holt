@@ -105,7 +105,7 @@ export interface SalesImportResult {
   consignmentItemsSynced: number;
   /**
    * Base-order line items cancelled by the same-day rewrite cleanup
-   * (post-failure log 2026-05-12, Cheshire $1,109 delta). Optional —
+   * (post-failure log 2026-05-12, Brookvale $1,109 delta). Optional —
    * only set when cleanup actually ran.
    */
   sameDayRewriteLinesCancelled?: number;
@@ -374,8 +374,8 @@ export async function runSalesImport(
             // Earlier versions had a `|| safeString(row.ordernotes)` fallback
             // here that polluted productName with note text and broke
             // reports filtering on productName (see post-failure log
-            // 2026-05-01: Susan Roberts SBOM38708 productName "Delivery to
-            // 8 Monticello Dr East Lyme"). Drop the fallback.
+            // 2026-05-01: Cheryl Holloway SBOM38708 productName "Delivery to
+            // 12 Larkfield Ln Wexbridge"). Drop the fallback.
             const csvProductName = safeString(row["Product Name"]) || undefined;
 
             // 2026-05-15: REMOVED the findProduct({ autoCreate: true })
@@ -671,7 +671,7 @@ export async function runSalesImport(
   // amount), not the items they DROPPED. The dropped items dangle in the
   // base as ACTIVE-but-uncanceled lines and double-count daily sales.
   //
-  // Worked example: CHOM1726 on 2026-05-09 (Brian Tenerow, Cheshire).
+  // Worked example: CHOM1726 on 2026-05-09 (Brian Thorne, Brookvale).
   // Base $4,298 (5 lines) + Return -$3,189 (3 lines) + Rewrite $3,189
   // (3 lines) -> naive sum is $4,298 vs. Ordorite's $3,189 (a $1,109
   // delta = the 2 lounge chairs + extra delivery line that the customer
@@ -2609,7 +2609,7 @@ export async function runCustomerImport(
       // customers in Ordorite. Those values aren't actually the
       // customer's email and propagating them caused 138 wrongly-
       // merged customers across ~20 records. isUntrustedMergeEmail
-      // covers `@saybrookhome.com`, known typos, and any future
+      // covers the deployment's own domain, known typos of it, and any future
       // internal-domain variant.
       if (email && !customer.email && !isUntrustedMergeEmail(email)) {
         const conflict = await prisma.customer.findUnique({
@@ -3070,7 +3070,7 @@ export async function runReceivedItemsImport(
 }
 
 // ---------------------------------------------------------------------------
-// Inbound items import (Saybrook_Home_Inbound_Items)
+// Inbound items import (`<Org>_Inbound_Items`)
 // Updates ESDs on POs and creates/updates items without POR numbers.
 // ---------------------------------------------------------------------------
 

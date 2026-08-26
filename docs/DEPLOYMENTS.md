@@ -53,7 +53,7 @@ core repo stays a single product so improvements flow to every deployment.
   preserved from the live site so indexing carries over — and it must ride every
   environment move (it is data, not code; verified intact after the 2026-06-10
   environment rename).
-- **Saybrook** (retail edition) — a retail feature preset (POS, inventory,
+- **Riverbend** (retail edition) — a retail feature preset (POS, inventory,
   warehousing, dispatch, purchasing, commissions) plus the **Ordorite adapter**:
   a self-contained import package (report runners, status derivation, rewrite /
   dedup quirk handling) that translates Ordorite's daily exports into Holt's
@@ -107,7 +107,7 @@ The kit is the BRAND AND CONTENT half and stays gitignored on purpose
 longer lives in it — `config/local/akritos.json` is in the repo and carries
 Akritos's import definitions and feature configuration through the preset
 system, applied with the same idempotent `apply` CLI every other deployment
-uses. It is deliberately JSON where `config/local/saybrook.yaml` is YAML: the two
+uses. It is deliberately JSON where `config/local/riverbend.yaml` is YAML: the two
 formats are interchangeable and keeping one of each in regular use is what keeps
 that claim honest.
 

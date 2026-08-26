@@ -36,23 +36,33 @@ The pipeline runs daily at 6:10 AM via Synology Task Scheduler.
 | `Prior_Day_Sales_Data_Export`                              | sales           | `runSalesImport`          | Orders, line items, returns                        |
 | `Daily_Quote_Report`                                       | quotes          | `runQuotesImport`         | Open quotes                                        |
 | `Customer_Deposits_Export`                                 | deposits        | `runDepositsImport`       | Customer deposits                                  |
-| `SH_Stock_by_Item`                                         | stock           | `runStockByItemImport`    | Inventory positions                                |
+| `<Org>_Stock_by_Item`                                      | stock           | `runStockByItemImport`    | Inventory positions                                |
 | `Inbound_Items`                                            | purchase-orders | `runPurchaseOrdersImport` | PO items with POR#                                 |
 | `Prior_Day_POR_Export`                                     | purchase-orders | `runPurchaseOrdersImport` | PO items with POR#                                 |
 | `Prior_Day_Payments_Export`                                | payments        | `runPaymentsImport`       | Payment transactions                               |
 | `Prior_Day_Invoice_Export`                                 | invoices        | `runInvoicesImport`       | Invoices (handles order rewrites)                  |
-| `Company_Customers` OR `Company_Prior_Day_Customers`       | customers       | `runCustomerImport`       | Customer records                                   |
+| `<Org>_Customers` OR `<Org>_Prior_Day_Customers`           | customers       | `runCustomerImport`       | Customer records                                   |
 | `Prior_Day_Received_Items`                                 | received-items  | `runReceivedItemsImport`  | Goods in, creates ReceivingRecords                 |
-| `Company_Inbound_Items`                                    | inbound-items   | `runInboundItemsImport`   | Confirmed PO items with ESD                        |
+| `<Org>_Inbound_Items` (prefix required)                    | inbound-items   | `runInboundItemsImport`   | Confirmed PO items with ESD                        |
 | `Prior_Day_Temp_Items` OR `Prior_Day_Temp_Purchase_Orders` | temp-items      | `runTempItemsImport`      | Draft PO items                                     |
-| `SH_Purchase_Order_Line_Export`                            | po-lines        | `runPOLineExportImport`   | PO line details                                    |
-| `SH_Item_Export`                                           | products        | `runProductsImport`       | Daily product master (~100K rows, Active=yes only) |
+| `<Org>_Purchase_Order_Line_Export`                         | po-lines        | `runPOLineExportImport`   | PO line details                                    |
+| `<Org>_Item_Export`                                        | products        | `runProductsImport`       | Daily product master (~100K rows, Active=yes only) |
 
-**Route order matters.** `Company_Inbound_Items` must be matched before the generic `Inbound_Items` pattern in `gmailReportRouter.ts`.
+**`<Org>_` is configuration, not a constant.** The prefix comes from
+`ORDORITE_REPORT_PREFIX`, which takes a comma-separated list because one
+deployment normally uses more than one (a full name on some exports, an
+initialism on others). Unset, the router matches the BARE report names only --
+`Customers.csv`, `Stock_by_Item.csv` -- and refuses a look-alike such as
+`Deleted_Customers.csv` rather than guessing it is the customer master.
+
+**Route order matters.** `<Org>_Inbound_Items` is the one route that REQUIRES a
+configured prefix, because a bare `Inbound_Items` is a different report with a
+different runner. Unconfigured, the org route stands down and the bare route
+keeps its meaning. See `src/lib/adapters/ordorite/reportRouter.ts`.
 
 **2026-05-20 renames** (owner-side the POS export config change):
 
-- `Company_Customers` → `Company_Prior_Day_Customers` (scopes to prior-day-only data)
+- `<Org>_Customers` → `<Org>_Prior_Day_Customers` (scopes to prior-day-only data)
 - `Prior_Day_Temp_Items` → `Prior_Day_Temp_Purchase_Orders` (clearer naming on the POS's side)
 
 Router regexes (`gmailReportRouter.ts`) match both old and new names so a fallback to the legacy filename still routes correctly. Tests pin both forms.
@@ -96,7 +106,7 @@ The one place this goes wrong is **payments**. the POS's payment CSV includes a 
 
 **`runPaymentsImport` skips that phantom row.** Detection: `isRewriteOrder(orderno)` + `paymentType === "Gift Card"` + no gift-card barcode/code. Real POS gift-card redemptions always carry a barcode or code, so they are unaffected. The `phantomTransfersSkipped` counter on the result surfaces how many were skipped per import.
 
-**Worked example** (from PO 5733 Cheshire data, 2026-04-22 investigation):
+**Worked example** (from PO 5733 Brookvale data, 2026-04-22 investigation):
 
 ```
 SO-1652           base, 2026-04-19, total $8,159.00
@@ -112,7 +122,7 @@ Customer balance over the chain:
   balance    = $3,470.01  (owed by customer)
 ```
 
-Daily sales by store (Cheshire):
+Daily sales by store (Brookvale):
 
 - 2026-04-19: +$8,159 (base contributes its full amount)
 - 2026-04-22: −$8,159 (return) + $7,809.01 (rewrite) = −$349.99 delta on this date
@@ -125,7 +135,7 @@ This matches the POS's own "Sales by Store" report. **Don't try to `status = CAN
 
 The "all three stay ACTIVE, daily sales reconcile naturally" rule is true for cross-day rewrites. **Same-day rewrites have a quirk**: when the customer modifies an order before close-of-business, the POS's accounting return only credits items the customer KEPT, not items they DROPPED. The dropped items dangle in the base as `lineItemStatus = ACTIVE` with no offset, and double-count daily sales.
 
-**Worked example** (SO-1726, Cheshire, Brian Tenerow, 2026-05-09):
+**Worked example** (SO-1726, Brookvale, Brian Thorne, 2026-05-09):
 
 | Order                 | Lines                                                  | Net     |
 | --------------------- | ------------------------------------------------------ | ------- |
@@ -133,7 +143,7 @@ The "all three stay ACTIVE, daily sales reconcile naturally" rule is true for cr
 | `SR-010045` return    | 3 (cushion×-3, sofa×-1, delivery×-1)                   | -$3,189 |
 | `SO-1726 - A` rewrite | 3 (cushion×3, sofa×1, delivery×1)                      | $3,189  |
 
-Naive sum: `4298 + (-3189) + 3189 = 4298`. Cheshire 5/9 total: $4,298 (base) + $117 (three cash sales) = **$4,415**.
+Naive sum: `4298 + (-3189) + 3189 = 4298`. Brookvale 5/9 total: $4,298 (base) + $117 (three cash sales) = **$4,415**.
 
 the POS shows: rewrite only, $3,189 + $117 = **$3,306**.
 
@@ -262,7 +272,7 @@ The sweep runs OUTSIDE the per-batch transaction — idempotent, and a single fa
 - **Invoice Memo references base order.** Invoice Memo field contains the base order number (e.g., `SO-38549`), not the rewrite suffix (`SO-38549 - A`). The invoice import tries rewrite suffixes `- D` through `- A` before falling back to the base order number.
 - **RS-prefix returns.** `isReturnOrder()` now detects RS-prefix orders (Returns store) as returns in addition to A-suffix store codes.
 - **Auto-create products from imports.** the POS does not export a daily product file, but `findProduct()` in `importHelpers.ts` accepts `{ autoCreate: true }` to create a minimal Product record when a part number is not found. Applied to 5 runners: sales, PO import, received items, inbound items, PO line export. The auto-created product uses part number, name, vendor, and cost from the CSV row.
-- **Customer ZIP+4 codes.** the POS customer addresses include ZIP+4 format (e.g., `06475-1234`). Any code matching ZIPs to delivery zones must strip to 5 digits first. The orders-by-zone API already does this.
+- **Customer ZIP+4 codes.** the POS customer addresses include ZIP+4 format (e.g., `12345-6789`). Any code matching ZIPs to delivery zones must strip to 5 digits first. The orders-by-zone API already does this.
 - **Payment.status is always NULL.** All 44K Payment records imported from the POS have `status = NULL`. Queries using `status != 'VOIDED'` exclude all records because Postgres NULL comparison returns unknown. Use `OR: [{ status: null }, { status: { not: "VOIDED" } }]`.
 - **Staff-email customer merging — fixed 2026-05-05.** Salespeople sometimes typed their own email when entering customers in the POS, and `findOrCreateCustomer`'s email-match clustered every later customer with that email into the FIRST record. ~138 customers across ~20 records affected at audit time. `isUntrustedMergeEmail(email)` now blocks any company-domain email (configured via the `COMPANY_EMAIL_DOMAIN` env var) from matching at import time. Recovery tool at `/admin/tools/customer-unmerge` un-merges existing damage by uploading the customer CSV and repointing per external id. See `docs/domains/customer-intelligence.md` "Customer-Merge Gotcha" for full details.
 - **Email-collision pre-flight on customer create — fixed 2026-05-07** (Phase 0.6.3). `findOrCreateCustomer`'s create branch now does a pre-flight `findUnique({ where: { email } })` before `prisma.customer.create()`. If the email is already on another Customer row (e.g. a real shared email between two unrelated parties — name match check above already rejected the merge), the new customer is created with `email = NULL` instead of crashing the order with a `Unique constraint failed` error. Operator can reconcile via the merge-customers admin tool. The marketing-donation-incident comment block described this protection but the actual `findUnique` call was missing — Phase 0.6.3 integration tests caught the gap.
