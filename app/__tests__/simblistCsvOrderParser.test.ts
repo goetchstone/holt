@@ -9,7 +9,7 @@ import { parseSimblistCsvText } from "@/lib/pricing/simblistCsvOrderParser";
 
 const FIXTURE = [
   "RepGroup,Manufacturer,PO #,Order Date,Request Date,Ship Date,Cancel Date,Order Total,Customer Name",
-  "Simblist Group,MAISON ZOE FORD,PON09047,2026-06-11,2026-09-01,2026-09-01,,722.74,SAYBROOK HOME",
+  "Simblist Group,MAISON ZOE FORD,PON09047,2026-06-11,2026-09-01,2026-09-01,,722.74,RIVERBEND HOME",
   "Sequence #,Item Number,Name,Description,Quantity,Unit Price,Unit Qty,Item Discount,UPC,Unit of measure,Size,Color,Style,Notes,Retailer Item Number,List Price,Item Status,Extended Price,Total Price",
   '3,ZFUSA03-C,Big Time Brownie Mix - case pack of 6,,2,53.94,,0.0,10628678860152,,,,,"Only available to ship on September 1, 2026",,17.99,,,$107.88',
   "6,ZFUSA07-C,Speedy Cinnamon Roll Mix - case pack of 6,,2,41.94,,0.0,10628678860176,,,,,,,13.99,,,$83.88",

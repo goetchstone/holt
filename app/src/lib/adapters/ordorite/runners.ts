@@ -2609,7 +2609,7 @@ export async function runCustomerImport(
       // customers in Ordorite. Those values aren't actually the
       // customer's email and propagating them caused 138 wrongly-
       // merged customers across ~20 records. isUntrustedMergeEmail
-      // covers `@saybrookhome.com`, known typos, and any future
+      // covers the deployment's own domain, known typos of it, and any future
       // internal-domain variant.
       if (email && !customer.email && !isUntrustedMergeEmail(email)) {
         const conflict = await prisma.customer.findUnique({
@@ -3070,7 +3070,7 @@ export async function runReceivedItemsImport(
 }
 
 // ---------------------------------------------------------------------------
-// Inbound items import (Saybrook_Home_Inbound_Items)
+// Inbound items import (`<Org>_Inbound_Items`)
 // Updates ESDs on POs and creates/updates items without POR numbers.
 // ---------------------------------------------------------------------------
 

@@ -230,7 +230,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
     const customerId = await seedCustomer({
       firstName: "Barbara",
       lastName: "Panagy",
-      phone: "860-470-3653",
+      phone: "860-555-0173",
     });
 
     const buf = buildWorkbookBuffer({
@@ -238,7 +238,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
         {
           Timestamp: new Date("2025-10-03T00:00:00Z"),
           Name: "Barbara Panagy",
-          "Phone #": "860-470-3653",
+          "Phone #": "860-555-0173",
           "Preferred Contact Method": "Phone",
           Vendor: "Hallagan",
           Status: "Service Call",

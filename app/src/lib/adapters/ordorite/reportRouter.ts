@@ -21,7 +21,14 @@ import {
 } from "@/lib/adapters/ordorite/runners";
 
 interface RouteEntry {
-  pattern: RegExp;
+  // A report Ordorite names the same way for every customer.
+  pattern?: RegExp;
+  // A report the DEPLOYING ORG named after itself. Ordorite lets the owner
+  // pick export filenames, so the prefix is a deployment fact, not a vendor
+  // constant (CLAUDE.md 61-63) -- set ORDORITE_REPORT_PREFIX to pin it.
+  // Unset means "any prefix", which is what discriminates these from the
+  // unprefixed vendor-standard reports of the same name.
+  orgReport?: string;
   importType: string;
   runner: (data: Record<string, unknown>[], createdBy?: string) => Promise<unknown>;
   // stock-by-item wraps records in { records: [...] } -- the runner accepts
@@ -46,7 +53,7 @@ const REPORT_ROUTES: RouteEntry[] = [
     runner: runDepositsImport,
   },
   {
-    pattern: /SH_Stock_by_Item/i,
+    orgReport: "Stock_by_Item",
     importType: "stock",
     runner: runStockByItemImport,
   },
@@ -66,12 +73,12 @@ const REPORT_ROUTES: RouteEntry[] = [
     runner: runTempItemsImport,
   },
   {
-    pattern: /SH_Purchase_Order_Line_Export/i,
+    orgReport: "Purchase_Order_Line_Export",
     importType: "po-lines",
     runner: runPOLineExportImport,
   },
   {
-    pattern: /Saybrook_Home_Inbound_Items/i,
+    orgReport: "Inbound_Items",
     importType: "inbound-items",
     runner: runInboundItemsImport,
   },
@@ -96,12 +103,12 @@ const REPORT_ROUTES: RouteEntry[] = [
     runner: runInvoicesImport,
   },
   {
-    // Matches both legacy `Saybrook_Home_Customers` AND post-2026-05-20
-    // rename to `Saybrook_Home_Prior_Day_Customers` — owner renamed the
+    // Matches both the legacy `<Org>_Customers` AND the post-2026-05-20
+    // rename to `<Org>_Prior_Day_Customers` — the owner renamed the
     // Ordorite report so it scopes to new (prior-day) data only.
     // Both filenames carry the same data shape (customer master);
     // runCustomerImport handles both.
-    pattern: /Saybrook_Home_(Prior_Day_)?Customers/i,
+    orgReport: "(?:Prior_Day_)?Customers",
     importType: "customers",
     runner: runCustomerImport,
   },
@@ -109,10 +116,10 @@ const REPORT_ROUTES: RouteEntry[] = [
     // Daily product master from Ordorite, added 2026-05-26. Replaces
     // the historical manual upload at /admin/import/ordorite-products
     // for routine refreshes — the manual page still exists for ad-hoc
-    // bulk imports. Filename: `SH_Item_Export.csv` (~100K rows). All
+    // bulk imports. Filename: `<Org>_Item_Export.csv` (~100K rows). All
     // rows in the export are Active=yes; discontinued products are
     // simply absent. The runner self-chunks 500 rows per batch.
-    pattern: /SH_Item_Export/i,
+    orgReport: "Item_Export",
     importType: "products",
     runner: runProductsImport,
   },
@@ -133,14 +140,28 @@ export interface ResolvedRoute {
   runner: (data: Record<string, unknown>[], createdBy?: string) => Promise<unknown>;
 }
 
+// Regex fragment matching the deploying org's report-name prefix. Deliberately
+// permissive when unconfigured: any prefix routes, which preserves the
+// prefixed-vs-bare discrimination without any deployment naming itself in code.
+function orgPrefixFragment(): string {
+  const configured = process.env.ORDORITE_REPORT_PREFIX?.trim();
+  return configured ? configured.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : ".+";
+}
+
+function patternFor(route: RouteEntry, prefix: string): RegExp {
+  if (route.pattern) return route.pattern;
+  return new RegExp(`${prefix}_(?:${route.orgReport})`, "i");
+}
+
 export function resolveImportRoute(filename: string): ResolvedRoute | "skip" | null {
   // Check if this is a known-redundant file
   for (const skip of SKIP_PATTERNS) {
     if (skip.test(filename)) return "skip";
   }
 
+  const prefix = orgPrefixFragment();
   for (const route of REPORT_ROUTES) {
-    if (route.pattern.test(filename)) {
+    if (patternFor(route, prefix).test(filename)) {
       return { importType: route.importType, runner: route.runner };
     }
   }

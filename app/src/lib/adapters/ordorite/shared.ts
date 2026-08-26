@@ -213,10 +213,20 @@ export function isRefundPayment(paymentType: string, amount: number): boolean {
 
 const RETURN_ORDER_PREFIX = /^(R|CR)-?\d/i;
 
-// Ordorite uses an "A" suffix on the store code for return/credit transactions:
-// SBOA = Saybrook Old return, GTOA = Glastonbury return, CHOA = Cheshire return.
-// The "M" suffix (SBOM, GTOM, CHOM) is for regular merchandise orders.
-const RETURN_STORE_SUFFIX = /^(SB|GT|CH|BB|WS|RS)[A-Z]*A\d/i;
+// Ordorite uses an "A" suffix on the store code for return/credit transactions
+// and an "M" suffix for regular merchandise -- e.g. a store coded "AB" writes
+// ABxxA1234 for a return and ABxxM1234 for an order. The A/M suffix is the
+// vendor's convention; the STORE CODES are a deployment fact (CLAUDE.md 61-63),
+// so they come from config and default to "any code".
+function storeCodeFragment(): string {
+  const configured = process.env.ORDORITE_STORE_CODES?.trim();
+  if (!configured) return "[A-Z]{2,}";
+  return configured
+    .split(",")
+    .map((code) => code.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .filter(Boolean)
+    .join("|");
+}
 
 // Rewrite-suffix matching. Ordorite rewrites replace the original order; the
 // new order number is "<base> - A" (or B/C/D up to D). Everything that was on
@@ -266,9 +276,12 @@ export function rewriteBaseOrderno(orderno: string): string | null {
 
 /** True when the order number follows Ordorite's return/credit convention. */
 export function isReturnOrder(orderno: string): boolean {
-  // RS-prefixed orders are Returns Saybrook
-  if (/^RS\d/i.test(orderno)) return true;
-  return RETURN_ORDER_PREFIX.test(orderno) || RETURN_STORE_SUFFIX.test(orderno);
+  // "R" + a store initial (RS1234) is a return booked against that store --
+  // distinct from RETURN_ORDER_PREFIX, which is "R"/"CR" followed by digits.
+  if (/^R[A-Z]\d/i.test(orderno)) return true;
+  const codes = storeCodeFragment();
+  const returnStoreSuffix = new RegExp(`^(?:${codes})[A-Z]*A\\d`, "i");
+  return RETURN_ORDER_PREFIX.test(orderno) || returnStoreSuffix.test(orderno);
 }
 
 /**

@@ -163,10 +163,10 @@ describe("poNumberCandidates", () => {
 
 describe("normalizePhone", () => {
   it("strips formatting, drops leading 1 country code", () => {
-    expect(normalizePhone("860-470-3653")).toBe("8604703653");
-    expect(normalizePhone("(860) 470-3653")).toBe("8604703653");
-    expect(normalizePhone("1-860-470-3653")).toBe("8604703653");
-    expect(normalizePhone("+18604703653")).toBe("8604703653");
+    expect(normalizePhone("860-555-0173")).toBe("8605550173");
+    expect(normalizePhone("(860) 555-0173")).toBe("8605550173");
+    expect(normalizePhone("1-860-555-0173")).toBe("8605550173");
+    expect(normalizePhone("+18605550173")).toBe("8605550173");
   });
 
   it("returns empty string for blank input", () => {

@@ -43,7 +43,7 @@ export interface ProviderCapabilities {
 export interface CheckoutRequest {
   amount: number;
   currency: string;
-  /** Line-item label the customer sees, e.g. "Invoice INV-1042 — Saybrook Home". */
+  /** Line-item label the customer sees, e.g. "Invoice INV-1042 — Riverbend Home". */
   description: string;
   customerEmail?: string;
   /** Echoed back on the webhook. Holt routes structurally off Payment rows, so

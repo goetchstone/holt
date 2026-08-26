@@ -24,17 +24,17 @@ describe("resolveImportRoute", () => {
       expect((result as { importType: string }).importType).toBe("deposits");
     });
 
-    it("routes Saybrook_Home_Customers to customers", () => {
-      const result = resolveImportRoute("Saybrook_Home_Customers.csv");
+    it("routes Riverbend_Home_Customers to customers", () => {
+      const result = resolveImportRoute("Riverbend_Home_Customers.csv");
       expect(result).not.toBeNull();
       expect((result as { importType: string }).importType).toBe("customers");
     });
 
     // 2026-05-20 rename: owner renamed the Ordorite customer export to
     // include "Prior_Day_" so it scopes to new data only. Router accepts
-    // both old + new names — regex is /Saybrook_Home_(Prior_Day_)?Customers/i.
-    it("routes Saybrook_Home_Prior_Day_Customers to customers (post-rename)", () => {
-      const result = resolveImportRoute("Saybrook_Home_Prior_Day_Customers.csv");
+    // both old + new names — the org prefix is a config, so any prefix routes.
+    it("routes Riverbend_Home_Prior_Day_Customers to customers (post-rename)", () => {
+      const result = resolveImportRoute("Riverbend_Home_Prior_Day_Customers.csv");
       expect(result).not.toBeNull();
       expect((result as { importType: string }).importType).toBe("customers");
     });
@@ -42,13 +42,13 @@ describe("resolveImportRoute", () => {
 
   describe("purchasing and receiving reports", () => {
     it("routes Prior_Day_Received_Items to received-items", () => {
-      const result = resolveImportRoute("Saybrook_Home_Prior_Day_Received_Items.csv");
+      const result = resolveImportRoute("Riverbend_Home_Prior_Day_Received_Items.csv");
       expect(result).not.toBeNull();
       expect((result as { importType: string }).importType).toBe("received-items");
     });
 
     it("routes Prior_Day_Temp_Items to temp-items", () => {
-      const result = resolveImportRoute("Saybrook_Home_Prior_Day_Temp_Items.csv");
+      const result = resolveImportRoute("Riverbend_Home_Prior_Day_Temp_Items.csv");
       expect(result).not.toBeNull();
       expect((result as { importType: string }).importType).toBe("temp-items");
     });
@@ -57,7 +57,7 @@ describe("resolveImportRoute", () => {
     // "Temp_Items" to "Temp_Purchase_Orders". Router accepts both —
     // regex is /Prior_Day_Temp_(Items|Purchase_Orders)/i.
     it("routes Prior_Day_Temp_Purchase_Orders to temp-items (post-rename)", () => {
-      const result = resolveImportRoute("Saybrook_Home_Prior_Day_Temp_Purchase_Orders.csv");
+      const result = resolveImportRoute("Riverbend_Home_Prior_Day_Temp_Purchase_Orders.csv");
       expect(result).not.toBeNull();
       expect((result as { importType: string }).importType).toBe("temp-items");
     });
@@ -68,8 +68,8 @@ describe("resolveImportRoute", () => {
       expect((result as { importType: string }).importType).toBe("po-lines");
     });
 
-    it("routes Saybrook_Home_Inbound_Items to inbound-items (not purchase-orders)", () => {
-      const result = resolveImportRoute("Saybrook_Home_Inbound_Items.csv");
+    it("routes Riverbend_Home_Inbound_Items to inbound-items (not purchase-orders)", () => {
+      const result = resolveImportRoute("Riverbend_Home_Inbound_Items.csv");
       expect(result).not.toBeNull();
       expect((result as { importType: string }).importType).toBe("inbound-items");
     });
@@ -159,9 +159,47 @@ describe("resolveImportRoute", () => {
     });
   });
 
-  describe("route order (Saybrook_Home_Inbound_Items before Inbound_Items)", () => {
-    it("Saybrook_Home_Inbound_Items matches inbound-items, not purchase-orders", () => {
-      const result = resolveImportRoute("Saybrook_Home_Inbound_Items.csv");
+  // The org prefix is a deployment fact, not a constant. Every fixture above
+  // uses one made-up org; these prove the router is not keyed to it -- a second
+  // org routes identically, and a deployment can pin its own prefix.
+  describe("org report prefix is not hardcoded", () => {
+    const ORIGINAL = process.env.ORDORITE_REPORT_PREFIX;
+    afterEach(() => {
+      if (ORIGINAL === undefined) delete process.env.ORDORITE_REPORT_PREFIX;
+      else process.env.ORDORITE_REPORT_PREFIX = ORIGINAL;
+    });
+
+    it("routes a different org's prefix identically", () => {
+      for (const [file, importType] of [
+        ["Acme_Furniture_Inbound_Items.csv", "inbound-items"],
+        ["Acme_Furniture_Prior_Day_Customers.csv", "customers"],
+        ["ACME_Item_Export.csv", "products"],
+        ["ACME_Stock_by_Item.csv", "stock"],
+      ] as const) {
+        const result = resolveImportRoute(file);
+        expect(result).not.toBeNull();
+        expect((result as { importType: string }).importType).toBe(importType);
+      }
+    });
+
+    it("honours a pinned ORDORITE_REPORT_PREFIX", () => {
+      process.env.ORDORITE_REPORT_PREFIX = "Acme_Furniture";
+      expect(
+        (resolveImportRoute("Acme_Furniture_Inbound_Items.csv") as { importType: string })
+          .importType,
+      ).toBe("inbound-items");
+      // A pinned prefix narrows the match: another org's file falls through to
+      // the unprefixed vendor-standard route rather than the org-report one.
+      expect(
+        (resolveImportRoute("Other_Co_Inbound_Items.csv") as { importType: string })
+          .importType,
+      ).toBe("purchase-orders");
+    });
+  });
+
+  describe("route order (Riverbend_Home_Inbound_Items before Inbound_Items)", () => {
+    it("Riverbend_Home_Inbound_Items matches inbound-items, not purchase-orders", () => {
+      const result = resolveImportRoute("Riverbend_Home_Inbound_Items.csv");
       expect((result as { importType: string }).importType).toBe("inbound-items");
     });
   });

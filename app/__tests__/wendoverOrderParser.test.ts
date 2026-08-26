@@ -40,7 +40,7 @@ const FIXTURE = [
   // Page break: the NEXT item's name and price print together, ahead of
   // its SKU line, with the print's page furniture in between.
   "Patterned Dignity 4 3$745.20",
-  "7/16/26, 1:11 PMsaybrookhome.com Mail - Fwd: Your Wendover Art Group order confirmation",
+  "7/16/26, 1:11 PMriverbendhome.com Mail - Fwd: Your Wendover Art Group order confirmation",
   "Page 3 of 8https://mail.google.com/mail/u/1/?ik=77234f1af6",
   "SKU: WAN2555",
   "Medium",

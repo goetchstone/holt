@@ -23,7 +23,7 @@ const FIXTURE = [
   'Merino Wool 16" Laptop Computer ',
   "Sleeve - Granite V (Avail:07/10/26)",
   "84002724051149.00$294.00",
-  "PO # PON09057 (cont'd)Cust #MFR: Graf & Lantz IncCustomer: Saybrook Home",
+  "PO # PON09057 (cont'd)Cust #MFR: Graf & Lantz IncCustomer: Riverbend Home",
   "    Page  of 22",
   "10GL10WINO10-12AUTU",
   "Wine-O's Merino Wool Round Wine ",
@@ -89,7 +89,7 @@ describe("parseMarketTimeOrderText", () => {
   });
 
   it("finds the manufacturer mid-line in the run-together page header", () => {
-    // "...(cont'd)Cust #MFR: Graf & Lantz IncCustomer: Saybrook Home" — and
+    // "...(cont'd)Cust #MFR: Graf & Lantz IncCustomer: Riverbend Home" — and
     // that line is dropped by the item pass's page-furniture filter, so the
     // header is read before filtering.
     expect(order.vendorName).toBe("Graf & Lantz Inc");

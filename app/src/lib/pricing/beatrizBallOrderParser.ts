@@ -57,7 +57,7 @@ const MONEY_TAIL = /^([\d,]+\.\d{2})([\d,]+\.\d{2})([\d,]+\.\d{2})(\d+)$/;
 // The VENDOR's own letterhead. These are safe to hardcode in a vendor-specific
 // parser: every Beatriz Ball confirmation carries them, whoever the buyer is.
 //
-// What used to be here as well was OUR name -- "saybrook", "old saybrook" --
+// What used to be here as well was OUR OWN name and town --
 // because the confirmation repeats the buyer's name and address in the header.
 // That made the parser correct for exactly one deployment: anyone else's name
 // appears in the same place and is read as an order line. Those come from

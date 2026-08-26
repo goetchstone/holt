@@ -95,7 +95,7 @@ function nuOrderFixture(): NuOrderPO {
     deliveryEnd: "08/15/2026",
     terms: "Net 30",
     buyerName: "Buyer",
-    buyerEmail: "buyer@saybrookhome.com",
+    buyerEmail: "buyer@riverbendhome.com",
     totalUnits: 4,
     totalPrice: 154,
     items: [

@@ -968,7 +968,7 @@ export async function generateSalesJournal(
   // SERVER-LOCAL, so the journal's window depended on the host's TZ; it matched
   // the comment only because the containers set no TZ and default to UTC. The
   // reconciliation compared that window against its own UTC-day window, so the
-  // two could agree only on a UTC deployment -- and Saybrook is
+  // two could agree only on a UTC deployment -- and a US retailer is
   // America/New_York.
   const timeZone = await getBusinessTimeZone();
   const dayKey = date.toISOString().slice(0, 10);

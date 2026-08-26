@@ -1,10 +1,18 @@
 // /app/__tests__/frankEileenParser.test.ts
 //
-// Pins the Frank & Eileen order-acknowledgement parser against a fixture
-// lifted VERBATIM (including whitespace) from the real Spring 2026 ack
-// 1949021 pdf-parse extraction. The column-offset spacing is the contract:
-// per-size quantities are right-aligned to their size labels, so editing
-// the fixture's spaces breaks the thing the test exists to pin.
+// Pins the Frank & Eileen order-acknowledgement parser against a fixture whose
+// LAYOUT is taken from a real pdf-parse extraction and whose CONTENT is not.
+// The column-offset spacing is the contract -- per-size quantities are
+// right-aligned to their size labels -- so the whitespace, the concatenation
+// artefacts and every field width are preserved character for character.
+//
+// The buyer, the reps, the document numbers and the unit prices are invented.
+// This is a public repository: an ack carries a named business's address and a
+// vendor's confidential dealer pricing, and neither is needed to test a parser.
+// The parser never reads the address block at all (it looks for the size-column
+// header, the item lines, and a season/date line), so swapping it costs nothing.
+//
+// If you need to reproduce a real ack, do it locally -- do not commit it.
 
 import { parseFrankEileenText } from "@/lib/pricing/frankEileenParser";
 
@@ -12,58 +20,58 @@ const HEADER = `FRANK & EILEEN
 843 S. Los Angeles St.
 #500
 Los Angeles CA 90014
-Phone 213-623-1345
+Phone 213-555-0134
 *****REPRINT*****
-194902104/13/26
+221044704/13/26
 Page: 1 of 1
-SAYBROOK HOME
-2 MAIN STREETSAYBROOK HOME
-OLD SAYBROOK, CT  064752 MAIN STREET
-OLD SAYBROOK, CT  06475
-Phone: 860-388-0891Fax: 860-388-3692
-SAYBROSpring 202610/07/2506/01/2606/15/26UPS GROUND
-18573341PRE-PAID CREETT  Erica TrinHOUS HOUSEEFFI Effie Vals`;
+RIVERBEND HOME
+14 CANAL STREETRIVERBEND HOME
+MILLBROOK FALLS, VT  0561414 CANAL STREET
+MILLBROOK FALLS, VT  05614
+Phone: 802-555-0142Fax: 802-555-0143
+RIVERBSpring 202610/07/2506/01/2606/15/26UPS GROUND
+18573341PRE-PAID CREETT  Dana WhitlHOUS HOUSEROBN Robin Sant`;
 
-// 4+3+5+7+2 = 21 units; 448+336+560+1057+286 = 2687.00
+// 4+3+5+7+2 = 21 units; 512+384+640+1162+308 = 3006.00
 const FIXTURE = `${HEADER}
 EILEEN
 PRBG
 Relaxed Button-Up Shirt Pink Red Blue Flowers
   XXS   XS    S    M    L   XL
 0010_
-    1    1    1    1 112.00     4   448.00
+    1    1    1    1 128.00     4   512.00
 EILEEN
 WTQS
 Relaxed Button-Up Shirt White Turquoise Stripe
   XXS   XS    S    M    L   XL
 0250_
-    1    1    1 112.00     3   336.00
+    1    1    1 128.00     3   384.00
 EILEEN
 SFBF
 Relaxed Button-Up Shirt Small Flowers Big Flowers
   XXS   XS    S    M    L   XL
 0670_
-    1    1    2    1 112.00     5   560.00
+    1    1    2    1 128.00     5   640.00
 WVILLAGE
 CMTL
 West Village - NYC Trouser Cement
    00    0    2    4    6    8   10   12   14
 0710_
-    1    1    2    1    1    1 151.00     7  1057.00
+    1    1    2    1    1    1 166.00     7  1162.00
 MEGAN
 F000
 One-Size Maxi Shirtdress WHITE VOILE
   O/S
 1420OS
-    2 143.00     2   286.00
-Merchandise USD Total     21   2687.00
+    2 154.00     2   308.00
+Merchandise USD Total     21   3006.00
 `;
 
 describe("parseFrankEileenText — header fields", () => {
   const order = parseFrankEileenText(FIXTURE);
 
   it("splits the concatenated ack number + date", () => {
-    expect(order.ackNumber).toBe("1949021");
+    expect(order.ackNumber).toBe("2210447");
   });
 
   it("reads the customer P.O. off the terms line", () => {
@@ -83,7 +91,7 @@ describe("parseFrankEileenText — header fields", () => {
 
   it("reads the merchandise total line", () => {
     expect(order.totalUnits).toBe(21);
-    expect(order.totalPrice).toBe(2687);
+    expect(order.totalPrice).toBe(3006);
   });
 
   it("parses every line cleanly (no warnings on the real layout)", () => {
@@ -129,8 +137,8 @@ describe("parseFrankEileenText — size-column alignment", () => {
       { size: "6", quantity: 1 },
       { size: "8", quantity: 1 },
     ]);
-    expect(byLine("WVILLAGE", "CMTL").unitPrice).toBe(151);
-    expect(byLine("WVILLAGE", "CMTL").totalPrice).toBe(1057);
+    expect(byLine("WVILLAGE", "CMTL").unitPrice).toBe(166);
+    expect(byLine("WVILLAGE", "CMTL").totalPrice).toBe(1162);
   });
 
   it("handles the O/S one-size scale (1420OS)", () => {
@@ -142,8 +150,8 @@ describe("parseFrankEileenText — refuses to guess", () => {
   it("drops a line whose quantities do not sum to its own UNITS column", () => {
     // Same 0250_ block but the UNITS column says 4 while only 3 map.
     const corrupted = FIXTURE.replace(
-      "    1    1    1 112.00     3   336.00",
-      "    1    1    1 112.00     4   448.00",
+      "    1    1    1 128.00     3   384.00",
+      "    1    1    1 128.00     4   512.00",
     );
     const order = parseFrankEileenText(corrupted);
     expect(order.items).toHaveLength(4);

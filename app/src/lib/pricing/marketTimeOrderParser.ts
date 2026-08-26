@@ -59,7 +59,7 @@ export interface MarketTimeOrder {
 }
 
 // The manufacturer prints MID-LINE in a run-together page header
-// ("...(cont'd)Cust #MFR: Graf & Lantz IncCustomer: Saybrook Home"), so it is
+// ("...(cont'd)Cust #MFR: Graf & Lantz IncCustomer: Riverbend Home"), so it is
 // read out of the middle rather than anchored, and BEFORE the page-furniture
 // filter — which drops that very line.
 const MFR = /MFR:\s*(.+?)(?:Cust(?:omer)?\s*#?:?|$)/;

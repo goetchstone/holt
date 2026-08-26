@@ -263,11 +263,12 @@ describe("isUntrustedMergeEmail", () => {
   // wrongly cluster distinct customers. The guard blocks any email whose
   // DOMAIN contains COMPANY_EMAIL_DOMAIN. A short stem ("sayb") covers
   // the canonical company domain plus every typo variant seen in prod
-  // data (saybrookhome.com, saybrokkhome.com, saybrookhome.comf, ...).
+  // data. Domains here are invented -- the guard reads the stem from env and the
+  // test sets it, so nothing is coupled to any real company's address.
   const ORIGINAL_DOMAIN = process.env.COMPANY_EMAIL_DOMAIN;
 
   beforeAll(() => {
-    process.env.COMPANY_EMAIL_DOMAIN = "sayb";
+    process.env.COMPANY_EMAIL_DOMAIN = "rive";
   });
 
   afterAll(() => {
@@ -279,23 +280,23 @@ describe("isUntrustedMergeEmail", () => {
   });
 
   it("flags canonical staff emails", () => {
-    expect(isUntrustedMergeEmail("joneil@saybrookhome.com")).toBe(true);
-    expect(isUntrustedMergeEmail("gstone@saybrookhome.com")).toBe(true);
+    expect(isUntrustedMergeEmail("jmoreau@riverbendhome.com")).toBe(true);
+    expect(isUntrustedMergeEmail("tcaldwell@riverbendhome.com")).toBe(true);
   });
 
   it("flags case-insensitively", () => {
-    expect(isUntrustedMergeEmail("JONEIL@SAYBROOKHOME.COM")).toBe(true);
-    expect(isUntrustedMergeEmail("GStone@SaybrookHome.com")).toBe(true);
+    expect(isUntrustedMergeEmail("JMOREAU@RIVERBENDHOME.COM")).toBe(true);
+    expect(isUntrustedMergeEmail("TCaldwell@RiverbendHome.com")).toBe(true);
   });
 
   it("flags known typo domains seen in prod", () => {
-    expect(isUntrustedMergeEmail("wcope@saybrokkhome.com")).toBe(true);
-    expect(isUntrustedMergeEmail("joneil@saybrookhome.comf")).toBe(true);
+    expect(isUntrustedMergeEmail("pnowak@riverbenndhome.com")).toBe(true);
+    expect(isUntrustedMergeEmail("jmoreau@riverbendhome.comf")).toBe(true);
   });
 
   it("flags any company-like internal domain (defense in depth)", () => {
-    expect(isUntrustedMergeEmail("user@oldsaybrook-home.com")).toBe(true);
-    expect(isUntrustedMergeEmail("user@saybrookbarn.com")).toBe(true);
+    expect(isUntrustedMergeEmail("user@old-riverbend-home.com")).toBe(true);
+    expect(isUntrustedMergeEmail("user@riverbendbarn.com")).toBe(true);
   });
 
   it("passes external customer emails through", () => {
@@ -313,8 +314,8 @@ describe("isUntrustedMergeEmail", () => {
   it("does not flag external emails that mention the company in the local part", () => {
     // The stem appearing BEFORE the @ is fine — only the domain part is
     // checked (the guard slices on lastIndexOf("@") for this reason).
-    expect(isUntrustedMergeEmail("saybrook.fan@gmail.com")).toBe(false);
-    expect(isUntrustedMergeEmail("loves-saybrook@yahoo.com")).toBe(false);
+    expect(isUntrustedMergeEmail("riverbend.fan@gmail.com")).toBe(false);
+    expect(isUntrustedMergeEmail("loves-riverbend@yahoo.com")).toBe(false);
   });
 
   it("is disabled entirely when COMPANY_EMAIL_DOMAIN is unset", () => {
@@ -322,7 +323,7 @@ describe("isUntrustedMergeEmail", () => {
     // so deployments that never configure it keep plain email matching.
     delete process.env.COMPANY_EMAIL_DOMAIN;
     try {
-      expect(isUntrustedMergeEmail("joneil@saybrookhome.com")).toBe(false);
+      expect(isUntrustedMergeEmail("jmoreau@riverbendhome.com")).toBe(false);
     } finally {
       process.env.COMPANY_EMAIL_DOMAIN = "sayb";
     }
