@@ -91,7 +91,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   CustomerAddress: { status: "seeded" },
   CustomerCreditTransaction: { status: "seeded" },
   CustomerExternalId: { status: "todo", tranche: "catalog-depth" },
-  CustomerInteraction: { status: "todo", tranche: "crm-pipeline" },
+  CustomerInteraction: { status: "seeded", seeder: "demo" },
   CustomerLedgerEntry: { status: "todo", tranche: "money-detail" },
   DailyReconciliationLog: { status: "todo", tranche: "money-detail" },
   DeliveryRun: { status: "seeded", seeder: "demo" },
@@ -103,7 +103,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
     status: "skipped",
     reason: "Outbound queue drained by a worker. Seeding it would send mail on first boot.",
   },
-  EmailTemplate: { status: "todo", tranche: "content-comms" },
+  EmailTemplate: { status: "seeded", seeder: "demo" },
   ErrorEvent: {
     status: "skipped",
     reason:
@@ -112,7 +112,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   FabricCatalog: { status: "todo", tranche: "catalog-depth" },
   GLAccount: { status: "seeded" },
   GiftCard: { status: "seeded" },
-  GiftCardPreset: { status: "todo", tranche: "money-detail" },
+  GiftCardPreset: { status: "seeded", seeder: "demo" },
   GiftCardTransaction: { status: "seeded" },
   ImportDefinition: { status: "todo", tranche: "imports" },
   ImportFieldMapping: { status: "todo", tranche: "imports" },
@@ -133,8 +133,8 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   InvoiceLineItem: { status: "todo", tranche: "money-detail" },
   JournalEntry: { status: "seeded" },
   JournalEntryLine: { status: "seeded" },
-  LabelTemplate: { status: "todo", tranche: "catalog-depth" },
-  Lead: { status: "todo", tranche: "crm-pipeline" },
+  LabelTemplate: { status: "seeded", seeder: "demo" },
+  Lead: { status: "seeded", seeder: "demo" },
   LegacyImportLog: {
     status: "skipped",
     reason: "Ordorite import staging — a source system's history, not this product's data.",
@@ -192,9 +192,9 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   ProductPairing: { status: "todo", tranche: "catalog-depth" },
   ProductSpeciesPrice: { status: "todo", tranche: "special-order-pricing" },
   ProductVariant: { status: "todo", tranche: "catalog-depth" },
-  Proposal: { status: "todo", tranche: "crm-pipeline" },
+  Proposal: { status: "seeded", seeder: "demo" },
   ProposalItemImage: { status: "todo", tranche: "crm-pipeline" },
-  ProposalLineItem: { status: "todo", tranche: "crm-pipeline" },
+  ProposalLineItem: { status: "seeded", seeder: "demo" },
   PurchaseOrder: { status: "seeded" },
   PurchaseOrderItem: { status: "seeded" },
   ReceivingRecord: { status: "seeded" },
@@ -209,7 +209,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   Role: { status: "seeded", seeder: "roles" },
   RolePermission: { status: "seeded", seeder: "roles" },
   SEComponent: { status: "todo", tranche: "special-order-pricing" },
-  SalesGoal: { status: "todo", tranche: "commission-completeness" },
+  SalesGoal: { status: "seeded", seeder: "demo" },
   SalesGoals: { status: "todo", tranche: "commission-completeness" },
   SalesOrder: { status: "seeded" },
   Service: { status: "seeded", seeder: "demo" },
@@ -245,12 +245,13 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   Till: { status: "seeded" },
   TillCount: { status: "seeded" },
   TimeEntry: { status: "seeded" },
-  TradeTier: { status: "todo", tranche: "crm-pipeline" },
-  TrafficSnapshot: {
-    status: "skipped",
-    reason:
-      "Axper traffic-counter data — one vendor's feed, and the column names still carry its brand.",
-  },
+  TradeTier: { status: "seeded", seeder: "demo" },
+  // Was skipped, on the grounds that the columns carried one vendor's brand.
+  // They stopped doing so in #127 (axperStoreName -> sourceStoreName), and the
+  // dashboard's first screen reads zero without this, so the demo seeds two
+  // years of it. The traffic API falls back to these rows whenever the live
+  // counter is unreachable -- see lib/traffic/recordedTraffic.ts.
+  TrafficSnapshot: { status: "seeded", seeder: "demo" },
   TrafficSyncLog: {
     status: "skipped",
     reason:
@@ -258,7 +259,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   },
   Type: { status: "seeded" },
   UnidentifiedScan: { status: "seeded", seeder: "demo" },
-  UpBoardEntry: { status: "todo", tranche: "commission-completeness" },
+  UpBoardEntry: { status: "seeded", seeder: "demo" },
   Upc: { status: "todo", tranche: "catalog-depth" },
   User: { status: "seeded" },
   Vehicle: { status: "seeded", seeder: "demo" },
