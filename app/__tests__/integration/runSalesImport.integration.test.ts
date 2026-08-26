@@ -556,7 +556,7 @@ describe("runSalesImport — real-DB scenarios", () => {
       // firstName was already set — not overwritten.
       expect(after?.firstName).toBe("Madonna");
       // lastName was NULL — filled in from CSV.
-      expect(after?.lastName).toBe("Ciccone");
+      expect(after?.lastName).toBe("Calloway");
     });
   });
 

@@ -73,7 +73,7 @@ describe("backfillSalesPersonFk — real-DB", () => {
     const order = await prisma.salesOrder.create({
       data: {
         orderno: "SO-CASE-WHITESPACE",
-        salesperson: "  karen WEST  ",
+        salesperson: "  karen WESTON  ",
         salesPersonId: null,
       },
     });
