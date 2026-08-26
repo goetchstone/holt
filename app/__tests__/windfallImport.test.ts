@@ -2,15 +2,22 @@
 
 import { parseWindfallCustomerRow, computeWealthTier } from "../src/lib/windfallImport";
 
+// The values below are INVENTED. Windfall is a wealth-screening service, so a
+// real export row is a named private individual's net worth -- and this is a
+// public repository. Nothing here is coupled to the real data: the parser is
+// being tested for column-name resilience, and every assertion passes on any
+// well-formed row. If you are tempted to paste a real row in to reproduce
+// something, don't -- change the column NAMES, which is what this actually
+// guards.
 describe("parseWindfallCustomerRow — column-name resilience", () => {
   it("parses the current Windfall format (Cuscode + FirstName/LastName)", () => {
     const row = {
-      Company: "Cheshire",
-      Cuscode: "CHCT10360",
-      FirstName: "Scarlett",
-      LastName: "Greenstein",
-      Email: "sammyg40@att.net",
-      "Net Worth": "2500000",
+      Company: "Riverbend",
+      Cuscode: "RVBD10360",
+      FirstName: "Marguerite",
+      LastName: "Ashdown",
+      Email: "m.ashdown@example.test",
+      "Net Worth": "1750000",
       "Windfall Id": "WF-123",
       "Match Confidence": "0.95",
       "Boat Owner": "1",
@@ -18,10 +25,10 @@ describe("parseWindfallCustomerRow — column-name resilience", () => {
     };
     const result = parseWindfallCustomerRow(row);
     expect(result).not.toBeNull();
-    expect(result?.customerCode).toBe("CHCT10360");
-    expect(result?.firstName).toBe("Scarlett");
-    expect(result?.lastName).toBe("Greenstein");
-    expect(result?.netWorth).toBe(2500000);
+    expect(result?.customerCode).toBe("RVBD10360");
+    expect(result?.firstName).toBe("Marguerite");
+    expect(result?.lastName).toBe("Ashdown");
+    expect(result?.netWorth).toBe(1750000);
     expect(result?.windfallId).toBe("WF-123");
     expect(result?.boatOwner).toBe(true);
     expect(result?.recentMover).toBe(true);
@@ -48,13 +55,13 @@ describe("parseWindfallCustomerRow — column-name resilience", () => {
   });
 
   it("leaves wealth fields as null when blank (matches the sample CSV row)", () => {
-    // Cheshire,CHCT10360,... with all wealth columns empty
+    // Riverbend,RVBD10360,... with all wealth columns empty
     const row = {
-      Company: "Cheshire",
-      Cuscode: "CHCT10360",
-      FirstName: "Scarlett",
-      LastName: "Greenstein",
-      Email: "sammyg40@att.net",
+      Company: "Riverbend",
+      Cuscode: "RVBD10360",
+      FirstName: "Marguerite",
+      LastName: "Ashdown",
+      Email: "m.ashdown@example.test",
       "Net Worth": "",
       "Net Worth Low": "",
       "Net Worth High": "",
