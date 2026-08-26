@@ -61,6 +61,8 @@ async function main(): Promise<void> {
   const { seedDelivery } = await import("./delivery");
   const { seedScheduling } = await import("./scheduling");
   const { seedInventoryOps } = await import("./inventoryOps");
+  const { seedPipeline } = await import("./pipeline");
+  const { seedSetupData } = await import("./setupData");
   const { seedCommissionPayouts } = await import("./commissionPayouts");
   const { seedJournalEntries } = await import("./journal");
   const { ORG_SLUG } = await import("./org");
@@ -231,6 +233,20 @@ async function main(): Promise<void> {
     staff,
     new Date(),
   );
+
+  // The front of the funnel, and the setup tables behind Admin -> Setup. Both
+  // run late because they reference customers, staff, stores and products.
+  const pipelineResult = await seedPipeline(
+    prisma,
+    rng,
+    customers,
+    staff,
+    locations.stores,
+    catalog.products,
+    new Date(),
+  );
+
+  const setupResult = await seedSetupData(prisma, rng, staff, locations.stores, new Date());
 
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 

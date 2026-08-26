@@ -2,7 +2,7 @@
 //
 // One place to raise an operational alert when something the owner needs to
 // know about goes wrong unattended (a cron failed, a Stripe payment couldn't be
-// posted to the ledger). It ALWAYS logs via logError so the signal is in the
+// posted to the ledger). It ALWAYS logs via `logger` so the signal is in the
 // container logs; if an out-of-band channel is configured it also pushes there.
 //
 // Channels are env-gated so a pilot can run with neither set (logs only) and a
@@ -10,7 +10,7 @@
 // JSON endpoint) and/or OPS_ALERT_EMAIL (drained by the email queue cron). With
 // neither set this is a no-op beyond the log line, never a crash.
 
-import { logError } from "@/lib/logger";
+import { logger } from "@/lib/logger";
 
 export interface OpsAlert {
   title: string;
@@ -60,8 +60,27 @@ export function buildAlertEmail(alert: OpsAlert): { subject: string; html: strin
 // Fire an operational alert. Always logs. Then best-effort pushes to whatever
 // channels are configured — a channel failure is logged and swallowed so the
 // alert path can never become the thing that takes down the caller.
+//
+// NOTHING IN HERE MAY CALL logError().
+//
+// logError() records an ErrorEvent, and recordError() calls back into this
+// function the first time it sees a fingerprint. Logging the alert through
+// logError therefore produced a new message ("ops-alert: " + the previous
+// title), which is a new fingerprint, which is a first sighting, which alerts
+// again -- prepending "ops-alert: New error: " once per pass, forever.
+//
+// One unconfigured integration was enough to set it going: a missing API key
+// logged once, and the loop turned that into 1,154 ErrorEvent rows and a server
+// too busy to answer a login. Every one of those rows was the loop's own
+// output, so the error log -- the thing you reach for when something is wrong --
+// was the least usable artifact in the system.
+//
+// `logger.error` writes to stdout and stops there. Use it, and only it.
 export async function reportOpsAlert(alert: OpsAlert): Promise<void> {
-  logError(`ops-alert: ${alert.title}`, new Error(alert.detail), alert.context);
+  logger.error(`ops-alert: ${alert.title}`, {
+    ...alert.context,
+    detail: alert.detail,
+  });
 
   const channels = resolveOpsAlertChannels(process.env);
 
@@ -73,7 +92,12 @@ export async function reportOpsAlert(alert: OpsAlert): Promise<void> {
         body: JSON.stringify(buildWebhookPayload(alert)),
       });
     } catch (err) {
-      logError("ops-alert webhook delivery failed", err, { title: alert.title });
+      // logger, not logError -- see the header. A webhook failure inside the
+      // alert path must not create another alert.
+      logger.error("ops-alert webhook delivery failed", {
+        title: alert.title,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -85,7 +109,10 @@ export async function reportOpsAlert(alert: OpsAlert): Promise<void> {
       const { subject, html } = buildAlertEmail(alert);
       await enqueueEmail({ to: channels.email, subject, html, templateKey: "ops-alert" });
     } catch (err) {
-      logError("ops-alert email enqueue failed", err, { title: alert.title });
+      logger.error("ops-alert email enqueue failed", {
+        title: alert.title,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 }

@@ -11,6 +11,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { fetchAxperTraffic } from "@/lib/axperClient";
+import { readRecordedTraffic } from "@/lib/traffic/recordedTraffic";
 import { getTrafficStoreMap } from "@/lib/trafficStoreMap";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -22,7 +23,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Missing dateFrom or dateTo parameter" });
   }
 
-  const rows = await fetchAxperTraffic({ dateFrom, dateTo });
+  // Live first, recorded second. fetchAxperTraffic returns [] for every kind
+  // of not-working -- no API key, bad credentials, vendor outage -- so an empty
+  // result is never evidence that nobody came in. Falling back to what we have
+  // already recorded turns "0 visitors" back into the truth.
+  const live = await fetchAxperTraffic({ dateFrom, dateTo });
+  const rows = live.length > 0 ? live : await readRecordedTraffic(dateFrom, dateTo);
 
   // Enrich with the DB-backed mapping so callers (HomeView) don't each
   // need their own server round-trip to resolve a friendly name / the
