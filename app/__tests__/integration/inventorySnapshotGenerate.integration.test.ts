@@ -19,6 +19,7 @@
 // itself is covered by __tests__/roleDecision.test.ts.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { toQty } from "@/lib/inventory/quantity";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
@@ -133,7 +134,7 @@ describe("POST /api/inventory/snapshot/generate (real DB)", () => {
     const nativeRow = rows.find((r) => r.productId === nativeProduct.id);
     expect(nativeRow).toBeDefined();
     expect(nativeRow?.storeLocationId).toBe(storeA.id);
-    expect(nativeRow?.quantity).toBe(4);
+    expect(toQty(nativeRow?.quantity)).toBe(4);
   });
 
   it("a same-day re-run replaces LOCAL rows instead of duplicating or crashing", async () => {
@@ -183,9 +184,9 @@ describe("POST /api/inventory/snapshot/generate (real DB)", () => {
     const rows = await prisma.inventorySnapshot.findMany();
     expect(rows).toHaveLength(2);
     const importRow = rows.find((r) => r.source === "IMPORT");
-    expect(importRow?.quantity).toBe(999);
+    expect(toQty(importRow?.quantity)).toBe(999);
     expect(importRow?.externalId).toBe(4242);
     const localRow = rows.find((r) => r.source === "LOCAL");
-    expect(localRow?.quantity).toBe(4);
+    expect(toQty(localRow?.quantity)).toBe(4);
   });
 });

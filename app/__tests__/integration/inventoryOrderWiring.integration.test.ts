@@ -23,6 +23,7 @@
 // apiRouteAuthorization tripwire.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { toQty } from "@/lib/inventory/quantity";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
@@ -134,7 +135,7 @@ describe("inventory order wiring (real DB)", () => {
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(3);
     const committed = await prisma.inventoryPosition.findMany({ where: { salesOrderId: orderId } });
     expect(committed).toHaveLength(1);
-    expect(committed[0].quantity).toBe(2);
+    expect(toQty(committed[0].quantity)).toBe(2);
   });
 
   it("a return line in the cart never allocates", async () => {
@@ -376,7 +377,7 @@ describe("inventory order wiring (real DB)", () => {
     // 2 (original) + 1 (new line) = 3 committed, 2 left free.
     const committed = await prisma.inventoryPosition.findMany({ where: { salesOrderId: orderId } });
     expect(committed).toHaveLength(1);
-    expect(committed[0].quantity).toBe(3);
+    expect(toQty(committed[0].quantity)).toBe(3);
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(2);
   });
 

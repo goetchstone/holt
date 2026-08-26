@@ -13,6 +13,7 @@
 // units, which is exactly why nobody noticed.
 
 import { prisma } from "@/lib/prisma";
+import { toQty } from "@/lib/inventory/quantity";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { availableQuantity } from "@/lib/inventory/allocation";
 
@@ -117,7 +118,7 @@ describe("receiving a transfer merges stock instead of fragmenting it", () => {
       where: { productId: product.id, storeLocationId: storeA.id, salesOrderId: null },
     });
     expect(rows).toHaveLength(1);
-    expect(rows[0].quantity).toBe(3);
+    expect(toQty(rows[0].quantity)).toBe(3);
     expect(await availableQuantity(product.id, storeA.id, prisma)).toBe(3);
     expect(storeB.id).toBeDefined();
   });
