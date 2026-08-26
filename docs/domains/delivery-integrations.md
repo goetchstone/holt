@@ -312,22 +312,60 @@ delivery nobody records is revenue nobody recognises.
 
 ---
 
-## Two things to decide deliberately (our own fleet)
+---
 
-Both concern tracking *our employees*. A carrier's own drivers are their
-business, and holt only ever sees a status and a proof-of-delivery.
+# Configuration (both halves)
 
-**Retention.** A position trace is employee location data. Keep raw positions
-for a short window — 90 days is generous for answering "what happened on that
-delivery" — and aggregate beyond it into the per-stop metrics, which is what the
-costing actually needs. Indefinite raw traces are a liability with no
-operational upside.
+None of the numbers in this document are constants. Every one is a deployment
+fact, and CLAUDE.md 61-63 applies exactly as it does everywhere else: config
+selects behaviour, it never supplies it. A shop with two vans and a shop with a
+carrier in three states want different answers to all of these, and neither
+should be editing code to get them.
 
-**Notice.** Employee vehicle tracking is regulated, and the rules vary by state;
-several require notice, and some require consent. This is not a blocker and it
-is not something to discover after installing devices. Worth a written policy
-and a line in the handbook before the first tracker goes in, which also happens
-to be the thing that makes drivers fine with it: tracking the *van* for the
-*customer's* benefit is an easy sell, tracking the *person* is not.
+| Setting | Default | Why it is not a constant |
+| --- | --- | --- |
+| `telematicsProvider` | none | One active provider per deployment, same shape as the payment processor |
+| `positionPollSeconds` | 60 | Trades API quota against ETA freshness. A shop doing eight stops a day does not need what one doing eighty needs |
+| `positionRetentionDays` | 90 | **See below — the important one** |
+| `stopGeofenceMeters` | 150 | A city kerbside and a rural driveway are not the same arrival |
+| `etaNotifyMinutesOut` | 30 | How much warning a customer gets. Some shops want an hour, some want fifteen minutes |
+| `etaNotifyChannel` | none | Email, SMS, both, or off entirely |
+| `lateRunAlertMinutes` | 30 | When dispatch gets told a run is slipping |
+| `sharePositionWithCustomer` | false | Whether the client portal shows the van on the last leg at all |
+| `suggestResequence` | false | The optimiser is a suggestion; some operations do not want it offered |
+| carrier **per zone** | none | A shop can reasonably use two carriers, chosen by geography |
 
-Building only the features above keeps that sentence true.
+The first table row and the last are the same principle at different scales: the
+provider is a deployment fact, and so is which zone goes to whom.
+
+## Retention is config, and it has to be enforced
+
+`positionRetentionDays` is the setting that matters most, because it is the one
+with a consequence outside the building. A position trace is employee location
+data. Ninety days is generous for answering "what happened on that delivery";
+some deployments will want thirty, and a shop with frequent delivery disputes
+may want a hundred and eighty. All three are legitimate, which is exactly why it
+is a number in settings rather than a constant in a file.
+
+**A retention setting that nothing enforces is worse than none.** It writes down
+that you delete data you are in fact still holding, which is a worse position
+than never having claimed it. So the setting needs a scheduled purge that
+actually runs, deleting raw `VehiclePosition` rows past the window while keeping
+the aggregated per-stop metrics the costing depends on — those are derived, they
+carry no trace, and they are what the business actually needs long-term.
+
+That job belongs with the other scheduled automations, and like them it should
+record what it did, so "is retention running" is a question with an answer.
+
+## Notice is config too
+
+The wording of an employee tracking notice varies by state and by company, and
+whether an acknowledgement is required varies with it. That makes it a
+configured document plus a per-staff acknowledgement flag, not a constant and
+not a paragraph in a README nobody reads.
+
+Worth saying plainly, because it is also the thing that makes drivers fine with
+this: tracking the **van** for the **customer's** benefit is an easy
+conversation. Tracking the **person** is not. Building only the features in this
+document keeps that sentence true, and the notice should be able to say so
+specifically — which it can only do if the deployment can edit it.
