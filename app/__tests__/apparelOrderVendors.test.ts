@@ -173,7 +173,7 @@ describe("normalizeNuOrder", () => {
 function nuOrderPrintoutFixture(): NuOrderPrintout {
   return {
     vendorName: "",
-    poNumber: "PO-18908185",
+    poNumber: "PO-19900002",
     orderDate: "06/01/2026",
     deliveryStart: "07/01/2026",
     deliveryEnd: "08/01/2026",

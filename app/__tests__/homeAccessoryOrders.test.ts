@@ -50,15 +50,15 @@ function bundle(overrides: Partial<KKOrderBundle> = {}): KKOrderBundle {
     orderDate: "Jun 15, 2026",
     orders: [
       {
-        orderNumber: "0002592360",
+        orderNumber: "0009900001",
         requiredDate: "8/1/26",
-        printedTotal: 9298.91,
+        printedTotal: 4500.01,
         items: [
           {
             itemNumber: "15668B",
             description: "13.5 Inch Brown Resin Horse",
             uom: "EA",
-            unitPrice: 39.99,
+            unitPrice: 44.50,
             qty: 4,
             requiredDate: "8/1/26",
             upc: "842657186221",
@@ -75,9 +75,9 @@ function bundle(overrides: Partial<KKOrderBundle> = {}): KKOrderBundle {
         ],
       },
       {
-        orderNumber: "0002592361",
+        orderNumber: "0009900002",
         requiredDate: "9/1/26",
-        printedTotal: 2484.65,
+        printedTotal: 1200.65,
         items: [
           {
             itemNumber: "17429A-TN",
@@ -279,7 +279,7 @@ describe("applyMarkup", () => {
   it("applies the markup and rounds UP to a 5 or 9", () => {
     expect(applyMarkup(25.64, 2.5)).toBe(65);
     expect(applyMarkup(84, 2.5)).toBe(215);
-    expect(applyMarkup(352.54, 2.3)).toBe(815);
+    expect(applyMarkup(400, 2.3)).toBe(925);
   });
 
   it("returns null for non-positive cost or a non-finite/non-positive markup", () => {
@@ -293,8 +293,8 @@ describe("normalizeKKBundle", () => {
   it("summarizes each order for the page header", () => {
     const draft = normalizeKKBundle(bundle());
     expect(draft.orders).toEqual([
-      { orderNumber: "0002592360", requiredDate: "8/1/26", itemCount: 2 },
-      { orderNumber: "0002592361", requiredDate: "9/1/26", itemCount: 1 },
+      { orderNumber: "0009900001", requiredDate: "8/1/26", itemCount: 2 },
+      { orderNumber: "0009900002", requiredDate: "9/1/26", itemCount: 1 },
     ]);
   });
 
@@ -303,7 +303,7 @@ describe("normalizeKKBundle", () => {
     expect(draft.rows).toHaveLength(3);
     expect(draft.rows.map((r) => r.partNumber)).toEqual(["15668B", "90021D-NA", "17429A-TN"]);
     // The reference is what makes one bundle create several draft POs.
-    expect(draft.rows.map((r) => r.reference)).toEqual(["0002592360", "0002592360", "0002592361"]);
+    expect(draft.rows.map((r) => r.reference)).toEqual(["0009900001", "0009900001", "0009900002"]);
   });
 
   it("maps an item to the HomeAccessoryExportRow shape", () => {
@@ -316,14 +316,14 @@ describe("normalizeKKBundle", () => {
       color: "",
       size: "",
       qty: 4,
-      cost: 39.99,
+      cost: 44.50,
       msrp: null,
       selling: null,
       department: "",
       category: "",
       supplier: "K & K Interiors",
       barcode: "842657186221",
-      reference: "0002592360",
+      reference: "0009900001",
     });
   });
 
@@ -345,7 +345,7 @@ describe("normalizeKKBundle", () => {
 
   it("carries warnings through verbatim", () => {
     const warnings = [
-      "Order 0002592360: calculated total $9,298.90 does not match printed total $9,298.91",
+      "Order 0009900001: calculated total $4,500.00 does not match printed total $4,500.01",
     ];
     const draft = normalizeKKBundle(bundle({ warnings }));
     expect(draft.warnings).toEqual(warnings);
@@ -398,7 +398,7 @@ function wendoverItem(over: Partial<WendoverOrder["items"][number]> = {}) {
     sku: "WLD3511",
     name: "Before the Rain Customized",
     lineTotal: 1200,
-    unitPrice: 352.54,
+    unitPrice: 400,
     qty: 3,
     medium: "Canvas",
     treatment: "Gallery Wrapped, Artist Enhanced",
@@ -445,7 +445,7 @@ describe("wendoverDescription", () => {
 describe("normalizeWendoverOrder", () => {
   it("carries the DERIVED unit cost, never the printed line total", () => {
     const [row] = normalizeWendoverOrder(wendoverOrder()).rows;
-    expect(row.cost).toBe(352.54);
+    expect(row.cost).toBe(400);
     expect(row.qty).toBe(3);
   });
 
@@ -586,8 +586,8 @@ describe("normalizeBrandWiseOrder", () => {
           name: "The Cadier Wooden Wall Mirrors",
           qty: 4,
           uom: "EA",
-          unitPrice: 200,
-          lineTotal: 800,
+          unitPrice: 250,
+          lineTotal: 1000,
         },
       ],
       warnings: [],
@@ -597,7 +597,7 @@ describe("normalizeBrandWiseOrder", () => {
 
   it("takes the unit price as the cost and leaves the barcode blank", () => {
     const [row] = normalizeBrandWiseOrder(bwOrder()).rows;
-    expect(row.cost).toBe(200);
+    expect(row.cost).toBe(250);
     expect(row.barcode).toBe("");
     expect(row.partNumber).toBe("IN-8222");
   });
@@ -622,7 +622,7 @@ describe("normalizeAestheticMovementOrder", () => {
       vendorName: "Printworks",
       poNumber: "PON00003",
       shipDate: "October 01, 2026",
-      printedTotal: 2688,
+      printedTotal: 1200,
       printedItems: 2,
       printedUnits: 18,
       items: [
@@ -631,8 +631,8 @@ describe("normalizeAestheticMovementOrder", () => {
           name: "Classic - Tic Tac Toe",
           upc: "7350108174152",
           qty: 12,
-          unitPrice: 33,
-          lineTotal: 396,
+          unitPrice: 25,
+          lineTotal: 300,
         },
         {
           sku: "PW00821",
@@ -650,7 +650,7 @@ describe("normalizeAestheticMovementOrder", () => {
 
   it("takes the unit price as the cost and carries the manufacturer UPC", () => {
     const [row] = normalizeAestheticMovementOrder(amOrder()).rows;
-    expect(row.cost).toBe(33);
+    expect(row.cost).toBe(25);
     expect(row.barcode).toBe("7350108174152");
     expect(row.partNumber).toBe("PW00689");
   });
@@ -682,15 +682,15 @@ describe("normalizeSuperCatOrder", () => {
       customerPo: "",
       orderDate: "7/1/26",
       shipDate: "8/11/26",
-      printedSubtotal: 1710,
+      printedSubtotal: 1260,
       orderDiscount: 0,
       items: [
         {
           itemNumber: "9BOATLINEG",
           name: "Boa Table Lamp",
           qty: 6,
-          unitPrice: 285,
-          lineTotal: 1710,
+          unitPrice: 210,
+          lineTotal: 1260,
         },
       ],
       warnings: [],
@@ -700,7 +700,7 @@ describe("normalizeSuperCatOrder", () => {
 
   it("takes the unit price as the cost and leaves the barcode blank", () => {
     const [row] = normalizeSuperCatOrder(scOrder()).rows;
-    expect(row.cost).toBe(285);
+    expect(row.cost).toBe(210);
     expect(row.barcode).toBe("");
     expect(row.partNumber).toBe("9BOATLINEG");
   });
@@ -736,10 +736,10 @@ describe("normalizeSimblistOrder", () => {
           itemNumber: "ZFUSA03-C",
           name: "Big Time Brownie Mix - case pack of 6",
           qty: 2,
-          unitPrice: 53.94,
-          lineTotal: 107.88,
+          unitPrice: 48,
+          lineTotal: 96,
           upc: "10628678860152",
-          listPrice: 17.99,
+          listPrice: 15,
           notes: "Only available to ship on September 1, 2026",
         },
       ],
@@ -750,7 +750,7 @@ describe("normalizeSimblistOrder", () => {
 
   it("takes the unit price as cost and carries the manufacturer UPC", () => {
     const [row] = normalizeSimblistOrder(smOrder()).rows;
-    expect(row.cost).toBe(53.94);
+    expect(row.cost).toBe(48);
     expect(row.barcode).toBe("10628678860152");
     expect(row.partNumber).toBe("ZFUSA03-C");
   });
@@ -787,9 +787,9 @@ describe("normalizeBeatrizBallOrder", () => {
           itemCode: "3496",
           name: "GLASS Vento Medium Vase (Clear)",
           qty: 4,
-          unitPrice: 24.75,
+          unitPrice: 18,
           lineTotal: 99,
-          msrp: 56,
+          msrp: 45,
         },
         {
           itemCode: "6644",
@@ -807,9 +807,9 @@ describe("normalizeBeatrizBallOrder", () => {
 
   it("takes the wholesale unit price as cost and prefills retail from MSRP", () => {
     const [row] = normalizeBeatrizBallOrder(bbOrder()).rows;
-    expect(row.cost).toBe(24.75);
-    expect(row.msrp).toBe(56);
-    expect(row.selling).toBe(56);
+    expect(row.cost).toBe(18);
+    expect(row.msrp).toBe(45);
+    expect(row.selling).toBe(45);
     expect(row.barcode).toBe("");
     expect(row.partNumber).toBe("3496");
   });

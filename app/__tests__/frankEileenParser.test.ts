@@ -30,7 +30,7 @@ MILLBROOK FALLS, VT  0561414 CANAL STREET
 MILLBROOK FALLS, VT  05614
 Phone: 802-555-0142Fax: 802-555-0143
 RIVERBSpring 202610/07/2506/01/2606/15/26UPS GROUND
-18573341PRE-PAID CREETT  Dana WhitlHOUS HOUSEROBN Robin Sant`;
+19900001PRE-PAID CREETT  Dana WhitlHOUS HOUSEROBN Robin Sant`;
 
 // 4+3+5+7+2 = 21 units; 512+384+640+1162+308 = 3006.00
 const FIXTURE = `${HEADER}
@@ -75,7 +75,7 @@ describe("parseFrankEileenText — header fields", () => {
   });
 
   it("reads the customer P.O. off the terms line", () => {
-    expect(order.poNumber).toBe("18573341");
+    expect(order.poNumber).toBe("19900001");
   });
 
   it("reads season and the three header dates", () => {

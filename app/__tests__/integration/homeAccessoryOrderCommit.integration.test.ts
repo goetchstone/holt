@@ -39,14 +39,14 @@ function effectiveRow(overrides: Partial<EffectiveRow> = {}): EffectiveRow {
     color: "",
     size: "",
     qty: 4,
-    cost: 39.99,
+    cost: 44.50,
     msrp: null,
     selling: null,
     department: "",
     category: "",
     supplier: "K & K Interiors",
     barcode: "842657186221",
-    reference: "0002592360",
+    reference: "0009900001",
     ...overrides,
   };
 }
@@ -118,7 +118,7 @@ describe("Home Accessory Order Import commit — real DB", () => {
       where: { id: result.createdPos[0].id },
     });
     expect(po.vendorId).toBe(vendor.id);
-    expect(po.referenceNumber).toBe("0002592360");
+    expect(po.referenceNumber).toBe("0009900001");
     expect(po.status).toBe("DRAFT");
 
     const items = await prisma.buyerDraftItem.findMany({ where: { draftPoId: po.id } });
@@ -133,10 +133,10 @@ describe("Home Accessory Order Import commit — real DB", () => {
       departmentId: dept.id,
       categoryId: cat.id,
     });
-    expect(items[0].cost.toNumber()).toBe(39.99);
+    expect(items[0].cost.toNumber()).toBe(44.50);
     // No selling/msrp typed -> retail falls back to cost (never left blank
     // on the required, non-nullable column).
-    expect(items[0].retail.toNumber()).toBe(39.99);
+    expect(items[0].retail.toNumber()).toBe(44.50);
     expect(items[0].msrp).toBeNull();
   });
 
@@ -150,8 +150,8 @@ describe("Home Accessory Order Import commit — real DB", () => {
       sourceLabel: "Home Accessory Order Import — K & K Interiors",
     };
     const rows = [
-      effectiveRow({ key: "0", partNumber: "KKI-AAA", reference: "0002592360" }),
-      effectiveRow({ key: "1", partNumber: "KKI-BBB", reference: "0002592361" }),
+      effectiveRow({ key: "0", partNumber: "KKI-AAA", reference: "0009900001" }),
+      effectiveRow({ key: "1", partNumber: "KKI-BBB", reference: "0009900002" }),
     ];
 
     const result = await commitRows(rows, ctx);
@@ -162,7 +162,7 @@ describe("Home Accessory Order Import commit — real DB", () => {
     const pos = await prisma.buyerDraftPurchaseOrder.findMany({
       orderBy: { referenceNumber: "asc" },
     });
-    expect(pos.map((p) => p.referenceNumber)).toEqual(["0002592360", "0002592361"]);
+    expect(pos.map((p) => p.referenceNumber)).toEqual(["0009900001", "0009900002"]);
 
     // Each item lands on ITS OWN order's PO, not both on one.
     for (const po of pos) {
@@ -289,7 +289,7 @@ describe("Home Accessory Order Import commit — real DB", () => {
       vendorName: vendor.name,
       stockLocationId: null,
       buyId: null,
-      requiredDateByReference: { "0002592360": "8/1/26" },
+      requiredDateByReference: { "0009900001": "8/1/26" },
       sourceLabel: "Home Accessory Order Import — K & K Interiors",
     };
 

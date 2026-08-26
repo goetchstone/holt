@@ -47,8 +47,8 @@ describe("parseBeatrizBallOrderText", () => {
   });
 
   it("splits the item-code / amount boundary using wholesale x qty == amount", () => {
-    // "349699.0056.0024.754..." -> code 3496, amount 99.00, msrp 56.00,
-    // wholesale 24.75, qty 4 (NOT code 34969, amount 9.00).
+    // "349699.0056.0018.004..." -> code 3496, amount 72.00, msrp 45.00,
+    // wholesale 18.00, qty 4 (NOT code 34969, amount 9.00).
     const vase = order.items.find((i) => i.itemCode === "3496");
     expect(vase).toMatchObject({ qty: 4, unitPrice: 18, lineTotal: 72, msrp: 45 });
     expect(vase?.name).toBe("GLASS Vento Medium Vase (Clear)");

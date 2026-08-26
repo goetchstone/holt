@@ -20,7 +20,7 @@ import { buyerBoilerplate, parseBeatrizBallOrderText } from "@/lib/pricing/beatr
 function confirmation(buyerName: string): string {
   return [
     "Sales Order 12345",
-    "349699.0056.0024.754GLASS Vento Medium Vase (Clear)",
+    "349672.0045.0018.004GLASS Vento Medium Vase (Clear)",
     buyerName,
     "123 Harbour Road",
   ].join("\n");

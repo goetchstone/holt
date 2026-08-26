@@ -10,12 +10,12 @@
 //   Classic - Tic Tac Toe  <- product name
 //   ETA EARLY JULY         <- optional status note(s), ignored
 //   7350108174152          <- optional UPC (some items carry none)
-//   12$33.00$396.00        <- qty $unit-price $line-total
+//   12$25.00$300.00        <- qty $unit-price $line-total
 //
 // Verified against a real order (its number and totals withheld -- this repo
 // is public and the vendor's dealer costs are confidential):
 //
-// 1. The money line HAS dollar signs — "12$33.00$396.00" (qty $price $total),
+// 1. The money line HAS dollar signs — "12$25.00$300.00" (qty $price $total),
 //    the split is unambiguous, but qty x price == total is still checked.
 // 2. The UPC is OPTIONAL — an out-of-stock item ("Reverra - Mahjong",
 //    OOS) prints no UPC, so its barcode exports blank and Ordorite assigns one.

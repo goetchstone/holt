@@ -11,11 +11,11 @@
 //   RepGroup,Manufacturer,PO #,Order Date,...,Order Total,...
 //   Simblist Group,MAISON ZOE FORD,PON00001,2026-06-11,...,615.60,...
 //   Sequence #,Item Number,Name,Description,Quantity,Unit Price,...,UPC,...,Total Price
-//   3,ZFUSA03-C,Big Time Brownie Mix - case pack of 6,,2,53.94,...,10628678860152,...,$107.88
+//   3,ZFUSA03-C,Big Time Brownie Mix - case pack of 6,,2,48.00,...,10628678860152,...,$96.00
 //
 // Verified against the real order (PO number and prices invented):
 //
-// 1. qty x Unit Price == Total Price on every line (2 x 53.94 == 107.88).
+// 1. qty x Unit Price == Total Price on every line (2 x 48.00 == 96.00).
 // 2. The UPCs are real 14-digit manufacturer codes, so new items carry them.
 // 3. The line Total Prices sum to $684.00 but the header Order Total is $615.60
 //    (10% less) -- an order-level discount that is NOT in the unit prices. It is

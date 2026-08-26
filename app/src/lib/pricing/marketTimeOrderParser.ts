@@ -8,7 +8,7 @@
 //   6GL70TECH10GN16IN                    <- qty + item number, CONCATENATED
 //   Merino Wool 16" Laptop Computer      <- name, 1-2 wrapped lines
 //   Sleeve - Granite V (Avail:07/10/26)     with an availability marker
-//   84002724051149.00$294.00             <- UPC + unit price + $line total,
+//   84002724051135.00$210.00             <- UPC + unit price + $line total,
 //                                           also concatenated
 //
 // Three things this parser exists to get right, all verified against the real
@@ -65,7 +65,7 @@ export interface MarketTimeOrder {
 const MFR = /MFR:\s*(.+?)(?:Cust(?:omer)?\s*#?:?|$)/;
 const PO_NUMBER = /^PON\d+$/;
 // A MarketTime order that carries no buyer PON prints its own order id instead
-// ("Purchase Order by  - ID# 32008813MarketTime" on ACC Art Books). Used only
+// ("Purchase Order by  - ID# 32000002MarketTime" on ACC Art Books). Used only
 // as a fallback reference when no PON is found, so a real PON always wins.
 const ORDER_ID = /ID#\s*(\d+)/;
 // The labels sit on either side of their value depending on the cell's

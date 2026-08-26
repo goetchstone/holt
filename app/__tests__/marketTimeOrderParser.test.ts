@@ -258,25 +258,25 @@ describe("parseMarketTimeOrderText — the UQ/UOM + numeric-item variants", () =
   });
 
   it("falls back to the MarketTime order id when a document carries no buyer PON", () => {
-    // ACC Art Books prints "ID# 32008813" instead of a PON — the reference must
+    // ACC Art Books prints "ID# 32000002" instead of a PON — the reference must
     // not come out blank.
     const order = parseMarketTimeOrderText(
       [
-        "Purchase Order by  - ID# 32008813MarketTime",
+        "Purchase Order by  - ID# 32000002MarketTime",
         "You will receive an invoice from ACC Art Books",
         "9782875501417",
         "SENSE OF STYLE",
-        "978287550141786.00$688.00",
+        "978287550141760.00$480.00",
       ].join("\n"),
     );
-    expect(order.poNumber).toBe("32008813");
+    expect(order.poNumber).toBe("32000002");
     expect(order.vendorName).toBe("ACC Art Books");
   });
 
   it("prefers a real PON over the order-id fallback", () => {
     const order = parseMarketTimeOrderText(
       [
-        "Purchase Order by  - ID# 32008813MarketTime",
+        "Purchase Order by  - ID# 32000002MarketTime",
         "PON00004",
         "1GL60BIN50FTLG",
         "Merino Wool Large Bin",

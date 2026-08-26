@@ -440,7 +440,7 @@ export function parseOrdoriteAddress(raw: unknown): ParsedAddress | null {
     parts.pop();
   }
 
-  // Drop trailing zip code that ended up as its own part (e.g. "CT, 06033")
+  // Drop trailing zip code that ended up as its own part (e.g. "CT, 99999")
   const ZIP_RE = /^\d{5}(-\d{4})?$/;
   if (parts.length >= 4 && ZIP_RE.test(parts[parts.length - 1])) {
     parts.pop();
@@ -455,7 +455,7 @@ export function parseOrdoriteAddress(raw: unknown): ParsedAddress | null {
   const city = parts[parts.length - 2];
   const address1 = parts.slice(0, parts.length - 2).join(", ");
 
-  // Strip zip code merged into state (e.g. "CT 06033" -> "CT")
+  // Strip zip code merged into state (e.g. "CT 99999" -> "CT")
   const stateZipMatch = state.match(/^([A-Z]{2})\s+\d{5}/);
   if (stateZipMatch) {
     state = stateZipMatch[1];

@@ -53,8 +53,8 @@ export interface WendoverOrderItem {
   treatment: string;
   size: string;
   frame: string;
-  /** Customer reference printed on made-to-order pieces ("SBOM41649/Erin
-   *  Kelly") -- the item is already sold, not stock. */
+  /** Customer reference printed on made-to-order pieces ("SBOM41649/Dana
+   *  Whitl") -- the item is already sold, not stock. */
   sideMark: string;
   extras: string[];
 }

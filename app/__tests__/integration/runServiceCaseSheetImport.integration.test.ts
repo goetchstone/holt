@@ -468,7 +468,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
     // name-based matcher won't resolve.
     const targetCustomer = await seedCustomer({
       firstName: "Penny",
-      lastName: "Sigal",
+      lastName: "Sarlow",
       phone: "203-555-0101",
     });
     await prisma.salesOrder.create({
@@ -484,7 +484,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
         {
           Timestamp: new Date("2025-10-03T00:00:00Z"),
           // Slash-couple name format — won't match Customer.lastName lookup
-          Name: "Penny/Steve Sigal",
+          Name: "Penny/Steve Sarlow",
           // Phone differs from the seeded Penny → can't match by phone either
           "Phone #": "860-999-9999",
           "Order #": "SO-77777",
