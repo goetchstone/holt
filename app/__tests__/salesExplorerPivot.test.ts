@@ -20,8 +20,8 @@ function cell(netSales: number, cost: number, itemCount = 1) {
 
 describe("splitCellKey", () => {
   it("splits a store|dept|cat|vendor key into its four dimensions", () => {
-    expect(splitCellKey("Old Saybrook|Furniture|Sofas|Wesley Hall")).toEqual({
-      storeLocation: "Old Saybrook",
+    expect(splitCellKey("Old Harbour|Furniture|Sofas|Wesley Hall")).toEqual({
+      storeLocation: "Old Harbour",
       department: "Furniture",
       category: "Sofas",
       vendor: "Wesley Hall",
@@ -43,26 +43,26 @@ describe("variancePct", () => {
 
 describe("buildSalesExplorerTree", () => {
   const cellsP1: SalesExplorerCellMap = {
-    "Old Saybrook|Furniture|Sofas|Wesley Hall": cell(1000, 400, 2),
-    "Old Saybrook|Furniture|Chairs|Wesley Hall": cell(500, 300, 1),
+    "Old Harbour|Furniture|Sofas|Wesley Hall": cell(1000, 400, 2),
+    "Old Harbour|Furniture|Chairs|Wesley Hall": cell(500, 300, 1),
     "Madison|Furniture|Sofas|Vanguard": cell(200, 100, 1),
   };
   const cellsP2: SalesExplorerCellMap = {
-    "Old Saybrook|Furniture|Sofas|Wesley Hall": cell(800, 320, 2),
+    "Old Harbour|Furniture|Sofas|Wesley Hall": cell(800, 320, 2),
     "Madison|Rugs|Area Rugs|Surya": cell(300, 150, 1),
   };
 
   it("rolls every cell into every ancestor along the store axis (store -> dept -> category -> vendor)", () => {
     const { tree } = buildSalesExplorerTree(cellsP1, cellsP2, "store");
-    const oldSaybrook = tree.find((n) => n.name === "Old Saybrook")!;
+    const oldHarbour = tree.find((n) => n.name === "Old Harbour")!;
     // 1000 (Sofas) + 500 (Chairs) in period1; only the Sofas cell has a
     // period2 value (800).
-    expect(oldSaybrook.period1.netSales).toBe(1500);
-    expect(oldSaybrook.period2.netSales).toBe(800);
+    expect(oldHarbour.period1.netSales).toBe(1500);
+    expect(oldHarbour.period2.netSales).toBe(800);
     // Store's immediate children are department-level (both cells share
     // department "Furniture"); category-level Sofas/Chairs are grandchildren.
-    expect(oldSaybrook.children.map((c) => c.name)).toEqual(["Furniture"]);
-    const furniture = oldSaybrook.children[0];
+    expect(oldHarbour.children.map((c) => c.name)).toEqual(["Furniture"]);
+    const furniture = oldHarbour.children[0];
     expect(furniture.children.map((c) => c.name).sort()).toEqual(["Chairs", "Sofas"]);
   });
 
@@ -79,16 +79,16 @@ describe("buildSalesExplorerTree", () => {
 
   it("computes variance and variancePct at every node", () => {
     const { tree } = buildSalesExplorerTree(cellsP1, cellsP2, "store");
-    const oldSaybrook = tree.find((n) => n.name === "Old Saybrook")!;
-    expect(oldSaybrook.variance).toBe(700); // 1500 - 800
-    expect(oldSaybrook.variancePct).toBeCloseTo(0.875); // 700 / 800
+    const oldHarbour = tree.find((n) => n.name === "Old Harbour")!;
+    expect(oldHarbour.variance).toBe(700); // 1500 - 800
+    expect(oldHarbour.variancePct).toBeCloseTo(0.875); // 700 / 800
   });
 
   it("computes margin % per period, null when netSales is 0", () => {
     const { tree } = buildSalesExplorerTree(cellsP1, cellsP2, "store");
-    const oldSaybrook = tree.find((n) => n.name === "Old Saybrook")!;
+    const oldHarbour = tree.find((n) => n.name === "Old Harbour")!;
     // period1: netSales 1500, cost 400+300=700 -> margin 800/1500
-    expect(oldSaybrook.marginPct1).toBeCloseTo(800 / 1500);
+    expect(oldHarbour.marginPct1).toBeCloseTo(800 / 1500);
     const madison = tree.find((n) => n.name === "Madison")!;
     const rugsChild = madison.children.find((c) => c.name === "Rugs")!;
     expect(rugsChild.marginPct1).toBeNull(); // sold nothing in period1
@@ -96,7 +96,7 @@ describe("buildSalesExplorerTree", () => {
 
   it("blank category buckets display as (No Category)", () => {
     const cells: SalesExplorerCellMap = {
-      "Old Saybrook|Furniture||Wesley Hall": cell(100, 50, 1),
+      "Old Harbour|Furniture||Wesley Hall": cell(100, 50, 1),
     };
     const { tree } = buildSalesExplorerTree(cells, {}, "department");
     const furniture = tree.find((n) => n.name === "Furniture")!;
@@ -107,10 +107,10 @@ describe("buildSalesExplorerTree", () => {
   it("keeps an orphan Unknown store visible (unlike comparativeSales.ts) so totals equal the sum of visible rows", () => {
     const cells: SalesExplorerCellMap = {
       "Unknown|Furniture|Sofas|Wesley Hall": cell(100, 50, 1),
-      "Old Saybrook|Furniture|Sofas|Wesley Hall": cell(200, 80, 1),
+      "Old Harbour|Furniture|Sofas|Wesley Hall": cell(200, 80, 1),
     };
     const { tree, totals } = buildSalesExplorerTree(cells, {}, "store");
-    expect(tree.map((n) => n.name).sort()).toEqual(["Old Saybrook", "Unknown"]);
+    expect(tree.map((n) => n.name).sort()).toEqual(["Old Harbour", "Unknown"]);
     expect(totals.period1.netSales).toBe(300);
   });
 
@@ -126,8 +126,8 @@ describe("buildSalesExplorerTree", () => {
 
   it("category pivot rolls a category name up across every department it appears in", () => {
     const cells: SalesExplorerCellMap = {
-      "Old Saybrook|Furniture|Accessories|VendorA": cell(100, 40, 1),
-      "Old Saybrook|Home Shop|Accessories|VendorB": cell(50, 20, 1),
+      "Old Harbour|Furniture|Accessories|VendorA": cell(100, 40, 1),
+      "Old Harbour|Home Shop|Accessories|VendorB": cell(50, 20, 1),
     };
     const { tree } = buildSalesExplorerTree(cells, {}, "category");
     expect(tree).toHaveLength(1);
@@ -138,26 +138,26 @@ describe("buildSalesExplorerTree", () => {
 
   it("store nodes attach orderCount/visitors/conversion from storeMeta; non-store nodes do not", () => {
     const { tree } = buildSalesExplorerTree(cellsP1, cellsP2, "store", {
-      "Old Saybrook": { orderCount1: 10, orderCount2: 8, visitors1: 100, visitors2: 80 },
+      "Old Harbour": { orderCount1: 10, orderCount2: 8, visitors1: 100, visitors2: 80 },
     });
-    const oldSaybrook = tree.find((n) => n.name === "Old Saybrook")!;
-    expect(oldSaybrook.period1.orderCount).toBe(10);
-    expect(oldSaybrook.conversion1).toBeCloseTo(0.1); // 10/100
-    expect(oldSaybrook.children[0].conversion1).toBeUndefined();
+    const oldHarbour = tree.find((n) => n.name === "Old Harbour")!;
+    expect(oldHarbour.period1.orderCount).toBe(10);
+    expect(oldHarbour.conversion1).toBeCloseTo(0.1); // 10/100
+    expect(oldHarbour.children[0].conversion1).toBeUndefined();
   });
 
   it("a store with zero visitors gets null conversion, not a divide-by-zero", () => {
     const { tree } = buildSalesExplorerTree(cellsP1, cellsP2, "store", {
-      "Old Saybrook": { orderCount1: 5, orderCount2: 0, visitors1: 0, visitors2: 0 },
+      "Old Harbour": { orderCount1: 5, orderCount2: 0, visitors1: 0, visitors2: 0 },
     });
-    const oldSaybrook = tree.find((n) => n.name === "Old Saybrook")!;
-    expect(oldSaybrook.conversion1).toBeNull();
+    const oldHarbour = tree.find((n) => n.name === "Old Harbour")!;
+    expect(oldHarbour.conversion1).toBeNull();
   });
 
   it("children are sorted by period1 net sales descending", () => {
     const { tree } = buildSalesExplorerTree(cellsP1, cellsP2, "store");
-    const oldSaybrook = tree.find((n) => n.name === "Old Saybrook")!;
-    const furniture = oldSaybrook.children[0];
+    const oldHarbour = tree.find((n) => n.name === "Old Harbour")!;
+    const furniture = oldHarbour.children[0];
     // Sofas (1000) outsold Chairs (500) in period1.
     expect(furniture.children.map((c) => c.name)).toEqual(["Sofas", "Chairs"]);
   });
@@ -165,12 +165,12 @@ describe("buildSalesExplorerTree", () => {
 
 describe("resolveNodeFilters", () => {
   it("resolves a top-level store node to just a store filter", () => {
-    expect(resolveNodeFilters("store", "Old Saybrook")).toEqual({ store: "Old Saybrook" });
+    expect(resolveNodeFilters("store", "Old Harbour")).toEqual({ store: "Old Harbour" });
   });
 
   it("resolves a fully-drilled store node to all four filters, in axis order", () => {
-    expect(resolveNodeFilters("store", "Old Saybrook||Furniture||Sofas||Wesley Hall")).toEqual({
-      store: "Old Saybrook",
+    expect(resolveNodeFilters("store", "Old Harbour||Furniture||Sofas||Wesley Hall")).toEqual({
+      store: "Old Harbour",
       department: "Furniture",
       category: "Sofas",
       vendor: "Wesley Hall",

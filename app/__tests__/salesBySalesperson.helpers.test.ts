@@ -180,25 +180,25 @@ describe("applySalesPersonFilter", () => {
 
   it("matches orders by salesperson name string (case-insensitive)", () => {
     const where: Prisma.SalesOrderWhereInput = {};
-    applySalesPersonFilter(where, { ids: [], names: ["Cheryl Homan"] });
-    expect(where.OR).toEqual([{ salesperson: { equals: "Cheryl Homan", mode: "insensitive" } }]);
+    applySalesPersonFilter(where, { ids: [], names: ["Cheryl Holloway"] });
+    expect(where.OR).toEqual([{ salesperson: { equals: "Cheryl Holloway", mode: "insensitive" } }]);
   });
 
   it("layers id-match AND name-match together (the canonical use)", () => {
     const where: Prisma.SalesOrderWhereInput = {};
-    applySalesPersonFilter(where, { ids: [3], names: ["Cheryl Homan"] });
+    applySalesPersonFilter(where, { ids: [3], names: ["Cheryl Holloway"] });
     expect(where.OR).toEqual([
       { salesPersonId: { in: [3] } },
       { splitWithId: { in: [3] } },
-      { salesperson: { equals: "Cheryl Homan", mode: "insensitive" } },
+      { salesperson: { equals: "Cheryl Holloway", mode: "insensitive" } },
     ]);
   });
 
   it("emits one OR clause per name (Prisma `in` is case-sensitive on strings)", () => {
     const where: Prisma.SalesOrderWhereInput = {};
-    applySalesPersonFilter(where, { ids: [], names: ["Cheryl Homan", "Sarah Smith"] });
+    applySalesPersonFilter(where, { ids: [], names: ["Cheryl Holloway", "Sarah Smith"] });
     expect(where.OR).toEqual([
-      { salesperson: { equals: "Cheryl Homan", mode: "insensitive" } },
+      { salesperson: { equals: "Cheryl Holloway", mode: "insensitive" } },
       { salesperson: { equals: "Sarah Smith", mode: "insensitive" } },
     ]);
   });
@@ -207,7 +207,7 @@ describe("applySalesPersonFilter", () => {
 describe("staffMemberFilter", () => {
   // Issue #274 / ROADMAP Short-Term #12. Sandy's StaffMember row has
   // displayName='Sandy' but every imported SalesOrder for her carries
-  // salesperson='Sandra Matheny'. Without aliases, a dashboard query
+  // salesperson='Sandra Merrick'. Without aliases, a dashboard query
   // for "Sandy" finds zero of her 15 orders.
 
   it("returns empty filter when staff is null/undefined", () => {
@@ -216,19 +216,19 @@ describe("staffMemberFilter", () => {
   });
 
   it("includes displayName when no aliases set (back-compat)", () => {
-    const result = staffMemberFilter({ id: 5, displayName: "Cheryl Homan" });
-    expect(result).toEqual({ ids: [5], names: ["Cheryl Homan"] });
+    const result = staffMemberFilter({ id: 5, displayName: "Cheryl Holloway" });
+    expect(result).toEqual({ ids: [5], names: ["Cheryl Holloway"] });
   });
 
   it("expands aliases into the names list (the Sandy case)", () => {
     const result = staffMemberFilter({
       id: 30,
       displayName: "Sandy",
-      aliases: ["Sandra Matheny"],
+      aliases: ["Sandra Merrick"],
     });
     expect(result).toEqual({
       ids: [30],
-      names: ["Sandy", "Sandra Matheny"],
+      names: ["Sandy", "Sandra Merrick"],
     });
   });
 
@@ -251,13 +251,13 @@ describe("staffMemberFilter", () => {
     const where: Prisma.SalesOrderWhereInput = {};
     applySalesPersonFilter(
       where,
-      staffMemberFilter({ id: 30, displayName: "Sandy", aliases: ["Sandra Matheny"] }),
+      staffMemberFilter({ id: 30, displayName: "Sandy", aliases: ["Sandra Merrick"] }),
     );
     expect(where.OR).toEqual([
       { salesPersonId: { in: [30] } },
       { splitWithId: { in: [30] } },
       { salesperson: { equals: "Sandy", mode: "insensitive" } },
-      { salesperson: { equals: "Sandra Matheny", mode: "insensitive" } },
+      { salesperson: { equals: "Sandra Merrick", mode: "insensitive" } },
     ]);
   });
 });

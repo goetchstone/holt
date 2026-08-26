@@ -88,5 +88,5 @@ Each came from a specific failure in one working session.
 | 56 | The accounting gap table listed C1 daily reconciliation as "next" when `lib/dailyReconciliation.ts` had long since shipped. |
 | 57 | `stripeLedgerWiring.test.ts` asserted against source text and went stale the moment payments moved behind a provider seam. It was replaced with behavioural tests against a fake provider. |
 | 58 | The TLS/certbot configuration could not be exercised without a real domain and certificate. The PR said so rather than implying it was tested. |
-| 59 | Local databases `saybrook`, `holt_saybrook` and `akritos` hold restored production-shaped and seeded data alongside the test database. |
+| 59 | Local databases outside the seed allowlist hold restored production-shaped and seeded data alongside the test database. |
 | 60 | The payment-provider seam: an organization switching processors must still refund historical payments through the processor that captured them. |

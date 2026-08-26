@@ -38,10 +38,10 @@ describe("rollupByDay", () => {
 
   it("sums visitors by calendar day across stores", () => {
     const rows = [
-      row("2026-05-27T10:00:00", "Glastonbury", 5),
-      row("2026-05-27T10:15:00", "Glastonbury", 7),
+      row("2026-05-27T10:00:00", "Wexbridge", 5),
+      row("2026-05-27T10:15:00", "Wexbridge", 7),
       row("2026-05-27T10:00:00", "NB", 3),
-      row("2026-05-28T11:00:00", "Glastonbury", 10),
+      row("2026-05-28T11:00:00", "Wexbridge", 10),
     ];
     expect(rollupByDay(rows)).toEqual([
       { date: "2026-05-27", visitors: 15, exits: null },
@@ -51,10 +51,10 @@ describe("rollupByDay", () => {
 
   it("sums exits when present, returns null when all rows have null exits", () => {
     const rows = [
-      row("2026-05-27T10:00:00", "Glastonbury", 5, 4),
-      row("2026-05-27T10:15:00", "Glastonbury", 7, 6),
-      row("2026-05-28T10:00:00", "Glastonbury", 3, null), // mixed
-      row("2026-05-28T10:15:00", "Glastonbury", 2, 1),
+      row("2026-05-27T10:00:00", "Wexbridge", 5, 4),
+      row("2026-05-27T10:15:00", "Wexbridge", 7, 6),
+      row("2026-05-28T10:00:00", "Wexbridge", 3, null), // mixed
+      row("2026-05-28T10:15:00", "Wexbridge", 2, 1),
     ];
     const out = rollupByDay(rows);
     expect(out[0].exits).toBe(10); // 4 + 6
@@ -78,22 +78,22 @@ describe("rollupByDay", () => {
 describe("rollupByStore", () => {
   it("sums by store across all days, sorted busiest first", () => {
     const rows = [
-      row("2026-05-27T10:00:00", "Glastonbury", 10),
-      row("2026-05-28T10:00:00", "Glastonbury", 5),
+      row("2026-05-27T10:00:00", "Wexbridge", 10),
+      row("2026-05-28T10:00:00", "Wexbridge", 5),
       row("2026-05-27T10:00:00", "NB", 20),
-      row("2026-05-27T10:00:00", "Cheshire", 2),
+      row("2026-05-27T10:00:00", "Brookvale", 2),
     ];
     expect(rollupByStore(rows)).toEqual([
       { sourceStoreName: "NB", storeLocationId: null, visitors: 20, exits: null },
-      { sourceStoreName: "Glastonbury", storeLocationId: null, visitors: 15, exits: null },
-      { sourceStoreName: "Cheshire", storeLocationId: null, visitors: 2, exits: null },
+      { sourceStoreName: "Wexbridge", storeLocationId: null, visitors: 15, exits: null },
+      { sourceStoreName: "Brookvale", storeLocationId: null, visitors: 2, exits: null },
     ]);
   });
 
   it("preserves storeLocationId from the first row seen for that store", () => {
     const rows = [
-      row("2026-05-27T10:00:00", "Glastonbury", 5, null, 1),
-      row("2026-05-27T10:15:00", "Glastonbury", 7, null, 1),
+      row("2026-05-27T10:00:00", "Wexbridge", 5, null, 1),
+      row("2026-05-27T10:15:00", "Wexbridge", 7, null, 1),
     ];
     expect(rollupByStore(rows)[0].storeLocationId).toBe(1);
   });
@@ -102,9 +102,9 @@ describe("rollupByStore", () => {
 describe("rollupByDayAndStore", () => {
   it("produces one row per (day, store) sorted by date asc + visitors desc within day", () => {
     const rows = [
-      row("2026-05-27T10:00:00", "Glastonbury", 10),
+      row("2026-05-27T10:00:00", "Wexbridge", 10),
       row("2026-05-27T10:00:00", "NB", 20),
-      row("2026-05-28T10:00:00", "Glastonbury", 30),
+      row("2026-05-28T10:00:00", "Wexbridge", 30),
       row("2026-05-28T10:00:00", "NB", 5),
     ];
     expect(rollupByDayAndStore(rows)).toEqual([
@@ -117,14 +117,14 @@ describe("rollupByDayAndStore", () => {
       },
       {
         date: "2026-05-27",
-        sourceStoreName: "Glastonbury",
+        sourceStoreName: "Wexbridge",
         storeLocationId: null,
         visitors: 10,
         exits: null,
       },
       {
         date: "2026-05-28",
-        sourceStoreName: "Glastonbury",
+        sourceStoreName: "Wexbridge",
         storeLocationId: null,
         visitors: 30,
         exits: null,

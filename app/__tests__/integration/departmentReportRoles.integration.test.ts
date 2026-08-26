@@ -56,7 +56,7 @@ const OLD_TARGETS = [
   "Home Acc",
 ];
 
-// Every department name the old code could meet: the real Saybrook taxonomy,
+// Every department name the old code could meet: one real retailer's taxonomy,
 // the demo seed's names, and the cases that decide a branch.
 const NAMES = [
   "Furniture",

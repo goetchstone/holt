@@ -180,7 +180,7 @@ export async function resolveSalesPersonFilter(
     // applied" (e.g. admin viewing all-up).
     // Aliases (Issue #274 / ROADMAP Short-Term #12) ensure designers
     // whose the POS salesperson string differs from their displayName
-    // (e.g. Sandy ↔ Sandra Matheny) still find their orders.
+    // (e.g. Sandy ↔ Sandra Merrick) still find their orders.
     let resolvedNames: string[] = [];
     if (requestedIds.length > 0) {
       const staff = await prisma.staffMember.findMany({
@@ -233,7 +233,7 @@ export async function resolveSalesPersonFilter(
  *
  * Origin: Issue #274 / ROADMAP Short-Term #12. Sandy's dashboard query
  * filtered on `displayName='Sandy'` but every imported SalesOrder had
- * `salesperson='Sandra Matheny'`. Aliases (`['Sandra Matheny']` on her
+ * `salesperson='Sandra Merrick'`. Aliases (`['Sandra Merrick']` on her
  * StaffMember row) close the gap without renaming the up-board record.
  *
  * `null` staff is acceptable — returns an empty filter (no-op when fed

@@ -105,7 +105,7 @@ export interface SalesImportResult {
   consignmentItemsSynced: number;
   /**
    * Base-order line items cancelled by the same-day rewrite cleanup
-   * (post-failure log 2026-05-12, Cheshire $1,109 delta). Optional —
+   * (post-failure log 2026-05-12, Brookvale $1,109 delta). Optional —
    * only set when cleanup actually ran.
    */
   sameDayRewriteLinesCancelled?: number;
@@ -671,7 +671,7 @@ export async function runSalesImport(
   // amount), not the items they DROPPED. The dropped items dangle in the
   // base as ACTIVE-but-uncanceled lines and double-count daily sales.
   //
-  // Worked example: CHOM1726 on 2026-05-09 (Brian Tenerow, Cheshire).
+  // Worked example: CHOM1726 on 2026-05-09 (Brian Thorne, Brookvale).
   // Base $4,298 (5 lines) + Return -$3,189 (3 lines) + Rewrite $3,189
   // (3 lines) -> naive sum is $4,298 vs. Ordorite's $3,189 (a $1,109
   // delta = the 2 lounge chairs + extra delivery line that the customer

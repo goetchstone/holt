@@ -1,13 +1,13 @@
 // app/prisma/seed/demo/guard.ts
 //
-// Target-database safety guard (CLAUDE.md rule 59: "fbc_test_db is the only
-// database tests may write. saybrook, holt_saybrook, and akritos hold
-// restored or seeded data and must never be written by a test or script.").
+// Target-database safety guard (CLAUDE.md rule 59: the integration-test
+// database is the only one tests may write; databases holding restored or
+// hand-curated data must never be written by a test or script).
 // This script writes thousands of rows outside a transaction, so it is even
 // more dangerous than a test run against the wrong database -- there's no
-// TRUNCATE-and-retry safety net. Refuse by default; require an explicit,
-// separately-named opt-in for the "confirm-only" names, and never allow the
-// hard-blocked one at all.
+// TRUNCATE-and-retry safety net. Refuse by default; require an explicit
+// opt-in for anything that is not a purpose-built scratch database, and never
+// allow the hard-blocked one at all.
 //
 // This mirrors (but does not import) `src/lib/testing/withTestDb.ts`'s
 // "DATABASE_URL must contain 'test'" pattern -- that guard protects the
@@ -26,13 +26,15 @@
 const HARD_BLOCKED_DB_NAMES = ["fbc_test_db"];
 
 /**
- * Blocked unless the caller passes an explicit override. These hold
- * restored-from-backup or hand-curated data (saybrook / holt_saybrook /
- * akritos) or are the shared local dev database every `~/holt` session
- * points at (fbc_dev_db) -- clobbering any of them destroys real work with
- * no way back.
+ * Only a name that reads as a purpose-built scratch database seeds without an
+ * override. Everything else -- a restored client database, the shared local
+ * dev database, a colleague's copy -- needs --force-unsafe-db.
+ *
+ * This is an allowlist deliberately. It replaced a blocklist of specific
+ * database names, which failed OPEN: a name nobody had thought to list seeded
+ * silently, and the list only ever grew by someone losing data first.
  */
-const CONFIRM_BLOCKED_DB_NAMES = ["saybrook", "holt_saybrook", "akritos", "fbc_dev_db"];
+const SCRATCH_DB_NAME = /(^|_)(seed|demo|scratch|sandbox|sample)(_|$)/i;
 
 export class UnsafeSeedTargetError extends Error {}
 
@@ -85,13 +87,14 @@ export function assertSafeSeedTarget(databaseUrl: string, opts: SafetyCheckOptio
     );
   }
 
-  if (CONFIRM_BLOCKED_DB_NAMES.includes(dbName) && !opts.forceUnsafe) {
+  if (!SCRATCH_DB_NAME.test(dbName) && !opts.forceUnsafe) {
     throw new UnsafeSeedTargetError(
       `Refusing to seed database "${dbName}" (${masked}) without an explicit override. ` +
-        `This name holds real dev/restored/seeded data (CLAUDE.md rule 59). If you are ` +
-        `certain this is the intended target, re-run with --force-unsafe-db or ` +
-        `HOLT_SEED_FORCE_UNSAFE_DB=1. Otherwise point DATABASE_URL at a scratch database ` +
-        `created for this run (e.g. holt_seed_demo).`,
+        `Only a purpose-built scratch database seeds unattended -- one whose name ` +
+        `contains "seed", "demo", "scratch", "sandbox" or "sample" (e.g. ` +
+        `holt_seed_demo). Any other name may hold real dev, restored or curated ` +
+        `data (CLAUDE.md rule 59). If this really is the intended target, re-run ` +
+        `with --force-unsafe-db or HOLT_SEED_FORCE_UNSAFE_DB=1.`,
     );
   }
 

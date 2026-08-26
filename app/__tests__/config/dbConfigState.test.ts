@@ -167,7 +167,7 @@ describe("loadDbConfigState — traffic-store-mapping ownership grouping (item 8
         changeLogs: [
           {
             presetKind: "traffic-store-mapping",
-            presetName: "saybrook-traffic",
+            presetName: "riverbend-traffic",
             action: "APPLIED",
             summary: { ownedStores: ["Downtown"] },
             created: new Date("2026-01-01"),
@@ -187,7 +187,7 @@ describe("loadDbConfigState — traffic-store-mapping ownership grouping (item 8
         (p): p is Extract<typeof p, { kind: "traffic-store-mapping" }> => p.kind === "traffic-store-mapping",
       );
       const byName = Object.fromEntries(traffic.map((p) => [p.name, p.stores.map((s) => s.storeLocation)]));
-      expect(byName["saybrook-traffic"]).toEqual(["Downtown"]);
+      expect(byName["riverbend-traffic"]).toEqual(["Downtown"]);
       expect(byName[TRAFFIC_STORE_MAPPING_PRESET_NAME]).toEqual(["Uptown"]);
 
       // Load-bearing: re-importing this exact bundle must not conflict with

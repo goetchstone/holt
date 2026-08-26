@@ -57,7 +57,7 @@ the planned tasks.
 | Validate command | `cd app && npm run validate` |
 | Test command | `cd app && npm test` (unit) / `npm run test:coverage` (combined gate) |
 | Local Sonar/Semgrep/OSV | `cd app && npm run check:local` |
-| Test DB | `fbc_test_db` only (rule 59) — never `saybrook`, `holt_saybrook`, `akritos` |
+| Test DB | `fbc_test_db` only (rule 59) — never a restored or curated database |
 | Structured logging | `logger.info/warn/error` — never `console.*` in `src/` |
 | Cancelled line rule | Every aggregation: `lineItemStatus: { not: "CANCELLED" }` (rule 33) |
 | Revenue status rule | `status: { in: SALES_REVENUE_STATUSES }` includes RETURNED (rule 47) |

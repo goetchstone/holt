@@ -283,7 +283,7 @@ export const DENOMINATIONS: DenominationDef[] = [
 ### `app/src/lib/adapters/ordorite/reportRouter.ts:74`
 
 ```
-pattern: /Saybrook_Home_Inbound_Items/i,
+pattern: /<Org>_Inbound_Items/i,
 
 ```
 
@@ -371,7 +371,7 @@ if (s === "" || s === "@") return undefined;
 ### `app/src/lib/pricing/beatrizBallOrderParser.ts:64`
 
 ```
-"sold to", "ship to", "saybrook", "old saybrook",
+"sold to", "ship to", "<org name>", "<org town>",
 
 ```
 
@@ -623,7 +623,7 @@ pattern: /SH_Stock_by_Item/i,
 
 **Breaks:** A deployment whose Ordorite exports carry its own initials matches none of the three; resolveImportRoute returns null and the orchestrator logs 'skipped'. Stock-on-hand, PO-line reconciliation and the product catalog never populate, with no error surfaced.
 
-**Fix:** Same fix as the Saybrook_Home routes — one preset-driven route table keyed pattern -> runnerKey. Do not fix by loosening the regex; the whole table is deployment data.
+**Fix:** Same fix as the <Org> routes — one preset-driven route table keyed pattern -> runnerKey. Do not fix by loosening the regex; the whole table is deployment data.
 
 ### `app/src/lib/axperClient.ts:43`
 
@@ -832,7 +832,7 @@ Persisted onto every `OrderLineItem`, so it flows into journal-entry tax lines, 
 
 **Fix.** No new config. Import `resolveTaxDistrict` + `rateForLineAmount` from `@/lib/tax/resolveTaxRate`; resolve once per proposal (customer district → store district → `AppSettings.defaultTaxDistrictId`), call `rateForLineAmount` per line, persist the resolved `taxDistrictId` on the order. Copy the call shape from `app/src/pages/api/sales/orders/create-from-cart.ts:123` and `:252`. Delete both literals.
 
-**Test (equivalence).** Convert every proposal converted in the last 12 months on a restored snapshot, old code vs new. Compare per-line `vatRate`, `vatAmount`, and order-level tax total. On the Saybrook district all must be byte-identical; any diff is a real pre-existing bug in the band logic and must be explained before merge. Then flip `defaultTaxDistrictId` to a non-CT district in a scratch DB and assert the rate changes.
+**Test (equivalence).** Convert every proposal converted in the last 12 months on a restored snapshot, old code vs new. Compare per-line `vatRate`, `vatAmount`, and order-level tax total. On the the pilot deployment district all must be byte-identical; any diff is a real pre-existing bug in the band logic and must be explained before merge. Then flip `defaultTaxDistrictId` to a non-CT district in a scratch DB and assert the rate changes.
 
 **Why first.** Largest money error per event, one file, config already exists and is simply unread. Zero coupling to anything else on this list.
 
@@ -844,13 +844,13 @@ Persisted onto every `OrderLineItem`, so it flows into journal-entry tax lines, 
 ```
 const RETURN_STORE_SUFFIX = /^(SB|GT|CH|BB|WS|RS)[A-Z]*A\d/i;
 ...
-if (/^RS\d/i.test(orderno)) return true;   // "RS-prefixed orders are Returns Saybrook"
+if (/^RS\d/i.test(orderno)) return true;   // "RS-prefixed orders are a return booked to a store"
 
 ```
 
 Another tenant's store codes match nothing → `isReturnOrder` false → every accounting return imports as a normal sale. Revenue, commissions and the sales journal overstate by **twice** the return volume (return not subtracted, and counted as a sale). Line 210 is wrong in both directions: an `RS` series that is not a return gets dropped out of revenue.
 
-**Fix.** Keep the *shape* in code — the trailing `A` on the store code is the Ordorite convention, that's logic. Take the token alphabet from data: build the alternation from `StoreLocation` codes at call time, or add an `order-number-conventions` preset carrying `returnStoreCodes: []` and `returnPrefixes: []`. Fold `RS` into `returnPrefixes` and delete line 210 so there is exactly one source of return-prefix tokens. Ship Saybrook's current six as the default preset value.
+**Fix.** Keep the *shape* in code — the trailing `A` on the store code is the Ordorite convention, that's logic. Take the token alphabet from data: build the alternation from `StoreLocation` codes at call time, or add an `order-number-conventions` preset carrying `returnStoreCodes: []` and `returnPrefixes: []`. Fold `RS` into `returnPrefixes` and delete line 210 so there is exactly one source of return-prefix tokens. Ship the pilot deployment's current six as the default preset value.
 
 **Test (equivalence).** Run `isReturnOrder` over every distinct `SalesOrder.orderno` in production (single query, no import needed) old vs new — the classified sets must be identical. Then re-run the last 90 days of Ordorite imports into a scratch DB and compare daily net sales by store and the sales-journal debit/credit totals. Add a unit case for `DALA0123` proving it classifies as a return once `returnStoreCodes` includes `DAL`.
 
@@ -908,8 +908,8 @@ An `updateMany` driven by a string shape. Any style under that vendor whose numb
 
 ---
 
-### 7. Ordorite report routing table is Saybrook filenames — NEW, data-correctness + feature-dead
-`app/src/lib/adapters/ordorite/reportRouter.ts:74` — `pattern: /Saybrook_Home_Inbound_Items/i`
+### 7. Ordorite report routing table is the pilot deployment filenames — NEW, data-correctness + feature-dead
+`app/src/lib/adapters/ordorite/reportRouter.ts:74` — `pattern: /<Org>_Inbound_Items/i`
 `app/src/lib/adapters/ordorite/reportRouter.ts:49` — `pattern: /SH_Stock_by_Item/i`
 `app/src/lib/adapters/ordorite/reportRouter.ts:125` — `/Marjan_Daily_Sales/i` in `SKIP_PATTERNS` (cosmetic; free once the table moves)
 
@@ -919,7 +919,7 @@ An `updateMany` driven by a string shape. Any style under that vendor whose numb
 
 **Test (equivalence).** Replay the last 90 days of received Ordorite filenames through `resolveImportRoute` old vs new; the (filename → runner | skip | null) mapping must be identical for all of them. Add a case asserting `Acme_Furniture_Inbound_Items` routes to the inbound-items runner under an overridden preset, and one asserting an unmatched filename returns a *loud* unknown rather than a silent skip.
 
-**Blocks second-tenant onboarding.** Nothing else can be verified end-to-end on a non-Saybrook export until this lands.
+**Blocks second-tenant onboarding.** Nothing else can be verified end-to-end on a second-tenant export until this lands.
 
 ---
 
@@ -941,7 +941,7 @@ On a fresh deployment with no assigned plan, no `isDefault` plan and an empty `C
 
 **Fix.** Make the fallback refuse rather than guess: `loadLegacyOrDefaultTiers()` returns an unconfigured result that payout preview and commit surface as a hard "no commission plan configured" error. Move the 3–7% ladder into a shippable preset row (lib/config presets already seed DB state).
 
-**Test (equivalence).** With Saybrook's tiers present in the DB, run the payout preview for the last 6 pay periods before and after — per-designer commission dollars identical. Then empty `CommissionTier` on a scratch DB and assert preview *errors* instead of returning numbers.
+**Test (equivalence).** With the pilot deployment's tiers present in the DB, run the payout preview for the last 6 pay periods before and after — per-designer commission dollars identical. Then empty `CommissionTier` on a scratch DB and assert preview *errors* instead of returning numbers.
 
 ---
 
@@ -980,7 +980,7 @@ Importing a price list silently forks the tenant's taxonomy. A retailer filing o
 
 **Fix.** These three importers take `vendorId` / `departmentId` / `categoryId` (and for HD, `laborProductId` / `freightProductId`) as required inputs, resolved from an `ImportDefinition` preset row or chosen by the operator in the import UI, defaulted from the vendor's configured default department. They create **nothing** they were not told to create. Missing referenced records → a clear config error, not an invention. HD's order-number prefix comes from `Vendor.code`, not the literal `HD-`.
 
-**Test.** Idempotency: run each importer twice against the same file on a snapshot and assert zero new `Vendor`/`Department`/`Category`/`Product` rows on the second run *and* zero on the first when the ids are supplied. Equivalence: with Saybrook's real ids passed in, diff the resulting `Product` rows (department, category, vendor, prices) against a pre-change run — identical. Assert a 400 with a named config error when an id is absent.
+**Test.** Idempotency: run each importer twice against the same file on a snapshot and assert zero new `Vendor`/`Department`/`Category`/`Product` rows on the second run *and* zero on the first when the ids are supplied. Equivalence: with the pilot deployment's real ids passed in, diff the resulting `Product` rows (department, category, vendor, prices) against a pre-change run — identical. Assert a 400 with a named config error when an id is absent.
 
 ---
 
@@ -1005,7 +1005,7 @@ Per the in-code note: another chart of accounts falls to the generic else branch
 
 Freight: a retailer whose products are named "Shipping"/"Delivery Fee" gets zero matches, so freight dollars stay in the commission base and **commission is computed on inflated revenue**. House calls: another consultation SKU never matches, so the entire House Calls panel — count, MTD/YTD/prior-year, attributed follow-up revenue over the −30/+90 window, conversion vs the $1,000 threshold — reads zero permanently, with no empty state distinguishing misconfigured from genuinely zero.
 
-**Fix.** One migration, two flags on `Product`: `excludeFromSalesCredit Boolean @default(false)` and `isHouseCallCharge Boolean @default(false)` (or one reserved `ProductRole` table with SALES_CREDIT_EXCLUDED / HOUSE_CALL rows). Set from Admin; a preset can name Saybrook's existing products. Reports query the flag. `designerDashboard` renders "no house-call product configured" instead of a silent zero.
+**Fix.** One migration, two flags on `Product`: `excludeFromSalesCredit Boolean @default(false)` and `isHouseCallCharge Boolean @default(false)` (or one reserved `ProductRole` table with SALES_CREDIT_EXCLUDED / HOUSE_CALL rows). Set from Admin; a preset can name the pilot deployment's existing products. Reports query the flag. `designerDashboard` renders "no house-call product configured" instead of a silent zero.
 
 **Test (equivalence).** Backfill the flags to exactly the products the literals match today, then diff: per-designer credited revenue per month for 24 months (must be identical to the cent), and every House Calls tile value for the same window. Then unset the house-call flag and assert the panel renders the configured-nothing state, not zeros.
 
@@ -1128,7 +1128,7 @@ The pricing-import UI is driven entirely off that array: a dealer carrying eight
 
 **Fix.** Bind on `Vendor.id`, never a name substring. Per-vendor import facts (which shipped parser, which endpoint, label) move onto the Vendor row or a `VendorImportFormat` table seeded by a preset; the view renders whatever the retailer's vendors declare. Drop `defaultPriceListName` and default the field to `'<Vendor> <Type> <current month year>'` computed at open time. For product entry: `Vendor.defaultDepartmentId` for department, the existing `Vendor.code`/alias field for POS supplier spelling, and a `vendor-taxonomy` preset of (vendor, collection) → category rows, resolved to real Department/Category ids at apply time. Keep `PRODUCT_CATEGORY_KEYWORDS` and `TYPE_KEYWORDS` in code — that is furniture vocabulary, not one tenant's roster. Configurator: delete the literal from all three screens; select the sole vendor when there is exactly one, otherwise leave unselected and render the existing empty-state prompt (a real default belongs on a `Vendor.isDefaultForPricing` flag or the user's last selection).
 
-**Test.** Equivalence on suggestions: run the product-entry suggester over every existing `Product` and diff suggested (department, category, type) before vs after with Saybrook's mappings loaded as preset data — identical. UI: snapshot the import view's vendor list with Saybrook's vendors (unchanged), then with a fabricated eight-vendor tenant and assert exactly those eight render. Configurator: assert all three screens land in the same state for a zero-match tenant.
+**Test.** Equivalence on suggestions: run the product-entry suggester over every existing `Product` and diff suggested (department, category, type) before vs after with the pilot deployment's mappings loaded as preset data — identical. UI: snapshot the import view's vendor list with the pilot deployment's vendors (unchanged), then with a fabricated eight-vendor tenant and assert exactly those eight render. Configurator: assert all three screens land in the same state for a zero-match tenant.
 
 ---
 
@@ -1137,7 +1137,7 @@ The pricing-import UI is driven entirely off that array: a dealer carrying eight
 `app/src/lib/apparelOrderVendors.ts:168` — `partNumberPrefix: "HBEL"` with a comment saying it was carried over verbatim because "holt has no Vendor.partNumberPrefix column"
 `app/src/lib/homeAccessoryOrders.ts:85` — `HOME_ACCESSORY_FORMATS` with `catalogVendorName: "K & K Interiors"`, `"Wendover Art Group"`, …
 `app/src/lib/homeAccessoryOrders.ts:297` — `SPLIT_PRESETS = { 2: [{ label: "62 / 38", percents: [62,38] }, …] }`
-`app/src/lib/pricing/beatrizBallOrderParser.ts:64` — `"sold to", "ship to", "saybrook", "old saybrook"`
+`app/src/lib/pricing/beatrizBallOrderParser.ts:64` — `"sold to", "ship to", "<org name>", "<org town>"`
 
 Part numbers: a brand absent from the registry falls to the unprefixed path, so **the same physical product yields two different part numbers depending on which document format it arrived in**; `extractSizeAndColor` (line 316) then fails to round-trip because `partNumber.startsWith(head)` is false, and a reorder of an existing style creates duplicate draft items instead of matching. `catalogVendorName` prefills a vendor name that doesn't exist in another tenant's Vendor table, producing draft POs attached to an invented or wrong vendor; outside these eight, the Home Accessory Order Import tool is dead. `SPLIT_PRESETS` is money: accepting the prefill books 62/38 of a two-piece set price onto `BuyerDraftItem.costPerUnit`, which flows into margin and buy-performance math. The Beatriz Ball parser enumerates the buyer's own town, so another tenant's ship-to lines are read as item rows — phantom line items, corrupted descriptions, and the printed-total reconciliation warning firing on every file.
 
@@ -1169,7 +1169,7 @@ An operator who fills in "API Base URL" sees it **silently ignored**; a regional
 
 **Fix.** Two nullable fields on the existing Google `IntegrationCredential` (or AppSettings): `googleProjectRootFolderId`, `googlePresentationTemplateId`, set in Admin. Return **400 with "Google project folders are not configured"** when either is absent, instead of throwing a Drive error. Add a `projectFolderSubfolders` string array (defaulted in code to the current list) plus a separate `presentationSubfolder` field naming which one receives the template copy, so the load-bearing folder is selected by config rather than matched against a magic literal.
 
-**Test.** With the current ids configured, create a project folder on the real Saybrook Drive and assert the resulting tree (six subfolders, template copied into the named one) is identical to today. Unconfigured: assert 400 with the config message and no Drive call made.
+**Test.** With the current ids configured, create a project folder on the real the pilot deployment Drive and assert the resulting tree (six subfolders, template copied into the named one) is identical to today. Unconfigured: assert 400 with the config message and no Drive call made.
 
 ---
 

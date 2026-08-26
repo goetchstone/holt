@@ -67,7 +67,7 @@ import { invalidateTrafficStoreMap } from "@/lib/trafficStoreMap";
 // ---------------------------------------------------------------------------
 
 export interface ApplyPresetOpts {
-  /** Where this apply came from, e.g. "cli:config/local/saybrook.yaml" or
+  /** Where this apply came from, e.g. "cli:config/local/riverbend.yaml" or
    *  "gui". Stored verbatim on ConfigChangeLog.source. */
   source: string;
   /** Operator email, or null/undefined for an unattended run. */

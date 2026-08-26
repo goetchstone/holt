@@ -36,7 +36,7 @@ describe("terminal logins are never people", () => {
   it("does not swallow people whose names merely contain a keyword", () => {
     // Erasing a real seller's attribution is the costlier mistake, so the
     // patterns anchor rather than match anywhere in the string.
-    for (const n of ["Sarah", "Allison", "Mary Goodwin", "Adam Calkins", "Reginald Adams"]) {
+    for (const n of ["Sarah", "Allison", "Mary Goddard", "Adam Caldwell", "Reginald Ashby"]) {
       expect(isTerminalName(n)).toBe(false);
     }
   });
@@ -63,9 +63,9 @@ describe("people are archived only once they have really gone", () => {
   });
 
   it("keeps someone who sold last week active", () => {
-    // Bridget Barnum's shape: small volume, selling this month.
+    // Bridget Barlow's shape: small volume, selling this month.
     const c = classifySalesperson(
-      { name: "Bridget Barnum", orderCount: 57, lastOrderDate: daysAgo(6) },
+      { name: "Bridget Barlow", orderCount: 57, lastOrderDate: daysAgo(6) },
       TODAY,
     );
     expect(c.kind).toBe("active-person");
@@ -94,7 +94,7 @@ describe("new records never land in designer reporting", () => {
     // them into commission reports they were never part of.
     for (const days of [10, 400]) {
       const c = classifySalesperson(
-        { name: "Madison Baker", orderCount: 1, lastOrderDate: daysAgo(days) },
+        { name: "Madison Barrow", orderCount: 1, lastOrderDate: daysAgo(days) },
         TODAY,
       );
       const rec = staffRecordFor(c);

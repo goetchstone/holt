@@ -229,7 +229,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
   it("creates one ServiceCase + one initial-issue note per row", async () => {
     const customerId = await seedCustomer({
       firstName: "Barbara",
-      lastName: "Panagy",
+      lastName: "Pallant",
       phone: "860-555-0173",
     });
 
@@ -237,7 +237,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
       inProcess: [
         {
           Timestamp: new Date("2025-10-03T00:00:00Z"),
-          Name: "Barbara Panagy",
+          Name: "Barbara Pallant",
           "Phone #": "860-555-0173",
           "Preferred Contact Method": "Phone",
           Vendor: "Hallagan",
@@ -285,7 +285,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
       inProcess: [
         {
           Timestamp: new Date("2025-10-03T00:00:00Z"),
-          Name: "Karen Dwyer",
+          Name: "Karen Dunmore",
           "Order #": "PONO6239/ SO-28978-A",
           "Initial Issue, Status Update, and Notes": "Replacing the seat cushion.",
         },
@@ -302,12 +302,12 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
   });
 
   it("is idempotent — re-running the same buffer creates / updates nothing new", async () => {
-    await seedCustomer({ firstName: "Alan", lastName: "Nordquist" });
+    await seedCustomer({ firstName: "Alan", lastName: "Nordlund" });
     const buf = buildWorkbookBuffer({
       inProcess: [
         {
           Timestamp: new Date("2024-05-17T00:00:00Z"),
-          Name: "Alan Nordquist",
+          Name: "Alan Nordlund",
           Vendor: "Durham",
           Status: "Needs Attention",
           "Initial Issue, Status Update, and Notes": "Bed RAF side won't latch.",
@@ -878,13 +878,13 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
         {
           ref: "K2", // K = column 11 (Initial Issue), row 2 (first data row)
           dt: "2025-12-03T19:19:55.00",
-          author: "Rebecca Warren",
+          author: "Rebecca Wexford",
           text: "First comment — actual case start",
         },
         {
           ref: "K2",
           dt: "2026-02-04T10:00:00.00",
-          author: "Rebecca Warren",
+          author: "Rebecca Wexford",
           text: "Later follow-up",
         },
       ],

@@ -1,0 +1,101 @@
+// /app/__tests__/clientDataTripwire.test.ts
+//
+// This repository is PUBLIC. It began as one retailer's internal system, and
+// their production data leaked into it as test fixtures: staff and customer
+// names, contact details, the company's own domain, its store and town names.
+// That was scrubbed once. This test is what stops it coming back.
+//
+// It exists because the failure is silent and asymmetric. Committing a real
+// customer's name breaks no test, blocks no build, and looks exactly like the
+// invented fixture beside it -- but once pushed it is in the history and in
+// every fork, and no later commit takes it back.
+//
+// SCOPE, deliberately narrow. This scans for the specific identifiers already
+// found in this repo, not for "PII" in general -- an open-ended heuristic here
+// would flag invented fixtures constantly and get silenced, which is worse than
+// no test. When a new deployment's data lands, add ITS identifiers here.
+//
+// The one thing this test does NOT cover: the identifiers scrubbed at HEAD are
+// still reachable in this repo's git history and in any existing fork. Removing
+// them there means rewriting history, which is a separate decision.
+
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+
+const REPO_ROOT = join(__dirname, "..", "..");
+
+/**
+ * Identifiers belonging to a real business or a real person. Each is a regex
+ * source, matched case-insensitively against every tracked file.
+ *
+ * Anything added here must be genuinely identifying. A generic word that merely
+ * appears in one deployment's data does not belong -- it would fire on ordinary
+ * code and train people to add exemptions.
+ */
+const FORBIDDEN: { pattern: string; what: string }[] = [
+  { pattern: "saybrook", what: "the pilot deployment's company and town name" },
+  { pattern: "saybrookhome", what: "the pilot deployment's email domain" },
+  { pattern: "cheshire|glastonbury", what: "the pilot deployment's store towns" },
+  { pattern: "sammyg40|joneil|gstone|wcope", what: "real staff email local-parts" },
+  { pattern: "greenstein|panagy|dransfield|matheny|tenerow", what: "real people's surnames" },
+  { pattern: "sorbo|nordquist|calkins|barnum|homan|favale|vantongeren", what: "real people's surnames" },
+  { pattern: "860-470-3653|213-623-1345", what: "real phone numbers" },
+];
+
+/**
+ * Files allowed to contain a hit, each with the reason it cannot be scrubbed.
+ *
+ * A path here is a standing exception, so the reason has to be a real
+ * constraint -- "it's only a comment" is not one. Prisma records a checksum of
+ * every migration when it applies it, so editing an applied migration makes
+ * `prisma migrate deploy` fail on every existing deployment until someone
+ * resolves it by hand. That is a genuine reason; there is no other.
+ */
+const ALLOWED: Record<string, string> = {
+  "app/prisma/migrations/20260806163000_stock_location_holds_committed_stock/migration.sql":
+    "applied migration -- editing it breaks its Prisma checksum on live deployments",
+  "app/prisma/migrations/20260806180000_app_settings_source_adapter/migration.sql":
+    "applied migration -- editing it breaks its Prisma checksum on live deployments",
+  "app/__tests__/clientDataTripwire.test.ts": "this file lists the patterns it searches for",
+};
+
+function trackedHits(pattern: string): { file: string; line: string }[] {
+  let out = "";
+  try {
+    out = execFileSync("git", ["grep", "-niE", pattern, "--", "."], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+    });
+  } catch (e) {
+    // git grep exits 1 with no output when nothing matches -- that is the pass.
+    const err = e as { status?: number; stdout?: string };
+    if (err.status === 1 && !err.stdout) return [];
+    if (err.stdout) out = err.stdout;
+    else throw e;
+  }
+  return out
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => ({ file: l.slice(0, l.indexOf(":")), line: l }));
+}
+
+describe("no real client or personal data in a public repo", () => {
+  for (const { pattern, what } of FORBIDDEN) {
+    it(`does not contain ${what}`, () => {
+      const unexplained = trackedHits(pattern).filter((h) => !(h.file in ALLOWED));
+      expect(unexplained.map((h) => h.line)).toEqual([]);
+    });
+  }
+
+  // The exemption list is the part that rots: a file gets scrubbed or deleted,
+  // its entry stays, and the next real hit in a path someone copied from it
+  // passes silently. Checking BOTH directions is what makes the list trustworthy.
+  it("has no stale exemptions -- every allowed path still has a hit to explain", () => {
+    const allHits = new Set(FORBIDDEN.flatMap(({ pattern }) => trackedHits(pattern)).map((h) => h.file));
+    const stale = Object.keys(ALLOWED).filter(
+      (f) => f !== "app/__tests__/clientDataTripwire.test.ts" && !allHits.has(f),
+    );
+    expect(stale).toEqual([]);
+  });
+});

@@ -476,10 +476,10 @@ describe("normalizeWendoverOrder", () => {
   it("flags Side Mark items as already sold to a customer", () => {
     const draft = normalizeWendoverOrder(
       wendoverOrder({
-        items: [wendoverItem({ sku: "WFL1944", sideMark: "SBOM41649/Erin Kelly" })],
+        items: [wendoverItem({ sku: "WFL1944", sideMark: "SBOM41649/Dana Whitl" })],
       }),
     );
-    expect(draft.warnings.some((w) => w.includes("SBOM41649/Erin Kelly"))).toBe(true);
+    expect(draft.warnings.some((w) => w.includes("SBOM41649/Dana Whitl"))).toBe(true);
     expect(draft.warnings.some((w) => w.includes("1 item(s) carry a Side Mark"))).toBe(true);
   });
 

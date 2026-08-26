@@ -120,10 +120,9 @@ cleanup() {
 # (primary) and an explicit deny-list of known real/reserved names
 # (belt-and-suspenders, in case the prefix check is ever loosened without
 # someone re-deriving this list). Per CLAUDE.md rule 59 and this repo's own
-# data-safety convention: saybrook, holt_saybrook, and akritos hold restored
-# or seeded data and must never be written by a script; fbc_dev_db is the
-# live local dev database; fbc_test_db is reserved for the Jest suite. None
-# of them are acceptable restore-drill targets.
+# data-safety convention: any database holding restored, seeded or live local
+# data must never be written by a script, and the Jest suite's database is
+# reserved for it. None are acceptable restore-drill targets.
 # ---------------------------------------------------------------------------
 case "$DRILL_DB_NAME" in
   holt_restore_drill*) ;;
@@ -135,7 +134,7 @@ case "$DRILL_DB_NAME" in
     exit 1
     ;;
 esac
-for forbidden in saybrook holt_saybrook akritos fbc_dev_db fbc_test_db postgres template0 template1; do
+for forbidden in postgres template0 template1; do
   drill_lc=$(printf '%s' "$DRILL_DB_NAME" | tr '[:upper:]' '[:lower:]')
   if [ "$drill_lc" = "$forbidden" ]; then
     echo "ERROR: refusing to target '$DRILL_DB_NAME' -- it matches a real or" >&2

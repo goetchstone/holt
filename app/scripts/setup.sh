@@ -57,12 +57,16 @@ fi
 DB_NAME="${DATABASE_URL##*/}"; DB_NAME="${DB_NAME%%\?*}"
 echo "    database: $DB_NAME"
 
-# The seed refuses a handful of names outright (they hold real or shared data).
-# Better to say so here than to let the seed exit 1 after the migrate step.
+# This script SEEDS DEMO DATA, so it only ever runs against a database named
+# for that purpose. Say so here rather than letting the seed's own guard exit 1
+# after the migrate step has already run. A real deployment names its database
+# something else and does not run this script.
 case "$DB_NAME" in
-  fbc_test_db|fbc_dev_db|saybrook|holt_saybrook|akritos)
-    fail "Refusing to set up '$DB_NAME' -- it is a shared or restored database.
-  Point DATABASE_URL at a fresh database name (env.example uses holt_dev)." ;;
+  *seed*|*demo*|*scratch*|*sandbox*|*sample*) ;;
+  *)
+    fail "Refusing to set up '$DB_NAME' -- this seeds demo data, and that name
+  does not read as a database created for it. Point DATABASE_URL at one whose
+  name says so (env.example uses holt_demo)." ;;
 esac
 
 # --- Reachability ----------------------------------------------------------

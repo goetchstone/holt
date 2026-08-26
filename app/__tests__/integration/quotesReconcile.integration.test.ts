@@ -38,8 +38,8 @@ function csvRow(orderno: string, partNo: string, qty = 1, price = 100): Record<s
     Orderdate: "2026-04-21",
     Customer: "Test Customer",
     Email: "test@example.com",
-    Company: "Old Saybrook",
-    Salesperson: "Kim Dransfield",
+    Company: "Old Harbour",
+    Salesperson: "Kim Draycott",
     Status: "Open",
     "Part No": partNo,
     "Product Name": `Product ${partNo}`,
@@ -63,8 +63,8 @@ async function seedExistingQuote(lineCount: number): Promise<number> {
       status: "QUOTE",
       orderDate: new Date("2026-04-21"),
       customerId: customer.id,
-      storeLocation: "Old Saybrook",
-      salesperson: "Kim Dransfield",
+      storeLocation: "Old Harbour",
+      salesperson: "Kim Draycott",
       lineItems: {
         create: Array.from({ length: lineCount }, (_, i) => ({
           lineNumber: i + 1,

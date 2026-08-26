@@ -53,7 +53,7 @@ floor-vs-`Cust Stock` split, so the two can't drift.
 
 **This was a hardcoded string until 2026-08.** Both `allocation.ts` and
 `buyersReport.ts` tested `StockLocation.name ILIKE 'customer%'` — an
-Ordorite/Saybrook naming convention living in shared inventory code, so any
+one deployment's naming convention living in shared inventory code, so any
 deployment that named its holding locations differently silently counted
 committed stock as available to sell. Migration
 `20260806163000_stock_location_holds_committed_stock` added the flag and

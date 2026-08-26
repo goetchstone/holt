@@ -464,7 +464,7 @@ function findSecrets(value: unknown, path: string[] = [], inDataNode = false): s
  *
  * Accepts either a full bundle or a single bare preset, normalizing the
  * latter into a one-entry bundle. Both shapes appear in the wild: a bundle
- * is what a tenant's `config/local/saybrook.yaml` looks like, a bare preset
+ * is what a tenant's `config/local/riverbend.yaml` looks like, a bare preset
  * is what the GUI exports when you hit "export this one."
  */
 export function parsePresetBundle(input: unknown): PresetParseResult {

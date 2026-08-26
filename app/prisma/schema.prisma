@@ -3028,7 +3028,7 @@ model StaffMember {
   displayName           String // Name shown on up-board
   // Alternate names this person is known by in the POS's `salesperson`
   // field. Reports OR-match on (displayName + every alias) so Sandy can
-  // be linked to "Sandra Matheny" without renaming the up-board record.
+  // be linked to "Sandra Merrick" without renaming the up-board record.
   // Populated via admin UI or one-off SQL when a mismatch is discovered.
   // Origin: Issue #274, ROADMAP Short-Term #12.
   aliases               String[]             @default([])
@@ -5726,7 +5726,7 @@ model ConfigChangeLog {
   // FAILED (validation or database error, nothing written).
   action String
 
-  // Where it came from: "cli:config/local/saybrook.yaml", "gui", "seed".
+  // Where it came from: "cli:config/local/riverbend.yaml", "gui", "seed".
   // Keeps the GitOps and GUI paths distinguishable in an audit.
   source String
 

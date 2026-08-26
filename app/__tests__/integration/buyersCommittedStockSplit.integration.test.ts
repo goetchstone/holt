@@ -5,7 +5,7 @@
 // `getBuyersPositions`) and nothing short of a database exercises it.
 //
 // Until 2026-08 that SQL asked `sl.name ILIKE 'customer%'` -- an Ordorite /
-// Saybrook location-naming convention hardcoded into shared reporting code.
+// one deployment's location-naming convention hardcoded into shared reporting code.
 // Any deployment that named its holding locations anything else had its
 // committed stock counted as available to sell (CLAUDE.md rule 61). It now
 // reads `StockLocation.holdsCommittedStock`.

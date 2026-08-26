@@ -44,9 +44,9 @@ describe("buildRows", () => {
   it("computes YoY $ and % against last year", () => {
     const rows = buildRows(
       base({
-        entityNames: new Set(["Cheshire"]),
-        thisWeek: new Map([["Cheshire", 1200]]),
-        lastYear: new Map([["Cheshire", 1000]]),
+        entityNames: new Set(["Brookvale"]),
+        thisWeek: new Map([["Brookvale", 1200]]),
+        lastYear: new Map([["Brookvale", 1000]]),
       }),
     );
     expect(rows[0].lastYear).toBe(1000);
@@ -109,12 +109,12 @@ describe("buildRows", () => {
     const rows = buildRows(
       base({
         typeParam: "company",
-        entityNames: new Set(["Cheshire"]),
-        thisWeek: new Map([["Cheshire", 5000]]),
-        trafficThis: { Cheshire: 200 },
-        trafficLast: { Cheshire: 160 },
-        transThis: { Cheshire: 50 }, // 50/200 = 25%
-        transLast: { Cheshire: 32 }, // 32/160 = 20%
+        entityNames: new Set(["Brookvale"]),
+        thisWeek: new Map([["Brookvale", 5000]]),
+        trafficThis: { Brookvale: 200 },
+        trafficLast: { Brookvale: 160 },
+        transThis: { Brookvale: 50 }, // 50/200 = 25%
+        transLast: { Brookvale: 32 }, // 32/160 = 20%
       }),
     );
     expect(rows[0].conversionPct).toBeCloseTo(25, 5);

@@ -260,7 +260,7 @@ export async function seedStaff(
   const floorSellerEntries: RosterEntry[] = [
     { displayName: "Rosalind Achebe", emailLocal: "floor.apparel1", isActive: true },
     { displayName: "Emmett Nakagawa", emailLocal: "floor.apparel2", isActive: true },
-    { displayName: "Priscilla Vantongeren", emailLocal: "floor.homeshop1", isActive: true },
+    { displayName: "Priscilla Vandervoort", emailLocal: "floor.homeshop1", isActive: true },
     { displayName: "Horace Lindenbaum", emailLocal: "floor.homeshop2", isActive: false },
   ].map((e, i) => ({
     ...e,

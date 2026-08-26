@@ -137,12 +137,12 @@ describe("customerLedgerBackfill (real DB)", () => {
   // ─── 2. Rewrite chain ─────────────────────────────────────────────────
 
   it("nets a rewrite chain correctly: base + SR-SAMPLE + rewrite, phantom payment absent", async () => {
-    // Sandy Favale shape: base $10K paid $5K deposit, customer modifies
+    // Sandy Fenwick shape: base $10K paid $5K deposit, customer modifies
     // order, the POS splits into base + accounting return + rewrite.
     // Phantom Gift Card payment on rewrite is FILTERED AT IMPORT and
     // therefore not in our DB — backfill must produce the right net
     // balance from what's left.
-    const customerId = await seedCustomer("Sandy", "Favale");
+    const customerId = await seedCustomer("Sandy", "Fenwick");
 
     const dayX = new Date("2024-10-04T10:00:00Z");
     const dayY = new Date("2024-10-05T10:00:00Z");

@@ -6,7 +6,7 @@ Everything that flows data INTO our DB from the POS (or any other source). Read 
 > **Ordorite adapter** — a self-contained edition module under
 > `app/src/lib/adapters/ordorite/` (gmailClient, reportRouter, shared helpers,
 > all 13 runners, sameDayRewriteCleanup, emptyReport, orchestrator), gated by
-> the `legacyPosImport` feature flag (default OFF; the Saybrook edition turns it
+> the `legacyPosImport` feature flag (default OFF; the retail edition turns it
 > on). Source-agnostic pieces stay in core: `lib/importHelpers.ts` (coercion +
 > `findOrCreateCustomer` on `CustomerExternalId`), `lib/storeLocationResolver.ts`,
 > `lib/orderLineItemLinker.ts`, `lib/salesPersonFkBackfill.ts`, pay-period lock

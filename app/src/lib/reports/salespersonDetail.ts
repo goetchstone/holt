@@ -119,7 +119,7 @@ export async function getSalespersonDetail(
   const endDate = new Date(Date.UTC(year + 1, 0, 1));
 
   // Resolve staff (incl. aliases) for split attribution + name OR-match.
-  // Aliases let Sandy's row (`displayName='Sandy'`, alias='Sandra Matheny')
+  // Aliases let Sandy's row (`displayName='Sandy'`, alias='Sandra Merrick')
   // match her the POS-imported orders. Issue #274 / ROADMAP Short-Term #12.
   const staffRecord = await prisma.staffMember.findFirst({
     where: { displayName: { equals: salesperson, mode: "insensitive" } },

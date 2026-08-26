@@ -336,16 +336,16 @@ describe("splitCustomerName", () => {
   // Used by findOrCreateCustomer's name-and-email match guard.
 
   it("splits 'First Last' into firstName + lastName", () => {
-    expect(splitCustomerName("Aimee Sorbo")).toEqual({
+    expect(splitCustomerName("Aimee Solano")).toEqual({
       firstName: "Aimee",
-      lastName: "Sorbo",
+      lastName: "Solano",
     });
   });
 
   it("treats everything after the first token as lastName", () => {
-    expect(splitCustomerName("Sandy and David Favale")).toEqual({
+    expect(splitCustomerName("Sandy and David Fenwick")).toEqual({
       firstName: "Sandy",
-      lastName: "and David Favale",
+      lastName: "and David Fenwick",
     });
   });
 
@@ -405,10 +405,10 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("parses without country (3 parts)", () => {
-    const result = parseOrdoriteAddress("45 Oak Ave, Glastonbury, CT");
+    const result = parseOrdoriteAddress("45 Oak Ave, Wexbridge, CT");
     expect(result).toEqual({
       address1: "45 Oak Ave",
-      city: "Glastonbury",
+      city: "Wexbridge",
       state: "CT",
     });
   });
@@ -433,10 +433,10 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("handles apartment/unit prefix in address", () => {
-    const result = parseOrdoriteAddress("Apt B, 298 Highland Avenue, Cheshire, CT, United States");
+    const result = parseOrdoriteAddress("Apt B, 112 Ferncliff Avenue, Brookvale, CT, United States");
     expect(result).toEqual({
-      address1: "Apt B, 298 Highland Avenue",
-      city: "Cheshire",
+      address1: "Apt B, 112 Ferncliff Avenue",
+      city: "Brookvale",
       state: "CT",
     });
   });
@@ -469,19 +469,19 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("strips zip code merged into state field", () => {
-    const result = parseOrdoriteAddress("57 Princeton Lane, Glastonbury, CT 06033");
+    const result = parseOrdoriteAddress("61 Larkfield Lane, Wexbridge, CT 06099");
     expect(result).toEqual({
-      address1: "57 Princeton Lane",
-      city: "Glastonbury",
+      address1: "61 Larkfield Lane",
+      city: "Wexbridge",
       state: "CT",
     });
   });
 
   it("drops trailing zip code as separate part", () => {
-    const result = parseOrdoriteAddress("57 Sunrise Dr., Glastonbury, CT, 06033");
+    const result = parseOrdoriteAddress("61 Sunrise Dr., Wexbridge, CT, 06099");
     expect(result).toEqual({
-      address1: "57 Sunrise Dr.",
-      city: "Glastonbury",
+      address1: "61 Sunrise Dr.",
+      city: "Wexbridge",
       state: "CT",
     });
   });

@@ -1,7 +1,7 @@
 # Production go-live checklist
 
 The single source of truth for taking a Holt deployment live (Akritos on a
-VPS, Saybrook on the Synology, or any client). Grouped by what the CODE now
+VPS, the pilot deployment on a Synology, or any client). Grouped by what the CODE now
 handles automatically vs what YOU do at deploy time. Derived from the
 2026-06-10 production-readiness audit.
 
@@ -101,10 +101,10 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
   invoice / booking confirmation / ticket reply / password-reset email
   silently never sends.** Every ~5 min.
 - ☐ `auto-customer-ar-drift-check.sh` — nightly; flags books that don't tie out.
-- ☐ `auto-daily-reconciliation.sh` — nightly (Saybrook).
+- ☐ `auto-daily-reconciliation.sh` — nightly (retail edition).
 - ☐ `auto-lead-housekeeping.sh`, `auto-mailchimp-sync.sh`,
   `auto-customer-level-recalc.sh`, `auto-axper-traffic.sh` — per their cadence.
-- ☐ Saybrook only: `auto-import.sh` (06:10) for the daily Ordorite reports +
+- ☐ Retail edition only: `auto-import.sh` (06:10) for the daily Ordorite reports +
   the Gmail service-account JSON mounted at `config/service-account.json`.
 
 ## 5. Observability & alerting
@@ -141,7 +141,7 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
 
 - ☐ Apply migrations (`scripts/deploy.sh` does this).
 - ☐ `npm run create-admin <email> <password>` for the first SUPER_ADMIN.
-- ☐ Akritos: `node scripts/seed-akritos.mjs` (brand + 27 CMS URLs). Saybrook:
+- ☐ Akritos: `node scripts/seed-akritos.mjs` (brand + 27 CMS URLs). Retail edition:
   restore the prod backup + run the Ordorite import.
 - ☐ In Settings: set name/logo/theme, currency/locale/timezone, and toggle
   the feature modules this tenant uses (billing, clientPortal, legacyArchive,

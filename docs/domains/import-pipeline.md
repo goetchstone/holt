@@ -96,7 +96,7 @@ The one place this goes wrong is **payments**. the POS's payment CSV includes a 
 
 **`runPaymentsImport` skips that phantom row.** Detection: `isRewriteOrder(orderno)` + `paymentType === "Gift Card"` + no gift-card barcode/code. Real POS gift-card redemptions always carry a barcode or code, so they are unaffected. The `phantomTransfersSkipped` counter on the result surfaces how many were skipped per import.
 
-**Worked example** (from PO 5733 Cheshire data, 2026-04-22 investigation):
+**Worked example** (from PO 5733 Brookvale data, 2026-04-22 investigation):
 
 ```
 SO-1652           base, 2026-04-19, total $8,159.00
@@ -112,7 +112,7 @@ Customer balance over the chain:
   balance    = $3,470.01  (owed by customer)
 ```
 
-Daily sales by store (Cheshire):
+Daily sales by store (Brookvale):
 
 - 2026-04-19: +$8,159 (base contributes its full amount)
 - 2026-04-22: −$8,159 (return) + $7,809.01 (rewrite) = −$349.99 delta on this date
@@ -125,7 +125,7 @@ This matches the POS's own "Sales by Store" report. **Don't try to `status = CAN
 
 The "all three stay ACTIVE, daily sales reconcile naturally" rule is true for cross-day rewrites. **Same-day rewrites have a quirk**: when the customer modifies an order before close-of-business, the POS's accounting return only credits items the customer KEPT, not items they DROPPED. The dropped items dangle in the base as `lineItemStatus = ACTIVE` with no offset, and double-count daily sales.
 
-**Worked example** (SO-1726, Cheshire, Brian Tenerow, 2026-05-09):
+**Worked example** (SO-1726, Brookvale, Brian Thorne, 2026-05-09):
 
 | Order                 | Lines                                                  | Net     |
 | --------------------- | ------------------------------------------------------ | ------- |
@@ -133,7 +133,7 @@ The "all three stay ACTIVE, daily sales reconcile naturally" rule is true for cr
 | `SR-010045` return    | 3 (cushion×-3, sofa×-1, delivery×-1)                   | -$3,189 |
 | `SO-1726 - A` rewrite | 3 (cushion×3, sofa×1, delivery×1)                      | $3,189  |
 
-Naive sum: `4298 + (-3189) + 3189 = 4298`. Cheshire 5/9 total: $4,298 (base) + $117 (three cash sales) = **$4,415**.
+Naive sum: `4298 + (-3189) + 3189 = 4298`. Brookvale 5/9 total: $4,298 (base) + $117 (three cash sales) = **$4,415**.
 
 the POS shows: rewrite only, $3,189 + $117 = **$3,306**.
 

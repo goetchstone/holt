@@ -10,10 +10,10 @@ The order number encodes the store and transaction type:
 | ------ | -------------------- | ------ | ------------------------------------------------------------------------ |
 | SB     | Main Store           | OM     | Merchandise sale                                                         |
 | SB     | Main Store           | OA     | Return/credit                                                            |
-| GT     | Glastonbury          | OM     | Merchandise sale                                                         |
-| GT     | Glastonbury          | OA     | Return/credit                                                            |
-| CH     | Cheshire             | OM     | Merchandise sale                                                         |
-| CH     | Cheshire             | OA     | Return/credit                                                            |
+| GT     | Wexbridge          | OM     | Merchandise sale                                                         |
+| GT     | Wexbridge          | OA     | Return/credit                                                            |
+| CH     | Brookvale             | OM     | Merchandise sale                                                         |
+| CH     | Brookvale             | OA     | Return/credit                                                            |
 | BB     | Business to Business | OM     | Merchandise sale                                                         |
 | WS     | Web Sales            | OM     | Merchandise sale                                                         |
 | RS     | Returns store        | --     | Small set, 13 orders. RS-prefix detected as returns by `isReturnOrder()` |

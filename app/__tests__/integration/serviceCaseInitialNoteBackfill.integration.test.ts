@@ -105,7 +105,7 @@ async function seedWrongDatedCase(opts: {
         externalSource: "cs-sheet",
         externalSourceId: `cs-sheet-note:guid-${opts.caseRowKey}-${i}`,
         created: opts.threadedDates[i],
-        authorDisplayName: "Rebecca Warren",
+        authorDisplayName: "Rebecca Wexford",
       },
     });
   }

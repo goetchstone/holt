@@ -149,7 +149,7 @@ export interface ChangesResponse {
  *  all, and only for the deletion bookkeeping applyPreset.ts does internally.
  *  So the GUI has to pick ONE stable identity to operate under rather than
  *  inventing a name per edit. "traffic-stores" matches the name both
- *  config/presets/traffic-stores.yaml and config/local/saybrook.yaml already
+ *  config/presets/traffic-stores.yaml and config/local/riverbend.yaml already
  *  use, which is the common case: a deployment overrides the shipped preset
  *  by reusing its name. A deployment whose local file uses a DIFFERENT name
  *  will have its store rows edited correctly by the GUI (the underlying
