@@ -16,7 +16,7 @@
 //   IN-8432Chevron Wood Box- 13"x 6.5"x 3.25"4EA57.00228.00
 //
 // Three things this parser gets right, verified against the real order
-// (B31669979 / PON09029, 8 items, $3,322.00):
+// (B31600001 / PON00005, 8 items, $1,280.00):
 //
 // 1. The money line has NO "$" and NO separators — qty + UOM (letters) + unit
 //    price + line total, e.g. "4EA200.00800.00". So the price/total boundary is

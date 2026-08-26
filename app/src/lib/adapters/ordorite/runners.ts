@@ -374,8 +374,8 @@ export async function runSalesImport(
             // Earlier versions had a `|| safeString(row.ordernotes)` fallback
             // here that polluted productName with note text and broke
             // reports filtering on productName (see post-failure log
-            // 2026-05-01: Susan Roberts SBOM38708 productName "Delivery to
-            // 8 Monticello Dr East Lyme"). Drop the fallback.
+            // 2026-05-01: Cheryl Holloway SBOM38708 productName "Delivery to
+            // 12 Larkfield Ln Wexbridge"). Drop the fallback.
             const csvProductName = safeString(row["Product Name"]) || undefined;
 
             // 2026-05-15: REMOVED the findProduct({ autoCreate: true })

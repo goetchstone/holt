@@ -12,11 +12,11 @@
 //                                           also concatenated
 //
 // Three things this parser exists to get right, all verified against the real
-// order (PON09057, 06/11/2026, 11 SKUs / 73 units / $2,196.00):
+// order (PON00004, 06/11/2026, 11 SKUs / 73 units / $415.00):
 //
 // 1. Price here is the UNIT price and Total is the extension — the OPPOSITE of
 //    Wendover, whose Price column is the line total. Verified on all 11 lines:
-//    qty x price == total, and the totals sum to the printed $2,196.00.
+//    qty x price == total, and the totals sum to the printed $415.00.
 //    Getting this backwards would multiply or divide every cost by the qty.
 //
 // 2. "84002724476284.00$84.00" has NO separator. A greedy digit match reads a

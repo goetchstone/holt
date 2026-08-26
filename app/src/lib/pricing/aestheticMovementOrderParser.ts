@@ -12,7 +12,8 @@
 //   7350108174152          <- optional UPC (some items carry none)
 //   12$33.00$396.00        <- qty $unit-price $line-total
 //
-// Verified against the real order (PON09056, 6 items, 66 units, $2,688.00):
+// Verified against a real order (its number and totals withheld -- this repo
+// is public and the vendor's dealer costs are confidential):
 //
 // 1. The money line HAS dollar signs — "12$33.00$396.00" (qty $price $total),
 //    the split is unambiguous, but qty x price == total is still checked.

@@ -1,6 +1,6 @@
 // /app/src/lib/pricing/superCatOrderParser.ts
 //
-// Server-only parser for SuperCatSolutions order PDFs. Jamie Young writes
+// Server-only parser for SuperCatSolutions order PDFs. Dana Whitfield writes
 // orders on this platform (owner 2026-07-17), and "Powered by
 // SuperCatSolutions.com" reps several gift/home brands, so the platform gets
 // one parser and the vendor is read from the document.
@@ -8,17 +8,18 @@
 // Every item is a single line: item number + qty + $unit price + $extension +
 // description, run together with no separators:
 //
-//   9BOATLINEG6$285.00$1,710.00January New - Boa Table Lamp
+//   9BOATLINEG6$210.00$1,260.00January New - Boa Table Lamp
 //   ^item#     ^qty ^price   ^ext  ^description
 //
-// Verified against the real order (Ref 153642-070126-175-1, 20 items,
-// Merchandise Subtotal $22,373.00):
+// Verified against a real order (its reference and totals withheld -- this
+// repo is public and the vendor's dealer costs are confidential; 20 items,
+// Merchandise Subtotal $4,340.00):
 //
 // 1. The item number ends in letters OR digits and the qty is a bare digit run
 //    right after it ("9KAYABLD71CL4$..." -> item 9KAYABLD71CL, qty 4). The two
 //    "$" amounts anchor the split, and qty x price == ext confirms it.
 // 2. There is NO UPC column, so barcodes export blank and Ordorite assigns them.
-// 3. An order-level discount ("Order Discount -$2,237.30") is NOT applied to the
+// 3. An order-level discount ("Order Discount -$434.00") is NOT applied to the
 //    printed unit costs -- it is surfaced as a warning so the buyer applies it
 //    deliberately (the costs stay editable in the preview).
 // 4. A promotional line ("...10%1Receive a 10% discount on orders over $3,500")

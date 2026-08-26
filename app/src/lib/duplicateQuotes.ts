@@ -13,7 +13,7 @@
 // IDs differ, the pair is NOT flagged. Same-customer-different-designer is
 // almost always a customer transfer (a designer left, a customer became
 // someone else's, a fresh quote got written) -- not a duplicate. Origin:
-// GitHub Issue #129. Lisa Ritz was Amy's customer, transferred to Kim after
+// GitHub Issue #129. Nadia Pelletier was Amy's customer, transferred to Kim after
 // Amy left; Kim wrote SO-38985 and the detector flagged it as a duplicate
 // of Amy's old SO-36936; someone hand-archived SO-38985 as "Updated Quote"
 // without a replacement linked, and Kim's legitimate quote vanished from

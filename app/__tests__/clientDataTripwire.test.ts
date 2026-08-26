@@ -39,7 +39,31 @@ const FORBIDDEN: { pattern: string; what: string }[] = [
   { pattern: "sammyg40|joneil|gstone|wcope", what: "real staff email local-parts" },
   { pattern: "greenstein|panagy|dransfield|matheny|tenerow", what: "real people's surnames" },
   { pattern: "sorbo|nordquist|calkins|barnum|homan|favale|vantongeren", what: "real people's surnames" },
-  { pattern: "860-470-3653|213-623-1345", what: "real phone numbers" },
+  { pattern: "860-470-3653|213-623-1345|860-388-0891|860-388-3692", what: "real phone and fax numbers" },
+  { pattern: "ciccone|dwyer|germano|filippone|levatino|sorbo|demik", what: "real people's surnames" },
+  // Matched as whole names, because each of these surnames is far too common to
+  // use on its own -- a bare "kelly" or "warren" would fire on ordinary code and
+  // the entry would get deleted rather than fixed.
+  {
+    pattern:
+      "erin kelly|alex robertson|rebecca warren|mary goodwin|reginald adams|madison baker|susan roberts|jamie young|sarah levatino|amy sage|shannon martin|lisa ritz",
+    what: "real people's full names",
+  },
+  { pattern: "rwarren@|sammyg40", what: "real staff email local-parts" },
+  { pattern: "57 princeton lane|298 highland avenue|2 main street|8 monticello|east lyme", what: "real street addresses" },
+  { pattern: "06475", what: "the pilot deployment's town ZIP" },
+  // Vendor dealer/wholesale pricing and the document numbers that tie a price
+  // to a real order. Publishing another business's trade terms is the harm --
+  // naming the vendor is not, which is why the brands themselves are absent here.
+  {
+    pattern: "PON090[0-9][0-9]|B31669979|153642-070126|1000292821|0063477|0063476|31680534|77234f1af6",
+    what: "real vendor order and document numbers",
+  },
+  {
+    pattern: "10,976\\.49|32,108\\.67|1,057\\.62|1,188\\.57|22,373\\.00|2,688\\.00|3,322\\.00|2,196\\.00|722\\.74|2,368\\.50",
+    what: "real vendor order totals and dealer prices",
+  },
+  { pattern: "costs top out at", what: "a disclosure of a vendor's catalog price ceiling" },
 ];
 
 /**

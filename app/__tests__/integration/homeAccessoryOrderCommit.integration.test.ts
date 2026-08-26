@@ -244,8 +244,8 @@ describe("Home Accessory Order Import commit — real DB", () => {
       sourceLabel: "Home Accessory Order Import — Wendover Art Group",
     };
     const rows = [
-      effectiveRow({ key: "0", reference: "1000292821", poExcluded: false }),
-      effectiveRow({ key: "1", partNumber: "WLD9999", reference: "1000292821", poExcluded: true }),
+      effectiveRow({ key: "0", reference: "1000000001", poExcluded: false }),
+      effectiveRow({ key: "1", partNumber: "WLD9999", reference: "1000000001", poExcluded: true }),
     ];
 
     const result = await commitRows(rows, ctx);

@@ -46,7 +46,7 @@ import type { BeatrizBallOrder } from "@/lib/pricing/beatrizBallOrderParser";
 function bundle(overrides: Partial<KKOrderBundle> = {}): KKOrderBundle {
   return {
     vendorName: "",
-    customerPo: "PON09025",
+    customerPo: "PON00006",
     orderDate: "Jun 15, 2026",
     orders: [
       {
@@ -339,7 +339,7 @@ describe("normalizeKKBundle", () => {
 
   it("carries customerPo and orderDate through from the bundle", () => {
     const draft = normalizeKKBundle(bundle());
-    expect(draft.customerPo).toBe("PON09025");
+    expect(draft.customerPo).toBe("PON00006");
     expect(draft.orderDate).toBe("Jun 15, 2026");
   });
 
@@ -397,7 +397,7 @@ function wendoverItem(over: Partial<WendoverOrder["items"][number]> = {}) {
   return {
     sku: "WLD3511",
     name: "Before the Rain Customized",
-    lineTotal: 1057.62,
+    lineTotal: 1200,
     unitPrice: 352.54,
     qty: 3,
     medium: "Canvas",
@@ -413,9 +413,9 @@ function wendoverItem(over: Partial<WendoverOrder["items"][number]> = {}) {
 function wendoverOrder(over: Partial<WendoverOrder> = {}): WendoverOrder {
   return {
     vendorName: "Wendover Art Group",
-    orderNumber: "1000292821",
+    orderNumber: "1000000001",
     orderDate: "Jul 13, 2026, 12:26:21 PM",
-    printedSubtotal: 1057.62,
+    printedSubtotal: 1200,
     items: [wendoverItem()],
     warnings: [],
     ...over,
@@ -462,8 +462,8 @@ describe("normalizeWendoverOrder", () => {
 
   it("references every row to the order number so one draft PO is created", () => {
     const draft = normalizeWendoverOrder(wendoverOrder());
-    expect(draft.rows.every((r) => r.reference === "1000292821")).toBe(true);
-    expect(draft.orders).toEqual([{ orderNumber: "1000292821", requiredDate: "", itemCount: 1 }]);
+    expect(draft.rows.every((r) => r.reference === "1000000001")).toBe(true);
+    expect(draft.orders).toEqual([{ orderNumber: "1000000001", requiredDate: "", itemCount: 1 }]);
   });
 
   it("prefers the registry's exact catalog vendor name", () => {
@@ -496,7 +496,7 @@ describe("normalizeWendoverOrder", () => {
 function mtOrder(over: Partial<MarketTimeOrder> = {}): MarketTimeOrder {
   return {
     vendorName: "Graf & Lantz Inc",
-    poNumber: "PON09057",
+    poNumber: "PON00004",
     orderDate: "06/11/2026",
     shipDate: "09/22/2026",
     printedSubtotal: 84,
@@ -538,9 +538,9 @@ describe("normalizeMarketTimeOrder", () => {
 
   it("references every row to the PO number", () => {
     const draft = normalizeMarketTimeOrder(mtOrder());
-    expect(draft.rows.every((r) => r.reference === "PON09057")).toBe(true);
+    expect(draft.rows.every((r) => r.reference === "PON00004")).toBe(true);
     expect(draft.orders).toEqual([
-      { orderNumber: "PON09057", requiredDate: "09/22/2026", itemCount: 1 },
+      { orderNumber: "PON00004", requiredDate: "09/22/2026", itemCount: 1 },
     ]);
   });
 
@@ -575,8 +575,8 @@ describe("normalizeMarketTimeOrder", () => {
 describe("normalizeBrandWiseOrder", () => {
   function bwOrder(over: Partial<BrandWiseOrder> = {}): BrandWiseOrder {
     return {
-      salesOrderNo: "B31669979",
-      poNumber: "PON09029",
+      salesOrderNo: "B31600001",
+      poNumber: "PON00005",
       orderDate: "6/10/2026",
       shipDate: "8/24/2026",
       printedTotal: 800,
@@ -606,8 +606,8 @@ describe("normalizeBrandWiseOrder", () => {
     const format = HOME_ACCESSORY_FORMATS.find((f) => f.id === "brandwise-zodax");
     const draft = normalizeBrandWiseOrder(bwOrder(), format);
     expect(draft.vendorName).toBe("Zodax");
-    expect(draft.rows[0].reference).toBe("PON09029");
-    expect(draft.orders[0]).toMatchObject({ orderNumber: "PON09029", itemCount: 1 });
+    expect(draft.rows[0].reference).toBe("PON00005");
+    expect(draft.orders[0]).toMatchObject({ orderNumber: "PON00005", itemCount: 1 });
   });
 
   it("carries the parser's warnings through", () => {
@@ -620,7 +620,7 @@ describe("normalizeAestheticMovementOrder", () => {
   function amOrder(over: Partial<AestheticMovementOrder> = {}): AestheticMovementOrder {
     return {
       vendorName: "Printworks",
-      poNumber: "PON09056",
+      poNumber: "PON00003",
       shipDate: "October 01, 2026",
       printedTotal: 2688,
       printedItems: 2,
@@ -664,8 +664,8 @@ describe("normalizeAestheticMovementOrder", () => {
     const format = HOME_ACCESSORY_FORMATS.find((f) => f.id === "aesthetic-movement");
     const draft = normalizeAestheticMovementOrder(amOrder(), format);
     expect(draft.vendorName).toBe("Printworks");
-    expect(draft.rows[0].reference).toBe("PON09056");
-    expect(draft.orders[0]).toMatchObject({ orderNumber: "PON09056", itemCount: 2 });
+    expect(draft.rows[0].reference).toBe("PON00003");
+    expect(draft.orders[0]).toMatchObject({ orderNumber: "PON00003", itemCount: 2 });
   });
 
   it("carries the parser's warnings through", () => {
@@ -677,8 +677,8 @@ describe("normalizeAestheticMovementOrder", () => {
 describe("normalizeSuperCatOrder", () => {
   function scOrder(over: Partial<SuperCatOrder> = {}): SuperCatOrder {
     return {
-      vendorName: "Jamie Young Company",
-      orderNumber: "153642-070126-175-1",
+      vendorName: "Dana Whitfield Company",
+      orderNumber: "990001-070126-175-1",
       customerPo: "",
       orderDate: "7/1/26",
       shipDate: "8/11/26",
@@ -708,10 +708,10 @@ describe("normalizeSuperCatOrder", () => {
   it("reads the vendor from the document and references the order number", () => {
     const format = HOME_ACCESSORY_FORMATS.find((f) => f.id === "supercat");
     const draft = normalizeSuperCatOrder(scOrder(), format);
-    expect(draft.vendorName).toBe("Jamie Young Company");
-    expect(draft.rows[0].reference).toBe("153642-070126-175-1");
+    expect(draft.vendorName).toBe("Dana Whitfield Company");
+    expect(draft.rows[0].reference).toBe("990001-070126-175-1");
     expect(draft.orders[0]).toMatchObject({
-      orderNumber: "153642-070126-175-1",
+      orderNumber: "990001-070126-175-1",
       itemCount: 1,
     });
   });
@@ -727,10 +727,10 @@ describe("normalizeSimblistOrder", () => {
     return {
       vendorName: "MAISON ZOE FORD",
       repGroup: "Simblist Group",
-      poNumber: "PON09047",
+      poNumber: "PON00001",
       orderDate: "2026-06-11",
       shipDate: "2026-09-01",
-      printedTotal: 722.74,
+      printedTotal: 615.6,
       items: [
         {
           itemNumber: "ZFUSA03-C",
@@ -764,8 +764,8 @@ describe("normalizeSimblistOrder", () => {
     const format = HOME_ACCESSORY_FORMATS.find((f) => f.id === "maison-zoe-ford");
     const draft = normalizeSimblistOrder(smOrder(), format);
     expect(draft.vendorName).toBe("MAISON ZOE FORD");
-    expect(draft.rows[0].reference).toBe("PON09047");
-    expect(draft.orders[0]).toMatchObject({ orderNumber: "PON09047", itemCount: 1 });
+    expect(draft.rows[0].reference).toBe("PON00001");
+    expect(draft.orders[0]).toMatchObject({ orderNumber: "PON00001", itemCount: 1 });
   });
 
   it("carries the parser's discount warning through", () => {
@@ -778,8 +778,8 @@ describe("normalizeBeatrizBallOrder", () => {
   function bbOrder(over: Partial<BeatrizBallOrder> = {}): BeatrizBallOrder {
     return {
       vendorName: "Beatriz Ball",
-      orderNumber: "0063477",
-      customerPo: "PON09066",
+      orderNumber: "0090001",
+      customerPo: "PON00002",
       orderDate: "6/10/2026",
       printedTotal: 226,
       items: [
@@ -824,8 +824,8 @@ describe("normalizeBeatrizBallOrder", () => {
     const format = HOME_ACCESSORY_FORMATS.find((f) => f.id === "beatriz-ball");
     const draft = normalizeBeatrizBallOrder(bbOrder(), format);
     expect(draft.vendorName).toBe("Beatriz Ball");
-    expect(draft.rows[0].reference).toBe("PON09066");
-    expect(draft.orders[0]).toMatchObject({ orderNumber: "PON09066", itemCount: 2 });
+    expect(draft.rows[0].reference).toBe("PON00002");
+    expect(draft.orders[0]).toMatchObject({ orderNumber: "PON00002", itemCount: 2 });
   });
 
   it("carries the parser's warnings through", () => {

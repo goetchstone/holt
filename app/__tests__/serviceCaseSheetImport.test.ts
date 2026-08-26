@@ -24,12 +24,12 @@ describe("parsePersonXml", () => {
   it("extracts displayName + userId for every <x18tc:person>", () => {
     const xml = `<?xml version="1.0"?><x18tc:personList xmlns:x18tc="http://example">
       <x18tc:person displayName="Rebecca Wexford" id="{aaaaaaa1-bbbb-cccc-dddd-eeeeeeeeeeee}" providerId="google-sheets"/>
-      <x18tc:person displayName="rwarren@example.com" id="{fffffff2-aaaa-bbbb-cccc-dddddddddddd}" userId="rwarren@example.com" providerId="google-sheets"/>
+      <x18tc:person displayName="rwexford@example.com" id="{fffffff2-aaaa-bbbb-cccc-dddddddddddd}" userId="rwexford@example.com" providerId="google-sheets"/>
     </x18tc:personList>`;
     const map = parsePersonXml(xml);
     expect(map.size).toBe(2);
     expect(map.get("aaaaaaa1-bbbb-cccc-dddd-eeeeeeeeeeee")?.displayName).toBe("Rebecca Wexford");
-    expect(map.get("fffffff2-aaaa-bbbb-cccc-dddddddddddd")?.userId).toBe("rwarren@example.com");
+    expect(map.get("fffffff2-aaaa-bbbb-cccc-dddddddddddd")?.userId).toBe("rwexford@example.com");
   });
 
   it("tolerates attribute orderings in either direction", () => {
@@ -180,7 +180,7 @@ describe("resolveAuthor", () => {
   const staffByEmail = new Map([["alex@example.com", 100]]);
   const staffByName = new Map([
     ["rebecca wexford", 101],
-    ["alex robertson", 100],
+    ["alex rowntree", 100],
   ]);
 
   it("matches by email when userId is set", () => {

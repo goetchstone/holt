@@ -36,7 +36,7 @@ describe("terminal logins are never people", () => {
   it("does not swallow people whose names merely contain a keyword", () => {
     // Erasing a real seller's attribution is the costlier mistake, so the
     // patterns anchor rather than match anywhere in the string.
-    for (const n of ["Sarah", "Allison", "Mary Goddard", "Adam Caldwell", "Reginald Ashby"]) {
+    for (const n of ["Sarah", "Robin", "Mary Goddard", "Adam Caldwell", "Reginald Ashby"]) {
       expect(isTerminalName(n)).toBe(false);
     }
   });
@@ -53,9 +53,9 @@ describe("terminal logins are never people", () => {
 
 describe("people are archived only once they have really gone", () => {
   it("archives someone long past the window", () => {
-    // Allison's shape: 904 orders, last sale well over a year ago.
+    // Robin's shape: 904 orders, last sale well over a year ago.
     const c = classifySalesperson(
-      { name: "Allison", orderCount: 904, lastOrderDate: daysAgo(245) },
+      { name: "Robin", orderCount: 904, lastOrderDate: daysAgo(245) },
       TODAY,
     );
     expect(c.kind).toBe("departed-person");

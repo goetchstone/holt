@@ -42,7 +42,7 @@ function row(overrides: Partial<HomeAccessoryExportRow> = {}): HomeAccessoryExpo
 function draft(rows: HomeAccessoryExportRow[]): HomeAccessoryDraft {
   return {
     vendorName: "K & K Interiors",
-    customerPo: "PON09025",
+    customerPo: "PON00006",
     orderDate: "Jun 15, 2026",
     orders: [{ orderNumber: "0002592361", requiredDate: "9/1/26", itemCount: rows.length }],
     rows,
@@ -232,9 +232,9 @@ describe("composeHomeAccessoryRows — PO numbers per order", () => {
     // The bug this guards: a single run-level PO number overriding every
     // row would silently merge a two-order bundle into ONE draft PO.
     const rows = composeHomeAccessoryRows(
-      input({ draft: twoOrderDraft(), poNumbers: { "0002592360": "PON09025" } }),
+      input({ draft: twoOrderDraft(), poNumbers: { "0002592360": "PON00006" } }),
     );
-    expect(rows.map((r) => r.reference)).toEqual(["PON09025", "0002592361"]);
+    expect(rows.map((r) => r.reference)).toEqual(["PON00006", "0002592361"]);
   });
 
   it("keeps two typed POs distinct, so two draft POs still get created", () => {
@@ -274,7 +274,7 @@ describe("composeHomeAccessoryRows — PO numbers per order", () => {
     const rows = composeHomeAccessoryRows(
       input({
         draft: d,
-        poNumbers: { "0002592360": "PON09025" },
+        poNumbers: { "0002592360": "PON00006" },
         splits: {
           0: [
             { suffix: "LG", cost: "22.79" },
@@ -285,7 +285,7 @@ describe("composeHomeAccessoryRows — PO numbers per order", () => {
       }),
     );
     expect(rows).toHaveLength(3);
-    expect(rows.every((r) => r.reference === "PON09025")).toBe(true);
+    expect(rows.every((r) => r.reference === "PON00006")).toBe(true);
   });
 });
 

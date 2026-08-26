@@ -1,65 +1,66 @@
 // /app/__tests__/marketTimeOrderParser.test.ts
 //
-// The fixture is the real Harper Group / MarketTime PO for Graf & Lantz
-// (PON09057, 06/11/2026, 11 SKUs / 73 units / $2,196.00), condensed.
+// The fixture's LAYOUT is a real Harper Group / MarketTime PO for Graf & Lantz,
+// condensed. The PO number and every price are
+// invented -- this repo is public and a vendor's dealer costs are confidential.
 
 import { parseMarketTimeOrderText, splitUpcPriceTotal } from "@/lib/pricing/marketTimeOrderParser";
 
 const FIXTURE = [
-  "Purchase Order by  - ID# 31680534MarketTime",
+  "Purchase Order by  - ID# 31600001MarketTime",
   " Season/Program:",
   " 06/11/2026Order Date:", // value BEFORE the label
   " Ship Date:09/22/2026", // value AFTER the label
   "Special Instructions: This is just a quote please hold",
-  "PON09057",
+  "PON00004",
   "PO #",
   "Graf & Lantz Inc",
   "QtyImageItem #NameUPCPriceUQUOMTotal",
   "1GL60BIN50FTLG",
   "Merino Wool Large Bin - Feather ",
   "(Avail:08/01/26)",
-  "84002724476284.00$84.00",
+  "84002724476255.00$55.00",
   "6GL70TECH10GN16IN",
   'Merino Wool 16" Laptop Computer ',
   "Sleeve - Granite V (Avail:07/10/26)",
-  "84002724051149.00$294.00",
-  "PO # PON09057 (cont'd)Cust #MFR: Graf & Lantz IncCustomer: Riverbend Home",
+  "84002724051135.00$210.00",
+  "PO # PON00004 (cont'd)Cust #MFR: Graf & Lantz IncCustomer: Riverbend Home",
   "    Page  of 22",
   "10GL10WINO10-12AUTU",
   "Wine-O's Merino Wool Round Wine ",
   "Markers - Autumn (Avail:06/08/26)",
-  "84002720301112.00$120.00",
+  "84002720301115.00$150.00",
   "3 Skus | 17 Units",
-  "$498.00",
+  "$415.00",
   "$0.00",
-  "$498.00",
+  "$415.00",
   "Sub Total:",
 ].join("\n");
 
 describe("splitUpcPriceTotal — the concatenation trap", () => {
   it("uses the arithmetic to settle where the UPC ends", () => {
-    // "84002724476284.00$84.00" has NO separator. A greedy digit match reads a
-    // 13-digit UPC and leaves "4.00" as the price — a silent 20x cost error
+    // "84002724476255.00$55.00" has NO separator. A greedy digit match reads a
+    // 13-digit UPC and leaves "4.00" as the price — a silent 11x cost error
     // that still parses cleanly. qty x price == total is the only thing that
     // can tell the readings apart.
-    expect(splitUpcPriceTotal("84002724476284.00$84.00", 1)).toEqual({
+    expect(splitUpcPriceTotal("84002724476255.00$55.00", 1)).toEqual({
       upc: "840027244762",
-      unitPrice: 84,
-      lineTotal: 84,
+      unitPrice: 55,
+      lineTotal: 55,
     });
   });
 
   it("refuses rather than guessing when no reading reconciles", () => {
     // Same line, wrong quantity: neither the 12- nor the 13-digit reading
     // satisfies the arithmetic, so it reports instead of picking one.
-    expect(splitUpcPriceTotal("84002724476284.00$84.00", 5)).toBeNull();
+    expect(splitUpcPriceTotal("84002724476255.00$55.00", 5)).toBeNull();
   });
 
   it("splits a multi-unit line correctly", () => {
-    expect(splitUpcPriceTotal("84002724051149.00$294.00", 6)).toEqual({
+    expect(splitUpcPriceTotal("84002724051135.00$210.00", 6)).toEqual({
       upc: "840027240511",
-      unitPrice: 49,
-      lineTotal: 294,
+      unitPrice: 35,
+      lineTotal: 210,
     });
   });
 
@@ -83,7 +84,7 @@ describe("parseMarketTimeOrderText", () => {
     // Order Date prints "06/11/2026Order Date:" while Ship Date prints
     // "Ship Date:09/22/2026" — right- vs left-aligned cells. Handling only one
     // direction leaves the other silently blank.
-    expect(order.poNumber).toBe("PON09057");
+    expect(order.poNumber).toBe("PON00004");
     expect(order.orderDate).toBe("06/11/2026");
     expect(order.shipDate).toBe("09/22/2026");
   });
@@ -104,8 +105,8 @@ describe("parseMarketTimeOrderText", () => {
     // every cost by the quantity.
     const sleeve = order.items.find((i) => i.itemNumber === "GL70TECH10GN16IN");
     expect(sleeve?.qty).toBe(6);
-    expect(sleeve?.unitPrice).toBe(49);
-    expect(sleeve?.lineTotal).toBe(294);
+    expect(sleeve?.unitPrice).toBe(35);
+    expect(sleeve?.lineTotal).toBe(210);
   });
 
   it("splits the concatenated qty and item number", () => {
@@ -138,14 +139,14 @@ describe("parseMarketTimeOrderText", () => {
     expect(order.warnings).toEqual([]);
     expect(order.printedSkus).toBe(3);
     expect(order.printedUnits).toBe(17);
-    expect(order.printedSubtotal).toBe(498);
-    expect(order.items.reduce((s, i) => s + i.lineTotal, 0)).toBeCloseTo(498, 2);
+    expect(order.printedSubtotal).toBe(415);
+    expect(order.items.reduce((s, i) => s + i.lineTotal, 0)).toBeCloseTo(415, 2);
     expect(order.items.reduce((s, i) => s + i.qty, 0)).toBe(17);
   });
 
   it("warns when the counts do not match what the document printed", () => {
     const short = parseMarketTimeOrderText(
-      ["1GL60BIN50FTLG", "A bin", "84002724476284.00$84.00", "9 Skus | 99 Units"].join("\n"),
+      ["1GL60BIN50FTLG", "A bin", "84002724476255.00$55.00", "9 Skus | 99 Units"].join("\n"),
     );
     expect(short.warnings.some((w) => w.includes("9 SKUs"))).toBe(true);
     expect(short.warnings.some((w) => w.includes("99 units"))).toBe(true);
@@ -160,7 +161,7 @@ describe("parseMarketTimeOrderText", () => {
 
   it("says nothing about holds on an ordinary order", () => {
     const plain = parseMarketTimeOrderText(
-      ["PON09999", "1GL60BIN50FTLG", "A bin", "84002724476284.00$84.00"].join("\n"),
+      ["PON09999", "1GL60BIN50FTLG", "A bin", "84002724476255.00$55.00"].join("\n"),
     );
     expect(plain.holdNote).toBe("");
     expect(plain.warnings).toEqual([]);
@@ -171,8 +172,8 @@ describe("parseMarketTimeOrderText — the UQ/UOM + numeric-item variants", () =
   // Other MarketTime vendors print UQ/UOM columns in the money line and, for
   // book vendors (Simon & Schuster via Anne McGilvray), use the ISBN as the
   // item number — sometimes with the whole block concatenated onto one line.
-  // Verified against the real orders (Graphique SO9939511, Anne McGilvray
-  // PON09059) before these fixtures were condensed from them.
+  // Verified against the real orders (Graphique SO9900001, a second rep group
+  // PON00007) before these fixtures were condensed from them.
 
   it("reads a money line with UQ + UOM between the price and the total", () => {
     // "...7.50" + "1EACH" + "$90.00" — the Graf & Lantz dialect had neither.
@@ -250,10 +251,10 @@ describe("parseMarketTimeOrderText — the UQ/UOM + numeric-item variants", () =
   it("still parses Graf & Lantz's simpler dialect (no UQ/UOM, letter items)", () => {
     // Regression guard: the extension must not disturb the original format.
     const order = parseMarketTimeOrderText(
-      ["PON09057", "1GL60BIN50FTLG", "Merino Wool Large Bin", "84002724476284.00$84.00"].join("\n"),
+      ["PON00004", "1GL60BIN50FTLG", "Merino Wool Large Bin", "84002724476255.00$55.00"].join("\n"),
     );
     expect(order.items).toHaveLength(1);
-    expect(order.items[0]).toMatchObject({ itemNumber: "GL60BIN50FTLG", qty: 1, unitPrice: 84 });
+    expect(order.items[0]).toMatchObject({ itemNumber: "GL60BIN50FTLG", qty: 1, unitPrice: 55 });
   });
 
   it("falls back to the MarketTime order id when a document carries no buyer PON", () => {
@@ -276,12 +277,12 @@ describe("parseMarketTimeOrderText — the UQ/UOM + numeric-item variants", () =
     const order = parseMarketTimeOrderText(
       [
         "Purchase Order by  - ID# 32008813MarketTime",
-        "PON09057",
+        "PON00004",
         "1GL60BIN50FTLG",
         "Merino Wool Large Bin",
-        "84002724476284.00$84.00",
+        "84002724476255.00$55.00",
       ].join("\n"),
     );
-    expect(order.poNumber).toBe("PON09057");
+    expect(order.poNumber).toBe("PON00004");
   });
 });

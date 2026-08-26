@@ -4,7 +4,7 @@
 // Impact report's attribution query against a real Postgres database.
 // This test exists because of a user-reported regression:
 //
-//   Barbara Germano (cust #6480) showed 2 orders for $88,624 attributed
+//   Rowan Fairbairn (cust #6480) showed 2 orders for $88,624 attributed
 //   to a campaign when her actual NET spend was $61,922. The missing
 //   $26,701-ish was the accounting return SR-013491 (status=RETURNED,
 //   negative netPrice rows) that the report's WHERE clause silently
@@ -15,7 +15,7 @@
 //   1. Base order alone — sum equals the base netPrice (sanity check).
 //   2. Base + accounting return — sum equals ZERO (return nets the base).
 //   3. Full rewrite chain (base + return + rewrite) — sum equals JUST the
-//      rewrite, exactly mirroring the Barbara Germano case.
+//      rewrite, exactly mirroring the Rowan Fairbairn case.
 //
 // Test queries the same WHERE clause the API uses (status IN
 // SALES_REVENUE_STATUSES + lineItemStatus != CANCELLED), so a regression
@@ -143,7 +143,7 @@ describe("Mailchimp attribution — rewrite chain net (real DB)", () => {
     expect(await sumNetPriceForCustomer(customer.id)).toBe(0);
   });
 
-  it("nets to just the rewrite when full base + return + rewrite chain exists (Barbara Germano case)", async () => {
+  it("nets to just the rewrite when full base + return + rewrite chain exists (Rowan Fairbairn case)", async () => {
     // Reproduces the user-reported regression. The base order
     // ($44,312) + matching return (-$44,312) + rewrite ($44,312.01)
     // must net to $44,312.01 — exactly the rewrite.
@@ -151,7 +151,7 @@ describe("Mailchimp attribution — rewrite chain net (real DB)", () => {
     // Previously (filter = ["ORDER", "FULFILLED"]) the query
     // returned base + rewrite = $88,624.01, double-counting.
     const customer = await prisma.customer.create({
-      data: { firstName: "Barbara", lastName: "Germano" },
+      data: { firstName: "Rowan", lastName: "Fairbairn" },
     });
     // Base
     await prisma.salesOrder.create({

@@ -269,7 +269,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
   // QUARANTINED -- pre-existing bug: extractSalesOrderTokens does not match hyphenated
   // order numbers (SO-NNNNN); genericization miss. Tracked for a focused fix.
   it.skip("matches SalesOrder by orderno (including rewrite suffix)", async () => {
-    await seedCustomer({ firstName: "Karen", lastName: "Dwyer" });
+    await seedCustomer({ firstName: "Karen", lastName: "Dunmore" });
 
     // The orderno cell in the sheet often has multiple shapes mashed
     // together. Verify both straight + " - A" forms resolve.
