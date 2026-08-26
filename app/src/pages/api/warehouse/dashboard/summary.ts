@@ -2,6 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
+import { toQty } from "@/lib/inventory/quantity";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { logError } from "@/lib/logger";
@@ -57,7 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let totalItems = 0;
 
       for (const p of locPositions) {
-        const qty = p._sum.quantity || 0;
+        const qty = toQty(p._sum.quantity);
         totalItems += qty;
 
         const slId = String(p.stockLocationId || "unassigned");

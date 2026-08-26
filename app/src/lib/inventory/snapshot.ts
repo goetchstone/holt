@@ -16,6 +16,7 @@
 // and this matches how InventoryFreeze has aggregated since it shipped.
 
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { toQty } from "./quantity";
 
 type PrismaTx = PrismaClient | Prisma.TransactionClient;
 
@@ -42,7 +43,7 @@ export async function aggregateCurrentInventory(tx: PrismaTx): Promise<Inventory
   return positions.map((p) => ({
     productId: p.productId,
     storeLocationId: p.storeLocationId,
-    quantity: p._sum.quantity || 0,
+    quantity: toQty(p._sum.quantity),
   }));
 }
 

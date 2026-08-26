@@ -1606,7 +1606,17 @@ model InventoryPosition {
   storeLocation   StoreLocation  @relation(fields: [storeLocationId], references: [id])
   stockLocationId Int?
   stockLocation   StockLocation? @relation(fields: [stockLocationId], references: [id])
-  quantity        Int            @default(1)
+  /**
+   * Fractional, because a roll of fabric or wallpaper is a length, not a count.
+   *
+   * This was Int, which meant the SELLING side could handle 12.5 yards
+   * (OrderLineItem.orderedQuantity has always been Decimal) and the STOCK side
+   * could not. The split is invisible until you receive a part roll, and then
+   * every count, transfer and allocation silently rounds.
+   *
+   * 3dp because fabric is sold to the eighth of a yard (0.125), which is exact.
+   */
+  quantity        Decimal        @default(1) @db.Decimal(12, 3)
   salesOrderId    Int?
   salesOrder      SalesOrder?    @relation(fields: [salesOrderId], references: [id])
   notes           String?
@@ -1694,7 +1704,9 @@ model InventoryTransfer {
   id                  Int                     @id @default(autoincrement())
   productId           Int
   product             Product                 @relation(fields: [productId], references: [id])
-  quantity            Int
+  /** Fractional -- see InventoryPosition.quantity. A transfer of a part roll
+   *  is the normal case for roll goods, not an edge case. */
+  quantity            Decimal                 @db.Decimal(12, 3)
   fromLocation        String
   toLocation          String
   fromLocationId      Int?

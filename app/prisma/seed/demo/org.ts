@@ -4,6 +4,7 @@
 // feature flags a running store would actually have turned on.
 
 import type { PrismaClient } from "@prisma/client";
+import { assertKnownModules } from "@/lib/modules/registry";
 
 const SEED_ACTOR = "seed:demo";
 
