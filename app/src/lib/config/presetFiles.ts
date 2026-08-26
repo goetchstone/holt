@@ -11,7 +11,7 @@
 //                     database, and is what a fresh clone gets. This is the
 //                     white-box product's default configuration.
 //   config/local/     GITIGNORED. A specific deployment's real mappings —
-//                     riverbend.yaml, northgate.yaml. Tenant data, not product
+//                     riverbend.yaml, akritos.json. Tenant data, not product
 //                     code, and per docs/TENANCY.md it must not travel with
 //                     the white box.
 //   $HOLT_CONFIG_DIR  Optional override, for a deployment that keeps its

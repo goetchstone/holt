@@ -15,8 +15,8 @@
 // was malformed -- a GitOps runner (or a human) should treat this the same
 // as any other failed deploy step.
 //
-// Data safety (CLAUDE.md rule 59): a restored or curated database and
-// `akritos` hold restored/seeded tenant data and must never take a preset
+// Data safety (CLAUDE.md rule 59): databases other than the local dev one may
+// hold restored or curated tenant data and must never take a preset
 // apply by accident -- applying the wrong tenant's config to them is
 // exactly the kind of "wrong env" typo rule 59 exists to catch. Writing
 // (not dry-running) against any database other than fbc_dev_db requires

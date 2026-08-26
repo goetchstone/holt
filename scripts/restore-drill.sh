@@ -122,7 +122,10 @@ cleanup() {
 # someone re-deriving this list). Per CLAUDE.md rule 59 and this repo's own
 # data-safety convention: any database holding restored, seeded or live local
 # data must never be written by a script, and the Jest suite's database is
-# reserved for it. None are acceptable restore-drill targets.
+# reserved for it. None are acceptable restore-drill targets. The deny-list
+# below names only what can be named in a public repo -- deployment-specific
+# database names are a deployment fact and stay out of the tree -- which is
+# precisely why the allow-list prefix above is the PRIMARY guard, not this.
 # ---------------------------------------------------------------------------
 case "$DRILL_DB_NAME" in
   holt_restore_drill*) ;;
@@ -134,7 +137,7 @@ case "$DRILL_DB_NAME" in
     exit 1
     ;;
 esac
-for forbidden in postgres template0 template1; do
+for forbidden in fbc_dev_db fbc_test_db akritos postgres template0 template1; do
   drill_lc=$(printf '%s' "$DRILL_DB_NAME" | tr '[:upper:]' '[:lower:]')
   if [ "$drill_lc" = "$forbidden" ]; then
     echo "ERROR: refusing to target '$DRILL_DB_NAME' -- it matches a real or" >&2

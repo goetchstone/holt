@@ -58,7 +58,7 @@ export function maskDatabaseUrl(databaseUrl: string): string {
 
 export interface SafetyCheckOptions {
   /** True when --force-unsafe-db was passed or HOLT_SEED_FORCE_UNSAFE_DB=1
-   * is set. Only lifts the CONFIRM_BLOCKED list -- never the hard block. */
+   * is set. Only lifts the SCRATCH_DB_NAME requirement -- never the hard block. */
   forceUnsafe: boolean;
 }
 

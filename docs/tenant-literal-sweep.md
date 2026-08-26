@@ -617,7 +617,7 @@ const widthDim = useMemo(() => dimensions.find((d) => d.name === "Table Width"),
 ### `app/src/lib/adapters/ordorite/reportRouter.ts:49`
 
 ```
-pattern: /SH_Stock_by_Item/i,
+pattern: /<Org>_Stock_by_Item/i,
 
 ```
 
@@ -832,7 +832,7 @@ Persisted onto every `OrderLineItem`, so it flows into journal-entry tax lines, 
 
 **Fix.** No new config. Import `resolveTaxDistrict` + `rateForLineAmount` from `@/lib/tax/resolveTaxRate`; resolve once per proposal (customer district → store district → `AppSettings.defaultTaxDistrictId`), call `rateForLineAmount` per line, persist the resolved `taxDistrictId` on the order. Copy the call shape from `app/src/pages/api/sales/orders/create-from-cart.ts:123` and `:252`. Delete both literals.
 
-**Test (equivalence).** Convert every proposal converted in the last 12 months on a restored snapshot, old code vs new. Compare per-line `vatRate`, `vatAmount`, and order-level tax total. On the the pilot deployment district all must be byte-identical; any diff is a real pre-existing bug in the band logic and must be explained before merge. Then flip `defaultTaxDistrictId` to a non-CT district in a scratch DB and assert the rate changes.
+**Test (equivalence).** Convert every proposal converted in the last 12 months on a restored snapshot, old code vs new. Compare per-line `vatRate`, `vatAmount`, and order-level tax total. On the pilot deployment's district all must be byte-identical; any diff is a real pre-existing bug in the band logic and must be explained before merge. Then flip `defaultTaxDistrictId` to a non-CT district in a scratch DB and assert the rate changes.
 
 **Why first.** Largest money error per event, one file, config already exists and is simply unread. Zero coupling to anything else on this list.
 
@@ -910,7 +910,7 @@ An `updateMany` driven by a string shape. Any style under that vendor whose numb
 
 ### 7. Ordorite report routing table is the pilot deployment filenames — NEW, data-correctness + feature-dead
 `app/src/lib/adapters/ordorite/reportRouter.ts:74` — `pattern: /<Org>_Inbound_Items/i`
-`app/src/lib/adapters/ordorite/reportRouter.ts:49` — `pattern: /SH_Stock_by_Item/i`
+`app/src/lib/adapters/ordorite/reportRouter.ts:49` — `pattern: /<Org>_Stock_by_Item/i`
 `app/src/lib/adapters/ordorite/reportRouter.ts:125` — `/Marjan_Daily_Sales/i` in `SKIP_PATTERNS` (cosmetic; free once the table moves)
 
 `Acme_Furniture_Inbound_Items` falls past line 74 to line 79 and is fed to `runPurchaseOrdersImport` instead of `runInboundItemsImport` — **wrong entity written**. `Acme_Customers` matches nothing, `resolveImportRoute` returns null, and the customer master import logs as "skipped" forever. Same for the `SH_`-prefixed stock/PO-line/catalog routes: stock-on-hand and the product catalog never populate, no error surfaced.
@@ -1169,7 +1169,7 @@ An operator who fills in "API Base URL" sees it **silently ignored**; a regional
 
 **Fix.** Two nullable fields on the existing Google `IntegrationCredential` (or AppSettings): `googleProjectRootFolderId`, `googlePresentationTemplateId`, set in Admin. Return **400 with "Google project folders are not configured"** when either is absent, instead of throwing a Drive error. Add a `projectFolderSubfolders` string array (defaulted in code to the current list) plus a separate `presentationSubfolder` field naming which one receives the template copy, so the load-bearing folder is selected by config rather than matched against a magic literal.
 
-**Test.** With the current ids configured, create a project folder on the real the pilot deployment Drive and assert the resulting tree (six subfolders, template copied into the named one) is identical to today. Unconfigured: assert 400 with the config message and no Drive call made.
+**Test.** With the current ids configured, create a project folder on the real pilot deployment Drive and assert the resulting tree (six subfolders, template copied into the named one) is identical to today. Unconfigured: assert 400 with the config message and no Drive call made.
 
 ---
 

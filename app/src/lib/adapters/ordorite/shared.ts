@@ -218,13 +218,20 @@ const RETURN_ORDER_PREFIX = /^(R|CR)-?\d/i;
 // ABxxA1234 for a return and ABxxM1234 for an order. The A/M suffix is the
 // vendor's convention; the STORE CODES are a deployment fact (CLAUDE.md 61-63),
 // so they come from config and default to "any code".
-function storeCodeFragment(): string {
+function storeCodeFragment(): string | null {
+  // Null on an EMPTY list, not just an unset one: "," and " , , " are truthy,
+  // split to nothing, and joined to "" would produce `^(?:)[A-Z]*A\d` -- a
+  // ZERO-length store code, BROADER than any default. A misconfiguration must
+  // never widen a match.
+  //
+  // And there is no safe universal default here, for the same reason as
+  // ORDORITE_RETURN_PREFIXES below. `[A-Z]{2,}` in front of `[A-Z]*A\d` matches
+  // ANY letter run whose last letter before the first digit is "A": SOFA1,
+  // MEGA1234, VIA3 all classify as RETURNED and get subtracted from revenue.
+  // Unconfigured, this rule stands down -- genuine returns are still caught by
+  // the negative-net-total check in deriveSalesOrderStatus.
   const codes = splitConfiguredCodes(process.env.ORDORITE_STORE_CODES);
-  // Falling back on an EMPTY list, not just an unset one. A value of "," or
-  // " , , " is truthy, splits to nothing, and used to join to "" -- producing
-  // `^(?:)[A-Z]*A\d`, which matches a ZERO-length code and is therefore
-  // BROADER than the default. A misconfiguration must never widen the match.
-  return codes.length ? codes.join("|") : "[A-Z]{2,}";
+  return codes.length ? codes.join("|") : null;
 }
 
 /**
@@ -303,9 +310,10 @@ export function isReturnOrder(orderno: string): boolean {
   // RETURN_ORDER_PREFIX, which is "R"/"CR" followed directly by digits.
   const returnPrefixes = returnPrefixFragment();
   if (returnPrefixes && new RegExp(`^(?:${returnPrefixes})\\d`, "i").test(orderno)) return true;
+  if (RETURN_ORDER_PREFIX.test(orderno)) return true;
   const codes = storeCodeFragment();
-  const returnStoreSuffix = new RegExp(`^(?:${codes})[A-Z]*A\\d`, "i");
-  return RETURN_ORDER_PREFIX.test(orderno) || returnStoreSuffix.test(orderno);
+  if (!codes) return false;
+  return new RegExp(`^(?:${codes})[A-Z]*A\\d`, "i").test(orderno);
 }
 
 /**

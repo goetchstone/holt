@@ -64,7 +64,7 @@ ignore the GUI; a shop with no engineers can ignore the files.
 | Directory          | Committed           | Purpose                                                                           |
 | ------------------ | ------------------- | --------------------------------------------------------------------------------- |
 | `config/presets/`  | **yes**             | White-box defaults, tuned to the demo seed so a fresh clone works out of the box. |
-| `config/local/`    | **no** (gitignored) | One deployment's real mappings — `riverbend.yaml`, `northgate.json`.                 |
+| `config/local/`    | **no** (gitignored) | One deployment's real mappings — `riverbend.yaml`, `akritos.json`.                 |
 | `$HOLT_CONFIG_DIR` | n/a                 | Override for config kept in a private repo or a mounted volume.                   |
 
 `config/local/` is gitignored because a tenant's store names and vendor payment
@@ -243,7 +243,7 @@ literals in `lib/storeColors.ts`.
 
 The counter, the POS, and holt rarely agree on what a store is called, and one
 store can own several counter labels — two co-located buildings counted
-separately still roll up to one store. the pilot deployment's real data is exactly this
+separately still roll up to one store. The pilot deployment's real data is exactly this
 shape: `NB` and `SB` are two doors of one showroom, and reading either alone
 computes conversion against half the store's traffic.
 

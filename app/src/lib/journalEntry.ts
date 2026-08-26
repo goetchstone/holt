@@ -968,8 +968,8 @@ export async function generateSalesJournal(
   // SERVER-LOCAL, so the journal's window depended on the host's TZ; it matched
   // the comment only because the containers set no TZ and default to UTC. The
   // reconciliation compared that window against its own UTC-day window, so the
-  // two could agree only on a UTC deployment -- and a US retailer is
-  // America/New_York.
+  // two could agree only where the business time zone is UTC, which a real
+  // deployment's configured zone generally is not.
   const timeZone = await getBusinessTimeZone();
   const dayKey = date.toISOString().slice(0, 10);
   const { gte: dayStart, lt: dayEndExclusive } = businessDayRange(dayKey, timeZone);

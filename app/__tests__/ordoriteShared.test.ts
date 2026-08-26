@@ -304,14 +304,30 @@ describe("return-order conventions are configuration", () => {
 
   // A misconfiguration must never WIDEN the match. A stray "," used to split to
   // nothing and join to "", producing an empty alternation that matched a
-  // zero-length store code -- broader than the default it replaced.
-  it("falls back to the default when the configured list is empty", () => {
-    for (const junk of [",", " , , ", "  "]) {
-      process.env.ORDORITE_STORE_CODES = junk;
+  // zero-length store code -- broader than any default.
+  it("stands the rule down when the configured list is empty", () => {
+    for (const junk of [",", " , , ", "  ", undefined]) {
+      if (junk === undefined) delete process.env.ORDORITE_STORE_CODES;
+      else process.env.ORDORITE_STORE_CODES = junk;
       expect(isReturnOrder("PA1234")).toBe(false);
       expect(isReturnOrder("A1")).toBe(false);
-      expect(isReturnOrder("SBOA1234")).toBe(true);
+      expect(isReturnOrder("SBOA1234")).toBe(false);
     }
+  });
+
+  // There is no safe universal default for the store codes either. Any letter
+  // run ending in "A" before a digit -- SOFA1, MEGA1234, VIA3 -- would classify
+  // as RETURNED and be subtracted from revenue. Genuine returns are still
+  // caught by the negative-net-total check, so nothing is lost by declining.
+  it("does not guess a store code, and never flags an ordinary A-ending word", () => {
+    delete process.env.ORDORITE_STORE_CODES;
+    for (const o of ["SOFA1", "MEGA1234", "VIA3", "SBOA1234"]) {
+      expect(isReturnOrder(o)).toBe(false);
+    }
+    process.env.ORDORITE_STORE_CODES = "SB,GT,CH";
+    expect(isReturnOrder("SBOA1234")).toBe(true);
+    expect(isReturnOrder("SOFA1")).toBe(false);
+    expect(isReturnOrder("MEGA1234")).toBe(false);
   });
 });
 
@@ -637,12 +653,19 @@ describe("isReturnOrder", () => {
     expect(isReturnOrder("cr12345")).toBe(true);
   });
 
-  it("detects A-suffix store codes as returns", () => {
+  it("detects A-suffix store codes as returns once the codes are configured", () => {
+    const prev = process.env.ORDORITE_STORE_CODES;
+    process.env.ORDORITE_STORE_CODES = "SB,GT,CH,BB,WS";
+    try {
     expect(isReturnOrder("SBOA11221")).toBe(true);
     expect(isReturnOrder("GTOA10076")).toBe(true);
     expect(isReturnOrder("CHOA1234")).toBe(true);
     expect(isReturnOrder("BBOA10012")).toBe(true);
-    expect(isReturnOrder("WSOA10001")).toBe(true);
+      expect(isReturnOrder("WSOA10001")).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.ORDORITE_STORE_CODES;
+      else process.env.ORDORITE_STORE_CODES = prev;
+    }
   });
 
   it("does not flag M-suffix store codes (regular sales)", () => {

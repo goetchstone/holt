@@ -110,7 +110,7 @@ care rather than flipping the endpoint's default.
 
 ## Stock-by-Item import (daily)
 
-CSV: `SH_Stock_by_Item.csv` from the POS (Gmail auto-import 06:10 ET). Runner: `runStockByItemImport` in `lib/importRunners.ts`. One row per (product, store location) with current on-hand qty.
+CSV: `<Org>_Stock_by_Item.csv` from the POS (Gmail auto-import 06:10 ET). Runner: `runStockByItemImport` in `lib/importRunners.ts`. One row per (product, store location) with current on-hand qty.
 
 **The location-matching gotcha** (post-failure 2026-04-24):
 
@@ -179,7 +179,7 @@ Both read from `PhysicalInventoryCount` + `InventoryPosition` and compute scanne
 The classic "where's the missing inventory" debugging path:
 
 1. Check `InventoryPosition` for the (product, location) row in question
-2. If position looks low, query the most recent `AutoImportLog` row for `SH_Stock_by_Item` — see if `unmappedLocations` includes the location's CSV name
+2. If position looks low, query the most recent `AutoImportLog` row for `<Org>_Stock_by_Item` — see if `unmappedLocations` includes the location's CSV name
 3. If yes → add an alias on the `StockLocation` row, re-trigger the import
 4. If no → check `PhysicalInventoryCount` for recent scans that might indicate a manual correction was made
 

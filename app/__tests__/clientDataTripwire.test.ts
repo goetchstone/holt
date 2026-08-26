@@ -33,8 +33,14 @@ const REPO_ROOT = join(__dirname, "..", "..");
  * code and train people to add exemptions.
  */
 const FORBIDDEN: { pattern: string; what: string }[] = [
-  { pattern: "saybrook", what: "the pilot deployment's company and town name" },
-  { pattern: "saybrookhome", what: "the pilot deployment's email domain" },
+  // The STEM, not the full word. The codebase itself documents that the real
+  // data carried typo variants of the domain, so a pattern matching only the
+  // correct spelling would miss exactly the values that caused the incident the
+  // email guard exists for.
+  {
+    pattern: "sayb",
+    what: "the pilot deployment's company, town and email-domain stem, typos included",
+  },
   { pattern: "cheshire|glastonbury", what: "the pilot deployment's store towns" },
   { pattern: "sammyg40|joneil|gstone|wcope", what: "real staff email local-parts" },
   { pattern: "greenstein|panagy|dransfield|matheny|tenerow", what: "real people's surnames" },
@@ -86,7 +92,7 @@ const ALLOWED: Record<string, string> = {
 function trackedHits(pattern: string): { file: string; line: string }[] {
   let out = "";
   try {
-    out = execFileSync("git", ["grep", "-niE", pattern, "--", "."], {
+    out = execFileSync("git", ["grep", "-niE", "--untracked", pattern, "--", "."], {
       cwd: REPO_ROOT,
       encoding: "utf8",
       maxBuffer: 32 * 1024 * 1024,
@@ -94,9 +100,12 @@ function trackedHits(pattern: string): { file: string; line: string }[] {
   } catch (e) {
     // git grep exits 1 with no output when nothing matches -- that is the pass.
     const err = e as { status?: number; stdout?: string };
+    // Everything else must fail loud. A maxBuffer overflow in particular throws
+    // with status null and TRUNCATED stdout: adopting that buffer would return a
+    // partial walk that looks clean, which is the exact silent pass this test
+    // exists to prevent.
     if (err.status === 1 && !err.stdout) return [];
-    if (err.stdout) out = err.stdout;
-    else throw e;
+    throw e;
   }
   return out
     .split("\n")
@@ -104,10 +113,30 @@ function trackedHits(pattern: string): { file: string; line: string }[] {
     .map((l) => ({ file: l.slice(0, l.indexOf(":")), line: l }));
 }
 
+/**
+ * git grep matches CONTENT. A file whose contents are clean but whose NAME is a
+ * client's still leaks, and so does a directory named after one.
+ */
+function pathHits(pattern: string): { file: string; line: string }[] {
+  const out = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  const re = new RegExp(pattern, "i");
+  return out
+    .split("\n")
+    .filter(Boolean)
+    .filter((f) => re.test(f))
+    .map((f) => ({ file: f, line: `${f}: forbidden identifier in the PATH` }));
+}
+
 describe("no real client or personal data in a public repo", () => {
   for (const { pattern, what } of FORBIDDEN) {
     it(`does not contain ${what}`, () => {
-      const unexplained = trackedHits(pattern).filter((h) => !(h.file in ALLOWED));
+      const unexplained = [...trackedHits(pattern), ...pathHits(pattern)].filter(
+        (h) => !(h.file in ALLOWED),
+      );
       expect(unexplained.map((h) => h.line)).toEqual([]);
     });
   }
@@ -117,9 +146,11 @@ describe("no real client or personal data in a public repo", () => {
   // passes silently. Checking BOTH directions is what makes the list trustworthy.
   it("has no stale exemptions -- every allowed path still has a hit to explain", () => {
     const allHits = new Set(FORBIDDEN.flatMap(({ pattern }) => trackedHits(pattern)).map((h) => h.file));
-    const stale = Object.keys(ALLOWED).filter(
-      (f) => f !== "app/__tests__/clientDataTripwire.test.ts" && !allHits.has(f),
-    );
+    // This file is deliberately NOT exempted from the check. It always hits --
+    // it contains the pattern sources themselves -- so it doubles as the
+    // liveness canary: if the scan ever silently returns nothing, this is the
+    // path that shows up stale and fails the test.
+    const stale = Object.keys(ALLOWED).filter((f) => !allHits.has(f));
     expect(stale).toEqual([]);
   });
 });

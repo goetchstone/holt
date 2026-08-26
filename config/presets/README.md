@@ -22,7 +22,7 @@ in a mapping file are usually worth having.
 | Directory | Committed? | What it holds |
 |---|---|---|
 | `config/presets/` | **yes** | The white-box defaults. Tuned to the seed database, so a fresh clone works out of the box. |
-| `config/local/` | **no** (gitignored) | One specific deployment's real mappings — `riverbend.yaml`, `northgate.yaml`. Tenant data, not product code. |
+| `config/local/` | **no** (gitignored) | One specific deployment's real mappings — `riverbend.yaml`, `akritos.json`. Tenant data, not product code. |
 | `$HOLT_CONFIG_DIR` | n/a | Optional override for a deployment that keeps config in its own private repo or a mounted volume. |
 
 On a `(kind, name)` collision, **local wins over shipped** — a deployment can

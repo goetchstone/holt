@@ -36,23 +36,33 @@ The pipeline runs daily at 6:10 AM via Synology Task Scheduler.
 | `Prior_Day_Sales_Data_Export`                              | sales           | `runSalesImport`          | Orders, line items, returns                        |
 | `Daily_Quote_Report`                                       | quotes          | `runQuotesImport`         | Open quotes                                        |
 | `Customer_Deposits_Export`                                 | deposits        | `runDepositsImport`       | Customer deposits                                  |
-| `SH_Stock_by_Item`                                         | stock           | `runStockByItemImport`    | Inventory positions                                |
+| `<Org>_Stock_by_Item`                                      | stock           | `runStockByItemImport`    | Inventory positions                                |
 | `Inbound_Items`                                            | purchase-orders | `runPurchaseOrdersImport` | PO items with POR#                                 |
 | `Prior_Day_POR_Export`                                     | purchase-orders | `runPurchaseOrdersImport` | PO items with POR#                                 |
 | `Prior_Day_Payments_Export`                                | payments        | `runPaymentsImport`       | Payment transactions                               |
 | `Prior_Day_Invoice_Export`                                 | invoices        | `runInvoicesImport`       | Invoices (handles order rewrites)                  |
-| `Company_Customers` OR `Company_Prior_Day_Customers`       | customers       | `runCustomerImport`       | Customer records                                   |
+| `<Org>_Customers` OR `<Org>_Prior_Day_Customers`           | customers       | `runCustomerImport`       | Customer records                                   |
 | `Prior_Day_Received_Items`                                 | received-items  | `runReceivedItemsImport`  | Goods in, creates ReceivingRecords                 |
-| `Company_Inbound_Items`                                    | inbound-items   | `runInboundItemsImport`   | Confirmed PO items with ESD                        |
+| `<Org>_Inbound_Items` (prefix required)                    | inbound-items   | `runInboundItemsImport`   | Confirmed PO items with ESD                        |
 | `Prior_Day_Temp_Items` OR `Prior_Day_Temp_Purchase_Orders` | temp-items      | `runTempItemsImport`      | Draft PO items                                     |
-| `SH_Purchase_Order_Line_Export`                            | po-lines        | `runPOLineExportImport`   | PO line details                                    |
-| `SH_Item_Export`                                           | products        | `runProductsImport`       | Daily product master (~100K rows, Active=yes only) |
+| `<Org>_Purchase_Order_Line_Export`                         | po-lines        | `runPOLineExportImport`   | PO line details                                    |
+| `<Org>_Item_Export`                                        | products        | `runProductsImport`       | Daily product master (~100K rows, Active=yes only) |
 
-**Route order matters.** `Company_Inbound_Items` must be matched before the generic `Inbound_Items` pattern in `gmailReportRouter.ts`.
+**`<Org>_` is configuration, not a constant.** The prefix comes from
+`ORDORITE_REPORT_PREFIX`, which takes a comma-separated list because one
+deployment normally uses more than one (a full name on some exports, an
+initialism on others). Unset, the router matches the BARE report names only --
+`Customers.csv`, `Stock_by_Item.csv` -- and refuses a look-alike such as
+`Deleted_Customers.csv` rather than guessing it is the customer master.
+
+**Route order matters.** `<Org>_Inbound_Items` is the one route that REQUIRES a
+configured prefix, because a bare `Inbound_Items` is a different report with a
+different runner. Unconfigured, the org route stands down and the bare route
+keeps its meaning. See `src/lib/adapters/ordorite/reportRouter.ts`.
 
 **2026-05-20 renames** (owner-side the POS export config change):
 
-- `Company_Customers` → `Company_Prior_Day_Customers` (scopes to prior-day-only data)
+- `<Org>_Customers` → `<Org>_Prior_Day_Customers` (scopes to prior-day-only data)
 - `Prior_Day_Temp_Items` → `Prior_Day_Temp_Purchase_Orders` (clearer naming on the POS's side)
 
 Router regexes (`gmailReportRouter.ts`) match both old and new names so a fallback to the legacy filename still routes correctly. Tests pin both forms.
