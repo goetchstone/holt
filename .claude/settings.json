@@ -29,6 +29,12 @@
             "command": "./.claude/hooks/session-start-check.sh",
             "timeout": 30,
             "statusMessage": "Session orient..."
+          },
+          {
+            "type": "command",
+            "command": "./.claude/hooks/rules-improver-check.sh",
+            "timeout": 15,
+            "statusMessage": "Rules improver check..."
           }
         ]
       }

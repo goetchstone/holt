@@ -85,6 +85,25 @@ Concrete artifact: `.claude/skills/post-failure/SKILL.md`. Every incident in the
 
 **Rules earn their place by surviving incidents.** Don't add a rule because it sounds good; add it when an incident proves it's needed. The rule then has gravitas because it has a story behind it.
 
+### 4a. Closing the loop: the improver pass
+
+The loop above has a gap that took 65 numbered rules to become obvious. The decision *"is this recurring shape worth a rule?"* was made in-session, by the agent that had just been burned by it. That agent is the worst-placed judge in the system: the incident is warm, the lesson feels universal, and every session gets to append. The result is CLAUDE.md with numbering gaps and five conflicting citations — accretion, not learning.
+
+The fix borrows the two-skill split from [how Warp builds self-improving agents](https://claude.com/blog/how-warp-builds-self-improving-agents-on-claude): an **inner** skill that does the work, and an **outer** skill that observes how it went and proposes a change to the inner one.
+
+| | Inner | Outer |
+|---|---|---|
+| What | `CLAUDE.md` + runbooks | `.claude/skills/improve-rules/SKILL.md` |
+| Runs | every session | when evidence has accumulated |
+| Reads | the rules | how the rules performed |
+| Writes | code | a PR against `CLAUDE.md` |
+
+Sessions no longer edit CLAUDE.md. They append to **`docs/RULE-FEEDBACK.md`**, a ledger that costs one line and commits to nothing — low friction is what keeps signal flowing. The improver reads the accumulated pile later, with distance, and proposes **one focused edit** as a pull request. A human merges it; the next session inherits it.
+
+**One deliberate deviation from Warp's design.** Their loop is fed by human PR review comments — "what the agent suggested versus how humans responded". That signal does not exist here: 20 merged PRs carry 0 reviews and 1 comment between them, because §1 of this document describes a solo project with no second pair of eyes. The substitute is **the commit that had to clean up after the last one**. A `fix:` or `revert:` commit is literally what the agent proposed versus what reality required, with a diff attached and zero friction to capture, and roughly one commit in four is one. `.claude/hooks/rules-improver-check.sh` counts them and nudges once enough accumulate — event-driven rather than scheduled, so the pass fires when there is something to read rather than on a calendar.
+
+**Retirement is part of the loop, not an afterthought.** Accretion was the failure mode; a loop that only adds repeats it. The same evidence bar runs in reverse — a rule whose code path is gone, whose guard has never fired, or which nothing cites. Numbers are never reused: a rule that stops earning a constitutional slot is demoted to its runbook with the number intact, so the 203 files citing rules by number keep resolving.
+
 ---
 
 ## 5. The four discipline anti-patterns

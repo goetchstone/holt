@@ -35,8 +35,13 @@ Fix the actual issue. Verify with `cd app && npm run validate && npm test`.
   section, or a tripwire test naming the bug class (prefer a real-DB
   integration test over a source-text tripwire where the behavior is
   testable — rule 57).
-- **Business rule / cross-cutting invariant** → propose a CLAUDE.md rule
-  update with an origin pointing at this entry.
+- **Business rule / cross-cutting invariant** → append an entry to
+  `docs/RULE-FEEDBACK.md`, not a rule to CLAUDE.md. Say which principle this
+  is an instance of, or `NEW` if none fits, and answer "would a rule have
+  caught it?" — the answers "no" and "only if enforced differently" are the
+  valuable ones. `.claude/skills/improve-rules/SKILL.md` reads the ledger
+  later and proposes the constitutional change as a PR, with the distance that
+  makes the judgment worth trusting.
 - **Data assumption** → update the relevant `docs/domains/*.md` runbook.
 
 ## Step 5: Update the Failure Log

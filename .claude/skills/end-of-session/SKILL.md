@@ -10,9 +10,16 @@ session.
 
 ## Checklist
 
-1. **CLAUDE.md** — only if a genuinely cross-cutting rule was learned (an
-   incident, not a preference). Don't append domain gotchas here — they go
-   in the matching runbook (rule 19/36).
+1. **`docs/RULE-FEEDBACK.md`** — append an entry if anything this session
+   argued with the rules: a fix that had to clean up after an earlier change,
+   a correction from the user, a guard that fired, a near miss. Write it even
+   when unsure it matters; it costs one line and commits to nothing.
+
+   **Do NOT edit CLAUDE.md here.** Judging your own bruise worth a
+   constitutional rule, in the moment, is how that file reached 65 numbers with
+   gaps. The ledger accumulates; `.claude/skills/improve-rules/SKILL.md`
+   decides later, with distance, and proposes it as a PR. Domain gotchas still
+   go in the matching runbook (rule 19/36).
 2. **ROADMAP.md** — mark completed features Done, update priorities.
 3. **Domain runbooks** (`docs/domains/*.md`) — update any runbook touched
    during this session; bump its "Last verified" date if you re-checked it
