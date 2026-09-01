@@ -1,0 +1,103 @@
+# Wholesale price books
+
+How a vendor's price book becomes styles and grade prices, and what it takes to
+add one.
+
+## The shape of the problem
+
+A furniture manufacturer prints one book layout and puts several brands on it.
+Hooker Furnishings prints Hooker, Sam Moore and Bradington-Young on the same
+column-transposed grid, so the reusable unit is the **layout**, not the vendor.
+A vendor is a set of parameters against a layout.
+
+Before this seam there were three near-identical extractor modules, each with
+its own copy of the money parser, the dimension parser and the grid walk — and
+the differences between them were four lines each.
+
+## The layout
+
+A page holds several style **columns** side by side. Every row is labelled.
+Reading down a column gives one style; reading across a row gives one attribute
+for every style on the page.
+
+```
+STYLE NUMBER:      1034      1035      1036
+STYLE NAME:        Nova      Orion     Pike
+Grade: B           $500      $540      $470
+Grade: C           $525      $565      $495
+```
+
+Raw `pdf-parse` output is unusable here: glyphs butt together with no delimiter,
+so `$500$540$470` arrives as one token. `columnAwarePageRenderer` rebuilds the
+columns from glyph x-coordinates and inserts real tabs. Every vendor on this
+layout must render through it — that is not a preference, the text is otherwise
+unparseable.
+
+## Adding a vendor
+
+Two steps. Neither touches the import route.
+
+1. Write `src/lib/pricing/wholesale/vendors/<vendor>.ts` exporting a
+   `WholesaleVendorProfile`.
+2. Add it to `WHOLESALE_VENDOR_PROFILES` in `wholesale/registry.ts`.
+
+A profile is **code, not config** — it is compiled, typed and reviewed. That is
+deliberate: a config format expressive enough to describe a PDF layout is a
+programming language with a worse type checker, which is the road rule 62
+exists to close. What a *deployment* configures is which vendors it carries and
+what markup it applies. What a *vendor* fixes is its grade ladder and its label
+spellings, and those are identical for every dealer who opens the same book.
+
+### What a profile declares
+
+| Field | Why it varies |
+|---|---|
+| `grades` | The ladder, in book order, each rung declaring `fabric` or `leather` |
+| `gridHeader` | The row that starts a style grid (`STYLE NUMBER:` / `ITEM NUMBER:`) |
+| `gradeOfRow` | How a price row names its grade — spellings differ per book |
+| `rows` | Which labelled rows fill which product field |
+| `emptyCells` | This book's "no price" token — `--` on one, `N/A` on another |
+| `comGrade` | The rung that is also COM, where the book prints "Grade: E and COM" |
+| `pageRequires` | Patterns a page must carry to be a price grid, not a schematic |
+| `leatherPlacement` | Whether leather is a tier of the same frame or its own style |
+| `expandSkus` | For books where one price column covers several SKUs |
+
+## Grades are declared, never inferred
+
+This is the part worth understanding before adding a vendor.
+
+The import used to guess a grade's material from the **shape of its code**: a
+bare letter meant leather, digits meant fabric, `L`-prefixed meant leather. Then
+vendors disagreed, and the guess got patched with allowlists —
+`FABRIC_LETTER_GRADE_VENDORS`, `COMBINED_LEATHER_VENDORS` — living in the import
+route itself.
+
+Both Sam Moore and Hooker ladder **fabric** as B..J. Under the guess, their
+entire fabric range files as leather at the wrong tier. And it still imports.
+The numbers still look plausible. Nothing downstream holds the right answer to
+compare against, so the error survives until someone quotes a customer from it.
+
+So every rung declares its own `kind`, `partitionGradesFor()` uses the vendor's
+declaration verbatim, and there is nothing left to patch. Vendors with no
+profile still fall through to the shape rules, which are kept and labelled as a
+guess.
+
+## Lookup fails closed
+
+`wholesaleProfileFor()` returns `undefined` for an unknown vendor and the caller
+refuses the upload. It does not fall back to a reader that is "probably close".
+Guessing at a price book produces plausible numbers at wrong tiers — worse than
+a rejection, because nobody goes looking (rule 63).
+
+It also folds `sam-moore`, `Sam Moore` and `SAM_MOORE` to one key. The upload
+form posts the id and the database holds the name; a lookup matching only one
+would silently report "no profile" and drop back to guessing. The bug would have
+been a hyphen.
+
+## Testing
+
+Drive `parseRenderedGrid()` with a text fixture, never a PDF — a fixture is
+readable in a diff. **Every price in a fixture is invented.** This repo is
+public and a vendor's dealer costs are confidential; the layout is what the
+parser keys on and the layout is what a fixture needs to reproduce.
+→ `app/__tests__/wholesaleVendorProfiles.test.ts`
