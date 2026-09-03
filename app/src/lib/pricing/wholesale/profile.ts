@@ -19,6 +19,21 @@
 // dealer who opens the same book.
 
 /**
+ * WHOLESALE ONLY. An extractor reads the vendor's COST and nothing else.
+ *
+ * Books print more than cost -- MSRP, MAP, custom-finish columns, suggested
+ * retail. None of it is imported as truth, because retail is not a vendor fact,
+ * it is a business decision, and it is not ours to make for someone else's shop.
+ * Two dealers carrying the same book price differently and both are right.
+ *
+ * So the deployment configures its own markup, its own discount, whether it
+ * honours MAP and at what number. Baking a markup, or storing a printed MSRP as
+ * the retail, hard-codes one shop's policy into the product -- exactly the class
+ * CLAUDE.md principle 7 exists to stop. Where a book prints several price
+ * columns, the profile names the wholesale one and ignores the rest.
+ */
+
+/**
  * One rung of a vendor's price ladder.
  *
  * `kind` is DECLARED, never inferred. The import engine used to guess it from
@@ -48,6 +63,51 @@ export interface RowSpec {
    * `COM\t54" PLAIN COM FABRIC Required (Yds.):\t7\t...`.
    */
   readonly deep?: boolean;
+}
+
+/**
+ * An option row the book prints per style.
+ *
+ * Options are PER STYLE, not per vendor. A book prints a column of option prices
+ * beside each frame, and they genuinely differ: an ottoman's contrast welt is not
+ * a sofa's, and a side table has neither. Seeding one flat price per vendor --
+ * the thing this replaces -- asserts every frame carries every option at one
+ * price, which is wrong on almost every row.
+ *
+ * APPLICABILITY IS IN THE BOOK, and does not need curating. A style does not
+ * carry an option when the row is absent from its page, or when its cell holds
+ * the book's not-available token. Sam Moore prints the rule on every page:
+ * "NOTE: -- means Not Available", and its CONTRAST INSIDE BACK CUSHION row
+ * appears on 58 of 86 pages. Read it and the applicability comes free.
+ */
+export interface OptionSpec {
+  /** Matched against the row's label cell. */
+  readonly match: RegExp;
+  /** Option group as shown to the user ("Cushion Upgrade"). */
+  readonly groupName: string;
+  /** Option name within the group ("Down Plush"). */
+  readonly optionName: string;
+  /** How the cell's number applies. Defaults to FLAT. */
+  readonly surchargeType?: "FLAT" | "PERCENTAGE" | "PER_UNIT";
+  /** Ordering within the group. */
+  readonly sortOrder?: number;
+  /**
+   * Cell values meaning "included, no upcharge" -- distinct from unavailable.
+   * Sam Moore writes "N/C"; some books write "STD" or "INCL". A style with one
+   * of these HAS the option at zero, which is not the same as not having it.
+   */
+  readonly includedTokens?: readonly string[];
+}
+
+/** One style's resolved option, ready for StyleOptionOverride. */
+export interface StyleOption {
+  groupName: string;
+  optionName: string;
+  surcharge: number;
+  surchargeType: "FLAT" | "PERCENTAGE" | "PER_UNIT";
+  /** True when the book shows it included rather than priced. */
+  isStandard: boolean;
+  sortOrder: number;
 }
 
 export interface WholesaleVendorProfile {
@@ -95,4 +155,34 @@ export interface WholesaleVendorProfile {
    * and a price.
    */
   expandSkus?(itemCell: string, gridLines: readonly string[], column: number): string[];
+  /**
+   * A printed MSRP/retail row, where the book has one.
+   *
+   * Captured as REFERENCE, never as the deployment's retail. It seeds demo and
+   * test data with numbers that look like a real book, and it lets a deployment
+   * sanity-check its own markup against what the manufacturer suggests. It is
+   * not what a customer is charged: that stays the shop's configured markup,
+   * discount and MAP policy. Storing it as retail would decide another
+   * business's pricing for them.
+   */
+  readonly msrpRow?: RowSpec;
+  /**
+   * Section headings the renderer glues onto the next row's label.
+   *
+   * The column-aware renderer sometimes concatenates a section heading with the
+   * label beneath it, so "CONTRAST TOP ARM or PANEL" arrives as
+   * "STANDARD TRIM & AVAILABLE OPTIONSCONTRAST TOP ARM or PANEL". A pattern
+   * anchored at ^ then silently misses that row -- Sam Moore's Top Arm option
+   * matched 4 styles instead of 66 for exactly this reason, and the shortfall
+   * looks like the option genuinely being rare.
+   *
+   * Declared per vendor because the headings are the book's, and stripped before
+   * any label match.
+   */
+  readonly gluedSectionHeaders?: readonly string[];
+  /**
+   * Option rows this book prints per style. Omitted entirely for books that
+   * price no options -- an empty list is honest, a guessed one is not.
+   */
+  readonly options?: readonly OptionSpec[];
 }

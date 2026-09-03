@@ -21,7 +21,7 @@
 
 import { columnAwarePageRenderer } from "../pdfUtils";
 import type { ParsedWholesaleProduct } from "../wesleyHallParser";
-import type { WholesaleVendorProfile } from "./profile";
+import type { StyleOption, WholesaleVendorProfile } from "./profile";
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const pdf = require("pdf-parse");
@@ -82,23 +82,48 @@ function splitIntoGrids(text: string, header: RegExp): string[] {
   );
 }
 
+/**
+ * Strip a section heading the renderer glued onto a row label.
+ *
+ * Done before every label match, so profiles can anchor their patterns at ^ and
+ * still catch the glued rows. Without it an anchored pattern misses exactly the
+ * rows that follow a heading, and the miss reads as the option being rare rather
+ * than as a parsing failure.
+ */
+function deglue(label: string, profile: WholesaleVendorProfile): string {
+  let out = label.trim();
+  for (const h of profile.gluedSectionHeaders ?? []) {
+    if (out.startsWith(h)) out = out.slice(h.length).trim();
+  }
+  return out;
+}
+
 interface Collected {
   rows: Record<string, string[]>;
   grades: Record<string, string[]>;
+  /** Option row values, keyed by the option's index in the profile. */
+  optionCells: Record<number, string[]>;
 }
 
 /** Walk a grid's lines into a row map and a grade map, both column-indexed. */
 function collectRows(lines: string[], profile: WholesaleVendorProfile): Collected {
   const rows: Record<string, string[]> = {};
   const grades: Record<string, string[]> = {};
+  const optionCells: Record<number, string[]> = {};
 
   for (const line of lines) {
     if (!line.includes("\t")) continue;
-    const label = line.split("\t")[0];
+    const label = deglue(line.split("\t")[0], profile);
 
     const grade = profile.gradeOfRow(label);
     if (grade) {
       grades[grade] = cells(line);
+      continue;
+    }
+
+    const optIdx = (profile.options ?? []).findIndex((o) => o.match.test(label));
+    if (optIdx >= 0) {
+      optionCells[optIdx] = cells(line);
       continue;
     }
 
@@ -107,7 +132,7 @@ function collectRows(lines: string[], profile: WholesaleVendorProfile): Collecte
     if (spec) rows[spec.key] = spec.deep ? deepCells(line) : cells(line);
   }
 
-  return { rows, grades };
+  return { rows, grades, optionCells };
 }
 
 /** One column's prices, in the vendor's declared ladder order. */
@@ -130,13 +155,58 @@ function gradePricesFor(
   return out;
 }
 
+/**
+ * One column's options, as the book states them for that frame.
+ *
+ * Three outcomes per option, and the difference between the last two is the
+ * whole point: a style that CANNOT take an option must not appear to take it
+ * for free.
+ *
+ *   row absent, or cell is a no-price token  -> not applicable, omitted
+ *   cell is an included token ("N/C")        -> applicable, surcharge 0, standard
+ *   cell is a number                         -> applicable, that surcharge
+ */
+function optionsFor(
+  column: number,
+  optionCells: Record<number, string[]>,
+  profile: WholesaleVendorProfile,
+): StyleOption[] {
+  const out: StyleOption[] = [];
+  (profile.options ?? []).forEach((spec, i) => {
+    const raw = (optionCells[i] || [])[column];
+    if (raw === undefined) return;
+    const cell = raw.trim();
+    if (!cell || profile.emptyCells.includes(cell)) return;
+
+    const included = (spec.includedTokens ?? []).some(
+      (t) =>
+        cell.toUpperCase() === t.toUpperCase() ||
+        cell.toUpperCase().endsWith(`- ${t.toUpperCase()}`),
+    );
+    const cost = included ? 0 : parseMoney(cell, profile.emptyCells);
+    // A cell that is neither a price nor an included-token is prose the book put
+    // in a price column ("see front of pricelist"). Not a zero -- unknown.
+    if (cost === null) return;
+
+    out.push({
+      groupName: spec.groupName,
+      optionName: spec.optionName,
+      surcharge: cost,
+      surchargeType: spec.surchargeType ?? "FLAT",
+      isStandard: included,
+      sortOrder: spec.sortOrder ?? i,
+    });
+  });
+  return out;
+}
+
 function parseGrid(
   chunk: string,
   pageNumber: number,
   profile: WholesaleVendorProfile,
 ): ParsedWholesaleProduct[] {
   const lines = chunk.split("\n");
-  const { rows, grades } = collectRows(lines, profile);
+  const { rows, grades, optionCells } = collectRows(lines, profile);
   const headerCells = rows.style || [];
   const products: ParsedWholesaleProduct[] = [];
 
@@ -149,6 +219,7 @@ function parseGrid(
     if (gradePrices.length === 0) continue;
 
     const skus = profile.expandSkus ? profile.expandSkus(cell, lines, col) : [cell];
+    const styleOptions = optionsFor(col, optionCells, profile);
     const dim = (key: string) => parseDimension(rows[key]?.[col] || "", profile.emptyCells);
 
     for (const styleNumber of skus) {
@@ -176,6 +247,7 @@ function parseGrid(
         seatDepth: dim("seatDepth"),
         armHeight: dim("armHeight"),
         pageNumber,
+        styleOptions,
       } as ParsedWholesaleProduct);
     }
   }

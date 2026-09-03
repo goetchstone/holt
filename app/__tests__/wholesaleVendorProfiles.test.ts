@@ -195,3 +195,72 @@ describe("vendor id and vendor name are the same vendor", () => {
     expect(wholesaleProfileFor("Hooker Custom Upholstery")).toBeUndefined();
   });
 });
+
+describe("per-style options come from the book, not a seed table", () => {
+  // Options are per STYLE. A frame that cannot take one must not appear to take
+  // it for free -- that is the difference between an accurate import and a
+  // plausible one, and it decides what a designer can actually order.
+  const OPTIONS = page(
+    9,
+    [
+      "STYLE NUMBER:\t1034\t1035\t1036",
+      "STYLE NAME:\tNova\tOrion\tPike",
+      "Grade: B\t$500\t$540\t$470",
+      "CONTRAST WELT  (B - ZZ fabric)\t$20\t--\tN/C",
+      "CONTRAST INSIDE BACK (B - ZZ fabric)\t$30\t$30\t--",
+      "WELT ONLY (delete Nails):\tStandard\tStandard\tStandard",
+      "STANDARD TRIM & AVAILABLE OPTIONSCONTRAST TOP ARM or PANEL (B - ZZ fabric)\t$45\t--\t--",
+    ].join("\n"),
+  );
+  const opts = (n: string) => {
+    const p = parseRenderedGrid(OPTIONS, profile("sam-moore")).find((x) => x.styleNumber === n);
+    return Object.fromEntries(
+      (
+        (
+          p as unknown as {
+            styleOptions: { optionName: string; surcharge: number; isStandard: boolean }[];
+          }
+        ).styleOptions ?? []
+      ).map((o) => [o.optionName, o]),
+    );
+  };
+
+  it("prices an option only on the frames the book prices it on", () => {
+    expect(opts("1034")["Contrast Welt"].surcharge).toBe(20);
+    // "--" is the book's own Not Available token, printed on every page.
+    expect(opts("1035")["Contrast Welt"]).toBeUndefined();
+    expect(opts("1036")["Inside Back Cushion"]).toBeUndefined();
+  });
+
+  it("distinguishes included-at-no-charge from not-available", () => {
+    // N/C means the frame HAS it, free. Absent means it cannot have it at all.
+    // Collapsing the two would offer a designer an option the vendor will not build.
+    const free = opts("1036")["Contrast Welt"];
+    expect(free).toMatchObject({ surcharge: 0, isStandard: true });
+    expect(opts("1036")["Contrast Welt"]).not.toBeUndefined();
+  });
+
+  // The book writes "Standard" where other rows write "N/C". Reading only "N/C"
+  // dropped this option from all 97 styles that carry it, and the loss looked
+  // like the option being rare rather than a token we did not know.
+  it("reads every word this book uses for included", () => {
+    for (const s of ["1034", "1035", "1036"]) {
+      expect(opts(s)["Welt Only (delete nails)"]).toMatchObject({ surcharge: 0, isStandard: true });
+    }
+  });
+
+  // The renderer glues a section heading onto the next label. An anchored
+  // pattern then misses exactly the rows following a heading, and the miss reads
+  // as the option being rare -- it cost 66 of 86 pages before this was stripped.
+  it("still matches a row whose label carries a glued section heading", () => {
+    expect(opts("1034")["Top Arm or Panel"].surcharge).toBe(45);
+  });
+
+  // One option, two spellings across the book's pages.
+  it("matches both spellings the book uses for one option", () => {
+    const p = profile("sam-moore");
+    const spec = (p.options ?? []).find((o) => o.optionName === "Inside Back Cushion")!;
+    expect(spec.match.test("CONTRAST INSIDE BACK CUSHION (B - ZZ fabric)")).toBe(true);
+    expect(spec.match.test("CONTRAST INSIDE BACK (B - ZZ fabric)")).toBe(true);
+  });
+});
