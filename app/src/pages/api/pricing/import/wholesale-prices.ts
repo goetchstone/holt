@@ -271,6 +271,16 @@ interface SurchargeMapping {
   sortOrder: number;
 }
 
+/** One option the book priced for a specific style (see wholesale/profile.ts). */
+interface BookStyleOption {
+  groupName: string;
+  optionName: string;
+  surcharge: number;
+  surchargeType: "FLAT" | "PERCENTAGE" | "PER_UNIT";
+  isStandard: boolean;
+  sortOrder: number;
+}
+
 const VENDOR_SURCHARGE_MAP: Record<string, SurchargeMapping[]> = {
   "wesley hall": [
     {
@@ -1117,7 +1127,53 @@ export default requirePermission(
             //    standard" (per Wesley Hall front-of-book convention). We create
             //    an override with surcharge=null so the configurator falls back
             //    to VendorOption.defaultSurcharge.
-            const surchargeMap = VENDOR_SURCHARGE_MAP[resolveVendorKey(vendor.name)] || [];
+            // Options the BOOK priced for THIS style, read off its own page by the
+            // wholesale engine. Already filtered: a frame the book marks "--"
+            // (Not Available) carries no entry, so it gets no row and the
+            // configurator will not offer a designer something the vendor will
+            // not build.
+            //
+            // Preferred over VENDOR_SURCHARGE_MAP below, which asserts one flat
+            // price for every frame of a vendor. Where the book states a
+            // per-frame price, the book wins.
+            const bookOptions = (p as unknown as { styleOptions?: BookStyleOption[] }).styleOptions;
+            for (const opt of bookOptions ?? []) {
+              const group = await tx.vendorOptionGroup.upsert({
+                where: { vendorId_name: { vendorId, name: opt.groupName } },
+                create: { vendorId, name: opt.groupName },
+                update: {},
+              });
+              const option = await tx.vendorOption.upsert({
+                where: { groupId_name: { groupId: group.id, name: opt.optionName } },
+                create: {
+                  groupId: group.id,
+                  name: opt.optionName,
+                  surchargeType: opt.surchargeType,
+                  defaultSurcharge: 0,
+                  sortOrder: opt.sortOrder,
+                },
+                update: {},
+              });
+              await tx.styleOptionOverride.upsert({
+                where: {
+                  vendorStyleId_optionId: { vendorStyleId: vendorStyle.id, optionId: option.id },
+                },
+                create: {
+                  vendorStyleId: vendorStyle.id,
+                  optionId: option.id,
+                  surcharge: opt.surcharge,
+                  isAvailable: true,
+                  isStandard: opt.isStandard,
+                },
+                update: { surcharge: opt.surcharge, isAvailable: true, isStandard: opt.isStandard },
+              });
+            }
+
+            // Legacy path: vendors whose extractor does not yet read the book's
+            // option rows fall back to the hand-maintained vendor-level map.
+            const surchargeMap = bookOptions?.length
+              ? []
+              : VENDOR_SURCHARGE_MAP[resolveVendorKey(vendor.name)] || [];
             for (const mapping of surchargeMap) {
               const surchargeValue = p[mapping.productField] as number | null | undefined;
               const isStandard = mapping.isStandardField
