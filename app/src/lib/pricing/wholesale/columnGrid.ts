@@ -166,6 +166,47 @@ function gradePricesFor(
  *   cell is an included token ("N/C")        -> applicable, surcharge 0, standard
  *   cell is a number                         -> applicable, that surcharge
  */
+/**
+ * Classify one option cell against the book's own legend.
+ *
+ * Four outcomes, and the distinctions matter to a designer:
+ *
+ *   blank / row absent  -> the book says nothing; no row at all
+ *   "--" (Not Available)-> explicitly not offered on this frame; kept as a row
+ *                          with isAvailable=false so the UI can grey it with a
+ *                          reason rather than leave it silently missing
+ *   "Standard"          -> the frame SHIPS with it
+ *   "N/C"               -> a choice that costs nothing -- NOT the same as
+ *                          standard, and saying so would tell a customer
+ *                          something is fitted when it is merely free to add
+ *   a number            -> that surcharge
+ */
+function classifyCell(
+  raw: string | undefined,
+  spec: { includedTokens?: readonly string[] },
+  emptyCells: readonly string[],
+): { surcharge: number; isStandard: boolean; isAvailable: boolean } | null {
+  if (raw === undefined) return null;
+  const cell = raw.trim();
+  if (!cell) return null;
+  if (emptyCells.includes(cell)) return { surcharge: 0, isStandard: false, isAvailable: false };
+  if (/^(Standard|Included|STD)$/i.test(cell)) {
+    return { surcharge: 0, isStandard: true, isAvailable: true };
+  }
+  if (/^(N\/C|No Charge)$/i.test(cell)) {
+    return { surcharge: 0, isStandard: false, isAvailable: true };
+  }
+  for (const t of spec.includedTokens ?? []) {
+    if (cell.toUpperCase() === t.toUpperCase()) {
+      return { surcharge: 0, isStandard: false, isAvailable: true };
+    }
+  }
+  const money = parseMoney(cell, emptyCells);
+  if (money === null) return null; // prose in a price column ("see front of list")
+  return { surcharge: money, isStandard: false, isAvailable: true };
+}
+
+/** One column's options, as the book states them for that frame. */
 function optionsFor(
   column: number,
   optionCells: Record<number, string[]>,
@@ -173,27 +214,17 @@ function optionsFor(
 ): StyleOption[] {
   const out: StyleOption[] = [];
   (profile.options ?? []).forEach((spec, i) => {
-    const raw = (optionCells[i] || [])[column];
-    if (raw === undefined) return;
-    const cell = raw.trim();
-    if (!cell || profile.emptyCells.includes(cell)) return;
-
-    const included = (spec.includedTokens ?? []).some(
-      (t) =>
-        cell.toUpperCase() === t.toUpperCase() ||
-        cell.toUpperCase().endsWith(`- ${t.toUpperCase()}`),
-    );
-    const cost = included ? 0 : parseMoney(cell, profile.emptyCells);
-    // A cell that is neither a price nor an included-token is prose the book put
-    // in a price column ("see front of pricelist"). Not a zero -- unknown.
-    if (cost === null) return;
-
+    const c = classifyCell((optionCells[i] || [])[column], spec, profile.emptyCells);
+    if (!c) return;
     out.push({
       groupName: spec.groupName,
       optionName: spec.optionName,
-      surcharge: cost,
+      surcharge: c.surcharge,
       surchargeType: spec.surchargeType ?? "FLAT",
-      isStandard: included,
+      isStandard: c.isStandard,
+      isAvailable: c.isAvailable,
+      requiresTextInput: spec.requiresTextInput ?? false,
+      textInputLabel: spec.textInputLabel ?? null,
       sortOrder: spec.sortOrder ?? i,
     });
   });

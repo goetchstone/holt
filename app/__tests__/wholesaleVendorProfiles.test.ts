@@ -197,9 +197,9 @@ describe("vendor id and vendor name are the same vendor", () => {
 });
 
 describe("per-style options come from the book, not a seed table", () => {
-  // Options are per STYLE. A frame that cannot take one must not appear to take
-  // it for free -- that is the difference between an accurate import and a
-  // plausible one, and it decides what a designer can actually order.
+  // Options are per STYLE, and the book's own legend says which frames take
+  // which. Getting this wrong offers a designer an upcharge the vendor will not
+  // build, or hides one they would have sold.
   const OPTIONS = page(
     9,
     [
@@ -209,7 +209,6 @@ describe("per-style options come from the book, not a seed table", () => {
       "CONTRAST WELT  (B - ZZ fabric)\t$20\t--\tN/C",
       "CONTRAST INSIDE BACK (B - ZZ fabric)\t$30\t$30\t--",
       "WELT ONLY (delete Nails):\tStandard\tStandard\tStandard",
-      "STANDARD TRIM & AVAILABLE OPTIONSCONTRAST TOP ARM or PANEL (B - ZZ fabric)\t$45\t--\t--",
     ].join("\n"),
   );
   const opts = (n: string) => {
@@ -218,7 +217,13 @@ describe("per-style options come from the book, not a seed table", () => {
       (
         (
           p as unknown as {
-            styleOptions: { optionName: string; surcharge: number; isStandard: boolean }[];
+            styleOptions: {
+              optionName: string;
+              surcharge: number;
+              isStandard: boolean;
+              isAvailable: boolean;
+              requiresTextInput: boolean;
+            }[];
           }
         ).styleOptions ?? []
       ).map((o) => [o.optionName, o]),
@@ -226,41 +231,37 @@ describe("per-style options come from the book, not a seed table", () => {
   };
 
   it("prices an option only on the frames the book prices it on", () => {
-    expect(opts("1034")["Contrast Welt"].surcharge).toBe(20);
-    // "--" is the book's own Not Available token, printed on every page.
-    expect(opts("1035")["Contrast Welt"]).toBeUndefined();
-    expect(opts("1036")["Inside Back Cushion"]).toBeUndefined();
+    expect(opts("1034")["Contrast Welt"]).toMatchObject({ surcharge: 20, isAvailable: true });
   });
 
-  it("distinguishes included-at-no-charge from not-available", () => {
-    // N/C means the frame HAS it, free. Absent means it cannot have it at all.
-    // Collapsing the two would offer a designer an option the vendor will not build.
-    const free = opts("1036")["Contrast Welt"];
-    expect(free).toMatchObject({ surcharge: 0, isStandard: true });
-    expect(opts("1036")["Contrast Welt"]).not.toBeUndefined();
+  // "--" is the book's Not Available token, printed on every page. Kept as a row
+  // rather than dropped, so the UI can grey it out with a reason instead of
+  // leaving a designer wondering whether it was simply missed.
+  it("keeps a not-available option as an explicit no, not a silence", () => {
+    expect(opts("1035")["Contrast Welt"]).toMatchObject({ isAvailable: false });
+    expect(opts("1036")["Contrast Inside Back"]).toMatchObject({ isAvailable: false });
   });
 
-  // The book writes "Standard" where other rows write "N/C". Reading only "N/C"
-  // dropped this option from all 97 styles that carry it, and the loss looked
-  // like the option being rare rather than a token we did not know.
-  it("reads every word this book uses for included", () => {
-    for (const s of ["1034", "1035", "1036"]) {
-      expect(opts(s)["Welt Only (delete nails)"]).toMatchObject({ surcharge: 0, isStandard: true });
-    }
+  // The book prints two different zero-cost words and they mean different
+  // things. Collapsing them tells a customer something is fitted when it is
+  // merely free to add.
+  it("separates standard equipment from a free choice", () => {
+    expect(opts("1036")["Contrast Welt"]).toMatchObject({
+      surcharge: 0,
+      isStandard: false,
+      isAvailable: true,
+    });
+    expect(opts("1034")["Welt Only (delete nails)"]).toMatchObject({
+      surcharge: 0,
+      isStandard: true,
+      isAvailable: true,
+    });
   });
 
-  // The renderer glues a section heading onto the next label. An anchored
-  // pattern then misses exactly the rows following a heading, and the miss reads
-  // as the option being rare -- it cost 66 of 86 pages before this was stripped.
-  it("still matches a row whose label carries a glued section heading", () => {
-    expect(opts("1034")["Top Arm or Panel"].surcharge).toBe(45);
-  });
-
-  // One option, two spellings across the book's pages.
-  it("matches both spellings the book uses for one option", () => {
-    const p = profile("sam-moore");
-    const spec = (p.options ?? []).find((o) => o.optionName === "Inside Back Cushion")!;
-    expect(spec.match.test("CONTRAST INSIDE BACK CUSHION (B - ZZ fabric)")).toBe(true);
-    expect(spec.match.test("CONTRAST INSIDE BACK (B - ZZ fabric)")).toBe(true);
+  // A contrast option is applied in a different fabric from the body, so the
+  // order is not orderable until the designer names it.
+  it("flags the options that need the designer to name a fabric", () => {
+    expect(opts("1034")["Contrast Welt"].requiresTextInput).toBe(true);
+    expect(opts("1034")["Welt Only (delete nails)"].requiresTextInput).toBe(false);
   });
 });

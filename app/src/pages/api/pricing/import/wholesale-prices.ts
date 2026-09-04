@@ -278,6 +278,9 @@ interface BookStyleOption {
   surcharge: number;
   surchargeType: "FLAT" | "PERCENTAGE" | "PER_UNIT";
   isStandard: boolean;
+  isAvailable: boolean;
+  requiresTextInput: boolean;
+  textInputLabel: string | null;
   sortOrder: number;
 }
 
@@ -1151,6 +1154,8 @@ export default requirePermission(
                   surchargeType: opt.surchargeType,
                   defaultSurcharge: 0,
                   sortOrder: opt.sortOrder,
+                  requiresTextInput: opt.requiresTextInput,
+                  textInputLabel: opt.textInputLabel,
                 },
                 update: {},
               });
@@ -1162,10 +1167,14 @@ export default requirePermission(
                   vendorStyleId: vendorStyle.id,
                   optionId: option.id,
                   surcharge: opt.surcharge,
-                  isAvailable: true,
+                  isAvailable: opt.isAvailable,
                   isStandard: opt.isStandard,
                 },
-                update: { surcharge: opt.surcharge, isAvailable: true, isStandard: opt.isStandard },
+                update: {
+                  surcharge: opt.surcharge,
+                  isAvailable: opt.isAvailable,
+                  isStandard: opt.isStandard,
+                },
               });
             }
 

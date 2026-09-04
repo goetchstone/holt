@@ -97,6 +97,12 @@ export interface OptionSpec {
    * of these HAS the option at zero, which is not the same as not having it.
    */
   readonly includedTokens?: readonly string[];
+  /**
+   * The option is applied in a different fabric from the body, so the order is
+   * not complete until the designer names it.
+   */
+  readonly requiresTextInput?: boolean;
+  readonly textInputLabel?: string;
 }
 
 /** One style's resolved option, ready for StyleOptionOverride. */
@@ -105,8 +111,24 @@ export interface StyleOption {
   optionName: string;
   surcharge: number;
   surchargeType: "FLAT" | "PERCENTAGE" | "PER_UNIT";
-  /** True when the book shows it included rather than priced. */
+  /**
+   * The book prints two different zero-cost words and they are NOT the same
+   * thing. "Standard"/"Included" means the frame ships with it. "N/C"/"No
+   * Charge" means it is a choice the designer makes that happens to cost
+   * nothing. Collapsing them tells a customer something is fitted when it is
+   * merely free to add.
+   */
   isStandard: boolean;
+  /**
+   * False when the book explicitly marks the option not available on this frame
+   * ("--"), as opposed to simply not mentioning it. Kept rather than dropped so
+   * the configurator can show it greyed with a reason instead of leaving a
+   * designer wondering whether it was missed.
+   */
+  isAvailable: boolean;
+  /** The option needs the designer to name something (which contrast fabric). */
+  requiresTextInput: boolean;
+  textInputLabel: string | null;
   sortOrder: number;
 }
 
