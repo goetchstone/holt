@@ -26,6 +26,32 @@ Branding, integration credentials, and import mappings are configured in the
 database through the in-app Settings screens. A deployment is white-labeled and
 wired to its own systems without editing code.
 
+## What it looks like
+
+The screenshots below are a live instance running the demo seed (`npm run setup`)
+— 454 orders, 180 customers, 160 products, two showrooms. No mockups.
+
+### Storefront
+
+A themeable public site with a built-in block CMS, edited in-app with no rebuild.
+
+![Holt storefront](docs/images/storefront.png)
+
+### Back office
+
+Orders across both showrooms, filterable by status, with the salesperson and
+store on every row.
+
+![Sales orders](docs/images/sales-orders.png)
+
+### Reporting
+
+Sixteen reports covering the money path end to end — margin, sell-through,
+returns, commission, and the reconciliation worklists that surface what is off
+the books.
+
+![Reports](docs/images/reports.png)
+
 ## Quick Start
 
 From a fresh clone to a logged-in system with ~18 months of demo data:
