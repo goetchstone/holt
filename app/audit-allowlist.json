@@ -1,0 +1,21 @@
+{
+  "_comment": [
+    "Production advisories the npm audit gate may pass over, and only while the",
+    "reason below stays true. Same discipline as osv-scanner.toml (CLAUDE.md rule",
+    "54): every entry carries an expiry and a reason that was verified, not",
+    "assumed. An expired entry FAILS the gate -- that is the point, because a",
+    "suppression nobody revisits is a decision made once and inherited forever.",
+    "",
+    "An entry belongs here only when the vulnerable code path is unreachable in",
+    "this application and that is checkable. 'We think it is fine' is not a",
+    "reason; name the check."
+  ],
+  "allow": [
+    {
+      "id": "GHSA-8m3c-c648-2xjj",
+      "package": "nodemailer",
+      "expires": "2026-12-09",
+      "reason": "resolveContent() on a MailMessage bypasses disableFileAccess when resolving ATTACHMENT content. Holt never sends attachments: src/lib/email/sender.ts calls sendMail({ from, to, subject, html }) and passes no attachments key on any path. Pinned by __tests__/emailNoAttachments.test.ts, which fails if an attachments option is ever introduced -- at which point this suppression stops being true and must go. Upstream fix is nodemailer 10.x, a major bump that gets its own session (rule 5)."
+    }
+  ]
+}

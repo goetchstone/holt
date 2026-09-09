@@ -240,27 +240,63 @@ jobs:
           RC=$?
           set -e
           python3 - <<'PY'
-          import json, os, pathlib
+          import json, os, pathlib, datetime, sys
+
           data = json.loads(pathlib.Path("audit.json").read_text() or "{}")
           vulns = data.get("vulnerabilities", {})
-          counts = data.get("metadata", {}).get("vulnerabilities", {})
-          summary = os.environ.get("GITHUB_STEP_SUMMARY")
-          lines = ["## npm advisory audit\n"]
-          if not vulns:
-              lines.append("No production advisories at **high** or above.\n")
-          else:
-              lines.append("| Package | Severity | Advisory |\n|---|---|---|\n")
-              for name, v in sorted(vulns.items()):
+
+          # Advisories we may pass over, and only while their reason holds.
+          # An EXPIRED entry is not skipped -- it fails, which is the whole
+          # point of putting a date on a suppression (CLAUDE.md rule 54).
+          allow, expired = {}, []
+          allow_path = pathlib.Path("audit-allowlist.json")
+          if allow_path.exists():
+              today = datetime.date.today()
+              for e in json.loads(allow_path.read_text()).get("allow", []):
+                  if datetime.date.fromisoformat(e["expires"]) < today:
+                      expired.append(e)
+                  else:
+                      allow[e["id"]] = e
+
+          def ids(v):
+              return {u.get("url", "").rsplit("/", 1)[-1] for u in v.get("via", []) if isinstance(u, dict)}
+
+          BLOCKING = {"high", "critical"}
+          blocking, allowed = {}, {}
+          for name, v in sorted(vulns.items()):
+              if v.get("severity") not in BLOCKING:
+                  continue
+              hit = ids(v) & set(allow)
+              (allowed if hit else blocking)[name] = (v, hit)
+
+          lines = ["## npm advisory audit\n\n"]
+          if blocking:
+              lines.append("### Blocking\n\n| Package | Severity | Advisory |\n|---|---|---|\n")
+              for name, (v, _) in blocking.items():
                   urls = [x.get("url", "") for x in v.get("via", []) if isinstance(x, dict)]
                   lines.append(f"| `{name}` | {v.get('severity','?')} | {urls[0] if urls else ''} |\n")
-              lines.append(f"\nTotals: `{counts}`\n")
+          else:
+              lines.append("No blocking production advisories at **high** or above.\n")
+          if allowed:
+              lines.append("\n### Allowed (unreachable, with expiry)\n\n| Package | Advisory | Expires |\n|---|---|---|\n")
+              for name, (_, hit) in allowed.items():
+                  for a in hit:
+                      lines.append(f"| `{name}` | {a} | {allow[a]['expires']} |\n")
+          if expired:
+              lines.append("\n### EXPIRED suppressions — re-verify the reason against the current tree\n\n")
+              for e in expired:
+                  lines.append(f"- `{e['id']}` ({e['package']}) expired {e['expires']}\n")
+          lines.append(f"\nTotals: `{data.get('metadata', {}).get('vulnerabilities')}`\n")
+
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
           if summary:
               with open(summary, "a") as out:
                   out.writelines(lines)
           print("".join(lines))
+          sys.exit(1 if (blocking or expired) else 0)
           PY
-          # npm audit exits non-zero only when something at or above
-          # --audit-level is found, which is exactly the failure we want.
+          # The python step above owns pass/fail: npm audit's own exit code
+          # cannot tell an unreachable advisory from a live one.
           exit $RC
 
   # OSV scans npm dependencies against the OSV.dev CVE database. Runs on
