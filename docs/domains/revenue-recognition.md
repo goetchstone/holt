@@ -161,8 +161,8 @@ revenue **drift**, permanently, on every deployment that takes special orders.
 
 ## Imported history expresses the same policy
 
-Saybrook's invoicing came from a **report downloaded out of Ordorite**, and that
-report already encodes the policy exactly:
+The pilot deployment's invoicing came from a **report downloaded out of
+Ordorite**, and that report already encodes the policy exactly:
 
 | In the downloaded report | Means | Accounting |
 | --- | --- | --- |
