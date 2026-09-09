@@ -23,7 +23,14 @@ export interface JournalLine {
   sortOrder: number;
 }
 
+/** Why `generateSalesJournal` produced no entry for a day that still had
+ *  real activity. Not an error state -- see the `result.lines.length === 0`
+ *  branch in `generateSalesJournal` for the reasoning. */
+export type JournalSkipReason = "fully-offset";
+
 interface GenerateResult {
+  /** null when the day's activity fully offset and there was nothing to
+   *  summarise. `skipped` says why. Never null otherwise. */
   journalEntry: {
     id: number;
     journalNumber: string;
@@ -39,8 +46,10 @@ interface GenerateResult {
       credit: number;
       sortOrder: number;
     }[];
-  };
+  } | null;
   warnings: string[];
+  /** Set if and only if `journalEntry` is null. */
+  skipped?: JournalSkipReason;
 }
 
 export interface SalesPayment {
@@ -1190,6 +1199,45 @@ export async function generateSalesJournal(
         storeLocation: storeLocation ?? null,
       },
     });
+  }
+
+  // A day can legitimately summarise to nothing. Sell something and refund it
+  // in full on the same day and every account nets to zero: cash in then out,
+  // revenue recognised then reversed. `emitSigned` drops a zero line because a
+  // $0 row carries no information, so all of them drop and the set is empty.
+  //
+  // That is nothing to post, NOT a fault. This is a NET daily summary journal
+  // -- the two Payment rows and the Return still record exactly what happened,
+  // and a summary of activity that cancels is empty by construction. Before
+  // this, such a day threw "Refusing to post a journal entry with zero lines"
+  // and a store could not close its books for any day carrying a same-day full
+  // refund, which is an ordinary retail event.
+  //
+  // The fault case is still a fault, and is distinguishable: it means we had
+  // nothing to build FROM. Payments that exist but map to no GL account are
+  // dropped with a warning (see reports/unmapped-payments), so a day whose
+  // every payment is unmapped arrives here with an empty mappedPayments and no
+  // recognitions -- exactly the missing-mapping break the demo seed exists to
+  // surface. Zero lines out of zero inputs throws; zero lines out of real
+  // inputs is arithmetic.
+  if (result.lines.length === 0) {
+    if (mappedPayments.length === 0 && recognisedOrders.length === 0) {
+      throw new Error(
+        `Refusing to post a journal entry with zero lines: ${journalNumber} had ` +
+          `${payments.length} payment(s) but none could be mapped to a GL account, ` +
+          `and no orders were recognised. Check the POS_PAYMENTS GL mappings.`,
+      );
+    }
+    return {
+      journalEntry: null,
+      warnings: [
+        ...warnings,
+        `${journalNumber}: no entry posted — the day's activity offsets to zero in every ` +
+          `account (${mappedPayments.length} payment(s), ${recognisedOrders.length} recognition(s)). ` +
+          `Nothing to summarise; the underlying payments and returns are unchanged.`,
+      ],
+      skipped: "fully-offset",
+    };
   }
 
   // #138: never persist an unbalanced entry. Assert before the write so a builder

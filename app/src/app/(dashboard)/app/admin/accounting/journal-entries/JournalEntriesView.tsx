@@ -205,6 +205,17 @@ export function JournalEntriesView() {
         data.warnings.forEach((w: string) => toast.warn(w));
       }
 
+      // A day whose activity fully offsets posts no entry at all (see
+      // lib/journalEntry.ts). The API answers 200 with journalEntry: null and
+      // a warning already surfaced above, so say what happened plainly rather
+      // than dereferencing null and claiming success.
+      if (!data.journalEntry) {
+        toast.info("Nothing to post for that day — its activity offsets to zero.");
+        await fetchEntries();
+        setSelectedEntry(null);
+        return;
+      }
+
       toast.success(`Generated ${data.journalEntry.journalNumber}`);
       await fetchEntries();
       setSelectedEntry(data.journalEntry);

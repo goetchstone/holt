@@ -25,6 +25,10 @@ const SEED_ACTOR = "seed:demo";
 
 export interface JournalResult {
   daysProcessed: string[];
+  /** Days that were generated but posted no entry because the day's activity
+   *  offsets to zero -- typically a sale and its full same-day refund. Recorded
+   *  rather than hidden, so a seed run that skips everything is visible. */
+  daysOffset: string[];
   totalDebits: number;
   totalCredits: number;
   warnings: string[];
@@ -63,6 +67,7 @@ export async function seedJournalEntries(
   const days = await pickRepresentativeDays(prisma, sampleDayCount);
   const result: JournalResult = {
     daysProcessed: [],
+    daysOffset: [],
     totalDebits: 0,
     totalCredits: 0,
     warnings: [],
@@ -71,13 +76,27 @@ export async function seedJournalEntries(
 
   for (const day of days) {
     const { journalEntry, warnings } = await generateSalesJournal(day, SEED_ACTOR);
-    result.daysProcessed.push(day.toISOString().slice(0, 10));
+    const dayKey = day.toISOString().slice(0, 10);
+
+    // pickRepresentativeDays deliberately includes the first refund day, and in
+    // this seed that day carries a sale AND its full refund -- which offsets to
+    // zero in every account, so there is no entry to post. Nothing is wrong:
+    // generateSalesJournal returns journalEntry: null for exactly this case and
+    // still throws when it had nothing to build from, which is the missing-GL-
+    // mapping break this seed exists to surface. Record the skip and move on.
+    if (!journalEntry) {
+      result.daysOffset.push(dayKey);
+      result.warnings.push(...warnings);
+      continue;
+    }
+
+    result.daysProcessed.push(dayKey);
     result.totalDebits += journalEntry.totalDebits;
     result.totalCredits += journalEntry.totalCredits;
     result.warnings.push(...warnings.map((w) => `${journalEntry.journalNumber}: ${w}`));
     result.entries.push({
       journalNumber: journalEntry.journalNumber,
-      date: day.toISOString().slice(0, 10),
+      date: dayKey,
       totalDebits: journalEntry.totalDebits,
       totalCredits: journalEntry.totalCredits,
     });

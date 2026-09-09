@@ -24,6 +24,7 @@
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { generateSalesJournal } from "@/lib/journalEntry";
+import { posted } from "../helpers/postedJournal";
 
 // The DATE MARKER handed to generateSalesJournal: UTC midnight of the calendar
 // day. This is the journal's identity, not an instant on the clock.
@@ -275,7 +276,7 @@ describe("generateSalesJournal (real DB)", () => {
     const result = await generateSalesJournal(DAY);
 
     expect(result.warnings).toEqual([]);
-    const je = result.journalEntry;
+    const je = posted(result);
     expect(je.status).toBe("DRAFT");
     expect(totalDebits(je)).toBe(totalCredits(je)); // balanced
     expect(je.totalDebits).toBe(totalDebits(je));
@@ -308,12 +309,12 @@ describe("generateSalesJournal (real DB)", () => {
 
     const result = await generateSalesJournal(DAY);
 
-    const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+    const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
     expect(byCode.get("4-4080")?.credit).toBe(1000); // not 10999
     expect(byCode.get("5-5280")?.debit).toBe(400); // not 5400
     expect(byCode.get("1-1380")?.credit).toBe(400); // not 5400
     expect(byCode.get("2-2120")?.credit).toBe(63.5); // not 663.5
-    expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+    expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
   });
 
   it("(B3) a return on the same day produces sale-in-reverse signed amounts", async () => {
@@ -334,16 +335,16 @@ describe("generateSalesJournal (real DB)", () => {
 
     const result = await generateSalesJournal(DAY);
 
-    expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+    expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
     // The build helper's sign-flip emit logic should keep all line
     // amounts non-negative — the reversal shows up as side-flips
     // (debit/credit swap), not negative numbers.
-    for (const line of result.journalEntry.lines) {
+    for (const line of posted(result).lines) {
       expect(line.debit).toBeGreaterThanOrEqual(0);
       expect(line.credit).toBeGreaterThanOrEqual(0);
     }
 
-    const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+    const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
     // Cash side flipped: was debit on a sale; now credit (refund out).
     expect(byCode.get("1-1006")?.credit).toBe(531.75);
     expect(byCode.get("1-1006")?.debit).toBe(0);
@@ -386,8 +387,8 @@ describe("generateSalesJournal (real DB)", () => {
 
     const result = await generateSalesJournal(DAY);
 
-    expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
-    const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+    expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
+    const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
 
     // No inventory line at all -- the write-off never restocks.
     expect(byCode.get("1-1380")).toBeUndefined();
@@ -429,8 +430,8 @@ describe("generateSalesJournal (real DB)", () => {
 
     const result = await generateSalesJournal(DAY);
 
-    expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
-    const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+    expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
+    const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
     expect(byCode.get("1-1380")?.debit).toBe(200);
     expect(byCode.get("5-5010")).toBeUndefined();
   });
@@ -502,8 +503,8 @@ describe("generateSalesJournal (real DB)", () => {
 
     const result = await generateSalesJournal(DAY);
 
-    expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
-    const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+    expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
+    const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
     // Net Sales = 500 - 200 = 300 (credit, positive net is a sale)
     expect(byCode.get("4-4080")?.credit).toBe(300);
     expect(byCode.get("4-4080")?.debit).toBe(0);
@@ -536,8 +537,8 @@ describe("generateSalesJournal (real DB)", () => {
 
     const result = await generateSalesJournal(DAY);
 
-    expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
-    const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+    expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
+    const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
     expect(byCode.get("4-4080")?.credit).toBe(250000);
     expect(byCode.get("2-2120")?.credit).toBe(15875);
     expect(byCode.get("1-1006")?.debit).toBe(265875);
@@ -560,9 +561,9 @@ describe("generateSalesJournal (real DB)", () => {
     const second = await generateSalesJournal(DAY);
 
     // Different IDs (the first was deleted, a fresh one was inserted).
-    expect(second.journalEntry.id).not.toBe(first.journalEntry.id);
+    expect(posted(second).id).not.toBe(posted(first).id);
     // Same journal number (formatJournalNumber is deterministic on date).
-    expect(second.journalEntry.journalNumber).toBe(first.journalEntry.journalNumber);
+    expect(posted(second).journalNumber).toBe(posted(first).journalNumber);
     // Only one JE row exists in the DB now.
     const all = await prisma.journalEntry.findMany();
     expect(all).toHaveLength(1);
@@ -582,7 +583,7 @@ describe("generateSalesJournal (real DB)", () => {
     const first = await generateSalesJournal(DAY);
     // Post the JE.
     await prisma.journalEntry.update({
-      where: { id: first.journalEntry.id },
+      where: { id: posted(first).id },
       data: { status: "POSTED" },
     });
 
@@ -592,6 +593,74 @@ describe("generateSalesJournal (real DB)", () => {
   it("throws when the day has no payments", async () => {
     await seedAccountingFixtures();
     await expect(generateSalesJournal(DAY)).rejects.toThrow(/No payments/);
+  });
+
+  // ─── A day that offsets to zero posts nothing, and is not an error ─────
+  //
+  // Sell something and refund it in full the same day and every account nets
+  // to zero: cash in then straight out, deposit taken then released. A NET
+  // daily summary of activity that cancels is empty by construction.
+  //
+  // This used to throw "Refusing to post a journal entry with zero lines", so
+  // a store could not close its books for ANY day carrying a same-day full
+  // refund -- an ordinary retail event. It surfaced as a hard seed failure,
+  // because the demo seed deliberately samples the first refund day.
+  //
+  // Both directions matter here, and the two tests below are the pair: zero
+  // lines out of REAL inputs is arithmetic and must be reported, while zero
+  // lines out of NO usable inputs is a broken GL mapping and must still throw.
+  // Collapsing them would turn the missing-mapping detector into a no-op.
+  describe("a day whose activity offsets to zero", () => {
+    it("posts no entry, and says that is what happened", async () => {
+      const fx = await seedAccountingFixtures();
+      const order = await seedSale({
+        productId: fx.product.id,
+        netPrice: 500,
+        cost: 200,
+        vatAmount: 0,
+        paymentAmount: 500,
+      });
+      // The refund half. processRefund writes a POSITIVE amount and marks the
+      // flag, which is the convention the mapping loop normalises on.
+      await prisma.payment.create({
+        data: {
+          paymentAmount: 500,
+          paymentDate: DAY_AT,
+          status: "COMPLETED",
+          paymentType: "Cash",
+          isRefund: true,
+          salesOrderId: order.id,
+        },
+      });
+
+      const result = await generateSalesJournal(DAY);
+
+      expect(result.journalEntry).toBeNull();
+      expect(result.skipped).toBe("fully-offset");
+      expect(result.warnings.join(" | ")).toMatch(/offsets to zero/);
+
+      // Nothing persisted, and no husk of an entry left behind either.
+      await expect(prisma.journalEntry.count()).resolves.toBe(0);
+      await expect(prisma.journalEntryLine.count()).resolves.toBe(0);
+    });
+
+    it("still throws when nothing could be mapped, rather than reporting a skip", async () => {
+      const fx = await seedAccountingFixtures();
+      // A payment type with no POS_PAYMENTS mapping row is DROPPED with a
+      // warning, so this day reaches the zero-lines branch with real payments
+      // on the books but nothing usable to build from. That is the break the
+      // demo seed exists to catch; it must not be softened into a skip.
+      await seedSale({
+        productId: fx.product.id,
+        netPrice: 500,
+        cost: 200,
+        vatAmount: 0,
+        paymentAmount: 500,
+        paymentType: "Wampum",
+      });
+
+      await expect(generateSalesJournal(DAY)).rejects.toThrow(/none could be mapped/);
+    });
   });
 
   // ─── Payment.isRefund sign normalization (fix/refund-sign-in-journal) ──
@@ -651,12 +720,12 @@ describe("generateSalesJournal (real DB)", () => {
       expect(result.warnings).toEqual(
         expect.arrayContaining([expect.stringContaining("Over/Short plug of $150.00")]),
       );
-      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
       // This is the regression the fix closes: cash must be CREDITED
       // (reduced), not debited (increased), when a refund pays money out.
       expect(byCode.get("1-1006")?.credit).toBe(150);
       expect(byCode.get("1-1006")?.debit).toBe(0);
-      expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+      expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
     });
 
     it("an IMPORTED refund (negative paymentAmount, isRefund: true) reduces cash by the same magnitude and is NOT double-negated", async () => {
@@ -671,10 +740,10 @@ describe("generateSalesJournal (real DB)", () => {
       expect(result.warnings).toEqual(
         expect.arrayContaining([expect.stringContaining("Over/Short plug of $150.00")]),
       );
-      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
       expect(byCode.get("1-1006")?.credit).toBe(150);
       expect(byCode.get("1-1006")?.debit).toBe(0);
-      expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+      expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
     });
 
     it("a normal payment (isRefund: false) posts unchanged", async () => {
@@ -688,7 +757,7 @@ describe("generateSalesJournal (real DB)", () => {
       expect(result.warnings).toEqual(
         expect.arrayContaining([expect.stringContaining("Over/Short plug of $500.00 (credit)")]),
       );
-      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
       expect(byCode.get("1-1006")?.debit).toBe(500);
       expect(byCode.get("1-1006")?.credit).toBe(0);
     });
@@ -711,7 +780,7 @@ describe("generateSalesJournal (real DB)", () => {
 
       const result = await generateSalesJournal(DAY);
 
-      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
       // Net cash = 1063.50 (sale) - 200 (native refund) - 100 (imported refund) = 763.50.
       // All three payments share the same Cash GL, so they net into ONE line.
       expect(byCode.get("1-1006")?.debit).toBe(763.5);
@@ -719,7 +788,7 @@ describe("generateSalesJournal (real DB)", () => {
       // The JE still balances even though the $300 of refunds has no
       // offsetting revenue/COGS/tax reversal (standalone refunds here, not
       // return line items) -- the Over/Short plug absorbs the difference.
-      expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+      expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
       expect(byCode.get("5-5900")?.debit).toBe(300); // Over/Short plug
       // ...but it no longer does so silently. This assertion used to read
       // `expect(result.warnings).toEqual([])`: a $300 plug produced a journal
@@ -780,7 +849,7 @@ describe("generateSalesJournal (real DB)", () => {
       });
 
       const result = await generateSalesJournal(DAY);
-      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
 
       // Cash goes out.
       expect(byCode.get("1-1006")?.credit).toBe(1063.5);
@@ -796,7 +865,7 @@ describe("generateSalesJournal (real DB)", () => {
       expect(result.warnings).toEqual(
         expect.arrayContaining([expect.stringContaining("Over/Short plug of $1063.50")]),
       );
-      expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+      expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
     });
 
     it("recognizes the sale exactly once when sale and refund fall on the same day", async () => {
@@ -827,7 +896,7 @@ describe("generateSalesJournal (real DB)", () => {
       });
 
       const result = await generateSalesJournal(DAY);
-      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
 
       // Once. Not zero times, not twice.
       expect(byCode.get("4-4080")?.credit).toBe(1000);
@@ -835,7 +904,7 @@ describe("generateSalesJournal (real DB)", () => {
       // Net cash = 1063.50 in - 400 out.
       expect(byCode.get("1-1006")?.debit).toBe(663.5);
       expect(byCode.get("5-5900")?.debit).toBe(400); // the unreversed refund
-      expect(totalDebits(result.journalEntry)).toBe(totalCredits(result.journalEntry));
+      expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
     });
 
     it("leaves an IMPORTED POS return booking its full sale-in-reverse", async () => {
@@ -856,7 +925,7 @@ describe("generateSalesJournal (real DB)", () => {
       await prisma.payment.updateMany({ data: { isRefund: true } });
 
       const result = await generateSalesJournal(DAY);
-      const byCode = new Map(result.journalEntry.lines.map((l) => [l.glAccount?.code, l]));
+      const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
 
       expect(byCode.get("1-1006")?.credit).toBe(531.75);
       expect(byCode.get("4-4080")?.debit).toBe(500); // revenue reversed
