@@ -1,4 +1,20 @@
-# Revenue Recognition — the delivery policy, and the work to implement it
+# Revenue Recognition — the delivery policy
+
+**Status: delivered.** Written 2026-08-25 as a plan; the work shipped in
+[#136](https://github.com/goetchstone/holt/pull/136) (recognition is the
+delivery event, not a side effect of payment) and
+[#139](https://github.com/goetchstone/holt/pull/139) (one handover fact, and
+FAILED deliveries are not a thing).
+
+Verified against `main` on 2026-09-09 — each step under "The work" carries what
+implements it. The sections above it are the runbook and stay current: the
+policy, the two bases, what counts as handover, and the list of reports that
+deliberately stay on bookings.
+
+**If you are here because a dashboard shows $0:** that is very likely correct.
+Recognised revenue only exists once something is handed over, so a day with no
+deliveries recognises nothing however many orders were written. Check the
+bookings figure before treating it as a bug — and see "Reports keep bookings".
 
 ## The policy
 
@@ -192,6 +208,21 @@ recognise the same sale.
 ---
 
 ## The work
+
+Kept as written, because the reasoning is why the code looks the way it does —
+not because any of it is outstanding. Each step now names what implements it.
+
+| Step | Implemented by |
+| --- | --- |
+| 0 — importer writes a correct invoice record | `toOrderForJournal()`, `ORDER_FOR_JOURNAL_INCLUDE` in `lib/journalEntry.ts` |
+| 1 — relieve the deposit | `OrderRecognition.priorDepositCredited`, `recogniseOrderLines()` |
+| 2 — stop `issueInvoice` double-crediting | `arGlId` on the order-linked path |
+| 3 — delivery generates the invoice | `markHandedOver()` in `lib/fulfilment/handover.ts` |
+| 4 — recognise on the delivery day | `deliveredAt` drives the journal date, not payment date |
+| 5 — partial delivery | line-level recognition in `recogniseOrderLines()` |
+
+Handover covers pickup as well as delivery (`handoverMethodFor()`) — the policy
+was explicit that a pickup is the same event.
 
 Each step is independently shippable and verifiable. Ordered so nothing is
 briefly broken.
