@@ -295,9 +295,11 @@ jobs:
           print("".join(lines))
           sys.exit(1 if (blocking or expired) else 0)
           PY
-          # The python step above owns pass/fail: npm audit's own exit code
-          # cannot tell an unreachable advisory from a live one.
-          exit $RC
+          # The python step above owns pass/fail and has already exited: npm
+          # audit's own code cannot tell an unreachable advisory from a live
+          # one, so deferring to it here would ignore the allowlist entirely.
+          # RC is captured only so a non-zero audit does not kill the step
+          # under `set -e` before python gets to read audit.json.
 
   # OSV scans npm dependencies against the OSV.dev CVE database. Runs on
   # every PR (the `on:` block has no path filter, so this can be a REQUIRED
