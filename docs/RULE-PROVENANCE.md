@@ -33,12 +33,21 @@ remember the original intent, this is the list to settle.
 | 47 | Revenue queries include RETURNED | The sibling repo's `pre-pr` skill numbers a different rule 47 ("don't relitigate user-empirical claims"); Holt's code-level citation won |
 | 49 | Self-heal as you go | `detailedSalesVendorPivot.test.ts` cites 49 for "vendor join required on pivot select" — kept as a `reporting.md` note |
 
-**Rule 1 (KISS)** has no surviving Holt citation at all — it is carried by
-convention from the sibling constitution. Delete it if you disagree; nothing
-depends on it.
+**Rule 1 (KISS)** — **retired 2026-08-26**, on the invitation this entry
+already extended. It had no surviving Holt citation, no incident, and no
+enforcement home in a skill, hook or tripwire; it was carried by convention
+from the sibling constitution. It was also the one rule that contradicted the
+doctrine it sat under — a preference, not something an incident taught. The
+number is retired, not reused; see `## Retired` in `CLAUDE.md`. (The single
+`git grep` hit for "rule 1" is `sameDayRewriteCleanup.ts:59`, which refers to a
+rule numbered locally inside that file's own comment, not to this one.)
 
 **Rule 37** is evidenced only in Holt, with no sibling counterpart. It reads as a
-specialization of rules 6 and 7.
+specialization of rules 6 and 7 — and now sits beneath them, under principle 6
+("one home per fact") in `CLAUDE.md`, with its number and its ten citations
+intact. Kept rather than merged away because those citations point at concrete
+instances (`permissionCatalog`, the runner registry, `SALES_REVENUE_STATUSES`)
+that a reader arriving from one of them needs to land on.
 
 ## Origins
 
