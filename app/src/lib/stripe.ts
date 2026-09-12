@@ -22,7 +22,14 @@ export async function getStripe(): Promise<Stripe> {
     );
   }
   if (!_stripe || _stripe.key !== key) {
-    _stripe = { key, client: new Stripe(key, { apiVersion: "2026-07-29.dahlia" }) };
+    // The SDK pins one API version per release as a literal type and moves it
+    // on minors, so this string is dictated by the installed stripe version.
+    // Changing it is a decision, not a typecheck fix: read the changelog for
+    // the new version against the surface Holt uses (Checkout Sessions,
+    // PaymentIntents/Charges retrieve, Refunds, Balance, the two checkout
+    // webhook events) before bumping. 2026-08-26.dahlia: every change additive
+    // (docs.stripe.com/changelog, read 2026-09-12).
+    _stripe = { key, client: new Stripe(key, { apiVersion: "2026-08-26.dahlia" }) };
   }
   return _stripe.client;
 }
