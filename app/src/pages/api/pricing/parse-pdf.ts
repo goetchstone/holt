@@ -12,6 +12,8 @@ import { extractWholesalePricing, extractFabricCatalog } from "@/lib/pricing/pdf
 import { parseWholesaleRows, parseFoundationsRows } from "@/lib/pricing/wesleyHallParser";
 import { parseSEPricing } from "@/lib/pricing/seParser";
 import { extractCrLaineWholesale, extractCrLaineSimplicity } from "@/lib/pricing/crLaineExtractor";
+import { extractWholesaleGrid } from "@/lib/pricing/wholesale/columnGrid";
+import { wholesaleProfileFor } from "@/lib/pricing/wholesale/registry";
 import { extractGatCreekPricing } from "@/lib/pricing/gatCreekExtractor";
 import { parseKingsleyBatePriceList } from "@/lib/pricing/kingsleyBateParser";
 import { getErrorMessage } from "@/lib/toastError";
@@ -44,6 +46,26 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     let parsedData: any[] = [];
     let diagnostics: any[] = [];
     let parseSummary: any = null;
+
+    // Registry first. Vendors on the shared column-transposed grid declare
+    // themselves in `lib/pricing/wholesale/vendors/`, so adding one is a profile
+    // module and a registry line -- not another branch here. The chain below is
+    // the pre-registry vendors, each of which has its own distinct layout.
+    const gridProfile = wholesaleProfileFor(vendor);
+    if (gridProfile && type === "wholesale") {
+      parsedData = await extractWholesaleGrid(buffer, gridProfile);
+
+      fs.unlinkSync(uploadedFile.filepath);
+
+      return res.status(200).json({
+        success: true,
+        vendor,
+        type: "wholesale",
+        count: parsedData.length,
+        data: parsedData,
+        meta: { vendorLabel: gridProfile.label },
+      });
+    }
 
     if (vendor === "brown-jordan") {
       const { parseBrownJordanPriceList } = await import("@/lib/pricing/brownJordanParser");

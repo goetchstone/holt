@@ -6,6 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
+import { wholesaleProfileFor } from "@/lib/pricing/wholesale/registry";
 import type { SurchargeType, DimensionType } from "@prisma/client";
 import { wholesaleImportSchema } from "@/lib/validation/schemas";
 import { validateBody } from "@/lib/validation/validate";
@@ -267,6 +268,19 @@ interface SurchargeMapping {
   isStandardField?: keyof ProductInput;
   groupName: string;
   optionName: string;
+  sortOrder: number;
+}
+
+/** One option the book priced for a specific style (see wholesale/profile.ts). */
+interface BookStyleOption {
+  groupName: string;
+  optionName: string;
+  surcharge: number;
+  surchargeType: "FLAT" | "PERCENTAGE" | "PER_UNIT";
+  isStandard: boolean;
+  isAvailable: boolean;
+  requiresTextInput: boolean;
+  textInputLabel: string | null;
   sortOrder: number;
 }
 
@@ -535,8 +549,21 @@ function sortGrades(a: string, b: string): number {
 
 /**
  * Partition grade codes into fabric and leather groups.
- * Fabric: COM + bare numeric grades (7, 8, 14, 15, ...)
- * Leather: COL + single-letter grades (C, D, ...) + L-prefixed numeric (L7, L8, ...)
+ *
+ * PREFER THE VENDOR'S OWN DECLARATION. A vendor with a profile in
+ * `lib/pricing/wholesale/registry` states the material of every rung, and that
+ * is used verbatim -- see `partitionGradesFor` below. The shape-based rules here
+ * are the fallback for the older vendors that have no profile yet:
+ *
+ *   Fabric: COM + bare numeric grades (7, 8, 14, 15, ...)
+ *   Leather: COL + single-letter grades (C, D, ...) + L-prefixed numeric (L7, ...)
+ *
+ * Those rules are a GUESS, and it is worth being honest about how it fails: a
+ * bare letter reads as leather here, but Sam Moore and Hooker both ladder FABRIC
+ * as B..J. Guessing on either of those books files an entire fabric range as
+ * leather at the wrong tier -- and it still imports, and the numbers still look
+ * plausible. Nothing downstream has the right answer to compare against. That is
+ * why new vendors declare instead of being inferred.
  */
 function partitionGrades(grades: string[]): {
   fabricGrades: string[];
@@ -557,6 +584,49 @@ function partitionGrades(grades: string[]): {
     } else if (/^\d{1,2}$/.test(g)) {
       fabricGrades.push(g);
     }
+  }
+
+  return { fabricGrades, leatherGrades };
+}
+
+/**
+ * Fabric/leather split for one vendor's grades.
+ *
+ * A registered vendor's profile is authoritative: each rung declares its own
+ * material, so there is nothing to infer and no per-vendor special case to
+ * maintain. Anything the profile does not mention still falls through to the
+ * shape rules, which keeps a book that prints an unexpected rung importable
+ * rather than dropping it silently.
+ */
+function partitionGradesFor(
+  vendorId: string,
+  grades: string[],
+): { fabricGrades: string[]; leatherGrades: string[] } {
+  const profile = wholesaleProfileFor(vendorId);
+  if (!profile) return partitionGrades(grades);
+
+  const declared = new Map<string, "fabric" | "leather">(
+    profile.grades.map((g) => [g.code, g.kind] as const),
+  );
+  // COM and COL are the customer's own material and leather on every book.
+  declared.set("COM", "fabric");
+  declared.set("COL", "leather");
+
+  const fabricGrades: string[] = [];
+  const leatherGrades: string[] = [];
+  const undeclared: string[] = [];
+
+  for (const g of grades) {
+    const kind = declared.get(g);
+    if (kind === "fabric") fabricGrades.push(g);
+    else if (kind === "leather") leatherGrades.push(g);
+    else undeclared.push(g);
+  }
+
+  if (undeclared.length > 0) {
+    const fallback = partitionGrades(undeclared);
+    fabricGrades.push(...fallback.fabricGrades);
+    leatherGrades.push(...fallback.leatherGrades);
   }
 
   return { fabricGrades, leatherGrades };
@@ -668,7 +738,7 @@ export default requirePermission(
         }
       }
       const sortedGrades = Array.from(allGrades).sort(sortGrades);
-      const { fabricGrades, leatherGrades } = partitionGrades(sortedGrades);
+      const { fabricGrades, leatherGrades } = partitionGradesFor(vendor.name, sortedGrades);
 
       // Seed vendor-level option groups and options before the transaction
       // so DEC finish options exist when the product loop needs them.
@@ -1060,7 +1130,59 @@ export default requirePermission(
             //    standard" (per Wesley Hall front-of-book convention). We create
             //    an override with surcharge=null so the configurator falls back
             //    to VendorOption.defaultSurcharge.
-            const surchargeMap = VENDOR_SURCHARGE_MAP[resolveVendorKey(vendor.name)] || [];
+            // Options the BOOK priced for THIS style, read off its own page by the
+            // wholesale engine. Already filtered: a frame the book marks "--"
+            // (Not Available) carries no entry, so it gets no row and the
+            // configurator will not offer a designer something the vendor will
+            // not build.
+            //
+            // Preferred over VENDOR_SURCHARGE_MAP below, which asserts one flat
+            // price for every frame of a vendor. Where the book states a
+            // per-frame price, the book wins.
+            const bookOptions = (p as unknown as { styleOptions?: BookStyleOption[] }).styleOptions;
+            for (const opt of bookOptions ?? []) {
+              const group = await tx.vendorOptionGroup.upsert({
+                where: { vendorId_name: { vendorId, name: opt.groupName } },
+                create: { vendorId, name: opt.groupName },
+                update: {},
+              });
+              const option = await tx.vendorOption.upsert({
+                where: { groupId_name: { groupId: group.id, name: opt.optionName } },
+                create: {
+                  groupId: group.id,
+                  name: opt.optionName,
+                  surchargeType: opt.surchargeType,
+                  defaultSurcharge: 0,
+                  sortOrder: opt.sortOrder,
+                  requiresTextInput: opt.requiresTextInput,
+                  textInputLabel: opt.textInputLabel,
+                },
+                update: {},
+              });
+              await tx.styleOptionOverride.upsert({
+                where: {
+                  vendorStyleId_optionId: { vendorStyleId: vendorStyle.id, optionId: option.id },
+                },
+                create: {
+                  vendorStyleId: vendorStyle.id,
+                  optionId: option.id,
+                  surcharge: opt.surcharge,
+                  isAvailable: opt.isAvailable,
+                  isStandard: opt.isStandard,
+                },
+                update: {
+                  surcharge: opt.surcharge,
+                  isAvailable: opt.isAvailable,
+                  isStandard: opt.isStandard,
+                },
+              });
+            }
+
+            // Legacy path: vendors whose extractor does not yet read the book's
+            // option rows fall back to the hand-maintained vendor-level map.
+            const surchargeMap = bookOptions?.length
+              ? []
+              : VENDOR_SURCHARGE_MAP[resolveVendorKey(vendor.name)] || [];
             for (const mapping of surchargeMap) {
               const surchargeValue = p[mapping.productField] as number | null | undefined;
               const isStandard = mapping.isStandardField
