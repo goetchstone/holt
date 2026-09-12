@@ -36,6 +36,17 @@ updates:
         update-types:
           - "patch"
           - "minor"
+        # Stripe is out of the group on purpose. Its SDK pins ONE Stripe API
+        # version per release as a literal type, and moves that pin on MINOR
+        # releases -- 22.5 typed `apiVersion: "2026-07-29.dahlia"`, 22.6
+        # types only "2026-08-26.dahlia". So a Stripe minor is not a minor:
+        # it changes which API version the payment path talks to, and the
+        # only way to compile is to accept the new one. That decision wants
+        # its own PR and a read of Stripe's changelog for the new version,
+        # not a ride inside a 14-package group bump where it was the one
+        # line that broke the build (#157, 2026-09-12).
+        exclude-patterns:
+          - "stripe"
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
