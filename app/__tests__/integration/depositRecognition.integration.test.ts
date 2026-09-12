@@ -28,6 +28,7 @@ import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { recordPayment } from "@/lib/paymentService";
 import { generateSalesJournal } from "@/lib/journalEntry";
+import { posted } from "../helpers/postedJournal";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayKey } from "@/lib/reports/businessDay";
 
@@ -55,7 +56,7 @@ interface Posted {
 async function postDay(date: Date): Promise<Posted> {
   const result = await generateSalesJournal(date, "deposit-recognition-test");
   const entry = await prisma.journalEntry.findUniqueOrThrow({
-    where: { id: result.journalEntry.id },
+    where: { id: posted(result).id },
     include: { lines: { include: { glAccount: true } } },
   });
   const sum = (code: string, side: "debit" | "credit") =>

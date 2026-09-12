@@ -34,6 +34,7 @@ import { resetTestDb } from "@/lib/testing/withTestDb";
 import { recordPayment, calculateOrderBalance } from "@/lib/paymentService";
 import { allocate, consume, availableQuantity } from "@/lib/inventory/allocation";
 import { generateSalesJournal, transitionJournalEntry } from "@/lib/journalEntry";
+import { posted } from "../helpers/postedJournal";
 import { computeDailyReconciliation } from "@/lib/dailyReconciliation";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { createDraftInvoice, issueInvoice } from "@/lib/billing/invoiceService";
@@ -551,7 +552,7 @@ describe("a complete trading day (real DB)", () => {
   it("13. posts a balanced journal that carries the day's takings", async () => {
     const result = await generateSalesJournal(DAY, "trading-day-test");
     const entry = await prisma.journalEntry.findUniqueOrThrow({
-      where: { id: result.journalEntry.id },
+      where: { id: posted(result).id },
       include: { lines: { include: { glAccount: true } } },
     });
 
@@ -588,8 +589,8 @@ describe("a complete trading day (real DB)", () => {
     // touch it at all.
     expect(debit("5-5900") + credit("5-5900")).toBe(0);
 
-    const posted = await transitionJournalEntry(entry.id, "POSTED", "trading-day-test");
-    expect(posted.status).toBe("POSTED");
+    const postedEntry = await transitionJournalEntry(entry.id, "POSTED", "trading-day-test");
+    expect(postedEntry.status).toBe("POSTED");
     world.journalEntryId = entry.id;
   });
 
@@ -671,7 +672,7 @@ describe("a complete trading day (real DB)", () => {
     await prisma.journalEntry.deleteMany({ where: { id: world.journalEntryId } });
     const result = await generateSalesJournal(DAY, "trading-day-test");
     const entry = await prisma.journalEntry.findUniqueOrThrow({
-      where: { id: result.journalEntry.id },
+      where: { id: posted(result).id },
       include: { lines: { include: { glAccount: true } } },
     });
     world.journalEntryId = entry.id;
