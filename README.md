@@ -29,7 +29,7 @@ wired to its own systems without editing code.
 ## What it looks like
 
 The screenshots below are a live instance running the demo seed (`npm run setup`)
-— 454 orders, 180 customers, 160 products, two showrooms. No mockups.
+— 6,000 orders, 1,400 customers, 500 products, two showrooms. No mockups.
 
 ### Storefront
 
@@ -39,8 +39,8 @@ A themeable public site with a built-in block CMS, edited in-app with no rebuild
 
 ### Back office
 
-Orders across both showrooms, filterable by status, with the salesperson and
-store on every row.
+Orders across both showrooms, filterable by status, with the salesperson on
+every row and the store wherever the order was placed at one.
 
 ![Sales orders](docs/images/sales-orders.png)
 
