@@ -872,10 +872,34 @@ export function PricingImportView() {
       if (vendorConfig) formData.append("vendor", vendorConfig.slug);
 
       toast.info("Parsing PDF... this may take a moment.");
-      const res = await axios.post("/api/pricing/parse-pdf", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        timeout: 120000,
-      });
+      let res;
+      try {
+        res = await axios.post("/api/pricing/parse-pdf", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 120000,
+        });
+      } catch (err: unknown) {
+        // 422: the file was read and produced nothing usable, or failed the
+        // vendor's edition check. 400: unknown vendor / unsupported book type.
+        // Both used to arrive as a 200 with count 0 and a green toast. Show the
+        // reason where the user is -- the upload tab -- and do not advance.
+        const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+        if (status === 422 || status === 400) {
+          const body = (axios.isAxiosError(err) && err.response?.data) || {};
+          const diagnostics = (body.diagnostics || []) as ParseDiagnostic[];
+          setParseDiagnostics(diagnostics);
+          setParsedProducts([]);
+          setParsedVendorData(null);
+          const reason =
+            body.error ||
+            diagnostics.find((d) => d.level === "error")?.message ||
+            "nothing usable was found in this PDF";
+          toast.error(status === 422 ? `Parsed 0 items — ${reason}` : reason);
+          setActiveTab("upload");
+          return;
+        }
+        throw err;
+      }
 
       if (!res.data.success) {
         toast.error("Failed to parse PDF");
@@ -1269,6 +1293,12 @@ export function PricingImportView() {
                   onDrop={handleDrop}
                   onChoose={() => fileInputRef.current?.click()}
                 />
+                {/* A refused parse leaves the user here with the reasons. */}
+                {parsedProducts.length === 0 && parseDiagnostics.length > 0 && (
+                  <div className="mt-4">
+                    <ParseDiagnosticsList diagnostics={parseDiagnostics} />
+                  </div>
+                )}
               </StepTabPanel>
 
               <StepTabPanel tabId="preview">

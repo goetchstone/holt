@@ -21,7 +21,8 @@
 
 import { columnAwarePageRenderer } from "../pdfUtils";
 import type { ParsedWholesaleProduct } from "../wesleyHallParser";
-import type { StyleOption, WholesaleVendorProfile } from "./profile";
+import type { ParseDiagnostic, ParseResult } from "../pricingTypes";
+import type { EditionExpectation, StyleOption, WholesaleVendorProfile } from "./profile";
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const pdf = require("pdf-parse");
@@ -235,19 +236,25 @@ function parseGrid(
   chunk: string,
   pageNumber: number,
   profile: WholesaleVendorProfile,
-): ParsedWholesaleProduct[] {
+): { products: ParsedWholesaleProduct[]; columnsDropped: number } {
   const lines = chunk.split("\n");
   const { rows, grades, optionCells } = collectRows(lines, profile);
   const headerCells = rows.style || [];
   const products: ParsedWholesaleProduct[] = [];
+  let columnsDropped = 0;
 
   for (let col = 0; col < headerCells.length; col++) {
     const cell = (headerCells[col] || "").trim();
     if (!cell || profile.emptyCells.includes(cell)) continue;
 
     const gradePrices = gradePricesFor(col, grades, profile);
-    // A column with no prices is a layout artifact, not a style.
-    if (gradePrices.length === 0) continue;
+    // A column with no prices is a layout artifact, not a style -- usually.
+    // Counted, because a book where EVERY column drops this way is a book
+    // whose grade labels the profile no longer recognises.
+    if (gradePrices.length === 0) {
+      columnsDropped++;
+      continue;
+    }
 
     const skus = profile.expandSkus ? profile.expandSkus(cell, lines, col) : [cell];
     const styleOptions = optionsFor(col, optionCells, profile);
@@ -283,7 +290,36 @@ function parseGrid(
     }
   }
 
-  return products;
+  return { products, columnsDropped };
+}
+
+/**
+ * What the engine saw on the way to its products. Every count here exists so
+ * that "zero styles" can be explained: a book with 40 pages, 0 kept and 40
+ * dropped by `pageRequires` is a different failure from 40 pages, 40 kept,
+ * 0 grids -- and both are different from 40 grids whose every column dropped.
+ */
+export interface WholesaleParseStats {
+  /** Pages the renderer produced. */
+  pagesSeen: number;
+  /** Pages `pageRequires` rejected before any grid was looked for. */
+  pagesDropped: number;
+  /** Pages on which at least one grid header matched. */
+  pagesWithGrids: number;
+  /** Grid chunks parsed. */
+  grids: number;
+  /** Style columns that had a header cell but no recognised grade price. */
+  columnsDropped: number;
+}
+
+/**
+ * The engine's result: products, plus the diagnostics and counts that say why
+ * there are as many as there are. `data.length === 0` is always accompanied by
+ * at least one `error` diagnostic -- a parse that produced nothing has to say
+ * so, because the route and the UI treat an error diagnostic as a refusal.
+ */
+export interface WholesaleParseResult extends ParseResult<ParsedWholesaleProduct> {
+  stats: WholesaleParseStats;
 }
 
 /**
@@ -296,35 +332,197 @@ function parseGrid(
 export function parseRenderedGrid(
   text: string,
   profile: WholesaleVendorProfile,
-): ParsedWholesaleProduct[] {
+): WholesaleParseResult {
   const products: ParsedWholesaleProduct[] = [];
+  const diagnostics: ParseDiagnostic[] = [];
+  const stats: WholesaleParseStats = {
+    pagesSeen: 0,
+    pagesDropped: 0,
+    pagesWithGrids: 0,
+    grids: 0,
+    columnsDropped: 0,
+  };
   const segments = text.split(/<<PAGE:(\d+)>>\n/);
 
   for (let i = 1; i < segments.length; i += 2) {
     const pageNumber = Number.parseInt(segments[i], 10);
     const pageText = segments[i + 1] || "";
+    stats.pagesSeen++;
 
     if (profile.pageRequires && !profile.pageRequires.every((re) => re.test(pageText))) {
+      stats.pagesDropped++;
       continue;
     }
-    for (const chunk of splitIntoGrids(pageText, profile.gridHeader)) {
-      products.push(...parseGrid(chunk, pageNumber, profile));
+    const chunks = splitIntoGrids(pageText, profile.gridHeader);
+    if (chunks.length > 0) stats.pagesWithGrids++;
+    for (const chunk of chunks) {
+      stats.grids++;
+      const parsed = parseGrid(chunk, pageNumber, profile);
+      products.push(...parsed.products);
+      if (parsed.columnsDropped > 0) {
+        stats.columnsDropped += parsed.columnsDropped;
+        diagnostics.push({
+          level: "warning",
+          row: pageNumber,
+          message: `page ${pageNumber}: ${parsed.columnsDropped} style column(s) had a header but no recognised grade price`,
+        });
+      }
     }
   }
 
-  return products;
+  if (products.length === 0) {
+    diagnostics.push({
+      level: "error",
+      message: describeEmpty(stats, profile),
+    });
+  }
+
+  return {
+    data: products,
+    diagnostics,
+    summary: summarise(products.length, stats, diagnostics),
+    stats,
+  };
 }
 
-/** Render a price-book PDF through the column-aware renderer, then parse it. */
+/** One sentence that says WHY the engine found nothing, from the counts. */
+function describeEmpty(stats: WholesaleParseStats, profile: WholesaleVendorProfile): string {
+  const header = String(profile.gridHeader);
+  if (stats.pagesSeen === 0) {
+    return "the PDF rendered to no pages -- not a text PDF, or not a PDF at all";
+  }
+  if (stats.pagesDropped === stats.pagesSeen) {
+    return (
+      `all ${stats.pagesSeen} pages were dropped by pageRequires -- ` +
+      `none carried every required pattern; wrong book, or a new edition that moved the labels`
+    );
+  }
+  if (stats.grids === 0) {
+    return (
+      `0 grids on ${stats.pagesSeen - stats.pagesDropped} page(s): no line matched the grid header ${header}; ` +
+      `wrong book, or a new edition that relabelled the style row`
+    );
+  }
+  return (
+    `${stats.grids} grid(s) found but every style column dropped for lack of a recognised grade price ` +
+    `(${stats.columnsDropped} columns); the grade labels no longer match gradeOfRow -- likely a new edition`
+  );
+}
+
+function summarise(
+  styles: number,
+  stats: WholesaleParseStats,
+  diagnostics: readonly ParseDiagnostic[],
+): ParseResult<never>["summary"] {
+  return {
+    totalRowsProcessed: stats.pagesSeen,
+    successCount: styles,
+    skippedCount: stats.pagesDropped,
+    warningCount: diagnostics.filter((d) => d.level === "warning").length,
+    errorCount: diagnostics.filter((d) => d.level === "error").length,
+  };
+}
+
+/** What `extractWholesaleGrid` learns about the PDF itself, for `assertEdition`. */
+export interface PdfMeta {
+  numpages: number;
+  title?: string;
+  producer?: string;
+}
+
+/**
+ * Check a parse against the profile's `expect` block and push one `error`
+ * diagnostic per violation. Pure and exported so the coverage script and the
+ * tests can run it on a fixture without a PDF.
+ *
+ * Never throws: the route decides the status, and a coverage run wants every
+ * violation listed, not the first one.
+ */
+export function assertEdition(
+  result: WholesaleParseResult,
+  profile: WholesaleVendorProfile,
+  ctx: { text: string; meta?: PdfMeta },
+): WholesaleParseResult {
+  const expect: EditionExpectation | undefined = profile.expect;
+  if (!expect) return result;
+  const errors: ParseDiagnostic[] = [];
+
+  if (expect.minStyles !== undefined && result.data.length < expect.minStyles) {
+    errors.push({
+      level: "error",
+      message: `expected >= ${expect.minStyles} styles for ${profile.label}, got ${result.data.length}`,
+    });
+  }
+
+  if (expect.grades) {
+    const declared = profile.grades.map((g) => g.code);
+    const seen = new Set<string>();
+    for (const p of result.data) for (const gp of p.gradePrices) seen.add(gp.grade);
+    const missing = declared.filter((g) => !seen.has(g));
+    if (expect.grades === "all" && missing.length > 0) {
+      errors.push({
+        level: "error",
+        message: `grade ladder mismatch: ${missing.length} of ${declared.length} declared grades priced nothing (${missing.join(", ")})`,
+      });
+    }
+    if (expect.grades === "some" && missing.length === declared.length) {
+      errors.push({
+        level: "error",
+        message: `grade ladder mismatch: none of the ${declared.length} declared grades priced anything`,
+      });
+    }
+  }
+
+  if (expect.pageCountRange && ctx.meta) {
+    const [lo, hi] = expect.pageCountRange;
+    if (ctx.meta.numpages < lo || ctx.meta.numpages > hi) {
+      errors.push({
+        level: "error",
+        message: `page count ${ctx.meta.numpages} is outside the ${lo}-${hi} this profile was written against`,
+      });
+    }
+  }
+
+  if (expect.bookMarkers) {
+    for (const re of expect.bookMarkers) {
+      if (!re.test(ctx.text)) {
+        errors.push({
+          level: "error",
+          message: `book marker ${String(re)} not found anywhere in the rendered text`,
+        });
+      }
+    }
+  }
+
+  if (errors.length === 0) return result;
+  const diagnostics = [...result.diagnostics, ...errors];
+  return {
+    ...result,
+    diagnostics,
+    summary: summarise(result.data.length, result.stats, diagnostics),
+  };
+}
+
+/**
+ * Render a price-book PDF through the column-aware renderer, parse it, and
+ * check the edition. The pdf-parse result carries the page count and document
+ * info; they were read once and thrown away before this, which is the same as
+ * not having them.
+ */
 export async function extractWholesaleGrid(
   pdfBuffer: Buffer,
   profile: WholesaleVendorProfile,
-): Promise<ParsedWholesaleProduct[]> {
-  const data = await pdf(pdfBuffer, {
-    pagerender: (pageData: { pageNumber: number }) =>
-      columnAwarePageRenderer(pageData).then(
-        (text: string) => `<<PAGE:${pageData.pageNumber}>>\n${text}`,
-      ),
-  });
-  return parseRenderedGrid(data.text, profile);
+): Promise<WholesaleParseResult> {
+  // The renderer already prefixes each page with `\f<<PAGE:N>>\n` (pdfUtils.ts).
+  // This used to prepend a second marker, so every page split into two
+  // segments -- one holding only the formfeed -- and the engine saw 2x pages,
+  // with the phantom half always failing `pageRequires`. Products were never
+  // affected; the page counts that now explain a zero would have been.
+  const data = await pdf(pdfBuffer, { pagerender: columnAwarePageRenderer });
+  const meta: PdfMeta = {
+    numpages: Number(data.numpages) || 0,
+    title: data.info?.Title ? String(data.info.Title) : undefined,
+    producer: data.info?.Producer ? String(data.info.Producer) : undefined,
+  };
+  return assertEdition(parseRenderedGrid(data.text, profile), profile, { text: data.text, meta });
 }
