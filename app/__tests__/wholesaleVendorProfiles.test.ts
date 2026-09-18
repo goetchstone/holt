@@ -82,7 +82,7 @@ const gradeMap = (prices: { grade: string; cost: number }[]) =>
 
 describe("one engine, three books", () => {
   it("reads a letter-laddered fabric book", () => {
-    const out = parseRenderedGrid(SAM_MOORE, profile("sam-moore"));
+    const out = parseRenderedGrid(SAM_MOORE, profile("sam-moore")).data;
     expect(out.map((p) => p.styleNumber)).toEqual(["1034", "1035"]);
 
     const nova = gradeMap(out[0].gradePrices);
@@ -111,7 +111,7 @@ describe("one engine, three books", () => {
   });
 
   it("carries two ladders on one frame, each correctly kinded", () => {
-    const out = parseRenderedGrid(HOOKER, profile("hooker"));
+    const out = parseRenderedGrid(HOOKER, profile("hooker")).data;
     expect(out).toHaveLength(1);
     const g = gradeMap(out[0].gradePrices);
     expect(g).toMatchObject({ B: 400, E: 450, J: 600, L1: 900, L4: 1100, NV: 1200, NVPR: 1350 });
@@ -121,14 +121,14 @@ describe("one engine, three books", () => {
   });
 
   it("prices COM at its own rung rather than as a second price", () => {
-    const out = parseRenderedGrid(SAM_MOORE, profile("sam-moore"));
+    const out = parseRenderedGrid(SAM_MOORE, profile("sam-moore")).data;
     const g = gradeMap(out[0].gradePrices);
     // The book prints "Grade: E and COM" -- one rung, two names, one number.
     expect(g.COM).toBe(g.E);
   });
 
   it("splits a slash-joined SKU family into one style per real SKU", () => {
-    const out = parseRenderedGrid(BRADINGTON_YOUNG, profile("bradington-young"));
+    const out = parseRenderedGrid(BRADINGTON_YOUNG, profile("bradington-young")).data;
     expect(out.map((p) => p.styleNumber)).toEqual([
       "770-87",
       "771-87",
@@ -152,14 +152,23 @@ describe("one engine, three books", () => {
     const p = profile("bradington-young");
     expect(p.gradeOfRow("LEATHER - NOVELTY PREMIUM")).toBe("NVPR");
     expect(p.gradeOfRow("LEATHER - NOVELTY")).toBe("NV");
-    const g = gradeMap(parseRenderedGrid(BRADINGTON_YOUNG, p)[0].gradePrices);
+    const g = gradeMap(parseRenderedGrid(BRADINGTON_YOUNG, p).data[0].gradePrices);
     expect(g.NVPR).toBe(1600);
     expect(g.NV).toBe(1400);
   });
 
-  it("skips a page that has a grid header but no prices", () => {
+  it("skips a page that has a grid header but no prices, and SAYS so", () => {
+    // A schematic-only book used to parse to [] and report success. The empty
+    // result is still correct; what changed is that it now carries an error
+    // diagnostic naming why -- here, pageRequires dropped the page -- so the
+    // route can refuse it and the UI can show the reason.
     const schematic = page(3, ["ITEM NUMBER:\t900", "STYLE NAME:\tDiagram only"].join("\n"));
-    expect(parseRenderedGrid(schematic, profile("bradington-young"))).toEqual([]);
+    const out = parseRenderedGrid(schematic, profile("bradington-young"));
+    expect(out.data).toEqual([]);
+    expect(out.stats).toMatchObject({ pagesSeen: 1, pagesDropped: 1, grids: 0 });
+    expect(out.summary.errorCount).toBe(1);
+    expect(out.diagnostics.map((d) => d.level)).toEqual(["error"]);
+    expect(out.diagnostics[0].message).toMatch(/dropped by pageRequires/);
   });
 });
 
@@ -212,7 +221,7 @@ describe("per-style options come from the book, not a seed table", () => {
     ].join("\n"),
   );
   const opts = (n: string) => {
-    const p = parseRenderedGrid(OPTIONS, profile("sam-moore")).find((x) => x.styleNumber === n);
+    const p = parseRenderedGrid(OPTIONS, profile("sam-moore")).data.find((x) => x.styleNumber === n);
     return Object.fromEntries(
       (
         (

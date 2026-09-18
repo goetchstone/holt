@@ -61,6 +61,7 @@ spellings, and those are identical for every dealer who opens the same book.
 | `pageRequires` | Patterns a page must carry to be a price grid, not a schematic |
 | `leatherPlacement` | Whether leather is a tier of the same frame or its own style |
 | `expandSkus` | For books where one price column covers several SKUs |
+| `expect` | What this vendor's book looks like — style count, grade coverage, page range, cover markers — so the wrong edition is refused, not parsed to nothing (see "Edition assertion") |
 
 ## Grades are declared, never inferred
 
@@ -84,15 +85,57 @@ guess.
 
 ## Lookup fails closed
 
-`wholesaleProfileFor()` returns `undefined` for an unknown vendor and the caller
-refuses the upload. It does not fall back to a reader that is "probably close".
-Guessing at a price book produces plausible numbers at wrong tiers — worse than
-a rejection, because nobody goes looking (rule 63).
+`wholesaleProfileFor()` returns `undefined` for an unknown vendor, and
+`lib/pricing/parsePriceBook.ts` — the one dispatcher behind `/api/pricing/parse-pdf`
+— turns that into a 400 carrying the supported list. It does not fall back to a
+reader that is "probably close". Guessing at a price book produces plausible
+numbers at wrong tiers — worse than a rejection, because nobody goes looking
+(rule 63).
+
+That sentence was false until 2026-09-17: the route defaulted `vendor` to
+`wesley-hall` and parsed any unknown vendor with Wesley Hall's row shapes, which
+produced a count of 0 and a green toast. The dispatcher exists so the claim and
+the code are the same thing.
 
 It also folds `sam-moore`, `Sam Moore` and `SAM_MOORE` to one key. The upload
 form posts the id and the database holds the name; a lookup matching only one
 would silently report "no profile" and drop back to guessing. The bug would have
 been a hyphen.
+
+## Zero is an error
+
+`parseRenderedGrid()` returns a `ParseResult` (`lib/pricing/pricingTypes.ts`),
+not a bare array: `data`, `diagnostics`, `summary`, plus `stats` — pages seen,
+pages dropped by `pageRequires`, grids found, style columns dropped for lack of
+a recognised grade price. **A parse with zero styles always carries an `error`
+diagnostic that says which of those happened**, because each is a different
+failure: 40 pages all dropped by `pageRequires` is the wrong book; 40 pages kept
+and no grid header is a relabelled style row; 40 grids whose every column dropped
+is a renamed grade ladder. The route answers 422 for any error diagnostic and the
+UI keeps the user on the upload step with the reasons listed. The legacy
+per-vendor readers never throw on a mismatched book either — `parsePriceBook`
+attaches a generic error to any zero they return.
+
+## Edition assertion
+
+A profile is written against one edition, and vendors move labels when they
+reprint. `expect` on the profile declares what the book should look like, and
+`assertEdition()` (run by `extractWholesaleGrid`, exported for tests and the
+coverage script) turns each violation into an `error` diagnostic:
+
+| field | fires when |
+|---|---|
+| `minStyles` | fewer styles parsed than the book has ever had |
+| `grades: "all"` / `"some"` | a declared grade code priced nothing / none did |
+| `pageCountRange` | the PDF's page count (from pdf-parse) is outside the range |
+| `bookMarkers` | a regex — cover title, program name — appears nowhere in the rendered text |
+
+None of them throws; the products that *were* read stay on the result as
+evidence. Set `minStyles` and `grades` on every profile; add `pageCountRange`
+once the coverage script has measured the book; reach for `bookMarkers` when a
+vendor prints two books that counts alone cannot tell apart. Record the edition
+each profile was written against in its runbook.
+→ `app/__tests__/wholesaleParseResult.test.ts`, `app/__tests__/parsePriceBook.test.ts`
 
 ## Testing
 

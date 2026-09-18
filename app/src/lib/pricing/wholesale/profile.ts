@@ -207,4 +207,40 @@ export interface WholesaleVendorProfile {
    * price no options -- an empty list is honest, a guessed one is not.
    */
   readonly options?: readonly OptionSpec[];
+  /**
+   * What a book of this vendor is expected to look like, so a WRONG book -- a
+   * new edition with moved labels, a companion catalog, the retail copy -- is
+   * refused with a reason instead of parsing to nothing.
+   *
+   * A profile is written against one edition. Vendors reprint yearly and move
+   * labels when they do; without this, the next edition parses to zero styles
+   * and the parse reports success. Every field is optional and every violation
+   * is an `error` diagnostic on the ParseResult, never a throw -- the route
+   * decides the HTTP status, and the coverage script wants the list.
+   *
+   * Declarative rather than a probe function so the error text can say what
+   * was expected ("expected >= 60 styles, got 3") and the coverage report can
+   * print it without running vendor code.
+   */
+  readonly expect?: EditionExpectation;
+}
+
+/** See `WholesaleVendorProfile.expect`. */
+export interface EditionExpectation {
+  /** Fewer styles than this is the wrong book or the wrong edition. */
+  readonly minStyles?: number;
+  /**
+   * `all`  -- every declared grade code must price at least one style.
+   * `some` -- at least one declared grade code must.
+   * A new edition that renamed the grade ladder fails `all` on the first page.
+   */
+  readonly grades?: "all" | "some";
+  /** Inclusive page-count range of the book this profile was written against. */
+  readonly pageCountRange?: readonly [number, number];
+  /**
+   * Text that must appear somewhere in the rendered book -- a cover title, a
+   * program name. The escape hatch for a vendor whose counts alone cannot tell
+   * two books apart.
+   */
+  readonly bookMarkers?: readonly RegExp[];
 }

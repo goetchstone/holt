@@ -30,15 +30,20 @@ The most complex data path in the system:
   Vendor Price List (PDF/CSV/XLSX)
            |
            v
-  [Client] Parse & extract
-  (pdfTableExtractor / xlsx / papaparse)
+  PDF: POST /api/pricing/parse-pdf  ──>  lib/pricing/parsePriceBook.ts
+       (vendor + type required)           registry first: wholesaleProfileFor(vendor)
+                                            -> wholesale/columnGrid.ts (one engine,
+                                               vendors declare themselves in wholesale/vendors/)
+                                          then the legacy per-vendor readers
+                                            (wesleyHallParser / gatCreekExtractor / crLaineExtractor / ...)
+       400  unknown vendor or unsupported book type -- never a fallback reader
+       422  zero rows, or the profile's edition check failed -- `diagnostics` says why
+       200  rows + warnings
+  CSV/XLSX: [Client] xlsx / papaparse -> vendor row parser
            |
            v
-  [Client] Normalize via vendor parser
-  (wesleyHallParser / gatCreekExtractor / crLaineExtractor)
-           |
-           v
-  [Client] Preview in ImportPreviewTable
+  [Client] Preview in ImportPreviewTable (a refused parse stays on the upload
+           step with its diagnostics; Import is disabled at zero rows)
            |
            v
   POST /api/pricing/import/{wholesale-prices|foundations|fabrics|wood-prices}

@@ -1,21 +1,29 @@
 // /app/src/pages/api/pricing/parse-pdf.ts
 //
-// Accepts a PDF file upload, extracts table data, and returns
-// parsed rows as JSON for client-side preview before import.
-// Supports multiple vendors via the "vendor" form field.
+// Accepts a price-book PDF upload and returns parsed rows for client-side
+// preview before import. The vendor/type dispatch lives in
+// lib/pricing/parsePriceBook.ts; this file is upload, call, status.
+//
+// Status codes carry the meaning the UI acts on:
+//   200  rows to preview (warnings may ride along as `diagnostics`)
+//   400  the request cannot be parsed at all: no file, unknown vendor, a book
+//        type this vendor's reader does not handle
+//   422  the file was read and produced nothing usable, or failed the vendor's
+//        edition check -- `diagnostics` says why. This used to be a 200 with
+//        `count: 0`, which the UI showed as success (CLAUDE.md, rule 63:
+//        unconfigured must fail closed, not guess).
+//   500  the reader threw
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import fs from "fs";
 import { createSecureForm } from "@/lib/secureUpload";
-import { extractWholesalePricing, extractFabricCatalog } from "@/lib/pricing/pdfTableExtractor";
-import { parseWholesaleRows, parseFoundationsRows } from "@/lib/pricing/wesleyHallParser";
-import { parseSEPricing } from "@/lib/pricing/seParser";
-import { extractCrLaineWholesale, extractCrLaineSimplicity } from "@/lib/pricing/crLaineExtractor";
-import { extractWholesaleGrid } from "@/lib/pricing/wholesale/columnGrid";
-import { wholesaleProfileFor } from "@/lib/pricing/wholesale/registry";
-import { extractGatCreekPricing } from "@/lib/pricing/gatCreekExtractor";
-import { parseKingsleyBatePriceList } from "@/lib/pricing/kingsleyBateParser";
+import {
+  parsePriceBook,
+  parseIsRefused,
+  UnsupportedTypeError,
+  UnsupportedVendorError,
+} from "@/lib/pricing/parsePriceBook";
 import { getErrorMessage } from "@/lib/toastError";
 
 // Disable Next.js body parsing so formidable can handle the multipart upload
@@ -23,11 +31,16 @@ export const config = {
   api: { bodyParser: false },
 };
 
+function field(value: string | string[] | undefined): string {
+  return (Array.isArray(value) ? value[0] : value) ?? "";
+}
+
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  let tempPath: string | null = null;
   try {
     const form = createSecureForm("PDF");
     const [fields, files] = await form.parse(req);
@@ -36,179 +49,40 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!fileArray || fileArray.length === 0) {
       return res.status(400).json({ error: "No file uploaded" });
     }
+    tempPath = fileArray[0].filepath;
+    const buffer = fs.readFileSync(tempPath);
 
-    const uploadedFile = fileArray[0];
-    const buffer = fs.readFileSync(uploadedFile.filepath);
+    // No default vendor. The old default was "wesley-hall", which meant an
+    // unknown vendor was parsed with Wesley Hall's row shapes and reported 0.
+    const vendor = field(fields.vendor).trim();
+    const type = field(fields.type).trim() || "wholesale";
 
-    const vendor = Array.isArray(fields.vendor) ? fields.vendor[0] : fields.vendor || "wesley-hall";
-    const type = Array.isArray(fields.type) ? fields.type[0] : fields.type || "wholesale";
+    const parsed = await parsePriceBook(buffer, vendor, type);
 
-    let parsedData: any[] = [];
-    let diagnostics: any[] = [];
-    let parseSummary: any = null;
-
-    // Registry first. Vendors on the shared column-transposed grid declare
-    // themselves in `lib/pricing/wholesale/vendors/`, so adding one is a profile
-    // module and a registry line -- not another branch here. The chain below is
-    // the pre-registry vendors, each of which has its own distinct layout.
-    const gridProfile = wholesaleProfileFor(vendor);
-    if (gridProfile && type === "wholesale") {
-      parsedData = await extractWholesaleGrid(buffer, gridProfile);
-
-      fs.unlinkSync(uploadedFile.filepath);
-
-      return res.status(200).json({
-        success: true,
-        vendor,
-        type: "wholesale",
-        count: parsedData.length,
-        data: parsedData,
-        meta: { vendorLabel: gridProfile.label },
-      });
+    if (parseIsRefused(parsed)) {
+      return res.status(422).json({ success: false, ...parsed });
     }
-
-    if (vendor === "brown-jordan") {
-      const { parseBrownJordanPriceList } = await import("@/lib/pricing/brownJordanParser");
-      const bjData = await parseBrownJordanPriceList(buffer);
-
-      fs.unlinkSync(uploadedFile.filepath);
-
-      return res.status(200).json({
-        success: true,
-        vendor,
-        type: "retail-prices",
-        count:
-          bjData.seating.length +
-          bjData.tables.length +
-          bjData.fabrics.length +
-          bjData.finishes.length,
-        data: bjData,
-      });
-    } else if (vendor === "kingsley-bate") {
-      const kbData = await parseKingsleyBatePriceList(buffer);
-      const totalCount =
-        kbData.frames.length +
-        kbData.cushions.length +
-        kbData.covers.length +
-        kbData.fabrics.length;
-
-      // Clean up temp file
-      fs.unlinkSync(uploadedFile.filepath);
-
-      return res.status(200).json({
-        success: true,
-        vendor,
-        type: "retail-prices",
-        count: totalCount,
-        data: kbData,
-      });
-    } else if (vendor === "summer-classics") {
-      const { parseSummerClassicsWholesale } = await import("@/lib/pricing/summerClassicsParser");
-      const scData = await parseSummerClassicsWholesale(buffer);
-
-      fs.unlinkSync(uploadedFile.filepath);
-
-      return res.status(200).json({
-        success: true,
-        vendor,
-        type: "wholesale",
-        count: scData.products.length,
-        data: scData,
-      });
-    } else if (vendor === "jensen-leisure") {
-      const { parseJensenLeisureWholesale } = await import("@/lib/pricing/jensenLeisureParser");
-      const jlData = await parseJensenLeisureWholesale(buffer);
-
-      fs.unlinkSync(uploadedFile.filepath);
-
-      return res.status(200).json({
-        success: true,
-        vendor,
-        type: "wholesale",
-        count: jlData.products.length,
-        data: jlData,
-      });
-    } else if (vendor === "ekornes") {
-      const { parseEkornesPriceList } = await import("@/lib/pricing/ekornesParser");
-      const ekData = await parseEkornesPriceList(buffer);
-
-      fs.unlinkSync(uploadedFile.filepath);
-
-      return res.status(200).json({
-        success: true,
-        vendor,
-        type: "retail-prices",
-        count: ekData.products.length,
-        data: ekData,
-      });
-    } else if (vendor === "american-leather") {
-      const { extractAmericanLeather } = await import("@/lib/pricing/americanLeatherExtractor");
-      const alData = await extractAmericanLeather(buffer);
-
-      // Collect unique collection names
-      const collections = [...new Set(alData.products.map((p) => p.collectionName))];
-
-      fs.unlinkSync(uploadedFile.filepath);
-
-      return res.status(200).json({
-        success: true,
-        vendor,
-        type: alData.isRetail ? "retail-prices" : "wholesale",
-        count: alData.products.length,
-        data: {
-          products: alData.products,
-          pages: alData.pages,
-          collections,
-          effectiveDate: alData.effectiveDate,
-          isRetail: alData.isRetail,
-        },
-      });
-    } else if (vendor === "caperton" || vendor === "gat-creek") {
-      parsedData = await extractGatCreekPricing(buffer);
-    } else if (vendor === "c-r-laine" || vendor === "cr-laine") {
-      if (type === "wholesale") {
-        parsedData = await extractCrLaineWholesale(buffer);
-      } else if (type === "simplicity") {
-        parsedData = await extractCrLaineSimplicity(buffer);
-      }
-    } else {
-      // Wesley Hall parsers (default)
-      if (type === "wholesale") {
-        const rawRows = await extractWholesalePricing(buffer);
-        const parseResult = parseWholesaleRows(rawRows);
-        parsedData = parseResult.data;
-        diagnostics = parseResult.diagnostics;
-        parseSummary = parseResult.summary;
-      } else if (type === "foundations") {
-        const rawRows = await extractWholesalePricing(buffer);
-        const parseResult = parseFoundationsRows(rawRows);
-        parsedData = parseResult.data;
-        diagnostics = parseResult.diagnostics;
-        parseSummary = parseResult.summary;
-      } else if (type === "fabrics") {
-        parsedData = await extractFabricCatalog(buffer);
-      } else if (type === "signature-elements") {
-        parsedData = await parseSEPricing(buffer);
-      }
-    }
-
-    // Clean up temp file
-    fs.unlinkSync(uploadedFile.filepath);
-
-    return res.status(200).json({
-      success: true,
-      vendor,
-      type,
-      count: parsedData.length,
-      data: parsedData,
-      ...(diagnostics.length > 0 && { diagnostics }),
-      ...(parseSummary && { summary: parseSummary }),
-    });
+    return res.status(200).json({ success: true, ...parsed });
   } catch (error: unknown) {
+    if (error instanceof UnsupportedVendorError) {
+      return res.status(400).json({ error: error.message, supported: error.supported });
+    }
+    if (error instanceof UnsupportedTypeError) {
+      return res.status(400).json({ error: error.message });
+    }
     return res.status(500).json({
       error: "Failed to parse PDF",
       details: getErrorMessage(error, "Internal server error"),
     });
+  } finally {
+    // The upload is a temp file either way; a refused parse must not leak it.
+    if (tempPath) {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch {
+        /* already gone */
+      }
+    }
   }
 }
 
