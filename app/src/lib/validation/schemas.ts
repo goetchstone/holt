@@ -58,6 +58,20 @@ export const wholesaleImportSchema = z.object({
   priceListName: z.string().min(1),
   effectiveDate: z.string().optional(),
   products: z.array(wholesaleProductSchema).min(1),
+  // "update" is additive; "renew" retires this book's styles the new PDF no
+  // longer carries. Defaults to renew -- the historical behaviour -- but now
+  // scoped to `sourceBook`, never the whole vendor.
+  mode: z.enum(["update", "renew"]).default("renew"),
+  // The book this import owns: "wholesale", "signature-elements", "casegoods",
+  // "promo", ... A slug, because it is written to every style and compared on
+  // every renew.
+  sourceBook: z
+    .string()
+    .regex(/^[a-z0-9-]{1,64}$/, "sourceBook must be a lowercase slug")
+    .default("wholesale"),
+  // A renew that would retire more than half of the book is refused with 409
+  // unless the caller says it really means it.
+  confirmShrink: z.boolean().optional(),
 });
 
 export type WholesaleImportInput = z.infer<typeof wholesaleImportSchema>;

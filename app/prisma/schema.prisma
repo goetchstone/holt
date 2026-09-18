@@ -237,6 +237,14 @@ model VendorStyle {
   isActive       Boolean @default(true)
   isDiscontinued Boolean @default(false)
 
+  // Which book created this style -- "wholesale", "signature-elements",
+  // "casegoods", "promo", ... -- so a Delete & Renew of one book retires only
+  // that book's styles. Without it, importing a vendor's upholstery book
+  // discontinued every casegoods style under the same vendor, and a
+  // wrong-edition book that parsed to three styles retired the other 197.
+  // Nullable for the backfill; every import path writes it.
+  sourceBook String?
+
   // Pricing relations
   gradePrices     StyleGradePrice[]
   speciesPrices   StyleSpeciesPrice[]
@@ -259,6 +267,7 @@ model VendorStyle {
 
   @@unique([styleNumber, vendorId])
   @@index([vendorId, isActive])
+  @@index([vendorId, sourceBook])
 }
 
 // ---------------------------------------------------------------------------
@@ -848,9 +857,9 @@ model VendorProgram {
 // ---------------------------------------------------------------------------
 
 model Department {
-  id              Int              @id @default(autoincrement())
-  name            String           @unique
-  categories      Category[]
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  categories Category[]
 
   // Reporting roles. These replace hardcoded department NAMES that used to sit
   // in report code -- one retailer's taxonomy that produced empty or wrong
@@ -1608,12 +1617,10 @@ model InventoryPosition {
   stockLocation   StockLocation? @relation(fields: [stockLocationId], references: [id])
   /**
    * Fractional, because a roll of fabric or wallpaper is a length, not a count.
-   *
    * This was Int, which meant the SELLING side could handle 12.5 yards
    * (OrderLineItem.orderedQuantity has always been Decimal) and the STOCK side
    * could not. The split is invisible until you receive a part roll, and then
    * every count, transfer and allocation silently rounds.
-   *
    * 3dp because fabric is sold to the eighth of a yard (0.125), which is exact.
    */
   quantity        Decimal        @default(1) @db.Decimal(12, 3)
@@ -1701,22 +1708,24 @@ model DeliveryZoneZip {
 }
 
 model InventoryTransfer {
-  id                  Int                     @id @default(autoincrement())
+  id                  Int            @id @default(autoincrement())
   productId           Int
-  product             Product                 @relation(fields: [productId], references: [id])
-  /** Fractional -- see InventoryPosition.quantity. A transfer of a part roll
-   *  is the normal case for roll goods, not an edge case. */
-  quantity            Decimal                 @db.Decimal(12, 3)
+  product             Product        @relation(fields: [productId], references: [id])
+  /**
+   * Fractional -- see InventoryPosition.quantity. A transfer of a part roll
+   * is the normal case for roll goods, not an edge case.
+   */
+  quantity            Decimal        @db.Decimal(12, 3)
   fromLocation        String
   toLocation          String
   fromLocationId      Int?
-  fromStoreLocation   StoreLocation?          @relation("TransferFrom", fields: [fromLocationId], references: [id])
+  fromStoreLocation   StoreLocation? @relation("TransferFrom", fields: [fromLocationId], references: [id])
   fromStockLocationId Int?
-  fromStockLocation   StockLocation?          @relation("StockTransferFrom", fields: [fromStockLocationId], references: [id])
+  fromStockLocation   StockLocation? @relation("StockTransferFrom", fields: [fromStockLocationId], references: [id])
   toLocationId        Int?
-  toStoreLocation     StoreLocation?          @relation("TransferTo", fields: [toLocationId], references: [id])
+  toStoreLocation     StoreLocation? @relation("TransferTo", fields: [toLocationId], references: [id])
   toStockLocationId   Int?
-  toStockLocation     StockLocation?          @relation("StockTransferTo", fields: [toStockLocationId], references: [id])
+  toStockLocation     StockLocation? @relation("StockTransferTo", fields: [toStockLocationId], references: [id])
   notes               String?
   /// The customer order this transfer serves, when it serves one.
   ///
@@ -1730,15 +1739,15 @@ model InventoryTransfer {
   /// "which orders does this run unblock".
   ///
   /// Null for ordinary stock balancing between stores, which is the common case.
-  salesOrderId Int?
-  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  salesOrderId        Int?
+  salesOrder          SalesOrder?    @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
 
-  requestedByUserId   String
-  status              InventoryTransferStatus @default(DRAFT)
-  requestedByUser     User                    @relation(fields: [requestedByUserId], references: [id])
-  shippedAt           DateTime?
-  receivedAt          DateTime?
-  receivedByUserId    String?
+  requestedByUserId String
+  status            InventoryTransferStatus @default(DRAFT)
+  requestedByUser   User                    @relation(fields: [requestedByUserId], references: [id])
+  shippedAt         DateTime?
+  receivedAt        DateTime?
+  receivedByUserId  String?
 
   created DateTime  @default(now())
   updated DateTime? @updatedAt
@@ -2525,14 +2534,14 @@ model AdapterOrderFlag {
 }
 
 model SalesOrder {
-  adapterFlags AdapterOrderFlag[]
+  adapterFlags       AdapterOrderFlag[]
   inventoryTransfers InventoryTransfer[]
-  id         Int              @id @default(autoincrement())
-  orderno    String           @unique
-  orderDate  DateTime?
-  status     SalesOrderStatus @default(QUOTE)
-  customerId Int?
-  customer   Customer?        @relation(fields: [customerId], references: [id])
+  id                 Int                 @id @default(autoincrement())
+  orderno            String              @unique
+  orderDate          DateTime?
+  status             SalesOrderStatus    @default(QUOTE)
+  customerId         Int?
+  customer           Customer?           @relation(fields: [customerId], references: [id])
 
   salesperson     String?
   salesPersonId   Int?
@@ -2565,14 +2574,12 @@ model SalesOrder {
   /**
    * When the goods actually reached the customer -- delivered, collected, or
    * carried out of the shop. The single canonical handover fact.
-   *
    * Before this there was no such fact anywhere. Three methods each recorded
    * handover somewhere different -- DELIVERY on DeliveryStop.completedAt,
    * PICKUP on dispatchStatus, TAKEN nowhere at all -- while SalesOrder.status
    * moved independently of all of them from a dropdown. "Delivered" could not
    * be asked as a question, which is why revenue recognition had nothing to
    * key on and CommissionPlan.countsWhen = DELIVERED was an inert no-op.
-   *
    * Written only by markHandedOver() in lib/fulfilment/handover.ts. Null means
    * the order is still a promise.
    */
