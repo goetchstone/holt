@@ -744,7 +744,15 @@ export function PricingImportView() {
       }
 
       if (!res.data.success) {
-        toast.error("Failed to parse PDF");
+        // Surface the server's own reason (or a parse diagnostic) instead of a
+        // bare failure -- the same information the catch block above shows.
+        const diagnostics = (res.data.diagnostics || []) as ParseDiagnostic[];
+        setParseDiagnostics(diagnostics);
+        toast.error(
+          res.data.error ||
+            diagnostics.find((d) => d.level === "error")?.message ||
+            "Failed to parse PDF",
+        );
         return;
       }
 
@@ -938,7 +946,9 @@ export function PricingImportView() {
         const count = res.data.importedCount ?? res.data.created ?? 0;
         toast.success(`Imported ${count} ${isFabricImport ? "fabrics" : "products"}!`);
       } else {
-        toast.error("Import failed");
+        // success:false on a 200 -- the server listed why in `errors`. Show
+        // them rather than a bare "Import failed".
+        toast.error(res.data.errors?.length ? res.data.errors.join("; ") : "Import failed");
         setActiveTab("preview");
       }
     } catch (err: unknown) {
