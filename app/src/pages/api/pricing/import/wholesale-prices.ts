@@ -647,9 +647,29 @@ function tierDisplayName(code: string): string {
 
 // ─── Handler ───────────────────────────────────────────────────────
 
-export default requirePermission(
-  "catalog.pricing",
-  async (req: NextApiRequest, res: NextApiResponse, session) => {
+/**
+ * Thrown inside the import transaction when the loop imported nothing, so
+ * Prisma rolls the whole transaction back -- including the renew sweep that
+ * ran before the loop. Before this, a book that produced zero importable
+ * products still retired every existing style of the book and returned 200.
+ */
+class ImportProducedNothing extends Error {
+  constructor(
+    readonly skippedCount: number,
+    readonly errors: string[],
+  ) {
+    super("import produced no styles");
+    this.name = "ImportProducedNothing";
+  }
+}
+
+/** Renew must not silently retire most of a book; below this ratio it asks. */
+export const SHRINK_GUARD_RATIO = 0.5;
+
+// Exported for the integration test, which drives it with a fake req/res the
+// way cartPricingEndToEnd does; the default export is the gated route.
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: any) {
+  {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
@@ -658,6 +678,9 @@ export default requirePermission(
       priceListName: string;
       effectiveDate: string;
       products: any[];
+      mode: "update" | "renew";
+      sourceBook: string;
+      confirmShrink?: boolean;
     };
     try {
       validated = validateBody(wholesaleImportSchema, req.body) as typeof validated;
@@ -670,6 +693,12 @@ export default requirePermission(
       throw err;
     }
     const { vendorId, priceListName, effectiveDate, products } = validated;
+    // "update" is additive and never retires anything. "renew" is Delete &
+    // Renew, scoped to this book's `sourceBook` so a companion catalog under
+    // the same vendor (Hooker casegoods, Wesley Hall Signature Elements) is
+    // never touched by another book's import.
+    const importMode = validated.mode;
+    const sourceBook = validated.sourceBook;
 
     // Merge duplicate style numbers. Wesley Hall PDFs have separate fabric
     // and leather sections for the same frame, producing two rows with the
@@ -709,6 +738,30 @@ export default requirePermission(
       const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
       if (!vendor) {
         return res.status(404).json({ error: "Vendor not found" });
+      }
+
+      // A renew that would retire most of the book is far more often the wrong
+      // book, a wrong edition, or a partial parse than a vendor that really cut
+      // its line in half. Refuse with the numbers and let the operator confirm
+      // (rule 63: fail closed, with an explicit override -- not a guess).
+      const existingActive = await prisma.vendorStyle.count({
+        where: { vendorId, sourceBook, isDiscontinued: false },
+      });
+      if (
+        importMode === "renew" &&
+        existingActive > 0 &&
+        uniqueProducts.length < existingActive * SHRINK_GUARD_RATIO &&
+        !validated.confirmShrink
+      ) {
+        return res.status(409).json({
+          error:
+            `This book would retire ${existingActive - uniqueProducts.length} of ${existingActive} ` +
+            `active ${sourceBook} styles for ${vendor.name}. If that is really the new catalog, ` +
+            `re-submit with confirmShrink: true; if not, this is the wrong book or a partial parse.`,
+          existing: existingActive,
+          incoming: uniqueProducts.length,
+          sourceBook,
+        });
       }
 
       // Find or create a default department and category for upholstered products
@@ -880,14 +933,18 @@ export default requirePermission(
           );
         }
 
-        // 4. Mark all existing VendorStyles for this vendor as discontinued.
-        //    As we process each style below, the upserts reset
-        //    isDiscontinued = false. After import, any style NOT in the
-        //    new PDF stays deactivated.
-        await tx.vendorStyle.updateMany({
-          where: { vendorId },
-          data: { isDiscontinued: true },
-        });
+        // 4. Renew: mark this BOOK's existing styles discontinued. The upserts
+        //    below reset isDiscontinued = false for every style the new PDF
+        //    carries; whatever is left retired is what the vendor dropped.
+        //    Scoped by sourceBook so another book under the same vendor is
+        //    never touched, and skipped entirely in update mode. If the loop
+        //    then imports nothing, ImportProducedNothing rolls this back too.
+        if (importMode === "renew") {
+          await tx.vendorStyle.updateMany({
+            where: { vendorId, sourceBook },
+            data: { isDiscontinued: true },
+          });
+        }
 
         // 5. Cache decorative finish (DEC) option IDs for per-frame overrides.
         //    These were seeded above via seedVendorOptions(). Frames that include
@@ -950,6 +1007,7 @@ export default requirePermission(
                 imageUrl: p.imageUrl || null,
                 isActive: true,
                 isDiscontinued: false,
+                sourceBook,
               },
               update: {
                 name: styleName,
@@ -972,6 +1030,7 @@ export default requirePermission(
                 imageUrl: p.imageUrl ?? undefined,
                 isActive: true,
                 isDiscontinued: false,
+                sourceBook,
               },
             });
 
@@ -1073,6 +1132,7 @@ export default requirePermission(
                     imageUrl: p.imageUrl || null,
                     isActive: true,
                     isDiscontinued: false,
+                    sourceBook,
                   },
                   update: {
                     name: leatherStyleName,
@@ -1095,6 +1155,7 @@ export default requirePermission(
                     imageUrl: p.imageUrl ?? undefined,
                     isActive: true,
                     isDiscontinued: false,
+                    sourceBook,
                   },
                 });
 
@@ -1282,8 +1343,16 @@ export default requirePermission(
           }
         }
 
+        if (importedCount === 0) {
+          throw new ImportProducedNothing(skippedCount, errors);
+        }
+
         return { importedCount, skippedCount, errors, priceListId: priceList.id };
       }, TX_TIMEOUT.LONG);
+
+      const discontinuedAfter = await prisma.vendorStyle.count({
+        where: { vendorId, sourceBook, isDiscontinued: true },
+      });
 
       // Update vendor pricing model
       await prisma.vendor.update({
@@ -1310,7 +1379,14 @@ export default requirePermission(
       auditLog("IMPORT_WHOLESALE", (session.user as any)?.email || "unknown", {
         vendorId,
         priceListName,
-        productCount: products.length,
+        mode: importMode,
+        sourceBook,
+        requested: products.length,
+        imported: result.importedCount,
+        skipped: result.skippedCount,
+        errors: result.errors.length,
+        activeBefore: existingActive,
+        discontinuedAfter,
       });
 
       return res.status(200).json({
@@ -1318,11 +1394,24 @@ export default requirePermission(
         ...result,
       });
     } catch (error: unknown) {
+      if (error instanceof ImportProducedNothing) {
+        // The transaction -- sweep included -- has been rolled back. Nothing
+        // was retired, nothing was written; say so instead of "success".
+        return res.status(422).json({
+          success: false,
+          importedCount: 0,
+          skippedCount: error.skippedCount,
+          errors: error.errors,
+          error: "No styles could be imported from this book; nothing was changed.",
+        });
+      }
       logError("Wholesale import error", error);
       return res.status(500).json({
         error: "Import failed",
         details: getErrorMessage(error, "Unknown error"),
       });
     }
-  },
-);
+  }
+}
+
+export default requirePermission("catalog.pricing", handler);

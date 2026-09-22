@@ -144,6 +144,7 @@ export default requirePermission(
                 standardBack: p.standardBack || null,
                 isActive: true,
                 isDiscontinued: false,
+                sourceBook: "foundations",
               },
               update: {
                 name: styleName,
@@ -152,6 +153,7 @@ export default requirePermission(
                 standardSeat: p.standardSeat ?? undefined,
                 standardBack: p.standardBack ?? undefined,
                 isDiscontinued: false,
+                sourceBook: "foundations",
               },
             });
 

@@ -216,9 +216,11 @@ export default requirePermission(
           }
         }
 
-        // 3. Mark existing SE styles as discontinued; upserts below reactivate current ones
+        // 3. Mark this book's existing styles discontinued; upserts below
+        //    reactivate current ones. Scoped by sourceBook so the wholesale
+        //    book's renew and this one never touch each other's styles.
         await tx.vendorStyle.updateMany({
-          where: { vendorId, styleNumber: { startsWith: "SE-" } },
+          where: { vendorId, sourceBook: "signature-elements" },
           data: { isDiscontinued: true },
         });
 
@@ -299,6 +301,7 @@ export default requirePermission(
                 standardBack: p.standardBack,
                 isActive: true,
                 isDiscontinued: false,
+                sourceBook: "signature-elements",
               },
               update: {
                 name: `SE ${p.styleName}`,
@@ -309,6 +312,7 @@ export default requirePermission(
                 standardBack: p.standardBack ?? undefined,
                 isActive: true,
                 isDiscontinued: false,
+                sourceBook: "signature-elements",
               },
             });
 

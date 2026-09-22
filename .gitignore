@@ -71,6 +71,9 @@ app/public/akritos-logo.svg
 # Internal strategy / planning / posture docs — private, NOT in the public
 # white-box repo (business strategy, client names, candid assessments).
 /ROADMAP.md
+# The implementation manual for agents. Local like ROADMAP.md: it names live
+# weaknesses that must not be published until they are fixed.
+/PLAN.md
 /STATUS.md
 /MIGRATION-PLAN.md
 /CLIENT-MIGRATION-PLAN.md
