@@ -65,16 +65,17 @@ export interface PriceCalculation {
   optionLines: PriceLineItem[];
   subtotalOptions: number;
   totalCost: number;
-  // Retail pricing
-  suggestedRetail: number;
-  estimatedRetail: number; // Alias for suggestedRetail (backward compat)
+  // Retail pricing -- null when the markup is unconfigured and no stored retail
+  // exists, i.e. the price cannot be determined and the line must not be sold.
+  suggestedRetail: number | null;
+  estimatedRetail: number | null; // Alias for suggestedRetail (backward compat)
   // Discount & as-shown
   discountPercent: number;
-  discountAmount: number;
-  asShownPrice: number;
+  discountAmount: number | null;
+  asShownPrice: number | null;
   // Margin
-  margin: number;
-  marginPercent: number;
+  margin: number | null;
+  marginPercent: number | null;
   // MAP
   mapPrice: number | null;
   mapWarning: boolean;
@@ -220,7 +221,7 @@ export function calculatePrice(
   product: ProductWithPricing,
   selectedTierId: number,
   selectedOptionIds: Set<number>,
-  retailMarkup: number = 2.5,
+  retailMarkup: number | null,
   discountPercent: number = 0,
   mapEnforced: boolean = false,
 ): PriceCalculation {
@@ -267,21 +268,36 @@ export function calculatePrice(
   // like Brown Jordan), otherwise compute from cost * markup (wholesale-first
   // vendors like Wesley Hall / C R Laine).
   const storedRetail = gradePrice?.retail;
-  const suggestedRetail =
-    storedRetail != null ? storedRetail + subtotalOptions * retailMarkup : totalCost * retailMarkup;
+  // Fail closed on an unconfigured markup: with a stored retail (MAP/retail-first
+  // vendors) the price stands and options add their surcharge at the markup, or
+  // nothing when none is set; with no stored retail and no markup, retail is
+  // UNKNOWABLE and stays null -- the caller shows cost and blocks the sale rather
+  // than inventing a price. Only a markup-priced line needs the markup.
+  const suggestedRetail: number | null =
+    storedRetail != null
+      ? storedRetail + subtotalOptions * (retailMarkup ?? 0)
+      : retailMarkup != null
+        ? totalCost * retailMarkup
+        : null;
 
-  // Discount & as-shown
+  // Discount & as-shown -- all null when there is no retail to discount.
   const clampedDiscount = Math.max(0, Math.min(1, discountPercent));
-  const discountAmount = suggestedRetail * clampedDiscount;
-  const asShownPrice = suggestedRetail - discountAmount;
+  const discountAmount = suggestedRetail != null ? suggestedRetail * clampedDiscount : null;
+  const asShownPrice = suggestedRetail != null ? suggestedRetail - (discountAmount ?? 0) : null;
 
   // MAP enforcement
   const mapPrice = product.mapPrice;
-  const mapWarning = !!(mapEnforced && mapPrice != null && asShownPrice < mapPrice);
+  const mapWarning = !!(
+    mapEnforced &&
+    mapPrice != null &&
+    asShownPrice != null &&
+    asShownPrice < mapPrice
+  );
 
-  // Margin
-  const margin = asShownPrice - totalCost;
-  const marginPercent = asShownPrice > 0 ? margin / asShownPrice : 0;
+  // Margin -- null when there is no retail to measure against.
+  const margin = asShownPrice != null ? asShownPrice - totalCost : null;
+  const marginPercent =
+    asShownPrice == null ? null : asShownPrice > 0 && margin != null ? margin / asShownPrice : 0;
 
   return {
     basePrice,
@@ -318,7 +334,7 @@ export function calculateWoodPrice(
   product: WoodProductWithPricing,
   selectedSpeciesTierId: number,
   selectedOptionIds: Set<number>,
-  retailMarkup: number = 2.5,
+  retailMarkup: number | null,
   discountPercent: number = 0,
   mapEnforced: boolean = false,
   selectedWidthTierId?: number,
@@ -386,21 +402,28 @@ export function calculateWoodPrice(
   const subtotalOptions = optionLines.reduce((sum, l) => sum + l.amount, 0);
   const totalCost = basePrice + subtotalOptions;
 
-  // Retail pricing
-  const suggestedRetail = totalCost * retailMarkup;
+  // Retail pricing -- null when no markup is configured (wood has no stored
+  // retail), so the caller shows cost and blocks the sale rather than invent one.
+  const suggestedRetail: number | null = retailMarkup != null ? totalCost * retailMarkup : null;
 
-  // Discount & as-shown
+  // Discount & as-shown -- all null when there is no retail to discount.
   const clampedDiscount = Math.max(0, Math.min(1, discountPercent));
-  const discountAmount = suggestedRetail * clampedDiscount;
-  const asShownPrice = suggestedRetail - discountAmount;
+  const discountAmount = suggestedRetail != null ? suggestedRetail * clampedDiscount : null;
+  const asShownPrice = suggestedRetail != null ? suggestedRetail - (discountAmount ?? 0) : null;
 
   // MAP enforcement
   const mapPrice = product.mapPrice;
-  const mapWarning = !!(mapEnforced && mapPrice != null && asShownPrice < mapPrice);
+  const mapWarning = !!(
+    mapEnforced &&
+    mapPrice != null &&
+    asShownPrice != null &&
+    asShownPrice < mapPrice
+  );
 
-  // Margin
-  const margin = asShownPrice - totalCost;
-  const marginPercent = asShownPrice > 0 ? margin / asShownPrice : 0;
+  // Margin -- null when there is no retail to measure against.
+  const margin = asShownPrice != null ? asShownPrice - totalCost : null;
+  const marginPercent =
+    asShownPrice == null ? null : asShownPrice > 0 && margin != null ? margin / asShownPrice : 0;
 
   return {
     basePrice,

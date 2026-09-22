@@ -46,7 +46,7 @@ interface Props {
   products: WoodProductWithPricing[];
   dimensions: DimensionInfo[];
   vendorName: string;
-  defaultMarkup: number;
+  defaultMarkup: number | null;
   defaultDiscount: number;
   mapEnforced: boolean;
   retailOnly?: boolean;
@@ -233,8 +233,14 @@ export default function WoodPriceConfigurator({
     }
   };
 
-  const formatCurrency = (val: number) =>
-    val.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
+  const formatCurrency = (val: number | null) =>
+    val === null
+      ? "\u2014"
+      : val.toLocaleString("en-US", {
+          style: "currency",
+          currency: "USD",
+          minimumFractionDigits: 2,
+        });
 
   // ─── Tab navigation ────────────────────────────────────────────
 
@@ -709,9 +715,15 @@ export default function WoodPriceConfigurator({
                 </div>
               )}
 
+              {priceCalc.suggestedRetail === null && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  No retail markup is set for {vendorName}. Set one in Vendors &rarr; {vendorName}{" "}
+                  to price this item; it can&rsquo;t be added to a quote until then.
+                </div>
+              )}
               <div className="flex justify-between text-sm mt-2">
                 <span className="text-brand-gray">
-                  {retailOnly ? "Retail Price" : `Suggested Retail (${defaultMarkup}x)`}
+                  {retailOnly ? "Retail Price" : `Suggested Retail (${defaultMarkup ?? "\u2014"}x)`}
                 </span>
                 <span className="font-semibold text-brand-black tabular-nums">
                   {formatCurrency(priceCalc.suggestedRetail)}
@@ -734,7 +746,7 @@ export default function WoodPriceConfigurator({
                   <span>%</span>
                 </span>
                 <span className="tabular-nums text-red-600">
-                  {priceCalc.discountAmount > 0
+                  {(priceCalc.discountAmount ?? 0) > 0
                     ? `−${formatCurrency(priceCalc.discountAmount)}`
                     : "\u2014"}
                 </span>
@@ -763,9 +775,12 @@ export default function WoodPriceConfigurator({
                 <div className="flex justify-between text-sm mt-3">
                   <span className="text-brand-gray">Margin</span>
                   <span
-                    className={`font-semibold tabular-nums ${priceCalc.margin >= 0 ? "text-green-700" : "text-red-600"}`}
+                    className={`font-semibold tabular-nums ${(priceCalc.margin ?? 0) >= 0 ? "text-green-700" : "text-red-600"}`}
                   >
-                    {formatCurrency(priceCalc.margin)} ({(priceCalc.marginPercent * 100).toFixed(1)}
+                    {formatCurrency(priceCalc.margin)} (
+                    {priceCalc.marginPercent != null
+                      ? (priceCalc.marginPercent * 100).toFixed(1)
+                      : "\u2014"}
                     %)
                   </span>
                 </div>
@@ -775,12 +790,14 @@ export default function WoodPriceConfigurator({
             {/* Add to Quote button (visible when navigated from quote builder) */}
             {onAddToQuote && (
               <button
+                disabled={priceCalc.suggestedRetail === null}
                 onClick={() => {
                   const descParts: string[] = [priceCalc.gradeName];
                   const activeOpts = availableOpts.filter(
                     (o) => o.isStandard || selectedOptions.has(o.optionId),
                   );
                   for (const opt of activeOpts) descParts.push(opt.optionName);
+                  if (priceCalc.suggestedRetail === null) return;
                   onAddToQuote({
                     productId: selectedProduct.id,
                     productNumber: selectedProduct.productNumber,
@@ -791,7 +808,7 @@ export default function WoodPriceConfigurator({
                     vendor: vendorName,
                   });
                 }}
-                className="w-full py-3 rounded-lg bg-brand-gold text-white font-semibold text-base transition hover:bg-brand-gold/90 min-h-[44px]"
+                className="w-full py-3 rounded-lg bg-brand-gold text-white font-semibold text-base transition hover:bg-brand-gold/90 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Add to Quote
               </button>

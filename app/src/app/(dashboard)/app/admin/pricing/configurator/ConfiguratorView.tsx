@@ -200,7 +200,7 @@ export function ConfiguratorView() {
   const [fcData, setFcData] = useState<FramePlusCushionData | null>(null);
   const [dimensions, setDimensions] = useState<DimensionInfo[]>([]);
   const [vendorName, setVendorName] = useState("");
-  const [defaultMarkup, setDefaultMarkup] = useState(2.5);
+  const [defaultMarkup, setDefaultMarkup] = useState<number | null>(null);
   const [defaultDiscount, setDefaultDiscount] = useState(0);
   const [mapEnforced, setMapEnforced] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -212,7 +212,7 @@ export function ConfiguratorView() {
   const [seMode, setSEMode] = useState(false);
 
   // Editable settings state
-  const [editMarkup, setEditMarkup] = useState("2.5");
+  const [editMarkup, setEditMarkup] = useState("");
   const [editDiscount, setEditDiscount] = useState("0");
   const [editMapEnforced, setEditMapEnforced] = useState(false);
 
@@ -234,7 +234,7 @@ export function ConfiguratorView() {
 
   // Sync editable settings when vendor data loads
   useEffect(() => {
-    setEditMarkup(String(defaultMarkup));
+    setEditMarkup(defaultMarkup == null ? "" : String(defaultMarkup));
     setEditDiscount(String(Math.round(defaultDiscount * 100)));
     setEditMapEnforced(mapEnforced);
   }, [defaultMarkup, defaultDiscount, mapEnforced]);
@@ -244,7 +244,10 @@ export function ConfiguratorView() {
     setSavingSettings(true);
     setSettingsSaved(false);
     try {
-      const markup = Number.parseFloat(editMarkup) || 2.5;
+      // Fail closed: an empty/invalid field clears the markup rather than
+      // inventing 2.5. The catalog then shows cost + a banner until one is set.
+      const parsedMarkup = Number.parseFloat(editMarkup);
+      const markup = Number.isFinite(parsedMarkup) && parsedMarkup > 0 ? parsedMarkup : null;
       const discount = (Number.parseFloat(editDiscount) || 0) / 100;
       const resp = await fetch(`/api/vendors/${selectedVendorId}`, {
         method: "PATCH",
@@ -311,7 +314,7 @@ export function ConfiguratorView() {
 
       const model = data.vendor?.pricingModel || "GRADE_BASED";
       setVendorName(data.vendor?.name || "");
-      setDefaultMarkup(data.vendor?.defaultMarkup || 2.5);
+      setDefaultMarkup(data.vendor?.defaultMarkup ?? null);
       setDefaultDiscount(data.vendor?.defaultDiscount || 0);
       setMapEnforced(data.vendor?.mapEnforced || false);
       setDimensions(data.dimensions || []);

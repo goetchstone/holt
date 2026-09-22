@@ -38,7 +38,7 @@ interface Props {
   products: ProductWithPricing[];
   vendorId: number;
   vendorName: string;
-  defaultMarkup: number;
+  defaultMarkup: number | null;
   defaultDiscount: number;
   mapEnforced: boolean;
   retailOnly?: boolean;
@@ -208,7 +208,8 @@ export default function PriceConfigurator({
 
   // Build the POS entry data when in retail mode with a fully configured product
   const productEntryData = useMemo(() => {
-    if (!retailOnly || !selectedProduct || !priceCalc) return null;
+    if (!retailOnly || !selectedProduct || !priceCalc || priceCalc.asShownPrice === null)
+      return null;
     const selectedFinishOpt = finishOpts.find((o) => o.optionId === selectedFinishId);
     const activeOptionNames = otherOpts
       .filter((o) => o.isStandard || selectedOptions.has(o.optionId))
@@ -285,13 +286,15 @@ export default function PriceConfigurator({
     }
   };
 
-  const formatCurrency = (val: number) =>
-    Math.ceil(val).toLocaleString("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    });
+  const formatCurrency = (val: number | null) =>
+    val === null
+      ? "\u2014"
+      : Math.ceil(val).toLocaleString("en-US", {
+          style: "currency",
+          currency: "USD",
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        });
 
   // ─── Tab navigation ────────────────────────────────────────────
 
@@ -441,13 +444,17 @@ export default function PriceConfigurator({
             const isSelected = selectedProduct?.id === p.id;
             const priceMultiplier = retailOnly ? defaultMarkup : 1;
             const minPrice =
-              (p.gradePrices.length > 0
-                ? Math.min(...p.gradePrices.map((gp) => gp.cost))
-                : p.baseCost || 0) * priceMultiplier;
+              priceMultiplier === null
+                ? null
+                : (p.gradePrices.length > 0
+                    ? Math.min(...p.gradePrices.map((gp) => gp.cost))
+                    : p.baseCost || 0) * priceMultiplier;
             const maxPrice =
-              (p.gradePrices.length > 0
-                ? Math.max(...p.gradePrices.map((gp) => gp.cost))
-                : p.baseCost || 0) * priceMultiplier;
+              priceMultiplier === null
+                ? null
+                : (p.gradePrices.length > 0
+                    ? Math.max(...p.gradePrices.map((gp) => gp.cost))
+                    : p.baseCost || 0) * priceMultiplier;
 
             return (
               <button
@@ -482,7 +489,10 @@ export default function PriceConfigurator({
                         </div>
                         <div className="text-sm font-semibold text-brand-blue tabular-nums">
                           {formatCurrency(minPrice)}
-                          {maxPrice > minPrice && ` – ${formatCurrency(maxPrice)}`}
+                          {maxPrice != null &&
+                            minPrice != null &&
+                            maxPrice > minPrice &&
+                            ` – ${formatCurrency(maxPrice)}`}
                         </div>
                       </div>
                     </div>
@@ -572,7 +582,7 @@ export default function PriceConfigurator({
               gradePrices={visibleGrades}
               selectedTierId={selectedTierId}
               onSelect={handleSelectGrade}
-              markup={retailOnly ? defaultMarkup : undefined}
+              markup={retailOnly ? (defaultMarkup ?? undefined) : undefined}
             />
             {!retailOnly && selectedProduct.gradeRiser && (
               <div className="mt-3 text-xs text-brand-gray">
@@ -810,13 +820,17 @@ export default function PriceConfigurator({
             >
               <option value="">Select a finish...</option>
               {finishOpts.map((opt) => {
-                const displaySurcharge = retailOnly ? opt.surcharge * defaultMarkup : opt.surcharge;
+                const displaySurcharge = retailOnly
+                  ? defaultMarkup === null
+                    ? null
+                    : opt.surcharge * defaultMarkup
+                  : opt.surcharge;
                 return (
                   <option key={opt.optionId} value={opt.optionId}>
                     {opt.optionName}
                     {opt.isStandard
                       ? " \u2014 Included"
-                      : displaySurcharge > 0
+                      : (displaySurcharge ?? 0) > 0
                         ? ` \u2014 +${formatCurrency(displaySurcharge)}`
                         : " \u2014 No charge"}
                   </option>
@@ -850,7 +864,9 @@ export default function PriceConfigurator({
                       {groupOpts.map((option) => {
                         const isActive = option.isStandard || selectedOptions.has(option.optionId);
                         const displaySurcharge = retailOnly
-                          ? option.surcharge * defaultMarkup
+                          ? defaultMarkup === null
+                            ? null
+                            : option.surcharge * defaultMarkup
                           : option.surcharge;
                         return (
                           <button
@@ -877,7 +893,7 @@ export default function PriceConfigurator({
                             >
                               {option.isStandard
                                 ? "Included"
-                                : displaySurcharge > 0
+                                : (displaySurcharge ?? 0) > 0
                                   ? `+${formatCurrency(displaySurcharge)}`
                                   : "No charge"}
                             </span>
@@ -1004,7 +1020,9 @@ export default function PriceConfigurator({
                     <div className="flex justify-between text-sm">
                       <span className="text-brand-black">Retail Price ({priceCalc.gradeName})</span>
                       <span className="font-semibold tabular-nums">
-                        {formatCurrency(priceCalc.basePrice * defaultMarkup)}
+                        {formatCurrency(
+                          defaultMarkup === null ? null : priceCalc.basePrice * defaultMarkup,
+                        )}
                       </span>
                     </div>
                     {selectedFabric && (
@@ -1023,7 +1041,10 @@ export default function PriceConfigurator({
                           {line.label}
                         </span>
                         <span className="tabular-nums">
-                          +{formatCurrency(line.amount * defaultMarkup)}
+                          +
+                          {formatCurrency(
+                            defaultMarkup === null ? null : line.amount * defaultMarkup,
+                          )}
                         </span>
                       </div>
                     ))}
@@ -1031,6 +1052,13 @@ export default function PriceConfigurator({
 
                   <div className="border-t border-brand-gray/20 my-3" />
 
+                  {priceCalc.suggestedRetail === null && (
+                    <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      No retail markup is set for {vendorName}. Set one in Vendors &rarr;{" "}
+                      {vendorName} to price this item; it can&rsquo;t be added to a quote until
+                      then.
+                    </div>
+                  )}
                   <div className="flex justify-between text-base font-semibold">
                     <span className="text-brand-blue">Retail Price</span>
                     <span className="text-brand-black tabular-nums">
@@ -1054,7 +1082,7 @@ export default function PriceConfigurator({
                       <span>%</span>
                     </span>
                     <span className="tabular-nums text-red-600">
-                      {priceCalc.discountAmount > 0
+                      {(priceCalc.discountAmount ?? 0) > 0
                         ? `−${formatCurrency(priceCalc.discountAmount)}`
                         : "\u2014"}
                     </span>
@@ -1109,7 +1137,9 @@ export default function PriceConfigurator({
                   </div>
 
                   <div className="flex justify-between text-sm mt-2">
-                    <span className="text-brand-gray">Suggested Retail ({defaultMarkup}x)</span>
+                    <span className="text-brand-gray">
+                      Suggested Retail ({defaultMarkup ?? "\u2014"}x)
+                    </span>
                     <span className="font-semibold text-brand-black tabular-nums">
                       {formatCurrency(priceCalc.suggestedRetail)}
                     </span>
@@ -1131,7 +1161,7 @@ export default function PriceConfigurator({
                       <span>%</span>
                     </span>
                     <span className="tabular-nums text-red-600">
-                      {priceCalc.discountAmount > 0
+                      {(priceCalc.discountAmount ?? 0) > 0
                         ? `−${formatCurrency(priceCalc.discountAmount)}`
                         : "\u2014"}
                     </span>
@@ -1159,10 +1189,13 @@ export default function PriceConfigurator({
                   <div className="flex justify-between text-sm mt-3">
                     <span className="text-brand-gray">Margin</span>
                     <span
-                      className={`font-semibold tabular-nums ${priceCalc.margin >= 0 ? "text-green-700" : "text-red-600"}`}
+                      className={`font-semibold tabular-nums ${(priceCalc.margin ?? 0) >= 0 ? "text-green-700" : "text-red-600"}`}
                     >
                       {formatCurrency(priceCalc.margin)} (
-                      {(priceCalc.marginPercent * 100).toFixed(1)}%)
+                      {priceCalc.marginPercent != null
+                        ? (priceCalc.marginPercent * 100).toFixed(1)
+                        : "\u2014"}
+                      %)
                     </span>
                   </div>
                 </>
@@ -1215,6 +1248,7 @@ export default function PriceConfigurator({
             {/* Add to Quote button (visible when navigated from quote builder) */}
             {onAddToQuote && (
               <button
+                disabled={priceCalc.suggestedRetail === null}
                 onClick={() => {
                   const descParts: string[] = [priceCalc.gradeName];
                   if (selectedFabric) {
@@ -1229,6 +1263,7 @@ export default function PriceConfigurator({
                   );
                   for (const opt of activeOpts) descParts.push(opt.optionName);
                   const price = retailOnly ? priceCalc.asShownPrice : priceCalc.suggestedRetail;
+                  if (price === null) return;
                   onAddToQuote({
                     productId: selectedProduct.id,
                     productNumber: selectedProduct.productNumber,
@@ -1239,7 +1274,7 @@ export default function PriceConfigurator({
                     vendor: vendorName,
                   });
                 }}
-                className="w-full py-3 rounded-lg bg-brand-gold text-white font-semibold text-base transition hover:bg-brand-gold/90 min-h-[44px]"
+                className="w-full py-3 rounded-lg bg-brand-gold text-white font-semibold text-base transition hover:bg-brand-gold/90 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Add to Quote
               </button>

@@ -95,7 +95,7 @@ describe("calculatePrice", () => {
     const product = makeProduct({
       gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })],
     });
-    const result = calculatePrice(product, 1, new Set());
+    const result = calculatePrice(product, 1, new Set(), 2.5);
 
     expect(result.basePrice).toBe(1000);
     expect(result.totalCost).toBe(1000);
@@ -111,7 +111,7 @@ describe("calculatePrice", () => {
       baseCost: 800,
       gradePrices: [makeGradePrice({ tierId: 1 })],
     });
-    const result = calculatePrice(product, 999, new Set());
+    const result = calculatePrice(product, 999, new Set(), 2.5);
 
     expect(result.basePrice).toBe(800);
     expect(result.gradeName).toBe("Base");
@@ -122,7 +122,7 @@ describe("calculatePrice", () => {
       baseCost: null,
       gradePrices: [],
     });
-    const result = calculatePrice(product, 999, new Set());
+    const result = calculatePrice(product, 999, new Set(), 2.5);
 
     expect(result.basePrice).toBe(0);
     expect(result.totalCost).toBe(0);
@@ -133,7 +133,7 @@ describe("calculatePrice", () => {
     const product = makeProduct({
       gradePrices: [makeGradePrice({ tierId: 1, cost: 600, retail: 1500 })],
     });
-    const result = calculatePrice(product, 1, new Set());
+    const result = calculatePrice(product, 1, new Set(), 2.5);
 
     expect(result.basePrice).toBe(600);
     expect(result.totalCost).toBe(600);
@@ -148,7 +148,7 @@ describe("calculatePrice", () => {
       gradePrices: [makeGradePrice({ tierId: 1, cost: 600, retail: 1500 })],
       availableOptions: [option],
     });
-    const result = calculatePrice(product, 1, new Set([10]));
+    const result = calculatePrice(product, 1, new Set([10]), 2.5);
 
     // storedRetail + subtotalOptions * retailMarkup = 1500 + 100 * 2.5 = 1750
     expect(result.suggestedRetail).toBe(1750);
@@ -161,7 +161,7 @@ describe("calculatePrice", () => {
       gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })],
       availableOptions: [option],
     });
-    const result = calculatePrice(product, 1, new Set([10]));
+    const result = calculatePrice(product, 1, new Set([10]), 2.5);
 
     expect(result.optionLines).toHaveLength(1);
     expect(result.optionLines[0].amount).toBe(200);
@@ -175,7 +175,7 @@ describe("calculatePrice", () => {
       gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })],
       availableOptions: [option],
     });
-    const result = calculatePrice(product, 1, new Set([10]));
+    const result = calculatePrice(product, 1, new Set([10]), 2.5);
 
     expect(result.optionLines[0].amount).toBe(100); // 1000 * 0.1
     expect(result.totalCost).toBe(1100);
@@ -187,7 +187,7 @@ describe("calculatePrice", () => {
       gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })],
       availableOptions: [option],
     });
-    const result = calculatePrice(product, 1, new Set([10]));
+    const result = calculatePrice(product, 1, new Set([10]), 2.5);
 
     expect(result.optionLines[0].amount).toBe(75);
     expect(result.totalCost).toBe(1075);
@@ -206,7 +206,7 @@ describe("calculatePrice", () => {
       gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })],
       availableOptions: [opt1, opt2],
     });
-    const result = calculatePrice(product, 1, new Set([10, 11]));
+    const result = calculatePrice(product, 1, new Set([10, 11]), 2.5);
 
     expect(result.optionLines).toHaveLength(2);
     expect(result.subtotalOptions).toBe(250);
@@ -219,7 +219,7 @@ describe("calculatePrice", () => {
       gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })],
       availableOptions: [option],
     });
-    const result = calculatePrice(product, 1, new Set([10]));
+    const result = calculatePrice(product, 1, new Set([10]), 2.5);
 
     expect(result.optionLines).toHaveLength(0);
     expect(result.totalCost).toBe(1000);
@@ -231,7 +231,7 @@ describe("calculatePrice", () => {
       gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })],
       availableOptions: [option],
     });
-    const result = calculatePrice(product, 1, new Set([10]));
+    const result = calculatePrice(product, 1, new Set([10]), 2.5);
 
     expect(result.optionLines).toHaveLength(0);
     expect(result.totalCost).toBe(1000);
@@ -243,7 +243,7 @@ describe("calculatePrice", () => {
       gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })],
       availableOptions: [option],
     });
-    const result = calculatePrice(product, 1, new Set([999]));
+    const result = calculatePrice(product, 1, new Set([999]), 2.5);
 
     expect(result.optionLines).toHaveLength(0);
     expect(result.totalCost).toBe(1000);
@@ -344,7 +344,7 @@ describe("calculatePrice", () => {
       gradeRiser: 25,
       gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })],
     });
-    const result = calculatePrice(product, 1, new Set());
+    const result = calculatePrice(product, 1, new Set(), 2.5);
 
     expect(result.comYardage).toBe(12);
     expect(result.comYardagePattern).toBe(14);
@@ -356,7 +356,7 @@ describe("calculatePrice", () => {
     const product = makeProduct({
       gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })],
     });
-    const result = calculatePrice(product, 1, new Set());
+    const result = calculatePrice(product, 1, new Set(), 2.5);
 
     expect(result.estimatedRetail).toBe(result.suggestedRetail);
   });
@@ -372,7 +372,7 @@ describe("calculateWoodPrice", () => {
         { tierId: 11, tierCode: "MAPLE", tierName: "Maple", cost: 1000 },
       ],
     });
-    const result = calculateWoodPrice(product, 10, new Set());
+    const result = calculateWoodPrice(product, 10, new Set(), 2.5);
 
     expect(result.basePrice).toBe(1200);
     expect(result.gradeName).toBe("Cherry");
@@ -384,7 +384,7 @@ describe("calculateWoodPrice", () => {
       baseCost: 500,
       speciesPrices: [{ tierId: 10, tierCode: "CHERRY", tierName: "Cherry", cost: 1200 }],
     });
-    const result = calculateWoodPrice(product, 999, new Set());
+    const result = calculateWoodPrice(product, 999, new Set(), 2.5);
 
     expect(result.basePrice).toBe(500);
     expect(result.gradeName).toBe("Species");
@@ -434,14 +434,14 @@ describe("calculateWoodPrice", () => {
 
   it("falls back to baseCost when no species or axis prices exist", () => {
     const product = makeWoodProduct({ baseCost: 500 });
-    const result = calculateWoodPrice(product, 1, new Set());
+    const result = calculateWoodPrice(product, 1, new Set(), 2.5);
 
     expect(result.basePrice).toBe(500);
   });
 
   it("returns 0 when no pricing data and no baseCost", () => {
     const product = makeWoodProduct({ baseCost: null });
-    const result = calculateWoodPrice(product, 1, new Set());
+    const result = calculateWoodPrice(product, 1, new Set(), 2.5);
 
     expect(result.basePrice).toBe(0);
   });
@@ -452,7 +452,7 @@ describe("calculateWoodPrice", () => {
       speciesPrices: [{ tierId: 10, tierCode: "CHERRY", tierName: "Cherry", cost: 1000 }],
       availableOptions: [option],
     });
-    const result = calculateWoodPrice(product, 10, new Set([10]));
+    const result = calculateWoodPrice(product, 10, new Set([10]), 2.5);
 
     expect(result.totalCost).toBe(1150);
     expect(result.optionLines).toHaveLength(1);
@@ -485,7 +485,7 @@ describe("calculateWoodPrice", () => {
     const product = makeWoodProduct({
       speciesPrices: [{ tierId: 10, tierCode: "CHERRY", tierName: "Cherry", cost: 1000 }],
     });
-    const result = calculateWoodPrice(product, 10, new Set());
+    const result = calculateWoodPrice(product, 10, new Set(), 2.5);
 
     expect(result.comYardage).toBeNull();
     expect(result.comYardagePattern).toBeNull();
@@ -581,5 +581,34 @@ describe("calculateFramePlusCushionPrice", () => {
     expect(result.totalRetail).toBe(0);
     expect(result.marginPercent).toBe(0);
     expect(Number.isNaN(result.marginPercent!)).toBe(false);
+  });
+});
+
+describe("calculatePrice with an unconfigured markup (USE-04 fail-closed)", () => {
+  it("returns null retail when there is no markup and no stored retail", () => {
+    const product = makeProduct({ gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })] });
+    const r = calculatePrice(product, 1, new Set(), null);
+    expect(r.totalCost).toBe(1000); // cost is still known and shown
+    expect(r.suggestedRetail).toBeNull();
+    expect(r.estimatedRetail).toBeNull();
+    expect(r.asShownPrice).toBeNull();
+    expect(r.discountAmount).toBeNull();
+    expect(r.margin).toBeNull();
+    expect(r.marginPercent).toBeNull();
+  });
+
+  it("still prices from a stored retail even with no markup (MAP / retail-first)", () => {
+    const product = makeProduct({
+      gradePrices: [makeGradePrice({ tierId: 1, cost: 1000, retail: 2500 })],
+    });
+    const r = calculatePrice(product, 1, new Set(), null);
+    expect(r.suggestedRetail).toBe(2500);
+    expect(r.asShownPrice).toBe(2500);
+  });
+
+  it("prices from cost x markup when a markup is given", () => {
+    const product = makeProduct({ gradePrices: [makeGradePrice({ tierId: 1, cost: 1000 })] });
+    const r = calculatePrice(product, 1, new Set(), 2.5);
+    expect(r.suggestedRetail).toBe(2500);
   });
 });

@@ -12,6 +12,19 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]";
 import { logError } from "@/lib/logger";
 import { getErrorMessage } from "@/lib/toastError";
+import { getAppSettings } from "@/lib/appSettings";
+
+// The retail markup for a vendor: its own if set, else the store-wide fallback,
+// else null. null is "unconfigured" -- the catalog then shows wholesale cost and
+// refuses to invent a retail price rather than defaulting to another business's
+// 2.5x. A vendor markup of 0 is treated as unset (0x retail is meaningless).
+function resolveVendorMarkup(vendorMarkup: unknown, storeWide: number | null): number | null {
+  if (vendorMarkup != null) {
+    const n = Number(vendorMarkup);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return storeWide;
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -23,6 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: "Unauthorized" });
   }
 
+  const appSettings = await getAppSettings();
   const vendorId = Number.parseInt(req.query.vendorId as string);
   if (Number.isNaN(vendorId)) {
     return res.status(400).json({ error: "vendorId is required" });
@@ -333,7 +347,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: vendor.id,
         name: vendor.name,
         pricingModel: vendor.pricingModel,
-        defaultMarkup: vendor.defaultMarkup ? Number(vendor.defaultMarkup) : 2.5,
+        defaultMarkup: resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup),
+        pricingStatus:
+          resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup) === null
+            ? "UNCONFIGURED_MARKUP"
+            : "OK",
         defaultDiscount: vendor.defaultDiscount ? Number(vendor.defaultDiscount) : 0,
         mapEnforced: vendor.mapEnforced,
       },
@@ -365,6 +383,7 @@ async function handleWoodVendor(
   },
   vendorId: number,
 ) {
+  const appSettings = await getAppSettings();
   // Fetch VendorStyles with species and axis prices.
   // Wood vendors store catalog data on VendorStyles (not Products).
   const styles = await prisma.vendorStyle.findMany({
@@ -524,7 +543,11 @@ async function handleWoodVendor(
       id: vendor.id,
       name: vendor.name,
       pricingModel: vendor.pricingModel,
-      defaultMarkup: vendor.defaultMarkup ? Number(vendor.defaultMarkup) : 2.5,
+      defaultMarkup: resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup),
+      pricingStatus:
+        resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup) === null
+          ? "UNCONFIGURED_MARKUP"
+          : "OK",
       defaultDiscount: vendor.defaultDiscount ? Number(vendor.defaultDiscount) : 0,
       costMultiplier: vendor.costMultiplier ? Number(vendor.costMultiplier) : null,
       mapEnforced: vendor.mapEnforced,
@@ -551,6 +574,7 @@ async function handleFramePlusCushion(
   },
   vendorId: number,
 ) {
+  const appSettings = await getAppSettings();
   // Fetch all non-discontinued VendorStyles for this vendor.
   // Frames have framePrice set, cushions have grade prices, covers have baseRetail.
   const styles = await prisma.vendorStyle.findMany({
@@ -728,7 +752,11 @@ async function handleFramePlusCushion(
       id: vendor.id,
       name: vendor.name,
       pricingModel: vendor.pricingModel,
-      defaultMarkup: vendor.defaultMarkup ? Number(vendor.defaultMarkup) : 2.5,
+      defaultMarkup: resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup),
+      pricingStatus:
+        resolveVendorMarkup(vendor.defaultMarkup, appSettings.pricing.defaultMarkup) === null
+          ? "UNCONFIGURED_MARKUP"
+          : "OK",
       defaultDiscount: vendor.defaultDiscount ? Number(vendor.defaultDiscount) : 0,
       costMultiplier: vendor.costMultiplier ? Number(vendor.costMultiplier) : null,
       mapEnforced: vendor.mapEnforced,

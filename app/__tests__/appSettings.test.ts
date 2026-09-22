@@ -119,3 +119,36 @@ describe("themeToCssVars", () => {
     expect(themeToCssVars(allBad)).toBe("");
   });
 });
+
+describe("resolveAppSettings pricing (USE-04 markup fallback)", () => {
+  it("defaults to no store-wide markup (null) for a null row or an unset column", () => {
+    expect(resolveAppSettings(null).pricing).toEqual({ defaultMarkup: null });
+    expect(resolveAppSettings(row()).pricing).toEqual({ defaultMarkup: null });
+    expect(resolveAppSettings(row({ pricing: null })).pricing).toEqual({ defaultMarkup: null });
+  });
+
+  it("honours a positive, finite markup", () => {
+    expect(resolveAppSettings(row({ pricing: { defaultMarkup: 2.2 } })).pricing).toEqual({
+      defaultMarkup: 2.2,
+    });
+  });
+
+  it("fails closed on a non-positive, non-finite, or wrong-typed markup", () => {
+    // 0 and negatives are meaningless as a retail multiplier -> unset.
+    expect(
+      resolveAppSettings(row({ pricing: { defaultMarkup: 0 } })).pricing.defaultMarkup,
+    ).toBeNull();
+    expect(
+      resolveAppSettings(row({ pricing: { defaultMarkup: -3 } })).pricing.defaultMarkup,
+    ).toBeNull();
+    // A string, NaN, empty object, or non-object is not a markup.
+    expect(
+      resolveAppSettings(row({ pricing: { defaultMarkup: "2.5" } })).pricing.defaultMarkup,
+    ).toBeNull();
+    expect(
+      resolveAppSettings(row({ pricing: { defaultMarkup: Number.NaN } })).pricing.defaultMarkup,
+    ).toBeNull();
+    expect(resolveAppSettings(row({ pricing: {} })).pricing.defaultMarkup).toBeNull();
+    expect(resolveAppSettings(row({ pricing: "nope" })).pricing.defaultMarkup).toBeNull();
+  });
+});
