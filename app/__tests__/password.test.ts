@@ -2,6 +2,8 @@
 //
 // Pure tests for local-account password hashing.
 
+import { scryptSync, randomBytes } from "crypto";
+
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 
 describe("hashPassword", () => {
@@ -20,9 +22,14 @@ describe("hashPassword", () => {
     expect(hashPassword("samepassword")).not.toBe(hashPassword("samepassword"));
   });
 
-  test("rejects passwords shorter than 8 characters", () => {
-    expect(() => hashPassword("short")).toThrow(/at least 8/);
+  test("rejects passwords shorter than 12 characters", () => {
+    expect(() => hashPassword("short")).toThrow(/at least 12/);
+    expect(() => hashPassword("elevenchar!")).toThrow(/at least 12/); // 11 chars
     expect(() => hashPassword("")).toThrow();
+  });
+
+  test("accepts a password of exactly 12 characters", () => {
+    expect(() => hashPassword("twelvechars!")).not.toThrow(); // 12 chars
   });
 });
 
@@ -56,5 +63,15 @@ describe("verifyPassword", () => {
       "scrypt$16384$Q86Heu3S8n5FbXp28AZtZw==$jZpdiIgGShFgQ9NjioxQYDaA00dqIU6v9iDPYViUY4xf5+3RzPBmGY1zRp8tcYoluy/j7l5pwKfp7DgPkFnnsA==";
     expect(verifyPassword("correct horse battery", scriptHash)).toBe(true);
     expect(verifyPassword("wrong password", scriptHash)).toBe(false);
+  });
+
+  test("refuses an otherwise-valid hash whose stored cost is below the floor", () => {
+    // Build a hash that WOULD verify -- correct key, correct format -- but at
+    // N=1024, under the 16384 floor. The old check (n <= 1) accepted it; it must
+    // now be refused for its weak cost, not the key.
+    const salt = randomBytes(16);
+    const key = scryptSync("correctpassword", salt, 64, { N: 1024, r: 8, p: 1 });
+    const weakHash = `scrypt$1024$${salt.toString("base64")}$${key.toString("base64")}`;
+    expect(verifyPassword("correctpassword", weakHash)).toBe(false);
   });
 });
