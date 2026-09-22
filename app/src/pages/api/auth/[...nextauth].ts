@@ -5,9 +5,15 @@ import NextAuth, { NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { LAST_SEEN_THROTTLE_MS } from "@/lib/loginActivity";
-import { buildAuthProviders, buildAuthProvidersAsync } from "@/lib/auth/authProviders";
+import {
+  buildAuthProviders,
+  buildAuthProvidersAsync,
+  findActiveStaffByEmail,
+  hasNoPrivilegedStaff,
+} from "@/lib/auth/authProviders";
 import { resolveGrantedPermissions } from "@/lib/auth/permissionResolver";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { logger } from "@/lib/logger";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -38,8 +44,31 @@ export const authOptions: NextAuthOptions = {
   },
 
   callbacks: {
-    async signIn() {
-      return true;
+    async signIn({ user }) {
+      // Admit an identity only when it belongs to an active StaffMember.
+      //
+      // This closes the hole where `return true` admitted ANY Google/Okta/Azure
+      // account: the PrismaAdapter would create a User and the jwt callback then
+      // defaulted an unlinked account to a real staff role. Staff membership --
+      // not merely proving you own an email -- is what grants access.
+      //
+      // The one exception is the bootstrap window: on a brand-new deployment
+      // with no admin yet, the first sign-in is admitted so the operator can
+      // reach Admin > Staff and promote themselves. requireAuth.ts grants that
+      // page under the identical predicate; the two must agree or the first
+      // user gets a session that can open nothing.
+      const staff = await findActiveStaffByEmail(user?.email);
+      if (staff) return true;
+      if (await hasNoPrivilegedStaff()) {
+        logger.warn("Sign-in admitted under the bootstrap safeguard (no admin exists yet)", {
+          email: user?.email ?? null,
+        });
+        return true;
+      }
+      logger.warn("Sign-in refused: no active staff member for this email", {
+        email: user?.email ?? null,
+      });
+      return false;
     },
 
     async jwt({ token, account, user }) {
@@ -102,12 +131,17 @@ export const authOptions: NextAuthOptions = {
             where: { userId: token.id as string },
             select: { role: true, roleId: true, isActive: true },
           });
-          token.role = staff?.role || "DESIGNER";
+          // No default role. This token field is presentation-only (the nav
+          // reads it; requireAuth.ts/permissionResolver.ts read the DB and are
+          // authoritative), so an unlinked account -- only reachable now in the
+          // bootstrap window -- shows no menu rather than a DESIGNER's. It used
+          // to default to DESIGNER, which is how a non-staff session looked like
+          // real staff.
+          token.role = staff?.role ?? undefined;
           token.permissions = await resolveGrantedPermissions(staff);
         } catch {
-          // Default to DESIGNER if lookup fails
-          if (!token.role) token.role = "DESIGNER";
-          // Show nothing rather than a stale menu when the lookup failed.
+          // Show nothing rather than a stale menu when the lookup failed; leave
+          // any existing role untouched but never invent one.
           token.permissions = [];
         }
       }
