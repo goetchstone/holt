@@ -25,6 +25,7 @@ import {
   type ParsedFabricRow,
 } from "@/lib/pricing/wesleyHallParser";
 import type { ParseDiagnostic } from "@/lib/pricing/pricingTypes";
+import { VENDOR_CONFIGS } from "@/lib/pricing/importVendorConfigs";
 import { getErrorMessage } from "@/lib/toastError";
 import { toast } from "react-toastify";
 import axios from "axios";
@@ -42,21 +43,9 @@ import {
 
 // ─── Types ─────────────────────────────────────────────────────────
 
-interface ImportTypeConfig {
-  value: string;
-  label: string;
-  defaultPriceListName: string;
-  /** API endpoint for import. Defaults to wholesale-prices. */
-  importEndpoint?: string;
-}
-
-interface VendorConfig {
-  slug: string;
-  /** Lowercase substring to match against vendor.name from the DB */
-  nameMatch: string;
-  displayName: string;
-  importTypes: ImportTypeConfig[];
-}
+// VendorConfig, ImportTypeConfig and VENDOR_CONFIGS now live in
+// @/lib/pricing/importVendorConfigs (imported above): the vendor list is derived
+// from the wholesale registry so a readable vendor cannot be missing from it.
 
 interface VendorOption {
   id: number;
@@ -103,156 +92,6 @@ interface ImageExtractionResult {
 }
 
 type ImportStep = "upload" | "preview" | "import";
-
-// ─── Vendor configuration registry ─────────────────────────────────
-
-const VENDOR_CONFIGS: VendorConfig[] = [
-  {
-    slug: "wesley-hall",
-    nameMatch: "wesley hall",
-    displayName: "Wesley Hall",
-    importTypes: [
-      {
-        value: "wholesale",
-        label: "Wholesale Price Book",
-        defaultPriceListName: "Wesley Hall Wholesale October 2025",
-      },
-      {
-        value: "foundations",
-        label: "Foundations Program",
-        defaultPriceListName: "Wesley Hall Foundations Program",
-        importEndpoint: "/api/pricing/import/foundations",
-      },
-      {
-        value: "fabrics",
-        label: "Fabric Catalog",
-        defaultPriceListName: "Wesley Hall Fabric Catalog",
-        importEndpoint: "/api/pricing/import/fabrics",
-      },
-      {
-        value: "signature-elements",
-        label: "Signature Elements",
-        defaultPriceListName: "Wesley Hall Signature Elements October 2025",
-        importEndpoint: "/api/pricing/import/signature-elements",
-      },
-    ],
-  },
-  {
-    slug: "c-r-laine",
-    nameMatch: "c r laine",
-    displayName: "C R Laine",
-    importTypes: [
-      {
-        value: "wholesale",
-        label: "Wholesale Price List",
-        defaultPriceListName: "C R Laine Wholesale September 2025",
-      },
-      {
-        value: "simplicity",
-        label: "Simplicity Program",
-        defaultPriceListName: "C R Laine Simplicity October 2025",
-        importEndpoint: "/api/pricing/import/foundations",
-      },
-      {
-        value: "fabrics",
-        label: "Fabric Catalog",
-        defaultPriceListName: "C R Laine Fabric Catalog",
-        importEndpoint: "/api/pricing/import/fabrics",
-      },
-    ],
-  },
-  {
-    slug: "caperton",
-    nameMatch: "caperton",
-    displayName: "Gat Creek (Caperton)",
-    importTypes: [
-      {
-        value: "wholesale",
-        label: "Wholesale Price List",
-        defaultPriceListName: "Gat Creek Wholesale January 2026",
-        importEndpoint: "/api/pricing/import/wood-prices",
-      },
-    ],
-  },
-  {
-    slug: "kingsley-bate",
-    nameMatch: "kingsley bate",
-    displayName: "Kingsley Bate",
-    importTypes: [
-      {
-        value: "retail-prices",
-        label: "Retail Price List",
-        defaultPriceListName: "Kingsley Bate Retail March 2026",
-        importEndpoint: "/api/pricing/import/frame-cushion-prices",
-      },
-    ],
-  },
-  {
-    slug: "brown-jordan",
-    nameMatch: "brown jordan",
-    displayName: "Brown Jordan",
-    importTypes: [
-      {
-        value: "retail-prices",
-        label: "Retail Price List",
-        defaultPriceListName: "Brown Jordan Retail 2026",
-        importEndpoint: "/api/pricing/import/retail-grade-prices",
-      },
-    ],
-  },
-  {
-    slug: "summer-classics",
-    nameMatch: "summer classics",
-    displayName: "Summer Classics",
-    importTypes: [
-      {
-        value: "wholesale",
-        label: "Wholesale Price List",
-        defaultPriceListName: "Summer Classics Wholesale August 2025",
-        importEndpoint: "/api/pricing/import/summer-classics-prices",
-      },
-    ],
-  },
-  {
-    slug: "jensen-leisure",
-    nameMatch: "jensen",
-    displayName: "Jensen Leisure",
-    importTypes: [
-      {
-        value: "wholesale",
-        label: "Retail Price List",
-        defaultPriceListName: "Jensen Leisure Retail January 2026",
-        importEndpoint: "/api/pricing/import/jensen-prices",
-      },
-    ],
-  },
-  {
-    slug: "ekornes",
-    nameMatch: "ekornes",
-    displayName: "Ekornes (Stressless)",
-    importTypes: [
-      {
-        value: "retail-prices",
-        label: "MRP Price List (PDF)",
-        defaultPriceListName: "Ekornes MRP January 2026",
-        importEndpoint: "/api/pricing/import/ekornes-prices",
-      },
-    ],
-  },
-  {
-    slug: "american-leather",
-    nameMatch: "american leather",
-    displayName: "American Leather",
-    importTypes: [
-      {
-        value: "retail-prices",
-        label: "Retail MRP Price List (PDF)",
-        defaultPriceListName: "American Leather Retail November 2025",
-        importEndpoint: "/api/pricing/import/american-leather",
-      },
-    ],
-  },
-];
 
 // Use shared fabric parser from wesleyHallParser
 const parseFabricRows = parseFabricRowsShared;

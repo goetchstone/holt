@@ -137,6 +137,13 @@ export interface WholesaleVendorProfile {
   readonly id: string;
   /** Vendor's own name, for humans. */
   readonly label: string;
+  /**
+   * Lowercase substring to match this vendor against a store's `vendor.name`
+   * row when the display label would not -- Hooker's label is "Hooker Custom
+   * Upholstery", a store may list "Hooker Furniture". Defaults to the
+   * lowercased label. Consumed by the import UI's vendor menu.
+   */
+  readonly nameMatch?: string;
   /** Ordered ladder, in book order. Order is meaningful: it is tier order. */
   readonly grades: readonly GradeSpec[];
   /** Starts a new style grid. Every line matching it begins a chunk. */
