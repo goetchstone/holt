@@ -724,6 +724,9 @@ export function PricingImportView() {
     null,
   );
   const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().split("T")[0]);
+  // Delete & Renew (the historical default) retires this book's styles the new
+  // PDF no longer carries; Update only adds/updates and retires nothing.
+  const [importMode, setImportMode] = useState<"renew" | "update">("renew");
   const [importElapsed, setImportElapsed] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1050,14 +1053,46 @@ export function PricingImportView() {
       } else if (isStructuredImport) {
         body = { vendorId, priceListName, effectiveDate, products: parsedVendorData };
       } else {
-        body = { vendorId, priceListName, effectiveDate, products: parsedProducts };
+        // The wholesale-prices path carries the mode and the book it owns, so a
+        // Delete & Renew retires only THIS book's styles (sourceBook), never a
+        // companion catalog under the same vendor.
+        body = {
+          vendorId,
+          priceListName,
+          effectiveDate,
+          products: parsedProducts,
+          mode: importMode,
+          sourceBook: importTypeValue || "wholesale",
+        };
       }
 
-      const res = await axios.post<ImportResult>(importUrl, body, {
-        timeout: 300000,
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity,
-      });
+      // The server answers 409 when a Delete & Renew would retire most of the
+      // book (usually the wrong book or a partial parse); confirm once and
+      // re-post with confirmShrink. Everything else surfaces its own reason.
+      const post = (confirmShrink: boolean) =>
+        axios.post<ImportResult>(
+          importUrl,
+          confirmShrink ? { ...body, confirmShrink: true } : body,
+          { timeout: 300000, maxBodyLength: Infinity, maxContentLength: Infinity },
+        );
+
+      let res;
+      try {
+        res = await post(false);
+      } catch (err: unknown) {
+        if (axios.isAxiosError(err) && err.response?.status === 409) {
+          const d = err.response.data as { error?: string };
+          if (
+            !window.confirm(`${d.error ?? "This would retire most of the book."}\n\nImport anyway?`)
+          ) {
+            setActiveTab("preview");
+            return;
+          }
+          res = await post(true);
+        } else {
+          throw err;
+        }
+      }
 
       if (res.data.success) {
         setImportResult(res.data);
@@ -1076,14 +1111,21 @@ export function PricingImportView() {
           "Import timed out. The data may have been partially imported. Check the product list to verify.",
           { autoClose: false },
         );
+      } else if (axios.isAxiosError(err) && err.response?.status === 422) {
+        // Nothing could be imported (e.g. every row failed); the transaction --
+        // including any renew sweep -- was rolled back. Say why, don't claim success.
+        const d = err.response.data as { error?: string };
+        toast.error(d.error ?? "No products could be imported from this book.");
+        setActiveTab("preview");
       } else {
         toast.error(getErrorMessage(err, "Import failed."));
+        setActiveTab("preview");
       }
-      setActiveTab("preview");
     } finally {
       setImporting(false);
     }
   }, [
+    importMode,
     vendorId,
     parsedProducts,
     importTypeConfig,
@@ -1177,14 +1219,46 @@ export function PricingImportView() {
     }
   }, [activeTab, handleImport, tabs]);
 
+  // The mode toggle applies only to the wholesale-prices path (the plain
+  // product list), not fabric or the structured vendors that post their own
+  // shapes to their own endpoints.
+  const isFabricPreview = importTypeValue === "fabrics";
+  const isStructuredPreview =
+    !!vendorConfig && STRUCTURED_VENDOR_SLUGS.has(vendorConfig.slug) && !!parsedVendorData;
+  const showModeToggle = activeTab === "preview" && !isFabricPreview && !isStructuredPreview;
+
   const bottomBar = (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between gap-3">
       {activeTab !== "upload" ? (
         <Button variant="outline" onClick={goBack} className="min-w-[100px] gap-1">
           <ChevronLeft className="w-4 h-4" /> Back
         </Button>
       ) : (
         <div className="min-w-[100px]" />
+      )}
+
+      {showModeToggle && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-brand-black/70">On import:</span>
+          <div className="inline-flex overflow-hidden rounded-lg border border-brand-gray">
+            <button
+              type="button"
+              onClick={() => setImportMode("renew")}
+              className={`px-3 py-1.5 ${importMode === "renew" ? "bg-brand-blue text-white" : "bg-white text-brand-black"}`}
+              title="Retire this book's styles that the new file no longer lists"
+            >
+              Delete &amp; Renew
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportMode("update")}
+              className={`px-3 py-1.5 ${importMode === "update" ? "bg-brand-blue text-white" : "bg-white text-brand-black"}`}
+              title="Only add and update; retire nothing"
+            >
+              Update
+            </button>
+          </div>
+        </div>
       )}
 
       {activeTab !== "import" ? (
