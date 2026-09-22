@@ -4995,6 +4995,13 @@ model AppSettings {
 
   bookingConfig Json? // { windowDays, startHour, endHour, slotMinutes }
 
+  // Store-wide retail markup fallback, used when a vendor has no defaultMarkup
+  // of its own. { "defaultMarkup": <multiplier> } or null. NULLABLE and unset
+  // by default ON PURPOSE: with neither a vendor markup nor this, the catalog
+  // shows wholesale cost and refuses to invent a retail price (USE-04), rather
+  // than defaulting to some other business's 2.5x. Set at Admin -> Settings.
+  pricing Json?
+
   // Last-resort tax jurisdiction: resolveTaxRate.ts's fallback when a sale's
   // customer has no district override and the selling store has no
   // taxDistrictId of its own. Replaces the `shortName: "CT"` literal that

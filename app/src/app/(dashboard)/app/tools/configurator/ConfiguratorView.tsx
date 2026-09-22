@@ -58,7 +58,7 @@ export function ConfiguratorView() {
   const [pricingModel, setPricingModel] = useState<string>("");
   const [dimensions, setDimensions] = useState<any[]>([]);
   const [vendorName, setVendorName] = useState("");
-  const [defaultMarkup, setDefaultMarkup] = useState(2.5);
+  const [defaultMarkup, setDefaultMarkup] = useState<number | null>(null);
   const [defaultDiscount, setDefaultDiscount] = useState(0);
   const [mapEnforced, setMapEnforced] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -117,7 +117,7 @@ export function ConfiguratorView() {
         const model = data.vendor?.pricingModel || "GRADE_BASED";
         setPricingModel(model);
         setVendorName(data.vendor?.name || "");
-        setDefaultMarkup(data.vendor?.defaultMarkup || 2.5);
+        setDefaultMarkup(data.vendor?.defaultMarkup ?? null);
         setDefaultDiscount(data.vendor?.defaultDiscount || 0);
         setMapEnforced(data.vendor?.mapEnforced || false);
         setDimensions(data.dimensions || []);

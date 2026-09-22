@@ -48,7 +48,7 @@ interface Props {
   products: ProductWithPricing[];
   vendorId: number;
   vendorName: string;
-  defaultMarkup: number;
+  defaultMarkup: number | null;
   defaultDiscount: number;
   mapEnforced: boolean;
   retailOnly?: boolean;
@@ -58,7 +58,8 @@ interface Props {
 type SETabId = "build" | "grade" | "fabric" | "summary";
 const TAB_ORDER: SETabId[] = ["build", "grade", "fabric", "summary"];
 
-function formatCurrency(n: number): string {
+function formatCurrency(n: number | null): string {
+  if (n === null) return "\u2014";
   return n.toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
@@ -260,7 +261,7 @@ export default function SEConfigurator({
         icon: <SlidersHorizontal className="w-4 h-4" />,
         subtitle:
           selectedGradeTierCode && priceCalc
-            ? `${selectedGradeTierCode} / ${formatCurrency(retailOnly ? priceCalc.basePrice * defaultMarkup : priceCalc.basePrice)}`
+            ? `${selectedGradeTierCode} / ${formatCurrency(retailOnly ? (defaultMarkup === null ? null : priceCalc.basePrice * defaultMarkup) : priceCalc.basePrice)}`
             : null,
         disabled: !selectedProduct,
         completed: !!selectedGradeTierId,
@@ -585,7 +586,7 @@ export default function SEConfigurator({
                 // Auto-advance to fabric tab
                 setTimeout(() => goToTab("fabric"), 150);
               }}
-              markup={retailOnly ? defaultMarkup : undefined}
+              markup={retailOnly ? (defaultMarkup ?? undefined) : undefined}
             />
 
             <div className="flex justify-between mt-6">
@@ -722,7 +723,11 @@ export default function SEConfigurator({
                   </span>
                   <span className="font-semibold tabular-nums">
                     {formatCurrency(
-                      retailOnly ? priceCalc.basePrice * defaultMarkup : priceCalc.basePrice,
+                      retailOnly
+                        ? defaultMarkup === null
+                          ? null
+                          : priceCalc.basePrice * defaultMarkup
+                        : priceCalc.basePrice,
                     )}
                   </span>
                 </div>
@@ -744,7 +749,14 @@ export default function SEConfigurator({
                       {line.label}
                     </span>
                     <span className="tabular-nums">
-                      +{formatCurrency(retailOnly ? line.amount * defaultMarkup : line.amount)}
+                      +
+                      {formatCurrency(
+                        retailOnly
+                          ? defaultMarkup === null
+                            ? null
+                            : line.amount * defaultMarkup
+                          : line.amount,
+                      )}
                     </span>
                   </div>
                 ))}
@@ -761,7 +773,9 @@ export default function SEConfigurator({
                     </span>
                   </div>
                   <div className="flex justify-between text-sm mt-2">
-                    <span className="text-brand-gray">Suggested Retail ({defaultMarkup}x)</span>
+                    <span className="text-brand-gray">
+                      Suggested Retail ({defaultMarkup ?? "\u2014"}x)
+                    </span>
                     <span className="font-semibold text-brand-black tabular-nums">
                       {formatCurrency(priceCalc.suggestedRetail)}
                     </span>
@@ -769,6 +783,12 @@ export default function SEConfigurator({
                 </>
               )}
 
+              {priceCalc.suggestedRetail === null && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  No retail markup is set for {vendorName}. Set one in Vendors &rarr; {vendorName}{" "}
+                  to price this item; it can&rsquo;t be added to a quote until then.
+                </div>
+              )}
               {retailOnly && (
                 <div className="flex justify-between text-base font-semibold">
                   <span className="text-brand-blue">Retail Price</span>
@@ -794,7 +814,7 @@ export default function SEConfigurator({
                   <span>%</span>
                 </span>
                 <span className="tabular-nums text-red-600">
-                  {priceCalc.discountAmount > 0
+                  {(priceCalc.discountAmount ?? 0) > 0
                     ? `−${formatCurrency(priceCalc.discountAmount)}`
                     : "—"}
                 </span>
@@ -823,9 +843,12 @@ export default function SEConfigurator({
                 <div className="flex justify-between text-sm mt-3">
                   <span className="text-brand-gray">Margin</span>
                   <span
-                    className={`font-semibold tabular-nums ${priceCalc.margin >= 0 ? "text-green-700" : "text-red-600"}`}
+                    className={`font-semibold tabular-nums ${(priceCalc.margin ?? 0) >= 0 ? "text-green-700" : "text-red-600"}`}
                   >
-                    {formatCurrency(priceCalc.margin)} ({(priceCalc.marginPercent * 100).toFixed(1)}
+                    {formatCurrency(priceCalc.margin)} (
+                    {priceCalc.marginPercent != null
+                      ? (priceCalc.marginPercent * 100).toFixed(1)
+                      : "\u2014"}
                     %)
                   </span>
                 </div>
@@ -895,6 +918,7 @@ export default function SEConfigurator({
 
             {onAddToQuote && (
               <button
+                disabled={priceCalc.suggestedRetail === null}
                 onClick={() => {
                   const descParts: string[] = [
                     material === "FABRIC" ? "Fabric" : "Leather",
@@ -922,17 +946,19 @@ export default function SEConfigurator({
                   }
                   if (selectedGradeTierCode) descParts.push(`Grade ${selectedGradeTierCode}`);
                   if (selectedFabric) descParts.push(selectedFabric.fabricName);
+                  const seqPrice = retailOnly ? priceCalc.asShownPrice : priceCalc.suggestedRetail;
+                  if (seqPrice === null) return;
                   onAddToQuote({
                     productId: selectedProduct.id,
                     productNumber: selectedProduct.productNumber,
                     name: selectedProduct.name || selectedProduct.productNumber,
                     description: descParts.join(", "),
-                    price: retailOnly ? priceCalc.asShownPrice : priceCalc.suggestedRetail,
+                    price: seqPrice,
                     cost: priceCalc.totalCost,
                     vendor: vendorName,
                   });
                 }}
-                className="w-full py-3 rounded-lg bg-brand-gold text-white font-semibold text-base transition hover:bg-brand-gold/90 min-h-[44px]"
+                className="w-full py-3 rounded-lg bg-brand-gold text-white font-semibold text-base transition hover:bg-brand-gold/90 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Add to Quote
               </button>

@@ -70,6 +70,9 @@ export interface ResolvedAppSettings {
   bookingConfig: BookingConfig;
   /** Which SourceAdapter pulls data from a prior system. "none" = nothing does. */
   sourceAdapterId: string;
+  /** Store-wide retail markup fallback. null = unset; the catalog then shows
+   * cost and refuses to invent a retail price when a vendor also lacks one. */
+  pricing: { defaultMarkup: number | null };
 }
 
 export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
@@ -89,6 +92,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   features: {},
   bookingConfig: { ...BOOKING_DEFAULTS },
   sourceAdapterId: "none",
+  pricing: { defaultMarkup: null },
 };
 
 // Loosely typed view of the DB row -- the Json columns arrive as unknown.
@@ -107,6 +111,8 @@ interface AppSettingsRow {
   timezone: string | null;
   features: unknown;
   bookingConfig: unknown;
+  // Loose: absent (partial select / pre-column row) resolves to no fallback.
+  pricing?: unknown;
   // Optional because this is a LOOSE view of the row: a partial select, or a
   // row read before the column existed, simply doesn't carry it. Absent
   // resolves to the default exactly as an empty string does.
@@ -126,6 +132,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
       theme: { ...DEFAULT_THEME },
       features: {},
       bookingConfig: { ...BOOKING_DEFAULTS },
+      pricing: { defaultMarkup: null },
     };
   }
 
@@ -164,7 +171,19 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     // what the database says, so a typo surfaces as "adapter X is not in this
     // build" rather than silently reverting to "none".
     sourceAdapterId: row.sourceAdapterId?.trim() || DEFAULT_APP_SETTINGS.sourceAdapterId,
+    pricing: parsePricingConfig(row.pricing),
   };
+}
+
+// A store-wide markup fallback is honoured only when it is an explicit, positive,
+// finite number. Anything else -- absent, null, zero, a string -- resolves to
+// "unset" so the catalog fails closed rather than inventing a retail price.
+function parsePricingConfig(raw: unknown): { defaultMarkup: number | null } {
+  if (isRecord(raw)) {
+    const m = raw.defaultMarkup;
+    if (typeof m === "number" && Number.isFinite(m) && m > 0) return { defaultMarkup: m };
+  }
+  return { defaultMarkup: null };
 }
 
 const cache = new Map<number, { value: ResolvedAppSettings; expires: number }>();
