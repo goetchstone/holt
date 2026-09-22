@@ -42,7 +42,7 @@ export const accountRouter = router({
     .input(
       z.object({
         currentPassword: z.string().max(200),
-        newPassword: z.string().min(8).max(200),
+        newPassword: z.string().min(12).max(200),
       }),
     )
     .mutation(async ({ ctx, input }) => {

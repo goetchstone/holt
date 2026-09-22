@@ -731,8 +731,8 @@ export function StaffView() {
 
   const handleSetPassword = async () => {
     if (!pwTarget) return;
-    if (pwValue.length < 8) {
-      toast.error("Password must be at least 8 characters");
+    if (pwValue.length < 12) {
+      toast.error("Password must be at least 12 characters");
       return;
     }
     setPwSaving(true);

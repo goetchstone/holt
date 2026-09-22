@@ -99,7 +99,7 @@ export default function ResetPassword() {
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={8}
+                minLength={12}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="min-h-[44px] w-full rounded border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
@@ -117,7 +117,7 @@ export default function ResetPassword() {
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={8}
+                minLength={12}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 className="min-h-[44px] w-full rounded border border-brand-gray/30 px-3 py-2 text-brand-black focus:border-brand-navy focus:outline-none"
