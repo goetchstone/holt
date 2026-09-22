@@ -39,10 +39,14 @@ export const UPLOAD_PRESETS: Record<string, UploadPreset> = {
     allowedExtensions: [".csv", ".xlsx", ".xls"],
     allowedMimeTypes: [
       "text/csv",
+      "application/csv",
+      // Some browsers type a .csv as text/plain; it is still a CSV.
+      "text/plain",
       "application/vnd.ms-excel",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      // Some browsers send octet-stream for XLSX/CSV. Extension check
-      // below still guards against truly arbitrary files.
+      // Some browsers send octet-stream (the generic "unknown") for XLSX/CSV;
+      // accepted here because the extension gate carries the intent. A wrong,
+      // SPECIFIC type (image/png, application/x-msdownload) is still refused.
       "application/octet-stream",
     ],
     maxFileSize: 50 * 1024 * 1024, // 50MB — some sales CSVs run large
@@ -127,6 +131,32 @@ function ensureDir(dir: string): string {
  * extensions, and surprise file sizes. Every API route that accepts a
  * multipart upload MUST use this helper.
  */
+/**
+ * The upload gate as a pure predicate, so it can be tested without formidable.
+ * Extension AND declared MIME must BOTH pass (UploadPreset's "both-must-match"
+ * intent). A missing mimetype leaves the extension as the check. A present
+ * mimetype must appear in the preset's own allow-list -- which contains
+ * application/octet-stream ONLY for presets whose sources legitimately send that
+ * generic type (spreadsheets/CSV), so octet-stream is accepted there and nowhere
+ * else. A specific WRONG type -- an .exe renamed .xlsx and typed
+ * application/x-msdownload, a script typed image/png -- is refused even when the
+ * extension matched.
+ *
+ * Previously, because octet-stream sat in the CSV/XLSX allow-list, the "reject
+ * unlisted mime" branch could never fire for that preset: EVERY declared type
+ * passed and the extension was the only real gate. This restores both gates.
+ */
+export function isUploadAllowed(
+  preset: Pick<UploadPreset, "allowedExtensions" | "allowedMimeTypes">,
+  originalFilename: string | null | undefined,
+  mimetype: string | null | undefined,
+): boolean {
+  const ext = path.extname(originalFilename ?? "").toLowerCase();
+  if (!preset.allowedExtensions.includes(ext)) return false;
+  if (!mimetype) return true;
+  return preset.allowedMimeTypes.includes(mimetype);
+}
+
 export function createSecureForm(preset: UploadPresetName, options: CreateFormOptions = {}) {
   const p = UPLOAD_PRESETS[preset];
   const targetDir = ensureDir(path.join(UPLOAD_ROOT, p.subdir, options.subPath ?? ""));
@@ -146,18 +176,7 @@ export function createSecureForm(preset: UploadPresetName, options: CreateFormOp
     multiples: (p.maxFiles ?? 1) > 1,
     // Filter runs before the file is written. Reject bad extensions +
     // bad mime types here so we never even start streaming to disk.
-    filter: ({ originalFilename, mimetype }) => {
-      const name = originalFilename ?? "";
-      const ext = path.extname(name).toLowerCase();
-      if (!p.allowedExtensions.includes(ext)) return false;
-      if (mimetype && !p.allowedMimeTypes.includes(mimetype)) {
-        // Some browsers send generic mime types; if extension matches
-        // allow it through. Still rejects mismatch cases like uploading
-        // script.sh mime-typed as image/png.
-        if (!p.allowedMimeTypes.includes("application/octet-stream")) return false;
-      }
-      return true;
-    },
+    filter: ({ originalFilename, mimetype }) => isUploadAllowed(p, originalFilename, mimetype),
     // Custom filename keeps the extension but replaces the original name
     // with our generator so user-controlled path components can never
     // land on disk verbatim.
