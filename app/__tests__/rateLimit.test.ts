@@ -125,45 +125,28 @@ describe("rateLimit", () => {
     expect(res3._headers["X-RateLimit-Remaining"]).toBe("0");
   });
 
-  it("keys on X-Real-IP so clients sharing a proxy socket get separate buckets", async () => {
+  it("ignores a spoofed X-Real-IP when no proxy is trusted (TRUST_PROXY unset)", async () => {
+    // The Node port is reachable directly, so X-Real-IP is client-controlled.
+    // A client rotating it through ten values from one socket must still count
+    // as ONE client -- otherwise the header mints a fresh bucket per request
+    // and every limit (including the credentials throttle) is void.
     const handler = jest.fn(async (_req, res) => res.status(200).json({ ok: true }));
-    const limited = rateLimit({ windowMs: 60_000, maxRequests: 2 })(handler);
+    const limited = rateLimit({ windowMs: 60_000, maxRequests: 3 })(handler);
 
-    // Both requests arrive from the same socket peer (nginx's container IP) but
-    // carry different X-Real-IP values — they must NOT share a bucket.
-    const proxySocket = "172.18.0.5";
+    const socketIp = "198.51.100.7";
+    const statuses: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const res = mockRes();
+      await limited(mockReqWith({ socketIp, realIp: `203.0.113.${i}` }), res);
+      statuses.push(res._status);
+    }
 
-    const a1 = mockRes();
-    await limited(mockReqWith({ socketIp: proxySocket, realIp: "203.0.113.1" }), a1);
-    const a2 = mockRes();
-    await limited(mockReqWith({ socketIp: proxySocket, realIp: "203.0.113.1" }), a2);
-    // Client A is now at its limit.
-    const a3 = mockRes();
-    await limited(mockReqWith({ socketIp: proxySocket, realIp: "203.0.113.1" }), a3);
-    expect(a3._status).toBe(429);
-
-    // Client B, same socket, different real IP, is still allowed.
-    const b1 = mockRes();
-    await limited(mockReqWith({ socketIp: proxySocket, realIp: "203.0.113.2" }), b1);
-    expect(b1._status).toBe(200);
+    // First three allowed, the rest 429: all ten shared one socket-keyed bucket.
+    expect(statuses.slice(0, 3)).toEqual([200, 200, 200]);
+    expect(statuses.slice(3)).toEqual([429, 429, 429, 429, 429, 429, 429]);
   });
 
-  it("prefers X-Real-IP over a spoofed X-Forwarded-For", async () => {
-    const handler = jest.fn(async (_req, res) => res.status(200).json({ ok: true }));
-    const limited = rateLimit({ windowMs: 60_000, maxRequests: 1 })(handler);
-
-    // A client tries to dodge the limit by rotating X-Forwarded-For, but
-    // X-Real-IP (set server-side by nginx) pins them to one bucket.
-    const first = mockRes();
-    await limited(mockReqWith({ realIp: "203.0.113.9", forwardedFor: "1.1.1.1" }), first);
-    expect(first._status).toBe(200);
-
-    const second = mockRes();
-    await limited(mockReqWith({ realIp: "203.0.113.9", forwardedFor: "2.2.2.2" }), second);
-    expect(second._status).toBe(429);
-  });
-
-  it("falls back to the socket peer when no X-Real-IP is present", async () => {
+  it("falls back to the socket peer when no proxy header is trusted", async () => {
     const handler = jest.fn(async (_req, res) => res.status(200).json({ ok: true }));
     const limited = rateLimit({ windowMs: 60_000, maxRequests: 1 })(handler);
 
@@ -171,14 +154,66 @@ describe("rateLimit", () => {
     await limited(mockReqWith({ socketIp: "10.1.1.1" }), first);
     expect(first._status).toBe(200);
 
-    // Same socket, no headers → same bucket → limited.
+    // Same socket, no trusted headers -> same bucket -> limited.
     const second = mockRes();
     await limited(mockReqWith({ socketIp: "10.1.1.1" }), second);
     expect(second._status).toBe(429);
 
-    // Different socket → separate bucket.
+    // Different socket -> separate bucket.
     const third = mockRes();
     await limited(mockReqWith({ socketIp: "10.1.1.2" }), third);
     expect(third._status).toBe(200);
+  });
+
+  // These two behaviours hold ONLY when a trusted reverse proxy sits in front
+  // and sets the headers server-side; TRUST_PROXY=true is what asserts that.
+  describe("behind a trusted proxy (TRUST_PROXY=true)", () => {
+    let savedTrustProxy: string | undefined;
+    beforeAll(() => {
+      savedTrustProxy = process.env.TRUST_PROXY;
+      process.env.TRUST_PROXY = "true";
+    });
+    afterAll(() => {
+      if (savedTrustProxy === undefined) delete process.env.TRUST_PROXY;
+      else process.env.TRUST_PROXY = savedTrustProxy;
+    });
+
+    it("keys on X-Real-IP so clients sharing a proxy socket get separate buckets", async () => {
+      const handler = jest.fn(async (_req, res) => res.status(200).json({ ok: true }));
+      const limited = rateLimit({ windowMs: 60_000, maxRequests: 2 })(handler);
+
+      // Both requests arrive from the same socket peer (nginx's container IP)
+      // but carry different X-Real-IP values -- they must NOT share a bucket.
+      const proxySocket = "172.18.0.5";
+
+      const a1 = mockRes();
+      await limited(mockReqWith({ socketIp: proxySocket, realIp: "203.0.113.1" }), a1);
+      const a2 = mockRes();
+      await limited(mockReqWith({ socketIp: proxySocket, realIp: "203.0.113.1" }), a2);
+      // Client A is now at its limit.
+      const a3 = mockRes();
+      await limited(mockReqWith({ socketIp: proxySocket, realIp: "203.0.113.1" }), a3);
+      expect(a3._status).toBe(429);
+
+      // Client B, same socket, different real IP, is still allowed.
+      const b1 = mockRes();
+      await limited(mockReqWith({ socketIp: proxySocket, realIp: "203.0.113.2" }), b1);
+      expect(b1._status).toBe(200);
+    });
+
+    it("prefers X-Real-IP over the appended X-Forwarded-For", async () => {
+      const handler = jest.fn(async (_req, res) => res.status(200).json({ ok: true }));
+      const limited = rateLimit({ windowMs: 60_000, maxRequests: 1 })(handler);
+
+      // With a trusted proxy, X-Real-IP pins the client even as the appended
+      // X-Forwarded-For varies.
+      const first = mockRes();
+      await limited(mockReqWith({ realIp: "203.0.113.9", forwardedFor: "1.1.1.1" }), first);
+      expect(first._status).toBe(200);
+
+      const second = mockRes();
+      await limited(mockReqWith({ realIp: "203.0.113.9", forwardedFor: "2.2.2.2" }), second);
+      expect(second._status).toBe(429);
+    });
   });
 });
