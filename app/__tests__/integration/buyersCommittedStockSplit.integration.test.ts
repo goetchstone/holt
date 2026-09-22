@@ -179,4 +179,33 @@ describe("Buyers Report committed-stock split (real DB)", () => {
     expect(after.totals.onHand).toBe(0);
     expect(after.totals.customerStock).toBe(9);
   });
+
+  it("restricts on-hand to the requested store via the bound storeId param", async () => {
+    // Floor stock for one product split across two stores. Before SEC-09 the
+    // storeId reached the raw SQL by interpolation; this pins that the bound
+    // `= $1` path actually filters (not just the IS NULL passthrough the other
+    // cases exercise), and stands as the first coverage of the store filter.
+    const { store, product } = await seed();
+    const storeB = await prisma.storeLocation.create({
+      data: { name: "Store B", code: "SB", type: "STORE" },
+    });
+    await prisma.inventoryPosition.create({
+      data: { productId: product.id, storeLocationId: store.id, quantity: 6 },
+    });
+    await prisma.inventoryPosition.create({
+      data: { productId: product.id, storeLocationId: storeB.id, quantity: 9 },
+    });
+
+    // No storeId -> both stores' floor stock.
+    const all = await getBuyersSummary(prisma, RANGE);
+    expect(all.totals.onHand).toBe(15);
+
+    // storeId = A -> only A's 6.
+    const onlyA = await getBuyersSummary(prisma, { ...RANGE, storeId: store.id });
+    expect(onlyA.totals.onHand).toBe(6);
+
+    // storeId = B -> only B's 9.
+    const onlyB = await getBuyersSummary(prisma, { ...RANGE, storeId: storeB.id });
+    expect(onlyB.totals.onHand).toBe(9);
+  });
 });
