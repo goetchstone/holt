@@ -7,6 +7,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { getErrorCode } from "@/lib/errorCode";
+import { LAST_ADMIN_MESSAGE, wouldRemoveLastAdmin } from "@/lib/auth/adminLockout";
+import { logger } from "@/lib/logger";
 
 // Validate a commissionPlanId patch value: null clears the assignment, a
 // number must reference an existing CommissionPlan. Returns ok:false on
@@ -64,16 +66,17 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
         return res.status(403).json({ error: "Only an admin can change staff roles" });
       }
 
-      // Prevent removing the last ADMIN
-      const target = await prisma.staffMember.findUnique({ where: { id }, select: { role: true } });
-      if ((target?.role === "ADMIN" || target?.role === "SUPER_ADMIN") && role !== "ADMIN") {
-        const adminCount = await prisma.staffMember.count({
-          where: { role: "ADMIN", isActive: true },
-        });
-        if (adminCount <= 1) {
-          return res.status(400).json({ error: "Cannot remove the last admin" });
-        }
+      // Prevent demoting the last admin. Only relevant when the NEW role is not
+      // itself an admin role.
+      if (role !== "ADMIN" && role !== "SUPER_ADMIN" && (await wouldRemoveLastAdmin(id))) {
+        return res.status(409).json({ error: LAST_ADMIN_MESSAGE });
       }
+    }
+
+    // Deactivating via PATCH { isActive: false } is the same lockout risk as a
+    // demotion or a delete, and used to walk straight past the guard above.
+    if (isActive === false && (await wouldRemoveLastAdmin(id))) {
+      return res.status(409).json({ error: LAST_ADMIN_MESSAGE });
     }
 
     const data: any = {};
@@ -89,11 +92,37 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
       data.commissionPlanId = planPatch.value;
     }
 
-    // Auto-link: if email is set/changed, look for a matching User account
+    // Auto-link: if email is set/changed, link this staff record to a matching
+    // User login -- but only when it is safe to. Setting a staff member's email
+    // to an existing User's email associates that login with this record, so two
+    // guards: (1) never REPOINT an existing link (this record already has a
+    // userId), and (2) never link a User that is already the login for a
+    // different active staff member. Either would let a staff.manage holder
+    // point a benign record at the owner's login and scramble whose role
+    // resolves at sign-in. A genuine link is logged.
     if (email) {
-      const user = await prisma.user.findUnique({ where: { email } });
-      if (user) {
-        data.userId = user.id;
+      const current = await prisma.staffMember.findUnique({
+        where: { id },
+        select: { userId: true },
+      });
+      if (!current?.userId) {
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (user) {
+          const alreadyLinked = await prisma.staffMember.findFirst({
+            where: { userId: user.id, isActive: true, id: { not: id } },
+            select: { id: true },
+          });
+          if (alreadyLinked) {
+            return res.status(409).json({
+              error: "That email's login already belongs to another active staff member.",
+            });
+          }
+          data.userId = user.id;
+          logger.info("staff record linked to a user login by email", {
+            staffId: id,
+            userId: user.id,
+          });
+        }
       }
     }
 
@@ -113,7 +142,10 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
   }
 
   if (req.method === "DELETE") {
-    // Soft-delete: set isActive to false
+    // Soft-delete IS deactivation, so it carries the same lockout risk.
+    if (await wouldRemoveLastAdmin(id)) {
+      return res.status(409).json({ error: LAST_ADMIN_MESSAGE });
+    }
     const member = await prisma.staffMember.update({
       where: { id },
       data: { isActive: false },
