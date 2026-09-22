@@ -20,7 +20,7 @@ deployment exposes is configured per-organization via feature flags
 Holt is **open-core** and runs two ways from a single codebase:
 
 - **Self-hosted** — one organization, one Docker Compose stack you operate.
-- **Multi-tenant SaaS** — one organization per customer, centrally hosted.
+- **Managed hosting** — one deployment per business (its own database and container), centrally operated; many businesses means many deployments, never a shared database.
 
 Branding, integration credentials, and import mappings are configured in the
 database through the in-app Settings screens. A deployment is white-labeled and

@@ -2,7 +2,7 @@
 
 This document explains how the system is structured, what each module does, and where data flows. Read OPERATIONS.md for deployment and maintenance.
 
-Holt is open-core: the same codebase serves a self-hosted single-organization deployment and a multi-tenant SaaS where each customer is one `Organization`. Per-organization branding, integration credentials, and import mappings live in the database (see the `AppSettings` and `IntegrationCredential` models), so a deployment is configured at runtime rather than at build time.
+Holt is open-core: the same codebase serves a self-hosted single-business deployment and a centrally-hosted fleet of them — one deployment per business, each its own database and container with a single `Organization` (see docs/TENANCY.md; shared-database multi-tenancy is not a supported mode). Per-organization branding, integration credentials, and import mappings live in the database (see the `AppSettings` and `IntegrationCredential` models), so a deployment is configured at runtime rather than at build time.
 
 ## Application Structure
 
