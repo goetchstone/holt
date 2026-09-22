@@ -55,6 +55,57 @@ async function authorizeLocal(
   }
 }
 
+/** Roles that count as "privileged" for the bootstrap window (mirrors requireAuth.ts). */
+const PRIVILEGED_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER"] as const;
+
+/**
+ * An active StaffMember for this email, or null. This is the allowlist the
+ * OAuth signIn gate checks: a Google/Okta/Azure identity is admitted only when
+ * it belongs to a real, active staff member (or during the bootstrap window --
+ * see hasNoPrivilegedStaff). Never throws; a DB error resolves to null, which
+ * denies -- a security gate fails closed (rule 63).
+ */
+export async function findActiveStaffByEmail(
+  email: string | null | undefined,
+): Promise<{ id: number } | null> {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized) return null;
+  try {
+    return await prisma.staffMember.findFirst({
+      where: { email: { equals: normalized, mode: "insensitive" }, isActive: true },
+      select: { id: true },
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True when no active privileged (admin/manager) staff member is linked to a
+ * user yet -- the bootstrap window. In that window the first sign-in is admitted
+ * even without a matching StaffMember, so the first operator can reach
+ * Admin > Staff and promote themselves; the guard layer (requireAuth.ts) uses
+ * the identical predicate to grant that page. Once any admin exists this returns
+ * false and the signIn gate admits staff-matched emails only.
+ *
+ * On a DB error this returns FALSE (not the bootstrap window), so a transient
+ * failure denies an unknown account rather than opening the door.
+ */
+export async function hasNoPrivilegedStaff(): Promise<boolean> {
+  try {
+    const count = await prisma.staffMember.count({
+      where: {
+        role: { in: [...PRIVILEGED_ROLES] },
+        isActive: true,
+        userId: { not: null },
+      },
+    });
+    return count === 0;
+  } catch {
+    return false;
+  }
+}
+
 const GOOGLE_AUTHORIZATION = {
   params: {
     prompt: "consent",
