@@ -9,8 +9,10 @@
 // What this file pins:
 //   1. The endpoint imports the computeDailyReconciliation helper (not
 //      a duplicated copy of the logic).
-//   2. Bearer-token auth via AUTO_IMPORT_API_KEY is implemented (cron
-//      compatibility — Synology calls the endpoint without a session).
+//   2. The endpoint is gated by guardAutomation, which carries the cron's
+//      Bearer AUTO_IMPORT_API_KEY path and requires the admin.automations
+//      permission for a human session — it no longer falls back to "any
+//      authenticated session" (SEC-02).
 //   3. The endpoint writes to DailyReconciliationLog (operator audit
 //      trail — without this, re-runs would silently overwrite history).
 //
@@ -32,13 +34,20 @@ describe("daily-reconciliation endpoint guards", () => {
     );
   });
 
-  it("implements Bearer-token auth via AUTO_IMPORT_API_KEY", () => {
-    expect(ENDPOINT_SRC).toMatch(/process\.env\.AUTO_IMPORT_API_KEY/);
-    expect(ENDPOINT_SRC).toMatch(/Bearer\s*\$\{apiKey\}|Bearer \$\{apiKey\}/);
+  it("is gated by guardAutomation (the cron Bearer key + admin.automations)", () => {
+    // The AUTO_IMPORT_API_KEY Bearer path and the permission check both live in
+    // guardAutomation now, so the endpoint names the wrapper rather than the
+    // mechanism. guardAutomation.test.ts pins that mechanism directly.
+    expect(ENDPOINT_SRC).toMatch(
+      /import\s*\{[^}]*guardAutomation[^}]*\}\s*from\s*"@\/lib\/automations\/guardAutomation"/,
+    );
+    expect(ENDPOINT_SRC).toMatch(/export default guardAutomation\(run\)/);
   });
 
-  it("falls back to NextAuth session for admin-UI manual triggers", () => {
-    expect(ENDPOINT_SRC).toMatch(/getServerSession\(req,\s*res,\s*authOptions\)/);
+  it("no longer admits any authenticated session (SEC-02)", () => {
+    // The exact hole this replaced: `if (session?.user?.email) return true`.
+    expect(ENDPOINT_SRC).not.toMatch(/session\?\.user\?\.email\)\s*return true/);
+    expect(ENDPOINT_SRC).not.toMatch(/getServerSession\(/);
   });
 
   it("writes a DailyReconciliationLog row per reconciled day", () => {

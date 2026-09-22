@@ -18,38 +18,22 @@
 // recordPendingPayment never posts one for a PENDING row, so there's
 // nothing to reverse.
 //
-// Dual auth model: Bearer (AUTO_IMPORT_API_KEY) for unattended cron runs,
-// NextAuth session for manual triggering — same isAuthorized() shape as
-// daily-reconciliation.ts. No role gating beyond authentication: marking a
-// stale row FAILED is strictly less destructive than the MANAGER/ADMIN-
-// gated manual void endpoint (payments/[paymentId]/void.ts), since FAILED
-// only ever applies to rows that are already, factually, abandoned.
+// Dual auth model via guardAutomation: the scheduler presents the Bearer
+// service key (AUTO_IMPORT_API_KEY); a human trigger requires the
+// `admin.automations` permission. This used to accept any authenticated
+// session, which -- after the OAuth gate landed in SEC-01 -- was still any
+// staff account; firing a scheduled job is a system-administration action.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { guardAutomation } from "@/lib/automations/guardAutomation";
 import { sweepStalePendingPayments } from "@/lib/paymentService";
 import { logError, logger } from "@/lib/logger";
 
-function isAuthorized(
-  req: NextApiRequest,
-  session: { user?: { email?: string | null } } | null,
-): boolean {
-  const apiKey = process.env.AUTO_IMPORT_API_KEY;
-  if (apiKey && req.headers.authorization === `Bearer ${apiKey}`) return true;
-  if (session?.user?.email) return true;
-  return false;
-}
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function run(req: NextApiRequest, res: NextApiResponse, session: Session | null) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!isAuthorized(req, session)) {
-    return res.status(401).json({ error: "Unauthorized" });
   }
 
   try {
@@ -68,3 +52,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to sweep stale pending payments" });
   }
 }
+
+export default guardAutomation(run);

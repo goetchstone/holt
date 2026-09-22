@@ -419,6 +419,14 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Backups, restores, bulk deletes, imports.",
     sensitive: true,
   },
+  {
+    key: "admin.automations",
+    domain: "admin",
+    label: "Run scheduled jobs",
+    description:
+      "Trigger the nightly jobs by hand: reconciliation, AR-drift checks, stale-payment expiry, Mailchimp and traffic syncs, lead housekeeping. The scheduler itself runs with a service key and does not need this.",
+    sensitive: true,
+  },
 ];
 
 export const PERMISSION_KEYS: readonly string[] = PERMISSIONS.map((p) => p.key);

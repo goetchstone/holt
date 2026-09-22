@@ -32,28 +32,11 @@
 // Origin: owner direction 2026-05-28.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { guardAutomation } from "@/lib/automations/guardAutomation";
 import { prisma } from "@/lib/prisma";
 import { runTrafficImportWithBackfill } from "@/lib/runTrafficImport";
 import { logError, logger } from "@/lib/logger";
-
-function isAuthorized(
-  req: NextApiRequest,
-  session: { user?: { email?: string | null } } | null,
-): { ok: boolean; actor: string } {
-  const apiKey = process.env.AUTO_IMPORT_API_KEY;
-  if (apiKey) {
-    const authHeader = req.headers.authorization;
-    if (authHeader === `Bearer ${apiKey}`) {
-      return { ok: true, actor: "cron" };
-    }
-  }
-  if (session?.user?.email) {
-    return { ok: true, actor: session.user.email };
-  }
-  return { ok: false, actor: "unauthenticated" };
-}
 
 /**
  * Run the backfill in the background and stamp the log row when done.
@@ -98,15 +81,14 @@ async function runAndStampLog(logId: number, backfillWindowDays: number): Promis
   }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function run(req: NextApiRequest, res: NextApiResponse, session: Session | null) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const session = await getServerSession(req, res, authOptions);
-  const auth = isAuthorized(req, session);
-  if (!auth.ok) return res.status(401).json({ error: "Unauthorized" });
+  // The scheduler runs as "cron"; a human trigger is attributed to their email.
+  const actor = session?.user?.email ?? "cron";
 
   // Cap at 800 days (~2 years + a buffer). Owner-driven: re-loads of
   // historical data from Axper are rare but valuable when seeding a
@@ -134,7 +116,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         kind: "axper-traffic-sync",
         dayFrom: startedAt,
         dayTo: startedAt,
-        triggeredBy: auth.actor,
+        triggeredBy: actor,
       },
     });
   } catch (err) {
@@ -153,3 +135,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   void runAndStampLog(log.id, backfillWindowDays);
 }
+
+export default guardAutomation(run);
