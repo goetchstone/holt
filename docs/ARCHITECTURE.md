@@ -19,8 +19,9 @@
 This is the reference self-hosted topology: a single Docker host running three
 Compose services, no load balancer, no CDN, no external database. Simplicity is
 intentional — a single store can run the whole stack on modest hardware (the
-reference deployment is a Synology NAS). A multi-tenant SaaS deployment scales
-the same image horizontally behind a load balancer with a managed Postgres.
+reference deployment is a Synology NAS). Central hosting runs one such stack
+per business — the same image, each with its own database — many isolated
+deployments rather than one shared cluster (see docs/TENANCY.md).
 
 ## Data Flow: Pricing Import Pipeline
 
