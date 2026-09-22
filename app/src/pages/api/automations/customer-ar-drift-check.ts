@@ -10,30 +10,15 @@
 // (assuming no underlying writes between runs).
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { guardAutomation } from "@/lib/automations/guardAutomation";
 import { logError, logger } from "@/lib/logger";
 import { runCustomerArDriftCheck } from "@/lib/customerArDriftRunner";
 
-function isAuthorized(
-  req: NextApiRequest,
-  session: { user?: { email?: string | null } } | null,
-): boolean {
-  const apiKey = process.env.AUTO_IMPORT_API_KEY;
-  if (apiKey && req.headers.authorization === `Bearer ${apiKey}`) return true;
-  if (session?.user?.email) return true;
-  return false;
-}
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function run(req: NextApiRequest, res: NextApiResponse, session: Session | null) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!isAuthorized(req, session)) {
-    return res.status(401).json({ error: "Unauthorized" });
   }
 
   // Phase 0.5.7 — accept either ?lookbackHours=N (default) OR
@@ -76,3 +61,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "AR drift check failed" });
   }
 }
+
+export default guardAutomation(run);

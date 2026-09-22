@@ -61,25 +61,11 @@ const UNGATED_BY_DESIGN: Record<string, string> = {
   "tickets/public/[token]/attachment.ts":
     "Customer attaches a file to their own ticket; same publicToken capability as the status/reply endpoint, rate-limited",
 
-  // --- Automation/cron endpoints: authorized by a Bearer token or a scoped session role, not a blanket staff gate ---
-  "automations/daily-reconciliation.ts":
-    "Bearer AUTO_IMPORT_API_KEY for the Synology cron OR any authenticated session for the admin 'Run Now' UI; non-destructive reconciliation reporting",
-  "automations/axper-traffic-sync.ts":
-    "Bearer AUTO_IMPORT_API_KEY for the Synology cron OR any authenticated session for the admin 'Run Now' UI, same isAuthorized() pattern as daily-reconciliation.ts",
-  "automations/customer-ar-drift-check.ts":
-    "Bearer AUTO_IMPORT_API_KEY for the Synology cron OR any authenticated session for the admin 'Run Now' UI, same isAuthorized() pattern as daily-reconciliation.ts",
-  "automations/lead-housekeeping.ts":
-    "Bearer AUTO_IMPORT_API_KEY for the Synology cron OR any authenticated session for the admin 'Run Now' UI, same isAuthorized() pattern as daily-reconciliation.ts",
-  "automations/mailchimp-sync.ts":
-    "Bearer AUTO_IMPORT_API_KEY for the Synology cron (scripts/auto-mailchimp-sync.sh) OR any authenticated session for the admin 'Run Now' UI",
-  "automations/mailchimp-customer-sync.ts":
-    "Bearer AUTO_IMPORT_API_KEY for the Synology cron (scripts/auto-mailchimp-customer-sync.sh) OR any authenticated session for the admin 'Run Now' UI",
+  // --- Automation/cron endpoints still on a manual role check (not yet guardAutomation) ---
   "automations/customer-level-recalc.ts":
     "Bearer AUTO_IMPORT_API_KEY for the Synology cron (scripts/auto-customer-level-recalc.sh) OR an ADMIN/MANAGER/SUPER_ADMIN session role checked in isAuthorized() -- stricter than the other automations, which accept any session",
   "mailchimp/backfill-customer-links.ts":
     "Bearer AUTO_IMPORT_API_KEY OR an ADMIN/MANAGER/SUPER_ADMIN session role checked in isAuthorized() -- same dual-auth mechanism as automations/customer-level-recalc.ts, triggered from the same admin mailchimp-sync UI though the route lives outside api/automations/*",
-  "automations/expire-stale-pending-payments.ts":
-    "Bearer AUTO_IMPORT_API_KEY for the Synology cron OR any authenticated session for manual triggering, same isAuthorized() pattern as daily-reconciliation.ts -- only ever marks an already-abandoned PENDING row FAILED (no ledger entry, nothing reversible), strictly less destructive than the MANAGER/ADMIN-gated manual void endpoint",
 };
 
 /** Files that are helpers/config, not routes. */
@@ -123,7 +109,12 @@ async function auditRoutes(): Promise<RouteAudit[]> {
         // resolve the staff row from the database per request and share the
         // same impersonation and bootstrap rules, so neither is the weaker
         // check. A route that has moved must not read as an offender here.
-        hasRoleGate: /requireAuthWithRole\s*\(|requirePermission\s*\(/.test(src),
+        // guardAutomation wraps requirePermission("admin.automations", ...) with a
+        // service-key bypass for the scheduler, so a route that uses it IS gated on
+        // a capability -- it just names the wrapper instead of the primitive.
+        hasRoleGate: /requireAuthWithRole\s*\(|requirePermission\s*\(|guardAutomation\s*\(/.test(
+          src,
+        ),
         hasBareAuth: /requireAuth\s*\(/.test(src),
       };
     }),
@@ -142,7 +133,7 @@ describe("API route authorization", () => {
       throw new Error(
         `${offenders.length} mutating API route(s) have no role gate.\n\n` +
           "Each must either wrap its handler in requireAuthWithRole([...]) or\n" +
-          "requirePermission(\"domain.action\", ...), or be\n" +
+          'requirePermission("domain.action", ...), or be\n' +
           "added to UNGATED_BY_DESIGN in this file WITH a reason.\n\n" +
           "A signed-in user with any role can currently call these:\n" +
           offenders.map((o) => `  - ${o}`).join("\n"),

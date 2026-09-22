@@ -11,29 +11,14 @@
 // Auth: Bearer AUTO_IMPORT_API_KEY (cron) or authenticated session (UI).
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import type { Session } from "next-auth";
+import { guardAutomation } from "@/lib/automations/guardAutomation";
 import { logError, logger } from "@/lib/logger";
 import { runCustomerAudienceSync } from "@/lib/mailchimpAudienceSync";
 
-function isAuthorized(
-  req: NextApiRequest,
-  session: { user?: { email?: string | null } } | null,
-): boolean {
-  const apiKey = process.env.AUTO_IMPORT_API_KEY;
-  if (apiKey && req.headers.authorization === `Bearer ${apiKey}`) return true;
-  if (session?.user?.email) return true;
-  return false;
-}
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function run(req: NextApiRequest, res: NextApiResponse, session: Session | null) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!isAuthorized(req, session)) {
-    return res.status(401).json({ error: "Unauthorized" });
   }
 
   // Optional knobs from the body. Default cap of 200/run keeps a single
@@ -62,3 +47,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: message });
   }
 }
+
+export default guardAutomation(run);
