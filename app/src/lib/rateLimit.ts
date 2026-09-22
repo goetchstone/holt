@@ -35,25 +35,32 @@ function pruneExpired(windowMs: number): void {
 
 // Resolve the client IP for rate limiting. Behind the bundled nginx, every
 // request's socket peer is nginx's own container IP, so keying on the socket
-// alone collapses all external clients into one shared bucket. nginx sets
-// X-Real-IP to the real peer server-side on every request; unlike
-// X-Forwarded-For it is overwritten (not appended) by the proxy, so a client
-// hitting nginx cannot forge it. We therefore trust X-Real-IP when present.
+// alone collapses all external clients into one shared bucket. A trusted proxy
+// fixes that: it sets X-Real-IP to the real peer server-side (overwritten, not
+// appended) and appends that peer to X-Forwarded-For. Both are reliable ONLY
+// when we know such a proxy sits in front of us -- which is exactly what
+// TRUST_PROXY=true asserts.
 //
-// X-Forwarded-For stays attacker-controlled (anyone hitting the app directly
-// can spoof it), so it is only consulted for multi-hop topologies that set
-// TRUST_PROXY=true and don't provide X-Real-IP; there we take the LAST hop —
-// the IP the proxy itself appended — not the spoofable left-most entry. With
-// neither header we fall back to the raw socket peer.
+// When TRUST_PROXY is unset the Node port is reachable directly and a client
+// can put any value in EITHER header. X-Real-IP is no safer than
+// X-Forwarded-For here: trusting it let anyone rotate one header to mint a
+// fresh bucket per request and slip every limit, including the credentials
+// throttle. So with no trusted proxy we key on the raw socket peer and ignore
+// both headers. With one, we prefer X-Real-IP and otherwise take the LAST
+// X-Forwarded-For hop -- the IP the proxy itself appended -- never the
+// spoofable left-most entry.
 function getClientKey(req: NextApiRequest): string {
   const socketIp = req.socket?.remoteAddress ?? "unknown";
+
+  // No trusted proxy in front -> both headers are attacker-controlled -> key on
+  // the socket peer alone.
+  if (process.env.TRUST_PROXY !== "true") return socketIp;
 
   const realIp = req.headers["x-real-ip"];
   if (typeof realIp === "string" && realIp.trim().length > 0) {
     return realIp.trim();
   }
 
-  if (process.env.TRUST_PROXY !== "true") return socketIp;
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded !== "string" || forwarded.trim().length === 0) return socketIp;
   const hops = forwarded
