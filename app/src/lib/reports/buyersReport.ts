@@ -271,9 +271,10 @@ export async function getBuyersSummary(prisma: PrismaClient, params: BuyersSumma
           FROM "InventoryPosition" ip
           LEFT JOIN "StockLocation" sl ON sl.id = ip."stockLocationId"
           WHERE 1=1
-            ${storeId ? `AND ip."storeLocationId" = ${storeId}` : ""}
+            AND ($1::int IS NULL OR ip."storeLocationId" = $1)
           GROUP BY ip."productId"
         `,
+      storeId,
     ),
     // 2) Customer-allocated stock per product, derived from the PO
     //    receiving chain (since InventoryPosition.salesOrderId is
@@ -441,12 +442,13 @@ export async function getBuyersSummary(prisma: PrismaClient, params: BuyersSumma
             AND li."lineItemStatus" != 'CANCELLED'
             AND so."orderDate" >= $1
             AND so."orderDate" <= $2
-            ${storeId ? `AND so."storeLocationId" = ${storeId}` : ""}
+            AND ($3::int IS NULL OR so."storeLocationId" = $3)
             AND li."productId" IS NOT NULL
           GROUP BY li."productId"
         `,
       startDate,
       endDate,
+      storeId,
     ),
   ])) as [RawOnHandRow[], RawCustomerStockRow[], RawOnOrderRow[], RawSoldRow[]];
 
