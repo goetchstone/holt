@@ -66,6 +66,17 @@ npm run setup                            # migrate + seed demo data + seed CMS
 npm run dev
 ```
 
+Running `setup`/`dev` from your machine (as above) rather than inside a Compose
+container? One gotcha, one setting:
+
+- Put a real value on `POSTGRES_PASSWORD` in `.env` (that is what `docker compose
+  up db` creates the database with) and the **same** value in
+  `app/.env.local`'s `DATABASE_URL`.
+- `app/.env.local`'s `DATABASE_URL` already points at `localhost:5433` — the port
+  the default `db` service maps to. `env.example`'s `@db:` host only resolves
+  inside Compose, so a host-side `npm run setup` needs the `localhost` form;
+  `setup.sh` reads `app/.env.local` first, so that line is the one that matters.
+
 Open <http://localhost:3000/auth/login> and sign in:
 
 | | |
@@ -88,11 +99,12 @@ Two values in `app/.env.local` are **required** and easy to miss:
 Verify the whole path end to end at any time:
 
 ```bash
-cd app && bash scripts/smoke.sh    # boots?, seeded?, can log in?, data loads?
+cd app && START=1 bash scripts/smoke.sh    # boots?, seeded?, can log in?, data loads?
 ```
 
-That script is also what CI runs, so "it starts and a person can use it" is a
-gate rather than an assumption.
+`START=1` lets the script boot the app itself; drop it if you already have
+`npm run dev` running. That script is also what CI runs (after `npm run build`),
+so "it starts and a person can use it" is a gate rather than an assumption.
 
 ### Docker
 
@@ -139,10 +151,13 @@ See `env.example` for the full environment template.
 
 ```bash
 cd app
-npm run dev           # Start dev server
-npm run validate      # Lint + typecheck + format check
-npm test              # Run unit tests
-npm run test:coverage # Unit + integration coverage (gate input)
+npm run dev            # Start dev server
+npm run validate       # Lint + typecheck + format check
+npm run typecheck:strict  # Stricter typecheck over the money core (CI runs this)
+npm test               # Run unit tests
+npm run build          # Production build — CI gates on it; catches server-only
+                       # code pulled into a client bundle, which tsc cannot
+npm run test:coverage  # Unit + integration coverage (gate input)
 ```
 
 ## Documentation
