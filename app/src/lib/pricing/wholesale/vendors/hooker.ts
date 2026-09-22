@@ -17,6 +17,8 @@ const LEATHER = ["L1", "L2", "L3", "L4", "NV", "NVPR"];
 export const hooker: WholesaleVendorProfile = {
   id: "hooker",
   label: "Hooker Custom Upholstery",
+  // DB vendor rows read "Hooker Furniture", not the book's title.
+  nameMatch: "hooker",
   grades: [
     ...FABRIC.map((code) => ({ code, kind: "fabric" as const })),
     ...LEATHER.map((code) => ({

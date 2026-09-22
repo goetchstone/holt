@@ -32,6 +32,8 @@ const LADDER = ["L1", "L2", "L3", "L4", "NV", "NVPR"];
 export const bradingtonYoung: WholesaleVendorProfile = {
   id: "bradington-young",
   label: "Bradington-Young",
+  // Match whether the store spells it "Bradington Young" or "Bradington-Young".
+  nameMatch: "bradington",
   grades: LADDER.map((code) => {
     const row = GRADE_ROWS.find((r) => r.code === code)!;
     return { code, kind: "leather" as const, displayName: row.displayName };
