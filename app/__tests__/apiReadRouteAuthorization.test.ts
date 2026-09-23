@@ -58,6 +58,8 @@ const EXEMPT: Record<string, string> = {
     "Pre-authentication by definition: the caller has lost the ability to sign in.",
   "src/pages/api/auth/reset-password.ts":
     "Pre-authentication; authorized by a single-use emailed token, not a session.",
+  "src/pages/api/uploads/[...path].ts":
+    "File serving, not a domain resource. Private subdirs (imports, vendor PDFs, delivery-proof, proposals, and any subdir not explicitly public) require a session; product imagery and portal attachments are unauthenticated by design. A session is the correct gate here, not a permission (SEC-04).",
 };
 
 /**
