@@ -38,7 +38,7 @@
 //    on its own, and every item is asserted to have received exactly one
 //    price.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface WendoverOrderItem {
   sku: string;
@@ -362,6 +362,6 @@ export function parseWendoverOrderText(text: string): WendoverOrder {
 }
 
 export async function parseWendoverOrderPDF(buffer: Buffer): Promise<WendoverOrder> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   return parseWendoverOrderText(data.text);
 }

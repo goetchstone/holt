@@ -45,6 +45,12 @@ Three steps. None touches the import route.
    `wholesaleCoverage.test.ts` fails while a book the new reader accepts is still
    marked `unsupported`.
 
+A reader that needs the PDF itself, not a profile, reads it through
+`lib/pricing/pdfUtils.ts`: `parsePdf`, `extractPdfText` or `readPdfTextItems`.
+Never import `pdf-parse` directly. Its bundled pdf.js 1.10 misreads a Node
+`Buffer` (#190), and `parsePdf` hands it a plain `Uint8Array`.
+`pdfParseOneDoor.test.ts` fails on any other import of it.
+
 A profile is **code, not config** — it is compiled, typed and reviewed. That is
 deliberate: a config format expressive enough to describe a PDF layout is a
 programming language with a worse type checker, which is the road rule 62

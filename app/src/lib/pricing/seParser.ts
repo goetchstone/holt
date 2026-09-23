@@ -4,8 +4,7 @@
 // Separated from wesleyHallParser.ts because it imports pdf-parse (Node fs),
 // and wesleyHallParser is also pulled into client bundles by the import page.
 
-import pdf from "pdf-parse";
-import { columnAwarePageRenderer } from "./pdfUtils";
+import { columnAwarePageRenderer, parsePdf } from "./pdfUtils";
 import { parseCurrency } from "./pricingUtils";
 import type { ParsedSEProduct } from "./wesleyHallParser";
 
@@ -50,7 +49,7 @@ const SE_CHAIRS = [
  * Returns one ParsedSEProduct per piece-type per material/depth combination.
  */
 export async function parseSEPricing(pdfBuffer: Buffer): Promise<ParsedSEProduct[]> {
-  const data = await pdf(pdfBuffer, {
+  const data = await parsePdf(pdfBuffer, {
     pagerender: (pageData: any) =>
       columnAwarePageRenderer(pageData).then(
         (text: string) => `<<PAGE:${pageData.pageNumber}>>\n${text}`,

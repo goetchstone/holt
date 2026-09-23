@@ -23,7 +23,7 @@
 // 4. The MSRP column is real, so it prefills the row's MSRP and selling price.
 // 5. A free $0 line (a "Beatriz Ball metal placard") reconciles at 0 and is kept.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface BeatrizBallItem {
   itemCode: string;
@@ -247,6 +247,6 @@ export async function parseBeatrizBallOrderPDF(
   buffer: Buffer,
   buyerLines: readonly string[] = [],
 ): Promise<BeatrizBallOrder> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   return parseBeatrizBallOrderText(data.text);
 }

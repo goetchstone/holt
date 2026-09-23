@@ -21,7 +21,7 @@
 // mapped quantities do not sum to its own UNITS column is NEVER guessed —
 // it is dropped and reported in `warnings` so the buyer adds it by hand.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface FrankEileenSize {
   size: string;
@@ -207,6 +207,6 @@ export function parseFrankEileenText(text: string): FrankEileenOrder {
 }
 
 export async function parseFrankEileenPDF(buffer: Buffer): Promise<FrankEileenOrder> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   return parseFrankEileenText(data.text);
 }

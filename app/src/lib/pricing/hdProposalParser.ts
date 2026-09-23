@@ -4,7 +4,7 @@
 // Extracts quote metadata, line items with freight/install charges,
 // and totals from the text output of pdf-parse.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface HDLineItem {
   itemNumber: number;
@@ -47,7 +47,7 @@ function parseNumber(s: string): number {
 }
 
 export async function parseHDProposal(buffer: Buffer): Promise<HDProposal> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   const text: string = data.text;
   const lines: string[] = text.split("\n").map((l: string) => l.trim());
 

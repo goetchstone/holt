@@ -21,7 +21,7 @@
 //    OOS) prints no UPC, so its barcode exports blank and Ordorite assigns one.
 // 3. The vendor prints on a "Vendor: <name>" line, read like MarketTime's MFR.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface AestheticMovementItem {
   sku: string;
@@ -199,6 +199,6 @@ export function parseAestheticMovementOrderText(text: string): AestheticMovement
 export async function parseAestheticMovementOrderPDF(
   buffer: Buffer,
 ): Promise<AestheticMovementOrder> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   return parseAestheticMovementOrderText(data.text);
 }

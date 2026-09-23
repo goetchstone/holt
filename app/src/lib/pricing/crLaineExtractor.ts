@@ -13,8 +13,7 @@
 //   Fiber, Legacy Down, Extra Full
 // - Page footers: "32\tWholesale" pattern
 
-import pdf from "pdf-parse";
-import { columnAwarePageRenderer, extractPdfText, splitTabs } from "./pdfUtils";
+import { columnAwarePageRenderer, extractPdfText, parsePdf, splitTabs } from "./pdfUtils";
 import { parseCurrency } from "./pricingUtils";
 import { ParsedWholesaleProduct, ParsedFoundationsProduct } from "./wesleyHallParser";
 
@@ -64,7 +63,7 @@ const ALL_GRADE_CODES = new Set([
 export async function extractCrLaineWholesale(
   pdfBuffer: Buffer,
 ): Promise<ParsedWholesaleProduct[]> {
-  const data = await pdf(pdfBuffer, {
+  const data = await parsePdf(pdfBuffer, {
     pagerender: (pageData: any) =>
       columnAwarePageRenderer(pageData).then(
         (text: string) => `<<PAGE:${pageData.pageNumber}>>\n${text}`,

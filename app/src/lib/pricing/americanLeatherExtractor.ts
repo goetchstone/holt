@@ -10,8 +10,7 @@
 // This file imports pdf-parse (Node fs dependency) and must only be imported
 // from API routes, never from client-side code.
 
-import pdf from "pdf-parse";
-import { columnAwarePageRenderer } from "./pdfUtils";
+import { columnAwarePageRenderer, parsePdf } from "./pdfUtils";
 import { parseCurrency } from "./pricingUtils";
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -77,7 +76,7 @@ const PROGRAM_PATTERNS: [RegExp, string][] = [
 // ─── Main extraction ──────────────────────────────────────────────
 
 export async function extractAmericanLeather(pdfBuffer: Buffer): Promise<ALExtractionResult> {
-  const data = await pdf(pdfBuffer, {
+  const data = await parsePdf(pdfBuffer, {
     pagerender: (pageData: any) =>
       columnAwarePageRenderer(pageData).then(
         (text: string) => `<<PAGE:${pageData.pageNumber}>>\n${text}`,
