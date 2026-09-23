@@ -16,7 +16,9 @@
 // the matrix is small enough to enumerate.
 
 import { spawnSync } from "node:child_process";
-import { join } from "node:path";
+import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, dirname, join } from "node:path";
 
 const HOOK_PATH = join(__dirname, "..", "..", ".githooks", "pre-push");
 
@@ -25,7 +27,14 @@ const REAL_SHA = "abcdef1234567890abcdef1234567890abcdef12"; // arbitrary non-ze
 
 const REPO_ROOT = join(__dirname, "..", "..");
 
-function runHook(stdin: string): { code: number; stdout: string; stderr: string } {
+// The hook uses whatever `node` is first on PATH; put this test's own Node
+// there so its version check sees the Node running the suite.
+const PATH_WITH_THIS_NODE = [dirname(process.execPath), process.env.PATH].join(delimiter);
+
+function runHook(
+  stdin: string,
+  path: string = PATH_WITH_THIS_NODE,
+): { code: number; stdout: string; stderr: string } {
   // First arg to the hook is the remote name (per githook spec).
   // We pass "origin" because the hook reads it but doesn't do anything
   // remote-dependent in the early-exit path we're testing.
@@ -37,6 +46,7 @@ function runHook(stdin: string): { code: number; stdout: string; stderr: string 
     encoding: "utf8",
     timeout: 10_000,
     cwd: REPO_ROOT,
+    env: { ...process.env, PATH: path },
   });
   return {
     code: result.status ?? -1,
@@ -119,6 +129,54 @@ describe("pre-push hook — mixed pushes", () => {
     // "pre-push: running validate + tests..." right before invoking npm.
     // (If npm fails because we're not in a npm context the test still
     // proves the script got that far -- the message is what we want.)
+    expect(combined).toContain("running validate");
+  });
+});
+
+// 2026-09-23: #190's test passed pre-push on this shell's default Node 20 and
+// failed CI on 24. The hook now refuses a Node older than app/package.json
+// "engines" before running anything.
+describe("pre-push hook — Node version", () => {
+  /** A `node` that reports `version` and passes every other call to the real one. */
+  function fakeNodeOnPath(version: string, opts: { failEval?: boolean } = {}): string {
+    const dir = mkdtempSync(join(tmpdir(), "fake-node-"));
+    const script = [
+      "#!/bin/sh",
+      `if [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi`,
+      opts.failEval ? 'if [ "$1" = "-p" ]; then exit 1; fi' : "",
+      `exec "${process.execPath}" "$@"`,
+    ].join("\n");
+    writeFileSync(join(dir, "node"), script);
+    chmodSync(join(dir, "node"), 0o755);
+    return [dir, process.env.PATH].join(delimiter);
+  }
+  const push = `refs/heads/new-feature ${REAL_SHA} refs/heads/new-feature ${ZERO_SHA}\n`;
+
+  it("refuses a Node older than engines, before validate runs", () => {
+    const r = runHook(push, fakeNodeOnPath("v20.20.2"));
+    const combined = r.stdout + r.stderr;
+    expect(r.code).toBe(1);
+    expect(combined).toContain("Node 20");
+    expect(combined).toContain("engines.node needs >= 24");
+    expect(combined).not.toContain("running validate");
+  });
+
+  it("refuses when the Node version cannot be read", () => {
+    const r = runHook(push, fakeNodeOnPath("not-a-version"));
+    expect(r.code).toBe(1);
+    expect(r.stdout + r.stderr).toContain("is not the Node this repo runs");
+  });
+
+  it("refuses when engines cannot be read", () => {
+    const r = runHook(push, fakeNodeOnPath("v24.18.0", { failEval: true }));
+    expect(r.code).toBe(1);
+    expect(r.stdout + r.stderr).toContain("needs >= ?");
+  });
+
+  it("goes on to validate on a Node that meets engines", () => {
+    const r = runHook(push, fakeNodeOnPath("v24.18.0"));
+    const combined = r.stdout + r.stderr;
+    expect(combined).not.toContain("is not the Node this repo runs");
     expect(combined).toContain("running validate");
   });
 });

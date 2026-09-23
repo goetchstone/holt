@@ -63,8 +63,28 @@ if [ "$nondeletion_count" = "0" ]; then
   exit 0
 fi
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+# Appended, not prepended: GUI git clients start hooks with a bare PATH and
+# need these to find npm, but a Node the user selected (nvm, setup-node) must
+# win. Prepended, a system Node in /usr/local/bin would run the checks instead.
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"
 export NODE_OPTIONS="--max-old-space-size=4096"
+
+# Run on the Node that CI and production run: app/package.json "engines".
+# On 2026-09-23 a test passed here on this shell's default Node 20 and failed
+# CI on 24 (#190). An engines or version that cannot be read refuses too.
+required_node=$(node -p "require('./app/package.json').engines.node.match(/[0-9]+/)[0]" 2>/dev/null || true)
+actual_node=$(node --version 2>/dev/null | sed 's/^v//; s/\..*//' || true)
+node_ok=0
+case "$required_node:$actual_node" in
+  :* | *: | *[!0-9:]*) ;; # missing, or not a number
+  *) if [ "$actual_node" -ge "$required_node" ]; then node_ok=1; fi ;;
+esac
+if [ "$node_ok" != 1 ]; then
+  echo "pre-push: Node ${actual_node:-?} ($(command -v node || echo 'not found')) is not the Node this repo runs."
+  echo "  app/package.json engines.node needs >= ${required_node:-?}, as CI and production run."
+  echo "  Switch first, e.g.: nvm use ${required_node:-24}"
+  exit 1
+fi
 
 # Figure out what changed vs the remote branch so we can decide whether
 # the security scans are worth running. On a brand-new branch we fall
