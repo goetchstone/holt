@@ -1,0 +1,511 @@
+{
+  "tolerance": 0.1,
+  "books": [
+    {
+      "id": "american-leather",
+      "dir": "American Leather/wholesale",
+      "match": "american_leather",
+      "vendor": "american-leather",
+      "type": "wholesale",
+      "expect": {
+        "status": "parsed",
+        "count": 2704
+      }
+    },
+    {
+      "id": "berlin-gardens",
+      "dir": "Berlin Gardens/wholesale",
+      "match": "berlin_gardens",
+      "vendor": "berlin-gardens",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; outdoor frame + cushion book (VAL-15)"
+      }
+    },
+    {
+      "id": "bradington-young",
+      "dir": "Bradington Young/wholesale",
+      "match": "by_pricelist",
+      "vendor": "bradington-young",
+      "type": "wholesale",
+      "expect": {
+        "status": "parsed",
+        "count": 833
+      }
+    },
+    {
+      "id": "bradington-young-smp-all",
+      "dir": "Bradington Young/wholesale",
+      "match": "all_smp",
+      "vendor": "bradington-young",
+      "type": "promo",
+      "expect": {
+        "status": "unsupported",
+        "reason": "promo overlay on existing styles; reader is VAL-02"
+      }
+    },
+    {
+      "id": "bradington-young-smp",
+      "dir": "Bradington Young/wholesale",
+      "match": "b-y - smp",
+      "vendor": "bradington-young",
+      "type": "promo",
+      "expect": {
+        "status": "unsupported",
+        "reason": "promo overlay on existing styles; reader is VAL-02"
+      }
+    },
+    {
+      "id": "bradington-young-sensible-seating",
+      "dir": "Bradington Young/wholesale",
+      "match": "sensible seating",
+      "vendor": "bradington-young",
+      "type": "promo",
+      "expect": {
+        "status": "unsupported",
+        "reason": "promo overlay on existing styles; reader is VAL-02"
+      }
+    },
+    {
+      "id": "bradington-young-luxury-motion-1",
+      "dir": "Bradington Young/wholesale",
+      "match": "tier 1",
+      "vendor": "bradington-young",
+      "type": "promo",
+      "expect": {
+        "status": "unsupported",
+        "reason": "promo overlay on existing styles; reader is VAL-02"
+      }
+    },
+    {
+      "id": "bradington-young-luxury-motion-2",
+      "dir": "Bradington Young/wholesale",
+      "match": "tier 2",
+      "vendor": "bradington-young",
+      "type": "promo",
+      "expect": {
+        "status": "unsupported",
+        "reason": "promo overlay on existing styles; reader is VAL-02"
+      }
+    },
+    {
+      "id": "brownstone",
+      "dir": "Brownstone/wholesale",
+      "match": "brownstone",
+      "vendor": "brownstone",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; flat/MSRP line book (VAL-15)"
+      }
+    },
+    {
+      "id": "cr-laine",
+      "dir": "CR Laine/wholesale",
+      "match": "updated_crl",
+      "vendor": "cr-laine",
+      "type": "wholesale",
+      "expect": {
+        "status": "parsed",
+        "count": 952
+      }
+    },
+    {
+      "id": "cr-laine-simplicity",
+      "dir": "CR Laine/wholesale",
+      "match": "crl_simplicity",
+      "vendor": "cr-laine",
+      "type": "simplicity",
+      "expect": {
+        "status": "parsed",
+        "count": 176
+      }
+    },
+    {
+      "id": "century-casegoods",
+      "dir": "Century/wholesale",
+      "match": "case_goods_century",
+      "vendor": "century",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; wood-species book (VAL-15)"
+      }
+    },
+    {
+      "id": "century-upholstery",
+      "dir": "Century/wholesale",
+      "match": "upholstery_century",
+      "vendor": "century",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; wood-species book (VAL-15)"
+      }
+    },
+    {
+      "id": "charleston-forge",
+      "dir": "Charleston Forge/wholesale",
+      "match": "charleston_forge",
+      "vendor": "charleston-forge",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; wood-species book (VAL-15)"
+      }
+    },
+    {
+      "id": "currey",
+      "dir": "Currey/wholesale",
+      "match": "currey",
+      "vendor": "currey",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; flat/MSRP line book (VAL-15)"
+      }
+    },
+    {
+      "id": "essentials-for-living",
+      "dir": "Essentials for Living/wholesale",
+      "match": "ess_for_living",
+      "vendor": "essentials-for-living",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; flat/MSRP line book (VAL-15)"
+      }
+    },
+    {
+      "id": "ekornes",
+      "dir": "Ekornes/retail",
+      "match": "stressless",
+      "vendor": "ekornes",
+      "type": "retail-prices",
+      "expect": {
+        "status": "parsed",
+        "count": 603
+      }
+    },
+    {
+      "id": "gat-creek",
+      "dir": "Gat Creek/wholesale",
+      "match": "gat_creek",
+      "vendor": "gat-creek",
+      "type": "wholesale",
+      "expect": {
+        "status": "parsed",
+        "count": 575
+      }
+    },
+    {
+      "id": "hooker-upholstery",
+      "dir": "Hooker/wholesale",
+      "match": "custom upholstery",
+      "vendor": "hooker",
+      "type": "wholesale",
+      "expect": {
+        "status": "refused",
+        "reason": "profile expects a 'STYLE NUMBER:' header; the April 2026 book splits the label across lines (VAL-01)"
+      }
+    },
+    {
+      "id": "hooker-pricelist",
+      "dir": "Hooker/wholesale",
+      "match": "hooker_pricelist",
+      "vendor": "hooker",
+      "type": "casegoods",
+      "expect": {
+        "status": "unsupported",
+        "reason": "casegoods line book, not a grid; reader is VAL-07"
+      }
+    },
+    {
+      "id": "jensen-leisure",
+      "dir": "Jensen/wholesale",
+      "match": "jensen",
+      "vendor": "jensen-leisure",
+      "type": "wholesale",
+      "expect": {
+        "status": "parsed",
+        "count": 471
+      }
+    },
+    {
+      "id": "kingsley-bate",
+      "dir": "Kingsley Bate/wholesale",
+      "match": "2026_03_bat",
+      "vendor": "kingsley-bate",
+      "type": "wholesale",
+      "expect": {
+        "status": "parsed",
+        "count": 1049
+      }
+    },
+    {
+      "id": "kingsley-bate-corsica",
+      "dir": "Kingsley Bate/wholesale",
+      "match": "corsica",
+      "vendor": "kingsley-bate",
+      "type": "wholesale",
+      "expect": {
+        "status": "parsed",
+        "count": 3
+      }
+    },
+    {
+      "id": "lee",
+      "dir": "Lee/wholesale",
+      "match": "lee_whsl",
+      "vendor": "lee",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader (VAL-08)"
+      }
+    },
+    {
+      "id": "mackenzie-dow",
+      "dir": "MacKenzie Dow/wholesale",
+      "match": "mackenzie_dow",
+      "vendor": "mackenzie-dow",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader (VAL-12)"
+      }
+    },
+    {
+      "id": "made-goods",
+      "dir": "Made Goods/wholesale",
+      "match": "made_goods",
+      "vendor": "made-goods",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; flat/MSRP line book (VAL-15)"
+      }
+    },
+    {
+      "id": "michael-thomas",
+      "dir": "Michael Thomas/wholesale",
+      "match": "august 2026 wholesale",
+      "vendor": "michael-thomas",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader (VAL-09)"
+      }
+    },
+    {
+      "id": "michael-thomas-mto-fabric",
+      "dir": "Michael Thomas/wholesale",
+      "match": "mto",
+      "vendor": "michael-thomas",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader (VAL-09)"
+      }
+    },
+    {
+      "id": "nisley",
+      "dir": "Nisley/wholesale",
+      "match": "nisley",
+      "vendor": "nisley",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; wood-species book (VAL-15)"
+      }
+    },
+    {
+      "id": "okaw",
+      "dir": "Okaw/wholesale",
+      "match": "okaw",
+      "vendor": "okaw",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader (VAL-10)"
+      }
+    },
+    {
+      "id": "palecek",
+      "dir": "Palecek/wholesale",
+      "match": "palecek",
+      "vendor": "palecek",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; flat/MSRP line book (VAL-15)"
+      }
+    },
+    {
+      "id": "redford-house",
+      "dir": "Redford House/wholesale",
+      "match": "redford_house",
+      "vendor": "redford-house",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; layout not yet triaged (VAL-15)"
+      }
+    },
+    {
+      "id": "sam-moore",
+      "dir": "Sam Moore/wholesale",
+      "match": "sam_moore",
+      "vendor": "sam-moore",
+      "type": "wholesale",
+      "expect": {
+        "status": "parsed",
+        "count": 175
+      }
+    },
+    {
+      "id": "simply-amish",
+      "dir": "Simply Amish/wholesale",
+      "match": "simply_amish",
+      "vendor": "simply-amish",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader (VAL-10)"
+      }
+    },
+    {
+      "id": "st-lawrence",
+      "dir": "St Lawrence/wholesale",
+      "match": "st_lawrence",
+      "vendor": "st-lawrence",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader (VAL-10)"
+      }
+    },
+    {
+      "id": "summer-classics",
+      "dir": "Summer Classics/wholesale",
+      "match": "sc_whsl",
+      "vendor": "summer-classics",
+      "type": "wholesale",
+      "expect": {
+        "status": "parsed",
+        "count": 1870
+      }
+    },
+    {
+      "id": "summer-classics-pillows",
+      "dir": "Summer Classics/wholesale",
+      "match": "sc_pillow",
+      "vendor": "summer-classics",
+      "type": "wholesale",
+      "expect": {
+        "status": "refused",
+        "reason": "pillow list in its own layout; the Summer Classics reader reads the main wholesale book only"
+      }
+    },
+    {
+      "id": "theodore-alexander",
+      "dir": "Theodore Alexander/wholesale",
+      "match": "theo_alex",
+      "vendor": "theodore-alexander",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; flat/MSRP line book (VAL-15)"
+      }
+    },
+    {
+      "id": "treasure-garden",
+      "dir": "Treasure Garden/wholesale",
+      "match": "treasure_garden",
+      "vendor": "treasure-garden",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; outdoor frame + cushion book (VAL-15)"
+      }
+    },
+    {
+      "id": "wesley-allen",
+      "dir": "Wesley Allen/wholesale",
+      "match": "wa_whsl",
+      "vendor": "wesley-allen",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; layout not yet triaged (VAL-15)"
+      }
+    },
+    {
+      "id": "wesley-hall",
+      "dir": "Wesley Hall/wholesale",
+      "match": "wesley_hall_whsl",
+      "vendor": "wesley-hall",
+      "type": "wholesale",
+      "expect": {
+        "status": "parsed",
+        "count": 1216
+      }
+    },
+    {
+      "id": "wesley-hall-foundations",
+      "dir": "Wesley Hall/wholesale",
+      "match": "foundation",
+      "vendor": "wesley-hall",
+      "type": "foundations",
+      "expect": {
+        "status": "parsed",
+        "count": 220
+      }
+    },
+    {
+      "id": "woodbridge",
+      "dir": "Woodbridge/wholesale",
+      "match": "wood_wshl",
+      "vendor": "woodbridge",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader (VAL-11)"
+      }
+    },
+    {
+      "id": "worlds-away",
+      "dir": "Worlds Away/wholesale",
+      "match": "worlds_away",
+      "vendor": "worlds-away",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; flat/MSRP line book (VAL-15)"
+      }
+    },
+    {
+      "id": "zimmerman-bedroom",
+      "dir": "Zimmerman/wholesale",
+      "match": "zimmerman_bedroom",
+      "vendor": "zimmerman",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; wood-species book (VAL-15)"
+      }
+    },
+    {
+      "id": "zimmerman-dining",
+      "dir": "Zimmerman/wholesale",
+      "match": "zimmerman_dining",
+      "vendor": "zimmerman",
+      "type": "wholesale",
+      "expect": {
+        "status": "unsupported",
+        "reason": "no reader; wood-species book (VAL-15)"
+      }
+    }
+  ]
+}

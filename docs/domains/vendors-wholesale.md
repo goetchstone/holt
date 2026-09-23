@@ -35,11 +35,15 @@ unparseable.
 
 ## Adding a vendor
 
-Two steps. Neither touches the import route.
+Three steps. None touches the import route.
 
 1. Write `src/lib/pricing/wholesale/vendors/<vendor>.ts` exporting a
    `WholesaleVendorProfile`.
 2. Add it to `WHOLESALE_VENDOR_PROFILES` in `wholesale/registry.ts`.
+3. Measure the vendor's books with the coverage script and record them in the
+   manifest (see [Coverage](#coverage)). CI enforces this step:
+   `wholesaleCoverage.test.ts` fails while a book the new reader accepts is still
+   marked `unsupported`.
 
 A profile is **code, not config** — it is compiled, typed and reviewed. That is
 deliberate: a config format expressive enough to describe a PDF layout is a
@@ -136,6 +140,40 @@ once the coverage script has measured the book; reach for `bookMarkers` when a
 vendor prints two books that counts alone cannot tell apart. Record the edition
 each profile was written against in its runbook.
 → `app/__tests__/wholesaleParseResult.test.ts`, `app/__tests__/parsePriceBook.test.ts`
+
+## Coverage
+
+Which books holt can read is a measured number, not a claim. The coverage script
+runs every book through the same `parsePriceBook()` the importer uses and checks
+each against `app/scripts/wholesale-coverage.expected.json`:
+
+```bash
+cd app && npm run pricing:coverage -- --dir ~/pricelists
+```
+
+The manifest is exhaustive (rule 65). Every PDF in every `<vendor>/wholesale/`
+folder under `--dir` must be claimed by exactly one entry, and each entry states
+its expectation: `parsed` with a style count (±10%), or `refused` / `unsupported`
+with the reason — usually the VAL package that will fix it. The run exits 1 in
+**both** directions: a book that stops parsing or drifts outside its count, and
+a PDF nobody has classified. A new edition therefore arrives as a red run, not a
+silent gap. When an edition legitimately changes a count, update the entry.
+
+As of 2026-09-23: **13 of 46 books parse, across 10 vendors.**
+
+The books are private and never enter the repo. `--dir` points at wherever they
+live, the manifest carries counts only, and the script refuses to write any file
+inside the repository (`--out` for a JSON report, `--render` below).
+
+**Authoring a profile:** `--render <book.pdf> --out <file> [--page N]` writes the
+column-aware text a profile is matched against, the same rendering
+`extractWholesaleGrid` sees.
+
+CI has no books, so it runs the other half, which needs none:
+`wholesaleCoverage.test.ts` checks the manifest against the code. A book may be
+marked parsed only where a reader exists, and may not stay `unsupported` once a
+reader accepts it.
+→ `app/scripts/wholesale-coverage.impl.ts`, `app/__tests__/wholesaleCoverage.test.ts`
 
 ## Testing
 
