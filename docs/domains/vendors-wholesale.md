@@ -59,13 +59,32 @@ spellings, and those are identical for every dealer who opens the same book.
 | `grades` | The ladder, in book order, each rung declaring `fabric` or `leather` |
 | `gridHeader` | The row that starts a style grid (`STYLE NUMBER:` / `ITEM NUMBER:`) |
 | `gradeOfRow` | How a price row names its grade — spellings differ per book |
-| `rows` | Which labelled rows fill which product field |
+| `rows` | Which labelled rows fill which product field. A row is labelled (values after the first tab), `deep` (a label nested in the row: values after the second tab), or `inline` (the label is inside every cell, `W  30 1/2"`, and is stripped from each) |
 | `emptyCells` | This book's "no price" token — `--` on one, `N/A` on another |
 | `comGrade` | The rung that is also COM, where the book prints "Grade: E and COM" |
 | `pageRequires` | Patterns a page must carry to be a price grid, not a schematic |
 | `leatherPlacement` | Whether leather is a tier of the same frame or its own style |
 | `expandSkus` | For books where one price column covers several SKUs |
 | `expect` | What this vendor's book looks like — style count, grade coverage, page range, cover markers — so the wrong edition is refused, not parsed to nothing (see "Edition assertion") |
+
+## Rows the engine will not guess
+
+The renderer turns a PDF page into tab-separated lines, and it is lossy in two
+ways a profile cannot see: it **drops empty cells** and it **glues neighbours**
+("Wing w/o ButtonsSide Dining Chair"). Positional rows are the ones read by
+column: names, descriptions, dimensions, yardage. So a positional row whose cell
+count is not the style count cannot be placed. Read anyway, every value after
+the gap lands one style over and still looks plausible. Sam Moore's July 2026
+book shifted descriptions and COM yardage onto the wrong styles exactly this way
+until the engine learned to refuse. Such a row is **left unset for that grid**,
+counted in `stats.rowsMisaligned`, and reported as a warning naming the page and
+the row. It is never guessed.
+
+A leather-SKU row (`leatherStyleNumber`) is sparse by nature — a SKU prints only
+for styles offered in leather — so it is never read by position. Each SKU is
+given to the style whose number it extends, the longest such (`1344-005-L` →
+`1344-005`, not a sibling `1344`).
+→ `app/__tests__/wholesaleVendorProfiles.test.ts`
 
 ## Grades are declared, never inferred
 
@@ -159,7 +178,7 @@ with the reason — usually the VAL package that will fix it. The run exits 1 in
 a PDF nobody has classified. A new edition therefore arrives as a red run, not a
 silent gap. When an edition legitimately changes a count, update the entry.
 
-As of 2026-09-23: **13 of 46 books parse, across 10 vendors.**
+As of 2026-09-23: **14 of 46 books parse, across 11 vendors** (13 / 10 before VAL-01 read Hooker's April 2026 book).
 
 The books are private and never enter the repo. `--dir` points at wherever they
 live, the manifest carries counts only, and the script refuses to write any file

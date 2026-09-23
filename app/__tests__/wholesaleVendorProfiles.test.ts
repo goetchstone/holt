@@ -40,20 +40,28 @@ const SAM_MOORE = page(
   ].join("\n"),
 );
 
-// Two ladders on one frame: fabric letters plus a true leather grid.
+// Two ladders on one frame: fabric letters plus a true leather grid. Mirrors the
+// April 2026 edition's layout: the style label split over `STYLE` / `NUMBER:`,
+// a sparse leather-SKU row (only the second style is offered in leather),
+// dimensions self-labelled in every cell, and `N/A` for a rung not offered.
 const HOOKER = page(
   13,
   [
-    "STYLE NUMBER:\t1344-005",
-    "STYLE NAME:\tPercy",
-    "OVERALL Width:\t30 1/2",
-    "Fabric - Grade B:\t$400",
-    "Fabric - Grade E (COM):\t$450",
-    "Fabric - Grade J:\t$600",
-    "Leather - L1:\t$900",
-    "Leather - L4:\t$1,100",
-    "Leather - NV:\t$1,200",
-    "Leather - NVPR:\t$1,350",
+    "STYLE\t9001-005\t9002-010",
+    "NUMBER:\t9002-010-L",
+    "STYLE NAME:\tAlder\tBirch",
+    "DESCRIPTION:\tSofa\tChair",
+    'W  84 1/2"\tW  32"',
+    'D  38"\tD  36  1/2"',
+    'H  36"\tH  35"',
+    "COM Requirements:\t14 Yds\t6  1/2 Yds",
+    "Fabric - Grade B \t$1,000\t$400",
+    "Fabric - Grade E (COM)\t$1,100\t$450",
+    "Fabric - Grade J\t$1,300\t$600",
+    "Leather - L1\tN/A\t$900",
+    "Leather - L4\tN/A\t$1,100",
+    "Leather - NV\tN/A\t$1,200",
+    "Leather - NVPR\tN/A\t$1,350",
   ].join("\n"),
 );
 
@@ -112,12 +120,49 @@ describe("one engine, three books", () => {
 
   it("carries two ladders on one frame, each correctly kinded", () => {
     const out = parseRenderedGrid(HOOKER, profile("hooker")).data;
-    expect(out).toHaveLength(1);
-    const g = gradeMap(out[0].gradePrices);
+    expect(out.map((p) => p.styleNumber)).toEqual(["9001-005", "9002-010"]);
+    const g = gradeMap(out[1].gradePrices);
     expect(g).toMatchObject({ B: 400, E: 450, J: 600, L1: 900, L4: 1100, NV: 1200, NVPR: 1350 });
+
+    // "N/A" is a rung not offered: the fabric-only style carries no leather.
+    expect(Object.keys(gradeMap(out[0].gradePrices)).sort()).toEqual(["B", "COM", "E", "J"]);
 
     // Leather belongs to this style, not a style of its own.
     expect(profile("hooker").leatherPlacement).toBe("combined");
+  });
+
+  it("reads the April 2026 layout: split style label, self-labelled dimensions", () => {
+    const [alder, birch] = parseRenderedGrid(HOOKER, profile("hooker")).data;
+    expect([alder.styleName, alder.description, birch.styleName]).toEqual([
+      "Alder",
+      "Sofa",
+      "Birch",
+    ]);
+    // `W  84 1/2"` -- the label is inside the cell, and the fraction is real.
+    expect([alder.overallWidth, alder.overallDepth, alder.overallHeight]).toEqual([84.5, 38, 36]);
+    // A double space inside the value is still one measurement.
+    expect(birch.overallDepth).toBe(36.5);
+    expect([alder.yardagePlain, birch.yardagePlain]).toEqual([14, 6.5]);
+  });
+
+  // The leather-SKU row prints only for styles offered in leather, and the
+  // renderer drops empty cells -- so the one SKU sits in the row's FIRST cell
+  // while belonging to the SECOND style. Read by position, the fabric-only sofa
+  // would be ordered in leather under another style's number.
+  it("gives a leather SKU to the style it names, not to the column it landed in", () => {
+    const [alder, birch] = parseRenderedGrid(HOOKER, profile("hooker")).data;
+    expect(alder.leatherStyleNumber).toBeNull();
+    expect(birch.leatherStyleNumber).toBe("9002-010-L");
+  });
+
+  it("gives a leather SKU to the longest style number it extends", () => {
+    const grid = page(
+      13,
+      ["STYLE\t9101\t9101-005", "NUMBER:\t9101-005-L", "Fabric - Grade B\t$100\t$200"].join("\n"),
+    );
+    const [short, long] = parseRenderedGrid(grid, profile("hooker")).data;
+    expect(short.leatherStyleNumber).toBeNull();
+    expect(long.leatherStyleNumber).toBe("9101-005-L");
   });
 
   it("prices COM at its own rung rather than as a second price", () => {
@@ -155,6 +200,30 @@ describe("one engine, three books", () => {
     const g = gradeMap(parseRenderedGrid(BRADINGTON_YOUNG, p).data[0].gradePrices);
     expect(g.NVPR).toBe(1600);
     expect(g.NV).toBe(1400);
+  });
+
+  // The renderer glues neighbouring cells ("6 Yds 7 Yds") and drops empty ones,
+  // so a row can come out with fewer values than there are styles. Read by
+  // position, every value after the gap lands one style over -- a real Sam Moore
+  // book shifted COM yardage onto three wrong styles that way. The row is left
+  // unset for the grid, and the page says so; the aligned rows still read.
+  it("leaves a row it cannot place unset, and says so, instead of shifting it", () => {
+    const glued = page(
+      14,
+      [
+        "STYLE\t9003\t9004\t9005",
+        "STYLE NAME:\tCedar\tDogwood\tElm",
+        'W  30"\tW  31"\tW  32"',
+        "COM Requirements:\t5 Yds\t6 Yds 7 Yds",
+        "Fabric - Grade B\t$400\t$410\t$420",
+      ].join("\n"),
+    );
+    const out = parseRenderedGrid(glued, profile("hooker"));
+    expect(out.data.map((p) => p.yardagePlain)).toEqual([null, null, null]);
+    expect(out.data.map((p) => p.overallWidth)).toEqual([30, 31, 32]);
+    expect(out.stats.rowsMisaligned).toBe(1);
+    const warning = out.diagnostics.find((d) => d.level === "warning");
+    expect(warning?.message).toMatch(/page 14: yardage did not have one value per style/);
   });
 
   it("skips a page that has a grid header but no prices, and SAYS so", () => {
@@ -221,7 +290,9 @@ describe("per-style options come from the book, not a seed table", () => {
     ].join("\n"),
   );
   const opts = (n: string) => {
-    const p = parseRenderedGrid(OPTIONS, profile("sam-moore")).data.find((x) => x.styleNumber === n);
+    const p = parseRenderedGrid(OPTIONS, profile("sam-moore")).data.find(
+      (x) => x.styleNumber === n,
+    );
     return Object.fromEntries(
       (
         (

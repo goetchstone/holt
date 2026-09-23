@@ -63,6 +63,12 @@ export interface RowSpec {
    * `COM\t54" PLAIN COM FABRIC Required (Yds.):\t7\t...`.
    */
   readonly deep?: boolean;
+  /**
+   * The label is printed inside every cell rather than in a label column --
+   * `W  30 1/2"\tW  32"` -- so every cell is a value, and `match` is stripped
+   * from each. Hooker's April 2026 book prints its overall dimensions this way.
+   */
+  readonly inline?: boolean;
 }
 
 /**

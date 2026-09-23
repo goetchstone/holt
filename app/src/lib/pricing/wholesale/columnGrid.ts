@@ -24,7 +24,7 @@ import type { ParsedWholesaleProduct } from "../wesleyHallParser";
 import type { ParseDiagnostic, ParseResult } from "../pricingTypes";
 import type { EditionExpectation, StyleOption, WholesaleVendorProfile } from "./profile";
 
-/* eslint-disable @typescript-eslint/no-require-imports */
+// pdf-parse is CommonJS-only.
 const pdf = require("pdf-parse");
 
 /** Money cell to a number, or null when the vendor's book says "no price". */
@@ -130,7 +130,12 @@ function collectRows(lines: string[], profile: WholesaleVendorProfile): Collecte
 
     // A deep row's label is nested, so match against the whole line.
     const spec = profile.rows.find((r) => r.match.test(r.deep ? line : label));
-    if (spec) rows[spec.key] = spec.deep ? deepCells(line) : cells(line);
+    if (!spec) continue;
+    if (spec.inline) {
+      rows[spec.key] = line.split("\t").map((c) => c.trim().replace(spec.match, "").trim());
+    } else {
+      rows[spec.key] = spec.deep ? deepCells(line) : cells(line);
+    }
   }
 
   return { rows, grades, optionCells };
@@ -232,16 +237,62 @@ function optionsFor(
   return out;
 }
 
+/**
+ * Leather SKUs print only for the styles that have one, so the row is sparse
+ * and the renderer (which drops empty cells) leaves its positions meaningless.
+ * Each SKU names its base style instead -- `1344-005-L` is `1344-005`'s -- so
+ * it goes to the column whose style number it extends, the longest such, so
+ * that `1344-005-L` lands on `1344-005` rather than on a sibling `1344`.
+ */
+function leatherSkusByStyle(skus: string[], styles: string[]): Map<string, string> {
+  const byStyle = new Map<string, string>();
+  for (const sku of skus) {
+    const owner = styles
+      .filter((s) => s && sku.length > s.length && sku.startsWith(s) && /[-\s]/.test(sku[s.length]))
+      .sort((a, b) => b.length - a.length)[0];
+    if (owner && !byStyle.has(owner)) byStyle.set(owner, sku);
+  }
+  return byStyle;
+}
+
+// Rows read by column position. A row whose cell count is not the style count
+// cannot be placed: the renderer drops empty cells, glues neighbours ("Wing w/o
+// ButtonsSide Dining Chair"), and can emit a stray leading blank. Read by
+// position anyway, its values land on the wrong styles and still look plausible
+// -- Sam Moore's July 2026 book shifted descriptions and COM yardage exactly this
+// way. Such a row is left unset for the whole grid and reported, not guessed
+// (rule 0.1.10).
+const POSITIONAL_ROWS = [
+  "name",
+  "desc",
+  "yardage",
+  "width",
+  "depth",
+  "height",
+  "seatHeight",
+  "seatDepth",
+  "armHeight",
+];
+
 function parseGrid(
   chunk: string,
   pageNumber: number,
   profile: WholesaleVendorProfile,
-): { products: ParsedWholesaleProduct[]; columnsDropped: number } {
+): { products: ParsedWholesaleProduct[]; columnsDropped: number; rowsMisaligned: string[] } {
   const lines = chunk.split("\n");
   const { rows, grades, optionCells } = collectRows(lines, profile);
   const headerCells = rows.style || [];
   const products: ParsedWholesaleProduct[] = [];
   let columnsDropped = 0;
+
+  const rowsMisaligned = POSITIONAL_ROWS.filter(
+    (key) => rows[key] && rows[key].length !== headerCells.length,
+  );
+  for (const key of rowsMisaligned) delete rows[key];
+  const leatherByStyle = leatherSkusByStyle(
+    rows.leatherStyleNumber ?? [],
+    headerCells.map((c) => c.trim()),
+  );
 
   for (let col = 0; col < headerCells.length; col++) {
     const cell = (headerCells[col] || "").trim();
@@ -265,7 +316,7 @@ function parseGrid(
         styleNumber,
         styleName: (rows.name?.[col] || "").trim(),
         description: (rows.desc?.[col] || "").trim(),
-        leatherStyleNumber: null,
+        leatherStyleNumber: leatherByStyle.get(cell) ?? null,
         finish: null,
         decorativeFinishSurcharge: null,
         standardPillows: null,
@@ -290,7 +341,7 @@ function parseGrid(
     }
   }
 
-  return { products, columnsDropped };
+  return { products, columnsDropped, rowsMisaligned };
 }
 
 /**
@@ -310,6 +361,8 @@ export interface WholesaleParseStats {
   grids: number;
   /** Style columns that had a header cell but no recognised grade price. */
   columnsDropped: number;
+  /** Positional rows left unset because their cell count was not the style count. */
+  rowsMisaligned: number;
 }
 
 /**
@@ -341,6 +394,7 @@ export function parseRenderedGrid(
     pagesWithGrids: 0,
     grids: 0,
     columnsDropped: 0,
+    rowsMisaligned: 0,
   };
   const segments = text.split(/<<PAGE:(\d+)>>\n/);
 
@@ -365,6 +419,14 @@ export function parseRenderedGrid(
           level: "warning",
           row: pageNumber,
           message: `page ${pageNumber}: ${parsed.columnsDropped} style column(s) had a header but no recognised grade price`,
+        });
+      }
+      if (parsed.rowsMisaligned.length > 0) {
+        stats.rowsMisaligned += parsed.rowsMisaligned.length;
+        diagnostics.push({
+          level: "warning",
+          row: pageNumber,
+          message: `page ${pageNumber}: ${parsed.rowsMisaligned.join(", ")} did not have one value per style (dropped or glued cells), so no value can be placed; left unset rather than guessed`,
         });
       }
     }
