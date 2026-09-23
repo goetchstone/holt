@@ -14,8 +14,11 @@ NNN restarts at 001 each day. The prefix is `AppSettings.orderNumberPrefix`, set
 under Settings → Numbering; unset, it is the initials of the company name
 (`lib/numberingPrefix.ts` `effectivePrefix()`). Generated barcodes use
 `AppSettings.barcodePrefix` the same way. Changing a prefix affects new orders
-and barcodes only: existing ones keep what they were issued. `orderno` is unique,
-so two orders racing for the same number fail loudly instead of sharing it.
+and barcodes only: existing ones keep what they were issued. Numbering takes a
+transaction-scoped advisory lock on the day's stem before reading the day's
+highest number, so sales finalised at the same moment get consecutive numbers.
+Without it, 9 of 10 simultaneous orders failed on the unique `orderno`
+(`orderNumberConcurrency.integration.test.ts`).
 
 ### Imported orders
 

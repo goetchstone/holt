@@ -13,7 +13,7 @@
 import type { Prisma } from "@prisma/client";
 import { businessDayKey } from "@/lib/reports/businessDay";
 
-type OrderClient = Pick<Prisma.TransactionClient, "salesOrder">;
+type OrderClient = Pick<Prisma.TransactionClient, "salesOrder" | "$executeRaw">;
 
 /** The day stem, e.g. `HR-260923-`, for `now` as the business sees the date. */
 export function orderNumberStem(prefix: string, timeZone: string, now: Date): string {
@@ -23,8 +23,14 @@ export function orderNumberStem(prefix: string, timeZone: string, now: Date): st
 
 /**
  * Next free number for the business day. Call inside the transaction that
- * creates the order: `orderno` is unique, so two concurrent orders racing for
- * one number fail loudly instead of sharing it.
+ * creates the order.
+ *
+ * Two sales finalised at once used to read the same highest number, take the
+ * same next one, and the second failed on the unique `orderno` -- a sale
+ * refused at the register (QUA-15: 9 of 10 simultaneous orders). A
+ * transaction-scoped advisory lock on the day's stem makes the read-then-insert
+ * one at a time per day; it is released when the transaction ends, after the
+ * order row exists, so the next reader sees it.
  */
 export async function nextOrderNumber(
   tx: OrderClient,
@@ -33,6 +39,7 @@ export async function nextOrderNumber(
   now: Date = new Date(),
 ): Promise<string> {
   const stem = orderNumberStem(prefix, timeZone, now);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${stem}))`;
   const last = await tx.salesOrder.findFirst({
     where: { orderno: { startsWith: stem } },
     orderBy: { orderno: "desc" },

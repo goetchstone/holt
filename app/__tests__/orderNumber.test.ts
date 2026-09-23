@@ -9,11 +9,22 @@ import { nextOrderNumber, orderNumberStem } from "@/lib/orderNumber";
 
 /** A salesOrder.findFirst that answers from a fixed list, as Prisma would. */
 function fakeTx(existing: string[]) {
-  const findFirst = jest.fn(async ({ where }: { where: { orderno: { startsWith: string } } }) => {
+  const findFirstImpl = async ({ where }: { where: { orderno: { startsWith: string } } }) => {
     const matching = existing.filter((o) => o.startsWith(where.orderno.startsWith)).sort();
     return matching.length ? { orderno: matching[matching.length - 1] } : null;
+  };
+  const findFirst = jest.fn(findFirstImpl);
+  const calls: string[] = [];
+  findFirst.mockImplementationOnce(async (args) => {
+    calls.push("read");
+    return findFirstImpl(args);
   });
-  return { tx: { salesOrder: { findFirst } } as never, findFirst };
+  // A tagged template: the stem arrives as the first interpolated value.
+  const $executeRaw = jest.fn(async (_sql: TemplateStringsArray, stem: string) => {
+    calls.push(`lock ${stem}`);
+    return 0;
+  });
+  return { tx: { salesOrder: { findFirst }, $executeRaw } as never, findFirst, calls };
 }
 
 // 02:00 UTC on 24 Sep is still 22:00 on 23 Sep in New York.
@@ -47,5 +58,13 @@ describe("nextOrderNumber", () => {
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { orderno: { startsWith: "HR-260923-" } } }),
     );
+  });
+
+  // QUA-15: the day's numbering is locked before it is read, so two sales at
+  // once cannot take the same number (orderNumberConcurrency.integration).
+  it("locks the day's stem before reading the day's highest number", async () => {
+    const { tx, calls } = fakeTx(["HR-260923-001"]);
+    await nextOrderNumber(tx, "HR", "America/New_York", LATE_EVENING_EASTERN);
+    expect(calls).toEqual(["lock HR-260923-", "read"]);
   });
 });

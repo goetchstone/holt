@@ -948,7 +948,7 @@ const subfolders = ["Windows", "Rugs", "Fabrics", "Furniture", "Photos", "Presen
 
 ### `app/src/pages/api/sales/orders/create-from-cart.ts:67`
 
-**Status: RESOLVED** — both order paths call `lib/orderNumber.ts` `nextOrderNumber()` with `AppSettings.orderNumberPrefix`, else the business's initials (not "no prefix": PLAN USE-12, and a number must never block a sale); the date is the business day in the business's timezone (#192). The 200-concurrent-orders test in finding 20 is not done — two orders racing for one number still collide on the unique `orderno`, as before; tracked separately. (verified 2026-09-23 against main @ 2b9b7fb)
+**Status: RESOLVED** — both order paths call `lib/orderNumber.ts` `nextOrderNumber()` with `AppSettings.orderNumberPrefix`, else the business's initials (not "no prefix": PLAN USE-12, and a number must never block a sale); the date is the business day in the business's timezone (#192). Finding 20's concurrency test followed in #197: an advisory lock on the day's stem gives simultaneous orders consecutive numbers (it was 9 of 10 refused). (verified 2026-09-23 against main @ 2b9b7fb)
 
 ```
 const prefix = `SH-${yy}${mm}${dd}-`;
