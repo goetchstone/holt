@@ -31,6 +31,20 @@ const REPO_ROOT = join(__dirname, "..", "..");
 // there so its version check sees the Node running the suite.
 const PATH_WITH_THIS_NODE = [dirname(process.execPath), process.env.PATH].join(delimiter);
 
+// Stub `npm` and `npx`, first on every run's PATH: the hook's validate and test
+// steps print what they would have run and succeed at once. The tests assert the
+// hook's control flow; they must not run a real validate. They used to, and
+// spawnSync's timeout killed bash but left that validate running as an orphan
+// during every pre-push and CI unit run (QUA-16).
+const STUB_BIN = (() => {
+  const dir = mkdtempSync(join(tmpdir(), "stub-npm-"));
+  for (const tool of ["npm", "npx"]) {
+    writeFileSync(join(dir, tool), `#!/bin/sh\necho "stub ${tool} $*"\nexit 0\n`);
+    chmodSync(join(dir, tool), 0o755);
+  }
+  return dir;
+})();
+
 function runHook(
   stdin: string,
   path: string = PATH_WITH_THIS_NODE,
@@ -46,7 +60,7 @@ function runHook(
     encoding: "utf8",
     timeout: 10_000,
     cwd: REPO_ROOT,
-    env: { ...process.env, PATH: path },
+    env: { ...process.env, PATH: [STUB_BIN, path].join(delimiter) },
   });
   return {
     code: result.status ?? -1,
@@ -110,26 +124,21 @@ describe("pre-push hook — protected branch refusal", () => {
 
 describe("pre-push hook — mixed pushes", () => {
   it("falls through to validate when the push contains at least one non-deletion ref", () => {
-    // Mix: one deletion, one normal push to a feature branch.
-    // The hook should NOT take the all-deletion early-exit; it should
-    // fall through to the validate block. We can't easily run npm in
-    // this test environment, so we verify by ensuring:
-    //   (a) the "skipping validate" early-exit message is absent
-    //   (b) the script attempted to run validate (which would emit
-    //       the "running validate + tests" line OR fail trying to cd
-    //       into app/ if the cwd is wrong).
+    // Mix: one deletion, one normal push to a feature branch. The hook must
+    // NOT take the all-deletion early-exit: it runs validate, then the unit
+    // tests (stubbed above), in that order, and passes.
     const stdin =
       `refs/heads/old ${ZERO_SHA} refs/heads/old ${ZERO_SHA}\n` +
       `refs/heads/new-feature ${REAL_SHA} refs/heads/new-feature ${ZERO_SHA}\n`;
     const r = runHook(stdin);
     const combined = r.stdout + r.stderr;
-    // The all-deletion early-exit must NOT have fired.
     expect(combined).not.toContain("skipping validate");
-    // The script should have reached the validate block, which logs
-    // "pre-push: running validate + tests..." right before invoking npm.
-    // (If npm fails because we're not in a npm context the test still
-    // proves the script got that far -- the message is what we want.)
-    expect(combined).toContain("running validate");
+    const validate = combined.indexOf("stub npm run validate");
+    const tests = combined.indexOf("stub npx jest --selectProjects unit");
+    expect(validate).toBeGreaterThan(-1);
+    expect(tests).toBeGreaterThan(validate);
+    expect(combined).toContain("pre-push: all checks passed.");
+    expect(r.code).toBe(0);
   });
 });
 
@@ -177,6 +186,7 @@ describe("pre-push hook — Node version", () => {
     const r = runHook(push, fakeNodeOnPath("v24.18.0"));
     const combined = r.stdout + r.stderr;
     expect(combined).not.toContain("is not the Node this repo runs");
-    expect(combined).toContain("running validate");
+    expect(combined).toContain("stub npm run validate");
+    expect(r.code).toBe(0);
   });
 });
