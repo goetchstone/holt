@@ -90,6 +90,62 @@ export async function extractPdfTextWithPages(pdfBuffer: Buffer): Promise<string
   return data.text.replace(/\f/g, "");
 }
 
+// ─── Positioned text items ────────────────────────────────────────
+
+/** One positioned text run from the PDF: x/y from its transform, glyph width, string, page. */
+export interface PdfTextItem {
+  /** PDF user-space x of the run's origin, in points. */
+  x: number;
+  /** PDF user-space y of the baseline, in points -- measured UP from the page bottom. */
+  y: number;
+  /** Width of the run, in points. */
+  w: number;
+  s: string;
+  /** 1-based, the same numbering as the `<<PAGE:N>>` markers above. */
+  page: number;
+}
+
+interface PdfTextRun {
+  transform: number[];
+  width: number;
+  str: string;
+}
+
+/** The part of pdf.js's page proxy that pdf-parse hands `pagerender` and this reads. */
+interface PdfPageProxy {
+  pageNumber: number;
+  getTextContent(opts: { normalizeWhitespace: boolean }): Promise<{ items: PdfTextRun[] }>;
+}
+
+/**
+ * Every text run in a PDF, with its position and page.
+ *
+ * The tab-inserting renderer above keeps a line's order but throws away WHERE on
+ * the line each piece sat, so a column that wraps onto a second line -- a style
+ * name printed in two lines under its column -- cannot be put back under the
+ * right column. Readers that need that reconstruct columns from these
+ * coordinates instead. Ported from the sibling repo's pdfUtils (no vendor data).
+ */
+export async function readPdfTextItems(pdfBuffer: Buffer): Promise<PdfTextItem[]> {
+  const items: PdfTextItem[] = [];
+  await pdf(pdfBuffer, {
+    pagerender: (pageData: PdfPageProxy) =>
+      pageData.getTextContent({ normalizeWhitespace: false }).then((content) => {
+        for (const it of content.items) {
+          items.push({
+            x: it.transform[4],
+            y: it.transform[5],
+            w: it.width,
+            s: it.str,
+            page: pageData.pageNumber,
+          });
+        }
+        return "";
+      }),
+  });
+  return items;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────
 
 /**
