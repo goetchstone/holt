@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { generatePortalToken } from "@/lib/portalToken";
+import { getAppSettings } from "@/lib/appSettings";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -31,7 +32,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ error: "Order has no associated customer" });
     }
 
-    const token = generatePortalToken(order.id, order.customerId);
+    // The link is non-revocable, so its lifetime is the deployment's choice
+    // (Settings); unset (null) falls back to generatePortalToken's 48-hour default.
+    const { portalTokenTtlHours } = await getAppSettings();
+    const token = generatePortalToken(order.id, order.customerId, portalTokenTtlHours ?? undefined);
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
     const url = `${baseUrl}/portal/order?token=${token}`;
 

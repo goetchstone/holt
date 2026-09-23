@@ -4,6 +4,7 @@ import {
   themeToCssVars,
   DEFAULT_THEME,
   DEFAULT_APP_SETTINGS,
+  PORTAL_TOKEN_TTL_MAX_HOURS,
   type Theme,
 } from "@/lib/appSettings";
 import { BOOKING_DEFAULTS } from "@/lib/booking/config";
@@ -150,5 +151,83 @@ describe("resolveAppSettings pricing (USE-04 markup fallback)", () => {
     ).toBeNull();
     expect(resolveAppSettings(row({ pricing: {} })).pricing.defaultMarkup).toBeNull();
     expect(resolveAppSettings(row({ pricing: "nope" })).pricing.defaultMarkup).toBeNull();
+  });
+});
+
+describe("resolveAppSettings portalTokenTtlHours (SEC-08 order-link lifetime)", () => {
+  it("is unset (null) for a null row or an unset column, so the link's 48h default applies", () => {
+    expect(resolveAppSettings(null).portalTokenTtlHours).toBeNull();
+    expect(resolveAppSettings(row()).portalTokenTtlHours).toBeNull();
+    expect(resolveAppSettings(row({ portalTokenTtlHours: null })).portalTokenTtlHours).toBeNull();
+  });
+
+  it("honours a whole number of hours from 1 up to the 7-day cap", () => {
+    expect(resolveAppSettings(row({ portalTokenTtlHours: 1 })).portalTokenTtlHours).toBe(1);
+    expect(resolveAppSettings(row({ portalTokenTtlHours: 24 })).portalTokenTtlHours).toBe(24);
+    expect(
+      resolveAppSettings(row({ portalTokenTtlHours: PORTAL_TOKEN_TTL_MAX_HOURS }))
+        .portalTokenTtlHours,
+    ).toBe(PORTAL_TOKEN_TTL_MAX_HOURS);
+  });
+
+  it("treats zero, negative, fractional, over-cap or wrong-typed values as unset", () => {
+    // The links are not revocable: a stored value may shorten the window, never
+    // stretch it, so anything past the cap falls back to the default.
+    for (const bad of [0, -5, 1.5, PORTAL_TOKEN_TTL_MAX_HOURS + 1, 10_000, "48", Number.NaN]) {
+      expect(resolveAppSettings(row({ portalTokenTtlHours: bad })).portalTokenTtlHours).toBeNull();
+    }
+  });
+});
+
+describe("resolveAppSettings google (VAL-04 Drive/Slides config)", () => {
+  const STANDARD = ["Windows", "Rugs", "Fabrics", "Furniture", "Photos", "Presentation"];
+  const UNCONFIGURED = {
+    drive: { projectsRootFolderId: null, projectSubfolders: STANDARD },
+    slides: { templatePresentationId: null },
+  };
+
+  it("fails closed -- no ids, standard subfolders -- for a null, unset or malformed column", () => {
+    expect(resolveAppSettings(null).google).toEqual(UNCONFIGURED);
+    expect(resolveAppSettings(row()).google).toEqual(UNCONFIGURED);
+    expect(resolveAppSettings(row({ google: null })).google).toEqual(UNCONFIGURED);
+    expect(resolveAppSettings(row({ google: "nope" })).google).toEqual(UNCONFIGURED);
+  });
+
+  it("reads trimmed ids and a cleaned subfolder list", () => {
+    const g = resolveAppSettings(
+      row({
+        google: {
+          drive: {
+            projectsRootFolderId: "  root-1  ",
+            projectSubfolders: [" Windows ", "", "Presentation", 7],
+          },
+          slides: { templatePresentationId: " deck-1 " },
+        },
+      }),
+    ).google;
+    expect(g.drive.projectsRootFolderId).toBe("root-1");
+    expect(g.drive.projectSubfolders).toEqual(["Windows", "Presentation"]);
+    expect(g.slides.templatePresentationId).toBe("deck-1");
+  });
+
+  it("treats blank or wrong-typed ids as unset, and an empty list as the standard set", () => {
+    const g = resolveAppSettings(
+      row({
+        google: {
+          drive: { projectsRootFolderId: "   ", projectSubfolders: [] },
+          slides: { templatePresentationId: 42 },
+        },
+      }),
+    ).google;
+    expect(g.drive.projectsRootFolderId).toBeNull();
+    expect(g.slides.templatePresentationId).toBeNull();
+    expect(g.drive.projectSubfolders).toEqual(STANDARD);
+  });
+
+  it("hands each caller its own subfolder array, never the shared default", () => {
+    resolveAppSettings(null).google.drive.projectSubfolders.push("Mutated");
+    resolveAppSettings(row()).google.drive.projectSubfolders.push("Mutated");
+    expect(resolveAppSettings(null).google.drive.projectSubfolders).toEqual(STANDARD);
+    expect(resolveAppSettings(row()).google.drive.projectSubfolders).toEqual(STANDARD);
   });
 });
