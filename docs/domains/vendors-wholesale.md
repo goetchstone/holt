@@ -65,6 +65,7 @@ spellings, and those are identical for every dealer who opens the same book.
 | `pageRequires` | Patterns a page must carry to be a price grid, not a schematic |
 | `leatherPlacement` | Whether leather is a tier of the same frame or its own style |
 | `expandSkus` | For books where one price column covers several SKUs |
+| `layoutText` | For books whose names or descriptions wrap in ways the tab text cannot place: a map from SKU to name and description, read from positioned text (`readPdfTextItems`). When set it is their only source (see "Words read by position") |
 | `expect` | What this vendor's book looks like — style count, grade coverage, page range, cover markers — so the wrong edition is refused, not parsed to nothing (see "Edition assertion") |
 
 ## Rows the engine will not guess
@@ -91,6 +92,19 @@ list wraps onto the next line. The engine then imports **nothing** for that
 column, counts it in `stats.columnsUnplaceable`, and warns per page. A wrong SKU
 orders the wrong product; a missing one is visible and can be added by hand.
 → `app/__tests__/wholesaleVendorProfiles.test.ts`
+
+### Words read by position
+
+The tab renderer keeps a line's order but not where on the line each piece
+sat, and it merges runs within 3 pt vertically into one line. A column whose
+text wraps can therefore land in the wrong row. Bradington-Young's last name
+line was merged into `DESCRIPTION:`, so a name fragment imported as every
+style's description on those pages. A profile with `layoutText` gets a second
+pass over the PDF's positioned text: `extractWholesaleGrid` calls it and
+`applyLayoutText` takes each style's name and description from the map. A
+style the map leaves out gets **neither**, rather than the rendered row's
+possibly wrong words. It is counted in `stats.layoutUnplaced` with one warning.
+→ `app/__tests__/bradingtonYoungLayoutText.test.ts`, `docs/domains/vendors/bradington-young.md`
 
 ## Grades are declared, never inferred
 
