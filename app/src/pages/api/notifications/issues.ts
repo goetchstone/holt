@@ -1,6 +1,7 @@
 // /app/src/pages/api/notifications/issues.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { isConfigured, getInstallationToken, getRepoCoordinates } from "@/lib/githubApp";
 import { logError } from "@/lib/logger";
 
@@ -60,7 +61,10 @@ async function fetchIssuesData(): Promise<IssuesResponse> {
   };
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+// The staff nav's issue badge. It had no check at all, so anyone on the
+// internet could read the configured repo's issue count and recent titles.
+// staff.self, as its sibling api/feedback (which files those issues) uses.
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -87,3 +91,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ openCount: 0, recentlyClosed: [] });
   }
 }
+
+export default requirePermission("staff.self", handler);

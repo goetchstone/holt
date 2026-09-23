@@ -5,10 +5,10 @@
 #
 # SEC-13 tranche 1 (2026-09-23): the guardAutomation routes are recognised as
 # gated, and the public-by-design routes moved to EXEMPT with a reason each.
-# What is left is real: signed in (getServerSession) but not authorized, plus
-# one with no session check at all -- notifications/issues serves the
-# configured GitHub repo's issue counts and titles to anyone. Tranche 2 gates
-# these with the sibling route's permission (PLAN rule 0.1.11).
+# What is left is real: signed in (getServerSession) but not authorized.
+# notifications/issues had no session check at all and is gated in the same
+# PR (staff.self, as its api/feedback sibling). Tranche 2 gates the rest with
+# the sibling route's permission (PLAN rule 0.1.11).
 src/pages/api/automations/import-health.ts
 src/pages/api/automations/import-history.ts
 src/pages/api/automations/mailchimp-health.ts
@@ -21,7 +21,6 @@ src/pages/api/inventory/onhand-by-location.ts
 src/pages/api/inventory/product-variance/[externalId].ts
 src/pages/api/inventory/summary-details.ts
 src/pages/api/mailchimp/campaigns/index.ts
-src/pages/api/notifications/issues.ts
 src/pages/api/pricing/dimensions.ts
 src/pages/api/pricing/products.ts
 src/pages/api/pricing/se-components.ts
