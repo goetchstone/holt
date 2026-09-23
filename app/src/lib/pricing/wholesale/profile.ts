@@ -190,6 +190,10 @@ export interface WholesaleVendorProfile {
    * and a price.
    */
   expandSkus?(itemCell: string, gridLines: readonly string[], column: number): string[];
+  // Return [] when a column's SKUs cannot be determined without guessing (a
+  // family whose suffix cannot be placed, or whose item list wraps onto the
+  // next line). The engine then imports nothing for that column, counts it in
+  // stats.columnsUnplaceable, and says so -- a wrong SKU orders the wrong product.
   /**
    * A printed MSRP/retail row, where the book has one.
    *

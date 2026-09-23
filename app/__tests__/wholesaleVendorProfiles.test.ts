@@ -65,14 +65,21 @@ const HOOKER = page(
   ].join("\n"),
 );
 
-// Leather-only, and a "/"-joined SKU family sharing one price column.
+// Leather-only, and a "/"-joined SKU family sharing one price column. Mirrors
+// the July 2026 edition: the suffix line carries NO label and only the family
+// column prints one; width and height are self-labelled lines; depth rides in
+// OVERALL DIMENSIONS as `D  38"`. The book prints no STYLE NAME row at all.
+// (An earlier version of this fixture invented `SUFFIX:` and `STYLE NAME:`
+// labels the book never prints -- which is how a suffix bug hid for months.)
 const BRADINGTON_YOUNG = page(
   7,
   [
     "ITEM NUMBER:\t770/771/772/773/774\t880",
-    "SUFFIX:\t-87\t",
-    "STYLE NAME:\tMadison\tHalstead",
-    "OVERALL Width:\t32\t30",
+    "-87",
+    "DESCRIPTION:\tRecliner\tChair",
+    'W  32"\tW  30"',
+    'OVERALL DIMENSIONS:\tD  38"\tD  36 1/2"',
+    'H  40"\tH  39"',
     "LEATHER - GRADE 1\t1,000\t900",
     "LEATHER - GRADE 4\t1,300\tN/A",
     "LEATHER - NOVELTY\t1,400\t1,250",
@@ -190,6 +197,13 @@ describe("one engine, three books", () => {
     expect(gradeMap(out[5].gradePrices)).not.toHaveProperty("L4");
   });
 
+  it("reads overall dimensions from W and H lines and a depth-carrying OVERALL DIMENSIONS row", () => {
+    const out = parseRenderedGrid(BRADINGTON_YOUNG, profile("bradington-young")).data;
+    const chair = out[out.length - 1];
+    expect([chair.overallWidth, chair.overallDepth, chair.overallHeight]).toEqual([30, 36.5, 39]);
+    expect(out[0].description).toBe("Recliner");
+  });
+
   // "LEATHER - NOVELTY PREMIUM" starts with "LEATHER - NOVELTY". Match the short
   // label first and every premium row silently prices as plain novelty -- one
   // tier low, on the most expensive rung in the book.
@@ -238,6 +252,62 @@ describe("one engine, three books", () => {
     expect(out.summary.errorCount).toBe(1);
     expect(out.diagnostics.map((d) => d.level)).toEqual(["error"]);
     expect(out.diagnostics[0].message).toMatch(/dropped by pageRequires/);
+  });
+});
+
+// Bradington-Young's suffix line has no label, and only FAMILY columns print a
+// suffix. Read positionally after dropping a "label", every family took its
+// neighbour's suffix: on the real July 2026 book, 487 of 598 family SKUs --
+// the part number a dealer orders by -- imported wrong.
+describe("Bradington-Young: a family's suffix is the one printed for it", () => {
+  const by = () => profile("bradington-young");
+  const grid = (lines: string[]) => page(9, lines.join("\n"));
+  const skus = (text: string) => parseRenderedGrid(text, by()).data.map((p) => p.styleNumber);
+
+  it("gives each family column its own suffix, from an unlabelled line", () => {
+    const text = grid([
+      "ITEM NUMBER:\t201/202\t201/202\t201/202",
+      "-OT\t-07\t-25SW",
+      "LEATHER - GRADE 1\t$100\t$110\t$120",
+    ]);
+    expect(skus(text)).toEqual(["201-OT", "202-OT", "201-07", "202-07", "201-25SW", "202-25SW"]);
+  });
+
+  it("skips single-style columns when handing out suffixes, even with a name glued on", () => {
+    const text = grid([
+      "ITEM NUMBER:\t880\t301/302\t401/402",
+      "WEST HAVEN\t-CO\t-OT",
+      "LEATHER - GRADE 1\t$100\t$110\t$120",
+    ]);
+    expect(skus(text)).toEqual(["880", "301-CO", "302-CO", "401-OT", "402-OT"]);
+  });
+
+  it("keeps a family the book prints without any suffix", () => {
+    const text = grid(["ITEM NUMBER:\t501/502", "DESCRIPTION:\tSofa", "LEATHER - GRADE 1\t$100"]);
+    expect(skus(text)).toEqual(["501", "502"]);
+  });
+
+  // The number list continues on the next line, so the item cell is truncated
+  // and the suffix is out of reach: any SKU emitted would be incomplete or wrong.
+  it("imports nothing for a family whose list wraps, and says so", () => {
+    const text = grid([
+      "ITEM NUMBER:\t701/702\t880",
+      "703/704\tKYLAN",
+      "LEATHER - GRADE 1\t$100\t$110",
+    ]);
+    const out = parseRenderedGrid(text, by());
+    expect(out.data.map((p) => p.styleNumber)).toEqual(["880"]);
+    expect(out.stats.columnsUnplaceable).toBe(1);
+    expect(
+      out.diagnostics.some((d) => /page 9: 1 priced column\(s\) not imported/.test(d.message)),
+    ).toBe(true);
+  });
+
+  it("imports nothing when the suffixes cannot be matched one per family column", () => {
+    const text = grid(["ITEM NUMBER:\t201/202\t301/302", "-OT", "LEATHER - GRADE 1\t$100\t$110"]);
+    const out = parseRenderedGrid(text, by());
+    expect(out.data).toEqual([]);
+    expect(out.stats.columnsUnplaceable).toBe(2);
   });
 });
 
