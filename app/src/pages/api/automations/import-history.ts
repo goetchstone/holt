@@ -1,17 +1,13 @@
 // /app/src/pages/api/automations/import-history.ts
 
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
 
   const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10));
   const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || "50"), 10)));
@@ -41,3 +37,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   });
 }
+
+export default requirePermission("admin.data", handler);

@@ -6,16 +6,12 @@
 // only rendered to signed-in users; the values aren't sensitive (just which
 // optional modules are active).
 
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { getAppSettings } from "@/lib/appSettings";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -28,3 +24,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to load feature flags" });
   }
 }
+
+export default requirePermission("staff.self", handler);

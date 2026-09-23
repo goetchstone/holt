@@ -28,7 +28,7 @@ import { resetTestDb } from "@/lib/testing/withTestDb";
 import { parseRenderedGrid } from "@/lib/pricing/wholesale/columnGrid";
 import { wholesaleProfileFor } from "@/lib/pricing/wholesale/registry";
 import { handler as wholesaleImport } from "@/pages/api/pricing/import/wholesale-prices";
-import productsHandler from "@/pages/api/pricing/products";
+import { handler as productsHandler } from "@/pages/api/pricing/products";
 import { calculatePrice, type ProductWithPricing } from "@/lib/pricing/priceCalculator";
 
 const sessionMock = getServerSession as jest.Mock;

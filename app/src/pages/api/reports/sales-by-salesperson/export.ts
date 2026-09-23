@@ -9,12 +9,13 @@
 // (src/lib/reports/salesBySalespersonReport.ts) — the same source of
 // truth the App Router page + tRPC procedures use. This endpoint stays
 // a REST download (a browser file download can't ride tRPC), so it
-// owns its own session read + query parsing here.
+// parses its own query. The session comes from requirePermission
+// ("reporting.read", the page's key: reporting.export would 403 the HR
+// users this export exists for).
 
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
 import type { Session } from "next-auth";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { formatMarginPct } from "@/lib/marginMath";
@@ -138,9 +139,7 @@ function sessionAuth(session: Session): SalesBySalespersonAuth {
   };
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end("Method Not Allowed");
@@ -194,3 +193,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: message });
   }
 }
+
+export default requirePermission("reporting.read", handler);

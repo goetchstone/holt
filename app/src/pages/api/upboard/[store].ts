@@ -2,17 +2,13 @@
 // GET /api/upboard/[store] — get the up-board for a store
 // Auto-expires shifts older than 9 hours on every read.
 
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { isModuleEnabled } from "@/lib/modules/requireModule";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { expireStaleShifts } from "@/lib/upboard";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (!(await isModuleEnabled("upBoard"))) {
     return res.status(404).json({ error: "Module not enabled" });
   }
@@ -37,3 +33,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(405).json({ error: "Method not allowed" });
 }
+
+export default requirePermission("staff.self", handler);

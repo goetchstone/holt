@@ -1,9 +1,8 @@
 // /app/src/pages/api/mailchimp/campaigns/index.ts
 
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { NextApiRequest, NextApiResponse } from "next";
 import axios from "axios";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { logError } from "@/lib/logger";
 import { mailchimpDatacenter, mailchimpBaseUrl } from "@/lib/mailchimp/baseUrl";
 
@@ -11,10 +10,7 @@ const mailchimpApiKey = process.env.MAILCHIMP_API_KEY as string;
 const dc = mailchimpDatacenter(mailchimpApiKey) ?? "";
 const baseUrl = mailchimpBaseUrl(dc);
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const response = await axios.get(`${baseUrl}/campaigns`, {
       auth: {
@@ -43,3 +39,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: "Failed to fetch campaigns" });
   }
 }
+
+export default requirePermission("reporting.read", handler);
