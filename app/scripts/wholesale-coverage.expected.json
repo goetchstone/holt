@@ -31,7 +31,7 @@
       "type": "wholesale",
       "expect": {
         "status": "parsed",
-        "count": 833
+        "count": 771
       }
     },
     {

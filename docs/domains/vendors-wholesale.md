@@ -84,6 +84,12 @@ A leather-SKU row (`leatherStyleNumber`) is sparse by nature — a SKU prints on
 for styles offered in leather — so it is never read by position. Each SKU is
 given to the style whose number it extends, the longest such (`1344-005-L` →
 `1344-005`, not a sibling `1344`).
+
+A profile's `expandSkus` returns `[]` when a column's SKUs cannot be named
+without guessing — a SKU family whose suffix cannot be placed, or whose number
+list wraps onto the next line. The engine then imports **nothing** for that
+column, counts it in `stats.columnsUnplaceable`, and warns per page. A wrong SKU
+orders the wrong product; a missing one is visible and can be added by hand.
 → `app/__tests__/wholesaleVendorProfiles.test.ts`
 
 ## Grades are declared, never inferred

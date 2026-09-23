@@ -51,6 +51,7 @@ describe("parseRenderedGrid explains its zeros", () => {
       grids: 1,
       columnsDropped: 0,
       rowsMisaligned: 0,
+      columnsUnplaceable: 0,
     });
     expect(out.summary).toMatchObject({ successCount: 2, errorCount: 0 });
   });
