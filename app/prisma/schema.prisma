@@ -5011,6 +5011,12 @@ model AppSettings {
   // Admin -> Settings -> Integrations.
   google Json?
 
+  // Lifetime, in hours, of an order-portal link (lib/portalToken.ts). Those links
+  // are non-revocable capability tokens, so they expire quickly. NULLABLE: unset
+  // resolves to 48 hours (appSettings.ts); the settings API accepts 1-168 (it was
+  // a fixed 7 days before SEC-08).
+  portalTokenTtlHours Int?
+
   // Last-resort tax jurisdiction: resolveTaxRate.ts's fallback when a sale's
   // customer has no district override and the selling store has no
   // taxDistrictId of its own. Replaces the `shortName: "CT"` literal that

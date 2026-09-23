@@ -16,6 +16,7 @@ import {
   getAppSettings,
   invalidateAppSettingsCache,
   isHexColor,
+  PORTAL_TOKEN_TTL_MAX_HOURS,
   type ThemeKey,
 } from "@/lib/appSettings";
 import { isValidFeatureKey } from "@/lib/featureCatalog";
@@ -252,6 +253,30 @@ function parseGoogle(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// Order-portal link lifetime in hours. null clears it back to the 48-hour
+// default; anything outside 1..PORTAL_TOKEN_TTL_MAX_HOURS is refused here, at
+// the point of entry, rather than stored and silently ignored on read.
+function parsePortalTokenTtl(body: Body, data: SettingsData): ParseError {
+  if (body.portalTokenTtlHours === undefined) return null;
+  if (body.portalTokenTtlHours === null) {
+    data.portalTokenTtlHours = null;
+    return null;
+  }
+  const hours = body.portalTokenTtlHours;
+  if (
+    typeof hours !== "number" ||
+    !Number.isInteger(hours) ||
+    hours < 1 ||
+    hours > PORTAL_TOKEN_TTL_MAX_HOURS
+  ) {
+    return {
+      error: `portalTokenTtlHours must be a whole number of hours from 1 to ${PORTAL_TOKEN_TTL_MAX_HOURS}, or null for the 48-hour default`,
+    };
+  }
+  data.portalTokenTtlHours = hours;
+  return null;
+}
+
 const SETTINGS_PARSERS = [
   parseAppName,
   parseTextFields,
@@ -262,6 +287,7 @@ const SETTINGS_PARSERS = [
   parseBooking,
   parseSourceAdapter,
   parseGoogle,
+  parsePortalTokenTtl,
 ];
 
 async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Session) {

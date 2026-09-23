@@ -1,9 +1,11 @@
 // /app/__tests__/clientPortalToken.test.ts
 //
-// Pure tests for the client-portal capability token: round-trip, scope
-// isolation from the order-portal token, and rejection of garbage/tampered
-// values. The scope check is the load-bearing assertion — an order token
-// must never open the client hub.
+// Pure tests for the client-portal capability token: round-trip, isolation
+// from the order-portal token, and rejection of garbage/tampered values. The
+// isolation is the load-bearing assertion — an order token must never open the
+// client hub. It holds by audience, and the two families are signed with
+// different HKDF-derived keys (lib/capabilityToken.ts, SEC-08), no longer by a
+// `scope` claim over one shared key.
 
 import { generateClientPortalToken, verifyClientPortalToken } from "@/lib/clientPortalToken";
 import { generatePortalToken } from "@/lib/portalToken";
