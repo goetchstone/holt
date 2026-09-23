@@ -206,8 +206,8 @@
       "vendor": "hooker",
       "type": "wholesale",
       "expect": {
-        "status": "refused",
-        "reason": "profile expects a 'STYLE NUMBER:' header; the April 2026 book splits the label across lines (VAL-01)"
+        "status": "parsed",
+        "count": 94
       }
     },
     {
