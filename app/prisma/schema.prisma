@@ -131,6 +131,8 @@ model Vendor {
   updated   DateTime? @updatedAt
   createdBy String?
   updatedBy String?
+
+  @@index([isConsignment])
 }
 
 // Categorizes how a vendor prices their products so the pricing engine
@@ -1755,6 +1757,7 @@ model InventoryTransfer {
   @@index([fromLocation, toLocation])
   @@index([fromLocationId, toLocationId])
   @@index([status])
+  @@index([salesOrderId])
 }
 
 // ---------------------------------------------------------------------------
@@ -2761,7 +2764,10 @@ model InvoiceLineItem {
   invoiceId         Int
   invoice           Invoice        @relation(fields: [invoiceId], references: [id])
   orderLineItemId   Int?
-  orderLineItem     OrderLineItem? @relation(fields: [orderLineItemId], references: [id])
+  // Restrict, as the database has had since 0_init: an issued invoice's legacy
+  // delivery line carries no text of its own, so detaching its order line
+  // would leave a blank line on the invoice. (Unstated, Prisma reads SetNull.)
+  orderLineItem     OrderLineItem? @relation(fields: [orderLineItemId], references: [id], onDelete: Restrict)
   deliveredQuantity Decimal        @default(0)
 
   description String?
@@ -5538,6 +5544,12 @@ model LegacyOrder {
 
   @@index([saleDate])
   @@index([customerCode])
+  // Trigram GIN indexes for the archive search box (migration 20260610b). Declared
+  // here so `prisma migrate dev` stops proposing to drop them.
+  @@index([customerName(ops: raw("gin_trgm_ops"))], type: Gin, map: "LegacyOrder_customerName_trgm_idx")
+  @@index([companyName(ops: raw("gin_trgm_ops"))], type: Gin, map: "LegacyOrder_companyName_trgm_idx")
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "LegacyOrder_phone_trgm_idx")
+  @@index([address(ops: raw("gin_trgm_ops"))], type: Gin, map: "LegacyOrder_address_trgm_idx")
 }
 
 model LegacyOrderLine {
