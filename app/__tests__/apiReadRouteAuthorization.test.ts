@@ -60,6 +60,44 @@ const EXEMPT: Record<string, string> = {
     "Pre-authentication; authorized by a single-use emailed token, not a session.",
   "src/pages/api/uploads/[...path].ts":
     "File serving, not a domain resource. Private subdirs (imports, vendor PDFs, delivery-proof, proposals, and any subdir not explicitly public) require a session; product imagery and portal attachments are unauthenticated by design. A session is the correct gate here, not a permission (SEC-04).",
+  // Public by design, each read and verified 2026-09-23 (SEC-13 tranche 1).
+  "src/pages/api/automations/gmail-import.ts":
+    "A deprecated alias that delegates to automations/source-import.ts, where the gate lives (admin.data).",
+  "src/pages/api/health.ts": "Liveness probe for the container orchestrator; reports up/down only.",
+  "src/pages/api/stripe/webhook.ts":
+    "Stripe calls it with no session; authorized by the webhook signature (400 on a bad one).",
+  "src/pages/api/square/webhook.ts":
+    "Square calls it with no session; authorized by the webhook signature (400 on a bad one).",
+  "src/pages/api/stripe/session-status.ts":
+    "The customer's post-checkout page polls it; returns payment status only, never PII. Rate-limited.",
+  "src/pages/api/portal/order.ts":
+    "Customer order portal; authorized by the signed portal token (401 otherwise).",
+  "src/pages/api/portal/pay.ts":
+    "Customer order portal; authorized by the signed portal token (401 otherwise).",
+  "src/pages/api/client-portal/pay.ts":
+    "Client portal payment; authorized by the signed client-portal token, and 404 unless the module is on.",
+  "src/pages/api/portal/returns/[token].ts":
+    "Customer return status; authorized by the return's unguessable portalToken (404 otherwise).",
+  "src/pages/api/portal/returns/request.ts":
+    "Customer return request; authorized by the return's unguessable portalToken (404 otherwise).",
+  "src/pages/api/tickets/public/[token].ts":
+    "No-login ticket status page; the ticket's publicToken is the capability (404 otherwise).",
+  "src/pages/api/tickets/public/[token]/attachment.ts":
+    "Attachment upload from the public ticket page; the publicToken is the capability (404 otherwise).",
+  "src/pages/api/bookings/[id]/ics.ts":
+    "A customer's calendar file for their booking; authorized by the booking token (403 otherwise).",
+  "src/pages/api/bookings/feed.ics.ts":
+    "The staff calendar subscription; authorized by the configured ?token= (404 when absent or wrong).",
+  "src/pages/api/bookings/availability.ts":
+    "The storefront's public booking picker: open slots only. Rate-limited.",
+  "src/pages/api/services/public.ts":
+    "The storefront's public list of bookable services. Rate-limited.",
+  "src/pages/api/comments/index.ts":
+    "Public blog comments, POST only, rate-limited; 404 unless comments are enabled.",
+  "src/pages/api/lead-magnet.ts":
+    "Public email capture; always answers ok so it cannot probe which emails exist. Rate-limited.",
+  "src/pages/api/tools/dmarc-check.ts":
+    "Public DMARC lookup tool; 404 unless the dmarcTools module is on. Rate-limited.",
 };
 
 /**
@@ -82,8 +120,10 @@ const KNOWN_UNGATED: string[] = readFileSync(
   .map((l) => l.trim())
   .filter((l) => l && !l.startsWith("#"));
 
+// guardAutomation (lib/automations/guardAutomation.ts) is requirePermission
+// ("admin.automations") behind the scheduler's service-key bypass (SEC-02).
 const AUTHORIZES =
-  /requirePermission\s*\(|requireAuthWithRole\s*\(|\brequireAuth\s*\(|(role|Role)\s*[!=]==?\s*"/;
+  /requirePermission\s*\(|requireAuthWithRole\s*\(|\brequireAuth\s*\(|guardAutomation\s*\(|(role|Role)\s*[!=]==?\s*"/;
 
 function allApiRoutes(): string[] {
   return execFileSync("find", ["src/pages/api", "-name", "*.ts"], {
