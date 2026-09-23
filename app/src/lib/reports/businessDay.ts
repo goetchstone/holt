@@ -132,6 +132,17 @@ export function businessDayKey(instant: Date, timeZone: string): string {
 }
 
 /**
+ * The YYMMDD stamp in a generated number (`RET-260923-001`), for the business
+ * day `instant` falls on. Every such generator used to read the server's clock
+ * (`now.getFullYear()`, `getDate()`), so on a UTC server anything created in a
+ * US evening was stamped with tomorrow's date (QUA-14).
+ */
+export function businessDayStamp(instant: Date, timeZone: string): string {
+  const [yyyy, mm, dd] = businessDayKey(instant, timeZone).split("-");
+  return `${yyyy.slice(2)}${mm}${dd}`;
+}
+
+/**
  * Is `timeZone` a zone the runtime actually understands?
  *
  * Every function above feeds `timeZone` to `Intl.DateTimeFormat`, which throws

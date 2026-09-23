@@ -1,5 +1,7 @@
 // /app/src/lib/deliveryService.ts
 
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayStamp } from "@/lib/reports/businessDay";
 import { prisma } from "@/lib/prisma";
 import type { DeliveryRunStatus, DeliveryStopStatus } from "@prisma/client";
 
@@ -44,10 +46,8 @@ export function getValidStopTransitions(from: DeliveryStopStatus): DeliveryStopS
 // Generate run number: DR-YYMMDD-NNN
 export async function generateRunNumber(): Promise<string> {
   const now = new Date();
-  const yy = now.getFullYear().toString().slice(-2);
-  const mm = (now.getMonth() + 1).toString().padStart(2, "0");
-  const dd = now.getDate().toString().padStart(2, "0");
-  const prefix = `DR-${yy}${mm}${dd}-`;
+  const stamp = businessDayStamp(now, await getBusinessTimeZone());
+  const prefix = `DR-${stamp}-`;
 
   const last = await prisma.deliveryRun.findFirst({
     where: { runNumber: { startsWith: prefix } },
@@ -67,10 +67,8 @@ export async function generateRunNumber(): Promise<string> {
 // Generate pick list number: PL-YYMMDD-NNN
 export async function generatePickListNumber(): Promise<string> {
   const now = new Date();
-  const yy = now.getFullYear().toString().slice(-2);
-  const mm = (now.getMonth() + 1).toString().padStart(2, "0");
-  const dd = now.getDate().toString().padStart(2, "0");
-  const prefix = `PL-${yy}${mm}${dd}-`;
+  const stamp = businessDayStamp(now, await getBusinessTimeZone());
+  const prefix = `PL-${stamp}-`;
 
   const last = await prisma.pickList.findFirst({
     where: { pickListNumber: { startsWith: prefix } },

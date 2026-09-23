@@ -62,8 +62,16 @@ describe("computeInvoiceTotals", () => {
 
 describe("formatInvoiceNumber", () => {
   it("formats INV-YYMMDD-NNN", () => {
-    expect(formatInvoiceNumber(new Date(2026, 5, 10), 7)).toBe("INV-260610-007");
-    expect(formatInvoiceNumber(new Date(2026, 11, 1), 123)).toBe("INV-261201-123");
+    expect(formatInvoiceNumber(new Date("2026-06-10T15:00:00Z"), 7, "UTC")).toBe("INV-260610-007");
+    expect(formatInvoiceNumber(new Date("2026-12-01T15:00:00Z"), 123, "UTC")).toBe(
+      "INV-261201-123",
+    );
+  });
+
+  // QUA-14: an invoice issued at 9 pm Eastern is dated that day, not tomorrow.
+  it("dates the number by the business day in its timezone", () => {
+    const evening = new Date("2026-06-11T01:00:00Z");
+    expect(formatInvoiceNumber(evening, 1, "America/New_York")).toBe("INV-260610-001");
   });
 });
 

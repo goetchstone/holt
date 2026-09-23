@@ -22,7 +22,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { appendEntry } from "@/lib/customerLedger";
 import { isValidApplication } from "@/lib/arEngine";
-import { DEFAULT_ORG_ID } from "@/lib/appSettings";
+import { DEFAULT_ORG_ID, getBusinessTimeZone } from "@/lib/appSettings";
 import {
   computeInvoiceTotals,
   formatInvoiceNumber,
@@ -113,7 +113,8 @@ function openBalanceOf(
 }
 
 async function nextInvoiceNumber(tx: Tx, date: Date): Promise<string> {
-  const probe = formatInvoiceNumber(date, 1);
+  const timeZone = await getBusinessTimeZone();
+  const probe = formatInvoiceNumber(date, 1, timeZone);
   const prefix = probe.slice(0, probe.lastIndexOf("-") + 1);
   const last = await tx.invoice.findFirst({
     where: { invoiceNo: { startsWith: prefix } },
@@ -125,7 +126,7 @@ async function nextInvoiceNumber(tx: Tx, date: Date): Promise<string> {
     const lastSeq = Number.parseInt(last.invoiceNo.slice(prefix.length), 10);
     if (!Number.isNaN(lastSeq)) seq = lastSeq + 1;
   }
-  return formatInvoiceNumber(date, seq);
+  return formatInvoiceNumber(date, seq, timeZone);
 }
 
 interface ArGlMappings {

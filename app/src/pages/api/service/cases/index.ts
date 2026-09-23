@@ -1,5 +1,7 @@
 // /app/src/pages/api/service/cases/index.ts
 
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayStamp } from "@/lib/reports/businessDay";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
@@ -144,10 +146,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
     try {
       const now = new Date();
-      const yy = String(now.getFullYear()).slice(2);
-      const mm = String(now.getMonth() + 1).padStart(2, "0");
-      const dd = String(now.getDate()).padStart(2, "0");
-      const datePrefix = `CS-${yy}${mm}${dd}`;
+      const stamp = businessDayStamp(now, await getBusinessTimeZone());
+      const datePrefix = `CS-${stamp}`;
 
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const endOfDay = new Date(startOfDay.getTime() + 86400000);
