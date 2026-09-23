@@ -134,6 +134,122 @@ function IntegrationCard({
   );
 }
 
+// Google Drive/Slides project-creation config. Non-secret identifiers, so they
+// are shown in plaintext (unlike the encrypted credentials above) and stored in
+// AppSettings via the general settings API. Until the folder and template are
+// set, Sales → Create Project is refused (503).
+function GoogleDriveProjectsCard() {
+  const [rootFolderId, setRootFolderId] = useState("");
+  const [templateId, setTemplateId] = useState("");
+  const [subfolders, setSubfolders] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/settings");
+        if (res.ok) {
+          const g = (await res.json()).settings?.google;
+          setRootFolderId(g?.drive?.projectsRootFolderId ?? "");
+          setTemplateId(g?.slides?.templatePresentationId ?? "");
+          setSubfolders((g?.drive?.projectSubfolders ?? []).join(", "));
+        }
+      } catch (err: unknown) {
+        toast.error(getErrorMessage(err, "Failed to load Google Drive settings"));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          google: {
+            drive: {
+              projectsRootFolderId: rootFolderId.trim() || null,
+              projectSubfolders: subfolders
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean),
+            },
+            slides: { templatePresentationId: templateId.trim() || null },
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(serverError(data, "Failed to save Google Drive settings"));
+      toast.success("Saved");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to save Google Drive settings"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return null;
+
+  const inputClass =
+    "w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none";
+
+  return (
+    <div className="rounded-md border border-brand-accent-gray p-4">
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold text-brand-black">Google Drive Projects</h3>
+        <p className="text-xs text-brand-gray">
+          Where Create Project builds each project folder in Drive and copies the Slides deck. These
+          are folder and file IDs, not secrets. Until both are set, Create Project is refused.
+        </p>
+      </div>
+      <div className="space-y-3">
+        <label className="block">
+          <span className="mb-1 block text-xs text-brand-gray">Projects root folder ID</span>
+          <input
+            type="text"
+            value={rootFolderId}
+            onChange={(e) => setRootFolderId(e.target.value)}
+            placeholder="Google Drive folder ID"
+            className={inputClass}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-brand-gray">
+            Slides template presentation ID
+          </span>
+          <input
+            type="text"
+            value={templateId}
+            onChange={(e) => setTemplateId(e.target.value)}
+            placeholder="Google Slides file ID"
+            className={inputClass}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs text-brand-gray">
+            Subfolders created in each project (comma-separated). Keep Presentation — the deck is
+            copied there. Blank uses the standard six.
+          </span>
+          <input
+            type="text"
+            value={subfolders}
+            onChange={(e) => setSubfolders(e.target.value)}
+            placeholder="Windows, Rugs, Fabrics, Furniture, Photos, Presentation"
+            className={inputClass}
+          />
+        </label>
+        <Button variant="secondary" size="sm" onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function IntegrationsView() {
   const [credentials, setCredentials] = useState<MaskedCred[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -248,6 +364,7 @@ export function IntegrationsView() {
           onTest={testConnection}
         />
       ))}
+      <GoogleDriveProjectsCard />
     </div>
   );
 }

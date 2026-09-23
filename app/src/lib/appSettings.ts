@@ -73,7 +73,25 @@ export interface ResolvedAppSettings {
   /** Store-wide retail markup fallback. null = unset; the catalog then shows
    * cost and refuses to invent a retail price when a vendor also lacks one. */
   pricing: { defaultMarkup: number | null };
+  /** Google Drive/Slides project-creation config. A null folder or template =>
+   * the Create Project route refuses (503) rather than writing into the wrong
+   * Drive; the subfolder list defaults to the standard set. */
+  google: {
+    drive: { projectsRootFolderId: string | null; projectSubfolders: string[] };
+    slides: { templatePresentationId: string | null };
+  };
 }
+
+// The subfolders created in each project folder when the deployment has not
+// configured its own list. Order is the display/creation order.
+const DEFAULT_GOOGLE_SUBFOLDERS = [
+  "Windows",
+  "Rugs",
+  "Fabrics",
+  "Furniture",
+  "Photos",
+  "Presentation",
+];
 
 export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   organizationId: DEFAULT_ORG_ID,
@@ -93,6 +111,10 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   bookingConfig: { ...BOOKING_DEFAULTS },
   sourceAdapterId: "none",
   pricing: { defaultMarkup: null },
+  google: {
+    drive: { projectsRootFolderId: null, projectSubfolders: [...DEFAULT_GOOGLE_SUBFOLDERS] },
+    slides: { templatePresentationId: null },
+  },
 };
 
 // Loosely typed view of the DB row -- the Json columns arrive as unknown.
@@ -113,6 +135,7 @@ interface AppSettingsRow {
   bookingConfig: unknown;
   // Loose: absent (partial select / pre-column row) resolves to no fallback.
   pricing?: unknown;
+  google?: unknown;
   // Optional because this is a LOOSE view of the row: a partial select, or a
   // row read before the column existed, simply doesn't carry it. Absent
   // resolves to the default exactly as an empty string does.
@@ -133,6 +156,10 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
       features: {},
       bookingConfig: { ...BOOKING_DEFAULTS },
       pricing: { defaultMarkup: null },
+      google: {
+        drive: { projectsRootFolderId: null, projectSubfolders: [...DEFAULT_GOOGLE_SUBFOLDERS] },
+        slides: { templatePresentationId: null },
+      },
     };
   }
 
@@ -172,6 +199,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     // build" rather than silently reverting to "none".
     sourceAdapterId: row.sourceAdapterId?.trim() || DEFAULT_APP_SETTINGS.sourceAdapterId,
     pricing: parsePricingConfig(row.pricing),
+    google: parseGoogleConfig(row.google),
   };
 }
 
@@ -184,6 +212,37 @@ function parsePricingConfig(raw: unknown): { defaultMarkup: number | null } {
     if (typeof m === "number" && Number.isFinite(m) && m > 0) return { defaultMarkup: m };
   }
   return { defaultMarkup: null };
+}
+
+// Google project-creation config, fail-closed like pricing: the folder and
+// template ids resolve to null unless an explicit non-empty string is stored,
+// so an unconfigured deployment is refused rather than pointed at the wrong
+// Drive. The subfolder list falls back to the standard set when absent or empty.
+function parseGoogleConfig(raw: unknown): ResolvedAppSettings["google"] {
+  let projectsRootFolderId: string | null = null;
+  let templatePresentationId: string | null = null;
+  let projectSubfolders = [...DEFAULT_GOOGLE_SUBFOLDERS];
+  if (isRecord(raw)) {
+    if (isRecord(raw.drive)) {
+      const root = raw.drive.projectsRootFolderId;
+      if (typeof root === "string" && root.trim()) projectsRootFolderId = root.trim();
+      const subs = raw.drive.projectSubfolders;
+      if (Array.isArray(subs)) {
+        const cleaned = subs
+          .filter((s): s is string => typeof s === "string" && s.trim() !== "")
+          .map((s) => s.trim());
+        if (cleaned.length > 0) projectSubfolders = cleaned;
+      }
+    }
+    if (isRecord(raw.slides)) {
+      const tmpl = raw.slides.templatePresentationId;
+      if (typeof tmpl === "string" && tmpl.trim()) templatePresentationId = tmpl.trim();
+    }
+  }
+  return {
+    drive: { projectsRootFolderId, projectSubfolders },
+    slides: { templatePresentationId },
+  };
 }
 
 const cache = new Map<number, { value: ResolvedAppSettings; expires: number }>();
