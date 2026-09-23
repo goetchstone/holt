@@ -11,7 +11,6 @@ import path from "path";
 import { createSecureForm } from "@/lib/secureUpload";
 import { safePathJoin, PathTraversalError } from "@/lib/safePathJoin";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 
 export const config = {
   api: { bodyParser: false },
@@ -101,10 +100,7 @@ async function handleUpload(
     return res.json({ imageUrl });
   } catch (error: unknown) {
     logError("Style image upload error", error);
-    return res.status(500).json({
-      error: "Image upload failed",
-      details: getErrorMessage(error, "Internal server error"),
-    });
+    return res.status(500).json({ error: "Image upload failed" });
   }
 }
 
@@ -142,9 +138,6 @@ async function handleDelete(
     return res.json({ imageUrl: null });
   } catch (error: unknown) {
     logError("Style image delete error", error);
-    return res.status(500).json({
-      error: "Image removal failed",
-      details: getErrorMessage(error, "Internal server error"),
-    });
+    return res.status(500).json({ error: "Image removal failed" });
   }
 }

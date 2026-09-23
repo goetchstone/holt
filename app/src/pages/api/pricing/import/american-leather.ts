@@ -9,6 +9,7 @@
 // option, the program-level multiplier derives an estimated retail.
 
 import { getErrorMessage } from "@/lib/toastError";
+import { logError } from "@/lib/logger";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import type { ALParsedProduct, ALParsedPage } from "@/lib/pricing/americanLeatherExtractor";
@@ -682,10 +683,8 @@ export default requirePermission(
         ...result,
       });
     } catch (error: unknown) {
-      return res.status(500).json({
-        error: "Import failed",
-        details: getErrorMessage(error, "Unknown error"),
-      });
+      logError("American Leather import failed", error);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

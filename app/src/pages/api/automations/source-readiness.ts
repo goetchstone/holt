@@ -14,7 +14,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { getActiveSourceAdapter } from "@/lib/adapters";
-import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
 export default requirePermission(
@@ -30,7 +29,7 @@ export default requirePermission(
       return res.status(200).json({ ...readiness, sourceAdapterId: adapter.id });
     } catch (err: unknown) {
       logError("Source readiness check failed", err);
-      return res.status(500).json({ error: getErrorMessage(err, "Readiness check failed") });
+      return res.status(500).json({ error: "Readiness check failed" });
     }
   },
 );

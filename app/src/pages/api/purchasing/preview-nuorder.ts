@@ -5,11 +5,11 @@
 // to show a preview before the user confirms department/category selections.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { logError } from "@/lib/logger";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { parseNuOrderPDF } from "@/lib/pricing/nuorderParser";
 import fs from "fs";
 import { createSecureForm } from "@/lib/secureUpload";
-import { getErrorMessage } from "@/lib/toastError";
 
 export const config = { api: { bodyParser: false } };
 
@@ -31,7 +31,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     return res.status(200).json(parsed);
   } catch (error: unknown) {
-    return res.status(500).json({ error: getErrorMessage(error, "Parse failed") });
+    logError("NuORDER preview: parse failed", error);
+    return res.status(500).json({ error: "Parse failed" });
   }
 }
 

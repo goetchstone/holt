@@ -8,7 +8,6 @@ import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 
 const limiter = rateLimit({ windowMs: 60_000, maxRequests: 60 });
 
@@ -35,6 +34,6 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
     });
   } catch (err: unknown) {
     logError("Public services list failed", err);
-    return res.status(500).json({ error: getErrorMessage(err, "Could not load services") });
+    return res.status(500).json({ error: "Could not load services" });
   }
 });

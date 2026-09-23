@@ -7,7 +7,6 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const id = Number.parseInt(req.query.id as string);
@@ -181,9 +180,6 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, id: number) 
     return res.json(updated);
   } catch (error: unknown) {
     logError("Style update error", error);
-    return res.status(500).json({
-      error: "Failed to update style",
-      details: getErrorMessage(error, "Internal server error"),
-    });
+    return res.status(500).json({ error: "Failed to update style" });
   }
 }

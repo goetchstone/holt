@@ -11,7 +11,6 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 import { getAppSettings } from "@/lib/appSettings";
 
 // The retail markup for a vendor: its own if set, else the store-wide fallback,
@@ -360,10 +359,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (error: unknown) {
     logError("Pricing products query error", error);
-    return res.status(500).json({
-      error: "Failed to fetch products",
-      details: getErrorMessage(error, "Internal server error"),
-    });
+    return res.status(500).json({ error: "Failed to fetch products" });
   }
 }
 

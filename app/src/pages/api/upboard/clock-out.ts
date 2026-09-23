@@ -13,7 +13,6 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { compactAndPromote } from "@/lib/upboard";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (!(await isModuleEnabled("upBoard"))) {
@@ -50,7 +49,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.json({ success: true });
   } catch (err: unknown) {
     logError("Clock-out error", err);
-    return res.status(500).json({ error: getErrorMessage(err, "Failed to clock out") });
+    return res.status(500).json({ error: "Failed to clock out" });
   }
 }
 

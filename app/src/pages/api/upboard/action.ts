@@ -16,7 +16,6 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 
 async function promoteNextUp(storeLocation: string) {
   // Find the first AVAILABLE person
@@ -190,7 +189,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     return res.json({ board, interactionId });
   } catch (err: unknown) {
     logError("Up-board action error", err);
-    return res.status(500).json({ error: getErrorMessage(err, "Up-board action failed") });
+    return res.status(500).json({ error: "Up-board action failed" });
   }
 }
 

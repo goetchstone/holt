@@ -10,7 +10,6 @@ import { type Slot } from "@/lib/booking/slots";
 import { loadAvailableSlots } from "@/lib/booking/loadSlots";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 
 const limiter = rateLimit({ windowMs: 60_000, maxRequests: 60 });
 
@@ -33,6 +32,6 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
     return res.status(200).json({ slots: toIso(slots) });
   } catch (err: unknown) {
     logError("Booking availability failed", err);
-    return res.status(500).json({ error: getErrorMessage(err, "Could not load availability") });
+    return res.status(500).json({ error: "Could not load availability" });
   }
 });

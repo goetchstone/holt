@@ -67,7 +67,7 @@ Rules recovered from the sibling constitution, evidenced in this repo:
 | 5 | `.github/dependabot.yml` |
 | 6 | `src/lib/auth/roleDecision.ts` |
 | 7 | `src/lib/integrationCatalog.ts`, `ticketContract.ts`, 10+ files |
-| 11 | `BookingView.tsx` |
+| 11 | `BookingView.tsx`; the 500 clause: QUA-04, 37 sites in 32 routes put `getErrorMessage(err)` in a 500 body, two of them public; `__tests__/api500Bodies.test.ts` |
 | 12 | `__tests__/invoiceAuthoring.test.ts` |
 | 13 | `docs/domains/import-pipeline.md` |
 | 14 | `buyerDraftRequestBody.ts`, `timeEntries/duration.ts`, 30+ files |

@@ -1406,10 +1406,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         });
       }
       logError("Wholesale import error", error);
-      return res.status(500).json({
-        error: "Import failed",
-        details: getErrorMessage(error, "Unknown error"),
-      });
+      return res.status(500).json({ error: "Import failed" });
     }
   }
 }
