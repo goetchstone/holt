@@ -256,7 +256,7 @@ export default function DraftPoModal({
                   type="text"
                   value={form.referenceNumber}
                   onChange={(e) => setForm((f) => ({ ...f, referenceNumber: e.target.value }))}
-                  placeholder="e.g. SH-FALL26-WH-1"
+                  placeholder="e.g. FALL26-WH-1"
                   className="w-full px-3 py-2 border border-brand-stripe rounded text-base"
                 />
               </div>

@@ -16,6 +16,7 @@ import { logError } from "@/lib/logger";
 import { isValidTimeZone } from "@/lib/reports/businessDay";
 import type { Branding } from "@/lib/branding";
 import { parseBookingConfig, BOOKING_DEFAULTS, type BookingConfig } from "@/lib/booking/config";
+import { parsePrefix } from "@/lib/numberingPrefix";
 
 export const DEFAULT_ORG_ID = 1;
 
@@ -83,6 +84,11 @@ export interface ResolvedAppSettings {
   /** Order-portal link lifetime in hours, 1-PORTAL_TOKEN_TTL_MAX_HOURS. null =
    * unset; generatePortalToken then applies its 48-hour default. */
   portalTokenTtlHours: number | null;
+  /** The prefix set for sales-order numbers, or null (unset). Read it through
+   * numberingPrefix.effectivePrefix, which supplies the default. */
+  orderNumberPrefix: string | null;
+  /** The prefix set for generated barcodes, or null. As above. */
+  barcodePrefix: string | null;
 }
 
 /** Upper bound on an order-portal link's lifetime: those links are not
@@ -124,6 +130,8 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
     slides: { templatePresentationId: null },
   },
   portalTokenTtlHours: null,
+  orderNumberPrefix: null,
+  barcodePrefix: null,
 };
 
 // Loosely typed view of the DB row -- the Json columns arrive as unknown.
@@ -146,6 +154,8 @@ interface AppSettingsRow {
   pricing?: unknown;
   google?: unknown;
   portalTokenTtlHours?: number | null;
+  orderNumberPrefix?: string | null;
+  barcodePrefix?: string | null;
   // Optional because this is a LOOSE view of the row: a partial select, or a
   // row read before the column existed, simply doesn't carry it. Absent
   // resolves to the default exactly as an empty string does.
@@ -211,6 +221,9 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     pricing: parsePricingConfig(row.pricing),
     google: parseGoogleConfig(row.google),
     portalTokenTtlHours: parsePortalTokenTtlHours(row.portalTokenTtlHours),
+    // A stored prefix that is not 1-6 letters or digits resolves to unset.
+    orderNumberPrefix: parsePrefix(row.orderNumberPrefix),
+    barcodePrefix: parsePrefix(row.barcodePrefix),
   };
 }
 

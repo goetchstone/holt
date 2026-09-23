@@ -7,9 +7,12 @@
 // (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { getAppSettings } from "@/lib/appSettings";
+import { effectivePrefix } from "@/lib/numberingPrefix";
 import { CreateVariantView } from "./CreateVariantView";
 
 export default async function CreateVariantPage() {
   await requirePage(undefined, { permission: "catalog.write" });
-  return <CreateVariantView />;
+  const barcodePrefix = effectivePrefix(await getAppSettings(), "barcodePrefix");
+  return <CreateVariantView barcodePrefix={barcodePrefix} />;
 }

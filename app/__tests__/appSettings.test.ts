@@ -231,3 +231,23 @@ describe("resolveAppSettings google (VAL-04 Drive/Slides config)", () => {
     expect(resolveAppSettings(row()).google.drive.projectSubfolders).toEqual(STANDARD);
   });
 });
+
+describe("resolveAppSettings numbering prefixes (USE-12)", () => {
+  it("is unset (null) for a null row or an unset column, so the initials default applies", () => {
+    expect(resolveAppSettings(null).orderNumberPrefix).toBeNull();
+    expect(resolveAppSettings(row()).barcodePrefix).toBeNull();
+    expect(resolveAppSettings(row({ orderNumberPrefix: null })).orderNumberPrefix).toBeNull();
+  });
+
+  it("honours a stored prefix, upper-cased", () => {
+    const s = resolveAppSettings(row({ orderNumberPrefix: "hr", barcodePrefix: "BC1" }));
+    expect(s.orderNumberPrefix).toBe("HR");
+    expect(s.barcodePrefix).toBe("BC1");
+  });
+
+  it("treats a stored value that is not 1-6 letters or digits as unset", () => {
+    for (const bad of ["", "TOOLONG", "H-R", 7]) {
+      expect(resolveAppSettings(row({ orderNumberPrefix: bad })).orderNumberPrefix).toBeNull();
+    }
+  });
+});

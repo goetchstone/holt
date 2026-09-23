@@ -5017,6 +5017,14 @@ model AppSettings {
   // a fixed 7 days before SEC-08).
   portalTokenTtlHours Int?
 
+  // Prefixes this business stamps on its own sales-order numbers
+  // (`<prefix>-YYMMDD-NNN`) and generated barcodes (`<prefix>-<vendor>-<product>-…`).
+  // NULLABLE: unset resolves to the initials of the business's own name
+  // (appSettings.ts). Both were hardcoded to one pilot's initials before USE-12.
+  // Existing orders keep the numbers they were issued.
+  orderNumberPrefix String?
+  barcodePrefix     String?
+
   // Last-resort tax jurisdiction: resolveTaxRate.ts's fallback when a sale's
   // customer has no district override and the selling store has no
   // taxDistrictId of its own. Replaces the `shortName: "CT"` literal that

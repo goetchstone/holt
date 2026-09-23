@@ -113,7 +113,16 @@ for. If a step was skipped "to avoid a migration" or "to keep it simple," that
 is under-building: go back and build the specified design, then keep everything
 around it plain. Correct-and-simple, copying the nearest existing pattern.
 
-## 14. Verify the gate is actually green BEFORE clicking merge
+## 14. A finding this PR resolves says so where it was recorded
+
+If the change removes a literal or closes a finding tracked in
+`docs/tenant-literal-sweep.md` (or another audit with Status lines), flip that
+entry to `RESOLVED` with the mechanism and this PR's number, and fix the count
+table, in this PR. `grep -n "<file you changed>" docs/tenant-literal-sweep.md`
+finds them. VAL-04 (#183) removed two such literals and left both entries
+`OPEN`; the stale lines were found only while doing USE-12.
+
+## 15. Verify the gate is actually green BEFORE clicking merge
 
 All required status checks COMPLETED + SUCCESS, gate state in the PR body
 matches what was actually scanned, no unaddressed reviewer comments.
