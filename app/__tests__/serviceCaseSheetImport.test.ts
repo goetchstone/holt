@@ -108,6 +108,15 @@ describe("extractSalesOrderTokens", () => {
     expect(extractSalesOrderTokens("so12345 - b")).toEqual(["SO12345 - B"]);
   });
 
+  // QUA-02: a hyphen between prefix and number ("SO-28978") is an order
+  // number too; the pattern used to require the digits to follow directly, so
+  // every hyphenated order failed to link and its case imported unattached.
+  it("matches a hyphenated order number, with or without a rewrite suffix", () => {
+    expect(extractSalesOrderTokens("PONO6239/ SO-28978-A")).toEqual(["SO-28978 - A"]);
+    expect(extractSalesOrderTokens("SO-28978")).toEqual(["SO-28978"]);
+    expect(extractSalesOrderTokens("so-28978 - b")).toEqual(["SO-28978 - B"]);
+  });
+
   it("matches any alphabetic-prefix order scheme", () => {
     expect(extractSalesOrderTokens("ORD1 SALE2 WEB3").sort()).toEqual(
       ["ORD1", "SALE2", "WEB3"].sort(),
