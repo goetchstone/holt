@@ -2,12 +2,10 @@
 
 /** @type {import('next').NextConfig} */
 module.exports = {
-  // Skip TypeScript errors during builds; we run typecheck (and ESLint) separately
-  // via `npm run validate`. Next 16 no longer runs ESLint during `build`, so the
-  // former `eslint` config key was removed (it is now an unrecognized option).
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // No `typescript.ignoreBuildErrors`: a type error fails the production build,
+  // not only `npm run validate` (SEC-07). The image is what ships, and it was
+  // built from whatever typechecked or not. Next 16 no longer runs ESLint
+  // during `build`, so the former `eslint` config key is gone too.
 
   async headers() {
     return [
