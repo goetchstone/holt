@@ -62,7 +62,7 @@ interface ApiVariant {
 
 const numToInput = (n: number | null | undefined): string => n?.toString() || "";
 
-export function CreateVariantView() {
+export function CreateVariantView({ barcodePrefix }: { barcodePrefix: string }) {
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
@@ -216,7 +216,8 @@ export function CreateVariantView() {
     try {
       const variantsToSave = variants
         .map((v) => {
-          const finalUpc = v.upc || generateBarcode(selectedProduct.vendorId, selectedProduct.id);
+          const finalUpc =
+            v.upc || generateBarcode(barcodePrefix, selectedProduct.vendorId, selectedProduct.id);
           return {
             id: v.id,
             productId: selectedProduct.id,

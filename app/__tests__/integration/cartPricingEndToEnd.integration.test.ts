@@ -19,6 +19,8 @@ import type { Session } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { DEFAULT_ORG_ID, invalidateAppSettingsCache } from "@/lib/appSettings";
+import { orderNumberStem } from "@/lib/orderNumber";
 import { handler } from "@/pages/api/sales/orders/create-from-cart";
 
 function makeReq(body: unknown): NextApiRequest {
@@ -262,5 +264,36 @@ describe("cart pricing end to end (real DB)", () => {
       select: { taxDistrictId: true },
     });
     expect(order?.taxDistrictId).toBe(nyDistrict.id);
+  });
+
+  // USE-12: the number is the business's -- its prefix, its business day --
+  // where it used to be one pilot's initials dated by the server's clock.
+  it("numbers orders with the business's prefix, in sequence for its day", async () => {
+    const { store, product } = await seedCatalogAndTax();
+    await prisma.organization.create({
+      data: { id: DEFAULT_ORG_ID, name: "Test Org", slug: "test-org" },
+    });
+    await prisma.appSettings.create({
+      data: { organizationId: DEFAULT_ORG_ID, orderNumberPrefix: "TST", timezone: "UTC" },
+    });
+    invalidateAppSettingsCache();
+
+    const place = async () => {
+      const res = makeRes();
+      await handler(
+        makeReq({
+          storeLocation: store.name,
+          items: [{ productId: product.id, quantity: 1, unitPrice: 1000 }],
+        }),
+        res,
+        session,
+      );
+      expect(res.statusCode).toBe(201);
+      return (res.body as { orderno: string }).orderno;
+    };
+
+    const stem = orderNumberStem("TST", "UTC", new Date());
+    expect(await place()).toBe(`${stem}001`);
+    expect(await place()).toBe(`${stem}002`);
   });
 });

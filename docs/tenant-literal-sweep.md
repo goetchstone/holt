@@ -18,15 +18,16 @@ wrong before: an earlier version said 67 at the top and 52 in the worklist.
 
 | | count |
 |---|---:|
-| Resolved | **12** |
-| Open | **55** |
+| Resolved | **16** |
+| Open | **51** |
 | Total | 67 |
 
 Resolved so far cluster in three PRs: #75 (tax district → `resolveTaxRate`), #128 (Marjan →
 `Vendor.isConsignment` / `consignmentVendor.ts`), #144 (Ordorite store codes, return prefixes,
-report prefix, buyer identity → env/config), plus #123 (rewrite flag off `SalesOrder`) and the
-`sourceStoreName` rename. The open set is still dominated by the native money tier —
-payroll-and-cash-policy constants, GL codes, and the `SH-` prefix on order numbers and barcodes.
+report prefix, buyer identity → env/config), plus #123 (rewrite flag off `SalesOrder`), the
+`sourceStoreName` rename, #183 (Google project ids → `AppSettings.google`) and #192 (order-number
+and barcode prefixes → `AppSettings`). The open set is still dominated by the native money tier —
+payroll-and-cash-policy constants and GL codes.
 
 ## How to read this — native vs import
 
@@ -393,7 +394,7 @@ HourMinuteFrom: opts.hourMinuteFrom ?? "09:00", HourMinuteTo: opts.hourMinuteTo 
 
 ### `app/src/lib/barcode.ts:4`
 
-**Status: OPEN** (verified 2026-09-17 against main @ 8298bae)
+**Status: RESOLVED** — `generateBarcode(prefix, …)` takes the prefix; callers pass `effectivePrefix(settings, "barcodePrefix")` (`lib/numberingPrefix.ts`), and a tripwire (`numberingPrefix.test.ts`) fails on any `SH-` under `src` (#192). Historical barcodes are left as issued. (verified 2026-09-23 against main @ 2b9b7fb)
 
 ```
 return `SH-${vendorId}-${productId}-${rand}`;
@@ -536,7 +537,7 @@ where: { name: "Outdoor" }, create: { name: "Outdoor" },
 
 ### `app/src/pages/api/pricing/import/signature-elements.ts:221`
 
-**Status: OPEN** (verified 2026-09-17 against main @ 8298bae)
+**Status: OPEN, in part** — the destructive sweep is fixed: it is scoped `{ vendorId, sourceBook: "signature-elements" }` (`signature-elements.ts:222`, #171). Still open: the `SE-` shape decides `hasSE` in both configurators (`admin/pricing/configurator/ConfiguratorView.tsx:221-228`, `tools/configurator/ConfiguratorView.tsx:69-76`). (verified 2026-09-23 against main @ 2b9b7fb)
 
 ```
 await tx.vendorStyle.updateMany({ where: { vendorId, styleNumber: { startsWith: "SE-" } }, data: { isDiscontinued: true } });
@@ -683,7 +684,7 @@ model SEComponent {
 
 ### `app/src/app/(dashboard)/app/admin/pricing/import/PricingImportView.tsx:109`
 
-**Status: OPEN** (verified 2026-09-17 against main @ 8298bae)
+**Status: OPEN, moved** — #175 moved the list to `lib/pricing/importVendorConfigs.ts` and derives the wholesale-profile vendors from the registry, but `LEGACY_VENDOR_CONFIGS` (`importVendorConfigs.ts:53`) still hardcodes the legacy vendors, starting with `wesley-hall`. (verified 2026-09-23 against main @ 2b9b7fb)
 
 ```
 const VENDOR_CONFIGS: VendorConfig[] = [ { slug: "wesley-hall", nameMatch: "wesley hall", displayName: "Wesley Hall", ... } ]
@@ -865,7 +866,7 @@ where: { name: { contains: "Marjan", mode: "insensitive" } },
 
 ### `app/src/pages/api/google/create-project.ts:10`
 
-**Status: OPEN** (verified 2026-09-17 against main @ 8298bae)
+**Status: RESOLVED** — folder and template ids are `AppSettings.google`, set in Settings → Integrations; unset returns 503 naming what to configure (#183). (verified 2026-09-23 against main @ 2b9b7fb)
 
 ```
 const ROOT_FOLDER_ID = "1zlCFD_X19sw6PyFsTGMuhTE_buAv-mFK"; const TEMPLATE_PRESENTATION_ID = "14R696lLFtEjGAOoZt2XBo_UkBWVRo7aaHywHOqi4Mfs";
@@ -934,7 +935,7 @@ HD_PROPOSAL // imported from Hunter Douglas Direct Connect proposal
 
 ### `app/src/pages/api/google/create-project.ts:58`
 
-**Status: OPEN** (verified 2026-09-17 against main @ 8298bae)
+**Status: RESOLVED** — the subfolder list is `AppSettings.google.drive.projectSubfolders`, defaulted in code to the old list (#183). (verified 2026-09-23 against main @ 2b9b7fb)
 
 ```
 const subfolders = ["Windows", "Rugs", "Fabrics", "Furniture", "Photos", "Presentation"];
@@ -947,7 +948,7 @@ const subfolders = ["Windows", "Rugs", "Fabrics", "Furniture", "Photos", "Presen
 
 ### `app/src/pages/api/sales/orders/create-from-cart.ts:67`
 
-**Status: OPEN** (verified 2026-09-17 against main @ 8298bae)
+**Status: RESOLVED** — both order paths call `lib/orderNumber.ts` `nextOrderNumber()` with `AppSettings.orderNumberPrefix`, else the business's initials (not "no prefix": PLAN USE-12, and a number must never block a sale); the date is the business day in the business's timezone (#192). The 200-concurrent-orders test in finding 20 is not done — two orders racing for one number still collide on the unique `orderno`, as before; tracked separately. (verified 2026-09-23 against main @ 2b9b7fb)
 
 ```
 const prefix = `SH-${yy}${mm}${dd}-`;

@@ -4,6 +4,21 @@ Sales orders are imported from the POS daily via `Prior_Day_Sales_Data_Export`. 
 
 ## Order Number Convention
 
+### Orders holt creates
+
+The POS (`api/sales/orders/create-from-cart.ts`) and proposal conversion
+(`api/proposals/[id]/convert-to-order.ts`) both number orders through one
+function, `lib/orderNumber.ts` `nextOrderNumber()`: `<prefix>-YYMMDD-NNN`, where
+YYMMDD is the business day in `AppSettings.timezone` (not the server's clock) and
+NNN restarts at 001 each day. The prefix is `AppSettings.orderNumberPrefix`, set
+under Settings → Numbering; unset, it is the initials of the company name
+(`lib/numberingPrefix.ts` `effectivePrefix()`). Generated barcodes use
+`AppSettings.barcodePrefix` the same way. Changing a prefix affects new orders
+and barcodes only: existing ones keep what they were issued. `orderno` is unique,
+so two orders racing for the same number fail loudly instead of sharing it.
+
+### Imported orders
+
 The order number encodes the store and transaction type:
 
 | Prefix | Store                | Suffix | Meaning                                                                  |

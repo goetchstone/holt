@@ -1,5 +1,12 @@
 // /app/src/lib/barcode.ts
-export function generateBarcode(vendorId: number | string, productId: number | string): string {
+//
+// `prefix` is the business's AppSettings.barcodePrefix -- never a literal (it
+// was one pilot's initials, hardcoded, before USE-12).
+export function generateBarcode(
+  prefix: string,
+  vendorId: number | string,
+  productId: number | string,
+): string {
   const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `SH-${vendorId}-${productId}-${rand}`;
+  return `${prefix}-${vendorId}-${productId}-${rand}`;
 }

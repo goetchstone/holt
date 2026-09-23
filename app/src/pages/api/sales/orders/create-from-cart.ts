@@ -1,9 +1,9 @@
 // /app/src/pages/api/sales/orders/create-from-cart.ts
 //
-// Creates a SalesOrder from a POS or quote cart. Generates a sequential order
-// number (SH-YYMMDD-NNN). For CONFIGURED and CUSTOM line items, creates a new
-// Product record so the item exists in the catalog for reporting, inventory,
-// and reorder purposes.
+// Creates a SalesOrder from a POS or quote cart, numbered by lib/orderNumber.ts
+// (<prefix>-YYMMDD-NNN, prefix from AppSettings). For CONFIGURED and CUSTOM
+// line items, creates a new Product record so the item exists in the catalog
+// for reporting, inventory, and reorder purposes.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
@@ -14,6 +14,9 @@ import { priceCart, type CartDiscount } from "@/lib/pos/cartPricing";
 import { allocate, type AllocationLine } from "@/lib/inventory/allocation";
 import { resolveOrderStoreLocationId, recordShortfalls } from "@/lib/inventory/orderInventorySync";
 import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
+import { getAppSettings } from "@/lib/appSettings";
+import { nextOrderNumber } from "@/lib/orderNumber";
+import { effectivePrefix } from "@/lib/numberingPrefix";
 
 interface CartItem {
   type?: "PRODUCT" | "CONFIGURED" | "CUSTOM";
@@ -58,27 +61,15 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   }
 
   try {
+    const settings = await getAppSettings();
     const order = await prisma.$transaction(async (tx) => {
-      // Generate order number: SH-YYMMDD-NNN
       const now = new Date();
-      const yy = now.getFullYear().toString().slice(-2);
-      const mm = (now.getMonth() + 1).toString().padStart(2, "0");
-      const dd = now.getDate().toString().padStart(2, "0");
-      const prefix = `SH-${yy}${mm}${dd}-`;
-
-      const lastOrder = await tx.salesOrder.findFirst({
-        where: { orderno: { startsWith: prefix } },
-        orderBy: { orderno: "desc" },
-        select: { orderno: true },
-      });
-
-      let seq = 1;
-      if (lastOrder) {
-        const lastSeq = Number.parseInt(lastOrder.orderno.replace(prefix, ""), 10);
-        if (!Number.isNaN(lastSeq)) seq = lastSeq + 1;
-      }
-
-      const orderno = `${prefix}${seq.toString().padStart(3, "0")}`;
+      const orderno = await nextOrderNumber(
+        tx,
+        effectivePrefix(settings, "orderNumberPrefix"),
+        settings.timezone,
+        now,
+      );
 
       // Pre-load existing products (for PRODUCT-type items and as source for CONFIGURED items)
       const allProductIds = items.filter((i) => i.productId).map((i) => i.productId!);
@@ -223,12 +214,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
         // Use explicitly passed cost (from configurator), or fall back to product baseCost
         const resolvedProduct = productId ? productMap.get(productId) : null;
-        const itemCost =
-          item.cost != null && item.cost > 0
-            ? item.cost
-            : resolvedProduct?.baseCost
-              ? Number(resolvedProduct.baseCost)
-              : 0;
+        let itemCost = 0;
+        if (item.cost != null && item.cost > 0) itemCost = item.cost;
+        else if (resolvedProduct?.baseCost) itemCost = Number(resolvedProduct.baseCost);
 
         lineItemData.push({
           // Carried for the allocation filter below, not persisted -- a

@@ -19,6 +19,7 @@ import {
   PORTAL_TOKEN_TTL_MAX_HOURS,
   type ThemeKey,
 } from "@/lib/appSettings";
+import { parsePrefix } from "@/lib/numberingPrefix";
 import { isValidFeatureKey } from "@/lib/featureCatalog";
 import { parseBookingConfig } from "@/lib/booking/config";
 import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
@@ -277,6 +278,28 @@ function parsePortalTokenTtl(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// Order-number and barcode prefixes. Empty or null clears one back to the
+// business's initials; anything else must be 1-6 letters or digits (stored
+// upper-cased), refused here rather than stored and ignored on read.
+function parsePrefixes(body: Body, data: SettingsData): ParseError {
+  for (const field of ["orderNumberPrefix", "barcodePrefix"] as const) {
+    const raw = body[field];
+    if (raw === undefined) continue;
+    if (raw === null || (typeof raw === "string" && raw.trim() === "")) {
+      data[field] = null;
+      continue;
+    }
+    const prefix = parsePrefix(raw);
+    if (!prefix) {
+      return {
+        error: `${field} must be 1 to 6 letters or digits (the dash is added for you), or empty to use your company's initials`,
+      };
+    }
+    data[field] = prefix;
+  }
+  return null;
+}
+
 const SETTINGS_PARSERS = [
   parseAppName,
   parseTextFields,
@@ -288,6 +311,7 @@ const SETTINGS_PARSERS = [
   parseSourceAdapter,
   parseGoogle,
   parsePortalTokenTtl,
+  parsePrefixes,
 ];
 
 async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Session) {

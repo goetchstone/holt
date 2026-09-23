@@ -8,6 +8,9 @@ import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
 import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
+import { getAppSettings } from "@/lib/appSettings";
+import { nextOrderNumber } from "@/lib/orderNumber";
+import { effectivePrefix } from "@/lib/numberingPrefix";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -23,6 +26,7 @@ export default requireAuthWithRole(
     if (Number.isNaN(proposalId)) return res.status(400).json({ error: "Invalid proposal ID" });
 
     try {
+      const settings = await getAppSettings();
       const result = await prisma.$transaction(async (tx) => {
         const proposal = await tx.proposal.findUnique({
           where: { id: proposalId },
@@ -39,25 +43,13 @@ export default requireAuthWithRole(
         if (proposal.salesOrderId) throw new Error("Proposal already converted to an order");
         if (proposal.lineItems.length === 0) throw new Error("Proposal has no line items");
 
-        // Generate order number
         const now = new Date();
-        const yy = String(now.getFullYear()).slice(2);
-        const mm = String(now.getMonth() + 1).padStart(2, "0");
-        const dd = String(now.getDate()).padStart(2, "0");
-        const prefix = `SH-${yy}${mm}${dd}-`;
-
-        const lastOrder = await tx.salesOrder.findFirst({
-          where: { orderno: { startsWith: prefix } },
-          orderBy: { orderno: "desc" },
-          select: { orderno: true },
-        });
-
-        let seq = 1;
-        if (lastOrder) {
-          const lastSeq = Number.parseInt(lastOrder.orderno.replace(prefix, ""), 10);
-          if (!Number.isNaN(lastSeq)) seq = lastSeq + 1;
-        }
-        const orderno = `${prefix}${String(seq).padStart(3, "0")}`;
+        const orderno = await nextOrderNumber(
+          tx,
+          effectivePrefix(settings, "orderNumberPrefix"),
+          settings.timezone,
+          now,
+        );
 
         // Tax comes from the configured district, never a literal. A B2B
         // proposal has no selling store, so this resolves through the

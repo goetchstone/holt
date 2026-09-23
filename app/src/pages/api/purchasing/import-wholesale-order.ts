@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { getCellValue } from "@/lib/excelUtils";
 import { safeFloat, safeString } from "@/lib/fmSafeMapper";
 import { generateBarcode } from "@/lib/barcode";
+import { getAppSettings } from "@/lib/appSettings";
+import { effectivePrefix } from "@/lib/numberingPrefix";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
@@ -154,6 +156,7 @@ export default requirePermission(
     let productsExisting = 0;
 
     try {
+      const barcodePrefix = effectivePrefix(await getAppSettings(), "barcodePrefix");
       // Group rows by vendor to create one PO per vendor
       const vendorGroups = new Map<
         string,
@@ -182,7 +185,6 @@ export default requirePermission(
 
           const productName = safeString(getCellValue(row, COL.productName)) || partNo;
           const rawQty = getCellValue(row, COL.quantity);
-          const quantity = safeFloat(rawQty) || 1;
           if (!rawQty) {
             warnings.push(`Row ${i + 1} (${partNo}): No quantity column found, defaulting to 1.`);
           }
@@ -249,7 +251,7 @@ export default requirePermission(
             });
 
             // Generate system barcode
-            const sysBarcode = generateBarcode(vendor.id, product.id);
+            const sysBarcode = generateBarcode(barcodePrefix, vendor.id, product.id);
             await prisma.upc.create({
               data: {
                 upc: sysBarcode,
@@ -329,7 +331,7 @@ export default requirePermission(
             notes: `Imported from wholesale order CSV`,
             createdBy: changedBy,
             lineItems: {
-              create: group.items.map((item, idx) => ({
+              create: group.items.map((item) => ({
                 productId: item.productId,
                 partNo: item.partNo,
                 productName: safeString(getCellValue(item.row, COL.productName)) || item.partNo,

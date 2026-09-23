@@ -25,6 +25,7 @@ import { MODULES, getToggleableModules, getModulesForSettingsIndex } from "@/lib
 import { isFeatureEnabled } from "@/lib/featureCatalog";
 import { ImageUploadField } from "@/components/cms/admin/ImageUploadField";
 import type { ResolvedAppSettings } from "@/lib/appSettings";
+import { derivePrefix, effectivePrefix } from "@/lib/numberingPrefix";
 
 // fetch() bodies are plain objects, not axios errors, so getErrorMessage can't
 // reach the server's { error } -- pull it out here, then let the outer catch
@@ -246,6 +247,57 @@ const TIME_ZONES: string[] = (() => {
   return ["UTC", ...supported.filter((z) => z !== "UTC")];
 })();
 
+type PrefixKey = "orderNumberPrefix" | "barcodePrefix";
+
+const PREFIX_FIELDS: { key: PrefixKey; label: string; format: string }[] = [
+  { key: "orderNumberPrefix", label: "Order number prefix", format: "-YYMMDD-001" },
+  { key: "barcodePrefix", label: "Barcode prefix", format: "-<vendor>-<product>-XXXX" },
+];
+
+// Blank means "use the company's initials" and is saved as blank, not as the
+// initials: pinning them here would freeze whatever name was on screen at load.
+function NumberingSection({
+  settings,
+  onChange,
+}: Readonly<{
+  settings: ResolvedAppSettings;
+  onChange: (key: PrefixKey, value: string | null) => void;
+}>) {
+  const initials = derivePrefix(settings.companyName?.trim() || settings.appName);
+  return (
+    <section className="space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Numbering</h2>
+      <p className="text-xs text-brand-gray">
+        Printed at the start of every new order number and generated barcode: 1 to 6 letters or
+        digits. Leave blank to use your company&apos;s initials ({initials}). Orders already placed
+        keep their numbers.
+      </p>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {PREFIX_FIELDS.map((f) => (
+          <div key={f.key}>
+            <label htmlFor={`prefix-${f.key}`} className="mb-1 block text-sm text-brand-gray">
+              {f.label}
+            </label>
+            <input
+              id={`prefix-${f.key}`}
+              type="text"
+              maxLength={6}
+              value={settings[f.key] ?? ""}
+              placeholder={initials}
+              onChange={(e) => onChange(f.key, e.target.value.toUpperCase() || null)}
+              className="w-full rounded-md border border-brand-accent-gray px-3 py-2 font-mono text-brand-black focus:border-brand-blue focus:outline-none"
+            />
+            <p className="mt-1 font-mono text-xs text-brand-gray">
+              {effectivePrefix(settings, f.key)}
+              {f.format}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 type BookingField = {
   key: keyof ResolvedAppSettings["bookingConfig"];
   label: string;
@@ -408,6 +460,9 @@ export function SettingsOverviewView() {
   const setThemeColor = (key: string, value: string) =>
     setSettings((prev) => (prev ? { ...prev, theme: { ...prev.theme, [key]: value } } : prev));
 
+  const setPrefix = (key: PrefixKey, value: string | null) =>
+    setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
+
   const setBookingConfig = (key: keyof ResolvedAppSettings["bookingConfig"], value: number) =>
     setSettings((prev) =>
       prev ? { ...prev, bookingConfig: { ...prev.bookingConfig, [key]: value } } : prev,
@@ -434,6 +489,8 @@ export function SettingsOverviewView() {
           theme: { ...settings.theme, mode: settings.themeMode },
           features,
           bookingConfig: settings.bookingConfig,
+          orderNumberPrefix: settings.orderNumberPrefix,
+          barcodePrefix: settings.barcodePrefix,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -490,6 +547,7 @@ export function SettingsOverviewView() {
         onModeChange={(mode) => setSettings((prev) => (prev ? { ...prev, themeMode: mode } : prev))}
       />
       <LocalizationSection settings={settings} onChange={setText} />
+      <NumberingSection settings={settings} onChange={setPrefix} />
       <BookingSection config={settings.bookingConfig} onChange={setBookingConfig} />
       <ModulesSection
         features={features}
