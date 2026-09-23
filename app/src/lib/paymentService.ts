@@ -1,4 +1,6 @@
 // /app/src/lib/paymentService.ts
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayStamp } from "@/lib/reports/businessDay";
 import { prisma } from "@/lib/prisma";
 import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
 import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering";
@@ -826,13 +828,11 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
 
     if (existingPOs.length === 0) {
       const now = new Date();
-      const yy = now.getFullYear().toString().slice(-2);
-      const mm = (now.getMonth() + 1).toString().padStart(2, "0");
-      const dd = now.getDate().toString().padStart(2, "0");
+      const stamp = businessDayStamp(now, await getBusinessTimeZone());
 
       for (const [vendorId, items] of vendorItems) {
         // Generate PO number
-        const poPrefix = `PO-${yy}${mm}${dd}-`;
+        const poPrefix = `PO-${stamp}-`;
         const lastPO = await prisma.purchaseOrder.findFirst({
           where: { poNumber: { startsWith: poPrefix } },
           orderBy: { poNumber: "desc" },

@@ -1,5 +1,7 @@
 // /app/src/lib/serviceDispatchService.ts
 
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayStamp } from "@/lib/reports/businessDay";
 import { prisma } from "@/lib/prisma";
 import type { ServiceAppointmentStatus, ServiceAppointmentType } from "@prisma/client";
 
@@ -32,10 +34,8 @@ export function isTerminalState(status: ServiceAppointmentStatus): boolean {
 // Generate appointment number: SVC-YYMMDD-NNN
 export async function generateAppointmentNumber(): Promise<string> {
   const now = new Date();
-  const yy = now.getFullYear().toString().slice(-2);
-  const mm = (now.getMonth() + 1).toString().padStart(2, "0");
-  const dd = now.getDate().toString().padStart(2, "0");
-  const prefix = `SVC-${yy}${mm}${dd}-`;
+  const stamp = businessDayStamp(now, await getBusinessTimeZone());
+  const prefix = `SVC-${stamp}-`;
 
   const last = await prisma.serviceAppointment.findFirst({
     where: { appointmentNumber: { startsWith: prefix } },

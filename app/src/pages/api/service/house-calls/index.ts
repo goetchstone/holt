@@ -1,5 +1,7 @@
 // /app/src/pages/api/service/house-calls/index.ts
 
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayStamp } from "@/lib/reports/businessDay";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
@@ -123,10 +125,8 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
 
         // Generate order number: HC-YYMMDD-NNN
         const now = new Date();
-        const yy = now.getFullYear().toString().slice(-2);
-        const mm = (now.getMonth() + 1).toString().padStart(2, "0");
-        const dd = now.getDate().toString().padStart(2, "0");
-        const prefix = `HC-${yy}${mm}${dd}-`;
+        const stamp = businessDayStamp(now, await getBusinessTimeZone());
+        const prefix = `HC-${stamp}-`;
         const lastOrder = await tx.salesOrder.findFirst({
           where: { orderno: { startsWith: prefix } },
           orderBy: { orderno: "desc" },

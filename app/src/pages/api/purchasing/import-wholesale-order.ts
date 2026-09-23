@@ -1,11 +1,12 @@
 // /app/src/pages/api/purchasing/import-wholesale-order.ts
 
+import { businessDayStamp } from "@/lib/reports/businessDay";
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { getCellValue } from "@/lib/excelUtils";
 import { safeFloat, safeString } from "@/lib/fmSafeMapper";
 import { generateBarcode } from "@/lib/barcode";
-import { getAppSettings } from "@/lib/appSettings";
+import { getAppSettings, getBusinessTimeZone } from "@/lib/appSettings";
 import { effectivePrefix } from "@/lib/numberingPrefix";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -122,12 +123,9 @@ async function findOrCreateCategory(name: string, departmentId: number) {
   return cat;
 }
 
-function generatePONumber(): string {
-  const now = new Date();
-  const yy = now.getFullYear().toString().slice(-2);
-  const mm = (now.getMonth() + 1).toString().padStart(2, "0");
-  const dd = now.getDate().toString().padStart(2, "0");
-  return `PO-${yy}${mm}${dd}`;
+/** `PO-YYMMDD` for today's business day in `timeZone`. */
+function generatePONumber(timeZone: string): string {
+  return `PO-${businessDayStamp(new Date(), timeZone)}`;
 }
 
 export default requirePermission(
@@ -307,7 +305,7 @@ export default requirePermission(
       const createdPOs: { id: number; poNumber: string; vendor: string; itemCount: number }[] = [];
 
       for (const [vendorKey, group] of vendorGroups) {
-        const poPrefix = generatePONumber();
+        const poPrefix = generatePONumber(await getBusinessTimeZone());
 
         // Find next sequence number for this prefix
         const lastPO = await prisma.purchaseOrder.findFirst({

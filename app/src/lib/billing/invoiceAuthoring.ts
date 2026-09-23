@@ -10,6 +10,7 @@
 //   - invoice numbers are INV-YYMMDD-NNN (imported legacy invoices keep their
 //     source numbering; the INV prefix cannot collide with it).
 
+import { businessDayStamp } from "@/lib/reports/businessDay";
 import { assertBalanced, type JournalLine } from "@/lib/journalEntry";
 
 export interface DraftLineInput {
@@ -70,12 +71,9 @@ export function computeInvoiceTotals(
   return { lineAmounts, subtotal, taxAmount, total };
 }
 
-/** INV-YYMMDD-NNN, sequence within the day. */
-export function formatInvoiceNumber(date: Date, seq: number): string {
-  const yy = date.getFullYear().toString().slice(-2);
-  const mm = (date.getMonth() + 1).toString().padStart(2, "0");
-  const dd = date.getDate().toString().padStart(2, "0");
-  return `INV-${yy}${mm}${dd}-${seq.toString().padStart(3, "0")}`;
+/** INV-YYMMDD-NNN, sequence within the business day `date` falls on in `timeZone`. */
+export function formatInvoiceNumber(date: Date, seq: number, timeZone: string): string {
+  return `INV-${businessDayStamp(date, timeZone)}-${seq.toString().padStart(3, "0")}`;
 }
 
 /** Parse the trailing sequence from an INV-YYMMDD-NNN number; null if not ours. */

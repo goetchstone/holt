@@ -244,6 +244,10 @@ VendorStyle + PriceDimensionTier -> StyleGradePrice (cost at that tier)
 - **appointmentNumber**: Generated as `SVC-YYMMDD-NNN`
 - **returnNumber**: Generated as `RET-YYMMDD-NNN`
 - **poNumber**: Generated as `PO-YYMMDD-NNN`
+- In every generated number, YYMMDD is the **business day** in
+  `AppSettings.timezone` (`lib/reports/businessDay.ts` `businessDayStamp`),
+  not the server's clock. Delivery-run numbers made for a scheduled date take
+  that date instead. `__tests__/businessDayStamps.test.ts` holds the line.
 
 ## Authentication and Authorization
 

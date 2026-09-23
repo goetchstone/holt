@@ -3,6 +3,8 @@
 // GET: List proposals with pagination, status filter, search.
 // POST: Create a new draft proposal with generated BP-YYMMDD-NNN number.
 
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayStamp } from "@/lib/reports/businessDay";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
@@ -68,10 +70,8 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
     const { customerId, projectName, companyName, salesPersonId } = req.body;
 
     const now = new Date();
-    const yy = String(now.getFullYear()).slice(2);
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const dd = String(now.getDate()).padStart(2, "0");
-    const prefix = `BP-${yy}${mm}${dd}-`;
+    const stamp = businessDayStamp(now, await getBusinessTimeZone());
+    const prefix = `BP-${stamp}-`;
 
     const last = await prisma.proposal.findFirst({
       where: { proposalNumber: { startsWith: prefix } },

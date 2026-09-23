@@ -11,14 +11,13 @@
 // the business's own timezone.
 
 import type { Prisma } from "@prisma/client";
-import { businessDayKey } from "@/lib/reports/businessDay";
+import { businessDayStamp } from "@/lib/reports/businessDay";
 
 type OrderClient = Pick<Prisma.TransactionClient, "salesOrder" | "$executeRaw">;
 
 /** The day stem, e.g. `HR-260923-`, for `now` as the business sees the date. */
 export function orderNumberStem(prefix: string, timeZone: string, now: Date): string {
-  const [yyyy, mm, dd] = businessDayKey(now, timeZone).split("-");
-  return `${prefix}-${yyyy.slice(2)}${mm}${dd}-`;
+  return `${prefix}-${businessDayStamp(now, timeZone)}-`;
 }
 
 /**

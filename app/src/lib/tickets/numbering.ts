@@ -5,13 +5,13 @@
 // and the next-sequence formatting -- are split out so they unit-test without a
 // DB; generateTicketNumber wires them to the latest row for the day.
 
+import { getBusinessTimeZone } from "@/lib/appSettings";
 import { prisma } from "@/lib/prisma";
+import { businessDayStamp } from "@/lib/reports/businessDay";
 
-export function ticketNumberPrefix(date: Date): string {
-  const yy = date.getFullYear().toString().slice(-2);
-  const mm = (date.getMonth() + 1).toString().padStart(2, "0");
-  const dd = date.getDate().toString().padStart(2, "0");
-  return `TKT-${yy}${mm}${dd}-`;
+/** `TKT-YYMMDD-` for the business day `date` falls on in `timeZone`. */
+export function ticketNumberPrefix(date: Date, timeZone: string): string {
+  return `TKT-${businessDayStamp(date, timeZone)}-`;
 }
 
 // Given the prefix and the most recent ticketNumber sharing it (or null when
@@ -26,7 +26,7 @@ export function nextTicketNumber(prefix: string, lastNumber: string | null): str
 }
 
 export async function generateTicketNumber(now: Date = new Date()): Promise<string> {
-  const prefix = ticketNumberPrefix(now);
+  const prefix = ticketNumberPrefix(now, await getBusinessTimeZone());
   const last = await prisma.ticket.findFirst({
     where: { ticketNumber: { startsWith: prefix } },
     orderBy: { ticketNumber: "desc" },

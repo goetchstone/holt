@@ -4,9 +4,16 @@ import { ticketNumberPrefix, nextTicketNumber } from "@/lib/tickets/numbering";
 
 describe("ticket numbering", () => {
   it("builds the date prefix in TKT-YYMMDD- form", () => {
-    // Local-time constructor: 2026-06-03 -> month index 5 = June.
-    expect(ticketNumberPrefix(new Date(2026, 5, 3))).toBe("TKT-260603-");
-    expect(ticketNumberPrefix(new Date(2026, 11, 25))).toBe("TKT-261225-");
+    expect(ticketNumberPrefix(new Date("2026-06-03T15:00:00Z"), "UTC")).toBe("TKT-260603-");
+    expect(ticketNumberPrefix(new Date("2026-12-25T15:00:00Z"), "UTC")).toBe("TKT-261225-");
+  });
+
+  // QUA-14: the business's day, not the server's. 02:00 UTC on 4 June is still
+  // 22:00 on 3 June in New York; a UTC server used to stamp it the 4th.
+  it("dates the prefix by the business day in its timezone", () => {
+    const evening = new Date("2026-06-04T02:00:00Z");
+    expect(ticketNumberPrefix(evening, "America/New_York")).toBe("TKT-260603-");
+    expect(ticketNumberPrefix(evening, "UTC")).toBe("TKT-260604-");
   });
 
   it("starts at 001 when there is no prior ticket for the day", () => {
