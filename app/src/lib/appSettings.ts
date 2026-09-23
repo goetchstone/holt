@@ -80,7 +80,15 @@ export interface ResolvedAppSettings {
     drive: { projectsRootFolderId: string | null; projectSubfolders: string[] };
     slides: { templatePresentationId: string | null };
   };
+  /** Order-portal link lifetime in hours, 1-PORTAL_TOKEN_TTL_MAX_HOURS. null =
+   * unset; generatePortalToken then applies its 48-hour default. */
+  portalTokenTtlHours: number | null;
 }
+
+/** Upper bound on an order-portal link's lifetime: those links are not
+ * revocable, so the setting may shorten the window but never stretch it past
+ * the 7 days it was fixed at before SEC-08. */
+export const PORTAL_TOKEN_TTL_MAX_HOURS = 168;
 
 // The subfolders created in each project folder when the deployment has not
 // configured its own list. Order is the display/creation order.
@@ -115,6 +123,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
     drive: { projectsRootFolderId: null, projectSubfolders: [...DEFAULT_GOOGLE_SUBFOLDERS] },
     slides: { templatePresentationId: null },
   },
+  portalTokenTtlHours: null,
 };
 
 // Loosely typed view of the DB row -- the Json columns arrive as unknown.
@@ -136,6 +145,7 @@ interface AppSettingsRow {
   // Loose: absent (partial select / pre-column row) resolves to no fallback.
   pricing?: unknown;
   google?: unknown;
+  portalTokenTtlHours?: number | null;
   // Optional because this is a LOOSE view of the row: a partial select, or a
   // row read before the column existed, simply doesn't carry it. Absent
   // resolves to the default exactly as an empty string does.
@@ -200,6 +210,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     sourceAdapterId: row.sourceAdapterId?.trim() || DEFAULT_APP_SETTINGS.sourceAdapterId,
     pricing: parsePricingConfig(row.pricing),
     google: parseGoogleConfig(row.google),
+    portalTokenTtlHours: parsePortalTokenTtlHours(row.portalTokenTtlHours),
   };
 }
 
@@ -219,30 +230,40 @@ function parsePricingConfig(raw: unknown): { defaultMarkup: number | null } {
 // so an unconfigured deployment is refused rather than pointed at the wrong
 // Drive. The subfolder list falls back to the standard set when absent or empty.
 function parseGoogleConfig(raw: unknown): ResolvedAppSettings["google"] {
-  let projectsRootFolderId: string | null = null;
-  let templatePresentationId: string | null = null;
-  let projectSubfolders = [...DEFAULT_GOOGLE_SUBFOLDERS];
-  if (isRecord(raw)) {
-    if (isRecord(raw.drive)) {
-      const root = raw.drive.projectsRootFolderId;
-      if (typeof root === "string" && root.trim()) projectsRootFolderId = root.trim();
-      const subs = raw.drive.projectSubfolders;
-      if (Array.isArray(subs)) {
-        const cleaned = subs
-          .filter((s): s is string => typeof s === "string" && s.trim() !== "")
-          .map((s) => s.trim());
-        if (cleaned.length > 0) projectSubfolders = cleaned;
-      }
-    }
-    if (isRecord(raw.slides)) {
-      const tmpl = raw.slides.templatePresentationId;
-      if (typeof tmpl === "string" && tmpl.trim()) templatePresentationId = tmpl.trim();
-    }
-  }
+  const drive: Record<string, unknown> = isRecord(raw) && isRecord(raw.drive) ? raw.drive : {};
+  const slides: Record<string, unknown> = isRecord(raw) && isRecord(raw.slides) ? raw.slides : {};
   return {
-    drive: { projectsRootFolderId, projectSubfolders },
-    slides: { templatePresentationId },
+    drive: {
+      projectsRootFolderId: nonEmptyString(drive.projectsRootFolderId),
+      projectSubfolders: subfolderList(drive.projectSubfolders),
+    },
+    slides: { templatePresentationId: nonEmptyString(slides.templatePresentationId) },
   };
+}
+
+/** A trimmed, non-empty string, or null. */
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/** The trimmed, non-empty names; a fresh copy of the standard set when none remain. */
+function subfolderList(value: unknown): string[] {
+  const names = Array.isArray(value)
+    ? value
+        .filter((s): s is string => typeof s === "string" && s.trim() !== "")
+        .map((s) => s.trim())
+    : [];
+  return names.length > 0 ? names : [...DEFAULT_GOOGLE_SUBFOLDERS];
+}
+
+// Honoured only as a whole number of hours inside 1..PORTAL_TOKEN_TTL_MAX_HOURS.
+// Anything else -- absent, zero, fractional, over the cap -- resolves to unset,
+// and the link falls back to its 48-hour default rather than a stretched window.
+function parsePortalTokenTtlHours(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isInteger(raw) && raw >= 1) {
+    return raw <= PORTAL_TOKEN_TTL_MAX_HOURS ? raw : null;
+  }
+  return null;
 }
 
 const cache = new Map<number, { value: ResolvedAppSettings; expires: number }>();
