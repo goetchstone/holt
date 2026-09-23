@@ -83,6 +83,31 @@ npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prism
 
 Add `--script` to get the SQL rather than a human-readable summary.
 
+**CI enforces it.** The "Migrations match the schema" step runs that diff with
+`--exit-code` against a database built by `migrate deploy`: if the migrations
+and `schema.prisma` describe different databases, the build fails. Until
+2026-09-23 they did. `schema.prisma` omitted five indexes the migrations build,
+and an FK's `onDelete`. So every `migrate dev` proposed dropping the
+`LegacyOrder` trigram search indexes, and authors trimmed that out by hand. One
+migration's header says Prisma cannot represent `USING gin (... gin_trgm_ops)`.
+It can, and the schema now does:
+
+```prisma
+@@index([customerName(ops: raw("gin_trgm_ops"))], type: Gin, map: "LegacyOrder_customerName_trgm_idx")
+```
+
+A migration that adds an index by hand-written SQL must declare the same index
+in `schema.prisma`, with `map:` naming it, or CI goes red.
+
+**The integration test database is built by `db push`, not by migrations**
+(`jest.integration.setup.ts`). So anything the schema depends on that only
+migration SQL creates is missing there. `db push` then fails, and every
+integration file with it. The trigram indexes need the `pg_trgm` extension, so
+the harness and `npm run db:push` create it before pushing. Prisma declares
+extensions only behind a preview flag. Verify a `schema.prisma` change by
+running one integration file locally, not only `migrate deploy`: #194's first
+CI run failed exactly this way after the `migrate deploy` check had passed.
+
 Prisma 7 removed `--from-schema-datasource` / `--to-schema-datamodel`; the
 datasource now comes from `prisma.config.ts` via `--from-config-datasource`,
 and a schema file is `--from-schema` / `--to-schema`. `migrate diff` also no
