@@ -96,15 +96,14 @@ npx --no-install nyc report \
 # PRs should bump these accordingly.
 echo ""
 echo "=== Checking thresholds against merged coverage ==="
-# functions floor temporarily 71 -> 66 for two quarantines. The service-case
-# one is resolved (QUA-02: extractSalesOrderTokens reads hyphenated order
-# numbers, both tests un-skipped); the 20260527b backfill migration one is still
-# an owner decision (PLAN gate 5). Ratchet toward 71 from a measured run, never
-# by guess.
+# functions floor 70: measured 70.79% on 2026-09-23 (#199's CI run, after
+# QUA-02 un-skipped the two service-case tests), ratcheted from the 66 it was
+# lowered to. Back to 71 when the 20260527b backfill quarantine (owner gate 5)
+# is resolved. Always ratchet from a measured run, never by guess.
 npx --no-install nyc check-coverage \
   --statements=59 \
   --branches=48 \
-  --functions=66 \
+  --functions=70 \
   --lines=59
 
 # Cleanup intermediate dirs (keep coverage/ for Sonar)
