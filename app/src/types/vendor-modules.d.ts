@@ -14,11 +14,6 @@ declare module "pdf-parse" {
     ModDate?: string;
   }
 
-  interface PDFMeta {
-    info?: PDFInfo;
-    metadata?: unknown;
-  }
-
   interface PDFData {
     numpages: number;
     numrender: number;
@@ -28,7 +23,9 @@ declare module "pdf-parse" {
     version: string;
   }
 
-  function pdfParse(dataBuffer: Buffer, options?: Record<string, unknown>): Promise<PDFData>;
+  // Uint8Array, not Buffer: the bundled pdf.js 1.10 was written for plain typed
+  // arrays and can misread a Buffer -- call it through pdfUtils.parsePdf.
+  function pdfParse(dataBuffer: Uint8Array, options?: Record<string, unknown>): Promise<PDFData>;
   export = pdfParse;
 }
 

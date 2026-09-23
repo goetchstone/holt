@@ -5,6 +5,19 @@
 
 import pdf from "pdf-parse";
 
+/**
+ * pdf-parse, handed the file as a plain Uint8Array copy.
+ *
+ * pdf-parse bundles pdf.js 1.10 (2017), written for plain typed arrays. Handed
+ * a Node Buffer it can misread the file ("bad XRef entry", warnings about bytes
+ * that are not in it): seen on Node 20 for small files and under Jest on Node
+ * 24, which CI runs. The same bytes as a plain Uint8Array read correctly on
+ * both. The copy is one pass over a few MB.
+ */
+export function parsePdf(bytes: Uint8Array, options?: Record<string, unknown>) {
+  return pdf(new Uint8Array(bytes), options);
+}
+
 // ─── Column-aware PDF text extraction ─────────────────────────────
 
 /**
@@ -18,8 +31,8 @@ import pdf from "pdf-parse";
  * This turns:  "STYLE NUMBER1952626667707577"
  * Into:        "STYLE NUMBER\t19\t52\t62\t66\t67\t70\t75\t77"
  */
-export function columnAwarePageRenderer(pageData: any): Promise<string> {
-  return pageData.getTextContent({ normalizeWhitespace: false }).then((textContent: any) => {
+export function columnAwarePageRenderer(pageData: PdfPageProxy): Promise<string> {
+  return pageData.getTextContent({ normalizeWhitespace: false }).then((textContent) => {
     const rows: Record<number, { x: number; str: string; w: number }[]> = {};
 
     // Merge Y coordinates within 3 units to prevent items on the same visual
@@ -72,7 +85,7 @@ export function columnAwarePageRenderer(pageData: any): Promise<string> {
  * Strips page-break markers (\f) added by the renderer.
  */
 export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
-  const data = await pdf(pdfBuffer, {
+  const data = await parsePdf(pdfBuffer, {
     pagerender: columnAwarePageRenderer,
   });
   return data.text.replace(/\f(<<PAGE:\d+>>\n)?/g, "");
@@ -84,10 +97,66 @@ export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
  * Callers can split on `/<<PAGE:(\d+)>>\n/` to get page-annotated text.
  */
 export async function extractPdfTextWithPages(pdfBuffer: Buffer): Promise<string> {
-  const data = await pdf(pdfBuffer, {
+  const data = await parsePdf(pdfBuffer, {
     pagerender: columnAwarePageRenderer,
   });
   return data.text.replace(/\f/g, "");
+}
+
+// ─── Positioned text items ────────────────────────────────────────
+
+/** One positioned text run from the PDF: x/y from its transform, glyph width, string, page. */
+export interface PdfTextItem {
+  /** PDF user-space x of the run's origin, in points. */
+  x: number;
+  /** PDF user-space y of the baseline, in points -- measured UP from the page bottom. */
+  y: number;
+  /** Width of the run, in points. */
+  w: number;
+  s: string;
+  /** 1-based, the same numbering as the `<<PAGE:N>>` markers above. */
+  page: number;
+}
+
+interface PdfTextRun {
+  transform: number[];
+  width: number;
+  str: string;
+}
+
+/** The part of pdf.js's page proxy that pdf-parse hands `pagerender` and this reads. */
+interface PdfPageProxy {
+  pageNumber: number;
+  getTextContent(opts: { normalizeWhitespace: boolean }): Promise<{ items: PdfTextRun[] }>;
+}
+
+/**
+ * Every text run in a PDF, with its position and page.
+ *
+ * The tab-inserting renderer above keeps a line's order but throws away WHERE on
+ * the line each piece sat, so a column that wraps onto a second line -- a style
+ * name printed in two lines under its column -- cannot be put back under the
+ * right column. Readers that need that reconstruct columns from these
+ * coordinates instead. Ported from the sibling repo's pdfUtils (no vendor data).
+ */
+export async function readPdfTextItems(pdfBuffer: Buffer): Promise<PdfTextItem[]> {
+  const items: PdfTextItem[] = [];
+  await parsePdf(pdfBuffer, {
+    pagerender: (pageData: PdfPageProxy) =>
+      pageData.getTextContent({ normalizeWhitespace: false }).then((content) => {
+        for (const it of content.items) {
+          items.push({
+            x: it.transform[4],
+            y: it.transform[5],
+            w: it.width,
+            s: it.str,
+            page: pageData.pageNumber,
+          });
+        }
+        return "";
+      }),
+  });
+  return items;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
