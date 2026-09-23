@@ -45,7 +45,8 @@ export function parseMoney(raw: string, emptyCells: readonly string[]): number |
 export function parseDimension(raw: string, emptyCells: readonly string[]): number | null {
   const s = raw.trim();
   if (!s || emptyCells.includes(s)) return null;
-  const m = /^(\d+)(?:\s+(\d+)\/(\d+))?/.exec(s);
+  // A cell may carry its axis letter ("D  38\""), as some books print depth.
+  const m = /^(?:[WDH]\s+)?(\d+)(?:\s+(\d+)\/(\d+))?/.exec(s);
   if (!m) return null;
   let val = Number.parseInt(m[1], 10);
   if (m[2] && m[3]) {
@@ -278,12 +279,18 @@ function parseGrid(
   chunk: string,
   pageNumber: number,
   profile: WholesaleVendorProfile,
-): { products: ParsedWholesaleProduct[]; columnsDropped: number; rowsMisaligned: string[] } {
+): {
+  products: ParsedWholesaleProduct[];
+  columnsDropped: number;
+  columnsUnplaceable: number;
+  rowsMisaligned: string[];
+} {
   const lines = chunk.split("\n");
   const { rows, grades, optionCells } = collectRows(lines, profile);
   const headerCells = rows.style || [];
   const products: ParsedWholesaleProduct[] = [];
   let columnsDropped = 0;
+  let columnsUnplaceable = 0;
 
   const rowsMisaligned = POSITIONAL_ROWS.filter(
     (key) => rows[key] && rows[key].length !== headerCells.length,
@@ -308,6 +315,11 @@ function parseGrid(
     }
 
     const skus = profile.expandSkus ? profile.expandSkus(cell, lines, col) : [cell];
+    // The profile could not name this column's SKUs without guessing.
+    if (skus.length === 0) {
+      columnsUnplaceable++;
+      continue;
+    }
     const styleOptions = optionsFor(col, optionCells, profile);
     const dim = (key: string) => parseDimension(rows[key]?.[col] || "", profile.emptyCells);
 
@@ -341,7 +353,7 @@ function parseGrid(
     }
   }
 
-  return { products, columnsDropped, rowsMisaligned };
+  return { products, columnsDropped, columnsUnplaceable, rowsMisaligned };
 }
 
 /**
@@ -363,6 +375,8 @@ export interface WholesaleParseStats {
   columnsDropped: number;
   /** Positional rows left unset because their cell count was not the style count. */
   rowsMisaligned: number;
+  /** Priced columns not imported because the profile could not name their SKUs. */
+  columnsUnplaceable: number;
 }
 
 /**
@@ -373,6 +387,41 @@ export interface WholesaleParseStats {
  */
 export interface WholesaleParseResult extends ParseResult<ParsedWholesaleProduct> {
   stats: WholesaleParseStats;
+}
+
+/**
+ * Fold one grid's losses into the book's counts, and say each one out loud: a
+ * column or row the engine declined to read is a warning on its page, never a
+ * silent gap.
+ */
+function reportGrid(
+  parsed: ReturnType<typeof parseGrid>,
+  pageNumber: number,
+  stats: WholesaleParseStats,
+  diagnostics: ParseDiagnostic[],
+): void {
+  const warn = (message: string) =>
+    diagnostics.push({
+      level: "warning",
+      row: pageNumber,
+      message: `page ${pageNumber}: ${message}`,
+    });
+  stats.columnsDropped += parsed.columnsDropped;
+  stats.columnsUnplaceable += parsed.columnsUnplaceable;
+  stats.rowsMisaligned += parsed.rowsMisaligned.length;
+  if (parsed.columnsDropped > 0) {
+    warn(`${parsed.columnsDropped} style column(s) had a header but no recognised grade price`);
+  }
+  if (parsed.columnsUnplaceable > 0) {
+    warn(
+      `${parsed.columnsUnplaceable} priced column(s) not imported -- their SKUs could not be determined without guessing`,
+    );
+  }
+  if (parsed.rowsMisaligned.length > 0) {
+    warn(
+      `${parsed.rowsMisaligned.join(", ")} did not have one value per style (dropped or glued cells), so no value can be placed; left unset rather than guessed`,
+    );
+  }
 }
 
 /**
@@ -395,6 +444,7 @@ export function parseRenderedGrid(
     grids: 0,
     columnsDropped: 0,
     rowsMisaligned: 0,
+    columnsUnplaceable: 0,
   };
   const segments = text.split(/<<PAGE:(\d+)>>\n/);
 
@@ -413,22 +463,7 @@ export function parseRenderedGrid(
       stats.grids++;
       const parsed = parseGrid(chunk, pageNumber, profile);
       products.push(...parsed.products);
-      if (parsed.columnsDropped > 0) {
-        stats.columnsDropped += parsed.columnsDropped;
-        diagnostics.push({
-          level: "warning",
-          row: pageNumber,
-          message: `page ${pageNumber}: ${parsed.columnsDropped} style column(s) had a header but no recognised grade price`,
-        });
-      }
-      if (parsed.rowsMisaligned.length > 0) {
-        stats.rowsMisaligned += parsed.rowsMisaligned.length;
-        diagnostics.push({
-          level: "warning",
-          row: pageNumber,
-          message: `page ${pageNumber}: ${parsed.rowsMisaligned.join(", ")} did not have one value per style (dropped or glued cells), so no value can be placed; left unset rather than guessed`,
-        });
-      }
+      reportGrid(parsed, pageNumber, stats, diagnostics);
     }
   }
 
