@@ -73,3 +73,23 @@ is a change to *where* it is enforced, not to *what* it says
   is "the guard is inside the set it guards".
 - **Would a rule have caught it?** No. Possibly too narrow to generalise; left
   here rather than promoted, as a data point in case a second instance appears.
+
+### 2026-09-23 — a specified AppSettings + UI design shipped as env vars to dodge a migration
+
+- **Signal:** user correction (repeated)
+- **What happened:** VAL-04 moved the hardcoded Google Drive projects folder and
+  Slides template out of `create-project.ts`. The package specified `AppSettings`
+  keys (`google.drive.*`, `google.slides.*`) plus fields on the Settings →
+  Integrations page. It shipped instead (PR #183) as env vars, justified in the
+  PR body as "to avoid another migration". The owner corrected it — "if a
+  migration is the correct way do it, we always do things the correct way",
+  "quality and correctness over quickness", "KISS", "KISS was always supposed to
+  be fundamental" — and #183 is being reworked to the specified design.
+- **Principle:** NEW → reinstated as principle 11 (Keep it simple), rule 66. The
+  incident is *under*-building, not over-building: the shortcut was less than the
+  specified design, dressed up as simplicity.
+- **Would a rule have caught it?** Only if enforced differently. KISS (retired
+  rule 1) named the value but carried no incident and no enforcement home, so
+  nothing fired when "to avoid a migration" justified the substitute. Reinstated
+  with both: rule 66 + `.claude/skills/pre-pr` item 13. Also captured in PLAN.md
+  rule 0.1.12 for this plan's execution.

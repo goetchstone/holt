@@ -103,7 +103,17 @@ No `wip-`, `temp-`, `branch1`.
 (- [ ] checkboxes for what the reviewer should verify)
 ```
 
-## 13. Verify the gate is actually green BEFORE clicking merge
+## 13. Simplest faithful realization of the specified design (rule 66)
+
+The change implements the design the package or plan specified — an
+`AppSettings` key plus a Settings field, a sibling route's permission, a shared
+helper — not a lighter substitute chosen to save effort (an env var, a hardcoded
+default, a skipped migration), and not an abstraction or knob it never asked
+for. If a step was skipped "to avoid a migration" or "to keep it simple," that
+is under-building: go back and build the specified design, then keep everything
+around it plain. Correct-and-simple, copying the nearest existing pattern.
+
+## 14. Verify the gate is actually green BEFORE clicking merge
 
 All required status checks COMPLETED + SUCCESS, gate state in the PR body
 matches what was actually scanned, no unaddressed reviewer comments.

@@ -340,13 +340,46 @@ Full playbook: → `.claude/skills/dependency-sweep/SKILL.md`
 55. **Sweep CVEs before starting a merge train.** New advisories turn the gate
     red for reasons unrelated to any pending PR.
 
+### 11. Keep it simple
+
+Prefer the simplest thing that fully does the job: the plain function before the
+abstraction, an existing pattern before a new mechanism, the smallest complete
+change. Complexity earns its place by being necessary, not merely possible — an
+unasked-for knob, a premature abstraction, a layer "for later" is weight every
+later reader carries for no return.
+
+Simple is measured against the *correct* design, though — the one the package,
+the plan, or the nearest existing pattern specifies — never against the effort of
+reaching it. A lighter substitute chosen to dodge that design (an env var where
+an `AppSettings` key and a Settings field were specified, a hardcoded default
+where configuration was) is not the simple choice; it is the incomplete one, and
+it ships a second, wrong system someone reworks later. Under-building and
+over-building are one mistake seen from two sides.
+
+**How it hides:** "to keep it simple" and "to avoid a migration" are how
+under-building dresses as discipline. A migration, a settings field, a shared
+helper are the ordinary cost of the correct design — pay it, and keep everything
+around it plain.
+
+66. **Build the specified design, the simplest way faithful to it.** When a
+    package names a design — an `AppSettings` key plus a Settings field, a sibling
+    route's permission, a shared helper — implement that one, copying the nearest
+    existing pattern rather than inventing machinery or substituting a lighter
+    stand-in. A schema migration is a normal cost, never a reason to route around
+    the specified design. Checked in `.claude/skills/pre-pr`.
+
 ## Retired
 
-**1. KISS.** Retired 2026-08-26. Zero citations across the 203 rule-citing
-files; no incident, no origin link, and no enforcement home in a skill, hook or
-tripwire. `docs/RULE-PROVENANCE.md` already flagged it as deletable. It was also
-the one rule that contradicted the doctrine it sat under — a preference, not
-something an incident taught. The number is retired, not reused.
+**1. KISS.** Retired 2026-08-26 for zero citations, no origin link, and no
+enforcement home in a skill, hook or tripwire — a preference, not something an
+incident taught. **Reinstated 2026-09-23 as principle 11 (rule 66)** by owner
+decision after the VAL-04 incident: a specified `AppSettings` + Settings-UI
+design shipped as env vars "to avoid a migration" (`docs/RULE-FEEDBACK.md`,
+2026-09-23). The return supplies exactly what the retirement faulted — an
+incident, and an enforcement home in `.claude/skills/pre-pr` — and frames KISS as
+simplest-*faithful*, so it no longer contradicts the doctrine that rules are
+incident-taught and enforced. The number 1 stays retired; the principle returns
+under a new number, never the old one.
 
 ## Changing this file
 

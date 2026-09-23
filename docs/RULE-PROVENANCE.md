@@ -42,6 +42,15 @@ number is retired, not reused; see `## Retired` in `CLAUDE.md`. (The single
 `git grep` hit for "rule 1" is `sameDayRewriteCleanup.ts:59`, which refers to a
 rule numbered locally inside that file's own comment, not to this one.)
 
+**KISS reinstated as principle 11 (rule 66) — 2026-09-23.** Owner decision after
+the VAL-04 incident (`docs/RULE-FEEDBACK.md`, 2026-09-23): a specified
+`AppSettings` + Settings-UI design was shipped as env vars "to avoid a
+migration". The reinstatement supplies the two things the retirement faulted — a
+cited incident and an enforcement home (`.claude/skills/pre-pr` item 13) — and
+reframes KISS as *simplest-faithful-to-the-specified-design*, so it no longer
+reads as a bare preference. Number 1 stays retired; the principle returns under
+11 / 66, never the old number.
+
 **Rule 37** is evidenced only in Holt, with no sibling counterpart. It reads as a
 specialization of rules 6 and 7 — and now sits beneath them, under principle 6
 ("one home per fact") in `CLAUDE.md`, with its number and its ten citations
@@ -99,3 +108,9 @@ Each came from a specific failure in one working session.
 | 58 | The TLS/certbot configuration could not be exercised without a real domain and certificate. The PR said so rather than implying it was tested. |
 | 59 | Local databases outside the seed allowlist hold restored production-shaped and seeded data alongside the test database. |
 | 60 | The payment-provider seam: an organization switching processors must still refund historical payments through the processor that captured them. |
+
+## Rule 66 — learned 2026-09
+
+| # | Origin |
+|---|---|
+| 66 | VAL-04 shipped a specified `AppSettings` + Settings-UI design (Google Drive projects folder / Slides template) as env vars, justified in the PR body as "to avoid another migration". The owner corrected it to the specified design and directed that KISS — retired 2026-08-26 — return as fundamental. Reinstated as principle 11; enforced at `.claude/skills/pre-pr` item 13. |
