@@ -266,9 +266,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
     expect(cases[0].caseNumber.startsWith("CSI-")).toBe(true);
   });
 
-  // QUARANTINED -- pre-existing bug: extractSalesOrderTokens does not match hyphenated
-  // order numbers (SO-NNNNN); genericization miss. Tracked for a focused fix.
-  it.skip("matches SalesOrder by orderno (including rewrite suffix)", async () => {
+  it("matches SalesOrder by orderno (including rewrite suffix)", async () => {
     await seedCustomer({ firstName: "Karen", lastName: "Dunmore" });
 
     // The orderno cell in the sheet often has multiple shapes mashed
@@ -462,8 +460,7 @@ describe("runServiceCaseSheetImport — real-DB scenarios", () => {
     expect(c?.salesOrder).toBeNull();
   });
 
-  // QUARANTINED -- same extractSalesOrderTokens hyphenated-orderno bug. Tracked.
-  it.skip("falls back to the SalesOrder's customer when phone/email/name don't match", async () => {
+  it("falls back to the SalesOrder's customer when phone/email/name don't match", async () => {
     // Customer's name in the sheet is a couple-with-slash that the
     // name-based matcher won't resolve.
     const targetCustomer = await seedCustomer({

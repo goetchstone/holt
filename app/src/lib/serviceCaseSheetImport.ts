@@ -650,15 +650,17 @@ export function mapExcelStatusName(raw: string | undefined, sheetName: string): 
  * "PONO6186 SO2986 Ack #249207"). We extract every sales-order-shaped
  * token and let the orchestrator try to match against SalesOrder.orderno.
  *
- * Generic shape: an alphabetic prefix (2+ letters) immediately followed
- * by 1-7 digits, with an optional rewrite suffix (" - A"). This matches
+ * Generic shape: an alphabetic prefix (2+ letters), an optional hyphen, then
+ * 1-7 digits, with an optional rewrite suffix (" - A"). The hyphen ("SO-28978")
+ * was not allowed until QUA-02, so every hyphenated order failed to link and
+ * its case imported unattached. This matches
  * whatever order-number scheme a deployment uses without hardcoding any
  * store-specific prefixes. PO tokens (PON/PONO) are excluded here and
  * handled by extractPoTokens below. The orchestrator fails the lookup
  * and surfaces the row as unmatched for any token that isn't a real
  * order, which is the desired behavior.
  */
-const SALES_ORDER_PATTERNS: RegExp[] = [/\b([A-Z]{2,5}\d{1,7}(?:\s*-\s*[A-Z])?)\b/gi];
+const SALES_ORDER_PATTERNS: RegExp[] = [/\b([A-Z]{2,5}-?\d{1,7}(?:\s*-\s*[A-Z])?)\b/gi];
 
 // PO-token prefixes to exclude from sales-order extraction (they're
 // matched separately by extractPoTokens). Keeps a "PONO6186" cell token

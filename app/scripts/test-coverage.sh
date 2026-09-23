@@ -96,9 +96,11 @@ npx --no-install nyc report \
 # PRs should bump these accordingly.
 echo ""
 echo "=== Checking thresholds against merged coverage ==="
-# functions floor temporarily 71 -> 66: two service-case integration files are
-# quarantined (see task to fix extractSalesOrderTokens + restore the missing
-# 20260527b backfill migration). Ratchet back to 71 when those tests are un-skipped.
+# functions floor temporarily 71 -> 66 for two quarantines. The service-case
+# one is resolved (QUA-02: extractSalesOrderTokens reads hyphenated order
+# numbers, both tests un-skipped); the 20260527b backfill migration one is still
+# an owner decision (PLAN gate 5). Ratchet toward 71 from a measured run, never
+# by guess.
 npx --no-install nyc check-coverage \
   --statements=59 \
   --branches=48 \
