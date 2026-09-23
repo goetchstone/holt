@@ -32,10 +32,7 @@ import {
   UnsupportedTypeError,
   UnsupportedVendorError,
 } from "@/lib/pricing/parsePriceBook";
-import { columnAwarePageRenderer } from "@/lib/pricing/pdfUtils";
-
-// pdf-parse is CommonJS-only; columnGrid.ts loads it the same way.
-const pdf = require("pdf-parse");
+import { columnAwarePageRenderer, parsePdf } from "@/lib/pricing/pdfUtils";
 
 const APP_ROOT = path.resolve(__dirname, "..");
 const REPO_ROOT = path.resolve(APP_ROOT, "..");
@@ -293,7 +290,7 @@ async function runRender(args: string[]): Promise<number> {
   const outFile = argValue(args, "--out");
   if (!book || !outFile) throw new Error("--render <book.pdf> needs --out <file outside the repo>");
   const outPath = assertOutsideRepo(outFile);
-  const data = await pdf(fs.readFileSync(path.resolve(expandHome(book))), {
+  const data = await parsePdf(fs.readFileSync(path.resolve(expandHome(book))), {
     pagerender: columnAwarePageRenderer,
   });
   const pageArg = argValue(args, "--page");

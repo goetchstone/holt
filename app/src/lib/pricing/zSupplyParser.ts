@@ -5,7 +5,7 @@
 // with style/color/description concatenated (no spaces), followed by the
 // size grid header, then a line with qty + prices.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface ZSupplyLineItem {
   styleNumber: string;
@@ -53,7 +53,7 @@ const PACK_DEFINITIONS: Record<string, { size: string; qty: number }[]> = {
 };
 
 export async function parseZSupplyPDF(buffer: Buffer): Promise<ZSupplyInvoice> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   const text: string = data.text;
   const lines: string[] = text
     .split("\n")

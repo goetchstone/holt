@@ -4,7 +4,7 @@
 // metadata and line items with per-size breakdowns from the text output
 // of pdf-parse. Used for apparel vendor PO imports.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface NuOrderSize {
   size: string;
@@ -58,7 +58,7 @@ function parseSizes(line: string): NuOrderSize[] {
 }
 
 export async function parseNuOrderPDF(buffer: Buffer): Promise<NuOrderPO> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   const text: string = data.text;
   const lines: string[] = text
     .split("\n")

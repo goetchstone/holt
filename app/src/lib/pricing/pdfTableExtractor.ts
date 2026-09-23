@@ -5,8 +5,7 @@
 // positions (via X-coordinate gaps → tab separators), then parses
 // each pricing grid into structured product rows.
 
-import pdf from "pdf-parse";
-import { columnAwarePageRenderer } from "./pdfUtils";
+import { columnAwarePageRenderer, parsePdf } from "./pdfUtils";
 export { parseCurrency } from "./pricingUtils";
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -110,7 +109,7 @@ const ALL_GRADE_CODES = new Set([...FABRIC_GRADES, ...LEATHER_GRADES]);
  * Extract wholesale pricing data from a Wesley Hall price list PDF.
  */
 export async function extractWholesalePricing(pdfBuffer: Buffer): Promise<WholesaleRawRow[]> {
-  const data = await pdf(pdfBuffer, {
+  const data = await parsePdf(pdfBuffer, {
     pagerender: columnAwarePageRenderer,
   });
 
@@ -804,7 +803,7 @@ function isLikelyGrade(n: string): boolean {
  * Returns structured rows with fabricName, colorName, and grade.
  */
 export async function extractFabricCatalog(pdfBuffer: Buffer): Promise<FabricParsedRow[]> {
-  const data = await pdf(pdfBuffer);
+  const data = await parsePdf(pdfBuffer);
   const lines = data.text
     .split("\n")
     .map((l) => l.trim())

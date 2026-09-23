@@ -25,7 +25,7 @@
 // 4. A promotional line ("...10%1Receive a 10% discount on orders over $3,500")
 //    has no "$price$ext" pair and is skipped, not read as an item.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface SuperCatItem {
   itemNumber: string;
@@ -165,6 +165,6 @@ export function parseSuperCatOrderText(text: string): SuperCatOrder {
 }
 
 export async function parseSuperCatOrderPDF(buffer: Buffer): Promise<SuperCatOrder> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   return parseSuperCatOrderText(data.text);
 }

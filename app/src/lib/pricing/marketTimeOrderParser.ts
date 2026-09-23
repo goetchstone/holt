@@ -29,7 +29,7 @@
 //    Instructions: This is just a quote please hold" and "Order still on hold"
 //    — importing it would create a PO for something nobody has placed.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface MarketTimeItem {
   itemNumber: string;
@@ -441,6 +441,6 @@ export function parseMarketTimeOrderText(text: string): MarketTimeOrder {
 }
 
 export async function parseMarketTimeOrderPDF(buffer: Buffer): Promise<MarketTimeOrder> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   return parseMarketTimeOrderText(data.text);
 }

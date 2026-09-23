@@ -31,7 +31,7 @@
 // 3. There is NO UPC column — so barcode exports blank and Ordorite assigns its
 //    own, which is the owner's intent for vendors that carry no UPC.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface BrandWiseItem {
   sku: string;
@@ -272,6 +272,6 @@ export function parseBrandWiseOrderText(text: string): BrandWiseOrder {
 }
 
 export async function parseBrandWiseOrderPDF(buffer: Buffer): Promise<BrandWiseOrder> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   return parseBrandWiseOrderText(data.text);
 }

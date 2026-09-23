@@ -21,7 +21,7 @@
 // [0.00] until the order's last page, where the real total appears -- so
 // the last occurrence for a given order number wins.
 
-const pdfParse = require("pdf-parse");
+import { parsePdf } from "./pdfUtils";
 
 export interface KKOrderItem {
   itemNumber: string;
@@ -254,6 +254,6 @@ export function parseKKOrderText(text: string): KKOrderBundle {
 }
 
 export async function parseKKOrderPDF(buffer: Buffer): Promise<KKOrderBundle> {
-  const data = await pdfParse(buffer);
+  const data = await parsePdf(buffer);
   return parseKKOrderText(data.text);
 }
