@@ -28,7 +28,6 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditLog } from "@/lib/audit";
 import { logError, logger } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 
 const SNAPSHOT_SOURCES = ["LOCAL", "IMPORT"] as const;
 type SnapshotSource = (typeof SNAPSHOT_SOURCES)[number];
@@ -89,9 +88,7 @@ export async function handlePost(
     return res.status(200).json({ message, deleted: count, scope });
   } catch (error: unknown) {
     logError("Failed to clear inventory snapshot", error, { source });
-    return res
-      .status(500)
-      .json({ error: `Failed to clear data: ${getErrorMessage(error, "unknown error")}` });
+    return res.status(500).json({ error: "Failed to clear data" });
   }
 }
 

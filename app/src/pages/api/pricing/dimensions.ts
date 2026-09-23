@@ -7,7 +7,6 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -45,9 +44,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.json(dimensions);
   } catch (error: unknown) {
     logError("Dimensions query error", error);
-    return res.status(500).json({
-      error: "Failed to fetch dimensions",
-      details: getErrorMessage(error, "Internal server error"),
-    });
+    return res.status(500).json({ error: "Failed to fetch dimensions" });
   }
 }

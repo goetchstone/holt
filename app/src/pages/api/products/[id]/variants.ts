@@ -5,7 +5,6 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
-import { getErrorMessage } from "@/lib/toastError";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const productId = Number.parseInt(req.query.id as string);
@@ -70,10 +69,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           .status(409)
           .json({ error: "Duplicate variant data found (e.g., SKU or UPC already exists)" });
       }
-      return res.status(500).json({
-        error: "Failed to create product variants",
-        details: getErrorMessage(error, "Internal server error"),
-      });
+      return res.status(500).json({ error: "Failed to create product variants" });
     }
   }
 
@@ -118,10 +114,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           error: "Duplicate variant data found during update (e.g., SKU or UPC already exists)",
         });
       }
-      return res.status(500).json({
-        error: "Failed to update product variants",
-        details: getErrorMessage(error, "Internal server error"),
-      });
+      return res.status(500).json({ error: "Failed to update product variants" });
     }
   }
 
@@ -146,10 +139,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           .status(409)
           .json({ error: "Cannot delete variant: It is referenced by other records." });
       }
-      return res.status(500).json({
-        error: "Failed to delete product variant",
-        details: getErrorMessage(error, "Internal server error"),
-      });
+      return res.status(500).json({ error: "Failed to delete product variant" });
     }
   }
 

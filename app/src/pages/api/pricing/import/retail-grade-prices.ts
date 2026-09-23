@@ -409,10 +409,7 @@ export default requirePermission(
       });
     } catch (error: unknown) {
       logError("Retail grade-based import error", error);
-      return res.status(500).json({
-        error: "Import failed",
-        details: getErrorMessage(error, "Import failed"),
-      });
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 export default requirePermission(
   "admin.data",
   async (req: NextApiRequest, res: NextApiResponse) => {
@@ -22,9 +21,7 @@ export default requirePermission(
       return res.status(200).json({ message: "All Mailchimp data cleared successfully." });
     } catch (error: unknown) {
       logError("Failed to clear Mailchimp data", error);
-      return res
-        .status(500)
-        .json({ error: `Failed to clear data: ${getErrorMessage(error, "unknown error")}` });
+      return res.status(500).json({ error: "Failed to clear data" });
     }
   },
 );

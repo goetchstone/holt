@@ -7,7 +7,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { processEmailQueue } from "@/lib/email/queue";
-import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 
 function authorizedByApiKey(req: NextApiRequest): boolean {
@@ -22,7 +21,7 @@ async function drain(_req: NextApiRequest, res: NextApiResponse) {
     return res.status(200).json({ summary });
   } catch (err: unknown) {
     logError("Email queue drain failed", err);
-    return res.status(500).json({ error: getErrorMessage(err, "Could not process email queue") });
+    return res.status(500).json({ error: "Could not process email queue" });
   }
 }
 

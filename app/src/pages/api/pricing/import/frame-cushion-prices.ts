@@ -487,10 +487,7 @@ export default requirePermission(
       });
     } catch (error: unknown) {
       logError("Frame+cushion import error", error);
-      return res.status(500).json({
-        error: "Import failed",
-        details: getErrorMessage(error, "Unknown error"),
-      });
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

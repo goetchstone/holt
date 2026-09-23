@@ -21,7 +21,6 @@ import fs from "fs";
 import path from "path";
 import { extractPdfImages, savePageImages } from "@/lib/pricing/pdfImageExtractor";
 import { logger, logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 import { extractWholesalePricing } from "@/lib/pricing/pdfTableExtractor";
 import { parseWholesaleRows, type ParsedWholesaleProduct } from "@/lib/pricing/wesleyHallParser";
 import { extractCrLaineWholesale } from "@/lib/pricing/crLaineExtractor";
@@ -494,12 +493,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
   } catch (error: unknown) {
     logError("extract-images failed", error);
-    return res.status(500).json({
-      error: "Image extraction failed",
-      details: getErrorMessage(error, "Internal server error"),
-      stack:
-        process.env.NODE_ENV === "development" && error instanceof Error ? error.stack : undefined,
-    });
+    return res.status(500).json({ error: "Image extraction failed" });
   }
 }
 

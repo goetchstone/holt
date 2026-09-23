@@ -6,7 +6,6 @@ import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 export default requirePermission(
   "catalog.write",
   async (req: NextApiRequest, res: NextApiResponse) => {
@@ -148,7 +147,7 @@ export default requirePermission(
       });
     } catch (error: unknown) {
       logError("Unexpected error", error);
-      res.status(500).json({ error: getErrorMessage(error, "Internal server error") });
+      res.status(500).json({ error: "Internal server error" });
     }
   },
 );

@@ -14,7 +14,6 @@ import fs from "fs";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { createSecureForm } from "@/lib/secureUpload";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 export const config = { api: { bodyParser: false } };
 
 async function parseForm(
@@ -257,7 +256,7 @@ export default requirePermission(
       return res.status(200).json(result);
     } catch (error: unknown) {
       logError("NuORDER import error", error);
-      return res.status(500).json({ error: getErrorMessage(error, "Import failed") });
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

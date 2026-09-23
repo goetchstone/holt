@@ -205,7 +205,10 @@ reality does. Nobody gets a signal that it went false — they just act on it.
 11. **Surface backend error messages** via `getErrorMessage(err, fallback)`,
     never a generic "Failed to X." (The under-claiming direction: a catch that
     renders "Failed to save" discards a backend message that said precisely
-    what was wrong.)
+    what was wrong.) The backend's side: a 4xx says what the caller got wrong;
+    a 500 says only what failed. Its internals (Prisma column and constraint
+    names, a stack) go to `logError`, never into the body
+    (`__tests__/api500Bodies.test.ts`).
 19. **Runbooks are pinned against source**, not plausibility — cite source
     opened this session or write `[NEEDS VERIFICATION]`.
 56. **Verify claims against code, not docs.** Docs drift; source cannot lie

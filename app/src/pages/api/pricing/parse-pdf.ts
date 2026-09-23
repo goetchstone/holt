@@ -15,6 +15,7 @@
 //   500  the reader threw
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { logError } from "@/lib/logger";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import fs from "fs";
 import { createSecureForm } from "@/lib/secureUpload";
@@ -24,7 +25,6 @@ import {
   UnsupportedTypeError,
   UnsupportedVendorError,
 } from "@/lib/pricing/parsePriceBook";
-import { getErrorMessage } from "@/lib/toastError";
 
 // Disable Next.js body parsing so formidable can handle the multipart upload
 export const config = {
@@ -70,10 +70,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (error instanceof UnsupportedTypeError) {
       return res.status(400).json({ error: error.message });
     }
-    return res.status(500).json({
-      error: "Failed to parse PDF",
-      details: getErrorMessage(error, "Internal server error"),
-    });
+    logError("parse-pdf failed", error);
+    return res.status(500).json({ error: "Failed to parse PDF" });
   } finally {
     // The upload is a temp file either way; a refused parse must not leak it.
     if (tempPath) {

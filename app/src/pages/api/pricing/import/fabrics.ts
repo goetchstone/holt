@@ -253,10 +253,7 @@ export default requirePermission(
       });
     } catch (error: unknown) {
       logError("Fabric import error", error);
-      return res.status(500).json({
-        error: "Import failed",
-        details: getErrorMessage(error, "Unknown error"),
-      });
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

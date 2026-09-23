@@ -9,7 +9,6 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { getErrorMessage } from "@/lib/toastError";
 import { getErrorCode } from "@/lib/errorCode";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -79,10 +78,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
     } catch (error: unknown) {
       logError("Fabric list error", error);
-      return res.status(500).json({
-        error: "Failed to fetch fabrics",
-        details: getErrorMessage(error, "Internal server error"),
-      });
+      return res.status(500).json({ error: "Failed to fetch fabrics" });
     }
   }
 
@@ -135,10 +131,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         });
       }
       logError("Fabric create error", err);
-      return res.status(500).json({
-        error: "Failed to create fabric",
-        details: getErrorMessage(err, "Internal server error"),
-      });
+      return res.status(500).json({ error: "Failed to create fabric" });
     }
   }
 

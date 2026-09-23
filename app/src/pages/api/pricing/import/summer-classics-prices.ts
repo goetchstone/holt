@@ -8,6 +8,7 @@
 // via parse-pdf.ts) as JSON.
 
 import { getErrorMessage } from "@/lib/toastError";
+import { logError } from "@/lib/logger";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import type { SurchargeType } from "@prisma/client";
@@ -297,10 +298,8 @@ export default requirePermission(
         ).length,
       });
     } catch (error: unknown) {
-      return res.status(500).json({
-        error: "Import failed",
-        details: getErrorMessage(error, "Unknown error"),
-      });
+      logError("Summer Classics import failed", error);
+      return res.status(500).json({ error: "Import failed" });
     }
   },
 );

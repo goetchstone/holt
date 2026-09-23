@@ -47,7 +47,7 @@ async function run(req: NextApiRequest, res: NextApiResponse) {
     // image or a botched rename. 500 with the reason, because importing
     // nothing and reporting success is how reports go stale unnoticed.
     logError("Source adapter resolution failed", err);
-    return res.status(500).json({ error: getErrorMessage(err, "Source adapter is unavailable") });
+    return res.status(500).json({ error: "Source adapter is unavailable" });
   }
 
   // Fail before doing work, with the setting that is missing named. Previously
@@ -76,7 +76,7 @@ async function run(req: NextApiRequest, res: NextApiResponse) {
         "The import orchestrator threw before completing. Reports are stale until it succeeds; failed work stays queued and retries next run.",
       context: { error: getErrorMessage(err, "unknown"), sourceAdapterId: adapter.id },
     });
-    return res.status(500).json({ error: getErrorMessage(err, "Import failed") });
+    return res.status(500).json({ error: "Import failed" });
   }
 }
 
