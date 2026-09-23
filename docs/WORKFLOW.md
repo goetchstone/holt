@@ -195,6 +195,13 @@ before the push hits the wire. With server enforcement in place, the hook is
 **fast feedback** rather than the actual gate — keep it because losing 30
 seconds locally is much better than waiting for the GitHub Action queue.
 
+It first refuses a Node older than `app/package.json` `engines.node` (24, what
+CI and production run), naming the binary it found. A green hook on an older
+Node proves nothing: on 2026-09-23 a test passed here on Node 20 and failed CI
+on 24 (#190). `nvm use 24`, then push. The hook appends
+`/opt/homebrew/bin:/usr/local/bin` to `PATH` for GUI git clients; it does not
+prepend them, so the Node you selected is the one it checks and runs.
+
 ## Emergency bypass
 
 Only for live prod incidents where the proper workflow would make
