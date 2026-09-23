@@ -206,6 +206,52 @@ function parseSourceAdapter(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// A plain-object view of an unknown value, for reading nested settings.
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+// Trimmed, non-empty subfolder names; null when the value is present but not a
+// string array (a validation error), [] when absent.
+function parseSubfolderList(raw: unknown): string[] | null {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || !raw.every((s) => typeof s === "string")) return null;
+  return (raw as string[]).map((s) => s.trim()).filter(Boolean);
+}
+
+// Google Drive/Slides project-creation config: the folder new project folders
+// go under, the Slides deck copied into each, and the subfolder list. These are
+// non-secret identifiers, so they live in AppSettings here rather than in the
+// encrypted integrations store. The whole object is replaced on save; an empty
+// subfolder list resolves to the standard set (appSettings.ts).
+function parseGoogle(body: Body, data: SettingsData): ParseError {
+  if (body.google === undefined) return null;
+  if (typeof body.google !== "object" || body.google === null) {
+    return { error: "google must be an object" };
+  }
+  const g = body.google as Record<string, unknown>;
+  const drive = asRecord(g.drive);
+  const slides = asRecord(g.slides);
+
+  const root = optionalText(drive.projectsRootFolderId, "google.drive.projectsRootFolderId");
+  if (!root.ok) return { error: root.error };
+  const template = optionalText(
+    slides.templatePresentationId,
+    "google.slides.templatePresentationId",
+  );
+  if (!template.ok) return { error: template.error };
+  const subfolders = parseSubfolderList(drive.projectSubfolders);
+  if (subfolders === null) {
+    return { error: "google.drive.projectSubfolders must be an array of strings" };
+  }
+
+  data.google = {
+    drive: { projectsRootFolderId: root.value ?? null, projectSubfolders: subfolders },
+    slides: { templatePresentationId: template.value ?? null },
+  };
+  return null;
+}
+
 const SETTINGS_PARSERS = [
   parseAppName,
   parseTextFields,
@@ -215,6 +261,7 @@ const SETTINGS_PARSERS = [
   parseFeatures,
   parseBooking,
   parseSourceAdapter,
+  parseGoogle,
 ];
 
 async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Session) {

@@ -65,7 +65,6 @@ src/pages/api/tills/index.ts
 src/pages/api/tools/dmarc-check.ts
 src/pages/api/types/by-category/[id].ts
 src/pages/api/upboard/[store].ts
-src/pages/api/uploads/[...path].ts
 src/pages/api/vendors/vendor-list.ts
 src/pages/api/warehouse/dashboard/inbound.ts
 src/pages/api/warehouse/dashboard/summary.ts
