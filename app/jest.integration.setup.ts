@@ -96,11 +96,17 @@ async function ensureTestDbExists(): Promise<void> {
  * the Prisma client (we already have one from `npx prisma generate`).
  */
 function applySchema(testDbUrl: string): void {
-  execSync("npx prisma db push --accept-data-loss", {
+  const env = { ...process.env, DATABASE_URL: testDbUrl };
+  // The schema's LegacyOrder trigram indexes need pg_trgm's operator class,
+  // which migration 20260610b creates and `db push` cannot (Prisma declares
+  // extensions only behind a preview flag). Before the push, not after it.
+  execSync("npx prisma db execute --stdin", {
     cwd: __dirname,
-    stdio: "inherit",
-    env: { ...process.env, DATABASE_URL: testDbUrl },
+    stdio: ["pipe", "inherit", "inherit"],
+    input: "CREATE EXTENSION IF NOT EXISTS pg_trgm;",
+    env,
   });
+  execSync("npx prisma db push --accept-data-loss", { cwd: __dirname, stdio: "inherit", env });
   applyDbGuards(testDbUrl);
 }
 

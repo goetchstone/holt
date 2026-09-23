@@ -99,6 +99,15 @@ It can, and the schema now does:
 A migration that adds an index by hand-written SQL must declare the same index
 in `schema.prisma`, with `map:` naming it, or CI goes red.
 
+**The integration test database is built by `db push`, not by migrations**
+(`jest.integration.setup.ts`). So anything the schema depends on that only
+migration SQL creates is missing there. `db push` then fails, and every
+integration file with it. The trigram indexes need the `pg_trgm` extension, so
+the harness and `npm run db:push` create it before pushing. Prisma declares
+extensions only behind a preview flag. Verify a `schema.prisma` change by
+running one integration file locally, not only `migrate deploy`: #194's first
+CI run failed exactly this way after the `migrate deploy` check had passed.
+
 Prisma 7 removed `--from-schema-datasource` / `--to-schema-datamodel`; the
 datasource now comes from `prisma.config.ts` via `--from-config-datasource`,
 and a schema file is `--from-schema` / `--to-schema`. `migrate diff` also no

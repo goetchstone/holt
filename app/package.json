@@ -30,7 +30,7 @@
     "lint:md": "cd .. && npx --yes markdownlint-cli2 \"**/*.md\" \"!**/node_modules/**\"",
     "check:local": "bash scripts/check-local.sh",
     "prepare": "cd .. && git config core.hooksPath .githooks",
-    "db:push": "prisma db push && prisma generate",
+    "db:push": "echo 'CREATE EXTENSION IF NOT EXISTS pg_trgm;' | prisma db execute --stdin && prisma db push && prisma generate",
     "db:generate": "prisma generate",
     "create-admin": "node scripts/create-admin.mjs",
     "seed:cms": "node scripts/seed-cms.mjs",
