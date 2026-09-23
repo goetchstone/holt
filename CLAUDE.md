@@ -17,6 +17,7 @@ Detail lives elsewhere, and this file points at it rather than repeating it.
 |---|---|---|
 | Constitution | this file | every session |
 | Domain runbooks | `docs/domains/*.md` | before working in that domain |
+| Framework agent rules | `app/AGENTS.md`, loaded via `app/CLAUDE.md`; written by `next dev`, not hand-edited | before writing Next.js code — the installed Next differs from any model's training data |
 | Decisions already settled | `docs/DECISIONS.md` | before proposing a structural change |
 | Procedures | `.claude/skills/*/SKILL.md` | at the moment they apply |
 | Hard gates | `.claude/hooks/*.sh` | enforced automatically |
