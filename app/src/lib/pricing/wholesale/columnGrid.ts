@@ -19,13 +19,15 @@
 // Everything vendor-specific is in the profile. This file knows about tabs,
 // columns and pages; it does not know any vendor's name.
 
-import { columnAwarePageRenderer } from "../pdfUtils";
+import { columnAwarePageRenderer, parsePdf, readPdfTextItems } from "../pdfUtils";
 import type { ParsedWholesaleProduct } from "../wesleyHallParser";
 import type { ParseDiagnostic, ParseResult } from "../pricingTypes";
-import type { EditionExpectation, StyleOption, WholesaleVendorProfile } from "./profile";
-
-// pdf-parse is CommonJS-only.
-const pdf = require("pdf-parse");
+import type {
+  EditionExpectation,
+  LayoutText,
+  StyleOption,
+  WholesaleVendorProfile,
+} from "./profile";
 
 /** Money cell to a number, or null when the vendor's book says "no price". */
 export function parseMoney(raw: string, emptyCells: readonly string[]): number | null {
@@ -377,6 +379,8 @@ export interface WholesaleParseStats {
   rowsMisaligned: number;
   /** Priced columns not imported because the profile could not name their SKUs. */
   columnsUnplaceable: number;
+  /** Styles imported with no name or description: `layoutText` could not place their words. */
+  layoutUnplaced: number;
 }
 
 /**
@@ -445,6 +449,7 @@ export function parseRenderedGrid(
     columnsDropped: 0,
     rowsMisaligned: 0,
     columnsUnplaceable: 0,
+    layoutUnplaced: 0,
   };
   const segments = text.split(/<<PAGE:(\d+)>>\n/);
 
@@ -518,6 +523,39 @@ function summarise(
     warningCount: diagnostics.filter((d) => d.level === "warning").length,
     errorCount: diagnostics.filter((d) => d.level === "error").length,
   };
+}
+
+/**
+ * Take every style's name and description from the profile's `layoutText` map
+ * (see `WholesaleVendorProfile.layoutText`): the map is the only source, so a
+ * style it does not cover gets neither, is counted, and is warned about once.
+ * Pure and exported so tests drive it without a PDF.
+ */
+export function applyLayoutText(
+  result: WholesaleParseResult,
+  layout: ReadonlyMap<string, LayoutText>,
+): WholesaleParseResult {
+  let unplaced = 0;
+  const data = result.data.map((product) => {
+    const placed = layout.get(product.styleNumber);
+    if (!placed) unplaced++;
+    return {
+      ...product,
+      styleName: placed?.name ?? "",
+      description: placed?.description ?? "",
+    };
+  });
+  const diagnostics = [...result.diagnostics];
+  if (unplaced > 0) {
+    diagnostics.push({
+      level: "warning",
+      message:
+        `${unplaced} of ${data.length} styles imported with no name or description: ` +
+        `their column's words could not be placed by position`,
+    });
+  }
+  const stats = { ...result.stats, layoutUnplaced: unplaced };
+  return { data, diagnostics, stats, summary: summarise(data.length, stats, diagnostics) };
 }
 
 /** What `extractWholesaleGrid` learns about the PDF itself, for `assertEdition`. */
@@ -615,11 +653,17 @@ export async function extractWholesaleGrid(
   // segments -- one holding only the formfeed -- and the engine saw 2x pages,
   // with the phantom half always failing `pageRequires`. Products were never
   // affected; the page counts that now explain a zero would have been.
-  const data = await pdf(pdfBuffer, { pagerender: columnAwarePageRenderer });
+  const data = await parsePdf(pdfBuffer, { pagerender: columnAwarePageRenderer });
   const meta: PdfMeta = {
     numpages: Number(data.numpages) || 0,
     title: data.info?.Title ? String(data.info.Title) : undefined,
     producer: data.info?.Producer ? String(data.info.Producer) : undefined,
   };
-  return assertEdition(parseRenderedGrid(data.text, profile), profile, { text: data.text, meta });
+  let result = parseRenderedGrid(data.text, profile);
+  // A second pass for positions: the rendered text above has already thrown
+  // them away, and only a profile that reads words by position pays for it.
+  if (profile.layoutText) {
+    result = applyLayoutText(result, profile.layoutText(await readPdfTextItems(pdfBuffer)));
+  }
+  return assertEdition(result, profile, { text: data.text, meta });
 }

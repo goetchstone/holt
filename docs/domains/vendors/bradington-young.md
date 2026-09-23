@@ -45,28 +45,66 @@ invented a `SUFFIX:` label the book never prints.
 |---|---|
 | SKUs | `ITEM NUMBER:` — the grid header |
 | Suffixes | the next line, unlabelled (see above) |
-| Description | `DESCRIPTION:` — often wraps; only its first line is placeable |
+| Names | unlabelled, under the SKUs — read by position (below) |
+| Description | `DESCRIPTION:` — wraps; read by position (below) |
 | Width / height | self-labelled lines: `W  84"`, `H  40"` (`inline` rows) |
 | Depth | inside `OVERALL DIMENSIONS:` as `D  38"`; sectionals print "DIMENSIONS PER STYLE" there, which yields no number |
 | Seat / arm | `SEAT DEPTH:`, `SEAT HEIGHT:`, `ARM HEIGHT:` — often sparse, so often left unset |
 | Grades | `LEATHER - GRADE 1` … `4`, `LEATHER - NOVELTY`, `LEATHER - NOVELTY PREMIUM` |
 | Not offered | `N/A`, `--` |
 
-**Style names are not read.** The book prints no `STYLE NAME` row; names are
-unlabelled text wrapped across lines, which the tab renderer cannot assign to
-columns. That waits on positioned text extraction (PLAN VAL-02b(b) after
-VAL-06a). Guessing from the wrapped text would import names that look right and
-belong to the wrong style.
+## Names and descriptions, by position
+
+The book prints no `STYLE NAME` row. A column's name is unlabelled text under
+its item number, and its description wraps under `DESCRIPTION:`. The tab
+renderer cannot say which column a wrapped line belongs to. On pages where a
+family's names run three lines deep, it merged the last name into the
+`DESCRIPTION:` row, so **every style on those pages imported a name fragment as
+its description**, and no style had a name (found 2026-09-23).
+
+So the profile's `layoutText` reads both from positioned text
+(`readPdfTextItems`) and is their only source. Under each `ITEM NUMBER:` row,
+each word goes to the item column it is centred under, within half the ~66 pt
+column pitch. Then, top to bottom:
+
+- **Family columns** (`201/202/203`): the suffix, then the names. A line
+  ending in `/` continues onto the next, and the list ends at the first line
+  without one. There is one name per SKU, in family order. The first name line
+  sits more than 1.5 lines (7.68 pt leading) above the `DESCRIPTION:` label.
+- **Single-style columns**: one line at name height, then the description.
+- **Description**: everything after the names, down to the next row label
+  (`PROGRAM:`), joined.
+
+Row labels are centred in their rows, so a description can sit a full line
+*above* its label. That is why "name height" is 1.5 lines, not "above the
+label".
+
+A column is left out, and its styles import with **no name and no
+description** (counted in `stats.layoutUnplaced`, one warning), when:
+
+- a family's name count differs from its SKU count. This is also what refuses
+  a name broken mid-word, `MARLEIGH/MANNIN` + `G/MALLORY`;
+- a single style has two lines at name height (a wrapped name, or a
+  description printed high);
+- there is no description, or the family's numbers wrap;
+- a SKU is printed twice with different words.
+
+Not detectable: a break inside a family's **last** name keeps the count. In
+the July 2026 edition every family ends on a whole name followed by its
+description (measured).
 
 ## Measured
 
 `npm run pricing:coverage -- --dir <books>` → `bradington-young: parsed 771`
 (833 before the suffix fix; the difference is 28 unplaceable columns, 62 SKUs).
 703 SKUs carry a suffix, 0 duplicates; overall dimensions on about a third of
-styles; names 0% (see above). Prices are never recorded here.
+styles. **Names: 770 of 771** (was 0), each with its description; the one left
+out has two lines at name height. No name contains a description word, and no
+named style lacks a description. Prices are never recorded here.
 
 ## Key files
 
-- `lib/pricing/wholesale/vendors/bradingtonYoung.ts` — the profile, `expandSkus`
+- `lib/pricing/wholesale/vendors/bradingtonYoung.ts` — the profile, `expandSkus`, `layoutText`
 - `lib/pricing/wholesale/columnGrid.ts` — the engine
 - `app/__tests__/wholesaleVendorProfiles.test.ts` — layout fixture (every price invented)
+- `app/__tests__/bradingtonYoungLayoutText.test.ts` — names and descriptions by position, the page 11 and page 68 geometry, and a hand-built PDF end to end (every word invented)

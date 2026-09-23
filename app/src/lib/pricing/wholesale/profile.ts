@@ -18,6 +18,8 @@
 // its grade ladder and its label spellings, and those are the same for every
 // dealer who opens the same book.
 
+import type { PdfTextItem } from "../pdfUtils";
+
 /**
  * WHOLESALE ONLY. An extractor reads the vendor's COST and nothing else.
  *
@@ -240,6 +242,25 @@ export interface WholesaleVendorProfile {
    * print it without running vendor code.
    */
   readonly expect?: EditionExpectation;
+  /**
+   * Read each SKU's name and description from where the words sit on the page,
+   * for books whose tab rendering cannot say which column a wrapped line
+   * belongs to. Bradington-Young wraps a family's names over several lines, and
+   * the renderer merges the last of them into the DESCRIPTION row, so every
+   * style on such a page imported the last name fragment as its description.
+   *
+   * When set, this is the ONLY source of name and description: a SKU missing
+   * from the map gets neither, counted in `stats.layoutUnplaced` and warned
+   * about, because the rendered row it would fall back to is the one that
+   * mixes columns up. Omit a SKU rather than guess its text.
+   */
+  readonly layoutText?: (items: readonly PdfTextItem[]) => ReadonlyMap<string, LayoutText>;
+}
+
+/** A style's name and description, as `layoutText` placed them. */
+export interface LayoutText {
+  readonly name: string;
+  readonly description: string;
 }
 
 /** See `WholesaleVendorProfile.expect`. */
