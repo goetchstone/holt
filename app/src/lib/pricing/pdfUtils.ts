@@ -5,6 +5,19 @@
 
 import pdf from "pdf-parse";
 
+/**
+ * pdf-parse, handed the file as a plain Uint8Array copy.
+ *
+ * pdf-parse bundles pdf.js 1.10 (2017), written for plain typed arrays. Handed
+ * a Node Buffer it can misread the file ("bad XRef entry", warnings about bytes
+ * that are not in it): seen on Node 20 for small files and under Jest on Node
+ * 24, which CI runs. The same bytes as a plain Uint8Array read correctly on
+ * both. The copy is one pass over a few MB.
+ */
+export function parsePdf(bytes: Uint8Array, options?: Record<string, unknown>) {
+  return pdf(new Uint8Array(bytes), options);
+}
+
 // ─── Column-aware PDF text extraction ─────────────────────────────
 
 /**
@@ -18,8 +31,8 @@ import pdf from "pdf-parse";
  * This turns:  "STYLE NUMBER1952626667707577"
  * Into:        "STYLE NUMBER\t19\t52\t62\t66\t67\t70\t75\t77"
  */
-export function columnAwarePageRenderer(pageData: any): Promise<string> {
-  return pageData.getTextContent({ normalizeWhitespace: false }).then((textContent: any) => {
+export function columnAwarePageRenderer(pageData: PdfPageProxy): Promise<string> {
+  return pageData.getTextContent({ normalizeWhitespace: false }).then((textContent) => {
     const rows: Record<number, { x: number; str: string; w: number }[]> = {};
 
     // Merge Y coordinates within 3 units to prevent items on the same visual
@@ -72,7 +85,7 @@ export function columnAwarePageRenderer(pageData: any): Promise<string> {
  * Strips page-break markers (\f) added by the renderer.
  */
 export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
-  const data = await pdf(pdfBuffer, {
+  const data = await parsePdf(pdfBuffer, {
     pagerender: columnAwarePageRenderer,
   });
   return data.text.replace(/\f(<<PAGE:\d+>>\n)?/g, "");
@@ -84,7 +97,7 @@ export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
  * Callers can split on `/<<PAGE:(\d+)>>\n/` to get page-annotated text.
  */
 export async function extractPdfTextWithPages(pdfBuffer: Buffer): Promise<string> {
-  const data = await pdf(pdfBuffer, {
+  const data = await parsePdf(pdfBuffer, {
     pagerender: columnAwarePageRenderer,
   });
   return data.text.replace(/\f/g, "");
@@ -128,7 +141,7 @@ interface PdfPageProxy {
  */
 export async function readPdfTextItems(pdfBuffer: Buffer): Promise<PdfTextItem[]> {
   const items: PdfTextItem[] = [];
-  await pdf(pdfBuffer, {
+  await parsePdf(pdfBuffer, {
     pagerender: (pageData: PdfPageProxy) =>
       pageData.getTextContent({ normalizeWhitespace: false }).then((content) => {
         for (const it of content.items) {
