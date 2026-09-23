@@ -5002,6 +5002,15 @@ model AppSettings {
   // than defaulting to some other business's 2.5x. Set at Admin -> Settings.
   pricing Json?
 
+  // Google Drive/Slides project creation (Sales -> Create Project). Shape:
+  //   { "drive": { "projectsRootFolderId": "...", "projectSubfolders": [...] },
+  //     "slides": { "templatePresentationId": "..." } }
+  // NULLABLE and unset by default ON PURPOSE: with no folder + template
+  // configured the Create Project route refuses (503) rather than writing into
+  // whatever Drive a hardcoded id once pointed at (VAL-04). Set at
+  // Admin -> Settings -> Integrations.
+  google Json?
+
   // Last-resort tax jurisdiction: resolveTaxRate.ts's fallback when a sale's
   // customer has no district override and the selling store has no
   // taxDistrictId of its own. Replaces the `shortName: "CT"` literal that

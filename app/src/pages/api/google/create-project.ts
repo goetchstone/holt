@@ -4,14 +4,10 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { google } from "googleapis";
+import { getAppSettings } from "@/lib/appSettings";
 import { logError } from "@/lib/logger";
 
-// --- Values from your requirements ---
-const ROOT_FOLDER_ID = "1zlCFD_X19sw6PyFsTGMuhTE_buAv-mFK";
-const TEMPLATE_PRESENTATION_ID = "14R696lLFtEjGAOoZt2XBo_UkBWVRo7aaHywHOqi4Mfs";
-// ------------------------------------
-
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -29,6 +25,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     return res.status(400).json({ error: "Customer last name is required." });
   }
 
+  // The Drive folder new project folders go under, and the Slides deck copied
+  // into each, are per-deployment configuration (Admin -> Settings ->
+  // Integrations), NOT hardcoded: a baked-in id pointed every deployment at one
+  // pilot's Drive. Unset -> refuse rather than write into the wrong account.
+  const { drive: driveConfig, slides: slidesConfig } = (await getAppSettings()).google;
+  const rootFolderId = driveConfig.projectsRootFolderId;
+  const templatePresentationId = slidesConfig.templatePresentationId;
+  if (!rootFolderId || !templatePresentationId) {
+    return res.status(503).json({
+      error:
+        "Google Drive projects are not configured. Set the projects folder and Slides template in Settings → Integrations.",
+    });
+  }
+
   try {
     const auth = new google.auth.OAuth2();
     auth.setCredentials({ access_token: (session as any).accessToken });
@@ -42,7 +52,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       requestBody: {
         name: mainFolderName,
         mimeType: "application/vnd.google-apps.folder",
-        parents: [ROOT_FOLDER_ID],
+        parents: [rootFolderId],
       },
       fields: "id",
       // CORRECTED: This is required for creating content in a Shared Drive
@@ -55,10 +65,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     }
 
     // 2. Create the set of subfolders
-    const subfolders = ["Windows", "Rugs", "Fabrics", "Furniture", "Photos", "Presentation"];
     let presentationFolderId: string | null = null;
-
-    for (const folderName of subfolders) {
+    for (const folderName of driveConfig.projectSubfolders) {
       const createdSubfolder = await drive.files.create({
         requestBody: {
           name: folderName,
@@ -79,7 +87,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
     // 3. Copy the presentation template and rename it
     await drive.files.copy({
-      fileId: TEMPLATE_PRESENTATION_ID,
+      fileId: templatePresentationId,
       requestBody: {
         name: `${customerLastName.trim()}-${year}-Presentation`,
         parents: [presentationFolderId],
