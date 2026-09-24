@@ -1,15 +1,15 @@
 // /app/src/pages/api/tills/[id].ts
+//
+// One till's detail for /app/sales/till/[id]. Gated on the page's own key
+// (sales.read, "View orders"), so whoever the owner lets open the page can
+// load it and nobody else can. Selects exactly what TillDetailView renders.
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -21,24 +21,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const till = await prisma.till.findUnique({
       where: { id: tillId },
-      include: {
-        register: {
-          include: { storeLocation: { select: { name: true, code: true } } },
-        },
+      select: {
+        id: true,
+        status: true,
+        openedAt: true,
+        closedAt: true,
+        openingCash: true,
+        expectedCash: true,
+        actualCash: true,
+        variance: true,
+        notes: true,
+        register: { select: { name: true, storeLocation: { select: { name: true } } } },
         openedBy: { select: { displayName: true } },
         closedBy: { select: { displayName: true } },
-        counts: { orderBy: { denomination: "asc" } },
+        counts: {
+          orderBy: { denomination: "asc" },
+          select: { denomination: true, quantity: true, amount: true, isOpening: true },
+        },
         payments: {
           orderBy: { paymentDate: "desc" },
           select: {
             id: true,
             paymentDate: true,
-            paymentType: true,
             method: true,
             paymentAmount: true,
-            status: true,
             isRefund: true,
-            staffMember: { select: { displayName: true } },
             salesOrder: { select: { orderno: true } },
           },
         },
@@ -64,3 +71,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
+export default requirePermission("sales.read", handler);

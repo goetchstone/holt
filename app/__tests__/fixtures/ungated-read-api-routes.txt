@@ -6,19 +6,15 @@
 # SEC-13 tranche 1 (2026-09-23): the guardAutomation routes are recognised as
 # gated, and the public-by-design routes moved to EXEMPT with a reason each.
 # SEC-13 tranche 2 (2026-09-23) gated 30 more with the sibling's key where no
-# role that reaches the calling page loses it. The six left are judgement
-# calls: any single key 403s some role that reaches the calling page today.
-#   axper/traffic          -- the home traffic card; sales.read hides it from
-#                             BUYER/DATA_ENTRY/HR/MARKETING
-#   products/index         -- product search in quote, POS, count, transfer
-#                             and report flows; catalog.read 403s HR's filter
-#   purchasing/orders      -- PO search from a service case; purchasing.read
-#                             403s CUSTOMER_SERVICE/DISPATCH/INSTALLER
-#   tills/*                -- till views reached via sales.read, pos.operate
-#                             and reporting.read; no one key covers them
+# role that reaches the calling page loses it. Tranche 3 (2026-09-24) gates
+# the rest on the keys of the screens each one serves, so the owner's Roles
+# settings decide access (PLAN.md SEC-13). Left, each serving several screens:
+#   axper/traffic          -- the home traffic card; gets its own key
+#   products/index         -- product search in quote, POS, count, transfer,
+#                             catalog and report flows
+#   purchasing/orders      -- the PO list and a service case's PO search
+#   tills/index            -- the Till screen, the POS and till reconciliation
 src/pages/api/axper/traffic/index.ts
 src/pages/api/products/index.ts
 src/pages/api/purchasing/orders/index.ts
-src/pages/api/tills/[id].ts
-src/pages/api/tills/[id]/summary.ts
 src/pages/api/tills/index.ts
