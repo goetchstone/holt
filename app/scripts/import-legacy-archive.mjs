@@ -153,10 +153,10 @@ async function main() {
   console.log(`Parsed ${orderRows.length} orders. Reading lines file...`);
   const lineRows = (await readFileRows(linesPath, cfg.line, cfg)).filter((r) => r.orderNumber);
   const linesByOrder = new Map();
-  for (const l of lineRows) {
-    const list = linesByOrder.get(l.orderNumber) ?? [];
-    list.push(l);
-    linesByOrder.set(l.orderNumber, list);
+  for (const { orderNumber, ...line } of lineRows) {
+    const list = linesByOrder.get(orderNumber) ?? [];
+    list.push(line);
+    linesByOrder.set(orderNumber, list);
   }
   console.log(`Parsed ${lineRows.length} lines across ${linesByOrder.size} orders. Loading...`);
 
@@ -178,7 +178,7 @@ async function main() {
           await tx.legacyOrderLine.deleteMany({ where: { legacyOrderId: order.id } });
           if (lines.length > 0) {
             await tx.legacyOrderLine.createMany({
-              data: lines.map(({ orderNumber: _on, ...lf }) => ({
+              data: lines.map((lf) => ({
                 legacyOrderId: order.id,
                 ...lf,
               })),

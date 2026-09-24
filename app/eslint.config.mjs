@@ -38,14 +38,9 @@ export default defineConfig([
   {
     plugins: { sonarjs },
     rules: {
-      // Base ESLint no-unused-vars is disabled in favor of the TS-aware version
-      // (typescript-eslint's documented requirement): the base rule can't parse
-      // TS type-position params, function-type aliases, or interface method
-      // signatures and emits false positives the @typescript-eslint rule
-      // correctly ignores. Only the TS rule runs.
-      "no-unused-vars": "off",
-      "@typescript-eslint/no-unused-vars": "warn",
-      "@typescript-eslint/no-explicit-any": "warn",
+      // Plain JS (next.config.js, the scripts/*.mjs launchers) gets the base
+      // rule; TS files swap it for the TS-aware one in the block below.
+      "no-unused-vars": "warn",
       // React Compiler rules (new in eslint-config-next 16). Downgrade to
       // warn for existing code; fix incrementally rather than blocking CI.
       "react-hooks/set-state-in-effect": "warn",
@@ -62,6 +57,22 @@ export default defineConfig([
       "sonarjs/unused-import": "warn",
       "sonarjs/no-unused-collection": "warn",
       "sonarjs/different-types-comparison": "warn",
+    },
+  },
+  {
+    // The same files eslint-config-next's "next/typescript" block registers the
+    // @typescript-eslint plugin for. Applying these rules to every file made
+    // eslint exit 2 ("could not find plugin") on any .js/.mjs file.
+    files: ["**/*.ts", "**/*.tsx"],
+    rules: {
+      // Base ESLint no-unused-vars is disabled in favor of the TS-aware version
+      // (typescript-eslint's documented requirement): the base rule can't parse
+      // TS type-position params, function-type aliases, or interface method
+      // signatures and emits false positives the @typescript-eslint rule
+      // correctly ignores. Only the TS rule runs.
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   },
 ]);
