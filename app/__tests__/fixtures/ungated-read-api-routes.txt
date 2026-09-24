@@ -12,9 +12,7 @@
 #   axper/traffic          -- the home traffic card; gets its own key
 #   products/index         -- product search in quote, POS, count, transfer,
 #                             catalog and report flows
-#   purchasing/orders      -- the PO list and a service case's PO search
 #   tills/index            -- the Till screen, the POS and till reconciliation
 src/pages/api/axper/traffic/index.ts
 src/pages/api/products/index.ts
-src/pages/api/purchasing/orders/index.ts
 src/pages/api/tills/index.ts

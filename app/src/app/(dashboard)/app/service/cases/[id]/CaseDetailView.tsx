@@ -6,7 +6,8 @@
 // activity notes, and resolution. App Router port of the legacy
 // pages/service/cases/[id].tsx body (minus MainLayout chrome, which comes from
 // the (dashboard) layout). Reads the shared /api/service/cases/[id] + notes +
-// tasks + staff + settings + sales/orders + purchasing/orders REST endpoints.
+// tasks + staff + settings + sales/orders REST endpoints, and finds a PO to link
+// through /api/service/purchase-order-lookup (number and vendor only).
 // The case id arrives as a prop from the server page.
 
 import { useState, useEffect, useCallback } from "react";
@@ -295,8 +296,8 @@ export function CaseDetailView({ id }: { id: string }) {
         );
         setLinkResults(orders);
       } else {
-        const res = await axios.get("/api/purchasing/orders", {
-          params: { search: linkSearch.trim(), limit: 10 },
+        const res = await axios.get("/api/service/purchase-order-lookup", {
+          params: { search: linkSearch.trim() },
         });
         const pos = (res.data.orders || []).map(
           (p: { id: number; poNumber: string; vendorName?: string }) => ({

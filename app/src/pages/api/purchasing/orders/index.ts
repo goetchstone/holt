@@ -1,16 +1,17 @@
 // /app/src/pages/api/purchasing/orders/index.ts
+//
+// The purchase-order list for /app/purchasing/orders, with totals. Gated on
+// purchasing.read ("View purchasing"), the key that page is moving to
+// (pagePermissions.ts). A service case finds a PO to link through its own
+// narrower route, /api/service/purchase-order-lookup (service.write).
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -88,3 +89,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Failed to fetch purchase orders" });
   }
 }
+
+export default requirePermission("purchasing.read", handler);
