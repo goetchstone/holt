@@ -24,10 +24,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         where: { id },
         include: {
           storeLocation: { select: { name: true, code: true } },
+          // The POS tags each payment with this register's open till. It reads
+          // it here, under pos.operate, rather than from the till list
+          // (/api/tills), which serves the Till screen and reconciliation.
+          tills: {
+            where: { status: "OPEN" },
+            orderBy: { openedAt: "desc" },
+            take: 1,
+            select: { id: true },
+          },
         },
       });
       if (!register) return notFound(res, "Register");
-      return success(res, register);
+      const { tills, ...rest } = register;
+      return success(res, { ...rest, openTillId: tills[0]?.id ?? null });
     } catch (err) {
       return handleError(res, err, `GET /registers/${id}`);
     }

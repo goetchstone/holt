@@ -1,9 +1,12 @@
 // /app/__tests__/integration/tillReadGate.integration.test.ts
 //
 // SEC-13 tranche 3: till detail and running totals answer to the till pages'
-// own key, sales.read ("View orders"), so the owner's Roles settings decide who
-// reads them. Before, any signed-in session read every till. Real routes, real
-// permission gate, real database; next-auth's session is the only mock.
+// own key, sales.read ("View orders"); the till list answers to either screen
+// that uses it (the Till screen or the Till Reconciliation report); and the POS
+// finds its open till through the register route it already needs. The owner's
+// Roles settings decide who reads what. Before, any signed-in session read every
+// till. Real routes, real permission gate, real database; next-auth's session is
+// the only mock.
 
 jest.mock("next-auth", () => ({
   __esModule: true,
@@ -25,6 +28,8 @@ import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import tillRoute from "@/pages/api/tills/[id]";
 import tillSummaryRoute from "@/pages/api/tills/[id]/summary";
+import tillListRoute from "@/pages/api/tills/index";
+import registerRoute from "@/pages/api/registers/[id]";
 
 const sessionMock = getServerSession as jest.Mock;
 
@@ -57,11 +62,12 @@ function makeRes(): TestRes {
 
 async function get(
   route: (req: NextApiRequest, res: NextApiResponse) => unknown,
-  id: number,
+  id?: number,
 ): Promise<TestRes> {
   const res = makeRes();
+  const query = id === undefined ? {} : { id: String(id) };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const req = { method: "GET", query: { id: String(id) }, body: {}, cookies: {} } as any;
+  const req = { method: "GET", query, body: {}, cookies: {} } as any;
   await route(req, res);
   return res;
 }
@@ -101,6 +107,7 @@ function signInAs(userId: string) {
 }
 
 let tillId: number;
+let registerId: number;
 
 beforeEach(async () => {
   await resetTestDb();
@@ -131,6 +138,7 @@ beforeEach(async () => {
     },
   });
   tillId = till.id;
+  registerId = register.id;
 });
 
 afterAll(async () => {
@@ -199,5 +207,74 @@ describe("till reads follow the till pages' key (sales.read)", () => {
     );
     expect(JSON.stringify(body)).not.toContain("@example.com");
     expect(JSON.stringify(body)).not.toContain("variance note");
+  });
+});
+
+describe("the till list takes either screen's key; the POS reads its own", () => {
+  it("a role holding neither View orders nor View reports gets 403", async () => {
+    await makeCustomRoleStaff("nia", ["catalog.read"]);
+    signInAs("nia");
+
+    expect((await get(tillListRoute)).statusCode).toBe(403);
+  });
+
+  it("either key alone admits: the Till screen's or the report's", async () => {
+    await makeCustomRoleStaff("ola", ["sales.read"]);
+    await makeCustomRoleStaff("rex", ["reporting.read"]);
+
+    for (const who of ["ola", "rex"]) {
+      signInAs(who);
+      const res = await get(tillListRoute);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.tills.map((t: { id: number }) => t.id)).toEqual([tillId]);
+    }
+  });
+
+  it("the list carries what the two screens show, not staff emails or register notes", async () => {
+    await makeStaff("mo", "MANAGER");
+    signInAs("mo");
+
+    const { body } = await get(tillListRoute);
+
+    expect(Object.keys(body.tills[0]).sort()).toEqual(
+      [
+        "_count",
+        "actualCash",
+        "closedAt",
+        "closedBy",
+        "expectedCash",
+        "id",
+        "openedAt",
+        "openedBy",
+        "openingCash",
+        "registerId",
+        "register",
+        "status",
+        "variance",
+      ].sort(),
+    );
+    expect(JSON.stringify(body)).not.toContain("@example.com");
+    expect(JSON.stringify(body)).not.toContain("variance note");
+  });
+
+  it("Operate register alone finds its open till, without reading the till list", async () => {
+    await makeCustomRoleStaff("pip", ["pos.operate"]);
+    signInAs("pip");
+
+    const register = await get(registerRoute, registerId);
+    expect(register.statusCode).toBe(200);
+    expect(register.body.openTillId).toBe(tillId);
+
+    expect((await get(tillListRoute)).statusCode).toBe(403);
+  });
+
+  it("a register with no open till reports openTillId null", async () => {
+    await prisma.till.update({ where: { id: tillId }, data: { status: "CLOSED" } });
+    await makeStaff("cass2", "REGISTER");
+    signInAs("cass2");
+
+    const register = await get(registerRoute, registerId);
+    expect(register.statusCode).toBe(200);
+    expect(register.body.openTillId).toBeNull();
   });
 });

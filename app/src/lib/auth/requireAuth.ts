@@ -22,6 +22,7 @@ import {
   logBootstrapBypass,
   logPermissionDenial,
   resolvePermissionAccess,
+  type PermissionRequirement,
 } from "@/lib/auth/permissionResolver";
 
 type AuthenticatedHandler = (
@@ -150,6 +151,11 @@ export function requireAuthWithRole(roles: string[], handler: AuthenticatedHandl
  *
  *   export default requirePermission("payment.refund", handler);
  *
+ * A route that serves several screens takes the keys of those screens, and any
+ * one of them admits the caller (see PermissionRequirement in roleDecision.ts):
+ *
+ *   export default requirePermission({ anyOf: ["sales.read", "reporting.read"] }, handler);
+ *
  * Deliberately the same shape as requireAuthWithRole above so that converting a
  * route is a one-line mechanical edit, and deliberately NOT its own copy of the
  * rules: every decision is made by resolvePermissionAccess, which the tRPC
@@ -162,7 +168,15 @@ export function requireAuthWithRole(roles: string[], handler: AuthenticatedHandl
  * for requireAuthWithRole, because both go through the same pure decision
  * helpers in roleDecision.ts.
  */
-export function requirePermission(permission: string, handler: AuthenticatedHandler) {
+export function requirePermission(
+  permission: PermissionRequirement,
+  handler: AuthenticatedHandler,
+) {
+  // An empty list would admit nobody but the bootstrap safeguard: a typo in
+  // code, refused when the route loads rather than at the first request.
+  if (typeof permission !== "string" && permission.anyOf.length === 0) {
+    throw new Error("requirePermission: an { anyOf } list needs at least one permission key");
+  }
   return requireAuth(async (req, res, session) => {
     const userId = (session.user as any)?.id;
     if (!userId) {

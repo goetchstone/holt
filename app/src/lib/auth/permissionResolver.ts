@@ -36,7 +36,14 @@ import {
   permissionsForBuiltInRole,
   withBaselinePermissions,
 } from "@/lib/auth/permissionCatalog";
-import { decidePermissionAccess, type PermissionDecision } from "@/lib/auth/roleDecision";
+import {
+  decidePermissionAccess,
+  describeRequirement,
+  type PermissionDecision,
+  type PermissionRequirement,
+} from "@/lib/auth/roleDecision";
+
+export type { PermissionRequirement } from "@/lib/auth/roleDecision";
 
 /**
  * Compile-time privilege floor. A Role row may RAISE a key's rank (that is how
@@ -169,8 +176,9 @@ export function invalidateRoleGrantCache(): void {
 export interface PermissionAccessInput {
   /** Session user id. */
   userId: string;
-  /** Capability required, e.g. "payment.refund". */
-  permission: string;
+  /** Capability required, e.g. "payment.refund", or { anyOf: [...] } for a
+   *  route that serves several screens (see PermissionRequirement). */
+  permission: PermissionRequirement;
   /** Value of the holt-impersonate cookie, or null. */
   impersonate: string | null;
   /** Injectable for tests. Defaults to the shared client. */
@@ -288,12 +296,12 @@ export async function resolvePermissionAccess(
 /** Shared 403/deny logging so both guards say the same thing in the same shape. */
 export function logPermissionDenial(
   userId: string,
-  permission: string,
+  permission: PermissionRequirement,
   result: PermissionAccessResult,
 ): void {
   logger.warn("Permission check denied", {
     userId,
-    permission,
+    permission: describeRequirement(permission),
     effectiveRole: result.effectiveUserRole,
     noActiveStaff: result.noActiveStaff,
     viaEnumFallback: result.viaEnumFallback,
@@ -351,11 +359,11 @@ export async function resolveGrantedPermissions(
 /** Shared bootstrap-bypass logging, matching requireAuthWithRole's warning. */
 export function logBootstrapBypass(
   userId: string,
-  permission: string,
+  permission: PermissionRequirement,
   result: PermissionAccessResult,
 ): void {
   logger.warn(
     "Bootstrap safeguard triggered: no active admin/manager found, bypassing permission check",
-    { userId, permission, userRole: result.effectiveUserRole },
+    { userId, permission: describeRequirement(permission), userRole: result.effectiveUserRole },
   );
 }
