@@ -22,9 +22,6 @@ async function main() {
   const prisma = new PrismaClient({ adapter });
 
   try {
-    const settings = await prisma.appSettings.findUnique({ where: { organizationId: ORG_ID } });
-    const appName = settings?.appName ?? "Holt";
-    const tagline = settings?.tagline ?? "Considered furniture for considered homes.";
     const now = new Date();
 
     const homeBlocks = [

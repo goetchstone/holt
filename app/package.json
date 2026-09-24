@@ -10,7 +10,7 @@
     "setup": "bash scripts/setup.sh",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src/",
+    "lint": "eslint src/ scripts/",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css}\"",

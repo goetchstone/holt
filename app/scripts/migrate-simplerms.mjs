@@ -184,7 +184,7 @@ async function migrateInvoices() {
     );
     if (DRY_RUN) {
       bump("Invoice", "would-migrate");
-      for (const _ of lines.rows) bump("InvoiceLineItem", "would-migrate");
+      lines.rows.forEach(() => bump("InvoiceLineItem", "would-migrate"));
       continue;
     }
     const existing = await prisma.invoice.findUnique({
@@ -226,7 +226,7 @@ async function migrateInvoices() {
           sortOrder: i,
         })),
       });
-      for (const _ of lines.rows) bump("InvoiceLineItem", "created");
+      lines.rows.forEach(() => bump("InvoiceLineItem", "created"));
     }
 
     // Payments + open-item applications, bound via Payment.invoiceId.
