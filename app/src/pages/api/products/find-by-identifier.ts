@@ -71,4 +71,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default requirePermission("catalog.write", handler);
+// catalog.read, not catalog.write: this is a lookup, and the POS (pos.operate)
+// and physical count (inventory.count) scan through it. REGISTER and WAREHOUSE
+// hold neither catalog.write, so every barcode scan at the register and every
+// count scan 403'd. Every pos.operate and inventory.count holder holds
+// catalog.read.
+export default requirePermission("catalog.read", handler);
