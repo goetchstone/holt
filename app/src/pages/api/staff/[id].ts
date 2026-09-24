@@ -7,7 +7,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { getErrorCode } from "@/lib/errorCode";
-import { LAST_ADMIN_MESSAGE, wouldRemoveLastAdmin } from "@/lib/auth/adminLockout";
+import {
+  LAST_ADMIN_MESSAGE,
+  isPrivilegedStaffRole,
+  wouldRemoveLastAdmin,
+} from "@/lib/auth/adminLockout";
+import { resolveRoleAssignment, type RoleAssignment } from "@/lib/auth/roleAssignment";
 import { logger } from "@/lib/logger";
 
 // Validate a commissionPlanId patch value: null clears the assignment, a
@@ -45,30 +50,39 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
   }
 
   if (req.method === "PATCH") {
-    const { displayName, email, role, defaultStore, isActive, isDesigner, commissionPlanId } =
-      req.body;
+    const {
+      displayName,
+      email,
+      role,
+      roleId,
+      defaultStore,
+      isActive,
+      isDesigner,
+      commissionPlanId,
+    } = req.body;
 
-    // Role change restrictions
-    if (role !== undefined) {
-      const userId = (session.user as any)?.id;
-      const callerStaff = userId
-        ? await prisma.staffMember.findFirst({ where: { userId }, select: { role: true } })
-        : null;
-      const callerRole = callerStaff?.role || "DESIGNER";
-
-      // Only ADMIN can assign the ADMIN role
-      if ((role === "ADMIN" || role === "SUPER_ADMIN") && callerRole !== "ADMIN") {
-        return res.status(403).json({ error: "Only an admin can assign the admin role" });
-      }
-
-      // Only ADMIN can change roles at all (MANAGER can view staff but not change roles)
-      if (callerRole !== "ADMIN") {
-        return res.status(403).json({ error: "Only an admin can change staff roles" });
-      }
-
-      // Prevent demoting the last admin. Only relevant when the NEW role is not
-      // itself an admin role.
-      if (role !== "ADMIN" && role !== "SUPER_ADMIN" && (await wouldRemoveLastAdmin(id))) {
+    // A role change goes through the one assignment rule (lib/auth/roleAssignment.ts):
+    // only an admin assigns roles, only an owner assigns the owner tier, and a
+    // custom role writes the least-privileged enum. Naming the role the member
+    // already has is no change, so saving a name edit is never refused.
+    let assignment: RoleAssignment | null = null;
+    if (role !== undefined || roleId !== undefined) {
+      const current = await prisma.staffMember.findUnique({
+        where: { id },
+        select: { role: true, roleId: true },
+      });
+      if (!current) return res.status(404).json({ error: "Not found" });
+      const requested = { role, roleId };
+      const resolved = await resolveRoleAssignment(requested, session, current);
+      if (!resolved.ok) return res.status(resolved.status).json({ error: resolved.error });
+      assignment = resolved.assignment;
+      // Losing the admin enum -- a demotion, or a custom role, which writes
+      // DESIGNER -- must not leave the installation with no admin.
+      if (
+        assignment &&
+        !isPrivilegedStaffRole(assignment.role) &&
+        (await wouldRemoveLastAdmin(id))
+      ) {
         return res.status(409).json({ error: LAST_ADMIN_MESSAGE });
       }
     }
@@ -82,7 +96,10 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
     const data: any = {};
     if (displayName !== undefined) data.displayName = displayName;
     if (email !== undefined) data.email = email || null;
-    if (role !== undefined) data.role = role;
+    if (assignment) {
+      data.role = assignment.role;
+      data.roleId = assignment.roleId;
+    }
     if (defaultStore !== undefined) data.defaultStore = defaultStore || null;
     if (isActive !== undefined) data.isActive = isActive;
     if (isDesigner !== undefined) data.isDesigner = isDesigner;

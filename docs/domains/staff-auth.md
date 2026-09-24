@@ -156,6 +156,33 @@ module hides its item on top.
 | MARKETING   | Sales, Reports, Time, Tools                                                             | Holds `customer.read` and not `sales.read`; Sales is there because Customers lives under it.                                                                                                                     |
 | INSTALLER   | Sales, Service, Warehouse, Helpdesk, Time                                               | Used to sign in to an empty menu (no `NavPermission` default existed); its grants now produce one.                                                                                                               |
 
+## Giving someone a role (USE-02, 2026-09-23)
+
+The staff page lists every `Role` row, built-in and custom, and submits its
+`roleId`. It used to hardcode six role names, so a role built on the Roles page
+could never be assigned. Both paths that set a role, `PATCH /api/staff/[id]`
+and `POST /api/staff`, go through one rule in `lib/auth/roleAssignment.ts`, set
+by the owner:
+
+- **Only an ADMIN or SUPER_ADMIN assigns roles.** Anyone with `staff.manage`
+  (HR, a GM) may still create staff members; they get the default, DESIGNER,
+  and may edit them with the role unchanged. Before this, `POST` wrote whatever
+  `role` it was sent, so any `staff.manage` holder could create an ADMIN. The
+  `PATCH` check also refused SUPER_ADMIN.
+- **Only a SUPER_ADMIN assigns the owner tier**: SUPER_ADMIN, or any role that
+  grants every permission. It is the same tier impersonation already keeps an
+  ADMIN out of.
+- **What an assignment writes**: `roleId`, and the legacy `role` enum that most
+  routes still gate on. A built-in role writes its own key; a custom role writes
+  **DESIGNER**, the least-privileged value. So a custom role never carries more
+  enum-gated access than intended, and demoting an ADMIN to one really demotes
+  them. The last-admin guard judges the new enum value.
+- Custom-role holders get only DESIGNER on enum-gated routes until PERM-01 moves
+  the pages onto permissions. That is the owner's chosen trade-off.
+
+→ `__tests__/integration/staffRoleAssignment.integration.test.ts`,
+`__tests__/roleAssignment.test.ts`
+
 ## The `isDesigner` flag — report inclusion, not auth (added 2026-05-29)
 
 `StaffMember.isDesigner` (Boolean, default false; the migration history has since been squashed, so the column and its default now live in `0_init`) is **separate from the auth `role`**. It controls who appears on **designer-based sales + commission reports**, so a selling MANAGER can be included and a former designer excluded without changing their login role. It grants no permissions — it's a reporting dimension only.

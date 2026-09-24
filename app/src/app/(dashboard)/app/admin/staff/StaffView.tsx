@@ -15,13 +15,22 @@ import { Button } from "@/components/ui/button";
 import { useStoreLocations } from "@/hooks/useStoreLocations";
 import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
 
-const ROLES = ["ADMIN", "DESIGNER", "REGISTER", "MANAGER", "WAREHOUSE", "MARKETING"] as const;
+// A role a staff member can be given: every Role row, built-in and custom,
+// from /api/admin/roles. This was a hardcoded list of six, so a role built on
+// the Roles page could never be assigned (USE-02).
+interface RoleOption {
+  id: number;
+  key: string;
+  name: string;
+}
 
 interface StaffMember {
   id: number;
   displayName: string;
   email: string | null;
   role: string;
+  roleId: number | null;
+  roleRef: RoleOption | null;
   defaultStore: string | null;
   isActive: boolean;
   isDesigner: boolean;
@@ -39,7 +48,8 @@ interface CommissionPlanOption {
 interface FormData {
   displayName: string;
   email: string;
-  role: string;
+  /** Null until the role list loads; the server then applies the default. */
+  roleId: number | null;
   defaultStore: string;
   isDesigner: boolean;
   commissionPlanId: number | null;
@@ -53,7 +63,7 @@ interface StoreGroup {
 const emptyForm: FormData = {
   displayName: "",
   email: "",
-  role: "DESIGNER",
+  roleId: null,
   defaultStore: "",
   isDesigner: true,
   commissionPlanId: null,
@@ -108,7 +118,7 @@ function StaffRow({
             member.role,
           )}`}
         >
-          {member.role}
+          {member.roleRef?.name ?? titleCaseRole(member.role)}
         </span>
         {member.isDesigner && (
           <span
@@ -216,7 +226,7 @@ function StaffCard({
               member.role,
             )}`}
           >
-            {member.role}
+            {member.roleRef?.name ?? titleCaseRole(member.role)}
           </span>
           {member.email && (
             <p className="text-brand-gray text-xs mt-1.5 truncate">{member.email}</p>
@@ -326,6 +336,7 @@ function StaffFormModal({
   isAdmin,
   storeNames,
   commissionPlans,
+  roles,
   saving,
   onChange,
   onClose,
@@ -336,6 +347,7 @@ function StaffFormModal({
   isAdmin: boolean;
   storeNames: string[];
   commissionPlans: CommissionPlanOption[] | null;
+  roles: RoleOption[] | null;
   saving: boolean;
   onChange: (next: FormData) => void;
   onClose: () => void;
@@ -410,14 +422,15 @@ function StaffFormModal({
               </label>
               <select
                 id="staff-role"
-                value={form.role}
-                onChange={(e) => onChange({ ...form, role: e.target.value })}
-                disabled={!isAdmin}
+                value={form.roleId ?? ""}
+                onChange={(e) => onChange({ ...form, roleId: Number(e.target.value) })}
+                disabled={!isAdmin || !roles}
                 className="w-full border border-brand-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm bg-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {titleCaseRole(r)}
+                {form.roleId == null && <option value="">Designer (default)</option>}
+                {(roles ?? []).map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
                   </option>
                 ))}
               </select>
@@ -640,6 +653,30 @@ export function StaffView() {
     };
   }, []);
 
+  // Every role, built-in and custom. Same failure shape as the plans above: no
+  // list, no select (and the server still applies the default on create).
+  const [roles, setRoles] = useState<RoleOption[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRoles = async () => {
+      try {
+        const res = await fetch("/api/admin/roles");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data.roles)) {
+          setRoles(data.roles.map((r: RoleOption) => ({ id: r.id, key: r.key, name: r.name })));
+        }
+      } catch {
+        // Silent, as for the plans: the table still lists everyone.
+      }
+    };
+    loadRoles();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const fetchStaff = useCallback(async () => {
     try {
       const res = await fetch("/api/staff?all=true");
@@ -671,7 +708,7 @@ export function StaffView() {
 
   const openAdd = () => {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, roleId: roles?.find((r) => r.key === "DESIGNER")?.id ?? null });
     setShowForm(true);
   };
 
@@ -680,7 +717,8 @@ export function StaffView() {
     setForm({
       displayName: member.displayName,
       email: member.email || "",
-      role: member.role,
+      // Unlinked members (created before roleId existed) resolve by their enum.
+      roleId: member.roleId ?? roles?.find((r) => r.key === member.role)?.id ?? null,
       defaultStore: member.defaultStore || "",
       isDesigner: member.isDesigner,
       commissionPlanId: member.commissionPlanId ?? null,
@@ -703,7 +741,7 @@ export function StaffView() {
         body: JSON.stringify({
           displayName: form.displayName.trim(),
           email: form.email.trim() || null,
-          role: form.role,
+          ...(form.roleId == null ? {} : { roleId: form.roleId }),
           defaultStore: form.defaultStore || null,
           isDesigner: form.isDesigner,
           commissionPlanId: form.commissionPlanId,
@@ -884,6 +922,7 @@ export function StaffView() {
           isAdmin={isAdmin}
           storeNames={storeNames}
           commissionPlans={commissionPlans}
+          roles={roles}
           saving={saving}
           onChange={setForm}
           onClose={() => setShowForm(false)}
