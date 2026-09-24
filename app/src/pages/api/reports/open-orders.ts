@@ -1,8 +1,7 @@
 // /app/src/pages/api/reports/open-orders.ts
 
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { getOpenOrdersReport, type OpenOrdersReport } from "@/lib/reports/openOrders";
@@ -13,9 +12,7 @@ import { getOpenOrdersReport, type OpenOrdersReport } from "@/lib/reports/openOr
 // working; it's removed once that page is fully ported + cut over.
 export type OpenOrdersResponse = OpenOrdersReport;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -29,3 +26,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
+export default requirePermission("reporting.read", handler);

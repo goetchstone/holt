@@ -4,16 +4,13 @@
 // to determine the caller's display name and role without loading the
 // full staff list.
 
+import type { Session } from "next-auth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!session?.user) return res.status(401).json({ error: "Unauthorized" });
 
   const userId = (session.user as { id?: string }).id;
   if (!userId) return res.status(400).json({ error: "No user ID in session" });
@@ -27,3 +24,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(200).json(staff);
 }
+
+export default requirePermission("staff.self", handler);

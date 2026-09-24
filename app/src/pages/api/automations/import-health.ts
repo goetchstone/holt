@@ -1,18 +1,14 @@
 // /app/src/pages/api/automations/import-health.ts
 
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
 
   const [lastSuccess, lastRun, recentUnmapped] = await Promise.all([
     prisma.autoImportLog.findFirst({
@@ -63,3 +59,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     unmappedLocations,
   });
 }
+
+export default requirePermission("admin.data", handler);

@@ -5,11 +5,10 @@
 // Wood vendors: queries Products (species/axis pricing).
 // GET ?vendorId=X — loads all entries with gradePrices, options, tiers.
 
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { DimensionType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]";
 import { logError } from "@/lib/logger";
 import { getAppSettings } from "@/lib/appSettings";
 
@@ -25,14 +24,11 @@ function resolveVendorMarkup(vendorMarkup: unknown, storeWide: number | null): n
   return storeWide;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+/** Exported for the integration test, which calls it with a fake req/res; the
+ *  default export is the gated one. */
+export async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) {
-    return res.status(401).json({ error: "Unauthorized" });
   }
 
   const appSettings = await getAppSettings();
@@ -766,3 +762,5 @@ async function handleFramePlusCushion(
     totalCount: styles.length,
   });
 }
+
+export default requirePermission("catalog.pricing", handler);

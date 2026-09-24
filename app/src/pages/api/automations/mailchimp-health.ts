@@ -4,17 +4,14 @@
 // Returns the last SUCCESS/PARTIAL/FAILED run and a `isStale` flag when
 // no successful run has happened in the last 12 hours.
 
+import { requirePermission } from "@/lib/auth/requireAuth";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
 
 // Daily cron cadence — allow one missed run before alarming.
 const STALE_AFTER_HOURS = 36;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).end();
 
   const [lastRun, lastSuccess] = await Promise.all([
@@ -53,3 +50,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     hoursSinceSuccess: isFinite(hoursSinceSuccess) ? Math.round(hoursSinceSuccess * 10) / 10 : null,
   });
 }
+
+export default requirePermission("admin.automations", handler);
