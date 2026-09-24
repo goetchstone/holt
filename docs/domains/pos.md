@@ -17,9 +17,9 @@ This runbook covers the **ERP-native** POS path. Imported Ordorite orders flow t
 
 Authentication is per-route, not one shared role list:
 
-- **Permission-gated** (`requirePermission`): `sales.write` for `create-from-cart`, `pos.operate` for the register list/detail and gift-card activation, `pos.till.manage` to open a till, `pos.till.adjust` to clear a register block.
+- **Permission-gated** (`requirePermission`): `sales.write` for `create-from-cart`, `pos.operate` for the register list/detail and gift-card activation, `pos.till.manage` to open a till, `pos.till.adjust` to clear a register block. `sales.read` ("View orders") for till detail (`tills/[id].ts`) and running totals (`tills/[id]/summary.ts`): it is the key of both till pages, so granting a role the till screens in Roles also grants their data.
 - **Role-gated** (`requireAuthWithRole`): till close (`REGISTER`/`MANAGER`/`ADMIN`), till reconcile (`MANAGER`/`ADMIN`), order payments (`MANAGER`/`ADMIN`), Stripe create-checkout (`MANAGER`/`ADMIN`).
-- **Session-only** (any signed-in user): `pages/api/tills/index.ts`, `pages/api/tills/[id].ts`, `pages/api/tills/[id]/summary.ts`, `pages/api/print/order/[id].ts` (bare `getServerSession`), plus `pages/api/gift-cards/lookup.ts` and `pages/api/gift-cards/presets/resolve.ts` (`requireAuth`).
+- **Session-only** (any signed-in user): `pages/api/tills/index.ts` (serves the Till screen, the POS and till reconciliation; SEC-13 tranche 3 gates it on any of those screens' keys), `pages/api/print/order/[id].ts` (bare `getServerSession`), plus `pages/api/gift-cards/lookup.ts` and `pages/api/gift-cards/presets/resolve.ts` (`requireAuth`).
 
 REGISTER role exists specifically for counter staff; its POS-relevant permissions are `sales.write`, `sales.return`, `pos.operate`, `pos.till.manage` and `payment.take` — not `pos.till.adjust` (`lib/auth/permissionCatalog.ts`).
 

@@ -1,16 +1,15 @@
 // /app/src/pages/api/tills/[id]/summary.ts
+//
+// An open till's running totals for the /app/sales/till cards. Gated on that
+// page's key (sales.read, "View orders"), like tills/[id].
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
 import { prisma } from "@/lib/prisma";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { calculateTillExpected } from "@/lib/paymentService";
 import { logError } from "@/lib/logger";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const session = await getServerSession(req, res, authOptions);
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
-
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -63,3 +62,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
+export default requirePermission("sales.read", handler);

@@ -84,7 +84,7 @@ export const PERMISSIONS: PermissionDef[] = [
     key: "sales.read",
     domain: "sales",
     label: "View orders",
-    description: "See quotes, orders and proposals.",
+    description: "See quotes, orders and proposals, and the till screens.",
   },
   {
     key: "sales.write",
