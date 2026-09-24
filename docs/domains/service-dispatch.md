@@ -88,6 +88,7 @@ In-stock filter (default: on) requires ALL of a customer's orders to have all PO
 - `pages/api/dispatch/` -- dispatch API endpoints (orders-by-zone, ready-to-deliver, delivery-planner, pencil-in, runs, stops, vehicles, assign-order)
 - `pages/dispatch/` -- dispatch pages (board, ready-to-deliver, planner)
 - `pages/api/service/` -- service appointment API endpoints
+- `pages/api/service/purchase-order-lookup.ts` -- the "Link PO" search on a case task: PO number and vendor name only (no totals, cost or notes), gated on `service.write` like the task save it serves. The purchasing list (`purchasing.read`) stays with purchasing
 - `pages/service/` -- service pages (dispatch queue, house calls)
 - `components/dnd/` -- reusable drag-and-drop components (DndBoard, DroppableColumn, SortableList, SortableItem)
 

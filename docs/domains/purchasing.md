@@ -55,6 +55,7 @@ The invoice import (`runInvoicesImport`) links invoices to sales orders by match
 - `lib/importHelpers.ts` -- `derivePOStatus()`, `findProduct()`
 - `lib/importRunners.ts` -- 4 PO-related runners
 - `pages/api/purchasing/` -- PO CRUD, receiving endpoints
+- `pages/api/purchasing/orders/index.ts` -- the PO list with totals, gated on `purchasing.read` ("View purchasing"). A service case does not use it: it finds a PO to link through `pages/api/service/purchase-order-lookup.ts`, which returns number and vendor only
 - `pages/purchasing/` -- PO list, detail, receiving UI
 - `pages/inventory/warehouse/inbound.tsx` -- Warehouse inbound dashboard
 - `scripts/reimport-invoices-direct.js` -- One-time invoice reimport with rewrite matching
