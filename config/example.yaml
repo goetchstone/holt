@@ -91,6 +91,7 @@ presets:
           - inventory.read
           - staff.read
           - reporting.read
+          - reporting.traffic
 
       # Re-permissioning a BUILT-IN role is legitimate policy, and this is
       # where you do it: "our designers cannot see margin". Doing so tells the
@@ -114,6 +115,10 @@ presets:
           - purchasing.read
           - service.read
           - service.write
+          # A roles preset REPLACES a role's grants: a key it leaves out is
+          # revoked. Keep reporting.traffic (the home-page store traffic,
+          # held by every built-in role) unless revoking it is the point.
+          - reporting.traffic
           # reporting.read deliberately absent — this is the revocation.
 
   # ---------------------------------------------------------------------

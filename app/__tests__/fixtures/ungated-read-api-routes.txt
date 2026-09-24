@@ -6,8 +6,11 @@
 # SEC-13 tranche 1 (2026-09-23): the guardAutomation routes are recognised as
 # gated, and the public-by-design routes moved to EXEMPT with a reason each.
 # SEC-13 tranche 2 (2026-09-23) gated 30 more with the sibling's key where no
-# role that reaches the calling page loses it. Tranche 3 (2026-09-24) gates
-# the rest on the keys of the screens each one serves, so the owner's Roles
-# settings decide access (PLAN.md SEC-13). Left, each serving several screens:
-#   axper/traffic          -- the home traffic card; gets its own key
-src/pages/api/axper/traffic/index.ts
+# role that reaches the calling page loses it. Tranche 3 (2026-09-24) gated
+# the last six on the keys of the screens each one serves -- { anyOf } where a
+# route serves several, a split where one screen needs less, and a new key for
+# store traffic -- so the owner's Roles settings decide access (PLAN.md SEC-13).
+#
+# The list is EMPTY. A new route that reads data must name a key; one that is
+# public by design goes in EXEMPT with its reason. Adding a line here is a
+# decision to ship an ungated route, and the PR has to say why.

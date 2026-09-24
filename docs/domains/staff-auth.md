@@ -118,6 +118,17 @@ than the till list, and a service case finds a PO through
 purchasing list. `permissionKeysExist.test.ts` fails CI on any key a route names
 that the catalog does not define.
 
+**Adding a key for data that was open before** (e.g. `reporting.traffic`, "View
+store traffic", SEC-13 2026-09-24). A new key must not take anything away on
+day one. Put it in every built-in role's `BUILT_IN_ROLES` list that reaches the
+data today; `syncBuiltInRoles()` then adds it to built-in roles nobody has
+edited. It never touches edited built-ins (`grantsCustomized`) or roles the
+deployment built, so a **migration** grants it to those. It has to be a
+migration, not a seed step: a seed step runs on every deploy and would grant
+the key again after the owner unticks it. Also add it to the roles in
+`config/example.yaml`: a `kind: roles` preset replaces a role's grants, so a key
+it leaves out is revoked when the preset is applied.
+
 Rules preserved from `requireAuthWithRole`, by construction rather than by
 copy: `decidePermissionAccess` and `decideRoleAccess` both call the same
 `resolveEffectiveRole()` and `applyBootstrapSafeguard()` in `roleDecision.ts`.

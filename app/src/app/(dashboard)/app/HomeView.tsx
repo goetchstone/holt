@@ -60,11 +60,15 @@ const REFRESH_MS = 900000;
  * "nobody came in".
  */
 export interface HomeViewProps {
-  showTraffic: boolean;
+  /** The Store Traffic module is on for this deployment. */
+  trafficModuleOn: boolean;
+  /** This viewer holds "View store traffic" (reporting.traffic). */
+  canSeeTraffic: boolean;
   showUpBoard: boolean;
 }
 
-export function HomeView({ showTraffic, showUpBoard }: HomeViewProps) {
+export function HomeView({ trafficModuleOn, canSeeTraffic, showUpBoard }: HomeViewProps) {
+  const showTraffic = trafficModuleOn && canSeeTraffic;
   const formatMoney = useMoneyFormatter();
   const formatCurrency = useCallback(
     (value: number): string => formatMoney(value, { whole: true }),
@@ -157,10 +161,13 @@ export function HomeView({ showTraffic, showUpBoard }: HomeViewProps) {
       setLastYearTraffic(await getTrafficData(lastYearSameDay, lastYearSameDay));
     }
 
+    // Nothing to fetch when the section is not shown: the module is off, or
+    // this viewer may not see traffic.
+    if (!showTraffic) return;
     fetchData();
     const interval = setInterval(fetchData, REFRESH_MS);
     return () => clearInterval(interval);
-  }, [getTrafficData]);
+  }, [getTrafficData, showTraffic]);
 
   useEffect(() => {
     async function fetchSales() {
@@ -259,7 +266,7 @@ export function HomeView({ showTraffic, showUpBoard }: HomeViewProps) {
         </section>
       )}
 
-      {!showTraffic && !showUpBoard && (
+      {!trafficModuleOn && !showUpBoard && (
         <p className="text-sm text-brand-gray">
           Store Traffic and the Up Board are switched off for this deployment. Turn them on in Admin
           &rarr; Settings &rarr; Modules.
