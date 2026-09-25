@@ -527,11 +527,8 @@ export function PosView() {
   const findOpenTill = async (): Promise<number | undefined> => {
     if (!selectedRegister) return undefined;
     try {
-      const res = await axios.get("/api/tills", {
-        params: { registerId: selectedRegister.id, status: "OPEN", limit: 1 },
-      });
-      const tills = res.data.tills || [];
-      return tills.length > 0 ? tills[0].id : undefined;
+      const res = await axios.get(`/api/registers/${selectedRegister.id}`);
+      return res.data.openTillId ?? undefined;
     } catch {
       return undefined;
     }

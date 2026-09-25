@@ -175,6 +175,57 @@ describe("decidePermissionAccess — bootstrap safeguard", () => {
   });
 });
 
+describe("decidePermissionAccess — { anyOf } for a route that serves several screens", () => {
+  const SCREENS = { anyOf: ["sales.discount", "sales.read"] };
+
+  it("admits a role holding any one of the keys, whichever position it is in", () => {
+    expect(decide({ permission: SCREENS, realRole: "FLOOR_LEAD" }).allowed).toBe(true);
+    expect(decide({ permission: SCREENS, realRole: "DESIGNER" }).allowed).toBe(true);
+  });
+
+  it("denies a role holding none of them", () => {
+    const d = decide({ permission: SCREENS, realRole: "MANAGER" });
+    expect(d.allowed).toBe(false);
+    expect(d.bootstrapBypass).toBe(false);
+  });
+
+  it("the wildcard satisfies it like any other requirement", () => {
+    const d = decide({ permission: SCREENS, realRole: "SUPER_ADMIN" });
+    expect(d.allowed).toBe(true);
+    expect(d.viaWildcard).toBe(true);
+  });
+
+  it("impersonation still only reduces: the impersonated role's keys decide", () => {
+    // ADMIN holds neither key; viewing as DESIGNER admits through sales.read,
+    // and viewing as MANAGER (neither key) denies even though ADMIN is real.
+    expect(
+      decide({ permission: SCREENS, realRole: "ADMIN", impersonate: "DESIGNER" }).allowed,
+    ).toBe(true);
+    expect(decide({ permission: SCREENS, realRole: "ADMIN", impersonate: "MANAGER" }).allowed).toBe(
+      false,
+    );
+  });
+
+  it("the bootstrap safeguard answers only after every key has missed", () => {
+    const missed = decide({ permission: SCREENS, realRole: "MANAGER", privilegedCount: 0 });
+    expect(missed.allowed).toBe(true);
+    expect(missed.bootstrapBypass).toBe(true);
+
+    // Holding the second key is a real pass, never reported as a bypass.
+    const held = decide({ permission: SCREENS, realRole: "DESIGNER", privilegedCount: 0 });
+    expect(held.allowed).toBe(true);
+    expect(held.bootstrapBypass).toBe(false);
+  });
+
+  it("a one-key list decides exactly like the plain key", () => {
+    for (const realRole of Object.keys(GRANTS)) {
+      expect(decide({ permission: { anyOf: ["payment.refund"] }, realRole })).toEqual(
+        decide({ permission: "payment.refund", realRole }),
+      );
+    }
+  });
+});
+
 describe("one implementation of the shared rules", () => {
   // The role path and the permission path must not merely agree today; they
   // must be incapable of disagreeing. Both call resolveEffectiveRole.

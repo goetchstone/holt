@@ -131,9 +131,32 @@ export function decideRoleAccess(input: RoleDecisionInput): RoleDecision {
 // Permission-shaped sibling
 // ---------------------------------------------------------------------------
 
+/**
+ * What a gated resource requires: one key, or any one of several.
+ *
+ * `{ anyOf }` is for a route that serves several screens, each with its own key
+ * (e.g. product search, used by quotes, the POS and the catalog). It takes the
+ * keys of the screens it serves, so granting a role one of those screens in
+ * Roles also grants the data behind it, and the owner never has to keep two
+ * settings in agreement. It is decided in one pass, not by asking once per key,
+ * so the staff row is read once and the bootstrap safeguard is consulted only
+ * after every key has missed.
+ */
+export type PermissionRequirement = string | { readonly anyOf: readonly string[] };
+
+/** The keys a requirement accepts, in the order written. */
+export function requirementKeys(requirement: PermissionRequirement): readonly string[] {
+  return typeof requirement === "string" ? [requirement] : requirement.anyOf;
+}
+
+/** How a requirement reads in a log line: the key, or the keys joined by "|". */
+export function describeRequirement(requirement: PermissionRequirement): string {
+  return requirementKeys(requirement).join("|");
+}
+
 export interface PermissionDecisionInput {
-  /** The capability the gated resource requires, e.g. "payment.refund". */
-  permission: string;
+  /** What the gated resource requires, e.g. "payment.refund" or { anyOf: [...] }. */
+  permission: PermissionRequirement;
   /** The user's real role KEY — Role.key, or the StaffRole enum value. */
   realRole: string;
   /** Value of the holt-impersonate cookie, or null. */
@@ -176,7 +199,7 @@ export interface PermissionDecision {
 }
 
 /**
- * Does the caller hold `permission`?
+ * Does the caller hold `permission` (any one of its keys, for an `{ anyOf }`)?
  *
  * Same impersonation and bootstrap rules as decideRoleAccess, by construction —
  * both delegate to resolveEffectiveRole and applyBootstrapSafeguard rather than
@@ -199,7 +222,8 @@ export function decidePermissionAccess(input: PermissionDecisionInput): Permissi
     return { allowed: true, effectiveUserRole, bootstrapBypass: false, viaWildcard: true };
   }
 
-  if ((grantsByRole[effectiveUserRole] ?? []).includes(permission)) {
+  const granted = grantsByRole[effectiveUserRole] ?? [];
+  if (requirementKeys(permission).some((key) => granted.includes(key))) {
     return { allowed: true, effectiveUserRole, bootstrapBypass: false, viaWildcard: false };
   }
 

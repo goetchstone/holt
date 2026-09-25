@@ -288,3 +288,42 @@ describe("resolvePermissionAccess — staff membership is what grants access", (
     );
   });
 });
+
+describe("resolvePermissionAccess — { anyOf } is one decision, not one per key", () => {
+  const SCREENS = { anyOf: ["sales.read", "reporting.read", "pos.operate"] };
+
+  it("reads the staff row once and skips the privileged count when a later key is held", async () => {
+    roleFindMany.mockResolvedValue([
+      row({ id: 1, key: "CLERK", permissions: [{ permission: "pos.operate" }] }),
+    ]);
+    staffFindFirst.mockResolvedValue({ role: "DESIGNER", roleId: 1 });
+
+    const r = await resolvePermissionAccess({
+      userId: "u1",
+      permission: SCREENS,
+      impersonate: null,
+    });
+
+    expect(r.allowed).toBe(true);
+    expect(r.bootstrapBypass).toBe(false);
+    expect(staffFindFirst).toHaveBeenCalledTimes(1);
+    expect(staffCount).not.toHaveBeenCalled();
+  });
+
+  it("counts privileged staff once, only after every key has missed", async () => {
+    roleFindMany.mockResolvedValue([
+      row({ id: 1, key: "CLERK", permissions: [{ permission: "catalog.read" }] }),
+    ]);
+    staffFindFirst.mockResolvedValue({ role: "DESIGNER", roleId: 1 });
+
+    const r = await resolvePermissionAccess({
+      userId: "u1",
+      permission: SCREENS,
+      impersonate: null,
+    });
+
+    expect(r.allowed).toBe(false);
+    expect(staffFindFirst).toHaveBeenCalledTimes(1);
+    expect(staffCount).toHaveBeenCalledTimes(1);
+  });
+});

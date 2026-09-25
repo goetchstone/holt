@@ -98,6 +98,26 @@ Both are thin wrappers over `resolvePermissionAccess()` in
 `lib/auth/permissionResolver.ts` — one shared function on every path
 (CLAUDE.md rule 42), so the two routers cannot drift.
 
+**Which key a route takes (SEC-13, 2026-09-24).** The owner decides who sees
+what in Admin → Setup → Roles, so a route takes the key of the screen it serves,
+never a list of role names. A route that serves several screens takes **any of
+those screens' keys**:
+
+```ts
+export default requirePermission({ anyOf: ["sales.read", "reporting.read"] }, handler);
+```
+
+Granting a role any one of those screens then grants the data behind it, and no
+setting has to be kept in step with another. `{ anyOf }` is decided in one pass
+inside `decidePermissionAccess` (one staff read; the bootstrap safeguard only
+after every key has missed), not by asking once per key. Where one screen needs
+less than another, split the route instead of widening the list: the POS reads
+its register's open till from `GET /api/registers/[id]` (`pos.operate`) rather
+than the till list, and a service case finds a PO through
+`/api/service/purchase-order-lookup` (`service.write`) rather than the
+purchasing list. `permissionKeysExist.test.ts` fails CI on any key a route names
+that the catalog does not define.
+
 Rules preserved from `requireAuthWithRole`, by construction rather than by
 copy: `decidePermissionAccess` and `decideRoleAccess` both call the same
 `resolveEffectiveRole()` and `applyBootstrapSafeguard()` in `roleDecision.ts`.
