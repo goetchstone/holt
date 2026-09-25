@@ -324,6 +324,17 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "View reports",
     description: "Run reports on screen, including sales and margin figures.",
   },
+  // Every built-in role holds it (SEC-13, 2026-09-24): the traffic figures went
+  // to every signed-in staff member before the key existed, and the owner
+  // chose a switch that starts on. Migration 20260924120000 grants it to
+  // edited and custom roles too, which the deploy seeder never touches.
+  {
+    key: "reporting.traffic",
+    domain: "reporting",
+    label: "View store traffic",
+    description:
+      "See door-counter visitor counts per store on the home page: entries today, the same day last year, and how many people are in now.",
+  },
   {
     key: "reporting.export",
     domain: "reporting",
@@ -578,6 +589,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     description:
       "Runs the business end to end: sales, stock, purchasing, people and the books. Holds no system administration -- imports, integrations and configuration stay with the Administrator, because running a store and changing how the software works are different jobs with different blast radii.",
     permissions: [
+      "reporting.traffic",
       "sales.read",
       "sales.write",
       "sales.discount",
@@ -629,6 +641,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     description:
       "Owns one merchandise department: what it stocks, what it costs, how it sells. Reads sales to judge the department; cannot write orders, take money, or touch another department's people.",
     permissions: [
+      "reporting.traffic",
       "staff.self",
       "catalog.read",
       "catalog.write",
@@ -646,6 +659,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     description:
       "Buys the goods: vendors, purchase orders, receiving, and the cost side of the catalog. Reads inventory to know what to order; holds nothing on the selling or money side.",
     permissions: [
+      "reporting.traffic",
       "staff.self",
       "purchasing.read",
       "purchasing.write",
@@ -663,6 +677,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     description:
       "Loads the paperwork: vendor invoices, price lists, catalog files. Holds the import and write side of the catalog and purchasing WITHOUT the authority to approve, receive against, or pay any of it -- the person typing the invoice is not the person who agrees to it.",
     permissions: [
+      "reporting.traffic",
       "staff.self",
       "catalog.read",
       "catalog.write",
@@ -678,6 +693,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     description:
       "Staff records, hours and commission. Deliberately holds nothing on sales, stock or money beyond what commission requires -- the person who edits a payroll record has no business editing the orders it is calculated from.",
     permissions: [
+      "reporting.traffic",
       "staff.self",
       "staff.read",
       "staff.time",
@@ -692,6 +708,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     description:
       "Schedules and runs deliveries. Reads the order to know what is going out and the customer to reach them on the day; cannot change either.",
     permissions: [
+      "reporting.traffic",
       "staff.self",
       "warehouse.read",
       "warehouse.operate",
@@ -707,6 +724,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     description:
       "Owns the customer after the sale: cases, tickets and returns. Can start a return but NOT refund it -- moving money is a separate decision that escalates, which is the whole point of splitting sales.return from payment.refund.",
     permissions: [
+      "reporting.traffic",
       "staff.self",
       "service.read",
       "service.write",
@@ -722,6 +740,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     description: "Runs the store day to day: money, people, stock, and the books they touch.",
     rank: 1,
     permissions: [
+      "reporting.traffic",
       "sales.read",
       "sales.write",
       "sales.discount",
@@ -769,6 +788,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     description:
       "Sells: writes orders and works customers. No refunds, no pricing, no discounts by default.",
     permissions: [
+      "reporting.traffic",
       "sales.read",
       "sales.write",
       "sales.lead",
@@ -788,6 +808,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     description:
       "Counter staff: rings sales, takes payment, brings returned goods back in. Handing the money back is a Manager job by default.",
     permissions: [
+      "reporting.traffic",
       "sales.read",
       "sales.write",
       "sales.return",
@@ -805,6 +826,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     name: "Warehouse",
     description: "Receives, moves and dispatches stock.",
     permissions: [
+      "reporting.traffic",
       "sales.read",
       "catalog.read",
       "inventory.read",
@@ -825,6 +847,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     name: "Installer",
     description: "Delivers and services in the field.",
     permissions: [
+      "reporting.traffic",
       "sales.read",
       "customer.read",
       "warehouse.read",
@@ -838,6 +861,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
     name: "Marketing",
     description: "Campaigns, leads and list sync.",
     permissions: [
+      "reporting.traffic",
       "customer.read",
       "catalog.read",
       "marketing.read",
