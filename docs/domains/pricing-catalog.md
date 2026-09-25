@@ -27,6 +27,8 @@ Both are created during import. VendorStyles are catalog templates ("frames" fro
 
 Existing products are upserted by `(productNumber, vendorId)` unique constraint. Re-importing a price list updates VendorStyle pricing but does not blow away product history.
 
+**Product search** (`GET /api/products`, SEC-13 2026-09-24) serves seven screens: All Products, Create Variant, New Quote, Detailed Sales' "Edit line item", POS, Reconcile Photos and New Transfer. It takes `{ anyOf }` of their keys (`catalog.read`, `catalog.write`, `sales.write`, `pos.operate`, `inventory.count`, `inventory.transfer`), so granting a role any of those screens in Roles also grants the search. It returns product scalars plus vendor/department/category/type **names**: never the vendor row (account number, discounts, markup, terms, contacts), staff emails or the wholesale price-list inputs. `baseCost` still goes to every admitted role; a separate "View cost" switch is SEC-14.
+
 ## Grade auto-extension
 
 During import, grade tiers are auto-extended:

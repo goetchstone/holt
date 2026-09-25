@@ -10,7 +10,4 @@
 # the rest on the keys of the screens each one serves, so the owner's Roles
 # settings decide access (PLAN.md SEC-13). Left, each serving several screens:
 #   axper/traffic          -- the home traffic card; gets its own key
-#   products/index         -- product search in quote, POS, count, transfer,
-#                             catalog and report flows
 src/pages/api/axper/traffic/index.ts
-src/pages/api/products/index.ts
