@@ -1,0 +1,271 @@
+# Integration Tests — Phase 0.6
+
+Postgres-backed integration tests for the ERP. Live in
+`app/__tests__/integration/`. Run via `npm run test:integration` from
+the `app/` directory.
+
+## Why
+
+Mocked-Prisma tests verify wiring (the right method gets called with
+the right args). They don't verify SQL behavior — filter matching,
+FK constraint resolution, enum drift, query result shapes. Every
+production bug shipped in April 2026 (sales import outage, balance
+double-multiplication, salesperson FK-null, impersonation cookie
+format) was the second class. Mocks never caught any of them.
+
+Phase 0.6.3+ converts the C+ mocked tests to A/B integration tests on
+this harness.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  npm run test:integration                                   │
+│    └─ scripts/run-integration-tests.sh                      │
+│         └─ for each *.integration.test.ts file:             │
+│              jest --selectProjects integration              │
+│                   --testPathPatterns <file>                 │
+│                                                             │
+│  Per-file invocation — without it, multiple                 │
+│  files in one Jest worker deadlock during the beforeEach    │
+│  TRUNCATE because ACCESS EXCLUSIVE locks pile up across     │
+│  pg.Pool connections. Per-file gives each file its own      │
+│  pool and clean exit. Overhead: ~200ms per file.            │
+│                                                             │
+│  globalSetup (jest.integration.setup.ts) — runs ONCE per    │
+│  Jest invocation:                                           │
+│    1. ensureTestDbExists() — connects to `postgres` admin   │
+│       DB, CREATEs `fbc_test_db` if missing                  │
+│    2. applySchema() — runs `prisma db push` against test DB │
+│       (idempotent — no-op if schema already in sync)        │
+│    3. swaps process.env.DATABASE_URL to the test DB so      │
+│       worker processes inherit it                           │
+│                                                             │
+│  Per-test (in test files):                                  │
+│    beforeEach: resetTestDb() — TRUNCATE every table         │
+│    test body: build fixtures via prisma, run code,          │
+│               assert on what's in the DB                    │
+│    afterAll: prisma.$disconnect() — clean Jest exit         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Conventions
+
+### Test file naming
+
+`*.integration.test.ts` — the `.integration.` infix makes the file's
+purpose visible in editor tabs and search results, and double-checks
+that someone hasn't accidentally placed a unit test in the
+integration directory.
+
+### Test structure
+
+```ts
+import { prisma } from "@/lib/prisma";
+import { resetTestDb } from "@/lib/testing/withTestDb";
+
+describe("my behavior", () => {
+  beforeEach(async () => {
+    await resetTestDb();
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  it("does the thing", async () => {
+    // Arrange — build fixtures via the same prisma instance
+    await prisma.salesOrder.create({ data: { ... } });
+
+    // Act — exercise the real production code
+    const result = await myFunctionUnderTest();
+
+    // Assert — observe via prisma OR the function's return value
+    expect(result).toEqual(...);
+  });
+});
+```
+
+### Fixture conventions
+
+- Build the **minimum** fixtures the assertion needs. A test that
+  requires a vendor + customer + order + 2 line items is fine; a test
+  that creates 50 of each is fragile.
+- Use **literal IDs only when necessary** — let Postgres auto-assign
+  via the `serial` PK. Capture the returned object's `.id` for refs.
+- For complex relational fixtures, use Prisma's nested-create syntax
+  (see the proof-of-concept test). It's atomic and readable.
+
+### Safety guard
+
+`resetTestDb()` REFUSES to run unless `DATABASE_URL` contains the
+literal string "test". A misconfigured runner pointed at dev or prod
+will throw, not silently TRUNCATE the wrong database.
+
+## Running locally
+
+```bash
+cd app
+
+# One-time: ensure the test DB exists
+docker exec holt-db-1 psql -U dbuser_fbc -d postgres \
+  -c "CREATE DATABASE fbc_test_db OWNER dbuser_fbc TEMPLATE template0;"
+
+# Run integration tests
+DATABASE_URL='postgresql://dbuser_fbc:<password>@localhost:5433/fbc_dev_db' \
+  npm run test:integration
+```
+
+The DATABASE_URL points at the dev DB; globalSetup swaps the path
+segment to `fbc_test_db` automatically. Use the dev URL so credentials
+and host stay correct.
+
+If the test DB gets into a bad state (e.g. an interrupted `db push`
+half-applied a schema change), drop it and rerun:
+
+```bash
+docker exec holt-db-1 psql -U dbuser_fbc -d postgres \
+  -c "DROP DATABASE IF EXISTS fbc_test_db;"
+```
+
+globalSetup will recreate it on the next run.
+
+## Running in CI
+
+`.github/workflows/ci.yml` defines a `postgres:17.9-alpine` service
+container. CI step `Run real-DB integration tests` invokes
+`npm run test:integration` against it. No additional setup needed.
+
+## When to add an integration test vs a unit test
+
+| Test type | When |
+|---|---|
+| **Unit test (pure)** | Math, formatters, string helpers, anything with no I/O. Always preferred when applicable. |
+| **Source-text tripwire (B-)** | Asserting a convention (e.g. "every aggregation file imports the cancelled-line filter"). Catches removal of code, doesn't catch behavior. |
+| **Mocked-Prisma orchestration (C+)** | Acceptable as an interim placeholder while an integration version is being written. Must declare `// PLACEHOLDER TEST — Grade: C+` in the file header (`__tests__/testGrading.test.ts` enforces this). |
+| **Postgres integration (B/A)** | Anything that touches a Prisma query that depends on schema behavior — filters, joins, FK constraints, enum matching, transaction semantics. The default for new SQL-touching code. |
+
+## Conversion pattern (C+ → B/A)
+
+When converting a placeholder mocked test:
+
+1. Create a sibling integration file at `__tests__/integration/<name>.integration.test.ts`.
+2. Port each mocked scenario to use real fixtures + real Prisma.
+3. Add at least one **integration-only** scenario the mock structurally couldn't test (FK behavior, date window edge, enum drift, transaction semantics). Phase 0.6 conversions all do this — it's where the value is.
+4. Slim the original file to the A-grade pure-helper sections only. Update the file header to point at the integration file.
+5. Run `npm run test:integration` — confirm all 16+ pass.
+6. Coverage gate may need a small downward bump per the ratchet doctrine since mocked-orchestration coverage moves from the unit project to the integration project (which the gate doesn't currently merge — Phase 0.6.5 fixes that).
+
+Existing conversions to model from: the quotesReconcile conversion and the dailyReconciliation conversion.
+
+## What's covered today (as of 2026-05-01)
+
+| File | Tests | Phase |
+|---|---|---|
+| `cancelledLineFilter.integration.test.ts` | 2 | 0.6.1 (proof of concept) |
+| `quotesReconcile.integration.test.ts` | 6 | 0.6.3 |
+| `dailyReconciliation.integration.test.ts` | 8 | 0.6.3 |
+
+**Total: 16 tests.**
+
+Remaining 0.6.3 placeholders: `journalEntry` orchestration, `mailchimpAudienceSync.runner`, `mailchimpLeadIngestor`, `opportunityTiles`, `leadHousekeeping`. Each can be converted independently in its own PR.
+
+## Seam tests: the trading day
+
+`__tests__/integration/tradingDay.integration.test.ts` is a different shape from
+everything else here and is worth understanding before adding to it.
+
+Every other file in this directory tests **one subsystem**. This one tests the
+**seams between them**, by walking a single trading day straight through in
+declaration order over shared state:
+
+```text
+open till → sell → split-tender deposit → PO against the order → receive
+→ allocate → transfer between stock locations → schedule delivery
+→ complete delivery (consume) → invoice → settle → close till
+→ generate + post the journal → reconcile the day
+```
+
+The assertions that earn their keep are the ones **across** a seam, not within a
+stage — stock received against a PO is stock the allocator can see; stock
+allocated to an order stops being free to sell; moving allocated stock keeps it
+allocated; completing the delivery leaves no residue; the day's payments reach
+the journal; reconciliation agrees with what the journal posted.
+
+**Why it exists.** Every stage already had coverage and the seams still held
+three real defects, because each side had been tested against a counterpart
+built to agree with it. `dailyReconciliation.integration.test.ts` hand-builds
+its journal entries and never calls `generateSalesJournal`, so a journal that
+posted card tender to the Over/Short plug reconciled perfectly against a journal
+constructed to expect that. See `docs/domains/accounting.md`, "What one
+end-to-end trading day found (2026-08-25)".
+
+**Ordered `it`s over shared state, deliberately.** Stage order is the thing under
+test, so a failure names the stage the day broke at. Do not reorder stages or
+make them independent — that removes the coverage.
+
+**The day is TODAY, also deliberately.** `recordPayment()` stamps `paymentDate`
+itself, so a backdated day records its payments outside the window the journal
+then reads: the journal finds nothing, the reconciliation compares two empty
+sets, and every assertion passes while proving nothing. `DAY` is resolved with
+`businessDayKey()` in the **business** timezone, because `generateSalesJournal`
+reads `getBusinessTimeZone()` internally — picking the day any other way makes
+the two disagree near midnight and the failure reads as drift rather than as a
+timezone bug.
+
+**Adding a stage.** Assert the seam, not the stage. If the assertion would still
+pass with the previous stage stubbed out, it is testing the stage.
+
+## Gotchas
+
+### TRUNCATE deadlocks under multi-file Jest workers
+
+Surfaced when adding the second integration file (the dailyReconciliation conversion). With `maxWorkers: 1` and multiple test files in one worker, the `beforeEach` TRUNCATE in file B deadlocks against pg.Pool connections that file A's last test was still releasing. Fix: per-file Jest invocation via `scripts/run-integration-tests.sh` — each file gets its own pool. Don't merge files into one Jest invocation.
+
+`npm run test:all` used to be a bare `jest` with no `--selectProjects`, which is exactly the multi-file invocation this gotcha forbids — a documented deadlock, shipped as a script. It now chains `test:unit` then `test:integration` (the per-file runner), so every documented way to run the tests is a way that works.
+
+### PrismaPg pool size
+
+`PrismaPg` passes config to `pg.Pool`, which honors `max` (not `connection_limit`). The URL query string `?connection_limit=1` is ignored by the pg driver. To override pool size, set `PG_POOL_MAX` in env — `lib/prisma.ts` reads it at adapter init.
+
+### `prisma migrate deploy` doesn't replay from scratch
+
+The first migration in `app/prisma/migrations/` (`20250213_schema_redesign`) was authored against a pre-existing prod DB and isn't replayable from an empty schema. globalSetup uses `prisma db push --accept-data-loss` instead — applies the current schema directly. Tests don't care about migration history.
+
+### Sharing the prisma singleton across test files
+
+Each test file imports `prisma` from `@/lib/prisma`. With per-file Jest invocation (above), each file gets its own Node process, its own module registry, its own singleton, its own pool. `afterAll(() => prisma.$disconnect())` is fine to keep — it's per-file scope only.
+
+If you ever revert to a multi-file-per-worker setup, remove the `$disconnect` calls — disconnecting the singleton in file A makes file B's tests query a closed connection and silently get empty results.
+
+### Raw-SQL migrations (triggers, functions, indexes) don't land via `prisma db push`
+
+`prisma db push` syncs the model graph from `schema.prisma` but skips files in `prisma/migrations/`. Triggers, custom functions, and indexes defined as raw SQL therefore aren't on the test DB even though the model graph matches prod.
+
+If your test depends on raw SQL behavior (e.g. the B6 payment-delete trigger), replay the migration file in `beforeAll` using `pg.Client` directly — `prisma.$executeRawUnsafe` splits on the first semicolon and breaks `$$ ... $$` function bodies. Pattern:
+
+```ts
+import { Client } from "pg";
+import fs from "node:fs";
+import path from "node:path";
+
+const MIGRATION_PATH = path.resolve(
+  __dirname,
+  "../../prisma/migrations/20260428_payment_delete_immutability_trigger/migration.sql",
+);
+
+beforeAll(async () => {
+  const sql = fs.readFileSync(MIGRATION_PATH, "utf8");
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(sql);
+  } finally {
+    await client.end();
+  }
+});
+```
+
+This makes the test a literal integration check of the migration file we ship — if the SQL doesn't parse against Postgres, the suite fails before any scenario runs. See `__tests__/integration/paymentDeleteImmutability.integration.test.ts`.
+
+A future improvement is to teach the harness to apply every "pure DDL" migration automatically. Today the per-test pattern is fine because there are only a handful of such migrations.

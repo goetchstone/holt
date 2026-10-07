@@ -1,0 +1,144 @@
+// /app/src/pages/api/warehouse/positions/index.ts
+
+import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
+import { prisma } from "@/lib/prisma";
+import { freePositionWhere } from "@/lib/inventory/allocation";
+import { Prisma } from "@prisma/client";
+import { requirePermission } from "@/lib/auth/requireAuth";
+import { logError } from "@/lib/logger";
+
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+  if (req.method === "GET") {
+    try {
+      const page = Number.parseInt(req.query.page as string) || 1;
+      const limit = Number.parseInt(req.query.limit as string) || 25;
+      const search = (req.query.search as string)?.trim() || "";
+      const locationId = req.query.locationId
+        ? Number.parseInt(req.query.locationId as string)
+        : null;
+      const stockLocationId = req.query.stockLocationId
+        ? Number.parseInt(req.query.stockLocationId as string)
+        : null;
+      // The POS asks "what can I sell of THIS product". It was already passing
+      // productId; the handler simply did not support it, so the register got 50
+      // arbitrary positions and concluded there was none of anything.
+      const productId = req.query.productId ? Number.parseInt(req.query.productId as string) : null;
+      // Free stock only. A position committed to somebody else's order is not
+      // available to sell again -- showing it as on-hand at the register is how
+      // the same sofa gets sold twice.
+      const freeOnly = req.query.freeOnly === "1" || req.query.freeOnly === "true";
+
+      const skip = (page - 1) * limit;
+
+      const where: Prisma.InventoryPositionWhereInput = {};
+      const conditions: Prisma.InventoryPositionWhereInput[] = [];
+
+      if (locationId) conditions.push({ storeLocationId: locationId });
+      if (productId) conditions.push({ productId });
+      // freePositionWhere() is the single definition of "free to sell", shared
+      // with allocate() and availableQuantity(), so the register and the
+      // allocator can never disagree about what is sellable.
+      if (freeOnly) conditions.push(freePositionWhere());
+      if (stockLocationId) conditions.push({ stockLocationId });
+      if (search) {
+        conditions.push({
+          OR: [
+            { product: { name: { contains: search, mode: "insensitive" } } },
+            { product: { productNumber: { contains: search, mode: "insensitive" } } },
+            { salesOrder: { orderno: { contains: search, mode: "insensitive" } } },
+          ],
+        });
+      }
+
+      if (conditions.length > 0) where.AND = conditions;
+
+      const [positions, total] = await Promise.all([
+        prisma.inventoryPosition.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { updated: "desc" },
+          include: {
+            product: { select: { id: true, name: true, productNumber: true } },
+            storeLocation: { select: { id: true, name: true, code: true } },
+            stockLocation: { select: { id: true, code: true, name: true } },
+            salesOrder: { select: { id: true, orderno: true } },
+          },
+        }),
+        prisma.inventoryPosition.count({ where }),
+      ]);
+
+      const safePositions = positions.map((p) => ({
+        id: p.id,
+        productId: p.productId,
+        productName: p.product.name,
+        productNumber: p.product.productNumber,
+        storeLocationId: p.storeLocationId,
+        locationName: p.storeLocation.name,
+        locationCode: p.storeLocation.code,
+        stockLocationId: p.stockLocationId,
+        stockLocationName: p.stockLocation?.name || null,
+        stockLocationCode: p.stockLocation?.code || null,
+        quantity: p.quantity,
+        salesOrderId: p.salesOrderId,
+        salesOrderNo: p.salesOrder?.orderno || null,
+        notes: p.notes,
+        updated: p.updated || p.created,
+      }));
+
+      return res.status(200).json({ positions: safePositions, total });
+    } catch (error) {
+      logError("Error fetching positions", error);
+      return res.status(500).json({ error: "Failed to fetch inventory positions" });
+    }
+  }
+
+  if (req.method === "POST") {
+    // Inventory mutations belong to warehouse staff. Designer / register /
+    // marketing have no workflow reason to create positions directly. Same
+    // role set as the outer gate, kept here since it predates the wrapper.
+    try {
+      const { productId, storeLocationId, stockLocationId, quantity, salesOrderId, notes } =
+        req.body;
+
+      if (!productId || !storeLocationId) {
+        return res.status(400).json({ error: "productId and storeLocationId are required." });
+      }
+
+      const position = await prisma.inventoryPosition.upsert({
+        where: {
+          productId_storeLocationId_stockLocationId_salesOrderId: {
+            productId,
+            storeLocationId,
+            stockLocationId: stockLocationId ?? null,
+            salesOrderId: salesOrderId ?? null,
+          },
+        },
+        update: {
+          quantity: quantity ?? 1,
+          notes: notes ?? null,
+          updatedBy: session.user?.email || null,
+        },
+        create: {
+          productId,
+          storeLocationId,
+          stockLocationId: stockLocationId ?? null,
+          quantity: quantity ?? 1,
+          salesOrderId: salesOrderId ?? null,
+          notes: notes ?? null,
+          createdBy: session.user?.email || null,
+        },
+      });
+
+      return res.status(201).json(position);
+    } catch (error) {
+      logError("Error creating position", error);
+      return res.status(500).json({ error: "Failed to create inventory position" });
+    }
+  }
+
+  return res.status(405).json({ error: "Method not allowed" });
+}
+
+export default requirePermission("inventory.transfer", handler);

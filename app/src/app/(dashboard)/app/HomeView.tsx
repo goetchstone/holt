@@ -1,0 +1,372 @@
+"use client";
+
+// /app/src/app/(dashboard)/app/HomeView.tsx
+//
+// Home page body for every staff member: per-store traffic + sales cards and
+// the designer up-board rotation. Which sections and card halves show is
+// decided by lib/homeSections.ts from the viewer's keys. App Router port of the
+// pages/index.tsx body (minus MainLayout, which the (dashboard) layout
+// supplies). Store locations come from
+// the database (Admin > Setup > Stores), never a hardcoded list. Reads the shared
+// /api/axper/traffic + /api/dashboard/sales-summary REST endpoints.
+
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { format, subYears } from "date-fns";
+import { ArrowUp, ArrowDown } from "lucide-react";
+import UpBoard from "@/components/dashboard/UpBoard";
+import { useStoreLocations } from "@/hooks/useStoreLocations";
+import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import type { HomeSections } from "@/lib/homeSections";
+
+interface UpBoardStore {
+  store: string;
+  label: string;
+}
+
+interface TrafficRow {
+  store_number?: string;
+  store_name?: string;
+  local_time?: string;
+  entries: number;
+  exits: number;
+  // Resolved server-side (see /api/axper/traffic) via the DB-backed
+  // trafficStoreMap -- a friendly label and the StoreLocation.name join
+  // key for salesByStore. Optional because rows from a stale cached
+  // response (or a mocked fetch in a test) may predate these fields;
+  // callers fall back to store_name when absent.
+  displayName?: string;
+  storeLocationName?: string;
+}
+
+interface StoreSales {
+  location: string;
+  items: number;
+  netSales: number;
+  tax: number;
+  total: number;
+  lyItems: number;
+  lyNetSales: number;
+  lyTax: number;
+  lyTotal: number;
+}
+
+const REFRESH_MS = 900000;
+
+/**
+ * Which sections this deployment shows.
+ *
+ * Both are showroom-floor conventions rather than things every business runs:
+ * a rotation only exists where staff take turns on a floor, and traffic only
+ * exists where there is a counter at the door. Hardcoded, they put two
+ * permanently-empty cards on the FIRST screen after login for anyone else --
+ * and an empty traffic card does not read as "no counter here", it reads as
+ * "nobody came in".
+ */
+export interface HomeViewProps {
+  /** What to show, from the module flags and this viewer's keys (lib/homeSections.ts). */
+  sections: HomeSections;
+}
+
+export function HomeView({ sections }: HomeViewProps) {
+  const { storeCards, upBoard: showUpBoard, notice } = sections;
+  const showTraffic = storeCards?.traffic ?? false;
+  const showSales = storeCards?.sales ?? false;
+  const formatMoney = useMoneyFormatter();
+  const formatCurrency = useCallback(
+    (value: number): string => formatMoney(value, { whole: true }),
+    [formatMoney],
+  );
+
+  const [todayTraffic, setTodayTraffic] = useState<TrafficRow[]>([]);
+  const [lastYearTraffic, setLastYearTraffic] = useState<TrafficRow[]>([]);
+  const [salesByStore, setSalesByStore] = useState<Record<string, StoreSales>>({});
+
+  // Configured store locations come from the database (Admin > Setup > Stores),
+  // never a hardcoded list -- each deployment defines its own.
+  const { stores: dbStores } = useStoreLocations({ type: "STORE" });
+
+  const upBoardStores: UpBoardStore[] = useMemo(
+    () => dbStores.map((s) => ({ store: s.name, label: s.name })),
+    [dbStores],
+  );
+
+  // The traffic rows carry the server-resolved displayName /
+  // storeLocationName, but `storeName` alone (the key used everywhere
+  // below, including for dbStores that have no traffic rows yet) doesn't --
+  // so build a lookup from whatever rows we've actually fetched. Stores
+  // with no traffic data (brand new, or a slow first fetch) simply fall
+  // back to their raw name, same as the server does for an unmapped
+  // counter.
+  const storeInfoByName = useMemo(() => {
+    const map: Record<string, { displayName: string; storeLocationName: string }> = {};
+    [...todayTraffic, ...lastYearTraffic].forEach((row) => {
+      if (row?.store_name && row.displayName && row.storeLocationName) {
+        map[row.store_name] = {
+          displayName: row.displayName,
+          storeLocationName: row.storeLocationName,
+        };
+      }
+    });
+    return map;
+  }, [todayTraffic, lastYearTraffic]);
+
+  // One card per STORE, not per counter. A store can have several counted
+  // doors — each counted door (an entrance, or a separate building) can be its
+  // own Axper feed — and keying cards on the raw counter label produced one
+  // card per door, each repeating the store's full sales. With more feeds
+  // than stores, that rendered duplicate cards, several titled with the same
+  // store name.
+  //
+  // Resolve every raw label to its StoreLocation first, then dedupe. An
+  // unmapped label resolves to itself, so a newly-installed counter still
+  // appears (as its raw name) rather than vanishing — the operator needs to
+  // see it to go map it.
+  const resolveStore = useCallback(
+    (rawName: string) => storeInfoByName[rawName]?.storeLocationName ?? rawName,
+    [storeInfoByName],
+  );
+
+  const allStores = useMemo(() => {
+    const names = new Set<string>(dbStores.map((s) => s.name));
+    [todayTraffic, lastYearTraffic].forEach((dataset) => {
+      (dataset || []).forEach((row) => {
+        if (row?.store_name) names.add(resolveStore(row.store_name));
+      });
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [todayTraffic, lastYearTraffic, dbStores, resolveStore]);
+
+  const getTrafficData = useCallback(
+    async (dateFrom: string, dateTo: string): Promise<TrafficRow[]> => {
+      try {
+        const response = await fetch(`/api/axper/traffic?dateFrom=${dateFrom}&dateTo=${dateTo}`);
+        const text = await response.text();
+        if (text.startsWith("store_number,store_name,local_time,entries,exits")) {
+          return [];
+        }
+        const data = JSON.parse(text);
+        if (data.error) throw new Error(data.error);
+        return data;
+      } catch {
+        return [];
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const now = new Date();
+    const today = format(now, "yyyy-MM-dd");
+    const lastYearSameDay = format(subYears(now, 1), "yyyy-MM-dd");
+
+    async function fetchData() {
+      setTodayTraffic(await getTrafficData(today, today));
+      setLastYearTraffic(await getTrafficData(lastYearSameDay, lastYearSameDay));
+    }
+
+    // Nothing to fetch when the section is not shown: the module is off, or
+    // this viewer may not see traffic.
+    if (!showTraffic) return;
+    fetchData();
+    const interval = setInterval(fetchData, REFRESH_MS);
+    return () => clearInterval(interval);
+  }, [getTrafficData, showTraffic]);
+
+  useEffect(() => {
+    async function fetchSales() {
+      try {
+        const res = await fetch("/api/dashboard/sales-summary");
+        if (!res.ok) return;
+        const data: { stores: StoreSales[] } = await res.json();
+        const map: Record<string, StoreSales> = {};
+        for (const store of data.stores) {
+          map[store.location] = store;
+        }
+        setSalesByStore(map);
+      } catch {
+        // Sales data is supplementary -- silently fail
+      }
+    }
+
+    // Nothing to fetch for a viewer without "View orders": the sales half is
+    // not shown, and the route would only answer 403.
+    if (!showSales) return;
+    fetchSales();
+    const interval = setInterval(fetchSales, REFRESH_MS);
+    return () => clearInterval(interval);
+  }, [showSales]);
+
+  // Every rollup below resolves the counter label to its store before
+  // accumulating, so a store's several doors sum into one figure. Without the
+  // resolve step the raw key misses the (now store-keyed) accumulator entirely
+  // and the guard below silently drops the row -- a store would read zero
+  // visitors while its counters were reporting normally.
+  const rollup = useCallback(
+    (rows: TrafficRow[], value: (row: TrafficRow) => number) => {
+      const result: Record<string, number> = {};
+      allStores.forEach((store) => (result[store] = 0));
+      rows.forEach((row) => {
+        if (!row?.store_name) return;
+        const store = resolveStore(row.store_name);
+        if (result[store] === undefined) return;
+        result[store] += value(row);
+      });
+      return result;
+    },
+    [allStores, resolveStore],
+  );
+
+  const todayByStore = useMemo(
+    () => rollup(todayTraffic, (r) => r.entries),
+    [todayTraffic, rollup],
+  );
+
+  const lastYearByStore = useMemo(
+    () => rollup(lastYearTraffic, (r) => r.entries),
+    [lastYearTraffic, rollup],
+  );
+
+  const occupancyByStore = useMemo(
+    () => rollup(todayTraffic, (r) => r.entries - (r.exits ?? 0)),
+    [todayTraffic, rollup],
+  );
+
+  return (
+    <div className="py-2">
+      {/* Page title */}
+      <h1 className="font-serif-display text-2xl text-brand-blue tracking-wide mb-6">Dashboard</h1>
+
+      {/* --- Traffic + Sales cards: each half only with its key --- */}
+      {storeCards && (
+        <section className="mb-10">
+          <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-brand-gray mb-4">
+            {storeCards.title}
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {allStores.map((storeName) => (
+              <StoreCard
+                key={storeName}
+                displayName={storeName}
+                sales={salesByStore[storeName]}
+                entriesToday={todayByStore[storeName] ?? 0}
+                entriesLastYear={lastYearByStore[storeName] ?? 0}
+                inStore={occupancyByStore[storeName] ?? 0}
+                formatCurrency={formatCurrency}
+                showTraffic={showTraffic}
+                showSales={showSales}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* --- Up-Boards --- */}
+      {showUpBoard && (
+        <section className="mb-10">
+          <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-brand-gray mb-4">
+            Designer Rotation
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {upBoardStores.map(({ store, label }) => (
+              <UpBoard key={store} store={store} storeLabel={label} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {notice === "modulesOff" && (
+        <p className="text-sm text-brand-gray">
+          Store Traffic and the Up Board are switched off for this deployment. Turn them on in Admin
+          &rarr; Settings &rarr; Modules.
+        </p>
+      )}
+      {notice === "nothingForRole" && (
+        <p className="text-sm text-brand-gray">
+          Nothing on the home page is part of your role yet. Your screens are in the menu.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function StoreCard({
+  displayName,
+  sales,
+  entriesToday,
+  entriesLastYear,
+  inStore,
+  formatCurrency,
+  showTraffic,
+  showSales,
+}: {
+  displayName: string;
+  sales: StoreSales | undefined;
+  entriesToday: number;
+  entriesLastYear: number;
+  inStore: number;
+  formatCurrency: (value: number) => string;
+  showTraffic: boolean;
+  showSales: boolean;
+}) {
+  const netSales = sales?.netSales ?? 0;
+  const itemCount = sales?.items ?? 0;
+  const lyNet = sales?.lyNetSales ?? 0;
+  const salesPct = lyNet > 0 ? ((netSales - lyNet) / lyNet) * 100 : null;
+
+  return (
+    <div className="bg-white border border-gray-200 p-5 text-center">
+      <div className="font-serif-display text-brand-blue text-base tracking-wide mb-2">
+        {displayName}
+      </div>
+      {showTraffic && (
+        <>
+          <div className="text-3xl font-serif text-brand-blue font-light mb-1">{entriesToday}</div>
+          <div className="text-xs font-sans uppercase tracking-wider text-brand-gray mb-3">
+            Entries Today
+          </div>
+          <div className="flex justify-center gap-6 text-xs font-sans text-brand-gray">
+            <div>
+              <span className="text-brand-blue font-medium">{entriesLastYear}</span> LY
+            </div>
+            <div>
+              <span className="text-brand-blue font-medium">{inStore}</span> In Store
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Sales data */}
+      {showSales && (
+        <div className={showTraffic ? "mt-4 border-t border-gray-100 pt-3" : ""}>
+          <div className="text-lg font-serif text-brand-blue font-light">
+            {formatCurrency(netSales)}
+          </div>
+          <div className="text-xs font-sans uppercase tracking-wider text-brand-gray mt-0.5">
+            Net Sales{itemCount > 0 ? ` (${itemCount} items)` : ""}
+          </div>
+          <div className="flex justify-center items-center gap-3 mt-2 text-xs font-sans">
+            <span className="text-brand-gray">LY {formatCurrency(lyNet)}</span>
+            <SalesTrend salesPct={salesPct} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Up/down trend chip, or an em-dash when there's no prior-year baseline.
+// Extracted to avoid a nested ternary inside the card JSX.
+function SalesTrend({ salesPct }: { salesPct: number | null }) {
+  if (salesPct === null) {
+    return <span className="text-brand-gray">--</span>;
+  }
+  const positive = salesPct >= 0;
+  return (
+    <span
+      className={`flex items-center gap-0.5 font-medium ${positive ? "text-green-700" : "text-red-700"}`}
+    >
+      {positive ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+      {Math.abs(salesPct).toFixed(1)}%
+    </span>
+  );
+}

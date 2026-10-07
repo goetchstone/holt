@@ -1,0 +1,132 @@
+// /app/src/pages/api/consignment/items/index.ts
+
+import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
+import { requirePermission } from "@/lib/auth/requireAuth";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
+import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
+import { prisma } from "@/lib/prisma";
+import { calculateRugPricing, parseRugCost } from "@/lib/consignment";
+import { logError } from "@/lib/logger";
+import { getErrorCode } from "@/lib/errorCode";
+
+async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess,
+) {
+  // A rug's cost goes only to a holder of "View cost"; its tag prices go to
+  // everyone this route admits.
+  const showCost = canViewCost(access);
+  if (req.method === "GET") {
+    try {
+      const page = Number.parseInt(req.query.page as string) || 1;
+      const limit = Number.parseInt(req.query.limit as string) || 50;
+      const skip = (page - 1) * limit;
+      const status = req.query.status as string | undefined;
+      const search = (req.query.search as string)?.trim() || "";
+
+      const where: any = {};
+
+      if (status) {
+        where.status = status;
+      }
+
+      if (search) {
+        where.OR = [
+          { barcode: { contains: search, mode: "insensitive" as const } },
+          { quality: { contains: search, mode: "insensitive" as const } },
+          { rugNumber: { contains: search, mode: "insensitive" as const } },
+        ];
+      }
+
+      const [items, total] = await Promise.all([
+        prisma.consignmentItem.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { created: "desc" },
+          omit: { cost: !showCost },
+          include: {
+            vendor: { select: { id: true, name: true } },
+            storeLocation: { select: { id: true, name: true } },
+          },
+        }),
+        prisma.consignmentItem.count({ where }),
+      ]);
+
+      const safeItems = items.map((item) => ({
+        ...item,
+        ...(showCost ? { cost: Number(item.cost) } : {}),
+        anchorPrice: item.anchorPrice ? Number(item.anchorPrice) : null,
+        retailPrice: item.retailPrice ? Number(item.retailPrice) : null,
+        sellingPrice: item.sellingPrice ? Number(item.sellingPrice) : null,
+        wasPrice: item.wasPrice ? Number(item.wasPrice) : null,
+      }));
+
+      return res.json({ items: safeItems, total, page, limit, costVisible: showCost });
+    } catch (error) {
+      logError("Error listing consignment items", error);
+      return res.status(500).json({ error: "Failed to list consignment items" });
+    }
+  }
+
+  if (req.method === "POST") {
+    try {
+      const { barcode, vendorId, cost, quality, size, year, storeLocationId } = req.body;
+
+      if (!barcode || !vendorId || cost == null) {
+        return res.status(400).json({ error: "barcode, vendorId, and cost are required" });
+      }
+
+      const numericCost = parseRugCost(cost);
+      if (numericCost === null) {
+        return res.status(400).json({ error: "cost must be a non-negative number" });
+      }
+
+      const { anchorPrice, retailPrice } = calculateRugPricing(numericCost);
+
+      const item = await prisma.consignmentItem.create({
+        data: {
+          barcode,
+          vendorId,
+          cost: numericCost,
+          anchorPrice,
+          retailPrice,
+          quality: quality || null,
+          size: size || null,
+          year: year ? Number.parseInt(year) : null,
+          storeLocationId: storeLocationId || null,
+          createdBy: session.user?.email ?? null,
+        },
+        // The cost was typed by this caller, but the echo still follows View cost.
+        omit: { cost: !showCost },
+        include: {
+          vendor: { select: { id: true, name: true } },
+          storeLocation: { select: { id: true, name: true } },
+        },
+      });
+
+      return res.status(201).json({
+        ...item,
+        ...(showCost ? { cost: Number(item.cost) } : {}),
+        anchorPrice: item.anchorPrice ? Number(item.anchorPrice) : null,
+        retailPrice: item.retailPrice ? Number(item.retailPrice) : null,
+        sellingPrice: item.sellingPrice ? Number(item.sellingPrice) : null,
+        wasPrice: item.wasPrice ? Number(item.wasPrice) : null,
+        costVisible: showCost,
+      });
+    } catch (err: unknown) {
+      if (getErrorCode(err) === "P2002") {
+        return res.status(409).json({ error: "Barcode already exists" });
+      }
+      logError("Error creating consignment item", err);
+      return res.status(500).json({ error: "Failed to create consignment item" });
+    }
+  }
+
+  return res.status(405).json({ error: "Method not allowed" });
+}
+
+export default requirePermission("purchasing.receive", handler, WITH_COST);

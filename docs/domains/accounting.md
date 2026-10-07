@@ -1,0 +1,700 @@
+# Accounting Domain Runbook
+
+The business's general-ledger pipeline: chart of accounts, journal-entry generation, exports to QuickBooks Desktop, and the SOR-readiness gaps that bound what we ship.
+
+## Context
+
+Before this system, **a typical target deployment hand-types its daily sales journal into its accounting package (e.g. QuickBooks Desktop).** This system is the new way forward — replacing manual JE entry with automated generation. There is no prior automated JE source to migrate from, no historical data to preserve compatibility with, and no parallel-running phase against another auto-system. The reference samples (kept outside the repo) represent that hand-typed convention; our exporter should match that shape so the accountant's eye recognizes the output as familiar.
+
+## Scope
+
+This runbook covers everything between "a sale or refund happened" and "an entry posts to QuickBooks." It does NOT cover:
+
+- Receiving / purchase-invoice journaling (purchasing has its own planning session — see `docs/domains/purchasing.md`)
+- Customer leveling, lead scoring, or other analytics that don't touch the GL
+- Returns workflow mechanics — see `docs/domains/returns.md` for the dual-reality (imported vs native) story
+
+## Chart of Accounts
+
+The business's GL is a 4-segment numeric chart (`X-XXXX`). The first digit is the standard GAAP class:
+
+| Range    | Class       | What lives here                                             |
+| -------- | ----------- | ----------------------------------------------------------- |
+| `1-XXXX` | Assets      | Cash receipts, deposits-receivable, inventory by department |
+| `2-XXXX` | Liabilities | Sales tax payable, gift-card liability                      |
+| `4-XXXX` | Revenue     | Sales by department                                         |
+| `5-XXXX` | Expenses    | COGS by department, purchase accruals                       |
+
+### Specific accounts (an example chart)
+
+| Account #    | Name                                    | Use                                                                                                                                                                                                                                                                                                                |
+| ------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`1-1006`** | Cash / Combined Receipts                | All payment methods (Cash / Amex / Visa / MC / Discover / Debit / Check) post here. Each method gets its own journal line for memo clarity, but they share one GL. **Debit on sales, credit on returns.**                                                                                                          |
+| **`1-1200`** | Pmt On Acct (Customer Deposits)         | Receivable for orders without an invoice yet. **Credit when a deposit is taken; debit when the invoice posts.**                                                                                                                                                                                                    |
+| `1-1203`     | (alternate deposit GL)                  | Treated identically to 1-1200 by the JE generator — see `DEPOSIT_GL_CODES` in `lib/journalEntry.ts`.                                                                                                                                                                                                               |
+| **`1-13XX`** | **Inventory by department**             | One sub-account per `AccountGroup`. **Credit when inventory leaves (sale); debit when inventory arrives (receiving) or returns (restock).** Example department codes:                                                                                                                                             |
+| `1-13NN`     | Inventory: (department)                 | e.g. `1-1301` Inventory: Dept A, `1-1302` Inventory: Dept B — one per department; consult the master COA for the complete list.                                                                                                                                                                                    |
+| **`2-2120`** | **Sales Tax Payable**                   | The home-state TaxDistrict's `glAccountId` resolves here. **Credit on sales, debit on returns.** Other states would have their own GL via their TaxDistrict mapping.                                                                                                                                                       |
+| **`2-2127`** | **Gift Card Liability**                 | Outstanding gift cards are a liability. **Credit when sold (debit cash); debit when redeemed (credit revenue).** This is a `LIABILITY_DEBIT_CODES` entry in the JE generator — meaning it gets a debit on sale-day journal because we recognize the redemption.                                                    |
+| **`4-40XX`** | **Sales revenue by department**         | One sub-account per `AccountGroup`. **Credit on sales, debit on returns** (returns are sales-in-reverse — see Returns section). Example department codes:                                                                                                                                                           |
+| `4-40NN`     | Sales: (department)                     | e.g. `4-4001` Sales: Dept A — matches the inventory sub-account department-by-department.                                                                                                                                                                                                                          |
+| **`5-52XX`** | **COGS by department**                  | One sub-account per `AccountGroup`. **Debit on sales, credit on returns.**                                                                                                                                                                                                                                         |
+| `5-52NN`     | COGS: (department)                      | e.g. `5-5201` COGS: Dept A.                                                                                                                                                                                                                                                                                        |
+| `5-5300`     | Purchase Invoice Accrual / Freight      | Used in the purchase journal (PJ) — the credit side when receiving creates a payable. NOT CURRENTLY GENERATED by our system; documented for forward-reference when purchasing JE work happens.                                                                                                                     |
+| `5-5005`     | Transfers (between stores)              | Wired as `AccountGroup.transfersAccount` but **NOT JOURNALED** today — the JE generator never reads that field. The business treats all stores as one cost center for the sales JE; transfers have no P&L impact. Future cost-center pivot is a separate planning session.                                         |
+| `5-5010`     | Shrinkage                               | Wired as `AccountGroup.shrinkageAccount`. Journaled **only** on the B3 `CLASSIFIED_WRITEOFF` return path (sort 35 — see Returns below). Anything else that needs to be written off uses the manual "transfer-out" workflow.                                                                                        |
+| `5-5900`     | Cash Over/Short                         | Auto-balancing plug when the JE doesn't add up exactly. Mapped via `SystemGLMapping` with section `POS_TRANSACTIONS`, label `Over/Short`. **An expense, not revenue** — it was seeded as `4-0005` typed `REVENUE` until 2026-08-06, which put every plug into the revenue bucket. See "The Over/Short plug" below. |
+
+## Models
+
+### `GLAccount`
+
+The leaf record for a single chart-of-accounts entry. Has `code` (`"2-2120"`) and `name` (`"Sales Tax Payable"`). Indexed by code; one row per account.
+
+### `AccountGroup`
+
+The bridge between a `Category` and its GL accounts. Four drive the sale-day journal:
+
+- `salesAccount` → revenue (credit on sale)
+- `cogsAccount` → cost of goods sold (debit on sale)
+- `inventoryAccount` → inventory asset (credit on sale)
+- `shrinkageAccount` → write-off GL, read by the JE generator as `shrinkageGlId` and debited in place of Inventory on a B3 `CLASSIFIED_WRITEOFF` return
+- (also defines `returnsAccount` and `transfersAccount` — neither is read by the JE generator at all)
+
+`Category.accountGroupId` ties products to the right group via the catalog hierarchy.
+
+### `SystemGLMapping`
+
+Indexed by `(section, label)` — a flat config table for "this label maps to this GL." The sections are `POS_PAYMENTS`, `POS_TRANSACTIONS`, `AR_TRANSACTIONS` and `INVENTORY_TRANSACTIONS`. Payment methods (Cash, Card, Check, Wire, ACH, Finance, Other, Gift Card, Store Credit, On Account) live under `POS_PAYMENTS`; `POS_TRANSACTIONS` holds the two non-payment GLs the generator needs, `Sales Tax` and `Over/Short`. There is **no** `TAX` section.
+
+Used by `generateSalesJournal()` to resolve payment-type strings to the right GL account at runtime, matched as `payment.paymentType.toLowerCase()`. The two POS section constants and their labels live in `lib/glMapping.ts`; the `AR_TRANSACTIONS` keys are string literals in `lib/billing/invoiceService.ts` and `lib/billing/billingReadiness.ts`, and `INVENTORY_TRANSACTIONS` is only a schema comment and an admin-UI label — no code reads it. Edit via the admin UI at `/app/admin/setup/accounting`.
+
+**A payment whose type is not in this map is dropped from the journal.**
+`generateSalesJournal` pushes an `Unmapped payment type "X"` warning and
+`continue`s — the money simply is not in the entry. The warning goes back to
+whoever generated that one day, and nowhere else, so a deployment whose tender
+vocabulary drifts from its GL mapping loses money from the books quietly.
+
+That drift is the normal case after an import, not an edge case: the mapping
+labels are authored by hand while `paymentType` arrives verbatim from the source
+system. On a restored production dataset, most payments — across many tender
+types — had no mapping row, while several configured
+labels (Visa, MC, Discover, AMEX, On Account, Deposit) matched no payment at all. The
+dominant real value, the card processor's name, mapped to nothing.
+
+The **Unmapped Payments** report (`/app/reports/unmapped-payments`,
+`lib/reports/unmappedPayments.ts`) is the standing version of that warning: every
+unmapped tender type, its payment count, the money involved, and when it was last
+seen — plus the configured labels matching nothing, which is usually the other
+half of the same rename. It reports and does not guess: inferring a GL account
+from a tender string is how money lands in the wrong account.
+
+### `TaxDistrict`
+
+Has its own `glAccountId` field. `2-2120` for the home-state district in the seeded chart of accounts. New districts get
+their own account when added.
+
+**How a rate is chosen.** Never from a literal, and never from the client.
+`lib/tax/resolveTaxRate.ts` owns it:
+
+`resolveTaxDistrict()` walks most-specific-first — customer exemption
+(`Customer.taxExemptReasonId`), then the customer's own
+`defaultTaxDistrictId`, then the selling store's `taxDistrictId`, then
+`AppSettings.defaultTaxDistrictId`, and finally rate 0 **with a warning naming the
+store**, because silently charging no tax is how the original bug survived so long.
+
+`rateForLineAmount()` then bands per LINE against that line's own amount, evaluating
+`TaxRule`'s `triggerPrice`/`triggerStop` gates and `startPrice`/`stopPrice` band. A
+$9,000 line and a $90 line on one order can legitimately carry different rates, so the
+rate is resolved per line rather than per order.
+
+Every write path that sets `OrderLineItem.vatRate` goes through those two functions, and
+`__tests__/taxResolutionSingleSource.test.ts` enforces it. Two bypasses it was written
+after finding:
+
+- The B2B proposal-conversion path wrote one state's bare rate — one deployment's rate
+  compiled into the product, charging every other deployment's customers that state's tax.
+- The add-line-item route read `taxRate` **off the request body**. A caller could send any
+  rate, and one that omitted it got `taxRate || 0` — a line silently added at zero tax to
+  an otherwise-taxed order.
+
+The guard distinguishes **configuring** a rate from **applying** one: `pages/api/tax/rules/*`
+legitimately takes `taxRate` from the body, because that is an operator editing a
+`TaxRule`, which is the entire point of the config system.
+
+**Two exemption columns exist.** `Customer.taxExempt` (boolean) and
+`Customer.taxExemptReasonId` answer the same question, and they can disagree. The resolver
+reads the reason id; the proposal path historically read the boolean, and now honours
+either, so neither reading can silently tax a customer the other considers exempt. They do
+not diverge in any current dataset — this is a latent second source of truth, not a live
+bug, and collapsing them is worth doing before it becomes one.
+
+### `JournalEntry` + `JournalEntryLine`
+
+The output. One JE per (date, store) pair (today: combined across stores per user direction). Lines are tagged with `glAccount`, `memo`, `debit`, `credit`, `sortOrder`. JE has a `journalNumber` (format: `SJ` + `YYYYMMDD`, e.g., `SJ20260501`) and a `status` state machine. Format generated by `formatJournalNumber()` in `lib/journalEntry.ts`.
+
+### `CustomerLedgerEntry` + `Customer.openArBalance` (Phase 0.5)
+
+Distinct from the JE pipeline above. The JE flows MONEY into the GL; the ledger flows AR (what each customer owes). Both have to balance to source-of-truth, and the daily-recon cron (Phase 0.5.5) cross-checks them.
+
+- One `CustomerLedgerEntry` row per money-affecting event per customer. Sign convention: positive = balance increases (SALE, DEPOSIT_RECEIVED, ADJUSTMENT_DEBIT); negative = balance decreases (PAYMENT, REFUND_ISSUED, DEPOSIT_APPLIED, ADJUSTMENT_CREDIT).
+- `Customer.openArBalance` is the stored running total. ATOMICALLY maintained by `lib/customerLedger.ts:appendEntry()` — every insert + balance bump happens inside the same `prisma.$transaction()`. Direct `prisma.customerLedgerEntry.create()` calls in application code BYPASS this contract and break the running-total invariant — only test fixtures that don't depend on the running balance are exempt.
+- Source-of-truth back-references: `salesOrderId`, `paymentId`, `invoiceId` (all nullable). Reports drill back through these to the originating event.
+- Pure helpers: `computeRunningBalance(entries)` re-derives the balance from a chronologically ordered list (exercised by the ledger tests and the books-reconcile integration test, not by the drift cron); `validateAgainstSource(ledger, source)` compares ledger-derived balance to `paymentService.computeBalance` summed across the customer's orders, with `LEDGER_TOLERANCE = 0.005` (half-cent). Both pure helpers tested in `__tests__/customerLedger.test.ts`.
+
+Phase rollout: 0.5.1 (schema) shipped 2026-05-07. 0.5.2 (helper + tests) shipped same day. 0.5.3 (backfill from existing Payment + SalesOrder data) shipped 2026-05-08 via `POST /api/admin/customer-ledger/backfill` — still needs to be triggered on prod manually. 0.5.4 (forward-flow wiring) shipped 2026-05-12. 0.5.5 (daily AR-drift cron) shipped 2026-05-12 — `POST /api/automations/customer-ar-drift-check` walks customers with payment/ledger activity in the last 26 hours, recomputes their source-of-truth balance via `computeSourceBalance`, compares to stored `openArBalance` via `validateAgainstSource` (LEDGER_TOLERANCE 0.005). Cron script `scripts/auto-customer-ar-drift-check.sh`; Host task scheduler: `install-cron.sh` installs it at 04:45 while the script's own header says 04:30 — `install-cron.sh` flags the disagreement. 0.5.6 (admin dashboard) shipped 2026-05-13. **0.5.7 (hand-pick customer validation) shipped 2026-05-13** — same endpoint now accepts `?customerIds=1,2,3` to validate explicit customers regardless of recent activity. Admin page has a mode toggle between "By recent activity" and "Specific customer IDs." Use the hand-pick mode for the pre-cutover validation pass (mix of long-time regulars, customers with deposits, refund chains, gift-card buyers — compare each to the POS's reported balance). With 0.5.7 the Phase 0.5 stack is complete; cutover-readiness now depends on running the validation pass and resolving any unexplained drift.
+
+### State machine
+
+```
+DRAFT  ──▶  POSTED  ──▶  EXPORTED
+   │             │
+   └─ delete     └─ regenerate (creates new DRAFT)
+```
+
+- **DRAFT**: just generated, can be edited or regenerated.
+- **POSTED**: confirmed, balanced, ready to export. Pre-POST guard refuses the transition if the entry's **lines** do not balance.
+  - The transition table and that guard live in `transitionJournalEntry()` in `lib/journalEntry.ts`. They used to live inside `PUT /api/accounting/journal-entries/[id]`, which made HTTP the only way to post an entry by the rules — a script, a scheduled close or an importer could set `status` directly and skip both. The route now delegates; `__tests__/journalEntry.test.ts` has a tripwire that fails if it grows its own copy.
+  - The DB constraint `JournalEntry_balanced_check` does **not** cover this: it compares the header's `totalDebits`/`totalCredits` columns, so a header disagreeing with its own lines satisfies it. Both guards are needed.
+- **EXPORTED**: written out to QB. Once exported, the underlying `SalesOrder` and `Payment` rows for that date should be locked (period-lock enforcement is B4/C5 in the SOR plan).
+
+## Journal-entry generation flow
+
+Entry point: `generateSalesJournal(date, createdBy?, storeLocation?)` in `lib/journalEntry.ts` — positional arguments, and there is no `journalNumber` override. Called from `/api/accounting/journal-entries/generate.ts` (POST, gated by `requireAuthWithRole(["MANAGER", "ADMIN"])`) when an admin clicks "Generate JE for date X." `index.ts` is the GET list route and does not generate.
+
+### Pipeline
+
+1. Compute `journalNumber` with `formatJournalNumber(date)` → `SJ${yyyy}${mm}${dd}`, e.g. `SJ20260501`.
+2. Load `SystemGLMapping` for `POS_PAYMENTS` — payment-type-to-GL lookup, keyed by lowercased label.
+3. Resolve auxiliary GLs via `SystemGLMapping`, never by code literal: the
+   fallback Sales Tax and the Over/Short account from `POS_TRANSACTIONS`;
+   Deposit from the `POS_PAYMENTS` map just loaded (label `On Account`, else
+   `Deposit`).
+4. Query `Payment` rows for the date (filtered by store if specified). Each Payment includes its `salesOrder` with:
+   - `invoices` (used to determine "is this a deposit-only payment?")
+   - `taxDistrict` (resolves the tax GL)
+   - `lineItems` **filtered by `lineItemStatus != "CANCELLED"`** (CLAUDE.md rule 33 — see B1 in the SOR plan; shipped as the cancelled-line JE filter change)
+5. Map each Prisma row into `SalesPayment` (a plain type) — peels Decimal to Number, follows the `accountGroup` chain to extract sales/COGS/inventory/shrinkage GL ids.
+6. Call `buildJournalLines(payments, overShortGlId, depositGlId, journalNumber)` (the pure helper) — produces `BuildResult` with `lines[]`, `totalDebits`, `totalCredits`, `warnings[]`, `overShort`.
+7. Persist as a `JournalEntry` (status=DRAFT) with `JournalEntryLine[]` children in a single transaction.
+
+### What `buildJournalLines` produces (per payment, per order)
+
+For each payment: debit the account its tender maps to. If the order has invoices, also generate per-line:
+
+- Credit the inventory GL (asset reduction) by `cost`
+- Debit the COGS GL (expense recognition) by `cost`
+- Credit the sales GL (revenue recognition) by `netPrice`
+- Credit the tax GL by `vatAmount`
+
+If the order has **no** invoice, the payment is a deposit: credit the deposit account
+(`POS_PAYMENTS`/"On Account", falling back to "Deposit") for its full amount,
+whatever it was tendered in. Before 2026-08-25 this credit was only emitted for
+payments hitting a hardcoded cash GL code — see "Every non-cash deposit was a
+plug" below.
+
+For each payment already posted to the deposit account: it **is** the credit, so no
+second one is emitted.
+
+For each payment that hits a liability-debit GL (gift card): debit the liability (we redeemed our debt to the customer).
+
+### Sample output (illustrative)
+
+An illustrative sales-day journal (1 day, all stores), with invented balanced amounts:
+
+| Memo                                             | Account  | Debit         | Credit        |
+| ------------------------------------------------ | -------- | ------------- | ------------- |
+| Amex / Visa / MC / Discover / Debit / Cash       | `1-1006` | 10,000.00     | 50.00         |
+| Pmt On Acct                                      | `1-1200` |               | 6,000.00      |
+| Inventory: Dept A / Dept B / ...                 | `1-13XX` |               | 1,500.00      |
+| Sales Tax Payable                                | `2-2120` |               | 250.00        |
+| GC Redeem                                        | `2-2127` | 50.00         |               |
+| Sales: Dept A / Dept B / ...                     | `4-40XX` |               | 3,750.00      |
+| COGS: Dept A / Dept B / ...                      | `5-52XX` | 1,500.00      |               |
+| **Total**                                        |          | **11,550.00** | **11,550.00** |
+
+Balances. Each department gets its own line (one per department that moved that day).
+
+## AR journals (invoice authoring, 2026-06-10)
+
+Two journal types beyond the daily `SALES` journal, both auto-POSTED inside
+the invoice transaction (balanced asserted before write; DB constraint
+backs it up):
+
+- `AR_SALE` — `ARI-<invoiceNo>` at issuance: debit AR control, credit
+  revenue, credit tax. `ARV-<invoiceNo>` is the mirrored reversal on void.
+- `AR_PAYMENT` — `ARP-<invoiceNo>-<paymentId>` per applied payment: debit
+  the `POS_PAYMENTS` GL for the method, credit AR control.
+
+GL resolution: `AR_TRANSACTIONS` / "Accounts Receivable" + "Invoice Sales"
+(required to issue; missing mappings refuse with an instructive error) and
+"Sales Tax" (falls back to `POS_TRANSACTIONS`/"Sales Tax").
+
+`generateSalesJournal` SKIPS payments with `salesOrderId NULL` that carry
+`PaymentApplication` rows — those are invoice payments whose GL impact the
+invoice flow already posted; including them would credit the deposit GL
+instead of relieving AR and double-count cash. Tripwire:
+`__tests__/invoiceAuthoring.test.ts`. Full flow:
+`docs/domains/accounts-receivable.md` "Invoice authoring".
+
+## The Over/Short plug (2026-08-06)
+
+When `buildJournalLines` finishes and debits don't equal credits, it posts the
+difference to the Over/Short GL so the entry balances. Three things about that
+were wrong until this change, all in `lib/journalEntry.ts` and
+`lib/dailyReconciliation.ts`:
+
+### It was silent
+
+The plug branch pushed a balancing line and **nothing** to `warnings`. The only
+warning in the function fired when Over/Short was _absent_. So configuring the
+account made the system quieter rather than safer: without one you got a
+warning, with one a $50,000 discrepancy was absorbed and the journal reported
+"balanced." `assertBalanced` can't catch it either — after the plug the entry
+genuinely balances.
+
+Now **every** plug warns, naming the amount, the side, and the journal number.
+`BuildResult.overShort` carries the absorbed imbalance (signed as
+`totalDebits - totalCredits` before the plug) so callers can escalate.
+
+### What happens at which size
+
+`OVER_SHORT_ALERT_THRESHOLD` in `lib/glMapping.ts` is **$1.00**. Not derived
+from production data — the reasoning is that every leg is `round2()`d, so a
+line contributes at most half a cent and a busy day is a few hundred lines.
+Revisit against a month of real plug values before treating it as tuned.
+
+| Plug    | What happens                                                                                                                                                                                                                                                                    | Where a human sees it                                                                                                                                     |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| $0.02   | Warning on the generate response, saying it's within the rounding threshold. Reported as `journal.overShort`, day stays green.                                                                                                                                                  | `warnings[]` on the JE generate response; the **Plug** column on `/app/admin/automations/daily-reconciliation`; `DailyReconciliationLog.journalOverShort` |
+| $12,000 | Same warning, worded "above the $1.00 review threshold — do not export until it is explained", **plus** `reportOpsAlert` (container log always; Slack/Discord webhook and email when `OPS_ALERT_WEBHOOK` / `OPS_ALERT_EMAIL` are set). Reconciliation marks the day unbalanced. | All of the above, plus the ops-alert channel and the amber row in the recent-runs table                                                                   |
+
+It does **not** refuse to write the JE. The entry is created as `DRAFT` and is
+never auto-POSTED; refusing would deny the accountant the artifact that shows
+where the money went missing. `JournalStatus` has no "needs review" state
+(`DRAFT | POSTED | EXPORTED`) and adding one is a schema + state-machine + UI
+change beyond the fix for this symptom.
+
+### It was counted as revenue
+
+The demo seed typed Over/Short `REVENUE` and the reconciliation classified any
+`4-` account as revenue, so a plug landed in the revenue bucket. A plugged day
+therefore surfaced as a _revenue_ discrepancy — sending whoever reconciled it
+hunting through orders when the cause was an unbalanced journal that got
+papered over. And a plug under the $0.01 tolerance vanished entirely.
+
+The plug is now its own figure end to end: `DailyReconciliationJournal.overShort`,
+the `journalOverShort` log column, a **Plug** column in both admin tables, and
+`plugNotice()` under the JE reconciliation panel. It is never folded into
+revenue, whatever `accountType` a deployment gives the account.
+
+## How the reconciliation identifies each bucket (2026-08-06)
+
+`computeDailyReconciliation` used to classify journal lines with four literals
+— `code.startsWith("4-")`, `code === "2-2120"` (comment: "Sales Tax
+Payable"), `code.startsWith("5-52")`, `code === "1-1006"`. Facts about one
+deployment, in product source: CLAUDE.md rule 61, same family as the
+hardcoded state `shortName` tax bug. Any other chart reconciled to $0.00 in every
+bucket, which looks exactly like a clean day.
+
+It now classifies by **GL account id**, resolved by
+`resolveReconciliationAccounts()`:
+
+| Bucket     | Resolved from                                                    | Why that source                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| revenue    | `AccountGroup.salesAccount` (all groups)                         | Per-department, so no single `SystemGLMapping` row can name them. This is the same row `buildJournalLines` reads to decide what to credit (`li.accountGroup.salesGlId`) — reading it is what makes the two sides comparable. `GLAccount.accountType` is the wrong signal: it is a label nothing enforces, and it walks straight into this change's own bug, since Over/Short was typed `REVENUE`. |
+| cost       | `AccountGroup.cogsAccount` (all groups)                          | Same reasoning.                                                                                                                                                                                                                                                                                                                                                                                   |
+| tax        | every `TaxDistrict.glAccountId` ∪ `POS_TRANSACTIONS`/"Sales Tax" | Exactly the two places `generateSalesJournal` looks. Also retires the old "we approximate by prefix 2-2120" comment — a second state's district is counted now instead of dropped.                                                                                                                                                                                                                |
+| cash       | every `POS_PAYMENTS` mapping whose label names a tender           | **Not** a singleton, though it was modelled as one until 2026-08-25 — see "The cash bucket was one account" below. `METHOD_DISPLAY` decides which labels count, so labels outside it (notably "On Account"/"Deposit", the offset leg) are excluded.                                                                                                                                                                                                                                                                                                               |
+| Over/Short | `POS_TRANSACTIONS`/"Over/Short"                                  | Singleton. Tested **first**, so a chart that wrongly also lists the plug account as a department's sales account still reports plugs as plugs.                                                                                                                                                                                                                                                    |
+
+**A missing mapping warns and fails the day** rather than reporting $0.00.
+`balanced` is false whenever the revenue, cost, tax or cash bucket is
+unresolvable, and whenever there is no POSTED/EXPORTED JE for the day. A
+missing Over/Short mapping is deliberately exempt — with no mapping the
+generator cannot plug at all.
+
+The section/label keys live in exactly one file, `lib/glMapping.ts`, imported
+by both the generator and the control (rule 37) — a typo in one consumer would
+otherwise be a silently empty bucket.
+
+**Still hardcoded, deliberately:** `CASH_GL_CODES`, `DEPOSIT_GL_CODES` and
+`LIABILITY_DEBIT_CODES` in `lib/journalEntry.ts`. Those decide what the
+generator _writes_, not how a control _reads_, so re-deriving them changes
+journal generation and wants its own change with a before/after on real
+tenders. Marked in-place with a comment citing rule 61.
+
+## What one end-to-end trading day found (2026-08-25)
+
+Every stage of a trading day had integration coverage. The **seams between
+them** did not: each side was tested against a counterpart built to agree with
+it. `__tests__/integration/tradingDay.integration.test.ts` walks one day
+straight through — open till → sell → deposit → PO → receive → allocate →
+transfer → schedule → deliver → invoice → settle → close till → post journal →
+reconcile — and asserts across each seam. It found three real defects on the
+first run, none of which any single-stage test could see.
+
+### Every non-cash deposit was a plug
+
+`buildJournalLines` emitted the offsetting deposit credit only when the payment
+hit a **cash** GL:
+
+```ts
+if (isCashGl(glCode) && depositGlId) {   // ← the bug
+```
+
+Every other tender — card, check, ACH, wire, finance, gift card — was debited
+with no matching credit, so the balancer put the difference in **Cash
+Over/Short**. The entry balanced, so nothing complained. The one account whose
+job is surfacing till discrepancies silently absorbed every non-cash sale, and
+for a furniture retailer, where card and finance are most of the tender,
+Over/Short was mostly neither.
+
+It now credits the deposit account for every tender, and skips only a payment
+already posted to the deposit account (that one **is** the credit).
+
+`isCashGl` reads `CASH_GL_CODES = ["1-1006"]` — a literal from one chart of
+accounts. Even the cash path was wrong for any deployment numbering its
+accounts differently: no code matched, so _nothing_ got a deposit credit and
+the entire day plugged to Over/Short. The deposit check is now configuration
+first (`glAccountId === depositGlId`), with the code list kept only as a
+fallback for charts mapping more than one deposit account.
+
+### The reconciliation's cash bucket was one account
+
+`source.cash` sums **every** COMPLETED payment on the day. `journal.cash`
+counted only the single GL mapped to `POS_PAYMENTS`/"Cash". The two sides were
+measuring different things, so a deployment that took one card payment reported
+a false cash drift equal to it — every day, for as long as it kept taking
+cards. A daily control that cries wolf daily is one people stop reading.
+
+`resolveTenderAccounts()` now spans every `POS_PAYMENTS` mapping whose label
+names a tender, using `METHOD_DISPLAY` as the single source of truth for what
+counts as one.
+
+The reason this survived: `dailyReconciliation.integration.test.ts` hand-builds
+its journal entries with `prisma.journalEntry.create` and never calls
+`generateSalesJournal`. It is a good test of the comparator and no test at all
+of the seam.
+
+### The billing service could not invoice a sales order
+
+`generateSalesJournal` recognises revenue and COGS for an order only when
+`order.hasInvoices` is true. `Invoice.salesOrderId` is the link that makes it
+true — and the only writers of that column were **the Ordorite importer and the
+demo seed**. `createDraftInvoice` had no parameter for it.
+
+So on any deployment not importing from Ordorite there was no way to invoice a
+sales order, revenue was never recognised, and every sale sat in Customer
+Deposits forever with nothing reporting a problem. `CreateDraftInput` now
+takes `salesOrderId`.
+
+### Open: bookings vs recognised revenue
+
+Not a defect — a policy question the test pins rather than settles.
+
+`source.revenue` counts every order written today (`SALES_REVENUE_STATUSES`
+includes `ORDER`). `journal.revenue` counts only invoiced orders. A special
+order written today and delivered in six weeks therefore shows as revenue
+**drift** equal to its value, every day until it is invoiced. That is correct
+accrual accounting on the journal side and a real figure on the source side,
+but the comparison labels the difference "drift", which reads as an error.
+
+Whether holt recognises revenue when the **order is written** or when it is
+**invoiced** is a deployment accounting policy. Until it is decided, stage 14
+of the trading day asserts the drift equals **exactly** the un-invoiced bookings,
+so the number stays explained instead of merely tolerated. Tracked as
+[#133](https://github.com/goetchstone/holt-archive/issues/133).
+
+## Native refunds (2026-08-06)
+
+`paymentService.processRefund` writes the refund row against the **original**
+`SalesOrder` (`salesOrderId: original.salesOrderId`), with `originalPaymentId`
+pointing at the payment being reversed. On the refund's day the generator
+therefore loaded an order whose line items are the original **positive** sale
+lines — and booked them again, in the same direction as the sale. Revenue was
+credited twice for one sale, COGS debited twice, inventory relieved twice, tax
+credited twice; the resulting imbalance then vanished into the plug.
+
+Worked example — a $1,000 sale, $400 cost, $63.50 tax, refunded in full on a
+later day. That refund day produced: credit cash $1,063.50, **credit revenue
+$1,000**, debit COGS $400, credit inventory $400, credit tax $63.50 — and a
+$212.70 Over/Short debit to force it into balance. Silently. The day's
+reconciliation then reported a $1,000 _revenue_ drift for a sale that had
+happened days earlier.
+
+`buildJournalLines` now skips line-item recognition when
+`SalesPayment.reversesPaymentId` is set. The cash leg is the entire correct
+effect of a native refund; the reversing revenue/COGS/tax legs, when they
+exist, come from return-shaped (negative) `OrderLineItem`s via the B3 path.
+
+**The discriminator is `originalPaymentId`, never `isRefund`.** Imported POS
+returns also set `isRefund` (`adapters/ordorite/shared.ts::isRefundPayment`),
+but they hang off their own return-order whose line items are negative and have
+never been booked — those must keep flowing through B3. Only `processRefund`
+sets `originalPaymentId`. Rule 60: route by recorded fact.
+
+The guard deliberately does **not** mark the order processed, so a normal
+payment for the same order on the same day still recognizes it whichever row
+Prisma returns first.
+
+Consequence to expect: a native refund now leaves the day short by the refund
+amount, which surfaces as a plug **with a warning**. That is honest — a
+partial refund records an amount, not which lines it unwinds, and inventing a
+proportional line-level reversal would be guessing. Proportional reversal is a
+deliberate non-goal here; it needs a decision about which lines a partial
+refund reverses.
+
+## Sort order convention
+
+Journal lines are stored with a `sortOrder` so the export prints in a consistent order:
+
+| Sort | What                                                                                 |
+| ---- | ------------------------------------------------------------------------------------ |
+| 10   | Payment debits (cash receipts, GC redemptions)                                       |
+| 20   | Payment credits (deposits, on-account)                                               |
+| 30   | Inventory credits (per department)                                                   |
+| 35   | Write-off/shrinkage debits (per department) — B3 classified WRITTEN_OFF returns only |
+| 40   | Tax credits (per district)                                                           |
+| 50   | Revenue credits (per department)                                                     |
+| 60   | COGS debits (per department)                                                         |
+| 70   | Over/Short balancing line (if needed)                                                |
+
+Tied to constants in `buildJournalLines()`. Don't change without updating the export-format expectation.
+
+## Returns
+
+Returns are **sales-in-reverse**, not their own GL category. A typical return reverses the original sale:
+
+| Direction           | Side                                                             | Sign                                                                          |
+| ------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Sales revenue       | `4-40XX`                                                         | **Debit** (reverses the original credit)                                      |
+| Sales tax payable   | `2-2120`                                                         | **Debit** (reverses the tax we collected)                                     |
+| Cash / Card         | `1-1006`                                                         | **Credit** (refund the customer)                                              |
+| COGS                | `5-52XX`                                                         | **Credit** (reverses the expense recognition, regardless of restock/writeoff) |
+| Inventory           | `1-13XX`                                                         | **Debit** — restock only (see branching below)                                |
+| Write-off/Shrinkage | `5-5010`-style, per department (`AccountGroup.shrinkageAccount`) | **Debit** — writeoff only, in place of Inventory                              |
+
+### Restock vs. writeoff branching (B3, shipped 2026-07-24)
+
+Every return-shaped line (negative cost) resolves to one of three named
+booking paths via `resolveReturnBookingPath()` in `lib/journalEntry.ts`:
+
+| Path                           | When                                                                                                                 | JE effect                                                                                                                                                                                                                                                     |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLASSIFIED_RESTOCK`           | A `Return` record covers this line and is `RESTOCKED` (or `inspectionCondition` is `LIKE_NEW`/`MINOR_DAMAGE`)        | Debit Inventory (item back on shelf)                                                                                                                                                                                                                          |
+| `CLASSIFIED_WRITEOFF`          | A `Return` record covers this line and is `WRITTEN_OFF` (or `inspectionCondition` is `MAJOR_DAMAGE`/`UNSALVAGEABLE`) | Debit the department's shrinkage/write-off GL instead of Inventory — the item never re-enters sellable stock. Falls back to restock (with a warning) if the account group has no shrinkage GL configured.                                                     |
+| `UNCLASSIFIED_DEFAULT_RESTOCK` | No `Return` record matches this line, or one exists but hasn't been inspected/classified yet                         | Debit Inventory — the owner-directed default (2026-04-28: "returns aren't shrinkage — they're sales in reverse"). Books identically to `CLASSIFIED_RESTOCK`; kept as a separate, named, greppable path so it's distinguishable from an actual human decision. |
+
+**Every imported historical return takes the `UNCLASSIFIED_DEFAULT_RESTOCK`
+path** — the `Return` table is never populated by import, so there's nothing
+to classify against. Matching a return-shaped line to a `Return` record
+(`matchReturnForLine()`) tries, in order: exact `lineItemId` FK, then a
+unique same-order `productId` match, then "the sole `Return` on this order"
+when nothing else disambiguates. See `docs/domains/returns.md` for the full
+match/classification writeup and the **Unclassified Returns** exception
+report that makes the default visible instead of silent.
+
+Two parallel data realities:
+
+- **Imported returns** (accounting returns) — data lives on the `SalesOrder` + negative `OrderLineItem` rows. No `Return` record. Reason and original-sale linkage are unavailable. JE math works on what's there. Always takes `UNCLASSIFIED_DEFAULT_RESTOCK`.
+- **Native ERP returns** — populated `Return` model captures reason, condition, and (once inspected) a restock/writeoff decision the JE now honors. Phase 1+ of the SOR plan.
+
+See `docs/domains/returns.md` for the full breakdown of data holes and approximations.
+
+## Export to QuickBooks Desktop
+
+QuickBooks Desktop is one supported target. Two import formats supported:
+
+### Tab-separated text (simplest)
+
+Columns: `Journ # | Date | Memo | Accnt # | Debit | Credit`. One row per journal line. Sample (invented):
+
+```
+Journ #     Date         Memo          Accnt #   Debit       Credit
+SJ20260501  05/01/2026   Amex          1-1006    1000.00
+SJ20260501  05/01/2026   Pmt On Acct   1-1200                600.00
+SJ20260501  05/01/2026   Dept A        1-1301                150.00
+...
+```
+
+This is the user's preferred format. Generated by `pages/api/accounting/journal-entries/[id]/export.ts`.
+
+### IIF (Intuit Interchange Format)
+
+Heavier; supports more transaction types (BILL, CHECK, etc.) and metadata (CLASS, NAME, ADDRS). Sample:
+
+```
+!TRNS TRNSID TRNSTYPE DATE ACCNT CLASS AMOUNT DOCNUM MEMO
+!SPL SPLID TRNSTYPE DATE ACCNT CLASS AMOUNT DOCNUM MEMO
+!ENDTRNS
+TRNS  GENERAL JOURNAL 05/01/2026 1-1006  1000.00 SJ20260501 Amex
+SPL  GENERAL JOURNAL 05/01/2026 4-4001  -400.00 SJ20260501 Dept A
+...
+ENDTRNS
+```
+
+Reference samples are kept outside the repo; use them as the format-matching target whenever the export endpoint is updated.
+
+## What's NOT yet built (gap list)
+
+These are documented gaps as of 2026-04-28. Each is a Phase 0 BLOCKER or a Phase 2 work item from the SOR plan. **Anyone working in this domain should consult the plan file before extending the system.**
+
+| Gap                                                                                    | Plan reference        | Status                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Proportional line-level reversal for a native refund                                   | (deferred 2026-08-06) | A native refund books its cash leg only; the day is left short by the refund amount and surfaces as a warned plug. Reversing proportionally needs a decision about which lines a partial refund unwinds.                                                                                             |
+| `CASH_GL_CODES` / `DEPOSIT_GL_CODES` / `LIABILITY_DEBIT_CODES` still hardcoded         | (deferred 2026-08-06) | Rule-61 violation in the generator's write path; marked in-place. See "How the reconciliation identifies each bucket".                                                                                                                                                                               |
+| Cancelled-line filter in JE                                                            | B1                    | ✓ shipped (cancelled-line filter change)                                                                                                                                                                                                                                                             |
+| JE balance assertion before POST                                                       | B4                    | ✓ shipped (balance-assertion-before-POST change)                                                                                                                                                                                                                                                     |
+| Accounting runbook                                                                     | B5                    | ✓ shipped (accounting runbook)                                                                                                                                                                                                                                                                       |
+| Returns as sale-in-reverse (mechanism + restock/writeoff branching + exception report) | B3                    | ✓ shipped 2026-07-24 — sign-flip mechanism + classified restock/writeoff branching + "Unclassified Returns" report (this change)                                                                                                                                                                     |
+| Payment immutability DB trigger                                                        | B6                    | ✓ shipped (payment-immutability trigger change); behavior covered by `__tests__/integration/paymentDeleteImmutability.integration.test.ts` (Phase 0.6.4)                                                                                                                                             |
+| Daily auto-reconciliation cron                                                         | C1                    | ✓ shipped — see "C1 — Daily reconciliation cron" below                                                                                                                                                                                                                                               |
+| ~~Voided-order reversal JE~~                                                           | ~~B2~~                | **DROPPED 2026-04-28** — daily-summary model handles voids/returns natively via B3 sign-flip. The rare "Day 1 JE was wrong, noticed Day 5" case is corrected by the accountant entering a journal entry directly in QuickBooks (right tool: rare, requires accounting judgment, not auto-generated). |
+| Period close / lock workflow                                                           | G4                    | Phase 2                                                                                                                                                                                                                                                                                              |
+| Receiving / purchase invoice JE                                                        | G5                    | Phase 2 (or "different planning session")                                                                                                                                                                                                                                                            |
+| Cash variance alerts                                                                   | C6                    | Phase 2                                                                                                                                                                                                                                                                                              |
+| Cost-center separation per store                                                       | (deferred)            | Future planning session                                                                                                                                                                                                                                                                              |
+| Shrinkage JE workflow                                                                  | (deferred)            | Manual transfer-out workflow today                                                                                                                                                                                                                                                                   |
+| Inter-store transfer JE                                                                | (deferred)            | No P&L impact today                                                                                                                                                                                                                                                                                  |
+
+## C1 — Daily reconciliation cron (2026-05-21)
+
+Closes Phase 0 control C1. Daily check that the JE generated for a day matches the underlying source data (OrderLineItem totals + Payment totals + JournalEntryLine totals). Drift > $0.01 means the JE will misrepresent what actually happened in QuickBooks — needs operator intervention before export.
+
+### Components
+
+| Surface              | Path                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| Pure compute helper  | `app/src/lib/dailyReconciliation.ts` — `computeDailyReconciliation({date, client})` |
+| Cron endpoint        | `app/src/pages/api/automations/daily-reconciliation.ts` (POST, Bearer or NextAuth)  |
+| Cron script          | `scripts/auto-daily-reconciliation.sh`                                              |
+| Admin UI             | `/app/admin/automations/daily-reconciliation` (MANAGER/ADMIN via `requirePage`)     |
+| Recent-logs endpoint | `app/src/pages/api/admin/automations/daily-reconciliation/recent.ts`                |
+| Audit log            | `DailyReconciliationLog` table (one row per day per run)                            |
+
+### Operator workflow
+
+1. **Cron fires** nightly via the host's task scheduler running `auto-daily-reconciliation.sh` (`scripts/install-cron.sh` installs it at 22:30, the script's own header recommends 02:00 local, and `install-cron.sh` flags that conflict as unresolved). With no date in the request body it picks **yesterday's date in the deployment's business timezone** — `AppSettings.timezone` via `getBusinessTimeZone()`, not a hardcoded America/New_York — and hands it on as a UTC-midnight **date marker**.
+
+   `computeDailyReconciliation` then reconciles that date's **business day**: the caller passes `timeZone` and the source queries (`SalesOrder.orderDate`, `Payment.paymentDate`) use the half-open window from `businessDayRange()`. The journal is matched differently and deliberately — `JournalEntry.journalDate` is a date marker, not an instant, so it is matched exactly rather than by that window. West of UTC the marker sits hours before the window opens, and a range match would report every reconciled day as missing its entry.
+
+   This previously read "only the date choice is timezone-aware": `startOfDay`/`endOfDay` did `setUTCHours` on the marker and reconciled the UTC calendar day, so an America/New_York store had its evening counted into the next day and any deployment east of UTC reconciled the wrong date outright.
+
+2. **Result lands in `DailyReconciliationLog`** with `balanced=true|false` + per-category drift values.
+3. **Operator opens** `/app/admin/automations/daily-reconciliation` next morning — sees last-30-days table at the bottom. Any row with `balanced=false` is flagged amber.
+4. **If drift > $0.01** → investigate before exporting that day's JE to QuickBooks. Common causes: cancelled-line filter miss, missing JE for the day, JE state still DRAFT, late-arriving payments not in the JE window.
+5. **Manual range run** via the admin UI's date controls is supported (single date or date range). Useful for backfilling history or re-running after a fix.
+
+### Re-runs append, don't overwrite
+
+Each reconciliation pass writes a NEW `DailyReconciliationLog` row. A re-run of yesterday's reconciliation does NOT overwrite the prior row. The operator has a full timeline of "we tried this day at 02:00 (drift $400), then at 09:00 after the JE-fix (drift $0)." Investigation trail preserved.
+
+### Auth model
+
+- **Bearer-token auth** via `AUTO_IMPORT_API_KEY` env var (same key the source-import cron uses) — for unattended cron runs.
+- **NextAuth session auth** — for manual admin-UI triggers. **No role gate on the endpoint**: `isAuthorized` accepts any session carrying a `user.email`. The admin page is MANAGER/ADMIN via `requirePage`, and the JE generate endpoint is gated by `requireAuthWithRole(["MANAGER", "ADMIN"])`, but this endpoint is not.
+
+### Why this matters
+
+Phase 0 control C1 is the daily proof that the JE pipeline produces accurate numbers. Without it, JE drift can sit undetected for weeks. The cron + log + UI together create the "is yesterday's JE safe to export?" answer the accountant needs before any QB import.
+
+## Verification checklist
+
+Before changing anything in `lib/journalEntry.ts` or the JE endpoints:
+
+- [ ] Run `__tests__/journalEntry.test.ts` — covers `buildJournalLines` with 12+ scenarios
+- [ ] Run `__tests__/reports.cancelledLineFilter.test.ts` — tripwire that asserts CANCELLED lines are filtered (rule 33 across reports + accounting)
+- [ ] If touching the include filter on `lineItems`, ensure the comment citing rule 33 stays — future grep for "rule 33" must surface this site
+- [ ] If touching the JE state machine, update the diagram in this runbook
+- [ ] If adding a new payment type or GL code, update `SystemGLMapping` seed AND the relevant `*_GL_CODES` constant array in `lib/journalEntry.ts`
+- [ ] If adding a new export format, document it under "Export to QuickBooks" above
+
+For changes that affect cutover readiness (any Phase 0 BLOCKER work):
+
+- [ ] Tripwire test added/extended for the bug class being closed
+- [ ] Failure-log entry in `.claude/skills/post-failure/SKILL.md` (if fixing a regression) or skip (if pure feature)
+- [ ] CLAUDE.md gotcha updated if a new invariant is introduced
+- [ ] PR template "Trace" section explains why the change doesn't disturb adjacent surfaces
+
+## Test coverage
+
+| Test file                                                             | Grade                                      | What it covers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `__tests__/journalEntry.test.ts`                                      | A (pure) + C+ (orchestration, placeholder) | `buildJournalLines` — 12 scenarios: balanced sales, multi-line, deposits, refunds, gift cards, multi-payment, multi-department. Plus `generateSalesJournal` orchestration with mocked Prisma — placeholder pending Phase 0.6.3 conversion.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `__tests__/dailyReconciliation.test.ts`                               | A                                          | `compareReconciliation` — comparator math (tolerance, drift detection, return-day shape) plus the Over/Short plug: a material plug fails the day even when all four drift pairs match, a rounding plug does not, and the plug is graded at `OVER_SHORT_ALERT_THRESHOLD` rather than the drift tolerance.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `__tests__/integration/dailyReconciliation.integration.test.ts`       | A (Postgres)                               | `computeDailyReconciliation` end-to-end. Charts are now seeded as **roles** (`seedChart`), so the same scenarios run against Holt's numbering and against `ALIEN_CHART` (`SALES-100` / `TAX-PAYABLE` / `COGS-500` / `BANK-001` — nothing starting with `4-`), asserting _equal_ results. That inversion is the proof the code literals are gone. Also: multi-department revenue/COGS, multi-district tax, plug-not-revenue, and the missing-mapping warnings.                                                                                                                                                                                                                                                                                                                                                        |
+| `__tests__/integration/generateSalesJournal.integration.test.ts`      | A (Postgres)                               | `generateSalesJournal` end-to-end — 14 scenarios: happy-path balanced JE, B1 cancelled-line filter against real rows, B3 sale-in-reverse signed amounts (unclassified default), B3 mixed-sign per-order, B3 large-dollar precision, **B3 classified `WRITTEN_OFF` Return debits the shrinkage GL** (added 2026-07-24), **B3 classified `RESTOCKED` Return books identically to the default** (added 2026-07-24), idempotency, refusal on POSTED, empty day, **`Payment.isRefund` sign normalization — native refund credits cash, imported refund isn't double-negated, isRefund:false unchanged, same-day sale+native-refund+imported-refund nets correctly and still balances** (added 2026-08-01, fix/refund-sign-in-journal). Added 2026-04-30 (PR #189, pre-squash repo numbering — historical reference only). |
+| `__tests__/unclassifiedReturns.test.ts`                               | A (pure)                                   | `buildUnclassifiedReturnsRows` + `explainUnclassified` — row selection (includes no-Return-record and not-yet-classified lines, excludes classified restock/writeoff), multi-line-per-order product matching, missing-customer/store fallbacks, sort + totals. Reuses `matchReturnForLine`/`resolveReturnBookingPath` from `lib/journalEntry.ts` so the report can never disagree with what the JE actually booked. Added 2026-07-24 (B3).                                                                                                                                                                                                                                                                                                                                                                           |
+| `__tests__/integration/paymentDeleteImmutability.integration.test.ts` | A (Postgres)                               | B6 trigger behavior end-to-end — 9 scenarios: PENDING/FAILED/NULL deletes succeed, COMPLETED/REFUNDED/VOIDED deletes blocked, exception message shape, transaction rollback on sibling delete, deleteMany atomicity. Replaces the deleted source-text tripwire. PR-pending, 2026-04-30.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `__tests__/reports.cancelledLineFilter.test.ts`                       | B-                                         | Source-text tripwires: every aggregation site filters CANCELLED lines (reports + accounting).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `__tests__/quoteArchive.test.ts`                                      | A                                          | Server-side archive validation (touches the financial path indirectly via `SalesOrder.status` transitions).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+## Failure log cross-references
+
+- 2026-08-06: Ledger plug + hardcoded chart (branch `fix/ledger-plug-and-chart`).
+  Three defects in one family, all documented in the sections above. (1) The
+  Over/Short plug in `buildJournalLines` pushed a balancing line and nothing to
+  `warnings` — configuring the account made the system quieter, not safer.
+  (2) The demo seed typed Over/Short `REVENUE` (`4-0005`) and
+  `dailyReconciliation.ts` classified any `4-` account as revenue, so plugs were
+  reported as sales and a plugged day read as a revenue discrepancy. (3) The
+  reconciliation identified all four buckets by hardcoded account codes, so any
+  other chart reconciled to $0.00 everywhere — a clean-looking day. Found while
+  fixing those: a native refund re-recognized the original sale's revenue/COGS/
+  tax/inventory on the refund's day, because `processRefund` points the refund
+  row at the original order. Regression coverage in
+  `__tests__/journalEntry.test.ts`, `__tests__/dailyReconciliation.test.ts`,
+  `__tests__/reconcileHandler.test.ts`, and both integration files.
+- 2026-08-01: Native-refund cash sign bug (branch `fix/refund-sign-in-journal`). The payment-mapping loop in `generateSalesJournal` (`lib/journalEntry.ts`) summed `payment.paymentAmount` with no reference to `Payment.isRefund`. `paymentService.ts::processRefund` writes the refund row with a POSITIVE `paymentAmount` and `isRefund: true`, so a native ERP refund was booked as cash RECEIVED instead of paid out — inflating the day's cash and producing unexplained daily-reconciliation drift. Imported POS refunds were unaffected (the Ordorite import already stores them negative), so production data carries both sign conventions simultaneously. Fix: normalize on the flag (`payment.isRefund ? -Math.abs(rawAmount) : rawAmount`) so a negative import isn't double-negated — the same pattern already used by `paymentService.ts` (`computeBalance`, `calculateTillExpected`) and `customerLedger.ts`. Regression coverage: `__tests__/integration/generateSalesJournal.integration.test.ts` "Payment.isRefund sign normalization" (4 scenarios, see Test coverage table above).
+- 2026-04-25 (`SKILL.md`): Sales import outage — fixed via a four-PR patch series (pre-squash repo numbering, historical reference only). The fix in that series that changed the orphan-cleanup mechanism from `deleteMany` to `updateMany SET CANCELLED` is why B1 (the cancelled-line JE filter) is needed: cancelled rows now exist in the table and would otherwise inflate the JE.
+- 2026-04-28 (`SKILL.md`): Quotes-import line-item reconciliation fix. Side-effect on accounting: imported quotes now stay in sync with the POS, so any quote that becomes a sale carries its full line-item set into the JE. Without that fix, a stale-quote-becoming-a-sale would have produced an under-recorded JE.
+
+## Cross-references
+
+- `docs/domains/sales-orders.md` — order lifecycle, status transitions, rewrite chain
+- `docs/domains/import-pipeline.md` — what comes in from the POS, including return-data quirks
+- `docs/domains/returns.md` — return mechanics + the POS data holes
+- `docs/domains/consignment.md` — consignment rugs (PAID synced via PO import, not directly in JE)
+- `CLAUDE.md` rule 33 — cancelled lines must never inflate aggregations
+- `CLAUDE.md` rule 40 — status mutations affect every report that reads the field; same caution applies to the JE
+- `.claude/plans/check-the-repo-familiarize-lovely-leaf.md` — the SOR-cutover plan that this runbook supports
+
+## Roadmap
+
+- **Short-term (Phase 0):** B1, B3, B4, B5, B6 + C1 cron. Closes the rule-33 surface, makes returns balance correctly via sign-flip, guards JE balance pre-POST, protects audit trail at the DB layer, automates daily reconciliation. (B2 dropped — see gap list.)
+- **Mid-term (Phase 1-2):** Period close, cash variance alerts, receiving JE, QB Desktop format match against the user's sample.
+- **Long-term:** Cost-center separation per store (when the business is ready), shrinkage workflow, real-time reconciliation dashboard.
+
+## Handing the books to an accounting system
+
+Holt keeps the general ledger but does not close the books: there is no P&L,
+balance sheet, accounts payable or payroll here. `JournalEntry` carries an
+`EXPORTED` status for the handoff, and `GET /api/accounting/export-journal`
+produces the file.
+
+```bash
+/api/accounting/export-journal?from=2026-01-01&to=2026-01-31&format=standard
+```
+
+| Format | When |
+| --- | --- |
+| `standard` | **Reach for this by default.** A plain double-entry journal — ISO dates, explicit debit AND credit columns — which is the shape every accounting package understands, because it is what a journal _is_. |
+| `quickbooks` | The shape this export shipped with, and still the default so existing links keep working. Blank rather than `0.00` on the side that does not apply. |
+| `xero` | Xero takes ONE SIGNED amount per line, not debit/credit columns: positive debit, negative credit. `TaxRate` is `No Tax` because these entries already carry tax as its own line — letting Xero re-apply it would double the liability. |
+| `sage` | Nominal code in its own column, reference repeated on every line, which is how Sage groups lines back into one journal. |
+
+An unknown `format` is a **400 listing the valid ones**, never a silent fall back
+to the default: a file in the wrong shape imports _wrong_ rather than failing,
+and wrong-but-imported is the worse outcome.
+
+**Verify a vendor format before trusting it.** The named formats follow each
+product's published manual-journal import shape, but those templates change
+between versions and regions. Import one period into a sandbox company and
+reconcile the totals first. `standard` is not subject to that caveat, which is
+most of the reason it exists.
+
+Adding a format is a registry entry in `lib/accounting/journalFormats.ts` —
+headers plus a `toRows`. `__tests__/journalFormats.test.ts` asserts every format
+emits one row per journal line using only its own declared headers, so a new one
+cannot quietly emit a column nobody declared.

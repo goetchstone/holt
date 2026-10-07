@@ -1,0 +1,208 @@
+// /app/src/pages/api/auth/[...nextauth].ts
+
+import type { NextApiRequest, NextApiResponse } from "next";
+import NextAuth, { NextAuthOptions } from "next-auth";
+import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import { prisma } from "@/lib/prisma";
+import { LAST_SEEN_THROTTLE_MS } from "@/lib/loginActivity";
+import {
+  buildAuthProviders,
+  buildAuthProvidersAsync,
+  findActiveStaffByEmail,
+  hasNoPrivilegedStaff,
+} from "@/lib/auth/authProviders";
+import { resolveGrantedPermissions } from "@/lib/auth/permissionResolver";
+import { checkRateLimit } from "@/lib/rateLimit";
+import { logger } from "@/lib/logger";
+
+export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma),
+
+  // In production NextAuth issues __Secure- cookies over HTTPS automatically;
+  // set it explicitly so the intent is visible and a misread NODE_ENV can't
+  // silently downgrade to insecure cookies.
+  //
+  // The ALLOW_INSECURE_NEXTAUTH_URL exception (loopback only -- validateEnv
+  // enforces that) exists because otherwise a production build over http is
+  // signed in and still bounced: NODE_ENV makes the cookie __Secure-prefixed
+  // on the way OUT, while the readers infer the plain name from the http
+  // scheme on the way BACK. /api/auth/session works, every guarded page
+  // 307s to the login screen, and nothing says why. Keeping the two halves
+  // agreeing is what makes `next start` verifiable locally and in CI.
+  useSecureCookies:
+    process.env.NODE_ENV === "production" && process.env.ALLOW_INSECURE_NEXTAUTH_URL !== "true",
+
+  // Providers are assembled from environment configuration (Google / Okta /
+  // Azure AD) plus local email+password when AUTH_LOCAL_ENABLED is set. See
+  // lib/auth/authProviders.ts.
+  providers: buildAuthProviders(),
+
+  pages: { signIn: "/auth/login" },
+
+  session: {
+    strategy: "jwt",
+  },
+
+  callbacks: {
+    async signIn({ user }) {
+      // Admit an identity only when it belongs to an active StaffMember.
+      //
+      // This closes the hole where `return true` admitted ANY Google/Okta/Azure
+      // account: the PrismaAdapter would create a User and the jwt callback then
+      // defaulted an unlinked account to a real staff role. Staff membership --
+      // not merely proving you own an email -- is what grants access.
+      //
+      // The one exception is the bootstrap window: on a brand-new deployment
+      // with no admin yet, the first sign-in is admitted so the operator can
+      // reach Admin > Staff and promote themselves. requireAuth.ts grants that
+      // page under the identical predicate; the two must agree or the first
+      // user gets a session that can open nothing.
+      const staff = await findActiveStaffByEmail(user?.email);
+      if (staff) return true;
+      if (await hasNoPrivilegedStaff()) {
+        logger.warn("Sign-in admitted under the bootstrap safeguard (no admin exists yet)", {
+          email: user?.email ?? null,
+        });
+        return true;
+      }
+      logger.warn("Sign-in refused: no active staff member for this email", {
+        email: user?.email ?? null,
+      });
+      return false;
+    },
+
+    async jwt({ token, account, user }) {
+      // Narrow inline so the locals stay non-null inside the block —
+      // avoids 6× non-null assertions (S4325). Both `account` and `user`
+      // are nullable in NextAuth's types.
+      if (account && user) {
+        token.accessToken = account.access_token;
+        token.id = user.id;
+        // Auto-link staff on first sign-in. The jwt callback runs after the
+        // PrismaAdapter has committed the User record, so user.id is the
+        // persisted database ID. Fire-and-forget -- never blocks sign-in.
+        if (user.email) {
+          try {
+            const alreadyLinked = await prisma.staffMember.findFirst({
+              where: { userId: user.id },
+            });
+            if (!alreadyLinked) {
+              const unlinked = await prisma.staffMember.findFirst({
+                where: {
+                  email: { equals: user.email, mode: "insensitive" },
+                  userId: null,
+                },
+              });
+              if (unlinked) {
+                await prisma.staffMember.update({
+                  where: { id: unlinked.id },
+                  data: { userId: user.id },
+                });
+              }
+            }
+          } catch {
+            // Never block sign-in due to staff-linking errors
+          }
+        }
+        // Stamp lastLoginAt + lastSeenAt for the fresh sign-in. updateMany
+        // is a no-op if the user has no StaffMember record (no rows match);
+        // never block sign-in.
+        try {
+          await prisma.staffMember.updateMany({
+            where: { userId: user.id },
+            data: { lastLoginAt: new Date(), lastSeenAt: new Date() },
+          });
+          token.lastSeenBumpedAt = Date.now();
+        } catch {
+          // Never block sign-in
+        }
+      }
+      // Attach staff role + granted permissions so they're available in session.
+      //
+      // The permission keys are for PRESENTATION ONLY — the nav uses them to
+      // decide which menu items are worth showing (lib/auth/navPermissions.ts).
+      // The Role/RolePermission grant table read per request by
+      // permissionResolver.ts is authoritative; every guard goes through it and
+      // none of them ever reads this list. A stale token can therefore only show
+      // or hide a link, and can never grant anything.
+      if (token.id) {
+        try {
+          const staff = await prisma.staffMember.findFirst({
+            where: { userId: token.id as string },
+            select: { role: true, roleId: true, isActive: true },
+          });
+          // No default role. This token field is presentation-only (the nav
+          // reads it; requireAuth.ts/permissionResolver.ts read the DB and are
+          // authoritative), so an unlinked account -- only reachable now in the
+          // bootstrap window -- shows no menu rather than a DESIGNER's. It used
+          // to default to DESIGNER, which is how a non-staff session looked like
+          // real staff.
+          token.role = staff?.role ?? undefined;
+          token.permissions = await resolveGrantedPermissions(staff);
+        } catch {
+          // Show nothing rather than a stale menu when the lookup failed; leave
+          // any existing role untouched but never invent one.
+          token.permissions = [];
+        }
+      }
+      // Bump lastSeenAt for non-sign-in requests (the jwt callback fires on
+      // every authenticated request when the JWT is decoded). Throttled via
+      // a JWT-side timestamp so we hit the DB at most once per minute per
+      // user. The token is encrypted and round-trips on every request, so
+      // this is server-state-free. The fresh-sign-in path already stamped
+      // lastSeenAt above; skip via the lastBump check naturally — we don't
+      // need a separate guard.
+      if (token.id) {
+        const now = Date.now();
+        const lastBump = (token.lastSeenBumpedAt as number | undefined) ?? 0;
+        if (now - lastBump > LAST_SEEN_THROTTLE_MS) {
+          try {
+            await prisma.staffMember.updateMany({
+              where: { userId: token.id as string },
+              data: { lastSeenAt: new Date(now) },
+            });
+            token.lastSeenBumpedAt = now;
+          } catch {
+            // Never block request flow on a presence ping
+          }
+        }
+      }
+      return token;
+    },
+
+    async session({ session, token }) {
+      if (token.accessToken) {
+        (session as any).accessToken = token.accessToken;
+      }
+      if (session.user && token.id) {
+        (session.user as any).id = token.id;
+      }
+      if (token.role) {
+        (session as any).role = token.role;
+      }
+      if (token.permissions) {
+        (session as any).permissions = token.permissions;
+      }
+      return session;
+    },
+  },
+
+  secret: process.env.NEXTAUTH_SECRET,
+};
+
+// Login handler resolves providers DB-first (Settings) then env, per request, so
+// OAuth keys entered in Settings -> Integrations take effect without a redeploy.
+// getServerSession callers keep importing the static `authOptions` above —
+// session validation uses the secret + callbacks, not the live provider list.
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Throttle ONLY the credentials-callback POST (the password sign-in attempt)
+  // — not session reads or OAuth flows. 10 attempts / 15 min per client IP
+  // blunts password brute-forcing on local accounts. The dedicated bucket
+  // keeps this counter separate from other rate-limited routes.
+  const route = Array.isArray(req.query.nextauth) ? req.query.nextauth.join("/") : "";
+  if (req.method === "POST" && route === "callback/credentials") {
+    if (!checkRateLimit(req, res, { windowMs: 15 * 60_000, maxRequests: 10 }, "login")) return;
+  }
+  const providers = await buildAuthProvidersAsync();
+  return NextAuth(req, res, { ...authOptions, providers });
+}

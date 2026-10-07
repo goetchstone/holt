@@ -1,0 +1,30 @@
+{
+  // app/prisma/seed/tsconfig.seed.json
+  //
+  // Dedicated tsconfig for running seed scripts under ts-node. The
+  // project-root tsconfig.json targets Next.js's bundler (module: esnext,
+  // moduleResolution: bundler, types: ["jest"] only) which ts-node's classic
+  // CommonJS loader can't execute directly -- module esnext produces ESM
+  // output ts-node can't require(), and dropping the default "node" types
+  // means Node globals like `process` don't type-check outside Jest.
+  //
+  // This config borrows the same "@/*" -> "src/*" path mapping so seed
+  // scripts can import real application modules (lib/auth/password,
+  // lib/journalEntry, lib/runCommissionPayouts, etc.) instead of
+  // reimplementing their logic, while compiling to plain CommonJS that
+  // ts-node can run standalone. Resolved via `-r tsconfig-paths/register`
+  // (see prisma/seed/index.ts invocation / package.json "seed:demo").
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "types": ["node"],
+    "isolatedModules": false
+  },
+  "ts-node": {
+    "transpileOnly": true
+  },
+  "include": ["**/*.ts", "../../src/**/*.ts"],
+  "exclude": ["node_modules", "../../src/**/*.test.ts", "../../src/pages/**/*"]
+}

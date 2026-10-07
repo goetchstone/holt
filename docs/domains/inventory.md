@@ -1,0 +1,251 @@
+# Inventory & Warehouse
+
+Stock positions, physical counts, reconciliation, transfers, warehouse dashboards. The receiving side of inventory (POs, expected dates) is in `docs/domains/purchasing.md`; the consignment-specific side is in `docs/domains/consignment.md`.
+
+## Models
+
+| Model | Purpose |
+|---|---|
+| `Product` | Catalog item (vendor + part number + name) |
+| `ProductVariant` | Size/color/finish for flat-priced vendors |
+| `Upc` | UPC/barcode → Product link (one product can have many barcodes) |
+| `StockLocation` | Physical floor location (Main Showroom front, West Showroom warehouse, etc.) — has `name` + `code` + `locationAliases` array, plus `holdsCommittedStock` (stock here is on hand but already sold — see "Two signals" below) |
+| `InventoryPosition` | One row per (product, location) with on-hand quantity. Daily-overwritten by Stock-by-Item import. |
+| `InventorySnapshot` | The expected on-hand baseline a physical count is measured against. Transient working table — regenerated per count, and cleared by `clear-snapshot` (scoped by `source`). Identity is holt's own `productId` + `storeLocationId`, not a POS id — see "Inventory snapshot generation" below. |
+| `PhysicalInventoryCount` | Per-scan log during a physical count event |
+| `Reconciliation` | Variance reconciliation record (resolved discrepancy after a physical count) |
+| `UnidentifiedScan` | Photo of an item that scanned to nothing during a count |
+| `InventoryTransfer` | Operational inter-store transfer (no JE impact — see `docs/domains/accounting.md`) |
+
+## Allocation: how selling decrements stock
+
+Until 2026-08, **nothing decremented on-hand for a sale**. Every writer of
+`InventoryPosition` either added stock (import, PO receiving, returns) or moved
+it sideways (transfers, manual edits). A store could sell the same sofa five
+times and the floor still said one.
+
+The schema was already built for the fix and nobody had used it:
+`InventoryPosition.salesOrderId` is nullable with a unique key including it —
+that shape only makes sense as **allocate-then-consume**.
+
+| Operation | When | Effect |
+|---|---|---|
+| `allocate` | sale | commits free stock to the order, splitting a position if the sale takes part of it |
+| `release`  | cancel, line edit | returns committed stock to free, **merging** into the existing free row |
+| `consume`  | fulfilment / delivery | deletes the committed rows — the goods left the building |
+| `availableQuantity` | display | free stock only |
+
+All in `lib/inventory/allocation.ts`; wiring lives in
+`lib/inventory/orderInventorySync.ts`. Every function takes the caller's
+transaction client and runs inside it — allocation that is not atomic with the
+order write commits stock to an order that failed to save.
+
+### Two signals for "spoken for", honoured not unified
+
+- `salesOrderId` set — committed by a **native** holt sale.
+- `StockLocation.holdsCommittedStock` — the stock is physically here but
+  already sold. Set per location by an admin (Warehouse → Locations → edit a
+  stock location), or derived by an import adapter from its source's own
+  convention.
+
+Free stock requires *neither*. `buyersReport.ts` reads the same flag for its
+floor-vs-`Cust Stock` split, so the two can't drift.
+
+**This was a hardcoded string until 2026-08.** Both `allocation.ts` and
+`buyersReport.ts` tested `StockLocation.name ILIKE 'customer%'` — an
+one deployment's naming convention living in shared inventory code, so any
+deployment that named its holding locations differently silently counted
+committed stock as available to sell. Migration
+`20260806163000_stock_location_holds_committed_stock` added the flag and
+backfilled it from exactly that string test, which is the whole equivalence
+guarantee: an existing Ordorite-fed database classifies every position the
+same after the migration as before it. The prefix itself now lives in
+`ordoriteHoldsCommittedStock()` in `lib/adapters/ordorite/shared.ts`, applied
+wherever that adapter creates a stock location — one adapter's fact about its
+source, not a product assumption (CLAUDE.md rule 61/62).
+
+The nullable-FK trap comes with it: `InventoryPosition.stockLocationId` is
+nullable and a position with **no** stock location is free stock, so the
+predicate is a disjunction —
+`OR: [{ stockLocationId: null }, { stockLocation: { holdsCommittedStock: false } }]`
+— not `NOT: { stockLocation: {…} }`, which is rule 51's three-valued-logic
+hazard on a to-one relation. Callers spread `freePositionWhere()` into a
+larger clause, so a caller that needs its own disjunction must nest it under
+`AND` rather than setting a sibling `OR:` that would overwrite this one.
+
+### Overselling is allowed, deliberately
+
+If a cashier scans it, it sells — mis-tagged, mis-counted, floor model, special
+order. `allocate` commits what exists, returns the shortfall, and never throws.
+The discrepancy becomes **back-office work**, not a checkout interruption:
+shortfalls land in `InventoryException` (Admin → Inventory Exceptions) with
+order, product, store, requested, allocated and shortfall, resolvable once
+handled.
+
+**Made-to-order lines never allocate.** `CONFIGURED` and `CUSTOM` cart lines
+mint a brand-new `Product` during the sale, so they have no `InventoryPosition`
+by construction. Allocating them would post a full-shortfall exception on every
+custom order — for a furniture retailer, a large share of them — and a queue
+full of the normal case is a queue nobody reads. The filter is per-line, so a
+mixed cart still reports its stocked lines.
+
+### The trap, if you touch this code
+
+The unique key is `[productId, storeLocationId, stockLocationId, salesOrderId]`
+and **both** `stockLocationId` and `salesOrderId` are nullable. Postgres treats
+NULLs as distinct in a unique index unless declared `NULLS NOT DISTINCT`, and
+`0_init` does not declare it — so that constraint never prevented duplicate
+free rows, and an upsert keyed through it can never match. The draft shipped
+with exactly that bug in both `allocate` and `release`; free stock would have
+multiplied on every cancel. Both now use `findFirst` + increment-or-create.
+See CLAUDE.md rule 64.
+
+### Still raw
+
+`/api/warehouse/positions` and the POS availability display still sum raw
+`quantity`, which includes stock committed to another order. The data is
+correct; what reads it is not yet. `InventoryPositionsView.tsx` is an admin
+audit table that genuinely needs the raw rows, so that change needs its own
+care rather than flipping the endpoint's default.
+
+## Stock-by-Item import (daily)
+
+CSV: `<Org>_Stock_by_Item.csv` from the POS (Gmail auto-import, e.g. 06:10 local). Runner: `runStockByItemImport` in `lib/importRunners.ts`. One row per (product, store location) with current on-hand qty.
+
+**The location-matching gotcha** (post-failure 2026-04-24):
+
+the POS emits `Stocklocation` as a free-text string per row. The import matches against `StockLocation.name` AND `StockLocation.locationAliases` (case-insensitive, exact — no fuzzy match). Historically, unmatched rows were silently dropped, causing the Buyers Report to understate on-hand by several units when an alias was missing.
+
+Since 2026-04-24:
+
+- **Unmatched rows land at a catch-all** — `StockLocation.code = "UNMATCHED"`, name "Unmatched — Needs Review". Original CSV location preserved in `InventoryPosition.notes`.
+- **Known the POS placeholders** like `Z_TEMP_MISS_INV` also route here.
+- **Result surfaces `unmappedLocations`** array. Admin should add aliases (or create the proper StockLocation) so future imports land correctly.
+
+**Rule for any new inventory-bearing import**: never silently drop a row with an unmappable location. Always route to the catch-all and surface the unmapped name to the admin.
+
+## Inventory snapshot generation (Step 1 of a physical count)
+
+`InventorySnapshot` had exactly one writer for most of this domain's history: a CSV importer fed by the POS, keyed on `Product.externalId` and a free-text POS location string. Since `Product.externalId` is nullable, every product created natively in holt (never imported from the POS) was silently absent from its own inventory count — a correctness bug, not a wiring gap, and it went undetected because nothing failed loudly. Migration `20260801170000_inventory_snapshot_local_identity` (2026-08-01) changed `InventorySnapshot`'s identity to holt's own `productId` (FK to `Product`) and `storeLocationId` (FK to `StoreLocation`, the counting grain — matches how counts are actually run, per store rather than per bin). `stockLocationId` is captured too when known, but deliberately excluded from the unique key.
+
+**The migration dropped the table rather than backfilling it** (see the migration's own header comment for the reasoning) — any snapshot that was mid-count when this deployed is gone and **must be regenerated from Physical Inventory Hub, Step 1** before counting resumes.
+
+- **Normal path**: `POST /api/inventory/snapshot/generate` (MANAGER/ADMIN) builds `InventorySnapshot` rows with `source: LOCAL` straight from `InventoryPosition` — the same aggregation `InventoryFreeze` uses (`lib/inventory/snapshot.ts:aggregateCurrentInventory`, shared so the two can never drift on what "current inventory" means). `snapshotDate` is truncated to the start of today, so re-running mid-day (e.g. after fixing a department mapping) replaces today's `LOCAL` rows rather than tripping the `(snapshotDate, productId, storeLocationId)` unique constraint. Wired to the Hub's Step 1 card in `InventoryHubView.tsx`.
+- **Cutover/parallel-run path**: `pages/api/import/inventory-snapshot.ts` (POS CSV upload) still exists, demoted to a secondary tool for validating the cutover. Writes `source: IMPORT` rows, resolving POS identifiers to holt's own before writing: `externalId` → `Product.externalId` → `productId`, and the POS `Stocklocation` string → `StockLocation.locationAliases` (case-insensitive, trimmed) → `storeLocationId`/`stockLocationId`. A row that resolves to neither a product nor a location is reported back (count + samples) in the response, never silently dropped — same discipline as the Stock-by-Item catch-all above. Surfaced in the Hub UI under "Migration & Cutover Tools", worded so it isn't mistaken for the normal Step 1.
+  - The upload UI (`InventorySnapshotImportView.tsx`) calls `clear-snapshot` with `{ source: "IMPORT" }` first, so it replaces only prior imported rows and a locally generated baseline survives the upload. That makes side-by-side comparison the default: generate `LOCAL`, upload the POS file, and both sets sit in the table at once keyed by `source`.
+  - It did NOT start out this way. The clear was unscoped (`deleteMany({})`), so importing a POS file destroyed the local baseline and the count silently reverted to being measured against whatever the POS knew — the exact coupling generating locally was meant to remove. Scoped in `clearSnapshotScope.integration.test.ts`, which asserts each source survives the other's clear.
+
+## Physical count workflow
+
+1. **Freeze** — `pages/inventory/freeze.tsx` declares a count event for a location. Locks edits while the count runs.
+2. **Scan** — barcode scanner posts UPCs to `/api/inventory/physical-count`. Each scan creates a `PhysicalInventoryCount` row. Unidentified UPCs (no `Upc` row, no `Product` match) become `UnidentifiedScan` with an optional photo.
+3. **Reconcile** — `pages/inventory/reconcile-photos.tsx` walks each unidentified scan; admin either creates a new Product (with the photo attached) or marks the scan as "not stock" (e.g., display fixture).
+4. **Variance report** — `pages/inventory/variance-report.tsx` shows scanned-qty vs expected-qty per product. Admin posts a reconciliation per product (accept count, accept book, or split).
+5. **Apply** — `pages/api/inventory/reconcile.ts` writes the accepted qty back to `InventoryPosition` and stamps a `Reconciliation` row for audit. `undo-reconciliation.ts` reverses if needed.
+
+## Warehouse dashboards
+
+Operational views over the same inventory data:
+
+| Page | Purpose |
+|---|---|
+| `warehouse/overview.tsx` | Per-store on-hand cards (count by department) |
+| `warehouse/inbound.tsx` | Month/week drill-down of expected receipts (PO-driven) |
+| `warehouse/outbound.tsx` | Pending deliveries, transfers, needs-scheduling buckets |
+| `warehouse/awaiting-delivery.tsx` | All ORDER-status orders w/ balance due, age, linked-PO status (see `docs/domains/sales-orders.md`) |
+| `warehouse/dispatch.tsx` | Drag-and-drop assignment to delivery runs (see `docs/domains/service-dispatch.md`) |
+| `warehouse/returns.tsx` | Pending vendor returns (consignment) and customer-return staging |
+| `warehouse/locations.tsx` | StockLocation admin: rename, add aliases, mark a location as holding committed stock, view position counts |
+
+**Reading stores and stock locations (SEC-15, 2026-09-30).** Three reads, one per need, all returning `{ locations }`:
+
+| Route | Key | Returns | Used by |
+|---|---|---|---|
+| `GET /api/store-locations` | `staff.self` (everyone) | id, name, code, type, isActive; `?type=` (validated) and `?isActive=` | Home, Admin → Staff, New Quote, Till, POS, Registers, Consignment Receive, Receiving Gaps, Service, New Service Case, New House Call, Till Reconciliation (directly or through `useStoreLocations` / `useActiveStore`) |
+| `GET /api/store-locations/stock-locations` | Transfer stock *or* Write purchase orders | each store with its stock locations (id, code, name, type, active) and default receiving location; no aliases, committed flag or addresses | Receive PO, New Transfer, Inventory Positions |
+| `GET /api/warehouse/locations` | Set up stores and stock locations, Manage configuration *or* Transfer stock | the full setup records, which the edit forms send back whole | Admin → Setup → Stores, Warehouse → Locations |
+
+**Setting up stores and stock locations** is its own switch, "Set up stores and stock locations" (`inventory.locations.manage`, SEC-15 2026-09-30). It covers:
+
+- creating, editing and deleting a store (`POST /api/warehouse/locations`, `PUT`/`DELETE /api/warehouse/locations/[id]`), which also accept "Manage configuration" because Admin → Setup → Stores is on that key;
+- creating a stock location (`POST /api/warehouse/locations/[id]/stock-locations`);
+- editing and deleting one (`PUT`/`DELETE /api/warehouse/stock-locations/[id]`), including its "holds committed stock" flag.
+
+Before this key, store writes needed "Transfer stock" **and** a hardcoded MANAGER/ADMIN staff role inside the routes, and stock-location edits needed "Adjust inventory". So whoever the owner let move stock or adjust counts also decided store setup.
+
+- **Defaults:** one switch cannot split the two old audiences, so it starts on for their union, and nobody loses a setup action: SUPER_ADMIN, ADMIN, GENERAL_MANAGER and MANAGER. Migration `20260930120000` grants it to edited and custom roles holding Adjust inventory, or holding Transfer stock with key ADMIN or MANAGER. Some roles gain:
+  - SUPER_ADMIN can now set up stores (the old exact MANAGER/ADMIN check refused it);
+  - GENERAL_MANAGER, which could edit stock locations, can now also create and edit stores, through the API only, since neither write screen admits it;
+  - a custom or edited role holding only Adjust inventory gains store writes;
+  - an edited ADMIN/MANAGER holding Transfer stock but not Adjust inventory gains stock-location edits.
+
+  WAREHOUSE staff can still view Warehouse → Locations but not change it; the owner can tick the switch for them in Roles.
+- **The screen:** Warehouse → Locations itself is still gated on a MANAGER/ADMIN/WAREHOUSE role list (pending in `pagePermissions.ts`). The switch decides who can **save**; who can **open** that screen moves with the page keys (PERM-01).
+- **What it does not cover:** moving stock (Transfer stock); the traffic-counter mapping on a store (a settings preset, `admin.config`); and the UNMATCHED stock location the Ordorite import creates (the import's own key).
+
+## Transfers
+
+`InventoryTransfer` model + `pages/warehouse/transfers/*`. Operational only — no journal entry (per master plan, stores are not separate cost centers in the JE).
+
+A transfer marks `qtyOut` at source location + `qtyIn` at destination. The next Stock-by-Item import overwrites positions, so transfers are *advisory* — they shape what the warehouse expects to see when the next snapshot lands.
+
+## Variance reports (apparel + general)
+
+- `variance-apparel.tsx` — specific apparel variance (department-filtered). Smaller items, higher count cadence.
+- `variance-report.tsx` — general variance across all categories.
+
+Both read from `PhysicalInventoryCount` + `InventoryPosition` and compute scanned vs book delta. Per CLAUDE.md rule 33, cancelled line items must never inflate book qty — handled at the import side.
+
+## On-hand reporting
+
+`api/inventory/onhand-by-department.ts`, `onhand-by-location.ts` and `summary-details.ts` are read-only aggregations behind the Inventory hub's Snapshot vs. Physical Count Summary and its Summary Details page.
+
+- Each returns `{ rows, costVisible }`.
+- The cost fields (`expectedCost`, `countedCost`, `varianceCost`) go only to a caller holding "View cost" (`catalog.cost`; see Cost Visibility in `docs/domains/staff-auth.md`).
+- Anyone else gets quantities only.
+
+**Inventory Health report** (`/app/reports/inventory-health`, MANAGER+ADMIN) — valuation + dead-stock view. Engine `lib/reports/inventoryHealth.ts` exposes a pure `summarizeInventoryHealth` (testable, no I/O) plus the Prisma loader: on-hand value = units × unit cost, grouped by department/vendor, with a dead-stock band for positions that have on-hand but no sales in the lookback window. Lives under `/reports`, not `/inventory`, but reads the same `InventoryPosition` data. Cost value, dead-stock cost, dead % and uncosted units need View cost; without it the report shows units, retail value and dead units, ordered by retail value (`inventoryHealthForCaller`).
+
+The classic "where's the missing inventory" debugging path:
+
+1. Check `InventoryPosition` for the (product, location) row in question
+2. If position looks low, query the most recent `AutoImportLog` row for `<Org>_Stock_by_Item` — see if `unmappedLocations` includes the location's CSV name
+3. If yes → add an alias on the `StockLocation` row, re-trigger the import
+4. If no → check `PhysicalInventoryCount` for recent scans that might indicate a manual correction was made
+
+## Cleanup / admin endpoints
+
+- `clear-snapshot.ts` — `POST { source?: "LOCAL" | "IMPORT" }`. Omitting `source` clears everything (the deliberate start-over); passing one clears only that source. An unrecognised value is rejected rather than falling back to a wider delete. Returns the deleted count, and audits as `INVENTORY_SNAPSHOT_CLEAR` — it destroys the baseline a count is judged against.
+- `clear-location.ts` — zeroes positions at a location
+- `clear-all-data.ts` — wipes count data (NOT positions). Use with backup in hand.
+
+All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can affect downstream financials.
+
+## Known gaps
+
+- **No real-time reserve** at quote-confirm (master plan G2 / Phase 1). Inventory is only as fresh as the daily Stock-by-Item import.
+- **No real-time deduct** at fulfillment for ERP-native orders. Same gap.
+- **Cycle counting** beyond apparel — variance report exists but cadence isn't scheduled.
+- **Transfer audit** — operational rows exist but no audit trail tying a transfer to a specific physical move.
+
+## Verification checklist (before touching inventory code)
+
+- [ ] Read this runbook + `docs/domains/import-pipeline.md` (Stock-by-Item is the largest daily importer touching this domain)
+- [ ] Confirm any new import path routes unmappable locations to the catch-all (NEVER silent-drop)
+- [ ] If touching `InventoryPosition` writes, verify the daily Stock-by-Item import won't trample your change (it overwrites)
+- [ ] Variance reports filter `lineItemStatus != CANCELLED` per CLAUDE.md rule 33
+
+## Test coverage
+
+- `buyersStockSpecialClassifier.integration.test.ts` — real-DB classifier for stock-special items
+- `buyersCommittedStockSplit.integration.test.ts` — real-DB floor-vs-customer split, fixtured **inverted** against the retired name heuristic (a flagged "Warehouse B", an unflagged "Customer Overflow")
+- `inventoryAllocation.integration.test.ts` — allocate/release/consume lifecycle, including the same inversion for the free-stock predicate and the no-stock-location case
+- `ordoriteShared.test.ts` — `ordoriteHoldsCommittedStock`, the adapter-local name convention
+- No dedicated tests for `runStockByItemImport`'s catch-all routing — **gap, worth a tripwire**
+- No tests for the reconcile + undo-reconcile round-trip
+- `inventorySnapshot.test.ts` — unit tests for `summarizeInventoryAggregate` (the shared freeze/snapshot roll-up)
+- `snapshotImport.test.ts` — unit tests for `resolveSnapshotImportRow` (the POS cutover importer's per-row resolution)
+- `inventorySnapshotGenerate.integration.test.ts` — real-DB coverage for `POST /api/inventory/snapshot/generate`, including a product with no `externalId` and same-day re-run idempotency
+
+---
+Last verified: 2026-08-04

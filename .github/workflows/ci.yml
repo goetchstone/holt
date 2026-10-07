@@ -1,0 +1,187 @@
+# ci.yml -- Runs lint, typecheck, format check, and tests on PRs to main.
+#
+# Path filter (added 2026-05-09): docs-only PRs skip the full test suite.
+# Markdown lint and ROADMAP/CLAUDE updates don't need lint+typecheck+test
+# to run -- they have their own gate (markdownlint.yml). Saves ~5 min of
+# CI minutes per docs-only commit.
+#
+# 2026-05-13: dropped `push: branches: [main]` trigger. The PR run
+# already validated the same code; re-running on the squash commit is
+# paranoia tax. Manual `workflow_dispatch` retained so an admin can
+# trigger a main re-run from the GitHub UI if needed.
+#
+# When in doubt about whether a path should trigger CI, add it here.
+# False negatives (CI doesn't run when it should) silently break things;
+# false positives (CI runs unnecessarily) just cost minutes.
+name: CI
+
+on:
+  # Runs on every PR to main (no path filter) so it can be a REQUIRED status
+  # check without footgunning path-filtered PRs -- a required check that's
+  # skipped by a filter never reports and blocks the merge forever. Actions are
+  # free on this public repo, so always-run is the right trade.
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Workflow-level least-privilege per CodeQL `actions/missing-workflow-permissions`.
+# The `validate` job only needs to read source to lint/typecheck/test — no
+# token-scoped writes (no comments, no commits, no releases).
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Lint, Typecheck, Format, Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    env:
+      NODE_OPTIONS: "--max-old-space-size=6144"
+
+    # Postgres service container — real DB for the integration test
+    # project (Phase 0.6.1, 2026-04-30). Same major version as prod
+    # (postgres:17.9-alpine) so migration / driver behavior matches.
+    services:
+      postgres:
+        image: postgres:17.9-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+      - name: Validate (lint + typecheck + format)
+        run: npm run validate
+
+      - name: Strict typecheck (pricing + core libs)
+        run: npm run typecheck:strict
+
+      - name: Run combined coverage gate (unit + integration, merged)
+        # `test:coverage` (Phase 0.6.5) runs unit tests + every
+        # integration test file separately, then merges the JSON
+        # coverage from each via `nyc merge` and enforces thresholds
+        # against the merged data via `nyc check-coverage`.
+        # Integration tests need Postgres — provided by the service
+        # container above.
+        run: npm run test:coverage
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          # The client-data tripwire's patterns (real identifiers) are kept out
+          # of the repo; without this secret that test fails in CI by design.
+          CLIENT_DATA_PATTERNS: ${{ secrets.CLIENT_DATA_PATTERNS }}
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: app/coverage/
+          retention-days: 14
+
+  # Proves the app STARTS and a person can use it. The validate job above runs
+  # 2,985 tests and never once boots the thing -- a change that broke startup
+  # (missing env var, bad migration, module that throws on import) passed green.
+  # This job is the gate for that whole class of failure.
+  smoke:
+    name: Setup, build, boot, smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      NEXTAUTH_SECRET: ci-secret-not-used-anywhere-else-0000
+      APP_ENCRYPTION_KEY: ci-encryption-key-not-a-real-one-000
+      NEXTAUTH_URL: http://localhost:3000
+      # Production build over http on loopback -- see lib/validateEnv.ts. It
+      # only relaxes the https rule for localhost, never for a real host.
+      ALLOW_INSECURE_NEXTAUTH_URL: "true"
+      AUTH_LOCAL_ENABLED: "true"
+
+    services:
+      postgres:
+        image: postgres:17.9-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The same command a newcomer runs. If `npm run setup` breaks, a fresh
+      # clone breaks, and this is where we find out.
+      - name: Setup (migrate + seed)
+        run: npm run setup -- --scale=ci --no-cms
+
+      # The database above was built by `migrate deploy`; schema.prisma must
+      # describe the same one. Until 2026-09-23 they differed, so every
+      # `prisma migrate dev` proposed dropping the LegacyOrder search indexes
+      # and each author trimmed that out by hand.
+      - name: Migrations match the schema
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+
+      # The seed is the strongest asset in the repo and the easiest thing to
+      # break invisibly: a module stops running and an empty table looks exactly
+      # like a feature nobody clicked. This measures the database setup just
+      # built against prisma/seed/coverage.ts. --without cms because the setup
+      # above runs --no-cms; the check reports what it skipped rather than
+      # quietly passing.
+      - name: Seed coverage
+        run: npm run seed:coverage -- --without cms
+
+      - name: Build
+        run: npm run build
+
+      - name: Boot and smoke test
+        run: |
+          npm start &
+          APP_PID=$!
+          for _ in $(seq 1 90); do
+            curl -sf -o /dev/null http://localhost:3000/api/health && break
+            kill -0 "$APP_PID" 2>/dev/null || { echo "app exited during startup"; exit 1; }
+            sleep 1
+          done
+          bash scripts/smoke.sh
+          kill "$APP_PID" 2>/dev/null || true

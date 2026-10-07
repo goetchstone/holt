@@ -1,0 +1,80 @@
+name: Bug Report
+description: Something is broken or not working as expected
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the system is affected?
+      options:
+        - Sales / POS
+        - Quotes / Orders
+        - Inventory / Warehouse
+        - Purchasing / POs
+        - Service Cases
+        - Service Dispatch
+        - House Calls
+        - Returns
+        - Reports / Dashboard
+        - Pricing / Import
+        - Products / Catalog
+        - Customers
+        - Admin / Setup
+        - Printing (receipts, labels)
+        - Delivery / Dispatch
+        - Login / Auth
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      description: What are you using?
+      options:
+        - iPad Pro
+        - iPad (other)
+        - Desktop / Laptop
+        - Phone
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How bad is it?
+      options:
+        - Blocker (cannot work)
+        - Major (workaround exists)
+        - Minor (cosmetic or low impact)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the issue. What did you expect vs what actually happened?
+      placeholder: |
+        1. I went to ...
+        2. I clicked ...
+        3. Expected: ...
+        4. Instead: ...
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Paste a screenshot if you can (drag and drop works)
+    validations:
+      required: false
+  - type: input
+    id: url
+    attributes:
+      label: Page URL
+      description: Copy the URL from the browser if you can
+      placeholder: https://your-deployment.example.com/...
+    validations:
+      required: false

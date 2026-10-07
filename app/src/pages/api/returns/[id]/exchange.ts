@@ -1,0 +1,95 @@
+// /app/src/pages/api/returns/[id]/exchange.ts
+
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayStamp } from "@/lib/reports/businessDay";
+import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
+import { requirePermission } from "@/lib/auth/requireAuth";
+import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
+
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).end(`Method ${req.method} Not Allowed`);
+  }
+
+  const returnId = Number.parseInt(req.query.id as string);
+  if (Number.isNaN(returnId)) return res.status(400).json({ error: "Invalid return ID" });
+
+  const changedBy = session.user?.email || null;
+
+  try {
+    const ret = await prisma.return.findUniqueOrThrow({
+      where: { id: returnId },
+      include: {
+        salesOrder: { select: { customerId: true, storeLocation: true, salesperson: true } },
+      },
+    });
+
+    if (ret.exchangeOrderId) {
+      return res.status(400).json({ error: "Exchange order already exists for this return" });
+    }
+
+    // Generate a new order number for the exchange
+    const now = new Date();
+    const stamp = businessDayStamp(now, await getBusinessTimeZone());
+    const prefix = `EX-${stamp}-`;
+
+    const lastOrder = await prisma.salesOrder.findFirst({
+      where: { orderno: { startsWith: prefix } },
+      orderBy: { orderno: "desc" },
+      select: { orderno: true },
+    });
+
+    let seq = 1;
+    if (lastOrder) {
+      const lastSeq = Number.parseInt(lastOrder.orderno.replace(prefix, ""), 10);
+      if (!Number.isNaN(lastSeq)) seq = lastSeq + 1;
+    }
+    const orderno = `${prefix}${seq.toString().padStart(3, "0")}`;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the exchange order as a QUOTE
+      const exchangeOrder = await tx.salesOrder.create({
+        data: {
+          orderno,
+          orderDate: now,
+          status: "QUOTE",
+          customerId: ret.salesOrder.customerId,
+          storeLocation: ret.salesOrder.storeLocation,
+          salesperson: ret.salesOrder.salesperson,
+          orderNotes: `Exchange for return ${ret.returnNumber}`,
+          createdBy: changedBy,
+        },
+      });
+
+      // Link to the return
+      await tx.return.update({
+        where: { id: returnId },
+        data: { exchangeOrderId: exchangeOrder.id, updatedBy: changedBy },
+      });
+
+      // Audit log
+      await tx.orderChangeLog.create({
+        data: {
+          salesOrderId: ret.salesOrderId,
+          changeType: "RETURN_EXCHANGE_CREATED",
+          newValue: orderno,
+          changedBy,
+        },
+      });
+
+      return exchangeOrder;
+    });
+
+    return res.status(201).json({ exchangeOrder: result });
+  } catch (error) {
+    logError("Error creating exchange order", error);
+    return res.status(500).json({ error: "Failed to create exchange order" });
+  }
+}
+
+// Processing an exchange touches inventory + balances. Register desk,
+// warehouse returns, manager, and admin only.
+export default requirePermission("sales.return", handler);

@@ -1,0 +1,28 @@
+Holt
+Copyright (c) Akritos
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License v3.0 (AGPL-3.0-or-later) as
+published by the Free Software Foundation. See the LICENSE file.
+
+A commercial license is available from Akritos for use that the AGPL's terms do
+not suit (e.g. offering a closed-source hosted service). Contact the maintainer.
+
+----------------------------------------------------------------------------
+Third-party software
+----------------------------------------------------------------------------
+
+This product bundles third-party components under their own licenses. Notable:
+
+  - sharp / libvips (@img/sharp-libvips-*) — LGPL-3.0-or-later.
+    Used for image processing. The library is dynamically loadable; its source
+    is available from the upstream project (https://github.com/lovell/sharp and
+    https://github.com/libvips/libvips).
+
+  - Apache-2.0 components — including Prisma, googleapis, pdfjs-dist, and
+    DOMPurify. Their NOTICE attributions are retained per the Apache-2.0 terms.
+
+  - MIT / ISC / BSD components — the majority of remaining dependencies.
+
+A complete, generated dependency-license inventory (THIRD-PARTY-LICENSES) is
+maintained separately; see the project's pre-public hardening task.

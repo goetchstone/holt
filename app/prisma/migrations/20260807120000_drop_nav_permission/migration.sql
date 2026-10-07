@@ -1,0 +1,24 @@
+-- Drop NavPermission.
+--
+-- WHAT IS LOST: the role-by-nav-section matrix an operator could edit at
+-- /app/admin/setup/permissions.
+--
+-- WHY THAT IS SAFE: those rows only ever hid menu items. No API guard read
+-- them anywhere -- unchecking "Sales" for DESIGNER revoked nothing, it just
+-- removed the link, and the pages stayed reachable by URL. permissionCatalog.ts
+-- names this as one of three disagreeing authorization systems; it is the last
+-- one left.
+--
+-- WHAT REPLACES IT: navigation is now derived from the permissions the guards
+-- actually enforce (lib/auth/navPermissions.ts). There is nothing to configure,
+-- nothing that can drift from the guards, and a role a deployment invents gets
+-- the right menu without anyone maintaining a second matrix. It also fixes the
+-- case this table could not express at all: a custom role had no row here, so
+-- it got whatever the hardcoded default said about a role string it did not
+-- have.
+--
+-- NOBODY LOSES ACCESS. Some people gain a menu entry for a page they could
+-- already open, which is the table's dishonesty being corrected rather than a
+-- grant being made.
+
+DROP TABLE IF EXISTS "NavPermission";

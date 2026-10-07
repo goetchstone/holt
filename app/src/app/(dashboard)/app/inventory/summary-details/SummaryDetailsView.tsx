@@ -1,0 +1,257 @@
+"use client";
+
+// /app/src/app/(dashboard)/app/inventory/summary-details/SummaryDetailsView.tsx
+//
+// Inventory Summary Details body (sortable expected/counted/variance table for
+// one group, e.g. a vendor or department). App Router port of the legacy
+// pages/inventory/summary-details.tsx body, minus MainLayout chrome (supplied by
+// the (dashboard) layout). Reads ?groupType= / ?groupName= via useSearchParams
+// and the shared /api/inventory/summary-details REST endpoint.
+
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import axios from "axios";
+import { toast } from "react-toastify";
+import Link from "next/link";
+import { ArrowLeft, ArrowUpDown } from "lucide-react";
+import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { CostHiddenNote } from "@/components/ui/CostHiddenNote";
+
+interface ReportRow {
+  productId: number;
+  // Nullable: native-born products (created in holt, never imported from the
+  // POS) have no externalId, so they have no product-variance detail page
+  // to link to (that route is keyed by externalId in its URL).
+  externalId: number | null;
+  name: string;
+  productNumber: string;
+  expectedQty: number;
+  countedQty: number;
+  varianceQty: number;
+  // Present only for a viewer holding "View cost" (the response says which).
+  expectedCost?: number;
+  countedCost?: number;
+  varianceCost?: number;
+}
+
+interface DetailsResponse {
+  rows: ReportRow[];
+  costVisible: boolean;
+}
+
+type SortConfig = {
+  key: keyof ReportRow;
+  direction: "asc" | "desc";
+};
+
+interface HeaderConfig {
+  key: keyof ReportRow;
+  label: string;
+  isNumeric?: boolean;
+  width?: string;
+}
+
+const HEADERS: HeaderConfig[] = [
+  { key: "name", label: "Product Name", width: "250px" },
+  { key: "productNumber", label: "Product #", width: "120px" },
+  { key: "expectedQty", label: "Expected Qty", isNumeric: true, width: "100px" },
+  { key: "countedQty", label: "Counted Qty", isNumeric: true, width: "100px" },
+  { key: "varianceQty", label: "Variance Qty", isNumeric: true, width: "100px" },
+];
+
+const COST_HEADERS: HeaderConfig[] = [
+  { key: "expectedCost", label: "Expected Cost", isNumeric: true, width: "150px" },
+  { key: "countedCost", label: "Counted Cost", isNumeric: true, width: "150px" },
+  { key: "varianceCost", label: "Variance Cost", isNumeric: true, width: "150px" },
+];
+
+function varianceClass(value: number): string {
+  if (value < 0) return "text-red-600 font-bold";
+  if (value > 0) return "text-green-600 font-bold";
+  return "";
+}
+
+export function SummaryDetailsView() {
+  const searchParams = useSearchParams();
+  const groupType = searchParams?.get("groupType") ?? null;
+  const groupName = searchParams?.get("groupName") ?? null;
+  const fmt = useMoneyFormatter();
+
+  const [report, setReport] = useState<ReportRow[]>([]);
+  // null until a response says: a failed load must not claim cost is hidden
+  // for a role that holds it.
+  const [showCost, setShowCost] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    key: "varianceQty",
+    direction: "asc",
+  });
+
+  const fetchDetails = useCallback(async () => {
+    if (!groupType || !groupName) return;
+    setLoading(true);
+    try {
+      const res = await axios.get<DetailsResponse>(`/api/inventory/summary-details`, {
+        params: { groupType, groupName },
+      });
+      setReport(res.data.rows);
+      setShowCost(res.data.costVisible);
+      // Biggest cost variance first for whoever sees cost, as before.
+      if (res.data.costVisible) setSortConfig({ key: "varianceCost", direction: "asc" });
+    } catch {
+      toast.error("Failed to load details.");
+    } finally {
+      setLoading(false);
+    }
+  }, [groupType, groupName]);
+
+  useEffect(() => {
+    fetchDetails();
+  }, [fetchDetails]);
+
+  const sortedData = useMemo(() => {
+    const sortableItems = [...report];
+    sortableItems.sort((a, b) => {
+      // externalId is nullable now (native-born products have none) -- ?? 0
+      // is a sort-stability fallback only. It's not offered as a sort key by
+      // HEADERS, so this only guards the type, not real user-facing sorting.
+      const aVal = a[sortConfig.key] ?? 0;
+      const bVal = b[sortConfig.key] ?? 0;
+      if (aVal < bVal) {
+        return sortConfig.direction === "asc" ? -1 : 1;
+      }
+      if (aVal > bVal) {
+        return sortConfig.direction === "asc" ? 1 : -1;
+      }
+      return 0;
+    });
+    return sortableItems;
+  }, [report, sortConfig]);
+
+  const requestSort = (key: keyof ReportRow) => {
+    let direction: "asc" | "desc" = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
+    }
+    setSortConfig({ key, direction });
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto mt-8 font-serif">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-brand-blue">Inventory Details</h1>
+          <p className="text-brand-gray">
+            Showing all items for {groupType}: {groupName}
+          </p>
+        </div>
+        <Link
+          href="/app/inventory/hub"
+          className="flex items-center gap-2 text-brand-blue hover:underline"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Inventory Hub
+        </Link>
+      </div>
+
+      {loading ? (
+        <p>Loading details...</p>
+      ) : (
+        <div className="border border-brand-gray rounded-lg overflow-hidden shadow-sm">
+          <table className="min-w-full text-left text-sm whitespace-nowrap table-fixed w-full">
+            <thead className="bg-brand-linen text-brand-black">
+              <tr>
+                {[...HEADERS, ...(showCost === true ? COST_HEADERS : [])].map(
+                  ({ key, label, isNumeric, width }) => (
+                    <th
+                      key={key}
+                      className={`p-2 border-b border-brand-gray ${isNumeric ? "text-right" : ""}`}
+                      style={{ width }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => requestSort(key)}
+                        className="flex items-center gap-1"
+                      >
+                        {label} <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                      </button>
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedData.map((item) => (
+                <tr key={item.productId} className="odd:bg-white even:bg-brand-stripe">
+                  <td
+                    className="p-2 border-b border-brand-gray font-semibold"
+                    style={{ width: "250px" }}
+                  >
+                    {item.externalId == null ? (
+                      <div className="truncate" title={item.name}>
+                        {item.name}
+                      </div>
+                    ) : (
+                      <Link
+                        href={`/app/inventory/product-variance/${item.externalId}?location=${groupName}`}
+                        className="hover:underline text-brand-blue"
+                      >
+                        <div className="truncate" title={item.name}>
+                          {item.name}
+                        </div>
+                      </Link>
+                    )}
+                  </td>
+                  <td className="p-2 border-b border-brand-gray" style={{ width: "120px" }}>
+                    {item.productNumber}
+                  </td>
+                  <td
+                    className="p-2 border-b border-brand-gray text-right"
+                    style={{ width: "100px" }}
+                  >
+                    {item.expectedQty.toLocaleString()}
+                  </td>
+                  <td
+                    className="p-2 border-b border-brand-gray text-right"
+                    style={{ width: "100px" }}
+                  >
+                    {item.countedQty.toLocaleString()}
+                  </td>
+                  <td
+                    className={`p-2 border-b border-brand-gray text-right font-bold ${varianceClass(item.varianceQty)}`}
+                    style={{ width: "100px" }}
+                  >
+                    {item.varianceQty.toLocaleString()}
+                  </td>
+                  {showCost === true && (
+                    <>
+                      <td
+                        className="p-2 border-b border-brand-gray text-right"
+                        style={{ width: "150px" }}
+                      >
+                        {fmt(item.expectedCost ?? 0)}
+                      </td>
+                      <td
+                        className="p-2 border-b border-brand-gray text-right"
+                        style={{ width: "150px" }}
+                      >
+                        {fmt(item.countedCost ?? 0)}
+                      </td>
+                      <td
+                        className={`p-2 border-b border-brand-gray text-right font-bold ${varianceClass(item.varianceCost ?? 0)}`}
+                        style={{ width: "150px" }}
+                      >
+                        {fmt(item.varianceCost ?? 0)}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {showCost === false && <CostHiddenNote className="p-2" />}
+        </div>
+      )}
+    </div>
+  );
+}

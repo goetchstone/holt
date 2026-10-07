@@ -1,0 +1,226 @@
+// app/prisma/seed/demo/accounting.ts
+//
+// Chart of accounts + AccountGroup mapping + SystemGLMapping + tax setup.
+//
+// This is the part of the seed the spec calls out as make-or-break:
+// `generateSalesJournal()` (lib/journalEntry.ts) SKIPS any payment type
+// or account-group leg that isn't mapped, with only a `warnings[]` push --
+// the journal still comes back "balanced" (the Over/Short line silently
+// absorbs the gap once one exists) but is materially short. So every
+// payment method AND every department's sales/COGS/inventory legs get a
+// real GL account here; there is no path left for `generateSalesJournal`
+// to fall back to a warning instead of a real line.
+//
+// GL codes and account roles follow docs/domains/accounting.md's
+// documented chart exactly (1-1006 Cash, 1-1200/1-1203 deposits, 1-13XX
+// inventory by department, 2-2120 tax payable, 2-2127 gift-card liability,
+// 4-40XX sales by department, 5-52XX COGS by department). Store Credit
+// (2-2128), the per-department shrinkage account (shared 5-5010) and Cash
+// Over/Short (5-5900) aren't in that doc's worked example but follow the
+// same numbering convention -- the doc's sample simply predates a day with
+// a store-credit redemption or a classified write-off.
+//
+// Reference values (one state-level district, 6%, 3 exempt reasons, "Standard
+// Retail" tax group) intentionally match prisma/seed/tax.ts's seed data --
+// tax.ts's own PrismaClient() construction predates Prisma 7's driver-
+// adapter requirement and currently throws on `new PrismaClient()` with no
+// adapter (verified while building this seed; see docs/domains/seed-data.md
+// "What fought me"), so this module seeds the same rows directly through
+// this seed's adapter-backed client rather than importing a broken script.
+
+import type { PrismaClient } from "@prisma/client";
+import { DEPARTMENTS } from "./catalogTaxonomy";
+import { SEED_TAX_RATE } from "./config";
+
+const SEED_ACTOR = "seed:demo";
+
+export interface AccountingSetup {
+  accountGroupIdByDepartment: Map<string, number>;
+  taxDistrictId: number;
+  standardRetailTaxGroupId: number;
+  taxExemptReasonIdByName: Map<string, number>;
+  glAccountIdByCode: Map<string, number>;
+}
+
+export async function seedAccounting(prisma: PrismaClient): Promise<AccountingSetup> {
+  const glAccountIdByCode = new Map<string, number>();
+
+  async function upsertGl(code: string, name: string, accountType: string): Promise<number> {
+    const row = await prisma.gLAccount.upsert({
+      where: { code },
+      update: { name, accountType },
+      create: { code, name, accountType, createdBy: SEED_ACTOR },
+    });
+    glAccountIdByCode.set(code, row.id);
+    return row.id;
+  }
+
+  // --- Static (non-department) accounts ------------------------------
+  await upsertGl("1-1006", "Cash / Combined Receipts", "ASSET");
+  await upsertGl("1-1100", "Accounts Receivable", "ASSET");
+  // Authored invoices have no department, so they cannot use a 4-40XX
+  // department sales account the way an order's lines do.
+  await upsertGl("4-4900", "Sales: Invoiced Services", "REVENUE");
+  await upsertGl("1-1200", "Pmt On Acct (Customer Deposits)", "ASSET");
+  await upsertGl("1-1203", "Pmt On Acct (Layaway)", "ASSET");
+  await upsertGl("2-2120", "Sales Tax Payable", "LIABILITY");
+  await upsertGl("2-2127", "Gift Card Liability", "LIABILITY");
+  await upsertGl("2-2128", "Store Credit Liability", "LIABILITY");
+  // Cash Over/Short is an operating expense, not sales. It was seeded as
+  // `4-0005` typed REVENUE, which put every balancing plug the JE generator
+  // posted straight into the revenue bucket -- a misstatement of sales, and
+  // one that sent whoever reconciled the day hunting through orders for a
+  // discrepancy that was never in the orders. `5-5900` / EXPENSE matches both
+  // ordinary practice and the fixture already used by
+  // __tests__/integration/generateSalesJournal.integration.test.ts.
+  //
+  // Safe to move because nothing reads this account by code any more: the
+  // reconciliation resolves it through the SystemGLMapping row below
+  // (lib/dailyReconciliation.ts), and the generator always did
+  // (lib/journalEntry.ts).
+  await upsertGl("5-5900", "Cash Over/Short", "EXPENSE");
+  await upsertGl("5-5005", "Transfers (Between Stores)", "EXPENSE");
+  await upsertGl("5-5010", "Shrinkage / Write-offs", "EXPENSE");
+  await upsertGl("5-5300", "Purchase Invoice Accrual / Freight", "LIABILITY");
+
+  // --- Per-department inventory / sales / COGS ------------------------
+  const accountGroupIdByDepartment = new Map<string, number>();
+  for (const dept of DEPARTMENTS) {
+    const inventoryId = await upsertGl(`1-13${dept.glSuffix}`, `Inventory: ${dept.name}`, "ASSET");
+    const salesId = await upsertGl(`4-40${dept.glSuffix}`, `Sales: ${dept.name}`, "REVENUE");
+    const cogsId = await upsertGl(`5-52${dept.glSuffix}`, `COGS: ${dept.name}`, "EXPENSE");
+
+    const group = await prisma.accountGroup.upsert({
+      where: { name: dept.name },
+      update: {
+        inventoryAccountId: inventoryId,
+        salesAccountId: salesId,
+        cogsAccountId: cogsId,
+        shrinkageAccountId: glAccountIdByCode.get("5-5010"),
+        transfersAccountId: glAccountIdByCode.get("5-5005"),
+      },
+      create: {
+        name: dept.name,
+        description: `${dept.name} — sales, cost of goods sold, and on-hand inventory`,
+        inventoryAccountId: inventoryId,
+        salesAccountId: salesId,
+        cogsAccountId: cogsId,
+        shrinkageAccountId: glAccountIdByCode.get("5-5010"),
+        transfersAccountId: glAccountIdByCode.get("5-5005"),
+        createdBy: SEED_ACTOR,
+      },
+    });
+    accountGroupIdByDepartment.set(dept.name, group.id);
+  }
+
+  // --- SystemGLMapping: POS_PAYMENTS ----------------------------------
+  // Every METHOD_DISPLAY value (lib/paymentMethodDisplay.ts) gets a
+  // lowercase-matched label here -- generateSalesJournal() keys its
+  // paymentGlMap off `payment.paymentType.toLowerCase()`.
+  async function upsertMapping(section: string, label: string, code: string): Promise<void> {
+    const glAccountId = glAccountIdByCode.get(code);
+    if (!glAccountId) throw new Error(`seedAccounting: no GL account for code ${code}`);
+    await prisma.systemGLMapping.upsert({
+      where: { section_label: { section, label } },
+      update: { glAccountId },
+      create: { section, label, glAccountId, createdBy: SEED_ACTOR },
+    });
+  }
+
+  // Cash-like tenders share the combined-receipts account, following a
+  // common Cash / Amex / Visa / MC / Discover / Debit / Check
+  // convention (docs/domains/accounting.md) -- each gets its own journal
+  // line for memo clarity but posts to the same GL.
+  await upsertMapping("POS_PAYMENTS", "Cash", "1-1006");
+  await upsertMapping("POS_PAYMENTS", "Card", "1-1006");
+  await upsertMapping("POS_PAYMENTS", "Check", "1-1006");
+  await upsertMapping("POS_PAYMENTS", "Wire", "1-1006");
+  await upsertMapping("POS_PAYMENTS", "ACH", "1-1006");
+  await upsertMapping("POS_PAYMENTS", "Finance", "1-1006");
+  await upsertMapping("POS_PAYMENTS", "Other", "1-1006");
+  // Redeeming a gift card / store credit isn't new cash -- it retires a
+  // liability recorded when the card was sold / the credit was issued.
+  // "Gift Card" -> 2-2127 hits journalEntry.ts's hardcoded
+  // LIABILITY_DEBIT_CODES special case; Store Credit gets its own liability
+  // account so it isn't misreported as a cash receipt.
+  await upsertMapping("POS_PAYMENTS", "Gift Card", "2-2127");
+  await upsertMapping("POS_PAYMENTS", "Store Credit", "2-2128");
+  // Deposit resolution (lib/journalEntry.ts: `paymentGlMap.get("on account")
+  // || paymentGlMap.get("deposit")`) also reads from the POS_PAYMENTS
+  // section -- this is what makes an un-invoiced order's payment book as
+  // "Pmt On Acct" instead of falling through unmapped.
+  await upsertMapping("POS_PAYMENTS", "On Account", "1-1200");
+
+  // --- SystemGLMapping: AR_TRANSACTIONS -------------------------------
+  // Recognising a sale raises a receivable for whatever the customer still
+  // owes at the moment of delivery, so the control account has to exist.
+  // Without it generateSalesJournal warns per order and the difference falls
+  // into the Over/Short plug. Same rows lib/billing/invoiceService.ts resolves
+  // for authored invoices -- deliberately the same account, so a receivable
+  // raised by a delivery and one raised by the billing screen land together.
+  await upsertMapping("AR_TRANSACTIONS", "Accounts Receivable", "1-1100");
+  await upsertMapping("AR_TRANSACTIONS", "Invoice Sales", "4-4900");
+
+  // --- SystemGLMapping: POS_TRANSACTIONS ------------------------------
+  await upsertMapping("POS_TRANSACTIONS", "Sales Tax", "2-2120");
+  await upsertMapping("POS_TRANSACTIONS", "Over/Short", "5-5900");
+
+  // --- Tax setup (one district, Standard Retail at SEED_TAX_RATE, 3 exempt reasons) --
+  const district = await prisma.taxDistrict.upsert({
+    where: { shortName: "ST" },
+    update: { glAccountId: glAccountIdByCode.get("2-2120") },
+    create: {
+      shortName: "ST",
+      state: "MI",
+      name: "State Sales Tax",
+      glAccountId: glAccountIdByCode.get("2-2120"),
+      createdBy: SEED_ACTOR,
+    },
+  });
+
+  const taxExemptReasonIdByName = new Map<string, number>();
+  for (const name of ["Resale", "Out of State", "Non-Profit"]) {
+    const row = await prisma.taxExemptReason.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+    taxExemptReasonIdByName.set(name, row.id);
+  }
+
+  const standardRetail = await prisma.taxGroup.upsert({
+    where: { name: "Standard Retail" },
+    update: {},
+    create: {
+      name: "Standard Retail",
+      taxBasis: "NET",
+      freightTaxable: false,
+      miscTaxable: false,
+    },
+  });
+
+  await prisma.taxRule.upsert({
+    where: {
+      districtId_groupId_sortOrder: {
+        districtId: district.id,
+        groupId: standardRetail.id,
+        sortOrder: 0,
+      },
+    },
+    update: { taxRate: SEED_TAX_RATE },
+    create: {
+      districtId: district.id,
+      groupId: standardRetail.id,
+      taxRate: SEED_TAX_RATE,
+      sortOrder: 0,
+    },
+  });
+
+  return {
+    accountGroupIdByDepartment,
+    taxDistrictId: district.id,
+    standardRetailTaxGroupId: standardRetail.id,
+    taxExemptReasonIdByName,
+    glAccountIdByCode,
+  };
+}

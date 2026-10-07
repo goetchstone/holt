@@ -1,0 +1,101 @@
+"use client";
+
+// /app/src/app/(dashboard)/app/reports/open-orders/OpenOrdersView.tsx
+//
+// Client view for the open-orders report. Receives already-fetched data from
+// the server component (no client fetch) and renders KPI cards + the sortable
+// table. Currency formats via useMoneyFormatter so it honors the tenant locale.
+
+import { KpiCard, ReportSection, ReportTable } from "@/components/report";
+import type { ReportColumn } from "@/components/report";
+import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { CostHiddenNote } from "@/components/ui/CostHiddenNote";
+import type { OpenOrdersForCaller, OpenOrdersReport } from "@/lib/reports/openOrders";
+
+type Report = (OpenOrdersReport | OpenOrdersForCaller) & { costVisible: boolean };
+type PORow = Report["purchaseOrders"][number] & { totalCost?: number };
+
+export function OpenOrdersView({ data }: { data: Report }) {
+  const money = useMoneyFormatter();
+  const { customerDeposits: deposits, purchaseOrders, costVisible } = data;
+  // PO values are present only for a viewer holding "View cost" (costVisible).
+  const summary = data.summary as Partial<OpenOrdersReport["summary"]> &
+    OpenOrdersForCaller["summary"];
+
+  const poColumns: ReportColumn<PORow>[] = [
+    { key: "poNumber", label: "PO #", sortable: true },
+    { key: "vendor", label: "Vendor", sortable: true },
+    { key: "orderDate", label: "Ordered", sortable: true },
+    {
+      key: "expectedDate",
+      label: "Expected",
+      sortable: true,
+      format: (row) => {
+        if (!row.expectedDate) return "—";
+        return row.isOverdue ? `${row.expectedDate} (overdue)` : row.expectedDate;
+      },
+    },
+    { key: "itemCount", label: "Items", align: "right", sortable: true },
+    ...(costVisible
+      ? [
+          {
+            key: "totalCost",
+            label: "Value",
+            align: "right",
+            sortable: true,
+            format: (row) => money(row.totalCost ?? 0, { whole: true }),
+            csvFormat: (row) => row.totalCost ?? 0,
+          } satisfies ReportColumn<PORow>,
+        ]
+      : []),
+    { key: "status", label: "Status", sortable: true },
+  ];
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-serif font-semibold text-brand-black">Open Orders</h1>
+        <p className="text-xs text-brand-gray mt-1 font-sans">
+          Outstanding purchase orders and customer deposit balances
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiCard label="Open POs" value={summary.totalPOs} />
+        {costVisible && (
+          <KpiCard label="Total PO Value" value={money(summary.totalValue ?? 0, { whole: true })} />
+        )}
+        <KpiCard
+          label="Overdue POs"
+          value={summary.overduePOs}
+          comparison={
+            costVisible && summary.overduePOs > 0
+              ? `${money(summary.overdueValue ?? 0, { whole: true })} overdue value`
+              : undefined
+          }
+          trend={summary.overduePOs > 0 ? "up" : "neutral"}
+          positiveIsGood={false}
+        />
+        <KpiCard
+          label="Customer Deposits Outstanding"
+          value={money(deposits.totalOutstanding, { whole: true })}
+          sub={`${deposits.orderCount} open orders`}
+        />
+      </div>
+
+      <ReportSection
+        title="Purchase Orders"
+        description="All open purchase orders, excluding received and cancelled"
+      >
+        <ReportTable<PORow>
+          columns={poColumns}
+          rows={purchaseOrders}
+          getRowKey={(row) => row.id}
+          exportFilename="open-purchase-orders"
+          emptyMessage="No open purchase orders."
+        />
+        {!costVisible && <CostHiddenNote className="mt-2" />}
+      </ReportSection>
+    </div>
+  );
+}

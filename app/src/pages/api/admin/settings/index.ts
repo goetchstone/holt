@@ -1,0 +1,347 @@
+// /app/src/pages/api/admin/settings/index.ts
+//
+// Read and update per-organization branding, locale, theme, and feature flags.
+// Self-hosted deployments operate on the single default org. Secrets are NOT
+// handled here -- see ./integrations.ts for encrypted credentials.
+
+import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
+import type { Prisma } from "@prisma/client";
+import { requirePermission } from "@/lib/auth/requireAuth";
+import { prisma } from "@/lib/prisma";
+import { logError } from "@/lib/logger";
+import {
+  DEFAULT_ORG_ID,
+  DEFAULT_THEME,
+  getAppSettings,
+  invalidateAppSettingsCache,
+  isHexColor,
+  PORTAL_TOKEN_TTL_MAX_HOURS,
+  type ThemeKey,
+} from "@/lib/appSettings";
+import { parsePrefix } from "@/lib/numberingPrefix";
+import { isValidFeatureKey } from "@/lib/featureCatalog";
+import { parseBookingConfig } from "@/lib/booking/config";
+import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
+import { isValidTimeZone } from "@/lib/reports/businessDay";
+
+const THEME_KEYS = Object.keys(DEFAULT_THEME) as ThemeKey[];
+
+export default requirePermission("admin.settings", async (req, res, session) => {
+  if (req.method === "GET") return handleGet(res);
+  if (req.method === "PUT") return handlePut(req, res, session);
+  res.setHeader("Allow", "GET, PUT");
+  return res.status(405).json({ error: "Method not allowed" });
+});
+
+async function handleGet(res: NextApiResponse) {
+  const settings = await getAppSettings();
+  // The picker needs the catalog, not just the current id -- otherwise the UI
+  // hardcodes the adapter list, which is exactly the coupling the registry
+  // exists to remove.
+  return res.json({ settings, sourceAdapters: listSourceAdapters() });
+}
+
+function isSafeUrl(value: string): boolean {
+  return /^(https?:\/\/|\/)/.test(value.trim());
+}
+
+// Returns trimmed string, null (when cleared), or undefined (field not sent).
+function optionalText(
+  value: unknown,
+  field: string,
+): { ok: true; value: string | null | undefined } | { ok: false; error: string } {
+  if (value === undefined) return { ok: true, value: undefined };
+  if (value === null) return { ok: true, value: null };
+  if (typeof value !== "string") return { ok: false, error: `${field} must be a string` };
+  const trimmed = value.trim();
+  return { ok: true, value: trimmed === "" ? null : trimmed };
+}
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+type SettingsData = Prisma.AppSettingsUncheckedUpdateInput;
+type Body = Record<string, unknown>;
+// null = ok; an object = the 400 to return.
+type ParseError = { error: string } | null;
+
+function parseAppName(body: Body, data: SettingsData): ParseError {
+  if (body.appName === undefined) return null;
+  if (typeof body.appName !== "string" || body.appName.trim() === "") {
+    return { error: "appName must be a non-empty string" };
+  }
+  data.appName = body.appName.trim();
+  return null;
+}
+
+function parseTextFields(body: Body, data: SettingsData): ParseError {
+  for (const field of ["companyName", "tagline", "supportEmail"] as const) {
+    const parsed = optionalText(body[field], field);
+    if (!parsed.ok) return { error: parsed.error };
+    if (parsed.value !== undefined) data[field] = parsed.value;
+  }
+  if (
+    typeof data.supportEmail === "string" &&
+    data.supportEmail &&
+    !EMAIL_RE.test(data.supportEmail)
+  ) {
+    return { error: "supportEmail is not a valid email address" };
+  }
+  return null;
+}
+
+function parseUrlFields(body: Body, data: SettingsData): ParseError {
+  for (const field of ["logoUrl", "loginLogoUrl", "faviconUrl"] as const) {
+    const parsed = optionalText(body[field], field);
+    if (!parsed.ok) return { error: parsed.error };
+    if (parsed.value === undefined) continue;
+    if (parsed.value !== null && !isSafeUrl(parsed.value)) {
+      return { error: `${field} must be an http(s) or root-relative URL` };
+    }
+    data[field] = parsed.value;
+  }
+  return null;
+}
+
+function parseLocaleFields(body: Body, data: SettingsData): ParseError {
+  for (const field of ["currency", "locale", "timezone"] as const) {
+    if (body[field] === undefined) continue;
+    if (typeof body[field] !== "string" || (body[field] as string).trim() === "") {
+      return { error: `${field} must be a non-empty string` };
+    }
+    const value = (body[field] as string).trim();
+    // Reject a timezone the runtime cannot format with, at the point of entry.
+    // Non-empty was the only check here, so "Eastern" or "America/New_york"
+    // saved fine and then threw a RangeError inside every report, the sales
+    // journal and the daily reconciliation. getAppSettings falls back on a bad
+    // stored value so nothing stays broken, but the operator should be told
+    // here rather than discovering it from an empty report tomorrow.
+    if (field === "timezone" && !isValidTimeZone(value)) {
+      return {
+        error: `timezone must be an IANA zone name such as "America/New_York" or "UTC" — ${JSON.stringify(value)} is not one this server recognises`,
+      };
+    }
+    data[field] = value;
+  }
+  return null;
+}
+
+function parseTheme(body: Body, data: SettingsData): ParseError {
+  if (body.theme === undefined) return null;
+  if (typeof body.theme !== "object" || body.theme === null) {
+    return { error: "theme must be an object" };
+  }
+  const incoming = body.theme as Record<string, unknown>;
+  const theme: Record<string, string> = {};
+  for (const key of THEME_KEYS) {
+    const value = incoming[key];
+    if (value === undefined) continue;
+    if (typeof value !== "string" || !isHexColor(value)) {
+      return { error: `theme.${key} must be a hex color` };
+    }
+    theme[key] = value.trim();
+  }
+  // `mode` rides inside the theme JSON (light | dark site chrome). It must be
+  // carried through here explicitly -- this function rebuilds the object from
+  // a whitelist, so an unhandled key would be silently dropped on every save.
+  if (incoming.mode !== undefined) {
+    if (incoming.mode !== "light" && incoming.mode !== "dark") {
+      return { error: 'theme.mode must be "light" or "dark"' };
+    }
+    theme.mode = incoming.mode;
+  }
+  data.theme = theme;
+  return null;
+}
+
+function parseFeatures(body: Body, data: SettingsData): ParseError {
+  if (body.features === undefined) return null;
+  if (typeof body.features !== "object" || body.features === null) {
+    return { error: "features must be an object" };
+  }
+  const incoming = body.features as Record<string, unknown>;
+  const features: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(incoming)) {
+    if (!isValidFeatureKey(key)) {
+      return { error: `Unknown feature: ${key}` };
+    }
+    features[key] = Boolean(value);
+  }
+  data.features = features;
+  return null;
+}
+
+// Booking config is normalized + clamped by the shared lib parser (lenient,
+// never throws), so we store the sanitized result rather than the raw input.
+function parseBooking(body: Body, data: SettingsData): ParseError {
+  if (body.bookingConfig === undefined) return null;
+  if (typeof body.bookingConfig !== "object" || body.bookingConfig === null) {
+    return { error: "bookingConfig must be an object" };
+  }
+  // Spread into a plain numeric record so it satisfies the Prisma JSON input
+  // type (a fixed-key interface does not assign to InputJsonValue directly).
+  const cfg = parseBookingConfig(body.bookingConfig);
+  data.bookingConfig = {
+    windowDays: cfg.windowDays,
+    startHour: cfg.startHour,
+    endHour: cfg.endHour,
+    slotMinutes: cfg.slotMinutes,
+  };
+  return null;
+}
+
+// Which source system this deployment pulls from. Validated against the
+// registry rather than a string enum: adding an adapter is a code
+// registration, and an unknown id here means an operator picked something this
+// build does not ship -- reject it loudly instead of storing a value that
+// makes every nightly import throw.
+function parseSourceAdapter(body: Body, data: SettingsData): ParseError {
+  if (body.sourceAdapterId === undefined) return null;
+  if (typeof body.sourceAdapterId !== "string" || !isSourceAdapterId(body.sourceAdapterId)) {
+    return {
+      error: `Unknown source adapter: ${String(body.sourceAdapterId)}. Known: ${listSourceAdapters()
+        .map((a) => a.id)
+        .join(", ")}`,
+    };
+  }
+  data.sourceAdapterId = body.sourceAdapterId;
+  return null;
+}
+
+// A plain-object view of an unknown value, for reading nested settings.
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+}
+
+// Trimmed, non-empty subfolder names; null when the value is present but not a
+// string array (a validation error), [] when absent.
+function parseSubfolderList(raw: unknown): string[] | null {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || !raw.every((s) => typeof s === "string")) return null;
+  return (raw as string[]).map((s) => s.trim()).filter(Boolean);
+}
+
+// Google Drive/Slides project-creation config: the folder new project folders
+// go under, the Slides deck copied into each, and the subfolder list. These are
+// non-secret identifiers, so they live in AppSettings here rather than in the
+// encrypted integrations store. The whole object is replaced on save; an empty
+// subfolder list resolves to the standard set (appSettings.ts).
+function parseGoogle(body: Body, data: SettingsData): ParseError {
+  if (body.google === undefined) return null;
+  if (typeof body.google !== "object" || body.google === null) {
+    return { error: "google must be an object" };
+  }
+  const g = body.google as Record<string, unknown>;
+  const drive = asRecord(g.drive);
+  const slides = asRecord(g.slides);
+
+  const root = optionalText(drive.projectsRootFolderId, "google.drive.projectsRootFolderId");
+  if (!root.ok) return { error: root.error };
+  const template = optionalText(
+    slides.templatePresentationId,
+    "google.slides.templatePresentationId",
+  );
+  if (!template.ok) return { error: template.error };
+  const subfolders = parseSubfolderList(drive.projectSubfolders);
+  if (subfolders === null) {
+    return { error: "google.drive.projectSubfolders must be an array of strings" };
+  }
+
+  data.google = {
+    drive: { projectsRootFolderId: root.value ?? null, projectSubfolders: subfolders },
+    slides: { templatePresentationId: template.value ?? null },
+  };
+  return null;
+}
+
+// Order-portal link lifetime in hours. null clears it back to the 48-hour
+// default; anything outside 1..PORTAL_TOKEN_TTL_MAX_HOURS is refused here, at
+// the point of entry, rather than stored and silently ignored on read.
+function parsePortalTokenTtl(body: Body, data: SettingsData): ParseError {
+  if (body.portalTokenTtlHours === undefined) return null;
+  if (body.portalTokenTtlHours === null) {
+    data.portalTokenTtlHours = null;
+    return null;
+  }
+  const hours = body.portalTokenTtlHours;
+  if (
+    typeof hours !== "number" ||
+    !Number.isInteger(hours) ||
+    hours < 1 ||
+    hours > PORTAL_TOKEN_TTL_MAX_HOURS
+  ) {
+    return {
+      error: `portalTokenTtlHours must be a whole number of hours from 1 to ${PORTAL_TOKEN_TTL_MAX_HOURS}, or null for the 48-hour default`,
+    };
+  }
+  data.portalTokenTtlHours = hours;
+  return null;
+}
+
+// Order-number and barcode prefixes. Empty or null clears one back to the
+// business's initials; anything else must be 1-6 letters or digits (stored
+// upper-cased), refused here rather than stored and ignored on read.
+function parsePrefixes(body: Body, data: SettingsData): ParseError {
+  for (const field of ["orderNumberPrefix", "barcodePrefix"] as const) {
+    const raw = body[field];
+    if (raw === undefined) continue;
+    if (raw === null || (typeof raw === "string" && raw.trim() === "")) {
+      data[field] = null;
+      continue;
+    }
+    const prefix = parsePrefix(raw);
+    if (!prefix) {
+      return {
+        error: `${field} must be 1 to 6 letters or digits (the dash is added for you), or empty to use your company's initials`,
+      };
+    }
+    data[field] = prefix;
+  }
+  return null;
+}
+
+const SETTINGS_PARSERS = [
+  parseAppName,
+  parseTextFields,
+  parseUrlFields,
+  parseLocaleFields,
+  parseTheme,
+  parseFeatures,
+  parseBooking,
+  parseSourceAdapter,
+  parseGoogle,
+  parsePortalTokenTtl,
+  parsePrefixes,
+];
+
+async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Session) {
+  const body = (req.body ?? {}) as Body;
+  const data: SettingsData = {};
+
+  for (const parse of SETTINGS_PARSERS) {
+    const result = parse(body, data);
+    if (result) return res.status(400).json({ error: result.error });
+  }
+
+  const actor = session.user?.email ?? null;
+
+  try {
+    await prisma.appSettings.upsert({
+      where: { organizationId: DEFAULT_ORG_ID },
+      create: {
+        ...(data as Prisma.AppSettingsUncheckedCreateInput),
+        organizationId: DEFAULT_ORG_ID,
+        createdBy: actor,
+        updatedBy: actor,
+      },
+      update: { ...data, updatedBy: actor },
+    });
+  } catch (err) {
+    logError("Failed to update app settings", err);
+    return res.status(500).json({ error: "Failed to save settings" });
+  }
+
+  invalidateAppSettingsCache(DEFAULT_ORG_ID);
+  const settings = await getAppSettings();
+  return res.json({ settings });
+}

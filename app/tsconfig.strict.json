@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true
+  },
+  "include": [
+    "src/lib/pricing/priceCalculator.ts",
+    "src/lib/pricing/pricingUtils.ts",
+    "src/lib/pricing/wesleyHallParser.ts",
+    "src/lib/logger.ts",
+    "src/lib/apiHandler.ts"
+  ]
+}

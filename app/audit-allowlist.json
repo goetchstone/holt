@@ -1,0 +1,14 @@
+{
+  "_comment": [
+    "Production advisories the npm audit gate may pass over, and only while the",
+    "reason below stays true. Same discipline as osv-scanner.toml (CLAUDE.md rule",
+    "54): every entry carries an expiry and a reason that was verified, not",
+    "assumed. An expired entry FAILS the gate -- that is the point, because a",
+    "suppression nobody revisits is a decision made once and inherited forever.",
+    "",
+    "An entry belongs here only when the vulnerable code path is unreachable in",
+    "this application and that is checkable. 'We think it is fine' is not a",
+    "reason; name the check."
+  ],
+  "allow": []
+}

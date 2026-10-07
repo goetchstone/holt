@@ -1,0 +1,360 @@
+// /app/src/lib/genericImport.ts
+//
+// Client/server contract for the generic CSV importer. Defines which business
+// entities can be imported from a spreadsheet, the fields each one accepts,
+// and alias-based auto-mapping of arbitrary CSV headers onto those fields.
+// No server-only imports (no prisma, no fs) so the admin import page and the
+// import API can both read this single source of truth.
+
+export type ImportFieldType = "string" | "number";
+
+export interface ImportFieldDef {
+  key: string;
+  label: string;
+  type: ImportFieldType;
+  /** Extra header spellings to auto-match, beyond the field key + label. */
+  aliases: string[];
+  required?: boolean;
+  help?: string;
+}
+
+export interface ImportEntityDef {
+  key: string;
+  label: string;
+  description: string;
+  fields: ImportFieldDef[];
+}
+
+export const IMPORT_ENTITIES: readonly ImportEntityDef[] = [
+  {
+    key: "vendor",
+    label: "Vendors",
+    description:
+      "Import your supplier list from your previous system. Matched by name, so re-importing an existing vendor leaves it alone rather than duplicating it. Codes and terms are optional -- bring what your file has.",
+    fields: [
+      {
+        key: "name",
+        label: "Vendor Name",
+        type: "string",
+        aliases: ["vendor", "supplier", "manufacturer", "brand", "company", "vendor name"],
+        required: true,
+        help: "The vendor name exactly as it should appear. Rows with a blank name are skipped.",
+      },
+      {
+        key: "code",
+        label: "Vendor Code",
+        type: "string",
+        aliases: ["code", "vendor code", "abbreviation", "abbr", "short code", "supplier code"],
+        required: false,
+        help: "Short code used on POs and part numbers, e.g. AL for American Leather. Must be unique; a row whose code is already taken by a different vendor is reported rather than silently renamed.",
+      },
+      {
+        key: "accountNumber",
+        label: "Account Number",
+        type: "string",
+        aliases: ["account", "account number", "acct", "customer number", "account #"],
+        required: false,
+        help: "Your account number with this vendor, as it appears on their invoices.",
+      },
+      {
+        key: "paymentTerms",
+        label: "Payment Terms",
+        type: "string",
+        aliases: ["terms", "payment terms", "pay terms"],
+        required: false,
+        help: 'Free text, e.g. "Net 30" or "2/10 Net 30".',
+      },
+      {
+        key: "phone",
+        label: "Phone",
+        type: "string",
+        aliases: ["phone", "telephone", "tel", "phone number", "main phone"],
+        required: false,
+      },
+      {
+        key: "email",
+        label: "Email",
+        type: "string",
+        aliases: ["email", "e-mail", "email address", "contact email"],
+        required: false,
+      },
+      {
+        key: "address",
+        label: "Address",
+        type: "string",
+        aliases: ["address", "address1", "street", "street address"],
+        required: false,
+      },
+      {
+        key: "city",
+        label: "City",
+        type: "string",
+        aliases: ["city", "town"],
+        required: false,
+      },
+      {
+        key: "state",
+        label: "State",
+        type: "string",
+        aliases: ["state", "province", "region"],
+        required: false,
+      },
+      {
+        key: "zip",
+        label: "Postal Code",
+        type: "string",
+        aliases: ["zip", "zipcode", "zip code", "postal", "postal code", "postcode"],
+        required: false,
+      },
+      {
+        key: "website",
+        label: "Website",
+        type: "string",
+        aliases: ["website", "url", "web", "site"],
+        required: false,
+      },
+    ],
+  },
+  {
+    key: "category",
+    label: "Categories",
+    description:
+      "Import your catalog's categories. Each belongs to a department, matched by name -- so import departments first, or let this create them as it goes. Re-importing an existing category updates it rather than duplicating it.",
+    fields: [
+      {
+        key: "name",
+        label: "Category Name",
+        type: "string",
+        aliases: ["category", "category name", "subcategory", "class"],
+        required: true,
+        help: "Rows with a blank name are skipped.",
+      },
+      {
+        key: "department",
+        label: "Department",
+        type: "string",
+        aliases: ["department", "dept", "division", "group"],
+        required: true,
+        help: "The department this category belongs to, by name. A department that does not exist yet is created, because a category cannot be filed without one.",
+      },
+      {
+        key: "accountGroup",
+        label: "Account Group",
+        type: "string",
+        aliases: ["account group", "accountgroup", "gl group", "gl account group"],
+        required: false,
+        help: "Optional. Ties the category to the sales and COGS accounts it posts to.",
+      },
+    ],
+  },
+  {
+    key: "type",
+    label: "Types",
+    description:
+      "Import your catalog's product types. Each belongs to a category, which MUST already exist -- a type naming an unknown category is reported rather than filed under a category invented from a typo.",
+    fields: [
+      {
+        key: "name",
+        label: "Type Name",
+        type: "string",
+        aliases: ["type", "type name", "product type", "style"],
+        required: true,
+        help: "Rows with a blank name are skipped.",
+      },
+      {
+        key: "category",
+        label: "Category",
+        type: "string",
+        aliases: ["category", "category name", "class"],
+        required: true,
+        help: "The category this type belongs to, by name. Unlike departments on a category import, an unknown category is an ERROR: types are numerous, and a mistyped category would otherwise silently split a catalog in two.",
+      },
+    ],
+  },
+  {
+    key: "department",
+    label: "Departments",
+    description:
+      "Import your catalog's top-level departments from your previous system. Matched by name, so re-importing an existing department leaves it alone rather than duplicating it.",
+    fields: [
+      {
+        key: "name",
+        label: "Department Name",
+        type: "string",
+        aliases: ["department", "dept", "division", "group"],
+        required: true,
+        help: "The department name exactly as it should appear in the catalog. Rows with a blank name are skipped.",
+      },
+    ],
+  },
+  {
+    key: "customer",
+    label: "Customers",
+    description:
+      "Import a customer list from your previous system. Rows are matched to existing customers by code, then by name + email, so re-importing updates rather than duplicates.",
+    fields: [
+      {
+        key: "externalId",
+        label: "Customer Code",
+        type: "string",
+        aliases: [
+          "code",
+          "customercode",
+          "customerid",
+          "cuscode",
+          "id",
+          "account",
+          "accountnumber",
+        ],
+        help: "Your previous system's ID for this customer. Used to match the same customer on re-import.",
+      },
+      {
+        key: "name",
+        label: "Full Name",
+        type: "string",
+        aliases: ["customer", "customername", "fullname", "contact", "contactname"],
+        help: "Use this when names are in one column. Otherwise map First / Last Name below.",
+      },
+      {
+        key: "firstName",
+        label: "First Name",
+        type: "string",
+        aliases: ["first", "fname", "givenname"],
+      },
+      {
+        key: "lastName",
+        label: "Last Name",
+        type: "string",
+        aliases: ["last", "lname", "surname", "familyname"],
+      },
+      {
+        key: "email",
+        label: "Email",
+        type: "string",
+        aliases: ["emailaddress", "e-mail"],
+      },
+      {
+        key: "phone",
+        label: "Phone",
+        type: "string",
+        aliases: ["phonenumber", "tel", "telephone", "mobile", "cell"],
+      },
+      {
+        key: "address1",
+        label: "Street Address",
+        type: "string",
+        aliases: ["address", "addressline1", "street", "streetaddress"],
+      },
+      { key: "city", label: "City", type: "string", aliases: ["town"] },
+      { key: "state", label: "State", type: "string", aliases: ["province", "region"] },
+      {
+        key: "zip",
+        label: "ZIP / Postal Code",
+        type: "string",
+        aliases: ["zipcode", "postalcode", "postal", "postcode"],
+      },
+    ],
+  },
+  {
+    key: "product",
+    label: "Products",
+    description:
+      "Import a product catalog. Rows are matched to existing products by product number + vendor. Missing vendors, departments, and categories are created automatically.",
+    fields: [
+      {
+        key: "productNumber",
+        label: "Product Number",
+        type: "string",
+        aliases: ["sku", "itemnumber", "item", "partnumber", "partno", "number", "code"],
+        required: true,
+      },
+      {
+        key: "name",
+        label: "Name",
+        type: "string",
+        aliases: ["productname", "title", "product"],
+        required: true,
+      },
+      {
+        key: "vendor",
+        label: "Vendor",
+        type: "string",
+        aliases: ["supplier", "manufacturer", "brand", "make"],
+        help: 'Created if it doesn\'t exist. Defaults to "Unknown Vendor" when unmapped or blank.',
+      },
+      {
+        key: "department",
+        label: "Department",
+        type: "string",
+        aliases: ["dept", "division"],
+        help: 'Defaults to "Uncategorized" when unmapped or blank.',
+      },
+      {
+        key: "category",
+        label: "Category",
+        type: "string",
+        aliases: ["cat", "group"],
+        help: 'Defaults to "Uncategorized" when unmapped or blank.',
+      },
+      {
+        key: "baseCost",
+        label: "Cost",
+        type: "number",
+        aliases: ["cost", "wholesale", "unitcost", "wholesalecost"],
+      },
+      {
+        key: "baseRetail",
+        label: "Retail Price",
+        type: "number",
+        aliases: ["retail", "price", "msrp", "listprice", "sellprice"],
+      },
+      {
+        key: "description",
+        label: "Description",
+        type: "string",
+        aliases: ["desc", "details", "notes"],
+      },
+    ],
+  },
+];
+
+export function getImportEntity(key: string): ImportEntityDef | undefined {
+  return IMPORT_ENTITIES.find((e) => e.key === key);
+}
+
+/** Mapping from an entity field key to the source CSV header (null = unmapped). */
+export type ColumnMapping = Record<string, string | null>;
+
+export interface GenericImportResult {
+  imported: number;
+  skipped: number;
+  errors: string[];
+}
+
+function normalizeHeader(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Guess a field->header mapping from the uploaded CSV's headers. Each source
+ * header is claimed by at most one field (first match wins in field order),
+ * so a column like "description" is taken by Name before the Description
+ * field can grab it. Unmatched fields map to null.
+ */
+export function suggestMapping(headers: string[], entity: ImportEntityDef): ColumnMapping {
+  const mapping: ColumnMapping = {};
+  const claimed = new Set<string>();
+  const normHeaders = headers.map((h) => ({ raw: h, norm: normalizeHeader(h) }));
+
+  for (const field of entity.fields) {
+    const candidates = new Set<string>([
+      normalizeHeader(field.key),
+      normalizeHeader(field.label),
+      ...field.aliases.map(normalizeHeader),
+    ]);
+    const hit = normHeaders.find((h) => !claimed.has(h.raw) && candidates.has(h.norm));
+    mapping[field.key] = hit ? hit.raw : null;
+    if (hit) claimed.add(hit.raw);
+  }
+  return mapping;
+}

@@ -1,0 +1,10 @@
+# app/.dockerignore
+node_modules
+.next
+.env
+.env.*
+*.log
+.DS_Store
+__tests__
+coverage
+.git

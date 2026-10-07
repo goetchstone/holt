@@ -1,0 +1,59 @@
+# Ordorite payment-mode translation — SHIPPED DEFAULT.
+#
+# The motivating case for this whole system (docs/domains/imports-configurable.md).
+# Ordorite's resolvePaymentMode() decodes numeric codes into display strings
+# ("Card Connect", "Credit Note", ...) that land VERBATIM in
+# Payment.paymentType, a free-text column outside holt's bounded PaymentMethod
+# enum. journalEntry.ts then silently skips every payment whose type it does
+# not recognise — money that never reaches a journal entry. That is a
+# value-mapping problem, and hardcoding the fix in a second place would just
+# move the hardcoding.
+#
+# Ships INACTIVE on purpose: targetEntity "payment" has no entry in
+# IMPORT_ENTITIES yet, so this is the declared mapping waiting for the entity
+# rather than a live importer. Applying it is safe and documents the intent.
+
+version: 1
+description: Ordorite payment-mode strings translated into holt's bounded PaymentMethod vocabulary.
+
+presets:
+  - kind: import-definition
+    name: ordorite-payment-modes
+    description: >-
+      Ordorite payment-mode display strings -> holt PaymentMethod. Source
+      values are exactly resolvePaymentMode()'s output (PAYMENT_MODE_MAP in
+      lib/adapters/ordorite/shared.ts); target values are the PaymentMethod
+      enum. Every unmapped string is money missing from the general ledger,
+      so this list is meant to be exhaustive for the source, not a sample.
+
+    targetEntity: payment
+    sourceFormat: CSV
+    importMode: INSERT_ONLY
+    isActive: false
+
+    fieldMappings:
+      - sourceColumn: Modeofpayment
+        targetField: paymentType
+
+    valueMappings:
+      paymentType:
+        # Card rails. Ordorite distinguishes the processor and the
+        # card-present/card-not-present split; holt's ledger does not care —
+        # all three settle to the same GL account.
+        Card Connect: CARD
+        Card Not Present: CARD
+        Debit: CARD
+
+        # Store credit issued against a prior return. NOT revenue and NOT
+        # cash: it draws down a liability holt already recorded.
+        Credit Note: STORE_CREDIT
+
+        # Deliberately OTHER rather than a truer-looking method. Each of these
+        # is a real settlement in Ordorite but has no cash movement holt can
+        # attribute, so mapping them to CASH or CARD would overstate both.
+        # OTHER keeps them visible in the unmapped-payments report instead of
+        # burying them in a bucket that looks reconciled.
+        Marketing: OTHER
+        Charity: OTHER
+        Refund: OTHER
+        Other: OTHER
