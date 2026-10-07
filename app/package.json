@@ -64,7 +64,7 @@
     "csv-parser": "3.2.1",
     "date-fns": "^4.4.0",
     "formidable": "3.5.4",
-    "googleapis": "^171.4.0",
+    "googleapis": "^183.0.0",
     "handlebars": "4.7.9",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
