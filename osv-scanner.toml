@@ -29,3 +29,13 @@ id = "GHSA-5pgg-2g8v-p4x9"
 ignoreUntil = 2026-10-24
 reason = "ReDoS in SheetJS xlsx. Same mitigation as GHSA-4r6h-8v6p-xvw6 — installed from SheetJS patched CDN tarball."
 
+
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2026-11-07
+reason = "braces <=3.0.3 stack-exhaustion DoS; no patched release exists (3.0.3 is latest). Dev-only, verified 2026-10-07: `npm ls braces --omit=dev` is empty; the one path is eslint-config-next -> @next/eslint-plugin-next -> fast-glob@3.3.1 -> micromatch@4.0.8 -> braces@3.0.3, run at lint time on glob patterns from the repo's own ESLint config. Not reachable from the app at runtime. On expiry: re-run both commands and check for a patched braces or a fast-glob that drops it."
+
+[[IgnoredVulns]]
+id = "GHSA-hp3w-g68c-fv3c"
+ignoreUntil = 2026-11-07
+reason = "sprintf-js <=1.1.3 DoS via unbounded precision specifiers; no patched release exists (1.1.3 is latest). Dev-only, verified 2026-10-07: `npm ls sprintf-js --omit=dev` is empty; the one path is nyc -> @istanbuljs/load-nyc-config -> js-yaml@3.15.2 -> argparse@1.0.10 -> sprintf-js@1.0.3, where argparse serves js-yaml's CLI, not the library call nyc makes. Format strings are argparse's own. On expiry: re-run both commands and check for a patched release or a nyc that drops js-yaml@3."
