@@ -70,7 +70,7 @@ Tracked as an optional cost-saving step; do this if the $5/month budget runs tig
 1. **`validate`** — lint + typecheck + format (~30 sec)
 2. **`test:coverage`** — unit + integration tests, merged coverage gate (~1 min)
 3. **`sonar:scan` + gate query** — code quality + duplications + cog complexity + some security (~5 min via Docker)
-4. **`lint:md`** — markdown formatting (~5 sec). Lints only Markdown git tracks or would track (`"gitignore": true` in `.markdownlint-cli2.jsonc`), so gitignored local docs such as `/PLAN.md` can't fail it; CI lints the same set from its checkout
+4. **`lint:md`** — markdown formatting (~5 sec). Lints only Markdown git tracks or would track (`"gitignore": true` in `.markdownlint-cli2.jsonc`), so gitignored local docs such as `/PLAN.md` can't fail it. CI's Markdown lint job runs this same script, so both use the markdownlint-cli2 version pinned exactly in `app/package.json` (Dependabot bumps it)
 5. **`security:semgrep`** — OWASP/Next.js/secrets pattern scan (~2 min via Docker)
 6. **`security:deps`** — OSV CVE scan, only when `package-lock.json` changed in last commit (~30 sec)
 
@@ -99,7 +99,7 @@ echo 'SONAR_HOST_URL=http://localhost:9000' >> app/.env.local
 docker compose up -d sonarqube  # or whatever your compose service is named
 ```
 
-Markdownlint and Jest run via `npx` / `npm` — no separate install.
+Markdownlint and Jest are devDependencies in `app/package.json`, so `npm ci` in `app/` installs them — no separate install.
 
 ## When CI is unavailable (billing-blocked, network down, etc.)
 
@@ -178,9 +178,7 @@ Trivy runs only on `schedule` + `workflow_dispatch` (not on PR push at all).
 
 ### `markdownlint.yml`
 
-```yaml
-paths: ['**.md', '.markdownlint.json', '.markdownlintignore', '.github/workflows/markdownlint.yml']
-```
+No path filter: it runs on every PR to `main`, because it is a required check. That also matters for what it lints with: markdownlint-cli2's version lives in `app/package.json` and `app/package-lock.json`, so a PR that only bumps it must run this check.
 
 ## Adding a new check
 
