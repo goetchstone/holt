@@ -8,13 +8,17 @@ Every PR runs through this gate:
 
 | Check | Where it runs | When | Required to merge? |
 |---|---|---|---|
-| Lint / Typecheck / Format / Test | GitHub Actions (`ci.yml`) | Every code PR | **Yes** |
-| Semgrep static analysis | GitHub Actions (`security.yml`) | Every code PR | **Yes** |
+| Lint / Typecheck / Format / Test (unit + integration, coverage gate) | GitHub Actions (`ci.yml`) | Every PR | **Yes** |
+| Setup, build, boot, smoke | GitHub Actions (`ci.yml`) | Every PR | **Yes** |
+| Semgrep static analysis | GitHub Actions (`security.yml`) | Every PR | **Yes** |
+| npm advisory audit | GitHub Actions (`security.yml`) | Every PR | **Yes** |
+| Dependency CVE scan (OSV) | GitHub Actions (`security.yml`) | Every PR (the job skips unless `app/package-lock.json` changes; a skip passes) + weekly | **Yes** |
+| Markdown lint | GitHub Actions (`markdownlint.yml`) | Every PR | **Yes** |
+| CodeQL (default setup, extended suite) | GitHub-managed | Every PR + weekly | **Yes**: the ruleset refuses a merge with a high-or-critical alert |
+| Client-data tripwire | Inside the unit tests | Every PR; patterns from the `CLIENT_DATA_PATTERNS` secret | **Yes** (fails without the secret) |
+| Secret scanning push protection | GitHub | Every push | **Yes**: a push carrying a recognised credential is refused |
 | Sonar Quality Gate | Local (developer machine) | Pre-PR via `npm run check:local` | Hook-enforced via `pre-pr-check.sh` |
-| Markdown lint | GitHub Actions (`markdownlint.yml`) | Only when `*.md` changes | No |
-| Dependency CVE scan (OSV) | GitHub Actions (`security.yml`) | Only when `app/package-lock.json` changes + weekly | No |
 | Docker image CVE scan (Trivy) | GitHub Actions (`security.yml`) | **Weekly Monday + manual `workflow_dispatch`** | No |
-| Default-setup CodeQL | GitHub-managed schedule | Free tier scheduled, separate Actions pool | No |
 
 ## Why this shape
 
@@ -105,7 +109,7 @@ If GitHub Actions is unavailable, you can still ship by:
 2. Disable branch protection temporarily (admin only):
 
    ```bash
-   gh api /repos/<your-org>/<your-repo>/rulesets/<ruleset-id> -X PUT \
+   gh api /repos/goetchstone/holt/rulesets/24667944 -X PUT \
      --input - <<< '{"enforcement":"disabled"}'
    ```
 
@@ -113,7 +117,7 @@ If GitHub Actions is unavailable, you can still ship by:
 4. Re-enable branch protection:
 
    ```bash
-   gh api /repos/<your-org>/<your-repo>/rulesets/<ruleset-id> -X PUT \
+   gh api /repos/goetchstone/holt/rulesets/24667944 -X PUT \
      --input - <<< '{"enforcement":"active"}'
    ```
 
@@ -125,22 +129,33 @@ Trivy, the full OSV sweep on unchanged lockfiles, and any scheduled-only check c
 gh workflow run security.yml --ref main
 ```
 
-Or via the UI: `https://github.com/<your-org>/<your-repo>/actions/workflows/security.yml` → "Run workflow"
+Or via the UI: `https://github.com/goetchstone/holt/actions/workflows/security.yml` → "Run workflow"
 
 ## Required-status-checks (server-side ruleset)
 
-The `main protection` ruleset (id `<ruleset-id>`) requires two contexts to pass before merge:
+The `main protection` ruleset (id `24667944`) is defined in
+`scripts/apply-github-ruleset.sh`; edit that file and re-run it, never the
+settings page, so the repository records what GitHub enforces. It requires:
 
-- **`Lint, Typecheck, Format, Test`** — fires on every code PR (path filter excludes docs)
-- **`Semgrep static analysis`** — fires on every code PR
+- a pull request, with every review thread resolved (no approving review is
+  required: there is one maintainer);
+- these checks green, on a branch up to date with `main`:
+  `Lint, Typecheck, Format, Test`, `Setup, build, boot, smoke`,
+  `Semgrep static analysis`, `npm advisory audit`, `Dependency CVE scan`,
+  `Markdown lint`;
+- no high-or-critical CodeQL alert on the PR;
+- no force-push and no deletion of `main`. There are no bypass actors.
 
-Removed from required (they're now path-conditional and would otherwise block code-only PRs):
+A required check must report on every pull request. A job skipped by its own
+`if:` reports "skipped", which passes (the OSV job does this when the lockfile
+did not change); a workflow filtered by a top-level `paths:` never reports and
+would block every PR it skips. Semgrep gates as a check rather than through a
+code-scanning rule, because its SARIF upload needs a write token that
+Dependabot PRs do not get.
 
-- `Dependency CVE scan` — runs only when lockfile changes; covered by weekly schedule + local `check:local`
-- `CodeQL static analysis` — entirely removed (default-setup runs free on its own schedule)
-- `Docker image CVE scan` — moved to weekly-only
-
-To update the ruleset, edit `scripts/apply-github-ruleset.sh` and re-run.
+The same script turns on secret scanning with push protection, Dependabot
+alerts and security updates, private vulnerability reporting and CodeQL
+default setup.
 
 ## Path filters in detail
 
@@ -182,6 +197,6 @@ Track significant CI changes here as they're made. Initial entries to record whe
 
 | Date | Change |
 |---|---|
-| — | Branch protection ruleset created (id `<ruleset-id>`) |
+| 2026-10-07 | Fresh repository. `main protection` ruleset `24667944` created by `scripts/apply-github-ruleset.sh`: six required checks, strict, CodeQL high-alert rule, push protection, Dependabot security updates, private vulnerability reporting, CodeQL default setup |
 | — | Local Sonar gate required before push |
 | — | CI trim: dropped manual CodeQL job, moved Trivy to weekly-only, path-filtered OSV/markdownlint, dropped `Dependency CVE scan` from required-status-checks. Reduced per-PR minutes from ~20 to ~7. |

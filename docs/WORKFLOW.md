@@ -9,11 +9,12 @@ dev, but every change still goes through a PR so nothing sneaks in.
 **Never push to `main`.** Always work on a branch, open a PR, review the
 diff in the GitHub UI, confirm all checks are green, then merge.
 
-**Once a remote and CI are configured, enforce this server-side via GitHub branch protection.** Direct pushes to `main` are rejected by the GitHub server,
-all three required CI checks (Lint/Typecheck/Format/Test, Semgrep,
-Dependency CVE scan) must be green before a merge is allowed,
-force-pushes and branch deletion are blocked, and PR thread resolution
-is required. Ruleset id `<ruleset-id>` on `<your-org>/<your-repo>`.
+**This is enforced server-side by the `main protection` ruleset** (id
+`24667944` on `goetchstone/holt`). Direct pushes to `main` are rejected by
+the GitHub server; the six required checks listed in
+`docs/CI-OPERATIONS.md` must be green on an up-to-date branch, with no
+high-or-critical CodeQL alert, before a merge is allowed; force-pushes and
+branch deletion are blocked; and PR thread resolution is required.
 The pre-push hook is still installed for fast local feedback (validate +
 tests before the push hits the wire) — the server gate is what enforces.
 
@@ -166,17 +167,19 @@ GitHub Advanced Security ($49/active committer/mo on private repos) would put fi
 
 ## Active branch protection
 
-Server-side enforcement on `main` is configured via GitHub ruleset id `<ruleset-id>`
-on `<your-org>/<your-repo>`. The configuration:
+Server-side enforcement on `main` is configured via GitHub ruleset id `24667944`
+on `goetchstone/holt`. The configuration:
 
 - **Direct pushes to `main` are rejected** at the GitHub server.
 - **Required status checks** (must all be green before merge):
-  - `Lint, Typecheck, Format, Test` (from `.github/workflows/ci.yml`)
-  - `Semgrep static analysis` (from `.github/workflows/security.yml`)
-  - `Dependency CVE scan` (from `.github/workflows/security.yml`)
+  - `Lint, Typecheck, Format, Test` and `Setup, build, boot, smoke` (from `.github/workflows/ci.yml`)
+  - `Semgrep static analysis`, `npm advisory audit` and `Dependency CVE scan` (from `.github/workflows/security.yml`)
+  - `Markdown lint` (from `.github/workflows/markdownlint.yml`)
+- **No high-or-critical CodeQL alert** on the PR (CodeQL default setup, extended suite).
 - **Strict required status checks**: PR branches must be up-to-date with `main` before merging.
 - **PR thread resolution required**: any review comments must be resolved.
-- **Force-push blocked**, **branch deletion blocked**.
+- **Force-push blocked**, **branch deletion blocked**. No bypass actors.
+- **Repository security** (same script): secret scanning with push protection, Dependabot alerts and security updates, private vulnerability reporting.
 
 To apply, update, or audit the ruleset:
 
@@ -188,7 +191,7 @@ The script is idempotent — running twice updates the existing ruleset rather
 than duplicating it. The full JSON definition lives in that file; edit it and
 re-run if the required-check names change or new rules are needed.
 
-Inspect the active state at `https://github.com/<your-org>/<your-repo>/settings/rules`.
+Inspect the active state at `https://github.com/goetchstone/holt/settings/rules`.
 
 The client-side pre-push hook is still installed and runs validate + tests
 before the push hits the wire. With server enforcement in place, the hook is
