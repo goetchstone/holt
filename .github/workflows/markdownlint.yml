@@ -4,7 +4,8 @@
 # disabled in `.markdownlint.json` -- see comment in that file for
 # rationale and the incremental-tightening plan.
 #
-# Runs on every push / PR / Monday weekly sweep. Fails fast and
+# Runs on every PR to main, the Monday weekly sweep and manual dispatch
+# (no push trigger, no path filter). Fails fast and
 # inline-annotates the offending line so PR reviewers see issues
 # without downloading artifacts.
 #

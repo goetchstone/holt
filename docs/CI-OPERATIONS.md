@@ -12,7 +12,7 @@ Every PR runs through this gate:
 | Setup, build, boot, smoke | GitHub Actions (`ci.yml`) | Every PR | **Yes** |
 | Semgrep static analysis | GitHub Actions (`security.yml`) | Every PR | **Yes** |
 | npm advisory audit | GitHub Actions (`security.yml`) | Every PR | **Yes** |
-| Dependency CVE scan (OSV) | GitHub Actions (`security.yml`) | Every PR (the job skips unless `app/package-lock.json` changes; a skip passes) + weekly | **Yes** |
+| Dependency CVE scan (OSV) | GitHub Actions (`security.yml`) | Every PR + weekly (it scans the whole lockfile every time; nothing skips it on a PR) | **Yes** |
 | Markdown lint | GitHub Actions (`markdownlint.yml`) | Every PR | **Yes** |
 | CodeQL (default setup, extended suite) | GitHub-managed | Every PR + weekly | **Yes**: the ruleset refuses a merge with a high-or-critical alert |
 | Client-data tripwire | Inside the unit tests | Every PR; patterns from the `CLIENT_DATA_PATTERNS` secret | **Yes** (fails without the secret) |
@@ -34,15 +34,21 @@ The original CI fired 7 jobs on every PR push regardless of what changed. Audit 
 
 Result: ~20 min/PR average, $20 of GitHub Actions overage in 6 days at high PR cadence.
 
-### After the trim (this doc)
+### Where it landed
 
-Typical code PR: **~7 min** (CI + Semgrep). Down from ~20 min — 65% reduction.
+The trim removed the manual CodeQL job, moved Trivy to weekly-only and dropped
+the push-to-main triggers (next section). It also path-filtered CI, OSV and
+markdownlint; **those path filters are gone**. A required check that a filter
+skips never reports and blocks the merge, so every required check now runs on
+every PR to `main` (see "Required-status-checks" below). The per-PR minute
+figures the trim recorded (~7 min for a code PR, 0 min for a docs-only one)
+described the path-filtered shape and no longer hold; they have not been
+re-measured. For scale, PRs #13 and #14 ran `Lint, Typecheck, Format, Test` for
+about 21 and 23 minutes. GitHub Actions is free on this public repository, which
+is why always-run was judged the right trade.
 
-Docs-only PR: **0 min** (everything path-ignored).
-
-Lockfile change: ~9 min (CI + Semgrep + OSV).
-
-Heavy scans (Trivy, full OSV sweep) still run **weekly on `main`** — same coverage, ~95% less burn.
+Only Trivy stays off the PR path: it runs **weekly on `main`** and on manual
+`workflow_dispatch`.
 
 ### Drop push-to-main triggers
 
@@ -123,7 +129,7 @@ If GitHub Actions is unavailable, you can still ship by:
 
 ## Trigger heavy scans on demand
 
-Trivy, the full OSV sweep on unchanged lockfiles, and any scheduled-only check can be fired manually from the Actions tab:
+Trivy and any other scheduled-only check can be fired manually from the Actions tab. `workflow_dispatch` runs every job in `security.yml`, so this also re-runs Semgrep, the npm audit and OSV:
 
 ```bash
 gh workflow run security.yml --ref main
@@ -147,49 +153,64 @@ settings page, so the repository records what GitHub enforces. It requires:
 - no force-push and no deletion of `main`. There are no bypass actors.
 
 A required check must report on every pull request. A job skipped by its own
-`if:` reports "skipped", which passes (the OSV job does this when the lockfile
-did not change); a workflow filtered by a top-level `paths:` never reports and
-would block every PR it skips. Semgrep gates as a check rather than through a
-code-scanning rule, because its SARIF upload needs a write token that
+`if:` reports "skipped", which passes; a workflow filtered by a top-level
+`paths:` never reports and would block every PR it skips. None of the six
+required jobs is skipped on a pull request today: the OSV job's `if:` lists
+`pull_request` among the events that run it, and the only job that does skip
+on PRs is Trivy, which is not required. Semgrep gates as a check rather than
+through a code-scanning rule, because its SARIF upload needs a write token that
 Dependabot PRs do not get.
 
 The same script turns on secret scanning with push protection, Dependabot
 alerts and security updates, private vulnerability reporting and CodeQL
 default setup.
 
-## Path filters in detail
+## What gates each job
 
-Each workflow's trigger has explicit paths or paths-ignore:
+None of the three workflows has a `paths:` or `paths-ignore:` key
+(`grep -nE '^\s*(paths|paths-ignore):' .github/workflows/*.yml` returns
+nothing), so no change is too small to skip a workflow. What decides whether a
+job runs is its trigger and its own `if:`, if it has one.
 
 ### `ci.yml`
 
-```yaml
-paths-ignore: ['**.md', 'docs/**', 'CLAUDE.md', 'ROADMAP.md', '.github/ISSUE_TEMPLATE/**', '.gitignore', '.markdownlintignore', '.markdownlint.json', 'env.example']
-```
+Triggers: `pull_request` to `main`, and `workflow_dispatch`. Neither job has an
+`if:`, so both run on every pull request, whatever the diff touches (a
+docs-only PR runs the full suite).
+
+- `validate` ("Lint, Typecheck, Format, Test"): install, Prisma generate,
+  `npm run validate`, `npm run typecheck:strict`, then the merged unit +
+  integration coverage gate against a Postgres service container.
+- `smoke` ("Setup, build, boot, smoke"): `npm run setup`, the migrations-match-
+  schema diff, seed coverage, `npm run build`, boot, `scripts/smoke.sh`.
 
 ### `security.yml`
 
-```yaml
-paths: ['app/src/**', 'scripts/**', 'app/package-lock.json', 'app/Dockerfile', 'osv-scanner.toml', '.github/workflows/security.yml']
-```
+Triggers: `pull_request` to `main`, a weekly `schedule` (Monday 06:00 UTC) and
+`workflow_dispatch`.
 
-OSV runs only when lockfile / `osv-scanner.toml` changes (effectively a sub-filter on top of the above).
-Trivy runs only on `schedule` + `workflow_dispatch` (not on PR push at all).
+| Job | Gate |
+|---|---|
+| `semgrep` ("Semgrep static analysis") | None: every trigger. Scans `app/src` and `scripts` |
+| `semgrep-upload` | `always() && needs.semgrep.result != 'skipped'`: runs even when Semgrep failed, since that is when there is a SARIF to publish |
+| `npm-audit` ("npm advisory audit") | None: every trigger. Production dependencies, high or above |
+| `osv-scanner` ("Dependency CVE scan") | An `if:` that lists `schedule`, `workflow_dispatch`, `pull_request` and `push`. The workflow has no `push` trigger and `head_commit` exists only on `push` events, so it is true on every run: the whole lockfile is scanned on every PR and every weekly run, not only when the lockfile changed |
+| `trivy` ("Docker image CVE scan (weekly)") | `schedule` or `workflow_dispatch` only: never on a PR |
 
 ### `markdownlint.yml`
 
-```yaml
-paths: ['**.md', '.markdownlint.json', '.markdownlintignore', '.github/workflows/markdownlint.yml']
-```
+Triggers: `pull_request` to `main`, a weekly `schedule` (Monday 06:30 UTC) and
+`workflow_dispatch`. One job, no `if:`: every pull request lints every tracked
+Markdown file, not only the ones it changed.
 
 ## Adding a new check
 
 If you add a new linter / scanner / type-check:
 
-1. **Decide the cost shape**: cheap (< 30 sec) → run on every code PR. Expensive (> 2 min) → schedule-only on `main` + `workflow_dispatch`.
-2. **Add path filters** to scope what triggers it.
+1. **Decide the cost shape**: cheap (< 30 sec) → run on every PR. Expensive (> 2 min) → schedule-only on `main` + `workflow_dispatch`, gated by a job-level `if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'` as `trivy` is.
+2. **Do not add a top-level `paths:` / `paths-ignore:` filter to a workflow that holds a required check.** A filtered workflow never reports on the PRs it skips, and a required check that never reports blocks the merge. To skip work, gate the job with `if:` instead: a skipped job reports "skipped", which passes.
 3. **Add to `npm run check:local`** so developers can run it before push.
-4. **Don't add to required-status-checks unless it always runs**. If the workflow is path-conditional, requiring it will block PRs that don't trigger it.
+4. **To make it required, add its job `name:` to `REQUIRED_CHECKS` in `scripts/apply-github-ruleset.sh` and re-run the script.** Only do so once the check runs on every pull request.
 
 ## Audit trail
 
@@ -199,4 +220,4 @@ Track significant CI changes here as they're made. Initial entries to record whe
 |---|---|
 | 2026-10-07 | Fresh repository. `main protection` ruleset `24667944` created by `scripts/apply-github-ruleset.sh`: six required checks, strict, CodeQL high-alert rule, push protection, Dependabot security updates, private vulnerability reporting, CodeQL default setup |
 | — | Local Sonar gate required before push |
-| — | CI trim: dropped manual CodeQL job, moved Trivy to weekly-only, path-filtered OSV/markdownlint, dropped `Dependency CVE scan` from required-status-checks. Reduced per-PR minutes from ~20 to ~7. |
+| — | CI trim: dropped manual CodeQL job, moved Trivy to weekly-only, path-filtered OSV/markdownlint, dropped `Dependency CVE scan` from required-status-checks. Reduced per-PR minutes from ~20 to ~7. **Superseded:** none of the workflows carries a path filter now, and `Dependency CVE scan` is a required check again (2026-10-07 row above), so the ~7 minutes describes a shape that no longer exists. |
