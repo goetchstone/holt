@@ -9,11 +9,23 @@ const sharedTransform = {
       tsconfig: { moduleResolution: "node", module: "commonjs", jsx: "react-jsx" },
     },
   ],
+  // @rgrove/parse-xml@5 is ESM-only. Unlike uuid and superjson below it gets
+  // no shim: the DMARC tests exist to prove the REAL parser rejects DTDs and
+  // resolves no external entities, so the real code is compiled to CommonJS
+  // for Jest instead (see ESM_TRANSFORMED below).
+  "^.+/node_modules/@rgrove/parse-xml/.+\\.js$": [
+    "ts-jest",
+    { tsconfig: { allowJs: true, module: "commonjs", moduleResolution: "node" } },
+  ],
 };
+
+// node_modules packages Jest must transform rather than load as-is.
+const ESM_TRANSFORMED = ["@rgrove/parse-xml"];
 
 const sharedProject = {
   maxWorkers: 1,
   transform: sharedTransform,
+  transformIgnorePatterns: [`/node_modules/(?!(${ESM_TRANSFORMED.join("|")})/)`],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
     // uuid@14 is ESM-only; Jest (running ts-jest → CommonJS) cannot
