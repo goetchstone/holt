@@ -43,6 +43,9 @@ import { pick, randInt, subRng } from "./rng";
 import type { CatalogProduct } from "./catalog";
 import type { StoreSetup } from "./locations";
 import type { StaffSetup } from "./staff";
+import { postMovement } from "@/lib/inventory/ledger";
+import { allocate } from "@/lib/inventory/allocation";
+import { toQty } from "@/lib/inventory/quantity";
 
 const SEED_ACTOR = "seed:demo";
 
@@ -183,28 +186,88 @@ export async function seedInventoryOps(
   ];
   const orderIds = soldOrders.map((o) => o.id);
 
+  // A transfer is raised for stock that is actually at its source, and the
+  // ones already under way have moved it, exactly as the transfer status route
+  // does through the ledger. Otherwise the demo shows drafts whose Ship is
+  // refused for want of stock, and in-transit transfers whose units never left
+  // -- cancelling one would put back units that were never taken.
+  const promised = new Map<string, number>(); // units already claimed per source place
+
   for (let i = 0; i < 16; i++) {
     const status = transferStates[i % transferStates.length];
-    const product = pick(oRng, products);
     const from = stores[i % stores.length];
     const to = stores[(i + 1) % stores.length];
+    const fromPlace = {
+      storeLocationId: from.id,
+      stockLocationId: from.backStockLocationId,
+      salesOrderId: null,
+    };
+
+    const stocked = await prisma.inventoryPosition.findMany({
+      where: { ...fromPlace, quantity: { gt: 0 } },
+      select: { productId: true, quantity: true },
+      orderBy: { productId: "asc" },
+    });
+    const available = stocked
+      .map((r) => ({
+        productId: r.productId,
+        free: toQty(r.quantity) - (promised.get(`${from.id}|${r.productId}`) ?? 0),
+      }))
+      .filter((r) => r.free >= 1);
+    if (available.length === 0) continue;
+    const chosen = pick(oRng, available);
+    const quantity = Math.min(randInt(oRng, 1, 3), Math.floor(chosen.free));
+    const key = `${from.id}|${chosen.productId}`;
+    promised.set(key, (promised.get(key) ?? 0) + quantity);
+
     // Half the transfers exist because somebody bought something. That link is
     // what separates "move stock for a customer" from "rebalance the floor",
     // and reports read them differently.
     const forOrder = i % 2 === 0 && orderIds.length > 0;
+    const salesOrderId = forOrder ? pick(oRng, orderIds) : null;
     const raisedAt = new Date(today.getTime() - randInt(oRng, 1, 45) * 86_400_000);
+
+    // Shipped (in transit, received): the units have left the source.
+    // Cancelled after shipping: they left and came back, so nothing moves.
+    if (status === "IN_TRANSIT" || status === "RECEIVED") {
+      await postMovement(prisma, {
+        productId: chosen.productId,
+        quantity,
+        from: fromPlace,
+        actor: "seed:demo",
+      });
+    }
+    if (status === "RECEIVED") {
+      await postMovement(prisma, {
+        productId: chosen.productId,
+        quantity,
+        to: {
+          storeLocationId: to.id,
+          stockLocationId: to.floorStockLocationId,
+          salesOrderId: null,
+        },
+        actor: "seed:demo",
+      });
+      if (salesOrderId != null) {
+        await allocate(
+          salesOrderId,
+          [{ productId: chosen.productId, quantity, storeLocationId: to.id }],
+          prisma,
+        );
+      }
+    }
 
     await prisma.inventoryTransfer.create({
       data: {
-        productId: product.id,
-        quantity: randInt(oRng, 1, 3),
+        productId: chosen.productId,
+        quantity,
         fromLocation: from.code,
         toLocation: to.code,
         fromLocationId: from.id,
         toLocationId: to.id,
         fromStockLocationId: from.backStockLocationId,
         toStockLocationId: to.floorStockLocationId,
-        salesOrderId: forOrder ? pick(oRng, orderIds) : null,
+        salesOrderId,
         requestedByUserId: actorUserId,
         status,
         shippedAt: status === "DRAFT" ? null : raisedAt,
