@@ -53,6 +53,9 @@
 //   availableQuantity -- free stock only, for the POS to show what's
 //                actually sellable right now.
 //
+// None of these write InventoryPosition themselves: each one is a few
+// movements posted through lib/inventory/ledger.ts, the table's only writer.
+//
 // Every function takes the caller's transaction client and does all of its
 // reads and writes inside it. Allocation that is not atomic with the order
 // write is exactly how you'd get stock committed to an order that then
@@ -66,11 +69,16 @@
 // the sale. See PosView.tsx: "Failures are silently ignored -- inventory
 // never blocks a sale." That is a deliberate business rule, not a gap.
 
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
-import { toQty, roundQty, qtyEquals, qtyIsZero } from "./quantity";
+import { toQty, roundQty } from "./quantity";
+import { drawLegs, dropEmptyRow, lockProducts, postMovement, withStockTx } from "./ledger";
+import type { PrismaTx, Place } from "./ledger";
 
-export type PrismaTx = PrismaClient | Prisma.TransactionClient;
+// The draw arithmetic and the transaction type moved to ledger.ts, the single
+// writer of InventoryPosition. Re-exported so existing importers keep working.
+export { planDraw } from "./ledger";
+export type { PrismaTx, PositionForDraw, DrawStep, DrawPlan } from "./ledger";
 
 /** A line to allocate: one product, one quantity, one store. */
 export interface AllocationLine {
@@ -99,77 +107,6 @@ export interface AllocationResult {
   /** Empty when every line was fully allocated. Non-empty is not an error --
    *  see the file header. Callers should log it, never reject the sale. */
   shortfalls: AllocationShortfall[];
-}
-
-// ---------------------------------------------------------------------------
-// PURE ARITHMETIC -- unit-testable without a database.
-// ---------------------------------------------------------------------------
-
-export interface PositionForDraw {
-  id: number;
-  quantity: number;
-}
-
-export interface DrawStep {
-  id: number;
-  /** Units drawn from this position. */
-  take: number;
-  /** True when `take` equals the position's full quantity -- the caller
-   *  should delete the row rather than decrement it, or it would sit at
-   *  quantity 0 forever. */
-  exhausts: boolean;
-}
-
-export interface DrawPlan {
-  steps: DrawStep[];
-  totalTaken: number;
-  /** Units requested but not available anywhere in `positions`. */
-  shortfall: number;
-}
-
-/**
- * Given positions in draw order and a requested quantity, decide how many
- * units to take from each, in order, until the request is satisfied or
- * positions run out.
- *
- * This is the one piece of the allocation model worth unit-testing without a
- * database, because both directions of "nothing decrements inventory" trace
- * back to it: allocate() draws from free positions to commit stock to an
- * order, and consume() draws from an order's committed positions to remove
- * stock that has shipped. Get the split wrong here and a partial sale either
- * takes more than a position holds (impossible on paper, catastrophic in a
- * ledger) or leaves a position untouched that should have been drawn down --
- * which is how inventory silently doubles.
- *
- * No I/O, no ordering decisions (the caller supplies `positions` already in
- * the order it wants them drawn), just the arithmetic.
- */
-/** Prisma rows -> the plain shape planDraw works on. */
-function asDrawable(rows: { id: number; quantity: Prisma.Decimal | number }[]): PositionForDraw[] {
-  return rows.map((r) => ({ id: r.id, quantity: toQty(r.quantity) }));
-}
-
-export function planDraw(positions: PositionForDraw[], requested: number): DrawPlan {
-  const steps: DrawStep[] = [];
-  let remaining = requested > 0 ? roundQty(requested) : 0;
-
-  for (const position of positions) {
-    if (qtyIsZero(remaining) || remaining < 0) break;
-    const take = roundQty(Math.min(remaining, position.quantity));
-    if (qtyIsZero(take) || take < 0) continue;
-    // `qtyEquals`, not `===`. Quantities are fractional now, and exact float
-    // equality is how a position ends up stranded at 0.0000001 -- present in
-    // every count, sellable to nobody, and never cleaned up because it never
-    // reads as exhausted.
-    steps.push({ id: position.id, take, exhausts: qtyEquals(take, position.quantity) });
-    remaining = roundQty(remaining - take);
-  }
-
-  return {
-    steps,
-    totalTaken: requested > 0 ? roundQty(requested - remaining) : 0,
-    shortfall: remaining,
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -226,15 +163,18 @@ export async function availableQuantity(
 /**
  * Commit free stock to an order, one line at a time.
  *
- * Free positions are drawn down oldest-id-first (deterministic, and roughly
- * FIFO by when the stock was recorded) via planDraw(). Every unit taken
- * moves through an upsert into the order's allocated position for that
- * (product, store, stock location) rather than an in-place update of the
- * source row -- an in-place update could collide with the unique key
- * [productId, storeLocationId, stockLocationId, salesOrderId] if this
- * product already has an allocated row for this order (e.g. two cart lines
- * for the same product). The upsert makes that collision the normal,
- * merging case instead of a unique-constraint error.
+ * Allocation is a movement that does not change the place, only the owner: the
+ * units stay where they are and pass from free stock to the order. Free stock
+ * is drawn oldest row first (deterministic, roughly FIFO by when it was
+ * recorded) by ledger.drawLegs, and each leg is posted with ledger.postMovement,
+ * which merges into the order's existing row for that place -- two cart lines
+ * for the same product are the ordinary case, not an edge one.
+ *
+ * Every product in the cart is locked once, in ascending id order, before
+ * anything is read, so two registers selling overlapping carts cannot both take
+ * the last unit or deadlock each other. A caller that will also touch other
+ * products in the same transaction must lock its whole set first (see
+ * resyncOrderAllocation).
  *
  * Never throws for insufficient stock. Returns shortfalls instead -- see the
  * file header on why overselling is allowed.
@@ -242,78 +182,46 @@ export async function availableQuantity(
 export async function allocate(
   orderId: number,
   lines: AllocationLine[],
+  db: PrismaTx,
+): Promise<AllocationResult> {
+  return withStockTx(db, (tx) => allocateIn(orderId, lines, tx));
+}
+
+async function allocateIn(
+  orderId: number,
+  lines: AllocationLine[],
   tx: PrismaTx,
 ): Promise<AllocationResult> {
   const shortfalls: AllocationShortfall[] = [];
+  const active = lines.filter((line) => line.quantity > 0); // returns/no-ops never allocate
+  await lockProducts(
+    tx,
+    active.map((l) => l.productId),
+  );
 
-  for (const line of lines) {
-    if (!(line.quantity > 0)) continue; // defensive: returns/no-ops never allocate
-
-    const freePositions = await tx.inventoryPosition.findMany({
-      where: {
-        ...freePositionWhere(),
-        productId: line.productId,
-        storeLocationId: line.storeLocationId,
-      },
-      orderBy: { id: "asc" },
+  for (const line of active) {
+    const { legs, shortfall } = await drawLegs(tx, {
+      productId: line.productId,
+      where: { AND: [freePositionWhere(), { storeLocationId: line.storeLocationId }] },
+      quantity: line.quantity,
     });
 
-    const plan = planDraw(asDrawable(freePositions), line.quantity);
-    const byId = new Map(freePositions.map((p) => [p.id, p]));
-
-    for (const step of plan.steps) {
-      const position = byId.get(step.id)!;
-
-      // findFirst + increment-or-create rather than upsert on the compound
-      // unique key, for the same reason release() does it -- `stockLocationId`
-      // is nullable and Postgres treats NULLs as distinct in that index, so an
-      // upsert keyed through it silently fails to match for any position with
-      // no stock location and creates a duplicate instead of merging. Two cart
-      // lines for the same product are the ordinary case here, not an edge one.
-      const existing = await tx.inventoryPosition.findFirst({
-        where: {
-          productId: line.productId,
-          storeLocationId: line.storeLocationId,
-          stockLocationId: position.stockLocationId ?? null,
-          salesOrderId: orderId,
-        },
-        orderBy: { id: "asc" },
+    for (const leg of legs) {
+      await postMovement(tx, {
+        productId: line.productId,
+        quantity: leg.take,
+        from: leg.place,
+        to: { ...leg.place, salesOrderId: orderId },
       });
-
-      if (existing) {
-        await tx.inventoryPosition.update({
-          where: { id: existing.id },
-          data: { quantity: { increment: step.take } },
-        });
-      } else {
-        await tx.inventoryPosition.create({
-          data: {
-            productId: line.productId,
-            storeLocationId: line.storeLocationId,
-            stockLocationId: position.stockLocationId ?? null,
-            salesOrderId: orderId,
-            quantity: step.take,
-          },
-        });
-      }
-
-      if (step.exhausts) {
-        await tx.inventoryPosition.delete({ where: { id: position.id } });
-      } else {
-        await tx.inventoryPosition.update({
-          where: { id: position.id },
-          data: { quantity: { decrement: step.take } },
-        });
-      }
     }
 
-    if (plan.shortfall > 0) {
+    if (shortfall > 0) {
       shortfalls.push({
         productId: line.productId,
         storeLocationId: line.storeLocationId,
         requested: line.quantity,
-        allocated: plan.totalTaken,
-        shortfall: plan.shortfall,
+        allocated: roundQty(line.quantity - shortfall),
+        shortfall,
       });
     }
   }
@@ -331,110 +239,105 @@ export async function allocate(
 /**
  * Return everything an order has committed back to free stock.
  *
- * Unscoped by line on purpose -- see the file header on why this signature
- * has no `lines` parameter. Callers that need to change just one line
+ * Unscoped by line on purpose. Callers that need to change just one line
  * release the WHOLE order and re-`allocate` the lines that should still be
- * committed; two-directional delta math on split/merged positions is where
- * a partial-release implementation would go wrong, and a full resync inside
- * one transaction costs nothing extra a user would notice.
+ * committed; two-directional delta math on split/merged positions is where a
+ * partial-release implementation would go wrong, and a full resync inside one
+ * transaction costs nothing extra a user would notice.
  *
- * Each allocated position is merged into the matching FREE position for the
- * same (product, store, stock location), so releasing twice does not leave
- * free stock fragmented into a pile of qty-1 rows.
- *
- * The merge is a findFirst + increment-or-create, NOT an upsert on the
- * compound unique key, and that is not a style preference. The key is
- * [productId, storeLocationId, stockLocationId, salesOrderId] and a free row
- * has salesOrderId NULL. Postgres treats NULLs as DISTINCT in a unique index
- * unless it is declared NULLS NOT DISTINCT, and this one is not (see
- * migrations/0_init) -- so the constraint does not actually prevent duplicate
- * free rows, and Prisma cannot address one by that key either (an upsert here
- * needs `null as unknown as number` to even compile, which is the tell). The
- * upsert would never match, every release would create another row, and free
- * stock would multiply instead of merge. `stockLocationId` is nullable for the
- * same reason, so it is matched with an explicit null check too.
+ * Each committed place is moved back to the free place beside it, which
+ * ledger.postMovement merges into the existing free row -- releasing twice
+ * never leaves free stock fragmented into a pile of qty-1 rows.
  */
-export async function release(orderId: number, tx: PrismaTx): Promise<void> {
-  const allocated = await tx.inventoryPosition.findMany({
+export async function release(orderId: number, db: PrismaTx): Promise<void> {
+  return withStockTx(db, (tx) => releaseIn(orderId, tx));
+}
+
+async function releaseIn(orderId: number, tx: PrismaTx): Promise<void> {
+  // Lock first, then read the rows to move under the lock: a balance read
+  // before the lock can already be stale when it is acted on.
+  const products = await tx.inventoryPosition.findMany({
     where: { salesOrderId: orderId },
+    select: { productId: true },
+    distinct: ["productId"],
+  });
+  await lockProducts(
+    tx,
+    products.map((p) => p.productId),
+  );
+  const committed = await tx.inventoryPosition.findMany({
+    where: { salesOrderId: orderId },
+    orderBy: [{ productId: "asc" }, { id: "asc" }],
   });
 
-  for (const position of allocated) {
-    const free = await tx.inventoryPosition.findFirst({
-      where: {
-        productId: position.productId,
-        storeLocationId: position.storeLocationId,
-        stockLocationId: position.stockLocationId ?? null,
-        salesOrderId: null,
-      },
-      orderBy: { id: "asc" },
-    });
-
-    if (free) {
-      await tx.inventoryPosition.update({
-        where: { id: free.id },
-        data: { quantity: { increment: position.quantity } },
-      });
-    } else {
-      await tx.inventoryPosition.create({
-        data: {
-          productId: position.productId,
-          storeLocationId: position.storeLocationId,
-          stockLocationId: position.stockLocationId ?? null,
-          quantity: position.quantity,
-        },
-      });
+  // One movement per (product, place), summed, so duplicate committed rows
+  // (possible in data written before the single writer existed) move together.
+  const byPlace = new Map<string, { productId: number; place: Place; quantity: number }>();
+  for (const row of committed) {
+    // A committed row holding nothing (written before the single writer) is
+    // dropped rather than left on the order, where it would linger and, if the
+    // order were deleted, become a stray free row.
+    if (toQty(row.quantity) <= 0) {
+      await dropEmptyRow(tx, row.id);
+      continue;
     }
+    const place: Place = {
+      storeLocationId: row.storeLocationId,
+      stockLocationId: row.stockLocationId ?? null,
+      salesOrderId: orderId,
+    };
+    const key = `${row.productId}|${row.storeLocationId}|${row.stockLocationId ?? ""}`;
+    const entry = byPlace.get(key);
+    if (entry) entry.quantity = roundQty(entry.quantity + toQty(row.quantity));
+    else byPlace.set(key, { productId: row.productId, place, quantity: toQty(row.quantity) });
+  }
 
-    await tx.inventoryPosition.delete({ where: { id: position.id } });
+  for (const { productId, place, quantity } of byPlace.values()) {
+    if (!(quantity > 0)) continue;
+    await postMovement(tx, {
+      productId,
+      quantity,
+      from: place,
+      to: { ...place, salesOrderId: null },
+    });
   }
 }
 
 /**
- * The goods have left the building: delete the order's committed positions
- * outright, up to the quantity fulfilled per product. Unlike allocate/release,
- * consumption is not a stock-location move -- there is nowhere left for the
- * unit to be, so the row is removed rather than transferred. Uses the same
- * planDraw() arithmetic as allocate(), drawing from the order's allocated
- * positions instead of free ones.
+ * The goods have left the building: remove the order's committed stock, up to
+ * the quantity fulfilled per product. A movement to outside the books -- there
+ * is nowhere left for the unit to be.
  *
  * Bounded by `lines` quantities (not "delete everything the order has") so a
- * future partial fulfilment can consume less than the full allocation. Today
- * every caller passes the order's full active-line quantities, which is
- * equivalent to "delete it all" -- but getting there by summing what was
- * actually asked for, position by position, means the arithmetic doesn't
- * have to change shape the day partial fulfilment shows up.
+ * partial fulfilment can consume less than the full allocation.
  *
- * If fewer units are allocated than requested (allocate() could only
- * partially cover the sale), consumes what exists and stops -- there is
- * nothing left to remove, and that is not an error either.
+ * If fewer units are committed than requested (allocate() could only partially
+ * cover the sale), consumes what exists and stops -- there is nothing left to
+ * remove, and that is not an error either.
  */
 export async function consume(
   orderId: number,
   lines: ConsumptionLine[],
-  tx: PrismaTx,
+  db: PrismaTx,
 ): Promise<void> {
-  for (const line of lines) {
-    if (!(line.quantity > 0)) continue;
+  return withStockTx(db, (tx) => consumeIn(orderId, lines, tx));
+}
 
-    const allocated = await tx.inventoryPosition.findMany({
-      where: { salesOrderId: orderId, productId: line.productId },
-      orderBy: { id: "asc" },
+async function consumeIn(orderId: number, lines: ConsumptionLine[], tx: PrismaTx): Promise<void> {
+  const active = lines.filter((line) => line.quantity > 0);
+  await lockProducts(
+    tx,
+    active.map((l) => l.productId),
+  );
+
+  for (const line of active) {
+    const { legs } = await drawLegs(tx, {
+      productId: line.productId,
+      where: { salesOrderId: orderId },
+      quantity: line.quantity,
     });
-
-    const plan = planDraw(asDrawable(allocated), line.quantity);
-    const byId = new Map(allocated.map((p) => [p.id, p]));
-
-    for (const step of plan.steps) {
-      const position = byId.get(step.id)!;
-      if (step.exhausts) {
-        await tx.inventoryPosition.delete({ where: { id: position.id } });
-      } else {
-        await tx.inventoryPosition.update({
-          where: { id: position.id },
-          data: { quantity: { decrement: step.take } },
-        });
-      }
+    for (const leg of legs) {
+      await postMovement(tx, { productId: line.productId, quantity: leg.take, from: leg.place });
     }
   }
 }

@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { lockProducts, postMovement } from "@/lib/inventory/ledger";
 
 interface ReceiveItem {
   purchaseOrderItemId: number;
@@ -15,7 +16,7 @@ interface ReceiveItem {
   variantUpc?: string;
 }
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -38,6 +39,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
     if (!storeLocationId) {
       return res.status(400).json({ error: "storeLocationId is required." });
+    }
+
+    // ReceivingRecord.receiverUserId is a foreign key to User.id (a CUID). This
+    // route used to write the user's EMAIL there ("system" when absent), which
+    // can never match a User.id, so every native receipt failed with a foreign
+    // key violation. The POS import path resolves the id for the same reason
+    // (lib/adapters/ordorite/runners.ts, resolveImportUserId).
+    const receiverUserId = session.user?.id;
+    if (!receiverUserId) {
+      return res.status(401).json({ error: "Sign in again: your session has no user id." });
     }
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: "items array is required." });
@@ -78,6 +89,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     const result = await prisma.$transaction(async (tx) => {
       const receivingRecords = [];
 
+      // Lock every product on this receipt once, in ascending order, before
+      // any stock moves. Locking them one at a time in request order could
+      // take 9 then 2 while a sale takes 2 then 9, and deadlock.
+      const receivedProductIds = items
+        .map((item) => po.lineItems.find((li) => li.id === item.purchaseOrderItemId)?.product?.id)
+        .filter((id): id is number => id != null);
+      await lockProducts(tx, receivedProductIds);
+
       for (const item of items) {
         const poItem = po.lineItems.find((li) => li.id === item.purchaseOrderItemId);
         if (!poItem) continue;
@@ -87,7 +106,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
             purchaseOrderItemId: item.purchaseOrderItemId,
             purchaseOrderId: poId,
             quantityReceived: item.quantityReceived,
-            receiverUserId: session.user?.email || "system",
+            receiverUserId,
             destinationLocationId: storeLocationId,
             destinationStockLocationId: item.destinationStockLocationId || null,
             condition: item.condition || null,
@@ -106,26 +125,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         }
 
         if (poItem.product) {
-          await tx.inventoryPosition.upsert({
-            where: {
-              productId_storeLocationId_stockLocationId_salesOrderId: {
-                productId: poItem.product.id,
-                storeLocationId,
-                stockLocationId: (item.destinationStockLocationId ?? null) as number,
-                salesOrderId: null as unknown as number,
-              },
-            },
-            update: {
-              quantity: { increment: item.quantityReceived },
-              updatedBy: session.user?.email || null,
-            },
-            create: {
-              productId: poItem.product.id,
+          // Received goods arrive from outside Holt's books into free stock at
+          // the chosen place. Through the single writer, which merges into the
+          // existing row: the upsert this replaced could never match a free row
+          // (rule 64), so every receipt created another duplicate.
+          await postMovement(tx, {
+            productId: poItem.product.id,
+            quantity: item.quantityReceived,
+            to: {
               storeLocationId,
-              stockLocationId: item.destinationStockLocationId || null,
-              quantity: item.quantityReceived,
-              createdBy: session.user?.email || null,
+              stockLocationId: item.destinationStockLocationId ?? null,
+              salesOrderId: null,
             },
+            actor: session.user?.email || null,
           });
 
           if (item.printTag && poItem.product.id) {

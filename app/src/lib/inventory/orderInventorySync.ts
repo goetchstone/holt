@@ -10,6 +10,7 @@
 
 import type { PrismaTx, AllocationLine, AllocationShortfall } from "@/lib/inventory/allocation";
 import { allocate, release } from "@/lib/inventory/allocation";
+import { lockProducts } from "@/lib/inventory/ledger";
 import { buildLocationMap } from "@/lib/storeLocationResolver";
 import { logger } from "@/lib/logger";
 
@@ -118,9 +119,20 @@ export async function resyncOrderAllocation(
     return;
   }
 
+  // Lock every product this resync will touch -- the ones the order holds now
+  // and the ones its lines want -- once, in ascending order, before release
+  // and allocate lock them again. Locking them in two batches (release's, then
+  // allocate's) could take 9 then 2 while a sale takes 2 then 9: a deadlock.
+  const lines = await getActiveOrderLines(orderId, tx);
+  const held = await tx.inventoryPosition.findMany({
+    where: { salesOrderId: orderId },
+    select: { productId: true },
+    distinct: ["productId"],
+  });
+  await lockProducts(tx, [...held.map((p) => p.productId), ...lines.map((l) => l.productId)]);
+
   await release(orderId, tx);
 
-  const lines = await getActiveOrderLines(orderId, tx);
   const allocationLines: AllocationLine[] = lines.map((l) => ({ ...l, storeLocationId }));
   const result = await allocate(orderId, allocationLines, tx);
   await recordShortfalls(orderId, result.shortfalls, tx);
