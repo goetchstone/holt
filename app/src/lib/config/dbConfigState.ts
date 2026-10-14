@@ -42,18 +42,24 @@
 import type { PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import {
   nestValueMappings,
   presetNameSchema,
   PRESET_SCHEMA_VERSION,
+  STOCK_LOCATION_TYPES,
 } from "@/lib/config/presetSchema";
 import type {
   ImportDefinitionPreset,
   PresetBundle,
+  StockLocationsPreset,
   TrafficStoreMappingPreset,
 } from "@/lib/config/presetSchema";
-import { currentTrafficStoreOwners } from "@/lib/config/applyPreset";
-import { TRAFFIC_STORE_MAPPING_PRESET_NAME } from "@/lib/config/presetApiTypes";
+import { currentStoreOwners, currentTrafficStoreOwners } from "@/lib/config/applyPreset";
+import {
+  STOCK_LOCATIONS_PRESET_NAME,
+  TRAFFIC_STORE_MAPPING_PRESET_NAME,
+} from "@/lib/config/presetApiTypes";
 import type { StoreLocationSummary } from "@/lib/config/presetApiTypes";
 
 export interface DbConfigState {
@@ -178,9 +184,11 @@ export async function loadDbConfigState(db: PrismaClient = defaultPrisma): Promi
     })),
   }));
 
+  const stockLocationPresets = await loadStockLocationPresets(db);
+
   const bundle: PresetBundle = {
     version: PRESET_SCHEMA_VERSION,
-    presets: [...importDefinitionPresets, ...trafficPresets],
+    presets: [...importDefinitionPresets, ...trafficPresets, ...stockLocationPresets],
   };
 
   const claimed = new Set(
@@ -192,4 +200,102 @@ export async function loadDbConfigState(db: PrismaClient = defaultPrisma): Promi
     .sort((a, b) => a.localeCompare(b));
 
   return { bundle, storeLocations, unmappedTrafficSourceNames, nonRoundTrippableImportDefinitions };
+}
+
+type StockLocationEntry = StockLocationsPreset["stores"][number]["locations"][number];
+
+/** One database place -> a preset entry, with unset optional fields left out. */
+function toStockLocationEntry(p: {
+  code: string;
+  name: string;
+  description: string | null;
+  locationType: string;
+  building: string | null;
+  floor: number | null;
+  area: number | null;
+  squareFootage: number | null;
+  locationAliases: string[];
+  holdsCommittedStock: boolean;
+  sortOrder: number;
+}): StockLocationEntry {
+  return {
+    code: p.code,
+    name: p.name,
+    ...(p.description ? { description: p.description } : {}),
+    locationType: p.locationType as StockLocationEntry["locationType"],
+    ...(p.building ? { building: p.building } : {}),
+    ...(p.floor === null ? {} : { floor: p.floor }),
+    ...(p.area === null ? {} : { area: p.area }),
+    ...(p.squareFootage === null ? {} : { squareFootage: p.squareFootage }),
+    aliases: p.locationAliases,
+    holdsCommittedStock: p.holdsCommittedStock,
+    ...(p.sortOrder ? { sortOrder: p.sortOrder } : {}),
+  };
+}
+
+/**
+ * Every store's active places, as stock-locations presets -- how a
+ * deployment's real layout gets out of the database and into a reviewable
+ * file (config/local/), and back into a rebuilt database with apply-preset.
+ *
+ * Grouped under each store's current owning preset, or the default name for a
+ * store no preset has claimed, like traffic-store-mapping above. A place whose
+ * type the preset schema does not know is left out and logged rather than
+ * exported as something a re-import would refuse.
+ */
+async function loadStockLocationPresets(db: PrismaClient): Promise<StockLocationsPreset[]> {
+  const places = await db.stockLocation.findMany({
+    where: { isActive: true },
+    orderBy: [{ storeLocation: { name: "asc" } }, { code: "asc" }],
+    select: {
+      code: true,
+      name: true,
+      description: true,
+      locationType: true,
+      building: true,
+      floor: true,
+      area: true,
+      squareFootage: true,
+      locationAliases: true,
+      holdsCommittedStock: true,
+      sortOrder: true,
+      storeLocation: { select: { name: true } },
+    },
+  });
+
+  const byStore = new Map<string, StockLocationsPreset["stores"][number]["locations"]>();
+  for (const p of places) {
+    if (!(STOCK_LOCATION_TYPES as readonly string[]).includes(p.locationType)) {
+      logger.warn("Stock location left out of the preset export: unknown locationType", {
+        store: p.storeLocation.name,
+        code: p.code,
+        locationType: p.locationType,
+      });
+      continue;
+    }
+    const list = byStore.get(p.storeLocation.name) ?? [];
+    list.push(toStockLocationEntry(p));
+    byStore.set(p.storeLocation.name, list);
+  }
+
+  const storeNames = [...byStore.keys()];
+  const owners = await currentStoreOwners(db, "stock-locations", storeNames);
+  const storesByOwner = new Map<string, StockLocationsPreset["stores"]>();
+  for (const storeName of storeNames) {
+    const owner = owners.get(storeName) ?? STOCK_LOCATIONS_PRESET_NAME;
+    const list = storesByOwner.get(owner) ?? [];
+    list.push({ storeLocation: storeName, locations: byStore.get(storeName) ?? [] });
+    storesByOwner.set(owner, list);
+  }
+  return [...storesByOwner.keys()]
+    .sort((a, b) => {
+      if (a === STOCK_LOCATIONS_PRESET_NAME) return -1;
+      if (b === STOCK_LOCATIONS_PRESET_NAME) return 1;
+      return a.localeCompare(b);
+    })
+    .map((name) => ({
+      kind: "stock-locations" as const,
+      name,
+      stores: storesByOwner.get(name) ?? [],
+    }));
 }
