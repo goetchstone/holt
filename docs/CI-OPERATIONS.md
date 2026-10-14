@@ -70,7 +70,7 @@ Tracked as an optional cost-saving step; do this if the $5/month budget runs tig
 1. **`validate`** — lint + typecheck + format (~30 sec)
 2. **`test:coverage`** — unit + integration tests, merged coverage gate (~1 min)
 3. **`sonar:scan` + gate query** — code quality + duplications + cog complexity + some security (~5 min via Docker)
-4. **`lint:md`** — markdown formatting (~5 sec)
+4. **`lint:md`** — markdown formatting (~5 sec). Lints only Markdown git tracks or would track (`"gitignore": true` in `.markdownlint-cli2.jsonc`), so gitignored local docs such as `/PLAN.md` can't fail it; CI lints the same set from its checkout
 5. **`security:semgrep`** — OWASP/Next.js/secrets pattern scan (~2 min via Docker)
 6. **`security:deps`** — OSV CVE scan, only when `package-lock.json` changed in last commit (~30 sec)
 

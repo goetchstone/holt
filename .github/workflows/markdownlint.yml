@@ -8,8 +8,10 @@
 # inline-annotates the offending line so PR reviewers see issues
 # without downloading artifacts.
 #
-# Excludes: node_modules (third-party READMEs we don't control),
-# .next, coverage outputs, .git internals, and worktree scratch.
+# Excludes whatever .gitignore excludes (`"gitignore": true` in
+# `.markdownlint-cli2.jsonc`): node_modules, .next, coverage outputs,
+# worktree scratch, and the private local planning docs. A checkout
+# holds none of those, so here this only matters for local runs.
 
 name: Markdown lint
 
@@ -41,10 +43,10 @@ jobs:
         with:
           node-version: 24
 
-      # markdownlint-cli2 reads `.markdownlint.json` + `.markdownlintignore`
-      # at repo root automatically. The negation glob `!**/node_modules/**`
-      # is required because the ignore file alone doesn't always exclude
-      # nested node_modules under app/.
+      # markdownlint-cli2 reads `.markdownlint-cli2.jsonc` + `.markdownlint.json`
+      # at repo root automatically. It does NOT read `.markdownlintignore`
+      # (unsupported per its README). The negation glob `!**/node_modules/**`
+      # is kept so the command matches `npm run lint:md` exactly.
       - name: Run markdownlint-cli2
         run: |
           npx --yes markdownlint-cli2 "**/*.md" "!**/node_modules/**"
