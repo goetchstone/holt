@@ -35,10 +35,23 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy the rest of the application source
 COPY . .
 
+# public/ holds no tracked files (brand assets are per deployment and
+# gitignored), so a fresh clone has no public/ directory at all and the runtime
+# stage's COPY of /app/public fails. Create it if absent; existing files are kept.
+RUN mkdir -p public
+
 # Generate Prisma client (needs the schema file present)
 RUN npx prisma generate
 
 # Build Next.js
+#
+# `next build` type-checks the whole app, and with Node's default heap that runs
+# out of memory inside this builder container ("Ineffective mark-compacts near
+# heap limit"), failing the image build. CI never saw it because its job sets the
+# same NODE_OPTIONS (.github/workflows/ci.yml) before building; a Docker build
+# does not inherit the host's environment, so the image needs its own. Scoped to
+# this stage: the runtime image below keeps Node's default heap.
+ENV NODE_OPTIONS=--max-old-space-size=6144
 RUN npm run build
 
 # ---------------------------------------------------------------------------
