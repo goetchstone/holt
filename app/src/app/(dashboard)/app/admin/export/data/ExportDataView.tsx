@@ -37,7 +37,7 @@ export function ExportDataView() {
   const [from, setFrom] = useState(defaultFrom());
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
 
-  const journalHref = `/api/accounting/export-journal?from=${from}&to=${to}`;
+  const journalHref = `/api/accounting/export-journal?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
   const rangeValid = Boolean(from && to && from <= to);
 
   return (
