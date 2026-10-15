@@ -1237,11 +1237,26 @@ function EditLineItemModal({
   }
 
   async function handleCreateAndLink() {
-    if (!newName.trim()) return toast.error("Name is required.");
-    if (!newPartNo.trim()) return toast.error("Part number is required.");
-    if (!taxonomy.vendorId) return toast.error("Vendor is required.");
-    if (!taxonomy.departmentId) return toast.error("Department is required.");
-    if (!taxonomy.categoryId) return toast.error("Category is required.");
+    if (!newName.trim()) {
+      toast.error("Name is required.");
+      return;
+    }
+    if (!newPartNo.trim()) {
+      toast.error("Part number is required.");
+      return;
+    }
+    if (!taxonomy.vendorId) {
+      toast.error("Vendor is required.");
+      return;
+    }
+    if (!taxonomy.departmentId) {
+      toast.error("Department is required.");
+      return;
+    }
+    if (!taxonomy.categoryId) {
+      toast.error("Category is required.");
+      return;
+    }
 
     setSaving(true);
     try {

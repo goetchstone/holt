@@ -157,8 +157,7 @@ See `env.example` for the full environment template.
 ```bash
 cd app
 npm run dev            # Start dev server
-npm run validate       # Lint + typecheck + format check
-npm run typecheck:strict  # Stricter typecheck over the money core (CI runs this)
+npm run validate       # Lint + typecheck (strict, whole tree) + format check
 npm test               # Run unit tests
 npm run build          # Production build — CI gates on it; catches server-only
                        # code pulled into a client bundle, which tsc cannot

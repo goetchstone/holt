@@ -198,14 +198,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       },
     }));
 
-    res.status(200).json({
+    return res.status(200).json({
       campaigns: enrichedCampaigns,
       total,
       attributionWindowDays: ATTRIBUTION_WINDOW_DAYS,
     });
   } catch (error) {
     logError("Error loading campaigns", error);
-    res.status(500).json({ error: "Failed to load campaigns" });
+    return res.status(500).json({ error: "Failed to load campaigns" });
   }
 }
 

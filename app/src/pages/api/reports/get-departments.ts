@@ -21,10 +21,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
 
     const departmentNames = departments.map((d) => d.name);
-    res.status(200).json(departmentNames);
+    return res.status(200).json(departmentNames);
   } catch (error) {
     logError("Error fetching departments", error);
-    res.status(500).json({ error: "Failed to fetch departments." });
+    return res.status(500).json({ error: "Failed to fetch departments." });
   }
 }
 
