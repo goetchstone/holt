@@ -62,12 +62,11 @@ describe("pickFormFields", () => {
   it("returns the first value of each named field and nothing else", () => {
     // JSON.parse makes `__proto__` an own key, as a JSON-bodied form would.
     const raw = JSON.parse(
-      JSON.stringify({
-        departmentId: ["5", "6"],
-        itemCategories: ['{"0":3}'],
-        constructor: ["evil"],
-        hasOwnProperty: ["evil"],
-      }).replace("{", '{"__proto__":{"departmentId":["9"]},'),
+      '{"__proto__":{"departmentId":["9"]},' +
+        '"departmentId":["5","6"],' +
+        '"itemCategories":["{\\"0\\":3}"],' +
+        '"constructor":["evil"],' +
+        '"hasOwnProperty":["evil"]}',
     ) as Fields;
 
     const fields = pickFormFields(raw, NAMES);
