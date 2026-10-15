@@ -23,7 +23,12 @@ export function signBookingId(id: number): string {
 
 export function verifyBookingToken(id: number, token: string | undefined): boolean {
   if (!token) return false;
-  const expected = signBookingId(id);
-  if (token.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(token), Buffer.from(expected));
+  // Compare BYTE lengths, not string lengths: timingSafeEqual throws on a
+  // byte-length mismatch, and 32 non-ASCII characters are 32 UTF-16 units but
+  // more than 32 UTF-8 bytes -- that threw a RangeError (a 500 on this public
+  // route). Found by __tests__/fuzz/capabilityTokens.fuzz.test.ts.
+  const given = Buffer.from(token);
+  const expected = Buffer.from(signBookingId(id));
+  if (given.length !== expected.length) return false;
+  return timingSafeEqual(given, expected);
 }

@@ -184,7 +184,10 @@ to it in `app/src/lib/imports/transforms.ts`.
 Order of operations is fixed and is the whole contract of
 `runImportEngine` (`app/src/lib/imports/engine.ts`):
 
-1. **field mapping** — pick the raw source column value off the row
+1. **field mapping** — pick the raw source column value off the row (an
+   OWN property only: a configured column such as `constructor` that the file
+   lacks is missing, not `Object.prototype`'s function. This is fuzzed in
+   `__tests__/fuzz/importEngine.fuzz.test.ts`)
 2. **value mapping** — translate a raw source value onto the target's
    bounded vocabulary, _if_ this field has any value mappings configured
 3. **transform** — trim/case/number/date/currency coercion

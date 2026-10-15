@@ -85,10 +85,19 @@ export const blockCreateSchema = z
     reason: z.string().trim().max(200).nullish(),
     staffMemberId: z.number().int().positive().nullable().optional(),
   })
-  .refine((d) => d.endsAt.getTime() > d.startsAt.getTime(), {
-    message: "End must be after the start",
-    path: ["endsAt"],
-  });
+  // Zod still runs this refine when a date failed (an empty string fails
+  // .min(1) and never reaches the transform), so compare only two real dates;
+  // otherwise .getTime() threw a TypeError (same shape as booking/requestBody.ts,
+  // __tests__/fuzz/booking.fuzz.test.ts).
+  .refine(
+    (d) =>
+      !(d.startsAt instanceof Date && d.endsAt instanceof Date) ||
+      d.endsAt.getTime() > d.startsAt.getTime(),
+    {
+      message: "End must be after the start",
+      path: ["endsAt"],
+    },
+  );
 export type BlockCreateInput = z.infer<typeof blockCreateSchema>;
 export function parseBlockCreateInput(body: unknown): BlockCreateInput {
   const result = blockCreateSchema.safeParse(body);

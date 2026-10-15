@@ -42,12 +42,12 @@ id = "GHSA-vfj7-8cjw-p6xm"
 ignoreUntil = 2026-11-07
 reason = "braces <=3.0.3 stack-exhaustion DoS; no patched release exists (3.0.3 is latest). Dev-only, verified 2026-10-07 and re-verified 2026-10-14 when markdownlint-cli2 became a devDependency: `npm ls braces --omit=dev` is empty; `npm ls braces micromatch fast-glob --all` shows two dev tools reaching the one braces@3.0.3 through micromatch@4.0.8: eslint-config-next -> @next/eslint-plugin-next -> fast-glob@3.3.1, and markdownlint-cli2 (directly and via globby -> fast-glob@3.3.3). Both run at lint time on glob patterns the repo writes itself: the ESLint config, and the `lint:md` globs plus .gitignore. Not reachable from the app at runtime. On expiry: re-run both commands and check for a patched braces or a micromatch that drops it."
 
-[[IgnoredVulns]]
-id = "GHSA-hp3w-g68c-fv3c"
-ignoreUntil = 2026-11-07
-reason = "sprintf-js <=1.1.3 DoS via unbounded precision specifiers; no patched release exists (1.1.3 is latest). Dev-only, verified 2026-10-07: `npm ls sprintf-js --omit=dev` is empty; the one path is nyc -> @istanbuljs/load-nyc-config -> js-yaml@3.15.2 -> argparse@1.0.10 -> sprintf-js@1.0.3, where argparse serves js-yaml's CLI, not the library call nyc makes. Format strings are argparse's own. On expiry: re-run both commands and check for a patched release or a nyc that drops js-yaml@3."
-
-[[IgnoredVulns]]
-id = "GHSA-238p-pmpm-9mq7"
-ignoreUntil = 2026-11-14
-reason = "katex <0.18.2 renderer reads inherited Object.prototype properties as options, so an already-polluted prototype can switch on `trust` when rendering attacker-controlled math. Dev-only, verified 2026-10-14: `npm ls katex --omit=dev` is empty; the one path is markdownlint-cli2 -> markdownlint@0.41.1 -> micromark-extension-math@3.1.0 -> katex@0.16.47. markdownlint imports only the `math` syntax extension (node_modules/markdownlint/lib/micromark-parse.mjs) to tokenize math in the repo's own Markdown; katex is loaded through the package index but its renderer is never called. The fix lies outside micromark-extension-math's declared `katex: ^0.16.0`, so an override would force a line it was never tested on (CLAUDE.md rule 53). On expiry: re-run `npm ls katex` and check for a markdownlint whose math extension accepts katex >= 0.18.2."
+# Removed 2026-10-15, fixed instead of suppressed (path-scoped overrides in
+# app/package.json, CLAUDE.md rule 53):
+#   GHSA-hp3w-g68c-fv3c (sprintf-js) -- @istanbuljs/load-nyc-config now gets
+#     js-yaml 4, which drops argparse 1 and with it sprintf-js. Its one call,
+#     js-yaml.load(), has the same signature in 4 and only runs for a YAML
+#     .nycrc, which this repo does not have.
+#   GHSA-238p-pmpm-9mq7 (katex) -- micromark-extension-math now gets katex
+#     0.18.x. markdownlint imports only its `math` tokenizer, never the KaTeX
+#     renderer; lint:md output is identical before and after.

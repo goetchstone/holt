@@ -139,16 +139,21 @@ export function priceCart(
   // the customer discount on money being given back.
   const positiveTotal = base.reduce((sum, l) => sum + (l.lineSubtotal > 0 ? l.lineSubtotal : 0), 0);
 
+  // Cumulative rounding: each line's share is the rounded discount owed on
+  // everything up to and including it, minus what earlier lines already took.
+  // The shares sum to the discount exactly (the last positive line's running
+  // total IS positiveTotal), and because the running figure only grows, no
+  // share is negative or larger than its line. Rounding each share on its own
+  // and handing the last line the remainder broke both: four $0.01 lines with
+  // $0.02 off gave shares [.01, .01, .01, -.01] (__tests__/fuzz/cartPricing.fuzz.test.ts).
+  let runningTotal = 0;
   let allocated = 0;
-  const shares = base.map((l, i) => {
+  const shares = base.map((l) => {
     if (orderDiscountAmount <= 0 || positiveTotal <= 0 || l.lineSubtotal <= 0) return 0;
-    const isLastPositive = base.findLastIndex((x) => x.lineSubtotal > 0) === i;
-    // The last positive line takes the remainder, so per-line rounding can
-    // never leave the allocation off by a cent from the discount granted.
-    const share = isLastPositive
-      ? round2(orderDiscountAmount - allocated)
-      : round2((l.lineSubtotal / positiveTotal) * orderDiscountAmount);
-    allocated = round2(allocated + share);
+    runningTotal += l.lineSubtotal;
+    const owedSoFar = round2((runningTotal / positiveTotal) * orderDiscountAmount);
+    const share = round2(owedSoFar - allocated);
+    allocated = owedSoFar;
     return share;
   });
 

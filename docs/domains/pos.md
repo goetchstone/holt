@@ -97,6 +97,11 @@ Stripe is no longer the only processor: checkout creation and webhook verificati
    product-exists, qty > 0 or price-sanity check here. Line money is computed
    by `lib/pos/cartPricing.ts:priceCart`, the same module the POS screen
    prices with, so the stored numbers can't diverge from what was charged.
+   The order discount is split across positive lines by cumulative rounding.
+   The shares sum to the discount exactly, none is negative, and none exceeds
+   its line. The old "last line takes the remainder" split gave four $0.01
+   lines with $0.02 off the shares [.01, .01, .01, -.01]. This is fuzzed in
+   `__tests__/fuzz/cartPricing.fuzz.test.ts`.
 2. Compute tax via `src/lib/tax/resolveTaxRate.ts`: customer exemption, then
    the customer's own district override, then the selling store's district
    (`StoreLocation.taxDistrictId`), then `AppSettings.defaultTaxDistrictId` —

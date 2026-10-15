@@ -42,13 +42,17 @@ export function formatIcsUtc(date: Date): string {
 
 // Escape a TEXT value per RFC 5545 section 3.3.11. Backslash must be escaped
 // first, then semicolon, comma, and newline (CR is dropped so a lone CRLF in
-// input collapses to a single escaped "\n").
+// input collapses to a single escaped "\n"). TEXT cannot carry any other
+// control character (only HTAB is allowed), so those are dropped: a NUL typed
+// into the public booking form otherwise produced an .ics strict importers
+// reject (__tests__/fuzz/booking.fuzz.test.ts).
 export function escapeIcsText(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
     .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
-    .replace(/\r\n|\r|\n/g, "\\n");
+    .replace(/\r\n|\r|\n/g, "\\n")
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "");
 }
 
 // Fold a single content line to <=75 octets per line. Continuation lines start

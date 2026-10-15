@@ -46,9 +46,14 @@ shared guard that replaced each page's own `getAppSettings()` /
   guards, one decompression level.
 - `src/lib/dmarc/report.ts` — pure XML parser/aggregator. Uses `@rgrove/parse-xml`
   (rejects DTDs / external entities → XXE-immune); fixed element allowlist (no
-  prototype pollution); caps on size/record count.
+  prototype pollution); caps on size/record count. Extraction runs inside a
+  catch that turns any non-`DmarcParseError` into one: thousands of elements
+  nested inside one field parse cleanly but overflow the stack when the field's
+  text is read.
 - `src/app/(site)/tools/dmarc-{check,report}/` — page + client form each.
 - `__tests__/dmarcReport.test.ts` — parser/decompress unit tests.
+- `__tests__/fuzz/dmarcReport.fuzz.test.ts`, `__tests__/fuzz/dmarcCheck.fuzz.test.ts`
+  — property-based fuzzing of both flows (`docs/testing/fuzzing.md`).
 
 ## Notes
 

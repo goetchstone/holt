@@ -72,8 +72,24 @@ export interface RunImportEngineOptions {
  *  agnostic engine. */
 function rawToString(v: unknown): string | undefined {
   if (v === null || v === undefined) return undefined;
-  const s = String(v).trim();
+  let s: string;
+  try {
+    s = String(v).trim();
+  } catch {
+    // String() throws on an object whose toString/valueOf is not callable --
+    // a JSON cell like {"toString": ""}. Read it as any other object cell
+    // reads ("[object Object]") rather than failing the whole batch.
+    s = Object.prototype.toString.call(v);
+  }
   return s === "" ? undefined : s;
+}
+
+/** `obj[key]` only when `key` is an OWN property. A bare `obj[key]` on a
+ *  plain object reads Object.prototype for a key it lacks, so a column named
+ *  "constructor" that the file doesn't have came back as a function instead
+ *  of missing (__tests__/fuzz/importEngine.fuzz.test.ts). */
+function ownValue<T>(obj: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(obj, key) ? obj[key] : undefined;
 }
 
 /** Join natural-key field values into one comparable string.
@@ -85,7 +101,7 @@ export function computeNaturalKey(
 ): { key: string } | { missingField: string } {
   const parts: string[] = [];
   for (const field of naturalKeyFields) {
-    const value = record[field];
+    const value = ownValue(record, field);
     if (value === undefined || value === "") return { missingField: field };
     parts.push(String(value));
   }
@@ -107,7 +123,7 @@ function mapRow(
   let anyNonEmpty = false;
 
   for (const fm of orderedFields) {
-    const rawStr = rawToString(row[fm.sourceColumn]);
+    const rawStr = rawToString(ownValue(row, fm.sourceColumn));
     if (rawStr === undefined) continue;
     anyNonEmpty = true;
 
@@ -146,7 +162,7 @@ function checkRequiredFields(
   const errors: string[] = [];
   for (const fm of orderedFields) {
     if (!fm.required) continue;
-    const value = record[fm.targetField];
+    const value = ownValue(record, fm.targetField);
     if (value === undefined || value === "") {
       errors.push(`Missing required field "${fm.targetField}"`);
     }

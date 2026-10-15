@@ -32,10 +32,21 @@ export const bookingInputSchema = z
     endsAt: isoDate,
     notes: z.string().trim().nullish(),
   })
-  .refine((data) => data.endsAt.getTime() > data.startsAt.getTime(), {
-    message: "End time must be after the start time",
-    path: ["endsAt"],
-  });
+  // Zod still runs this refine when a date is empty (an empty string fails
+  // .min(1) and never reaches the Date transform), and calling .getTime() on
+  // that string threw a TypeError the handler returned to the visitor as
+  // "data.startsAt.getTime is not a function"
+  // (__tests__/fuzz/booking.fuzz.test.ts). Compare only two real dates; a
+  // date that failed has already reported its own issue.
+  .refine(
+    ({ startsAt, endsAt }) =>
+      !(startsAt instanceof Date && endsAt instanceof Date) ||
+      endsAt.getTime() > startsAt.getTime(),
+    {
+      message: "End time must be after the start time",
+      path: ["endsAt"],
+    },
+  );
 
 export type BookingInput = z.infer<typeof bookingInputSchema>;
 
