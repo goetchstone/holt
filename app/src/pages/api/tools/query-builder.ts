@@ -8,89 +8,16 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { getEntityDef } from "@/lib/queryBuilderConfig";
+import { buildInclude, buildWhere } from "@/lib/queryBuilderQuery";
+import { logError } from "@/lib/logger";
 
 const MAX_ROWS = 500;
 
-interface QueryFilter {
-  field: string;
-  op: string;
-  value: string;
-}
-
 interface QueryConfig {
   entity: string;
-  joins: string[];
-  filters: QueryFilter[];
+  joins?: unknown;
+  filters?: unknown;
   limit?: number;
-}
-
-function buildWhere(filters: QueryFilter[]): Record<string, unknown> {
-  const where: Record<string, unknown> = {};
-  for (const f of filters) {
-    if (!f.field || !f.value) continue;
-
-    // Handle nested fields (e.g., "vendor.name")
-    const parts = f.field.split(".");
-    if (parts.length > 1) {
-      const [relation, field] = parts;
-      if (!where[relation]) where[relation] = {};
-      (where[relation] as Record<string, unknown>)[field] = buildFilterValue(f.op, f.value);
-      continue;
-    }
-
-    where[f.field] = buildFilterValue(f.op, f.value);
-  }
-  return where;
-}
-
-function buildFilterValue(op: string, value: string): unknown {
-  switch (op) {
-    case "equals":
-      if (value === "true") return true;
-      if (value === "false") return false;
-      if (/^\d+$/.test(value)) return Number.parseInt(value, 10);
-      return value;
-    case "contains":
-      return { contains: value, mode: "insensitive" };
-    case "startsWith":
-      return { startsWith: value, mode: "insensitive" };
-    case "gt":
-      return { gt: Number.isNaN(Date.parse(value)) ? Number.parseFloat(value) : new Date(value) };
-    case "gte":
-      return { gte: Number.isNaN(Date.parse(value)) ? Number.parseFloat(value) : new Date(value) };
-    case "lt":
-      return { lt: Number.isNaN(Date.parse(value)) ? Number.parseFloat(value) : new Date(value) };
-    case "lte":
-      return { lte: Number.isNaN(Date.parse(value)) ? Number.parseFloat(value) : new Date(value) };
-    case "not":
-      return { not: value };
-    default:
-      return value;
-  }
-}
-
-function buildInclude(
-  joins: string[],
-  entityDef: ReturnType<typeof getEntityDef>,
-): Record<string, unknown> | undefined {
-  if (!entityDef || joins.length === 0) return undefined;
-
-  const include: Record<string, unknown> = {};
-  for (const joinName of joins) {
-    const joinDef = entityDef.joins.find((j) => j.relation === joinName);
-    if (!joinDef) continue;
-
-    // Build select from the join's column definitions
-    const selectFields: Record<string, boolean> = {};
-    for (const col of joinDef.columns) {
-      const fieldName = col.field.split(".").pop();
-      if (fieldName) selectFields[fieldName] = true;
-    }
-
-    include[joinName] = { select: selectFields };
-  }
-
-  return Object.keys(include).length > 0 ? include : undefined;
 }
 
 // Flatten nested objects for table display
@@ -143,8 +70,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const model = (prisma as any)[modelName];
 
-    const where = buildWhere(config.filters || []);
-    const include = buildInclude(config.joins || [], entityDef);
+    // Field names are resolved against entityDef; see lib/queryBuilderQuery.ts.
+    const built = buildWhere(config.filters, entityDef);
+    if (!built.ok) return res.status(400).json({ error: built.error });
+    const where = built.where;
+    const include = buildInclude(config.joins, entityDef);
     const limit = Math.min(config.limit || 100, MAX_ROWS);
 
     const rows = await model.findMany({
@@ -183,8 +113,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       rows: flatRows,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return res.status(500).json({ error: message });
+    // A 500 says what failed, not why: Prisma's message names models and
+    // columns (CLAUDE.md rule 11). The operator reads it in the log.
+    logError("Query builder query failed", err, { entity: config.entity });
+    return res.status(500).json({ error: "Query failed" });
   }
 }
 
