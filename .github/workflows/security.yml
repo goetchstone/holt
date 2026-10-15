@@ -9,6 +9,8 @@
 #                        GHSA-ggr8-5vv4-36mx and osv-scanner did not.
 #   4. semgrep-upload -- publishes semgrep's SARIF to the Security tab.
 #
+# Runs on every push to main (1-4 above), so the README badge describes main.
+#
 # Runs weekly on main (Monday 06:00 UTC):
 #   5. trivy          -- Docker image OS-level CVEs. Was running on every
 #                        PR; the 2026-05-09 audit found this was the
@@ -35,13 +37,18 @@
 name: Security
 
 on:
-  # 2026-05-13: dropped `push: branches: [main]` trigger to halve
-  # Actions minute spend. PRs are still gated by Semgrep; the weekly
-  # schedule still catches newly-disclosed CVEs in unchanged code.
-  # Manual `workflow_dispatch` retained for on-demand sweeps.
   # Runs on every PR to main (no path filter) so Semgrep + OSV can be REQUIRED
   # status checks without a path-filtered PR leaving them perpetually "waiting".
   pull_request:
+    branches: [main]
+  # Every merge re-checks main, so the README badge describes main as it is
+  # now. Dropped 2026-05-13 to save Actions minutes while the repo was
+  # private; restored 2026-10-15 because the repo is public (standard runners
+  # are free) and without it the badge only moved on the weekly schedule: the
+  # 2026-10-12 sweep failed on two advisories, the fixes merged 2026-10-15,
+  # and the badge still read "failing" until someone dispatched a run by hand.
+  # Trivy stays schedule/dispatch-only (its own `if:` below).
+  push:
     branches: [main]
   schedule:
     # Monday 06:00 UTC weekly sweep. Catches newly-disclosed CVEs in
@@ -60,7 +67,7 @@ jobs:
     container:
       image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Registry rule packs tuned for this stack. p/typescript + p/react
       # cover the UI; p/nextjs flags Next.js-specific API auth gaps;
@@ -162,7 +169,7 @@ jobs:
 
       - name: Upload findings as artifact
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: semgrep-findings
           path: |
@@ -199,12 +206,12 @@ jobs:
       security-events: write
     steps:
       - name: Download findings from the semgrep job
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: semgrep-findings
 
       - name: Upload SARIF to code scanning
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           sarif_file: semgrep.sarif
           category: semgrep
@@ -224,9 +231,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -310,21 +317,12 @@ jobs:
     runs-on: ubuntu-latest
     # This used to run only when the lockfile changed, behind a workflow-level
     # paths filter. The filter is gone (the check is required, so it must report
-    # on every PR), and this condition is true for all three of the workflow's
-    # triggers -- schedule, workflow_dispatch and pull_request -- so the scan
-    # runs every time. `push` and `head_commit` can never match here (there is
-    # no `push` trigger, and `head_commit` is a push-event field).
-    if: |
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.head_commit.message, '[run-osv]') ||
-      github.event_name == 'pull_request' ||
-      github.event_name == 'push'
+    # on every PR), and the job runs on every trigger, so it has no `if:`.
     permissions:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install osv-scanner
         run: |
@@ -338,18 +336,18 @@ jobs:
         run: |
           set +e
           osv-scanner \
-            --config=osv-scanner.toml \
+            --config=app/osv-scanner.toml \
             --lockfile=app/package-lock.json \
             --format=json \
             --output=osv.json
           RC=$?
           osv-scanner \
-            --config=osv-scanner.toml \
+            --config=app/osv-scanner.toml \
             --lockfile=app/package-lock.json \
             --format=sarif \
             --output=osv.sarif > /dev/null 2>&1 || true
           osv-scanner \
-            --config=osv-scanner.toml \
+            --config=app/osv-scanner.toml \
             --lockfile=app/package-lock.json \
             --format=table \
             > osv.txt 2>&1 || true
@@ -401,7 +399,7 @@ jobs:
 
       - name: Upload findings as artifact
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: osv-findings
           path: |
@@ -430,7 +428,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build production image
         run: |
@@ -510,7 +508,7 @@ jobs:
 
       - name: Upload findings as artifact
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: trivy-findings
           path: |

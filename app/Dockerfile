@@ -8,7 +8,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1 -- Install dependencies
 # ---------------------------------------------------------------------------
-FROM node:24-alpine AS deps
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS deps
 
 WORKDIR /app
 
@@ -25,7 +25,7 @@ RUN npm ci --ignore-scripts
 # ---------------------------------------------------------------------------
 # Stage 2 -- Build the application
 # ---------------------------------------------------------------------------
-FROM node:24-alpine AS builder
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS builder
 
 WORKDIR /app
 
@@ -57,7 +57,7 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 # Stage 3 -- Production image
 # ---------------------------------------------------------------------------
-FROM node:24-alpine AS runner
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS runner
 
 WORKDIR /app
 

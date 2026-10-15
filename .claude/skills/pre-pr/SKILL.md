@@ -16,7 +16,7 @@ this branch. Re-run it if files changed since.
 
 ## 2. Dependency CVE sweep is current (rule 55)
 
-If `package.json` / the lockfile / `osv-scanner.toml` changed on this
+If `package.json` / the lockfile / `app/osv-scanner.toml` changed on this
 branch, or if it's been more than a few days since the last check, run:
 
 ```bash

@@ -78,7 +78,7 @@ for c in d.get('projectStatus', {}).get('conditions', []):
   # portability problems between BSD date (macOS) and GNU date (Linux
   # CI). Skips silently if the file doesn't exist or has no ignoreUntil
   # lines.
-  OSV_TOML="$REPO_ROOT/osv-scanner.toml"
+  OSV_TOML="$REPO_ROOT/app/osv-scanner.toml"
   if [ -f "$OSV_TOML" ]; then
     TODAY="$(date +%Y-%m-%d 2>/dev/null || echo "")"
     if [ -n "$TODAY" ]; then
