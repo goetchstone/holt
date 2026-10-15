@@ -104,6 +104,7 @@
     "eslint-config-next": "^16.4.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-sonarjs": "^4.2.2",
+    "fast-check": "^4.10.2",
     "jest": "^30.5.2",
     "markdownlint-cli2": "0.23.3",
     "nyc": "^18.0.0",
