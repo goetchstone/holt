@@ -21,15 +21,14 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { spawn } from "child_process";
-import { createReadStream, createWriteStream } from "node:fs";
-import { open, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { createReadStream } from "node:fs";
+import { open } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError, logger } from "@/lib/logger";
 import { auditLog } from "@/lib/audit";
+import { createPrivateTempFile, type PrivateTempFile } from "@/lib/privateTempFile";
 
 // Pin the absolute path so a poisoned PATH (writable directory shadowing
 // /usr/bin) can never substitute our binary. Production container is
@@ -80,14 +79,16 @@ function restoreFromFile(
   });
 }
 
-/** Read the first and last bytes without loading the file. */
+/** Read the first and last bytes without loading the file. The size comes
+ *  from the open handle, so it describes the file actually being read rather
+ *  than whatever was at the path a moment earlier. */
 async function readEdges(
   filePath: string,
   bytes = 4096,
 ): Promise<{ head: string; tail: string; size: number }> {
-  const { size } = await stat(filePath);
   const fh = await open(filePath, "r");
   try {
+    const { size } = await fh.stat();
     const headBuf = Buffer.alloc(Math.min(bytes, size));
     await fh.read(headBuf, 0, headBuf.length, 0);
     const tailLen = Math.min(bytes, size);
@@ -112,10 +113,15 @@ export default requirePermission(
       return res.status(500).json({ error: "DATABASE_URL not configured" });
     }
 
-    const spoolPath = path.join(tmpdir(), `holt-restore-${Date.now()}-${process.pid}.sql`);
     const actor = session.user?.email || "unknown";
+    // A private directory, not a guessable name in the shared temp dir: the
+    // spooled file is a full copy of the database (lib/privateTempFile.ts).
+    let spool: PrivateTempFile | undefined;
 
     try {
+      spool = await createPrivateTempFile("holt-restore-", "upload.sql");
+      const spoolPath = spool.path;
+
       // --- 1. Spool to disk (bounded), touching nothing in the database -------
       let received = 0;
       let tooLarge = false;
@@ -128,7 +134,7 @@ export default requirePermission(
       });
 
       try {
-        await pipeline(req, createWriteStream(spoolPath));
+        await pipeline(req, spool.stream);
       } catch {
         if (tooLarge) {
           return res
@@ -201,7 +207,7 @@ export default requirePermission(
       }
       return res.status(500).json({ error: "Failed to restore database" });
     } finally {
-      await rm(spoolPath, { force: true }).catch(() => {});
+      await spool?.dispose().catch(() => {});
     }
   },
 );

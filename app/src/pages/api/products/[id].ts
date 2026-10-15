@@ -70,6 +70,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(500).json({ error: "Failed to fetch product" });
     }
   } else if (req.method === "PATCH") {
+    // The body must be a JSON object. `length` below is the product's length
+    // field, but on an array or string body it is the body's own length: a
+    // PATCH of `[1,2,3]` set the product's length to 3 (CodeQL
+    // js/type-confusion-through-parameter-tampering #18).
+    const body: unknown = req.body;
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return res.status(400).json({ error: "Request body must be a JSON object" });
+    }
     try {
       const {
         name,
@@ -81,7 +89,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         depth,
         height,
         serviceType,
-      } = req.body;
+      } = body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- same untyped shape req.body had
 
       const validServiceTypes = ["MEASURE", "INSTALL", "DELIVERY", "HOUSE_CALL"];
       const resolvedServiceType =
