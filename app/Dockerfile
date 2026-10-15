@@ -95,6 +95,10 @@ COPY --from=builder --chown=node:node /app/package.json ./package.json
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/.next ./.next
 COPY --from=builder --chown=node:node /app/prisma ./prisma
+# Prisma 7 reads the datasource URL from prisma.config.ts, not schema.prisma.
+# Without this file the entrypoint's `prisma migrate deploy` fails with
+# "datasource.url property is required" and the container never starts.
+COPY --from=builder --chown=node:node /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder --chown=node:node /app/next.config.js ./next.config.js
 
 # Entrypoint runs as root to fix volume permissions, then drops to node.
