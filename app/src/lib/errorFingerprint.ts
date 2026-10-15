@@ -18,6 +18,24 @@
 import { createHash } from "node:crypto";
 
 /**
+ * How much of a message, and of a stack line, the regexes below ever see.
+ *
+ * Both inputs can carry request data: a thrown message often interpolates a
+ * field from the body ("Vendor 'X' not found"), and a message with newlines in
+ * it becomes extra lines of `err.stack`. Two of the patterns backtrack
+ * quadratically on hostile input -- the email rule on `.a.a.a…`, the path rule
+ * on `////…` -- and they run synchronously on the event loop for every
+ * logError, so a 50 KB field stalled the whole server for over a second
+ * (CodeQL js/polynomial-redos #1). Bounding the input bounds the work.
+ *
+ * The limits match what errorRecorder stores (message 2000, stackTop 500), so
+ * no real fingerprint moves: a real stack frame is far shorter than 500
+ * characters, and text past the 2000th character was never kept anyway.
+ */
+export const MAX_FINGERPRINT_MESSAGE = 2000;
+export const MAX_FINGERPRINT_FRAME = 500;
+
+/**
  * Replace per-occurrence detail with stable placeholders.
  *
  * Order matters: the more specific patterns run first, because a UUID also
@@ -26,6 +44,7 @@ import { createHash } from "node:crypto";
 export function normalizeErrorMessage(message: string): string {
   return (
     message
+      .slice(0, MAX_FINGERPRINT_MESSAGE)
       // ISO-ish timestamps and dates
       .replace(/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?/g, "<ts>")
       .replace(/\d{4}-\d{2}-\d{2}/g, "<date>")
@@ -58,7 +77,7 @@ export function topAppFrame(stack: string | undefined): string | null {
   if (!stack) return null;
   const lines = stack.split("\n").slice(1); // line 0 is the message
   for (const raw of lines) {
-    const line = raw.trim();
+    const line = raw.slice(0, MAX_FINGERPRINT_FRAME).trim();
     if (!line.startsWith("at ")) continue;
     if (line.includes("node_modules") || line.includes("node:internal")) continue;
     // Drop absolute paths and line/column -- they change with every deploy and

@@ -12,6 +12,7 @@ import { PRODUCT } from "@/lib/branding";
 import { useBranding } from "@/components/branding/BrandingProvider";
 import { getEnabledAuthMethodsResolved } from "@/lib/auth/authMethodsResolved";
 import type { AuthMethodDef } from "@/lib/auth/authMethods";
+import { safeCallbackUrl } from "@/lib/auth/safeCallbackUrl";
 
 interface LoginProps {
   methods: AuthMethodDef[];
@@ -32,7 +33,10 @@ export const getServerSideProps: GetServerSideProps<LoginProps> = async () => {
 export default function Login({ methods }: LoginProps) {
   const router = useRouter();
   const branding = useBranding();
-  const callbackUrl = (router.query.callbackUrl as string) || "/app";
+  // ?callbackUrl= is attacker-craftable; only a same-origin target survives.
+  // Resolved at click time because it needs window.location, and both uses
+  // are event handlers.
+  const callbackUrl = () => safeCallbackUrl(router.query.callbackUrl, window.location.origin);
 
   const oauthMethods = methods.filter((m) => m.type === "oauth");
   const localMethod = methods.find((m) => m.type === "credentials");
@@ -42,24 +46,25 @@ export default function Login({ methods }: LoginProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleOAuth = (id: string) => signIn(id, { callbackUrl });
+  const handleOAuth = (id: string) => signIn(id, { callbackUrl: callbackUrl() });
 
   const handleLocalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    const target = callbackUrl();
     const result = await signIn("credentials", {
       email,
       password,
       redirect: false,
-      callbackUrl,
+      callbackUrl: target,
     });
     setSubmitting(false);
     if (result?.error) {
       setError("Incorrect email or password.");
       return;
     }
-    router.push(result?.url || callbackUrl);
+    router.push(result?.url || target);
   };
 
   return (

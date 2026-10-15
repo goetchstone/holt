@@ -310,6 +310,7 @@ SUPER_ADMIN and ADMIN users can temporarily view the app as any other role via t
 - Impersonation affects: nav items, card filtering, page access (server redirects), and API role checks
 - Viewing as another role only ever narrows. Permission gates and keys answered beside a gate (`{ also }`, e.g. View cost) count a key only when both the real role and the viewed role hold it (`decidePermissionAccess` in `roleDecision.ts`), as the nav does on the real-role side (the nav reads the viewed role's built-in grants, not edited ones: F14a). Before 2026-10-02 gates decided on the viewed role's keys alone, so an admin whose role the owner had edited to drop a key got it back by viewing as a role that held it (F12a). Role-list gates (`roleProcedure`, `requirePage([...])`) still decide on the viewed role; SEC-16 moves them to keys.
 - Impersonation never escalates by rank either (`resolveEffectiveRole` in `roleDecision.ts`), and the endpoint's allow-list names neither ADMIN nor SUPER_ADMIN, so there is no way to view the commission-tiers report by impersonating up
+- The cookie value is client-set, so `grantContext` (`permissionResolver.ts`) treats it strictly as a role KEY: own-key lookups and a `Map`, never a plain-object index. Before 2026-10-15 a cookie of `constructor` or `__proto__` resolved to an `Object.prototype` member, the decision threw, and every gated request from that admin was a 500 until the cookie cleared (CodeQL #23; `permissionResolver.test.ts` "the View-as cookie is a role KEY"). Such a value now behaves as an undefined role: baseline grants only.
 
 ## Navigation
 
@@ -520,6 +521,18 @@ Behavior was identical to the prior monolith. If you're working on auth-related 
 ---
 
 Last verified: 2026-10-01 (Cost Visibility, Impersonation, the role-list gates and the status table; the rest as of 2026-05-20)
+
+## Sign-in redirect (`?callbackUrl=`)
+
+`/auth/login` reads `callbackUrl` from the address bar, so anyone can craft a
+login link carrying one. It passes through `safeCallbackUrl`
+(`lib/auth/safeCallbackUrl.ts`) before it reaches `signIn()` or
+`router.push()`: resolved against the page's own origin, kept only if it is
+still that origin, and rebuilt as `origin + path`. Anything else lands on
+`/app`. Before 2026-10-15 it was used raw, which made the login page an open
+redirect and, for a `javascript:` value, a script sink (CodeQL #6, #9;
+`__tests__/safeCallbackUrl.test.ts`). NextAuth's own `redirect` callback is the
+default (same-origin only), which covers the server side.
 
 ## Password reset + my-account (2026-06-10)
 

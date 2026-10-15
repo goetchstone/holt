@@ -17,8 +17,28 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { Readable } from "node:stream";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
+import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 const spawned: Array<{ args: string[]; stdinChunks: string[] }> = [];
+
+// Pass-through that records where each upload was spooled, so the test can
+// look at the real directory the route used.
+const mockSpools: Array<{ path: string; dirModeWhileSpooling: number }> = [];
+jest.mock("@/lib/privateTempFile", () => {
+  const actual = jest.requireActual("@/lib/privateTempFile");
+  const fs = jest.requireActual("node:fs");
+  const nodePath = jest.requireActual("node:path");
+  return {
+    createPrivateTempFile: async (prefix: string, filename: string) => {
+      const tmp = await actual.createPrivateTempFile(prefix, filename);
+      const dirModeWhileSpooling = fs.statSync(nodePath.dirname(tmp.path)).mode;
+      mockSpools.push({ path: tmp.path, dirModeWhileSpooling });
+      return tmp;
+    },
+  };
+});
 
 jest.mock("child_process", () => ({
   spawn: jest.fn((_cmd: string, args: string[]) => {
@@ -92,6 +112,7 @@ describe("admin database restore guards", () => {
 
   beforeEach(async () => {
     spawned.length = 0;
+    mockSpools.length = 0;
     jest.resetModules();
     process.env.DATABASE_URL = "postgresql://user:pw@localhost:5432/testdb";
     handler = (await import("@/pages/api/admin/database/restore")).default as never;
@@ -130,6 +151,29 @@ describe("admin database restore guards", () => {
     await handler(makeReq(`${HEADER}CREATE TABLE "Order" (id int);\n${FOOTER}`), res);
     expect(res.statusCode).toBe(200);
     expect(schemaWasDropped()).toBe(true);
+  });
+
+  it("spools the upload into its own private temp directory and removes it afterwards", async () => {
+    // The dump is a full copy of the database. It used to sit at a guessable
+    // $TMPDIR/holt-restore-<ms>-<pid>.sql, mode 0644 (CodeQL #20, #22).
+    const res = makeRes();
+    await handler(makeReq(`${HEADER}SELECT 1;\n${FOOTER}`), res);
+    expect(res.statusCode).toBe(200);
+    expect(mockSpools).toHaveLength(1);
+    const spoolDir = path.dirname(mockSpools[0].path);
+    expect(path.dirname(spoolDir)).toBe(path.resolve(tmpdir()));
+    if (process.platform !== "win32") {
+      expect(mockSpools[0].dirModeWhileSpooling & 0o777).toBe(0o700);
+    }
+    expect(existsSync(spoolDir)).toBe(false);
+  });
+
+  it("removes the spool even when the upload is refused", async () => {
+    const res = makeRes();
+    await handler(makeReq("id,name\n1,Chair\n"), res);
+    expect(res.statusCode).toBe(400);
+    expect(mockSpools).toHaveLength(1);
+    expect(existsSync(path.dirname(mockSpools[0].path))).toBe(false);
   });
 
   it("runs psql with ON_ERROR_STOP so a half-applied dump cannot report success", async () => {

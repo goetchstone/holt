@@ -240,23 +240,32 @@ function grantContext(
   // heard of resolves through the built-in definitions, so a database that has
   // been migrated but not yet seeded still authorizes correctly rather than
   // locking the whole deployment out.
-  const grantsByRole: Record<string, readonly string[]> = {};
+  //
+  // `impersonate` is the client-set holt-impersonate cookie, so it is looked up
+  // only as an OWN key and collected in a Map. Keyed into a plain object, a
+  // cookie of "constructor" or "__proto__" resolved to an Object.prototype
+  // member instead of a grant list, and the decision threw on it: a 500 on
+  // every gated request until the cookie was cleared (CodeQL
+  // js/remote-property-injection #23). Now it is a role key nobody defined,
+  // which holds the baseline and nothing else.
+  const grants = new Map<string, readonly string[]>();
   for (const key of [realRoleKey, impersonate].filter((k): k is string => !!k)) {
-    if (key in grantsByRole) continue;
+    if (grants.has(key)) continue;
+    const stored = Object.hasOwn(table.grantsByRole, key) ? table.grantsByRole[key] : undefined;
     // Both sources already carry the baseline (buildRoleGrantTable unions it in,
     // permissionsForBuiltInRole returns it even for a key it does not know). The
     // union is repeated here anyway because this is the one line where a role
     // KEY becomes a grant list: making it total here means the floor survives a
     // future edit to either source, rather than depending on both staying right.
-    grantsByRole[key] = withBaselinePermissions(
-      table.grantsByRole[key] ?? permissionsForBuiltInRole(key),
-    );
+    grants.set(key, withBaselinePermissions(stored ?? permissionsForBuiltInRole(key)));
   }
 
   return {
     realRoleKey,
     viaEnumFallback: linkedKey === undefined,
-    grantsByRole,
+    // fromEntries defines own properties, "__proto__" included, so a read of
+    // grantsByRole[key] downstream finds the list, never the prototype.
+    grantsByRole: Object.fromEntries(grants),
     wildcardRoles: [...table.wildcardRoles],
     ranks: table.ranks,
   };

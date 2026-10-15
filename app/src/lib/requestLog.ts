@@ -5,6 +5,7 @@
 // Docker captures it in container logs.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { stripLineBreaks } from "@/lib/logger";
 
 interface LogEntry {
   ts: string;
@@ -29,6 +30,9 @@ function getUserEmail(req: NextApiRequest): string | undefined {
   return session?.user?.email ?? undefined;
 }
 
+// One line per request, whatever the path and user contain: the path is
+// request-controlled, and this is plain text in production too (unlike
+// logger, which emits JSON there).
 function formatEntry(entry: LogEntry): string {
   const parts = [
     entry.ts,
@@ -38,7 +42,7 @@ function formatEntry(entry: LogEntry): string {
     entry.path,
   ];
   if (entry.user) parts.push(`[${entry.user}]`);
-  return parts.join(" ");
+  return stripLineBreaks(parts.join(" "));
 }
 
 // Wraps a Next.js API handler to log request/response metadata.

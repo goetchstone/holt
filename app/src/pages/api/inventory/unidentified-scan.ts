@@ -45,8 +45,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     if (!location) {
       return res.status(400).json({ error: "Location is required." });
     }
-    // Defense-in-depth: belt-and-suspenders path-traversal guard.
-    // Closes CodeQL js/path-injection on the path.basename + fs.unlink calls below.
+    // Defense-in-depth: belt-and-suspenders path-traversal guard. The path is
+    // server-generated in the first place -- createSecureForm's `filename`
+    // discards the uploaded name for `<ms>-<random hex><allow-listed ext>` --
+    // so nothing the client sends reaches it. CodeQL cannot see through either
+    // that or this guard and still reports js/path-injection on the
+    // fs.unlink below (#8, a false positive).
     assertUploadedFileInRoot(imageFile);
 
     // The filename from formidable is the new name of the file in the uploadDir.

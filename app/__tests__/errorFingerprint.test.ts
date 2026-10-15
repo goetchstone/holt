@@ -8,6 +8,7 @@
 
 import {
   fingerprintError,
+  MAX_FINGERPRINT_MESSAGE,
   normalizeErrorMessage,
   topAppFrame,
 } from "@/lib/errorFingerprint";
@@ -106,5 +107,33 @@ describe("fingerprintError", () => {
 
   it("produces a short, index-friendly key", () => {
     expect(fp("anything")).toMatch(/^[0-9a-f]{32}$/);
+  });
+});
+
+// CodeQL js/polynomial-redos #1. Messages and stacks carry request data (a
+// thrown message interpolates a body field; newlines in it become stack
+// lines), and these regexes run synchronously inside every logError. Before
+// the input bound, each case below took well over a second of blocked event
+// loop; bounded, each takes about a millisecond. The 250ms ceiling leaves two
+// orders of magnitude of headroom for a slow CI runner.
+describe("hostile input does bounded work", () => {
+  const elapsed = (fn: () => unknown): number => {
+    const start = performance.now();
+    fn();
+    return performance.now() - start;
+  };
+
+  it("normalizes a long run of email-rule near-misses quickly", () => {
+    expect(elapsed(() => normalizeErrorMessage(".a".repeat(25_000)))).toBeLessThan(250);
+  });
+
+  it("finds the top frame of a stack line made of slashes quickly", () => {
+    const stack = `Error: Vendor not found\n    at ${"/".repeat(60_000)}`;
+    expect(elapsed(() => topAppFrame(stack))).toBeLessThan(250);
+  });
+
+  it("fingerprints on the first MAX_FINGERPRINT_MESSAGE characters only", () => {
+    const head = "x".repeat(MAX_FINGERPRINT_MESSAGE);
+    expect(fp(`${head} tail one`)).toBe(fp(`${head} tail two`));
   });
 });

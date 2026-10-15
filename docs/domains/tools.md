@@ -62,6 +62,8 @@ The big-ticket admin tool. Lets the owner build read-only SQL queries against a 
 
 **Never** wire the UI to read arbitrary Prisma fields — every exposed surface is intentional. The allowlist is the security model.
 
+The server enforces it, not just the UI. `lib/queryBuilderQuery.ts` resolves each requested filter against the entity's `filters` and each join against its `joins`, and writes only the configured names into the Prisma `where`/`include`: an unknown filter field is a 400, an unknown join is skipped. Until 2026-10-15 the route wrote the request's field names straight into `where`, so a filter on `__proto__.x` polluted `Object.prototype` process-wide and any column could be filtered on (CodeQL #19, #39–#42; `__tests__/queryBuilderQuery.test.ts`). A nested filter (`relation.field`) still works if one is ever added to `filters`; none is today.
+
 ### Column types
 
 | Type      | Behavior                                             |
@@ -78,7 +80,7 @@ Server-side query → JSON response → client renders as a paginated table → 
 
 ### Auth boundary
 
-Hard-gated `roles: ["ADMIN"]` on every endpoint AND on the page itself. Query Builder is the closest thing to direct DB access we expose. Audit trail: every query run is logged via `lib/requestLog.ts`.
+Hard-gated `roles: ["ADMIN"]` on every endpoint AND on the page itself. Query Builder is the closest thing to direct DB access we expose. There is **no** per-query audit trail: `lib/requestLog.ts`'s `withLogging` was meant to provide one but has no callers (verified 2026-10-15 by `grep -rn withLogging app/src`). A failed query returns a generic 500 and the Prisma error goes to `logError`.
 
 ## Categorize Products
 
@@ -156,7 +158,7 @@ Ported from the predecessor ERP's `pages/tools/home-accessory-order.tsx` and ada
 
 | Surface                             | Coverage                                                                          |
 | ----------------------------------- | --------------------------------------------------------------------------------- |
-| Query Builder allowlist enforcement | Unit tests TBD — **gap**, would assert the runtime query rejects unlisted columns |
+| Query Builder allowlist enforcement | `__tests__/queryBuilderQuery.test.ts` — filters and joins outside the entity's config are refused |
 | Bulk categorize 500-cap             | None                                                                              |
 | Merge audit trail                   | None                                                                              |
 | `csvExport.ts`                      | Unit tests for the formatter                                                      |
