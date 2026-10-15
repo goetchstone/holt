@@ -391,6 +391,26 @@ export interface ALOptionPrice {
 }
 
 /**
+ * Asterisk-marked cushion options in an OPTIONS block (`*Dwn = $150`,
+ * `*Tufted = $100`), in text order, names trimmed. The one home for this
+ * pattern: parseOptionPrices() and the American Leather import route both use it.
+ *
+ * The name run is capped at 200 characters. Uncapped, `[^=\n]+` let every `*`
+ * on a line with no `=` rescan to the end of that line before failing, which
+ * is quadratic in line length (CodeQL js/polynomial-redos; this runs on
+ * request text). With the cap each `*` costs at most a few hundred steps.
+ */
+export function extractCushionOptions(optionsText: string): { name: string; price: number }[] {
+  const options: { name: string; price: number }[] = [];
+  const pattern = /\*([^=\n]{1,200})=\s{0,16}\$(\d+)/g;
+  let match;
+  while ((match = pattern.exec(optionsText)) !== null) {
+    options.push({ name: match[1].trim(), price: Number.parseInt(match[2], 10) });
+  }
+  return options;
+}
+
+/**
  * Parse option prices from the OPTIONS text block of a page.
  * Returns structured option prices for cushion, mattress, power, battery, etc.
  */
@@ -400,16 +420,7 @@ export function parseOptionPrices(optionsText: string): ALOptionPrice[] {
 
   const perSeat = /cushion\s+options\s+are\s+calculated\s+per\s+seat/i.test(optionsText);
 
-  // Cushion options: *Dwn = $150, *Tufted = $100, *Trillium = $150
-  // Capture "anything until =" (not = or newline) to avoid the
-  // ambiguous \w/\s/\s* nesting that polynomial-redos flagged.
-  // Greedy [^=\n]+ can't backtrack across `=` (excluded from char class),
-  // so the match is single-pass linear. Closes Sonar S5852 hotspot.
-  const cushionPattern = /\*([^=\n]+)=\s{0,16}\$(\d+)/g;
-  let match;
-  while ((match = cushionPattern.exec(optionsText)) !== null) {
-    const name = match[1].trim();
-    const price = Number.parseInt(match[2], 10);
+  for (const { name, price } of extractCushionOptions(optionsText)) {
     if (!seen.has(name.toLowerCase())) {
       seen.add(name.toLowerCase());
       options.push({ optionName: name, retailPrice: price, wholesalePrice: null, perSeat });
@@ -420,9 +431,11 @@ export function parseOptionPrices(optionsText: string): ALOptionPrice[] {
   // Catches nailhead, headrest, pillow upgrades, etc.
   // Excludes Power/Battery/Lumbar/Stitch (handled by extractPowerBatteryOptions)
   // and mattress rows (handled by parseMattressPrices).
-  // [^=\n]+? avoids the ambiguous \w/\s/\s* nesting flagged by polynomial-redos.
-  // Greedy [^=\n]* (anchored by \b\w then bounded by `=`) is single-pass linear.
-  const generalPattern = /\b(\w[^=\n]*)=\s{0,16}\$\s{0,16}(\d[\d,]*)(?:\s{0,16}\/\s{0,16}seat)?/gi;
+  // The name run is capped for the same reason as extractCushionOptions():
+  // uncapped, every word start on a line with no `=` rescans to the end of it.
+  const generalPattern =
+    /\b(\w[^=\n]{0,200})=\s{0,16}\$\s{0,16}(\d[\d,]*)(?:\s{0,16}\/\s{0,16}seat)?/gi;
+  let match;
   while ((match = generalPattern.exec(optionsText)) !== null) {
     const name = match[1].trim();
     const lower = name.toLowerCase();

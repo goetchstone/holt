@@ -34,9 +34,12 @@ function firstArguments(source: string): Array<string | null> {
     // Prose names the function as `requirePermission()`; a call has an argument.
     if (rest.startsWith(")")) continue;
     // One key, or { anyOf: [ ...literals... ] } -- Prettier may break the list
-    // over lines and leave a trailing comma after the "]".
+    // over lines and leave a trailing comma after the "]". Each list item owns
+    // the whitespace after it, never before, so there is one way to split a gap
+    // between items (a `\s*` on both sides made that backtrack exponentially).
     const literal =
-      /^"[^"]*"/.exec(rest) ?? /^\{\s*anyOf:\s*\[(\s*"[^"]*"\s*,?)*\s*\]\s*,?\s*\}/.exec(rest);
+      /^"[^"]*"/.exec(rest) ??
+      /^\{\s*anyOf:\s*\[\s*(?:"[^"]*"\s*(?:,\s*)?)*\]\s*,?\s*\}/.exec(rest);
     out.push(literal ? literal[0] : null);
   }
   return out;

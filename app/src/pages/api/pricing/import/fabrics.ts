@@ -71,13 +71,15 @@ export default requirePermission(
         include: { tiers: true },
       });
 
-      // Build a map of tier code → tier ID (case-insensitive)
-      const tierMap: Record<string, number> = {};
+      // Build a map of tier code → tier ID (case-insensitive). A Map, because it
+      // is looked up by the grade text in the request: on a plain object a grade
+      // of "constructor" would read back a function as its tier.
+      const tierMap = new Map<string, number>();
       for (const dim of dimensions) {
         for (const tier of dim.tiers) {
-          tierMap[tier.code.toLowerCase()] = tier.id;
+          tierMap.set(tier.code.toLowerCase(), tier.id);
           // Also map by display name (e.g., "Grade 14" → 14)
-          tierMap[tier.name.toLowerCase()] = tier.id;
+          tierMap.set(tier.name.toLowerCase(), tier.id);
         }
       }
 
@@ -112,7 +114,7 @@ export default requirePermission(
           const gradeKey = String(row.grade || "")
             .trim()
             .toLowerCase();
-          let tierId = tierMap[gradeKey];
+          let tierId = tierMap.get(gradeKey);
 
           // Try common aliases: "grade 14" → "14", "gr. 14" → "14"
           if (!tierId) {
@@ -120,7 +122,7 @@ export default requirePermission(
               .replace(/^grade\s*/i, "")
               .replace(/^gr\.?\s*/i, "")
               .trim();
-            tierId = tierMap[cleaned];
+            tierId = tierMap.get(cleaned);
           }
 
           // Auto-create missing tier if grade code is valid
@@ -160,8 +162,8 @@ export default requirePermission(
               });
 
               tierId = newTier.id;
-              tierMap[gradeKey] = tierId;
-              tierMap[code.toLowerCase()] = tierId;
+              tierMap.set(gradeKey, tierId);
+              tierMap.set(code.toLowerCase(), tierId);
               autoCreatedTiers.push(code);
             }
           }
@@ -245,7 +247,7 @@ export default requirePermission(
       return res.json({
         success: true,
         ...result,
-        availableGrades: Object.keys(tierMap)
+        availableGrades: Array.from(tierMap.keys())
           .filter((k) => /^\d+$/.test(k) || /^[a-z]{1,3}$/i.test(k))
           .map((k) => k.toUpperCase())
           .filter((v, i, arr) => arr.indexOf(v) === i)

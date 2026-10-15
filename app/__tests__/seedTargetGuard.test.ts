@@ -49,7 +49,10 @@ describe("assertSafeSeedTarget", () => {
   // seed roles into `holt_samples` before the seed refused it.
   it("makes exactly the same call as setup.sh, database by database", () => {
     const setup = readFileSync(join(__dirname, "..", "scripts", "setup.sh"), "utf8");
-    const arm = setup.match(/^\s*((?:[A-Za-z0-9_*|]+\|)+[A-Za-z0-9_*|]+)\)\s*;;\s*$/m);
+    // Globs are separated by single `|`s, so `|` stays out of the glob class:
+    // inside it, the split between globs was ambiguous and backtracked
+    // exponentially on a long `a|a|...` line with no closing `)`.
+    const arm = setup.match(/^\s*((?:[A-Za-z0-9_*]+\|)+[A-Za-z0-9_*]+)\)\s*;;\s*$/m);
     expect(arm).not.toBeNull();
     const globs = arm![1].split("|");
 

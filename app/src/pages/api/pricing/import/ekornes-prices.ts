@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/toastError";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import type { ParsedEkornesProduct, ParsedEkornesFabric } from "@/lib/pricing/ekornesParser";
+import { upsertCollectionIds } from "@/lib/pricing/upsertCollectionIds";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
@@ -114,7 +115,7 @@ export default requirePermission(
           update: {},
         });
 
-        const tierMap: Record<string, number> = {};
+        const tierMap = new Map<string, number>();
         for (const tier of GRADE_TIERS) {
           const t = await tx.priceDimensionTier.upsert({
             where: { dimensionId_code: { dimensionId: dimension.id, code: tier.code } },
@@ -126,19 +127,11 @@ export default requirePermission(
             },
             update: { sortOrder: tier.sort },
           });
-          tierMap[tier.code] = t.id;
+          tierMap.set(tier.code, t.id);
         }
 
         // 3. Collections
-        const collectionMap: Record<string, number> = {};
-        for (const name of collectionNames) {
-          const collection = await tx.collection.upsert({
-            where: { vendorId_name: { vendorId, name } },
-            create: { vendorId, name },
-            update: {},
-          });
-          collectionMap[name] = collection.id;
-        }
+        const collectionMap = await upsertCollectionIds(tx, vendorId, collectionNames);
 
         // 4. Wood Finish option group (no surcharge -- purely a configuration choice)
         const finishGroup = await tx.vendorOptionGroup.upsert({
@@ -165,7 +158,7 @@ export default requirePermission(
         let fabricCount = 0;
         if (ekFabrics && ekFabrics.length > 0) {
           for (const fab of ekFabrics) {
-            const tierId = tierMap[fab.grade];
+            const tierId = tierMap.get(fab.grade);
             if (!tierId) continue;
 
             await tx.fabricCatalog.upsert({
@@ -225,7 +218,7 @@ export default requirePermission(
                 styleNumber: item.materialNumber,
                 name: item.description || item.materialNumber,
                 vendorId,
-                collectionId: collectionMap[item.collection] || null,
+                collectionId: collectionMap.get(item.collection) || null,
                 baseCost,
                 baseRetail,
                 isActive: true,
@@ -233,7 +226,7 @@ export default requirePermission(
               },
               update: {
                 name: item.description || item.materialNumber,
-                collectionId: collectionMap[item.collection] || undefined,
+                collectionId: collectionMap.get(item.collection) || undefined,
                 baseCost: baseCost ?? undefined,
                 baseRetail: baseRetail ?? undefined,
                 isDiscontinued: false,
@@ -242,7 +235,7 @@ export default requirePermission(
 
             // Upsert grade prices (MRP = retail, cost = MRP x multiplier)
             for (const gp of item.gradePrices) {
-              const tierId = tierMap[gp.grade];
+              const tierId = tierMap.get(gp.grade);
               if (!tierId) continue;
 
               const retail = safeDecimal(gp.mrp);

@@ -9,6 +9,7 @@
 
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
+import { upsertCollectionIds } from "@/lib/pricing/upsertCollectionIds";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import type { SurchargeType } from "@prisma/client";
@@ -168,7 +169,7 @@ export default requirePermission(
           update: {},
         });
 
-        const tierMap: Record<string, number> = {};
+        const tierMap = new Map<string, number>();
         for (const tier of CUSHION_GRADE_TIERS) {
           const t = await tx.priceDimensionTier.upsert({
             where: {
@@ -182,7 +183,7 @@ export default requirePermission(
             },
             update: { sortOrder: tier.sort },
           });
-          tierMap[tier.code] = t.id;
+          tierMap.set(tier.code, t.id);
         }
 
         // 3. Create Collections
@@ -192,15 +193,7 @@ export default requirePermission(
         }
 
         const collectionNames = new Set(scProducts.map((p) => p.collection).filter(Boolean));
-        const collectionIdMap: Record<string, number> = {};
-        for (const name of Array.from(collectionNames)) {
-          const collection = await tx.collection.upsert({
-            where: { vendorId_name: { vendorId, name } },
-            create: { vendorId, name },
-            update: {},
-          });
-          collectionIdMap[name] = collection.id;
-        }
+        const collectionIdMap = await upsertCollectionIds(tx, vendorId, collectionNames);
 
         // 4. Mark existing VendorStyles as discontinued
         await tx.vendorStyle.updateMany({
@@ -236,7 +229,7 @@ export default requirePermission(
                 vendorId,
                 departmentId: department.id,
                 categoryId: category.id,
-                collectionId: collectionIdMap[p.collection] || null,
+                collectionId: collectionIdMap.get(p.collection) || null,
                 framePrice: p.framePrice,
                 baseCost,
                 finish: finishStr,
@@ -249,7 +242,7 @@ export default requirePermission(
               update: {
                 name: p.description + descSuffix,
                 description: p.cushionType || undefined,
-                collectionId: collectionIdMap[p.collection] || undefined,
+                collectionId: collectionIdMap.get(p.collection) || undefined,
                 framePrice: p.framePrice,
                 baseCost,
                 finish: finishStr || undefined,
@@ -262,7 +255,7 @@ export default requirePermission(
 
             // Create grade prices for cushioned products
             for (const gp of p.gradePrices) {
-              const tierId = tierMap[gp.grade];
+              const tierId = tierMap.get(gp.grade);
               if (!tierId) continue;
               await tx.styleGradePrice.upsert({
                 where: {
@@ -287,15 +280,7 @@ export default requirePermission(
       return res.status(200).json({
         success: true,
         ...result,
-        collectionsCreated: Object.keys(
-          scProducts.reduce(
-            (acc, p) => {
-              acc[p.collection] = true;
-              return acc;
-            },
-            {} as Record<string, boolean>,
-          ),
-        ).length,
+        collectionsCreated: new Set(scProducts.map((p) => p.collection)).size,
       });
     } catch (error: unknown) {
       logError("Summer Classics import failed", error);

@@ -13,23 +13,23 @@ import fs from "fs";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { createSecureForm } from "@/lib/secureUpload";
+import { pickFormFields } from "@/lib/importFormFields";
 import { logError } from "@/lib/logger";
 export const config = { api: { bodyParser: false } };
 
-async function parseForm(
-  req: NextApiRequest,
-): Promise<{ file: FormidableFile; fields: Record<string, string> }> {
+const FIELD_NAMES = ["departmentId", "categoryId", "itemCategories"] as const;
+
+async function parseForm(req: NextApiRequest): Promise<{
+  file: FormidableFile;
+  fields: Record<(typeof FIELD_NAMES)[number], string>;
+}> {
   return new Promise((resolve, reject) => {
     const form = createSecureForm("PDF");
     form.parse(req, (err, rawFields, files) => {
       if (err) return reject(err);
       const file = Array.isArray(files.file) ? files.file[0] : files.file;
       if (!file) return reject(new Error("No file uploaded"));
-      const fields: Record<string, string> = {};
-      for (const [key, val] of Object.entries(rawFields)) {
-        fields[key] = Array.isArray(val) ? val[0] || "" : String(val || "");
-      }
-      resolve({ file, fields });
+      resolve({ file, fields: pickFormFields(rawFields, FIELD_NAMES) });
     });
   });
 }
