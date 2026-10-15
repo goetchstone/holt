@@ -4,10 +4,11 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { qtyEquals, roundQty, toQty } from "@/lib/inventory/quantity";
 
 export default requirePermission("inventory.count", handleGet);
 
-async function handleGet(req: NextApiRequest, res: NextApiResponse, _session: Session) {
+export async function handleGet(req: NextApiRequest, res: NextApiResponse, _session: Session) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Method not allowed" });
@@ -84,10 +85,10 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, _session: Se
   for (const key of allKeys) {
     const item1 = map1.get(key);
     const item2 = map2.get(key);
-    const qty1 = item1?.quantity ?? 0;
-    const qty2 = item2?.quantity ?? 0;
+    const qty1 = toQty(item1?.quantity);
+    const qty2 = toQty(item2?.quantity);
 
-    if (qty1 !== qty2) {
+    if (!qtyEquals(qty1, qty2)) {
       const ref = item1 || item2!;
       differences.push({
         productId: ref.productId,
@@ -97,7 +98,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, _session: Se
         storeLocationName: ref.storeLocation?.name ?? null,
         quantity1: qty1,
         quantity2: qty2,
-        difference: qty2 - qty1,
+        difference: roundQty(qty2 - qty1),
       });
     }
   }

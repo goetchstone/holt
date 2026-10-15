@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { Session } from "next-auth";
 import { requireAuth, requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { toQty } from "@/lib/inventory/quantity";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
@@ -16,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   return res.status(405).json({ error: "Method not allowed" });
 }
 
-async function handleGet(req: NextApiRequest, res: NextApiResponse, _session: Session) {
+export async function handleGet(req: NextApiRequest, res: NextApiResponse, _session: Session) {
   const id = Number(req.query.id);
   if (Number.isNaN(id)) {
     return res.status(400).json({ error: "Invalid freeze ID" });
@@ -67,7 +68,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, _session: Se
       productId: item.productId,
       productName: item.product.name,
       productNumber: item.product.productNumber,
-      quantity: item.quantity,
+      quantity: toQty(item.quantity),
     });
   }
 
@@ -77,7 +78,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, _session: Se
     description: freeze.description,
     status: freeze.status,
     totalItems: freeze.totalItems,
-    totalUnits: freeze.totalUnits,
+    totalUnits: toQty(freeze.totalUnits),
     created: freeze.created,
     createdBy: freeze.createdBy,
     groups: grouped,

@@ -77,7 +77,7 @@ In-stock filter (default: on) requires ALL of a customer's orders to have all PO
 ## Key Files
 
 - `lib/serviceDispatchService.ts` -- transitions, number generation, auto-sync
-- `lib/deliveryService.ts` -- delivery zone resolution, assignOrderToRun(), findOrCreatePlanningRun()
+- `lib/deliveryService.ts` -- delivery zone resolution, assignOrderToRun(), findOrCreatePlanningRun(), `generatePickList()` (a run's pick list), `pickListForClient()` (every pick-list response goes through it: a line's quantity is Decimal, a part roll, and is sent as a number)
 - `lib/paymentService.ts` -- `computeBalance()` used by dispatch board for balance due
 - `pages/api/dispatch/` -- dispatch API endpoints (orders-by-zone, ready-to-deliver, delivery-planner, pencil-in, runs, stops, vehicles, assign-order)
 - `pages/dispatch/` -- dispatch pages (board, ready-to-deliver, planner)
@@ -99,7 +99,9 @@ In-stock filter (default: on) requires ALL of a customer's orders to have all PO
 
 Covered: `serviceDispatch.test.ts` (transitions, number generation)
 
-Gaps: `deliveryService.ts` has no tests. Dispatch API endpoints have no tests. Pencil-in endpoint has no tests.
+Covered: `fractionalStock.integration.test.ts` (a run's and an order's pick list carry the line's quantity -- the run builder wrote 1 on every line until 2026-10-15 -- and the pick-list API answers it as a number); `costUnreadPayloads.integration.test.ts` (pick-list create/read payloads carry no cost).
+
+Gaps: the rest of `deliveryService.ts` (zones, assignOrderToRun, findOrCreatePlanningRun) has no tests. Pencil-in endpoint has no tests. Both pick-list builders still include cancelled lines (inventory ledger plan, phase 9).
 
 ## Data Cleanup
 
@@ -149,4 +151,4 @@ Cutover bridge for the team's Excel-based customer-service workflow. Until the G
 
 ---
 
-Last verified: 2026-05-28
+Last verified: 2026-10-15
