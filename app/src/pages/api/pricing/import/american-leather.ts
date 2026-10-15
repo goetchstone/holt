@@ -14,6 +14,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import type { ALParsedProduct, ALParsedPage } from "@/lib/pricing/americanLeatherExtractor";
 import {
+  extractCushionOptions,
   parseOptionPrices,
   parseMattressPrices,
   extractPowerBatteryOptions,
@@ -21,6 +22,7 @@ import {
   parseStandardFeatures,
 } from "@/lib/pricing/americanLeatherExtractor";
 import type { ALStandardFeatures } from "@/lib/pricing/americanLeatherExtractor";
+import { upsertCollectionIds } from "@/lib/pricing/upsertCollectionIds";
 import type { SurchargeType } from "@prisma/client";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -53,27 +55,29 @@ const FABRIC_TIERS = [
 // Used when only wholesale pricing is available for an option and
 // we need to derive an estimated retail price.
 
-const PROGRAM_MULTIPLIER: Record<string, number> = {
-  "Comfort Sleeper": 2.3,
-  "Silver Sleeper": 2.3,
-  "Today Sleeper": 2.01,
-  "Comfort Air": 1.91,
-  "Comfort Air Echo": 1.91,
-  "Comfort Solace": 1.91,
-  "Style In Motion": 3.31,
-  "Style In Motion A": 3.31,
-  "Style In Motion I": 3.31,
-  "Style In Motion L": 3.31,
-  "Style In Motion M": 3.31,
-  "Re-Invented Recliner": 2.0,
-  "Recliner Program": 2.0,
-  "Comfort Relax": 2.0,
-  Personalize: 2.3,
-  "American Leather": 3.31,
-};
+// A Map, because programType arrives in the request body: on a plain object
+// "constructor" would read back a function and bypass the 2.3 fallback.
+const PROGRAM_MULTIPLIER = new Map<string, number>([
+  ["Comfort Sleeper", 2.3],
+  ["Silver Sleeper", 2.3],
+  ["Today Sleeper", 2.01],
+  ["Comfort Air", 1.91],
+  ["Comfort Air Echo", 1.91],
+  ["Comfort Solace", 1.91],
+  ["Style In Motion", 3.31],
+  ["Style In Motion A", 3.31],
+  ["Style In Motion I", 3.31],
+  ["Style In Motion L", 3.31],
+  ["Style In Motion M", 3.31],
+  ["Re-Invented Recliner", 2.0],
+  ["Recliner Program", 2.0],
+  ["Comfort Relax", 2.0],
+  ["Personalize", 2.3],
+  ["American Leather", 3.31],
+]);
 
 function getMultiplier(programType: string): number {
-  return PROGRAM_MULTIPLIER[programType] ?? 2.3;
+  return PROGRAM_MULTIPLIER.get(programType) ?? 2.3;
 }
 
 function safeDecimal(val: number | null | undefined): number | null {
@@ -227,7 +231,7 @@ export default requirePermission(
           update: {},
         });
 
-        const tierMap: Record<string, number> = {};
+        const tierMap = new Map<string, number>();
         for (const tier of LEATHER_TIERS) {
           const t = await tx.priceDimensionTier.upsert({
             where: { dimensionId_code: { dimensionId: leatherDim.id, code: tier.code } },
@@ -239,7 +243,7 @@ export default requirePermission(
             },
             update: { name: tier.name, sortOrder: tier.sort },
           });
-          tierMap[tier.code] = t.id;
+          tierMap.set(tier.code, t.id);
         }
 
         // 3. Fabric Grade dimension + tiers
@@ -260,19 +264,11 @@ export default requirePermission(
             },
             update: { name: tier.name, sortOrder: tier.sort },
           });
-          tierMap[tier.code] = t.id;
+          tierMap.set(tier.code, t.id);
         }
 
         // 4. Collections
-        const collectionMap: Record<string, number> = {};
-        for (const name of collectionNames) {
-          const collection = await tx.collection.upsert({
-            where: { vendorId_name: { vendorId, name } },
-            create: { vendorId, name },
-            update: {},
-          });
-          collectionMap[name] = collection.id;
-        }
+        const collectionMap = await upsertCollectionIds(tx, vendorId, collectionNames);
 
         // 5. Mark existing styles as discontinued
         await tx.vendorStyle.updateMany({
@@ -340,14 +336,9 @@ export default requirePermission(
             const powerOpts = extractPowerBatteryOptions(page.optionsText);
 
             // Split parsed options: cushion fills (asterisk prefix) vs general options
-            const cushionNames = new Set<string>();
-            // [^=\n]+? avoids the ambiguous \w/\s/\s* nesting flagged by polynomial-redos.
-            // Greedy [^=\n]+ can't backtrack across `=` (excluded from char class).
-            const cushionPattern = /\*([^=\n]+)=\s{0,16}\$(\d+)/g;
-            let m;
-            while ((m = cushionPattern.exec(page.optionsText)) !== null) {
-              cushionNames.add(m[1].trim().toLowerCase());
-            }
+            const cushionNames = new Set(
+              extractCushionOptions(page.optionsText).map((o) => o.name.toLowerCase()),
+            );
 
             const cushionOptions: ParsedPageOptions["cushionOptions"] = [];
             const generalOptions: ParsedPageOptions["generalOptions"] = [];
@@ -495,7 +486,7 @@ export default requirePermission(
               : safeDecimal(baseGradePrice?.cost ?? null);
 
             const styleName = `${item.collectionName} ${item.description}`.trim();
-            const collectionId = collectionMap[item.collectionName] || null;
+            const collectionId = collectionMap.get(item.collectionName) || null;
 
             // Look up standard features for this product's page
             const pageKey = `${item.collectionName}::${item.programType}`;
@@ -540,7 +531,7 @@ export default requirePermission(
 
             // Upsert grade prices for all 9 grades (5 leather + 4 fabric)
             for (const gp of item.gradePrices) {
-              const tierId = tierMap[gp.grade];
+              const tierId = tierMap.get(gp.grade);
               if (!tierId) continue;
 
               const price = safeDecimal(gp.cost);

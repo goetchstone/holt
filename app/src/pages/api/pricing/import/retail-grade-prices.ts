@@ -11,6 +11,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { upsertCollectionIds } from "@/lib/pricing/upsertCollectionIds";
 import { getErrorMessage } from "@/lib/toastError";
 import type {
   ParsedBJSeating,
@@ -130,7 +131,7 @@ export default requirePermission(
           update: {},
         });
 
-        const tierMap: Record<string, number> = {};
+        const tierMap = new Map<string, number>();
         for (const tier of GRADE_TIERS) {
           const t = await tx.priceDimensionTier.upsert({
             where: {
@@ -144,7 +145,7 @@ export default requirePermission(
             },
             update: { sortOrder: tier.sort },
           });
-          tierMap[tier.code] = t.id;
+          tierMap.set(tier.code, t.id);
         }
 
         // 3. Collections from both seating and table products
@@ -156,15 +157,7 @@ export default requirePermission(
           if (t.collection) collectionNames.add(t.collection);
         }
 
-        const collectionMap: Record<string, number> = {};
-        for (const name of collectionNames) {
-          const collection = await tx.collection.upsert({
-            where: { vendorId_name: { vendorId, name } },
-            create: { vendorId, name },
-            update: {},
-          });
-          collectionMap[name] = collection.id;
-        }
+        const collectionMap = await upsertCollectionIds(tx, vendorId, collectionNames);
 
         // 4. Mark existing styles as discontinued
         await tx.vendorStyle.updateMany({
@@ -200,7 +193,7 @@ export default requirePermission(
                 vendorId,
                 departmentId: department.id,
                 categoryId: category.id,
-                collectionId: collectionMap[item.collection] || null,
+                collectionId: collectionMap.get(item.collection) || null,
                 baseCost,
                 baseRetail,
                 isActive: true,
@@ -208,7 +201,7 @@ export default requirePermission(
               },
               update: {
                 name: item.description || item.styleNumber,
-                collectionId: collectionMap[item.collection] || undefined,
+                collectionId: collectionMap.get(item.collection) || undefined,
                 baseCost: baseCost ?? undefined,
                 baseRetail: baseRetail ?? undefined,
                 isDiscontinued: false,
@@ -217,7 +210,7 @@ export default requirePermission(
 
             // Upsert grade prices (both cost and retail)
             for (const gp of item.gradePrices) {
-              const tierId = tierMap[gp.grade];
+              const tierId = tierMap.get(gp.grade);
               if (!tierId) continue;
 
               const retail = safeDecimal(gp.retail);
@@ -234,7 +227,8 @@ export default requirePermission(
             }
 
             // COM price
-            if (item.comRetail != null && tierMap["COM"]) {
+            const comTierId = tierMap.get("COM");
+            if (item.comRetail != null && comTierId) {
               const comRetail = safeDecimal(item.comRetail);
               const comCost = safeDecimal(item.comRetail * costMultiplier);
               if (comRetail != null) {
@@ -242,12 +236,12 @@ export default requirePermission(
                   where: {
                     vendorStyleId_tierId: {
                       vendorStyleId: vendorStyle.id,
-                      tierId: tierMap["COM"],
+                      tierId: comTierId,
                     },
                   },
                   create: {
                     vendorStyleId: vendorStyle.id,
-                    tierId: tierMap["COM"],
+                    tierId: comTierId,
                     retail: comRetail,
                     cost: comCost,
                   },
@@ -284,7 +278,7 @@ export default requirePermission(
                 vendorId,
                 departmentId: department.id,
                 categoryId: category.id,
-                collectionId: collectionMap[item.collection] || null,
+                collectionId: collectionMap.get(item.collection) || null,
                 baseRetail: tableRetail,
                 baseCost: tableCost,
                 finish: item.tableTop || null,
@@ -293,7 +287,7 @@ export default requirePermission(
               },
               update: {
                 name: item.description || item.styleNumber,
-                collectionId: collectionMap[item.collection] || undefined,
+                collectionId: collectionMap.get(item.collection) || undefined,
                 baseRetail: tableRetail ?? undefined,
                 baseCost: tableCost ?? undefined,
                 finish: item.tableTop || undefined,
@@ -314,7 +308,7 @@ export default requirePermission(
           try {
             if (!fabric.fabricNumber || !fabric.grade) continue;
 
-            const tierId = tierMap[fabric.grade];
+            const tierId = tierMap.get(fabric.grade);
             if (!tierId) continue;
 
             await tx.fabricCatalog.upsert({

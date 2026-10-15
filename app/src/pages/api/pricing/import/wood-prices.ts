@@ -125,7 +125,7 @@ export default requirePermission(
       products: ParsedGatCreekProduct[];
     };
 
-    if (!vendorId || !priceListName || !products || products.length === 0) {
+    if (!vendorId || !priceListName || !Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -221,7 +221,7 @@ export default requirePermission(
         }
 
         // 3. Create Width dimension + tiers (if Custom Shop)
-        const widthTierMap: Record<number, number> = {};
+        const widthTierMap = new Map<number, number>();
         if (hasMatrix) {
           const widthDim = await tx.vendorPriceDimension.upsert({
             where: { vendorId_name: { vendorId, name: "Table Width" } },
@@ -248,7 +248,7 @@ export default requirePermission(
               },
               update: { sortOrder: i },
             });
-            widthTierMap[w] = t.id;
+            widthTierMap.set(w, t.id);
           }
         }
 
@@ -256,7 +256,7 @@ export default requirePermission(
         // Always created when matrix OR round products exist — round products
         // use a sentinel "N/A" tier for tier3Id since the composite unique key
         // @@unique([productId, tier1Id, tier2Id, tier3Id]) can't accept NULL.
-        const lengthTierMap: Record<number, number> = {};
+        const lengthTierMap = new Map<number, number>();
         let naTier3Id: number | null = null;
         if (hasMatrix || hasRound) {
           const lengthDim = await tx.vendorPriceDimension.upsert({
@@ -284,7 +284,7 @@ export default requirePermission(
               },
               update: { sortOrder: i },
             });
-            lengthTierMap[l] = t.id;
+            lengthTierMap.set(l, t.id);
           }
 
           // Sentinel tier for round products (no length axis)
@@ -304,7 +304,7 @@ export default requirePermission(
         }
 
         // 5. Create Diameter dimension + tiers (if round tables exist)
-        const diameterTierMap: Record<number, number> = {};
+        const diameterTierMap = new Map<number, number>();
         if (hasRound) {
           const diamDim = await tx.vendorPriceDimension.upsert({
             where: { vendorId_name: { vendorId, name: "Table Diameter" } },
@@ -331,7 +331,7 @@ export default requirePermission(
               },
               update: { sortOrder: i },
             });
-            diameterTierMap[d] = t.id;
+            diameterTierMap.set(d, t.id);
           }
         }
 
@@ -461,8 +461,8 @@ export default requirePermission(
               // Upsert axis prices for each width x length x species combo
               for (const m of p.matrixPrices) {
                 const tier1Id = resolveSpeciesTier(m.species, speciesTierMap);
-                const tier2Id = widthTierMap[m.width];
-                const tier3Id = lengthTierMap[m.length];
+                const tier2Id = widthTierMap.get(m.width);
+                const tier3Id = lengthTierMap.get(m.length);
                 if (!tier1Id || !tier2Id || !tier3Id) continue;
 
                 await tx.styleAxisPrice.upsert({
@@ -523,7 +523,7 @@ export default requirePermission(
               // Upsert axis prices: tier1=species, tier2=diameter, tier3=N/A sentinel
               for (const r of p.roundPrices) {
                 const tier1Id = resolveSpeciesTier(r.species, speciesTierMap);
-                const tier2Id = diameterTierMap[r.diameter];
+                const tier2Id = diameterTierMap.get(r.diameter);
                 if (!tier1Id || !tier2Id || !naTier3Id) continue;
 
                 await tx.styleAxisPrice.upsert({

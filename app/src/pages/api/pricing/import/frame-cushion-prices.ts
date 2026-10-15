@@ -15,6 +15,7 @@ import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import type { SurchargeType } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { upsertCollectionIds } from "@/lib/pricing/upsertCollectionIds";
 import type {
   ParsedKBFrame,
   ParsedKBCushion,
@@ -167,7 +168,7 @@ export default requirePermission(
           update: {},
         });
 
-        const tierMap: Record<string, number> = {};
+        const tierMap = new Map<string, number>();
         for (const tier of CUSHION_GRADE_TIERS) {
           const t = await tx.priceDimensionTier.upsert({
             where: {
@@ -181,20 +182,12 @@ export default requirePermission(
             },
             update: { sortOrder: tier.sort },
           });
-          tierMap[tier.code] = t.id;
+          tierMap.set(tier.code, t.id);
         }
 
         // 3. Create Collections for each unique collection name from frames
         const collectionNames = new Set(frames.map((f) => f.collection).filter(Boolean));
-        const collectionMap: Record<string, number> = {};
-        for (const name of collectionNames) {
-          const collection = await tx.collection.upsert({
-            where: { vendorId_name: { vendorId, name } },
-            create: { vendorId, name },
-            update: {},
-          });
-          collectionMap[name] = collection.id;
-        }
+        const collectionMap = await upsertCollectionIds(tx, vendorId, collectionNames);
 
         // 4. Mark existing VendorStyles as discontinued
         await tx.vendorStyle.updateMany({
@@ -232,7 +225,7 @@ export default requirePermission(
                 vendorId,
                 departmentId: department.id,
                 categoryId: category.id,
-                collectionId: collectionMap[frame.collection] || null,
+                collectionId: collectionMap.get(frame.collection) || null,
                 framePrice: frame.framePrice,
                 cushionRef: frame.cushionRef || null,
                 baseRetail: frame.framePrice,
@@ -246,7 +239,7 @@ export default requirePermission(
               update: {
                 name: frame.description || frame.styleNumber,
                 description: frame.category || undefined,
-                collectionId: collectionMap[frame.collection] || undefined,
+                collectionId: collectionMap.get(frame.collection) || undefined,
                 framePrice: frame.framePrice,
                 cushionRef: frame.cushionRef || undefined,
                 baseRetail: frame.framePrice,
@@ -268,7 +261,7 @@ export default requirePermission(
             ];
             for (const [code, price] of combinedGrades) {
               if (price === null) continue;
-              const tierId = tierMap[code];
+              const tierId = tierMap.get(code);
               if (!tierId) continue;
               await tx.styleGradePrice.upsert({
                 where: {
@@ -336,7 +329,7 @@ export default requirePermission(
 
             for (const [code, price] of gradePrices) {
               if (price === null) continue;
-              const tierId = tierMap[code];
+              const tierId = tierMap.get(code);
               if (!tierId) continue;
 
               await tx.styleGradePrice.upsert({
@@ -420,7 +413,7 @@ export default requirePermission(
           try {
             if (!fabric.code || !fabric.grade) continue;
 
-            const tierId = tierMap[fabric.grade];
+            const tierId = tierMap.get(fabric.grade);
             if (!tierId) continue;
 
             await tx.fabricCatalog.upsert({

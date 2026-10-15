@@ -820,7 +820,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         // A single vendor may have both (e.g., CR Laine has fabric 7-25 AND
         // leather L7-L12). Build a unified tierMap so StyleGradePrice upserts
         // can map any grade code to the correct tier regardless of dimension.
-        const tierMap: Record<string, number> = {};
+        // A Map, because it is read with grade codes from the request body.
+        const tierMap = new Map<string, number>();
 
         // Helper: upsert a dimension and its tiers, extending the full range
         // for riser extrapolation.
@@ -848,13 +849,13 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
               },
               update: { sortOrder: i },
             });
-            tierMap[sorted[i]] = tier.id;
+            tierMap.set(sorted[i], tier.id);
           }
 
           // Extend to full range for riser extrapolation
           let nextSort = sorted.length;
           for (const code of fullRange) {
-            if (tierMap[code]) continue;
+            if (tierMap.get(code)) continue;
             const tier = await tx.priceDimensionTier.upsert({
               where: { dimensionId_code: { dimensionId: dim.id, code } },
               create: {
@@ -865,11 +866,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
               },
               update: {},
             });
-            tierMap[code] = tier.id;
+            tierMap.set(code, tier.id);
           }
 
           // Re-sort all tiers under this dimension
-          const allDimCodes = Object.keys(tierMap)
+          const allDimCodes = Array.from(tierMap.keys())
             .filter(
               (c) =>
                 grades.includes(c) ||
@@ -880,9 +881,10 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             )
             .sort(sortGrades);
           for (let i = 0; i < allDimCodes.length; i++) {
-            if (tierMap[allDimCodes[i]]) {
+            const tierId = tierMap.get(allDimCodes[i]);
+            if (tierId) {
               await tx.priceDimensionTier.update({
-                where: { id: tierMap[allDimCodes[i]] },
+                where: { id: tierId },
                 data: { sortOrder: i },
               });
             }
@@ -1051,7 +1053,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             for (const gp of p.gradePrices) {
               if (skipLeather && leatherGradeSet.has(gp.grade)) continue;
 
-              const tierId = tierMap[gp.grade];
+              const tierId = tierMap.get(gp.grade);
               if (!tierId) continue;
 
               await tx.styleGradePrice.upsert({
@@ -1083,7 +1085,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
               // Remove stale leather grade prices from the primary VendorStyle
               // left over from previous imports where the leather style number
               // collided with the primary style number.
-              const leatherTierIds = leatherGrades.map((g) => tierMap[g]).filter(Boolean);
+              const leatherTierIds = leatherGrades
+                .map((g) => tierMap.get(g))
+                .filter((id): id is number => !!id);
               if (leatherTierIds.length > 0) {
                 await tx.styleGradePrice.deleteMany({
                   where: {
@@ -1160,7 +1164,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
                 });
 
                 for (const gp of leatherPrices) {
-                  const tierId = tierMap[gp.grade];
+                  const tierId = tierMap.get(gp.grade);
                   if (!tierId) continue;
 
                   await tx.styleGradePrice.upsert({

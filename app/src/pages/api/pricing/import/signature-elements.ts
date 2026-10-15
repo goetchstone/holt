@@ -117,7 +117,7 @@ export default requirePermission(
       products: ParsedSEProduct[];
     };
 
-    if (!vendorId || !priceListName || !products || products.length === 0) {
+    if (!vendorId || !priceListName || !Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -166,7 +166,7 @@ export default requirePermission(
         });
 
         // 2. Ensure dimensions and tiers exist for both fabric and leather
-        const tierMap: Record<string, number> = {};
+        const tierMap = new Map<string, number>();
 
         if (hasFabricGrades) {
           const dim = await tx.vendorPriceDimension.upsert({
@@ -188,7 +188,7 @@ export default requirePermission(
               },
               update: {},
             });
-            tierMap[fabricGrades[i]] = tier.id;
+            tierMap.set(fabricGrades[i], tier.id);
           }
         }
 
@@ -212,7 +212,7 @@ export default requirePermission(
               },
               update: {},
             });
-            tierMap[leatherGrades[i]] = tier.id;
+            tierMap.set(leatherGrades[i], tier.id);
           }
         }
 
@@ -318,7 +318,7 @@ export default requirePermission(
 
             // Grade prices
             for (const gp of p.gradePrices) {
-              const tierId = tierMap[gp.grade];
+              const tierId = tierMap.get(gp.grade);
               if (!tierId) continue;
               await tx.styleGradePrice.upsert({
                 where: {
