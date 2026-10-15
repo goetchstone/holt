@@ -32,7 +32,12 @@ interface FakeDefinitionRow {
   naturalKeyFields: string[];
   runnerKey: string | null;
   isActive: boolean;
-  fieldMappings: Array<{ sourceColumn: string; targetField: string; transform: null; required: boolean }>;
+  fieldMappings: Array<{
+    sourceColumn: string;
+    targetField: string;
+    transform: null;
+    required: boolean;
+  }>;
   valueMappings: Array<{ targetField: string; sourceValue: string; targetValue: string }>;
 }
 interface FakeStoreRow {
@@ -68,17 +73,24 @@ function createFakeDb(opts: {
     trafficSnapshot: {
       findMany: jest.fn(async () => []),
     },
+    // The stock-locations export reads every active place. These tests are
+    // about import definitions and traffic ownership, so there are none.
+    stockLocation: {
+      findMany: jest.fn(async () => []),
+    },
     configChangeLog: {
       // currentTrafficStoreOwners (applyPreset.ts) calls findMany with no
       // presetName filter -- newest first is all it needs from this fake.
-      findMany: jest.fn(async ({ where }: { where: { presetKind: string; action?: { in: string[] } } }) => {
-        let rows = changeLogs.filter((r) => r.presetKind === where.presetKind);
-        if (where.action?.in) {
-          const allowed = where.action.in;
-          rows = rows.filter((r) => allowed.includes(r.action));
-        }
-        return [...rows].sort((a, b) => b.created.getTime() - a.created.getTime());
-      }),
+      findMany: jest.fn(
+        async ({ where }: { where: { presetKind: string; action?: { in: string[] } } }) => {
+          let rows = changeLogs.filter((r) => r.presetKind === where.presetKind);
+          if (where.action?.in) {
+            const allowed = where.action.in;
+            rows = rows.filter((r) => allowed.includes(r.action));
+          }
+          return [...rows].sort((a, b) => b.created.getTime() - a.created.getTime());
+        },
+      ),
     },
     // Unused by loadDbConfigState/currentTrafficStoreOwners, but present so
     // this object structurally satisfies the PrismaClient shape callers
@@ -108,14 +120,18 @@ describe("loadDbConfigState — ImportDefinition name round-trip (item 7)", () =
     const db = createFakeDb({ definitions: [definitionRow({ name: "acme-customers" })] });
     const state = await loadDbConfigState(db);
 
-    expect(state.bundle.presets.some((p) => p.kind === "import-definition" && p.name === "acme-customers")).toBe(
-      true,
-    );
+    expect(
+      state.bundle.presets.some(
+        (p) => p.kind === "import-definition" && p.name === "acme-customers",
+      ),
+    ).toBe(true);
     expect(state.nonRoundTrippableImportDefinitions).toEqual([]);
   });
 
-  it("leaves a non-kebab-case definition OUT of the bundle and reports it separately, instead of " +
-    "poisoning the whole bundle's re-import", async () => {
+  it(
+    "leaves a non-kebab-case definition OUT of the bundle and reports it separately, instead of " +
+      "poisoning the whole bundle's re-import",
+    async () => {
       const db = createFakeDb({
         definitions: [
           definitionRow({ id: 1, name: "acme-customers" }),
@@ -157,8 +173,10 @@ describe("loadDbConfigState — traffic-store-mapping ownership grouping (item 8
     ]);
   });
 
-  it("groups a store under its REAL current owner, not the fixed GUI name, when a differently-named " +
-    "CLI preset owns it", async () => {
+  it(
+    "groups a store under its REAL current owner, not the fixed GUI name, when a differently-named " +
+      "CLI preset owns it",
+    async () => {
       const db = createFakeDb({
         stores: [
           { id: 1, name: "Downtown", isActive: true, trafficSourceNames: ["DT"] },
@@ -184,9 +202,12 @@ describe("loadDbConfigState — traffic-store-mapping ownership grouping (item 8
       const state = await loadDbConfigState(db);
 
       const traffic = state.bundle.presets.filter(
-        (p): p is Extract<typeof p, { kind: "traffic-store-mapping" }> => p.kind === "traffic-store-mapping",
+        (p): p is Extract<typeof p, { kind: "traffic-store-mapping" }> =>
+          p.kind === "traffic-store-mapping",
       );
-      const byName = Object.fromEntries(traffic.map((p) => [p.name, p.stores.map((s) => s.storeLocation)]));
+      const byName = Object.fromEntries(
+        traffic.map((p) => [p.name, p.stores.map((s) => s.storeLocation)]),
+      );
       expect(byName["riverbend-traffic"]).toEqual(["Downtown"]);
       expect(byName[TRAFFIC_STORE_MAPPING_PRESET_NAME]).toEqual(["Uptown"]);
 
@@ -197,9 +218,13 @@ describe("loadDbConfigState — traffic-store-mapping ownership grouping (item 8
     },
   );
 
-  it("always includes the default GUI preset name in the bundle even with zero claimed stores " +
-    "(stable shape for a fresh clone / empty deployment)", async () => {
-      const db = createFakeDb({ stores: [{ id: 1, name: "Downtown", isActive: true, trafficSourceNames: [] }] });
+  it(
+    "always includes the default GUI preset name in the bundle even with zero claimed stores " +
+      "(stable shape for a fresh clone / empty deployment)",
+    async () => {
+      const db = createFakeDb({
+        stores: [{ id: 1, name: "Downtown", isActive: true, trafficSourceNames: [] }],
+      });
       const state = await loadDbConfigState(db);
 
       const traffic = state.bundle.presets.filter((p) => p.kind === "traffic-store-mapping");

@@ -53,9 +53,7 @@ const VALID_JSON = JSON.stringify({
       targetEntity: "customer",
       importMode: "UPSERT",
       naturalKeyFields: ["externalId"],
-      fieldMappings: [
-        { sourceColumn: "Customer Code", targetField: "externalId", required: true },
-      ],
+      fieldMappings: [{ sourceColumn: "Customer Code", targetField: "externalId", required: true }],
       valueMappings: { state: { Connecticut: "CT" } },
     },
   ],
@@ -254,6 +252,65 @@ describe("YAML / JSON parity", () => {
       const text = serializePresetBundle(original, format);
       const reparsed = expectOk(parsePresetText(text, format)).bundle;
       expect(reparsed).toEqual(original);
+    }
+  });
+
+  // The fixture lists places in code order because export is canonical
+  // (stores by name, places by code): round-trip equality is a claim about
+  // canonical input, as for the import-definition fixture above.
+  it("parses and round-trips a stock-locations layout identically in YAML and JSON", () => {
+    const yaml = `
+version: 1
+presets:
+  - kind: stock-locations
+    name: stock-locations
+    stores:
+      - storeLocation: Harbor Showroom
+        locations:
+          - code: BACK
+            name: Back Stock
+            aliases: [HS Back]
+            holdsCommittedStock: true
+          - code: FLR
+            name: Sales Floor
+            locationType: FLOOR
+            floor: 0
+            squareFootage: 6000
+`;
+    const json = JSON.stringify({
+      version: 1,
+      presets: [
+        {
+          kind: "stock-locations",
+          name: "stock-locations",
+          stores: [
+            {
+              storeLocation: "Harbor Showroom",
+              locations: [
+                {
+                  code: "BACK",
+                  name: "Back Stock",
+                  aliases: ["HS Back"],
+                  holdsCommittedStock: true,
+                },
+                {
+                  code: "FLR",
+                  name: "Sales Floor",
+                  locationType: "FLOOR",
+                  floor: 0,
+                  squareFootage: 6000,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const fromYaml = expectOk(parsePresetText(yaml, "yaml")).bundle;
+    expect(expectOk(parsePresetText(json, "json")).bundle).toEqual(fromYaml);
+    for (const format of ["yaml", "json"] as const) {
+      const reparsed = expectOk(parsePresetText(serializePresetBundle(fromYaml, format), format));
+      expect(reparsed.bundle).toEqual(fromYaml);
     }
   });
 
@@ -589,10 +646,8 @@ describe("the presets this repo actually ships", () => {
     // then this tripwire is what stops them drifting silently, which for a
     // payment-type-to-GL mapping means money quietly landing in the wrong
     // account.
-    const {
-      ORDORITE_PAYMENT_MODE_FIELD_MAPPING,
-      ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS,
-    } = await import("@/lib/imports/data/ordoritePaymentMode");
+    const { ORDORITE_PAYMENT_MODE_FIELD_MAPPING, ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS } =
+      await import("@/lib/imports/data/ordoritePaymentMode");
 
     const report = await loadAllPresets(repoConfigRoot, { shippedOnly: true });
     const found = report.presets.find((p) => p.preset.name === "ordorite-payment-modes");

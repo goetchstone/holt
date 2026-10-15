@@ -315,6 +315,84 @@ had changed. A store with no ownership history at all (`trafficSourceNames`
 set some other way — a direct write, an old fixture) falls back to the GUI's
 own default name.
 
+### `stock-locations`
+
+A deployment's physical layout — the places inside each store, their codes and
+names, which POS location names map onto them, how big they are, which ones
+hold sold goods — stored as `StockLocation` rows. Before this kind the layout
+could only be clicked in at Warehouse › Locations, so a rebuilt or new database
+had no repeatable way to get its real layout back.
+
+```yaml
+- kind: stock-locations
+  name: stock-locations
+  stores:
+    - storeLocation: Harbor Showroom      # StoreLocation.name — must exist
+      locations:
+        - code: FLR                       # identity within the store
+          name: Sales Floor
+          locationType: FLOOR             # FLOOR | STOCK (default STOCK)
+          squareFootage: 6000
+        - code: BACK
+          name: Back Stock
+          aliases: [HS Back]              # the POS's names for this place
+          holdsCommittedStock: false      # true = on hand but already sold
+```
+
+Optional per place: `description`, `building`, `floor`, `area`,
+`squareFootage`, `aliases`, `holdsCommittedStock`, `sortOrder`. An absent
+optional field means "none": the file is the desired state, so applying it
+clears a value set elsewhere.
+
+**Applying** is a diff, computed first, written in one transaction, and a no-op
+the second time (rule 63). For each store the preset lists:
+
+- a listed place that does not exist is created;
+- a listed place that differs, or was deactivated, is updated to match;
+- a place this preset listed on its last apply and no longer lists — including
+  every place of a store block removed from the file — is **deactivated** and
+  its aliases cleared. It is **never deleted**: a place can hold stock, and
+  deleting it would orphan or merge that stock. Aliases go because the stock
+  import matches aliases on inactive places too;
+- a place this preset never listed (made at Warehouse › Locations) is left alone.
+
+**Fails closed** (nothing written) when a store does not exist (the preset never
+creates stores, for the reason given under `traffic-store-mapping`), when a
+store's layout is owned by a differently-named `stock-locations` preset, or when
+an alias the preset wants already names a place outside it — the stock import
+builds one alias map from every place, so a duplicate alias would make it
+ambiguous. The schema also refuses one alias on two places within the file,
+regardless of case, and a code repeated within a store.
+
+**Ownership** works exactly as for `traffic-store-mapping` (below): one owner
+per store, recorded in `ConfigChangeLog.summary.ownedStores`, looked up by the
+shared `currentStoreOwners()`; the places a preset claimed are in
+`summary.ownedLocations` as the JSON pair `["store","code"]` (not a delimited
+string: store names and codes may contain any character). Changing a place's `code` makes it a
+new place — the old code is deactivated — because the code is the identity a
+re-apply matches on and what buyer-draft exports send to the POS.
+
+**Export.** `loadDbConfigState()` (Admin › Settings › Configuration › Export,
+and the GET route) renders every store's active places as `stock-locations`
+presets, under each store's current owner or the default name
+`STOCK_LOCATIONS_PRESET_NAME` ("stock-locations"). That is how a deployment
+captures its real layout into `config/local/` and gets it back into a rebuilt
+database. A place whose type the schema does not know is left out and logged.
+
+**GUI.** This kind has no panel of its own in Settings › Configuration, by
+decision: Warehouse › Locations already edits these same rows, and a second
+editor would be two GUIs for one fact (rule 6). Its file round trip is the
+Import/Export panel.
+
+**Shipped default.** `config/presets/stock-locations.yaml` is the demo seed's
+layout, exported from a freshly seeded database; applying it there reports
+`UNCHANGED`. A deployment overrides it with a `stock-locations` preset of the
+same name in `config/local/`.
+
+The place model is changing: `docs/domains/inventory.md` → Roadmap phase 12
+replaces `building`/`floor`/`area` with places nested inside places. This kind's
+fields will follow that change.
+
 ## Adding a kind
 
 1. Add a schema to `lib/config/presetSchema.ts` and put it in the
@@ -323,7 +401,9 @@ own default name.
    no-op.
 3. Add the export ordering to `orderBundle()` in `presetSerialize.ts` — the
    determinism guarantee is per-kind.
-4. Add a GUI panel.
+4. Add a GUI panel — unless an existing screen already edits the same rows
+   (as Warehouse › Locations does for `stock-locations`), in which case say so
+   in this runbook rather than building a second editor for one fact.
 5. Extend `__tests__/config/presets.test.ts`, including the YAML/JSON parity
    case.
 

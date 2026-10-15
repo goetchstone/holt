@@ -143,6 +143,12 @@ export interface ChangesResponse {
 // Shared
 // ---------------------------------------------------------------------------
 
+/** The stock-locations preset name a database export uses for a store whose
+ *  layout no preset has claimed yet -- the same name the shipped
+ *  config/presets/stock-locations.yaml uses, so a deployment overrides it by
+ *  reusing the name in config/local/, exactly as for traffic-stores. */
+export const STOCK_LOCATIONS_PRESET_NAME = "stock-locations";
+
 /** The traffic-store-mapping preset name the GUI reads and writes under.
  *  StoreLocation.trafficSourceNames carries no record of which named preset
  *  last claimed it — the DB is flat, only ConfigChangeLog has a `name` at
