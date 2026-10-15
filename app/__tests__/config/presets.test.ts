@@ -530,6 +530,18 @@ describe("disk loader", () => {
     expect(report.errors[0].sourceFile).toBe("config/local/broken.yaml");
   });
 
+  it("refuses an oversized file on disk before reading it", async () => {
+    // readIfSmallEnough checks the size through the same handle it reads from
+    // (CodeQL js/file-system-race #21); the refusal itself must still hold.
+    await shipped("huge.yaml", `# ${"x".repeat(MAX_PRESET_BYTES)}\n`);
+    await shipped("a.yaml", trafficPreset("alpha", "A"));
+    const report = await loadAllPresets(root);
+    expect(report.presets.map((p) => p.preset.name)).toEqual(["alpha"]);
+    expect(report.errors).toHaveLength(1);
+    expect(report.errors[0].sourceFile).toBe("config/presets/huge.yaml");
+    expect(report.errors[0].messages.join(" ")).toMatch(/over the \d+-byte limit/);
+  });
+
   it("records which file each preset came from", async () => {
     await shipped("a.yaml", trafficPreset("alpha", "A"));
     const report = await loadAllPresets(root);
