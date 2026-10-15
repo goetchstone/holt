@@ -1,0 +1,62 @@
+# scorecard.yml -- OpenSSF Scorecard supply-chain checks.
+#
+# Scores the repository against the OpenSSF Scorecard checks (pinned
+# dependencies, token permissions, branch protection, SAST, fuzzing, known
+# vulnerabilities, ...) and publishes the result to api.scorecard.dev, which
+# serves the README badge and the full report at
+# https://scorecard.dev/viewer/?uri=github.com/goetchstone/holt
+#
+# The results are NOT uploaded to code scanning on purpose. Several checks
+# score this repository's shape rather than its code (Code-Review and the
+# approval tier of Branch-Protection need a second human reviewer; Maintained
+# needs the repo to be 90 days old; Contributors counts outside
+# organisations). Uploaded, each becomes a permanent open alert in the
+# Security tab that no change can close, which buries the alerts that can.
+# The JSON is kept as a run artifact instead.
+#
+# Publishing constrains this file (scorecard-action README, "Workflow
+# Restrictions"): no top-level env or defaults, no workflow-level write
+# permission, and the analysis job may only use checkout, upload-artifact,
+# upload-sarif and scorecard-action -- no `run:` steps, containers or
+# services. A violation makes the publish step fail the run.
+
+name: Scorecard
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Tuesday 07:20 UTC weekly, so newly disclosed advisories reach the
+    # Vulnerabilities check even when nothing merges.
+    - cron: "20 7 * * 2"
+  workflow_dispatch:
+
+# Read-only for every scope; the one write this needs is job-level below.
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      # Signs the published result with GitHub's OIDC token so the API can
+      # verify it came from this repository's workflow.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: scorecard.json
+          results_format: json
+          publish_results: true
+
+      - name: Upload results
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scorecard-results
+          path: scorecard.json
+          retention-days: 30

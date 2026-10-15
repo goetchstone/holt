@@ -19,6 +19,7 @@ Every PR runs through this gate:
 | Secret scanning push protection | GitHub | Every push | **Yes**: a push carrying a recognised credential is refused |
 | Sonar Quality Gate | Local (developer machine) | Pre-PR via `npm run check:local` | Hook-enforced via `pre-pr-check.sh` |
 | Docker image CVE scan (Trivy) | GitHub Actions (`security.yml`) | **Weekly Monday + manual `workflow_dispatch`** | No |
+| OpenSSF Scorecard | GitHub Actions (`scorecard.yml`) | Every push to `main` + weekly (Tuesday) | No: publishes the README badge and the report at [scorecard.dev](https://scorecard.dev/viewer/?uri=github.com/goetchstone/holt) |
 
 ## Why this shape
 
@@ -60,6 +61,13 @@ Each merged PR fires the same 3 workflows TWICE if `push: branches: [main]` trig
 The push-to-main re-run is paranoia tax — the same code just passed the PR gate. Remove `push: branches: [main]` from `ci.yml`, `security.yml`, and `markdownlint.yml`. Retain `workflow_dispatch` on all three so an admin can re-run from the GitHub UI when needed.
 
 Per-PR-cycle math: ~40% reduction in run count. CodeQL still fires twice (PR + push) because it's GitHub default-setup, controlled in the UI, not workflow files.
+
+**Exception, 2026-10-15: `security.yml` runs on push to `main` again.** Its
+README badge reads the latest run on `main`, and without a push trigger that was
+only ever the weekly sweep. The 2026-10-12 sweep failed on two advisories, the
+fixes merged on 2026-10-15, and the badge still said "failing" until a run was
+dispatched by hand. The repository is public, so the extra run costs nothing.
+`ci.yml` and `markdownlint.yml` still have no push trigger.
 
 ### CodeQL — the remaining big-ticket item
 
@@ -186,16 +194,29 @@ docs-only PR runs the full suite).
 
 ### `security.yml`
 
-Triggers: `pull_request` to `main`, a weekly `schedule` (Monday 06:00 UTC) and
-`workflow_dispatch`.
+Triggers: `pull_request` to `main`, `push` to `main`, a weekly `schedule`
+(Monday 06:00 UTC) and `workflow_dispatch`.
 
 | Job | Gate |
 |---|---|
 | `semgrep` ("Semgrep static analysis") | None: every trigger. Scans `app/src` and `scripts` |
 | `semgrep-upload` | `always() && needs.semgrep.result != 'skipped'`: runs even when Semgrep failed, since that is when there is a SARIF to publish |
 | `npm-audit` ("npm advisory audit") | None: every trigger. Production dependencies, high or above |
-| `osv-scanner` ("Dependency CVE scan") | An `if:` that lists `schedule`, `workflow_dispatch`, `pull_request` and `push`. The workflow has no `push` trigger and `head_commit` exists only on `push` events, so it is true on every run: the whole lockfile is scanned on every PR and every weekly run, not only when the lockfile changed |
+| `osv-scanner` ("Dependency CVE scan") | None: every trigger. Scans the whole lockfile every time, with the suppressions in `app/osv-scanner.toml` |
 | `trivy` ("Docker image CVE scan (weekly)") | `schedule` or `workflow_dispatch` only: never on a PR |
+
+### `scorecard.yml`
+
+Triggers: `push` to `main`, a weekly `schedule` (Tuesday 07:20 UTC) and
+`workflow_dispatch`. One job runs `ossf/scorecard-action` and publishes the
+result (the badge and the scorecard.dev report read it). Publishing restricts
+the file: no top-level `env`/`defaults`, no workflow-level write permission, and
+the analysis job may only use `actions/checkout`, `actions/upload-artifact`,
+`github/codeql-action/upload-sarif` and the scorecard action, with no `run:`
+steps. Results are not uploaded to code scanning, because the checks a solo
+maintainer cannot pass (Code-Review, the approval tier of Branch-Protection,
+Maintained until the repo is 90 days old) would sit in the Security tab as
+alerts nothing can close.
 
 ### `markdownlint.yml`
 
@@ -213,6 +234,7 @@ If you add a new linter / scanner / type-check:
 2. **Do not add a top-level `paths:` / `paths-ignore:` filter to a workflow that holds a required check.** A filtered workflow never reports on the PRs it skips, and a required check that never reports blocks the merge. To skip work, gate the job with `if:` instead: a skipped job reports "skipped", which passes.
 3. **Add to `npm run check:local`** so developers can run it before push.
 4. **To make it required, add its job `name:` to `REQUIRED_CHECKS` in `scripts/apply-github-ruleset.sh` and re-run the script.** Only do so once the check runs on every pull request.
+5. **Pin every action to a full commit SHA, with the release as a comment** (`uses: actions/checkout@<40-hex sha> # v7.0.1`). A tag can be moved to different code after you review it; a SHA cannot. Dependabot's `github-actions` ecosystem bumps the SHA and the comment together. Docker base images in `app/Dockerfile` are pinned by digest the same way (`node:24-alpine@sha256:…`), and Dependabot's `docker` ecosystem keeps the digest current. Scorecard's Pinned-Dependencies check fails on any unpinned one.
 
 ## Audit trail
 
@@ -221,5 +243,6 @@ Track significant CI changes here as they're made. Initial entries to record whe
 | Date | Change |
 |---|---|
 | 2026-10-07 | Fresh repository. `main protection` ruleset `24667944` created by `scripts/apply-github-ruleset.sh`: six required checks, strict, CodeQL high-alert rule, push protection, Dependabot security updates, private vulnerability reporting, CodeQL default setup |
+| 2026-10-15 | OpenSSF Scorecard added (`scorecard.yml`, README badge). Every action pinned to a commit SHA and the Dockerfile base image to a digest. `osv-scanner.toml` moved beside the lockfile (`app/`), where Scorecard reads it. `security.yml` runs on push to `main` again so its badge tracks `main` |
 | — | Local Sonar gate required before push |
 | — | CI trim: dropped manual CodeQL job, moved Trivy to weekly-only, path-filtered OSV/markdownlint, dropped `Dependency CVE scan` from required-status-checks. Reduced per-PR minutes from ~20 to ~7. **Superseded:** none of the workflows carries a path filter now, and `Dependency CVE scan` is a required check again (2026-10-07 row above), so the ~7 minutes describes a shape that no longer exists. |

@@ -23,7 +23,7 @@
     "validate": "npm run lint && npm run typecheck && npm run format:check",
     "sonar:scan": "cd .. && docker run --rm --network=host -e SONAR_HOST_URL=\"${SONAR_HOST_URL:-http://localhost:9000}\" -e SONAR_TOKEN=\"$SONAR_TOKEN\" -e SONAR_SCANNER_OPTS=\"-Xmx3072m\" -e SONAR_SCANNER_JAVASCRIPT_MAX_SPACE=6144 -v \"$(pwd):/usr/src\" sonarsource/sonar-scanner-cli:latest -Dsonar.javascript.node.maxspace=6144",
     "security:semgrep": "cd .. && docker run --rm -v \"$(pwd):/src\" semgrep/semgrep semgrep scan --config p/typescript --config p/react --config p/nextjs --config p/nodejs --config p/owasp-top-ten --config p/secrets --severity ERROR --error /src/app/src /src/scripts",
-    "security:deps": "cd .. && docker run --rm -v \"$(pwd):/src\" -w /src ghcr.io/google/osv-scanner:latest --config=osv-scanner.toml --lockfile=app/package-lock.json --format=table",
+    "security:deps": "cd .. && docker run --rm -v \"$(pwd):/src\" -w /src ghcr.io/google/osv-scanner:latest --config=app/osv-scanner.toml --lockfile=app/package-lock.json --format=table",
     "security:overrides": "node scripts/audit-overrides.mjs",
     "security:scan": "npm run security:semgrep && npm run security:deps && npm run security:overrides",
     "lint:md": "cd .. && markdownlint-cli2 \"**/*.md\" \"!**/node_modules/**\"",

@@ -28,7 +28,7 @@ session.
    session fixed a production bug (see that skill for the format).
 5. **`docs/OPERATIONS.md` / `docs/DEPLOYMENTS.md`** — if deployment, cron,
    or infrastructure changed.
-6. **`osv-scanner.toml`** — if a CVE suppression's rationale needed
+6. **`app/osv-scanner.toml`** — if a CVE suppression's rationale needed
    re-verification this session (rule 54), confirm the comment reflects
    what was actually re-checked, not just a renewed date.
 7. **Memory** (`~/.claude/projects/<project>/memory/`) — one fact per

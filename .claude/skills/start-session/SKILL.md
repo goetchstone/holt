@@ -30,7 +30,7 @@ at hand — don't load all of them unless the task is cross-cutting.
 There is no hand-maintained priorities file. Gather what's actually
 outstanding from live sources: open PRs and their CI state
 (`gh pr list --state open`), `ROADMAP.md` items still open, any spawned task
-chips, and CVE suppressions nearing `ignoreUntil` in `osv-scanner.toml`
+chips, and CVE suppressions nearing `ignoreUntil` in `app/osv-scanner.toml`
 (rule 54 — re-verify, don't just extend). Present those to the user and ask
 what they want to work on.
 

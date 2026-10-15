@@ -228,7 +228,7 @@ push. Re-verification confirmed the rationale still held; the entry was extended
 with the re-review recorded. The alternative — a permanent ignore — would have
 silently carried a stale claim indefinitely.
 
-**Source:** [`osv-scanner.toml`](../osv-scanner.toml)
+**Source:** [`app/osv-scanner.toml`](../app/osv-scanner.toml)
 
 ---
 

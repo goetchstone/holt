@@ -3,6 +3,7 @@
 [![CI](https://github.com/goetchstone/holt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/goetchstone/holt/actions/workflows/ci.yml)
 [![Security](https://github.com/goetchstone/holt/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/goetchstone/holt/actions/workflows/security.yml)
 [![CodeQL](https://github.com/goetchstone/holt/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/goetchstone/holt/security/code-scanning)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/goetchstone/holt/badge)](https://scorecard.dev/viewer/?uri=github.com/goetchstone/holt)
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 
 > **Use at your own risk.** Holt is an independent project under active

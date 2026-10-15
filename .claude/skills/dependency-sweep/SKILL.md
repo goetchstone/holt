@@ -27,7 +27,7 @@ cd app && npm run security:deps
 ```
 
 This runs `osv-scanner` against `app/package-lock.json` with suppressions
-from `osv-scanner.toml` applied.
+from `app/osv-scanner.toml` applied.
 
 ## Step 2: For each NEW finding, decide the terminal state (rule 48)
 
@@ -43,7 +43,7 @@ reasoning is exactly the failure mode this skill exists to prevent.
 
 ## Step 3: Adding or renewing a suppression (rule 54)
 
-`osv-scanner.toml` entries need an `ignoreUntil` date and a `reason` that
+`app/osv-scanner.toml` entries need an `ignoreUntil` date and a `reason` that
 cites the artifact proving the claim — not a general assertion.
 
 ```toml
