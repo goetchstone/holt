@@ -5,7 +5,12 @@
 
 import { parsePresetBundle, stockLocationsPresetSchema } from "@/lib/config/presetSchema";
 import { parsePresetText, serializePresetBundle } from "@/lib/config/presetSerialize";
-import { planStockLocationChanges, type StockLocationRow } from "@/lib/config/applyPreset";
+import {
+  parsePlaceOwnershipKey,
+  placeOwnershipKey as key,
+  planStockLocationChanges,
+  type StockLocationRow,
+} from "@/lib/config/applyPreset";
 
 const preset = (stores: unknown[]) =>
   stockLocationsPresetSchema.safeParse({
@@ -134,14 +139,14 @@ describe("planStockLocationChanges", () => {
 
   it("creates the missing, updates the different, leaves the same, deactivates the dropped", () => {
     const rows = new Map<string, StockLocationRow>([
-      ["S|SAME", row({ id: 2, code: "SAME", name: "Same Bay" })],
-      ["S|EDIT", row({ id: 3, code: "EDIT", name: "Edited Bay", squareFootage: 90 })],
-      ["S|GONE", row({ id: 4, code: "GONE", name: "Gone Bay" })],
-      ["S|ALREADY-OFF", row({ id: 5, code: "ALREADY-OFF", isActive: false })],
+      [key("S", "SAME"), row({ id: 2, code: "SAME", name: "Same Bay" })],
+      [key("S", "EDIT"), row({ id: 3, code: "EDIT", name: "Edited Bay", squareFootage: 90 })],
+      [key("S", "GONE"), row({ id: 4, code: "GONE", name: "Gone Bay" })],
+      [key("S", "ALREADY-OFF"), row({ id: 5, code: "ALREADY-OFF", isActive: false })],
     ]);
     const plan = planStockLocationChanges(parsed, new Map([["S", 10]]), rows, [
-      "S|GONE",
-      "S|ALREADY-OFF",
+      key("S", "GONE"),
+      key("S", "ALREADY-OFF"),
     ]);
     expect(plan.creates.map((c) => c.code)).toEqual(["NEW"]);
     expect(plan.updates.map((u) => u.id)).toEqual([3]);
@@ -155,10 +160,26 @@ describe("planStockLocationChanges", () => {
 
   it("reactivates a listed place that was deactivated", () => {
     const rows = new Map([
-      ["S|SAME", row({ id: 2, code: "SAME", name: "Same Bay", isActive: false })],
+      [key("S", "SAME"), row({ id: 2, code: "SAME", name: "Same Bay", isActive: false })],
     ]);
     const plan = planStockLocationChanges(parsed, new Map([["S", 10]]), rows, []);
     expect(plan.updates).toEqual([expect.objectContaining({ id: 2 })]);
     expect(plan.messages).toContain("S / SAME: updated (isActive)");
+  });
+});
+
+describe("place ownership keys", () => {
+  it("round-trip a store name and code that contain the old separator", () => {
+    const k = key("North | South Barn", "A|1");
+    expect(parsePlaceOwnershipKey(k)).toEqual({ store: "North | South Barn", code: "A|1" });
+  });
+
+  it("never confuse two different places that a delimited key would merge", () => {
+    expect(key("A|B", "C")).not.toBe(key("A", "B|C"));
+  });
+
+  it("reject anything that is not a key this kind wrote", () => {
+    expect(parsePlaceOwnershipKey("S|GONE")).toBeNull();
+    expect(parsePlaceOwnershipKey('["only one"]')).toBeNull();
   });
 });

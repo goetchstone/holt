@@ -973,9 +973,32 @@ const STOCK_LOCATION_SELECT = {
   sortOrder: true,
 } as const;
 
-/** "store name|code" -- how ownership of one place is recorded. */
-function placeOwnershipKey(storeName: string, code: string): string {
-  return `${storeName}|${code}`;
+/**
+ * How ownership of one place is recorded: the JSON pair [store name, code].
+ * Not a delimited string -- a store name or code may contain any character,
+ * and "store|code" split on "|" would attribute a place to the wrong store.
+ */
+export function placeOwnershipKey(storeName: string, code: string): string {
+  return JSON.stringify([storeName, code]);
+}
+
+/** The inverse of placeOwnershipKey; null for anything else (summary JSON is
+ *  untyped, so a malformed entry is skipped rather than trusted). */
+export function parsePlaceOwnershipKey(key: string): { store: string; code: string } | null {
+  try {
+    const v: unknown = JSON.parse(key);
+    if (
+      Array.isArray(v) &&
+      v.length === 2 &&
+      typeof v[0] === "string" &&
+      typeof v[1] === "string"
+    ) {
+      return { store: v[0], code: v[1] };
+    }
+  } catch {
+    // not a key this kind wrote
+  }
+  return null;
 }
 
 /** The `ownedLocations` list from a ConfigChangeLog.summary blob, read
@@ -1165,10 +1188,11 @@ export function planStockLocationChanges(
   }
   for (const key of dropped) {
     const row = rowByKey.get(key);
-    if (row && (row.isActive || row.locationAliases.length > 0)) {
+    const place = parsePlaceOwnershipKey(key);
+    if (row && place && (row.isActive || row.locationAliases.length > 0)) {
       plan.deactivations.push({ id: row.id });
       plan.messages.push(
-        `${key.replace("|", " / ")}: deactivated (no longer listed by preset "${preset.name}")`,
+        `${place.store} / ${place.code}: deactivated (no longer listed by preset "${preset.name}")`,
       );
     }
   }
@@ -1250,9 +1274,11 @@ async function applyStockLocations(
   );
   if (aliasClashes.length) return failOutcome(preset, aliasClashes);
 
-  const droppedStoreNames = [...new Set(dropped.map((k) => k.split("|")[0]))].filter(
-    (n) => !storeByName.has(n),
-  );
+  const droppedStoreNames = [
+    ...new Set(
+      dropped.map((k) => parsePlaceOwnershipKey(k)?.store).filter((n): n is string => !!n),
+    ),
+  ].filter((n) => !storeByName.has(n));
   const droppedStores = droppedStoreNames.length
     ? await db.storeLocation.findMany({
         where: { name: { in: droppedStoreNames } },

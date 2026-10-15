@@ -367,7 +367,8 @@ regardless of case, and a code repeated within a store.
 **Ownership** works exactly as for `traffic-store-mapping` (below): one owner
 per store, recorded in `ConfigChangeLog.summary.ownedStores`, looked up by the
 shared `currentStoreOwners()`; the places a preset claimed are in
-`summary.ownedLocations` as `store|code`. Changing a place's `code` makes it a
+`summary.ownedLocations` as the JSON pair `["store","code"]` (not a delimited
+string: store names and codes may contain any character). Changing a place's `code` makes it a
 new place — the old code is deactivated — because the code is the identity a
 re-apply matches on and what buyer-draft exports send to the POS.
 
