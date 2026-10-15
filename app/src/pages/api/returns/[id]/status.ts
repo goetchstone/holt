@@ -7,8 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { isValidTransition } from "@/lib/returnService";
 import type { ReturnStatus } from "@prisma/client";
 import { logError } from "@/lib/logger";
+import { postMovement } from "@/lib/inventory/ledger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") {
     res.setHeader("Allow", ["PUT"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -32,6 +33,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     }
 
     const result = await prisma.$transaction(async (tx) => {
+      // Claim the transition before any side effect: only the request that
+      // finds the return still in the status it read may proceed. Without this
+      // a double-submitted RESTOCKED added the unit to stock twice -- the
+      // transition check above happens outside this transaction.
+      const claimed = await tx.return.updateMany({
+        where: { id, status: ret.status },
+        data: { status: newStatus },
+      });
+      if (claimed.count === 0) return null;
+
       const updateData: any = {
         status: newStatus,
         updatedBy: changedBy,
@@ -67,24 +78,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           updateData.restockedAt = new Date();
           if (fields.restockedLocationId)
             updateData.restockedLocationId = Number.parseInt(fields.restockedLocationId);
-          // Increment inventory if product and location provided
-          if (ret.productId && fields.restockedLocationId) {
-            const storeLocationId = Number.parseInt(fields.restockedLocationId);
-            await tx.inventoryPosition.upsert({
-              where: {
-                productId_storeLocationId_stockLocationId_salesOrderId: {
-                  productId: ret.productId,
-                  storeLocationId,
-                  stockLocationId: null as unknown as number,
-                  salesOrderId: null as unknown as number,
-                },
+          // The returned unit comes back from the customer into free stock at
+          // the restocking store. Through the single writer, which merges into
+          // the existing row: the upsert this replaced could never match a free
+          // row (rule 64), so every restock created another duplicate.
+          if (ret.productId && fields.restockedLocationId && ret.quantity > 0) {
+            await postMovement(tx, {
+              productId: ret.productId,
+              quantity: ret.quantity,
+              to: {
+                storeLocationId: Number.parseInt(fields.restockedLocationId),
+                stockLocationId: null,
+                salesOrderId: null,
               },
-              update: { quantity: { increment: ret.quantity } },
-              create: {
-                productId: ret.productId,
-                storeLocationId,
-                quantity: ret.quantity,
-              },
+              actor: changedBy,
             });
           }
           break;
@@ -118,6 +125,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       return updated;
     });
 
+    if (result === null) {
+      return res.status(409).json({
+        error: "This return was just changed by someone else. Refresh to see its current status.",
+      });
+    }
     return res.status(200).json(result);
   } catch (error) {
     logError("Error updating return status", error);

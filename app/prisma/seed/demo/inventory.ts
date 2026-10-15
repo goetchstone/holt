@@ -32,6 +32,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { Rng } from "./rng";
 import { pick, randInt, subRng } from "./rng";
 import type { CatalogProduct } from "./catalog";
+import { postMovement } from "@/lib/inventory/ledger";
 import type { StoreSetup } from "./locations";
 
 const SEED_ACTOR = "seed:demo";
@@ -122,8 +123,21 @@ export async function seedInventory(
     result.committedPositions++;
   }
 
+  // Through the single writer of InventoryPosition (lib/inventory/ledger.ts),
+  // like every other path that puts stock somewhere: seeded stock arrives from
+  // outside the books into its place.
   for (const row of rows) {
-    await prisma.inventoryPosition.create({ data: { ...row, createdBy: SEED_ACTOR } });
+    await postMovement(prisma, {
+      productId: row.productId,
+      quantity: row.quantity,
+      to: {
+        storeLocationId: row.storeLocationId,
+        stockLocationId: row.stockLocationId ?? null,
+        salesOrderId: row.salesOrderId ?? null,
+      },
+      actor: SEED_ACTOR,
+      note: row.notes,
+    });
     result.positionsCreated++;
     result.unitsOnHand += row.quantity;
   }

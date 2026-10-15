@@ -48,6 +48,7 @@ import { planAutoLinks, type DraftCandidate, type UpcIndex } from "@/lib/buyerDr
 import { planAutoFulfill, type DraftPoForAutoFulfill } from "@/lib/buyerDraftAutoFulfillPo";
 import { planPoAutoLinks } from "@/lib/buyerDraftPoAutoLink";
 import { logger, logError } from "@/lib/logger";
+import { lockProducts, setPlaceQuantity } from "@/lib/inventory/ledger";
 
 const BATCH_SIZE = 50;
 
@@ -1617,6 +1618,11 @@ export interface StockByItemImportResult {
   productsUpdated: number;
   positionsUpserted: number;
   skippedZeroQty: number;
+  /** Rows whose on-hand was below zero, recorded as zero. A place cannot hold
+   *  negative stock; the POS reports it when it has sold more than it holds. */
+  negativeClampedToZero: number;
+  /** Rows whose On Hand is not a number. Skipped, never written as stock. */
+  skippedUnparseableQty: number;
   unmappedLocations: string[];
   /**
    * Slice 5 (2026-05-12): EXPORTED buyer drafts whose barcodes matched
@@ -1728,6 +1734,8 @@ export async function runStockByItemImport(
   let productsUpdated = 0;
   let positionsUpserted = 0;
   let skippedZeroQty = 0;
+  let negativeClampedToZero = 0;
+  let skippedUnparseableQty = 0;
   const unmappedLocations = new Set<string>();
   const userEmail = createdBy || null;
 
@@ -1736,6 +1744,12 @@ export async function runStockByItemImport(
     const batch = records.slice(i, i + SBI_BATCH_SIZE);
 
     await prisma.$transaction(async (tx) => {
+      // Stock writes are collected and applied after the loop, once every
+      // product in the batch is locked in ascending order. Writing each row as
+      // it is read would lock up to 100 products in file order, held until the
+      // batch commits, and deadlock with any sale locking them in another order.
+      const pendingStock: Parameters<typeof setPlaceQuantity>[1][] = [];
+
       for (const row of batch) {
         const stockId = Number.parseInt(String(row.Stockid || row.stockid || "").trim(), 10);
         if (Number.isNaN(stockId)) continue;
@@ -1865,6 +1879,10 @@ export async function runStockByItemImport(
           });
         }
 
+        if (!Number.isFinite(quantity)) {
+          skippedUnparseableQty++;
+          continue;
+        }
         if (quantity === 0) {
           skippedZeroQty++;
           continue;
@@ -1883,36 +1901,32 @@ export async function runStockByItemImport(
           locationMatch == null ? `Unmatched CSV location: ${locationName}` : undefined;
         if (!locationMatch) unmappedLocations.add(locationName);
 
-        const existingPos = await tx.inventoryPosition.findFirst({
-          where: {
-            productId,
+        // The file states absolute on-hand for a place; record it as a
+        // movement of the difference through the single writer. Setting the
+        // PLACE's total, not one row's, means duplicate rows left by the old
+        // upserts can no longer add their units on top of the file's number.
+        if (quantity < 0) negativeClampedToZero++;
+        pendingStock.push({
+          productId,
+          place: {
             storeLocationId: resolved.storeLocationId,
             stockLocationId: resolved.stockLocationId,
             salesOrderId: null,
           },
+          target: Math.max(0, quantity),
+          actor: userEmail,
+          note: positionNotes,
         });
+      }
 
-        if (existingPos) {
-          await tx.inventoryPosition.update({
-            where: { id: existingPos.id },
-            data: {
-              quantity,
-              updatedBy: userEmail,
-              ...(positionNotes ? { notes: positionNotes } : {}),
-            },
-          });
-        } else {
-          await tx.inventoryPosition.create({
-            data: {
-              productId,
-              storeLocationId: resolved.storeLocationId,
-              stockLocationId: resolved.stockLocationId,
-              quantity,
-              notes: positionNotes,
-              createdBy: userEmail,
-            },
-          });
-        }
+      // File order is kept for the writes themselves, so a later row for the
+      // same place still wins as it always has; only the locking is sorted.
+      await lockProducts(
+        tx,
+        pendingStock.map((w) => w.productId),
+      );
+      for (const write of pendingStock) {
+        await setPlaceQuantity(tx, write);
         positionsUpserted++;
       }
     }, TX_TIMEOUT.LONG);
@@ -1939,6 +1953,8 @@ export async function runStockByItemImport(
     productsUpdated,
     positionsUpserted,
     skippedZeroQty,
+    negativeClampedToZero,
+    skippedUnparseableQty,
     unmappedLocations: unmappedArr,
     ...(buyerDraftsAutoLinked > 0 ? { buyerDraftsAutoLinked } : {}),
   };

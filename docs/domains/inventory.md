@@ -10,7 +10,7 @@ Stock positions, physical counts, reconciliation, transfers, warehouse dashboard
 | `ProductVariant` | Size/color/finish for flat-priced vendors |
 | `Upc` | UPC/barcode → Product link (one product can have many barcodes) |
 | `StockLocation` | Physical floor location (Main Showroom front, West Showroom warehouse, etc.) — has `name` + `code` + `locationAliases` array, plus `holdsCommittedStock` (stock here is on hand but already sold — see "Two signals" below) |
-| `InventoryPosition` | One row per (product, location) with on-hand quantity. Daily-overwritten by Stock-by-Item import. |
+| `InventoryPosition` | On-hand quantity per place: (product, store, stock location, owning order or free). Written **only** by `lib/inventory/ledger.ts` — see "One writer" below. The Stock-by-Item import still sets imported places' totals daily. |
 | `InventorySnapshot` | The expected on-hand baseline a physical count is measured against. Transient working table — regenerated per count, and cleared by `clear-snapshot` (scoped by `source`). Identity is holt's own `productId` + `storeLocationId`, not a POS id — see "Inventory snapshot generation" below. |
 | `PhysicalInventoryCount` | Per-scan log during a physical count event |
 | `Reconciliation` | Variance reconciliation record (resolved discrepancy after a physical count) |
@@ -89,16 +89,48 @@ custom order — for a furniture retailer, a large share of them — and a queue
 full of the normal case is a queue nobody reads. The filter is per-line, so a
 mixed cart still reports its stocked lines.
 
-### The trap, if you touch this code
+### One writer (since 2026-10-14)
 
-The unique key is `[productId, storeLocationId, stockLocationId, salesOrderId]`
-and **both** `stockLocationId` and `salesOrderId` are nullable. Postgres treats
-NULLs as distinct in a unique index unless declared `NULLS NOT DISTINCT`, and
-`0_init` does not declare it — so that constraint never prevented duplicate
-free rows, and an upsert keyed through it can never match. The draft shipped
-with exactly that bug in both `allocate` and `release`; free stock would have
-multiplied on every cancel. Both now use `findFirst` + increment-or-create.
-See CLAUDE.md rule 64.
+`lib/inventory/ledger.ts` is the only code that writes `InventoryPosition`.
+Every stock change is one primitive — **N units of one product move from a
+place to a place** — where a place is (store, stock location, owner) and either
+side may be outside Holt's books (supplier, customer, write-off):
+
+| Function | Does |
+|---|---|
+| `postMovement` | Takes the units from exactly the `from` place (oldest row first, refusing with `InsufficientStockError` and writing nothing if it holds fewer) and adds them to the `to` place, merging into its existing row. Never goes negative. |
+| `drawLegs` | Plans "take N from wherever this `where` matches" without writing; the caller posts one movement per leg. |
+| `setPlaceQuantity` | Makes one place hold exactly N, as a movement of the difference. For the POS import and admin edits, which state on-hand. |
+| `dropEmptyRow` | Removes a row holding zero or less (old data). Refuses a row that still holds units. |
+
+`allocate`/`release`/`consume` are compositions of these (allocation is a
+movement that changes the owner, not the place). Every write takes a
+transaction-scoped advisory lock on the product before reading the balance it
+changes, so two registers cannot both sell the last unit. Locks are held until
+commit, so **a transaction that touches several products must lock all of them
+once, up front, with `lockProducts`** (which sorts them) before moving any stock
+— a flow that locked 9 now and 2 later could deadlock with one locking 2 then 9.
+Allocation, release and consume do this for their own lines; flows that combine
+them or touch several products (order resync, PO receipt, each POS-import batch)
+lock their whole set first. The root Prisma client is told apart from a
+transaction client by `$disconnect`: on Prisma 7 a transaction client also has
+`$transaction`, which would open a nested savepoint.
+
+**Why.** Nine files used to write the table, each with its own arithmetic. The
+unique key `[productId, storeLocationId, stockLocationId, salesOrderId]` holds two
+nullable columns and Postgres treats NULLs as distinct in a unique index unless
+declared `NULLS NOT DISTINCT` (it was not), so it never prevented duplicate free
+rows, and four routes upserted through it — PO receive, return restock,
+transfer cancel, admin position create. Those upserts never matched a free row,
+so every call created another duplicate (CLAUDE.md rule 64). Migration
+`20261014120000_inventory_position_single_writer` merged the existing duplicates
+(summed into each place's oldest row, lossless) and dropped the key, so an
+upsert through it no longer compiles.
+
+**The gate.** `__tests__/stockWriterTripwire.test.ts` fails if any file under
+`src/`, `prisma/seed/` or `scripts/` writes the table outside `ledger.ts`, and
+also if its manifest names a file that no longer writes it (rule 65). Tests
+are out of scope on purpose: fixtures create positions directly.
 
 ### Still raw
 
@@ -123,6 +155,8 @@ Since 2026-04-24:
 - **Result surfaces `unmappedLocations`** array. Admin should add aliases (or create the proper StockLocation) so future imports land correctly.
 
 **Rule for any new inventory-bearing import**: never silently drop a row with an unmappable location. Always route to the catch-all and surface the unmapped name to the admin.
+
+**How it writes (since 2026-10-14):** each row sets its place's **total** through `setPlaceQuantity`, recorded as a movement of the difference — not one row's quantity, so duplicate rows can no longer add their units on top of the file's number. A row reporting negative on-hand (the POS has sold more than it holds) is recorded as zero, counted in the result's `negativeClampedToZero`. Still to fix (plan phase 5): zero-quantity rows are skipped rather than applied, positions missing from the file are never zeroed, and several unmatched names at the catch-all overwrite each other instead of summing.
 
 ## Inventory snapshot generation (Step 1 of a physical count)
 
@@ -187,7 +221,19 @@ Before this key, store writes needed "Transfer stock" **and** a hardcoded MANAGE
 
 `InventoryTransfer` model + `pages/warehouse/transfers/*`. Operational only — no journal entry (per master plan, stores are not separate cost centers in the JE).
 
-A transfer marks `qtyOut` at source location + `qtyIn` at destination. The next Stock-by-Item import overwrites positions, so transfers are *advisory* — they shape what the warehouse expects to see when the next snapshot lands.
+Status changes move the stock (`pages/api/warehouse/transfers/[id]/status.ts`, through the ledger):
+
+| Transition | Stock |
+|---|---|
+| DRAFT → IN_TRANSIT | Takes the units from the source. A chosen stock location gives up its uncommitted units even if it is flagged as holding customers' stock; with none chosen, only genuinely free stock at that store is used. If the source holds fewer, the ship is refused with a 409 naming what is available, and nothing moves. |
+| IN_TRANSIT → RECEIVED | Adds the shipped units at the destination as free stock, then (best-effort) commits them to the transfer's order, if it has one. |
+| IN_TRANSIT → CANCELLED | Puts the shipped units back at the source. |
+
+Each change claims the transfer inside its transaction (an update conditioned on the status it read), so a double-submitted "Ship" returns 409 instead of taking the units twice. Return status changes are claimed the same way.
+
+Until 2026-10-14 the ship step looked only for a free row at exactly the chosen stock location — none, for "any" — and silently did nothing when it found none. Imported stock always carries a stock location, so the ordinary path shipped nothing and RECEIVED then created the units at the destination: stock appeared from nowhere.
+
+Known limits, tracked in the roadmap below: with no source stock location chosen, a cancel returns units to the store with no stock location rather than to the exact places they left (needs the movement journal, phase 6); and the best-effort commit on RECEIVED cannot actually fail softly, because an error inside a Postgres transaction aborts the whole transaction.
 
 ## Variance reports (apparel + general)
 
@@ -232,7 +278,8 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 
 - [ ] Read this runbook + `docs/domains/import-pipeline.md` (Stock-by-Item is the largest daily importer touching this domain)
 - [ ] Confirm any new import path routes unmappable locations to the catch-all (NEVER silent-drop)
-- [ ] If touching `InventoryPosition` writes, verify the daily Stock-by-Item import won't trample your change (it overwrites)
+- [ ] Never write `InventoryPosition` directly: compose `postMovement` / `drawLegs` / `setPlaceQuantity` from `lib/inventory/ledger.ts` (the tripwire will fail otherwise)
+- [ ] If touching stock, verify the daily Stock-by-Item import won't trample your change (it sets imported places' totals)
 - [ ] Variance reports filter `lineItemStatus != CANCELLED` per CLAUDE.md rule 33
 
 ## Test coverage
@@ -240,6 +287,8 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 - `buyersStockSpecialClassifier.integration.test.ts` — real-DB classifier for stock-special items
 - `buyersCommittedStockSplit.integration.test.ts` — real-DB floor-vs-customer split, fixtured **inverted** against the retired name heuristic (a flagged "Warehouse B", an unflagged "Customer Overflow")
 - `inventoryAllocation.integration.test.ts` — allocate/release/consume lifecycle, including the same inversion for the free-stock predicate and the no-stock-location case
+- `stockLedgerWriter.integration.test.ts` — the single writer, against real Postgres: receive, restock, transfer cancel and admin set each leave one row per place (rule 64); a transfer from "any stock location" takes units from where they sit and refuses (409) when short; deleting an order releases its committed stock; a place never goes negative; two concurrent sales of the last unit leave one sale short. Mutation-checked: removing the merge fails 4 cases, removing the product lock fails the race case.
+- `stockWriterTripwire.test.ts` — only `ledger.ts` writes `InventoryPosition`; fails both ways (new writer, stale manifest)
 - `ordoriteShared.test.ts` — `ordoriteHoldsCommittedStock`, the adapter-local name convention
 - No dedicated tests for `runStockByItemImport`'s catch-all routing — **gap, worth a tripwire**
 - No tests for the reconcile + undo-reconcile round-trip
@@ -247,5 +296,48 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 - `snapshotImport.test.ts` — unit tests for `resolveSnapshotImportRow` (the POS cutover importer's per-row resolution)
 - `inventorySnapshotGenerate.integration.test.ts` — real-DB coverage for `POST /api/inventory/snapshot/generate`, including a product with no `externalId` and same-day re-run idempotency
 
+## Roadmap: stock as a ledger of movements
+
+The tracked plan for the rest of the warehouse model (rule 50). Phase 1, the
+single writer, shipped 2026-10-14. One PR per phase, each with a named real-DB
+regression test.
+
+**A. Make stock trustworthy**
+
+1. ✅ Single writer (`ledger.ts`), duplicate rows merged, nullable unique key dropped.
+2. Fractional quantity columns: `InventoryException`, `InventoryFreeze(Item)`, `PickListItem` are `Int` but receive fractional values (roll goods). Plausible crash, not yet exercised — the PR starts with a failing test.
+3. Every unit has a place: `stockLocationId` NOT NULL, a `quantity > 0` CHECK, a location-type catalog, and system places per site. Preflight counts on a restored copy first (rules 41, 59).
+4. `StockMovement`: an append-only journal written by `postMovement`, with a drift check (journal sum vs balance) asserted after every inventory test.
+
+**B. Fix the document flows**
+
+5. The POS import as a ledger client: honour zero rows, zero positions missing from a file that covers their place, sum aliased and unmatched rows, and a configured catch-all store instead of a store found by name (rule 61).
+6. Transfers through an in-transit place: partial receipts, cancel returns units to the exact places they left, and a per-site/per-place move mode (quick, tracked, tracked with scans).
+7. Receiving: damaged or wrong items go to quarantine; lines on a PO linked to an order arrive committed to it.
+8. Returns: received into the site's returns place, restocked to a chosen sellable place or written off; per-site landing places (pickup, returns, quarantine, transit).
+9. One pull-list builder (delivery runs, pickups, order transfers across sites), excluding cancelled lines (rule 33).
+10. Allocation scope: a store's orders can draw from its fulfilment store; floor models are committed last.
+11. Oversold report: grouped, a suggested fix for each shortfall, and rows that close themselves when the shortfall is covered.
+
+**C. Places and space**
+
+12. Places contain places (`parentId`), replacing the free `building`/`floor`/`area` fields.
+13. Stock and space by any place or product field.
+14. (optional) A declarative stock-location preset.
+
+**D. Handheld floor** (web pages on DataWedge scanners; HTTPS required)
+
+15. PWA shell, scan resolution, lookup. 16. Boxes as evidence (`boxesPerUnit`, box labels, incomplete sets held in quarantine). 17. Count by area. 18. Put away and move, with stray-box notes. 19. Pick, stage, load. 20. Partial and failed delivery, and return pickups on a run.
+
+**Found while building phase 1, scheduled rather than fixed in it** (rule 48):
+
+| Finding | Where | Scheduled |
+|---|---|---|
+| A transfer's "best-effort" commit on RECEIVED runs inside the transaction, so an error there aborts the whole receipt rather than failing softly | `warehouse/transfers/[id]/status.ts` | phase 6 |
+| Native PO receiving counts a zero-quantity line as fully received, so a PO with nothing received can read RECEIVED_PARTIAL (rule 39) | `purchasing/orders/[id]/receive.ts` status recalc | phase 7 |
+| The returns UI never sends `restockedLocationId`, so restocking from the screen adds no stock while the journal entry books it | `ReturnDetailView.tsx`, `ReturnsQueueView` | phase 8 |
+| Pick-list builders include cancelled and replaced lines (rule 33) and two builders diverge | `lib/deliveryService.ts`, `dispatch/pick-lists/index.ts` | phase 9 |
+| The register may display on-hand as concatenated text when a store has several rows (a Decimal serialises as a string and is summed with `+`). Plausible from the code, not reproduced | `sales/pos/PosView.tsx` | phase 10 |
+
 ---
-Last verified: 2026-08-04
+Last verified: 2026-10-14
