@@ -60,3 +60,20 @@ Add entries below this line, newest first. One entry per distinct
 incident. Keep the five-field shape: Symptom / Root cause / Why not
 caught / Fix / Prevention. Link the CLAUDE.md rule it fed, if any.
 -->
+
+### 2026-10-15 — order balance charged for cancelled and replaced lines
+
+- **Symptom:** an order with a cancelled or replaced line showed the customer
+  owing for it — the overcharge reached the portal, payment links and balance
+  reminders. Pre-launch; only seed data was affected.
+- **Root cause:** `computeBalance` (`src/lib/paymentService.ts`) summed
+  `netPrice` over every line. Cancelled and REPLACED lines keep their
+  `netPrice` on the row, so "every row" is not "what is owed".
+- **Why not caught:** the unit fixtures had only ACTIVE lines, so the sum and
+  the correct sum agreed; no real-DB test built an order with a dead line.
+- **Fix:** `COUNTED_LINE_STATUSES` / `isCountedLine` in `salesOrderRevenue.ts`,
+  applied in `computeBalance`; `calculateOrderBalance` selects the status.
+- **Prevention:** `orderBalanceCountedLines.integration.test.ts` (fails at
+  3448 vs 1720 with the guard removed). Feeds rule 33 — about 60 other inline
+  line filters still re-derive the set by hand; consolidating them onto the
+  helper is tracked in `docs/domains/sales-orders.md`.

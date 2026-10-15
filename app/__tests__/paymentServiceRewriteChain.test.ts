@@ -27,14 +27,14 @@ describe("computeBalance -- the POS rewrite chain", () => {
   it("nets to card_deposit-less rewrite_total when all three orders are active", () => {
     const chainLineItems = [
       // Base order line items
-      { netPrice: 4700, orderedQuantity: 1, vatAmount: 0 },
-      { netPrice: 300, orderedQuantity: 1, vatAmount: 0 }, // delivery charge
+      { netPrice: 4700, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
+      { netPrice: 300, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" }, // delivery charge
       // Accounting return (offsets the base)
-      { netPrice: -4700, orderedQuantity: 1, vatAmount: 0 },
-      { netPrice: -300, orderedQuantity: 1, vatAmount: 0 },
+      { netPrice: -4700, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
+      { netPrice: -300, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
       // Rewrite (<base> - A) line items
-      { netPrice: 4500.01, orderedQuantity: 1, vatAmount: 0 },
-      { netPrice: 300, orderedQuantity: 1, vatAmount: 0 },
+      { netPrice: 4500.01, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
+      { netPrice: 300, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
     ];
 
     const chainPayments = [
@@ -54,12 +54,12 @@ describe("computeBalance -- the POS rewrite chain", () => {
     // Same chain but with the POS phantom "Gift Card" payment imported.
     // This is the bug before that fix: totalPaid is doubled, balance is wrong.
     const chainLineItems = [
-      { netPrice: 4700, orderedQuantity: 1, vatAmount: 0 },
-      { netPrice: 300, orderedQuantity: 1, vatAmount: 0 },
-      { netPrice: -4700, orderedQuantity: 1, vatAmount: 0 },
-      { netPrice: -300, orderedQuantity: 1, vatAmount: 0 },
-      { netPrice: 4500.01, orderedQuantity: 1, vatAmount: 0 },
-      { netPrice: 300, orderedQuantity: 1, vatAmount: 0 },
+      { netPrice: 4700, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
+      { netPrice: 300, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
+      { netPrice: -4700, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
+      { netPrice: -300, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
+      { netPrice: 4500.01, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
+      { netPrice: 300, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
     ];
     const chainPaymentsWithPhantom = [
       { paymentAmount: 3000, isRefund: false }, // real card
@@ -79,9 +79,9 @@ describe("computeBalance -- the POS rewrite chain", () => {
     //
     // Expected balance over the chain: -$1,000 + $3,000 = $2,000 owed.
     const chainLineItems = [
-      { netPrice: 3000, orderedQuantity: 1, vatAmount: 0 }, // base
-      { netPrice: -3000, orderedQuantity: 1, vatAmount: 0 }, // accounting return
-      { netPrice: 3000, orderedQuantity: 1, vatAmount: 0 }, // rewrite
+      { netPrice: 3000, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" }, // base
+      { netPrice: -3000, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" }, // accounting return
+      { netPrice: 3000, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" }, // rewrite
     ];
     const chainPayments = [{ paymentAmount: 1000, isRefund: false }];
 
