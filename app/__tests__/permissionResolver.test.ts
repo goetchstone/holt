@@ -472,6 +472,35 @@ describe("resolvePermissionAccess — { also } answers further keys from the sam
   });
 });
 
+describe("resolvePermissionAccess — the View-as cookie is a role KEY, not a property name", () => {
+  // The holt-impersonate cookie is client-set. Keyed into a plain object, a
+  // value naming an Object.prototype member resolved to that member: the
+  // grants for "constructor" were the Object function, `.includes` on it
+  // threw, and every gated request from that admin failed with a 500 until
+  // the cookie was cleared (CodeQL js/remote-property-injection #23). It must
+  // behave like any other role key nobody defined: baseline grants, nothing
+  // more.
+  it.each(["constructor", "toString", "hasOwnProperty", "__proto__", "valueOf"])(
+    "an admin viewing as %s holds only the baseline, and nothing throws",
+    async (cookie) => {
+      roleFindMany.mockResolvedValue([
+        row({ id: 1, key: "ADMIN", rank: 90, permissions: [{ permission: "inventory.read" }] }),
+      ]);
+      staffFindFirst.mockResolvedValue({ role: "ADMIN", roleId: 1 });
+
+      const r = await resolvePermissionAccess({
+        userId: "a1",
+        permission: "inventory.read",
+        impersonate: cookie,
+        also: [BASELINE_PERMISSIONS[0]],
+      });
+      expect(r.allowed).toBe(false);
+      expect(r.holds[BASELINE_PERMISSIONS[0]]).toBe(true);
+      expect(({} as Record<string, unknown>).inventory).toBeUndefined();
+    },
+  );
+});
+
 describe("resolveRoleListAccess — { also }", () => {
   it("answers keys from the caller's Role though the gate itself reads the enum", async () => {
     // A MANAGER whose Role was edited to drop View cost: the role list still
