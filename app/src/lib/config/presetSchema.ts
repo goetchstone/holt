@@ -365,6 +365,108 @@ export const rolesPresetSchema = z
   });
 
 // --------------------------------------------------------------------------
+// kind: stock-locations
+// --------------------------------------------------------------------------
+//
+// A deployment's physical layout -- which places exist inside each store, what
+// they are called, which POS location names map onto them, how big they are --
+// is a fact about ONE deployment, not the product (rule 61). Until this kind it
+// could only be clicked in at Warehouse > Locations, so a new or rebuilt
+// database had no repeatable way to get its real layout back.
+//
+// Rule 62: every field here is data. `locationType` selects from a fixed list
+// the code understands; nothing in a preset can define behaviour.
+// Rule 63: applying is a declarative diff. A place this preset listed before
+// and no longer lists is DEACTIVATED, never deleted -- a place can hold stock,
+// and deleting it would orphan or merge that stock silently.
+
+/** The place types the code reads today (FLOOR = sales floor, STOCK = back
+ *  stock). The location-type catalog planned in docs/domains/inventory.md
+ *  (Roadmap, phase 3) widens this list; a preset cannot invent a type. */
+export const STOCK_LOCATION_TYPES = ["FLOOR", "STOCK"] as const;
+
+export const stockLocationPresetEntrySchema = z.object({
+  /** Unique within its store. The identity a re-apply matches on, and what
+   *  buyer-draft exports send to the POS, so renaming a code is a new place. */
+  code: z.string().trim().min(1).max(50),
+  name: z.string().trim().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  locationType: z.enum(STOCK_LOCATION_TYPES).default("STOCK"),
+  building: z.string().trim().min(1).max(200).optional(),
+  floor: z.number().int().min(-10).max(200).optional(),
+  area: z.number().int().min(0).max(100_000).optional(),
+  squareFootage: z.number().int().min(0).max(10_000_000).optional(),
+  /** The POS's names for this place (the stock import matches them,
+   *  case-insensitively). */
+  aliases: z.array(z.string().trim().min(1).max(200)).max(100).default([]),
+  /** Stock here is on hand but already sold (lib/inventory/allocation.ts). */
+  holdsCommittedStock: z.boolean().default(false),
+  sortOrder: z.number().int().min(0).max(1_000_000).optional(),
+});
+
+export const stockLocationsPresetSchema = z
+  .object({
+    kind: z.literal("stock-locations"),
+    name: presetNameSchema,
+    description: z.string().max(2000).optional(),
+    stores: z
+      .array(
+        z.object({
+          /** StoreLocation.name -- must already exist. Like
+           *  traffic-store-mapping, this maps onto stores; it never creates
+           *  one (a store has registers, receiving defaults and tax behind it
+           *  that a layout file has no business creating). */
+          storeLocation: z.string().min(1).max(200),
+          locations: z.array(stockLocationPresetEntrySchema).max(5000),
+        }),
+      )
+      .max(500)
+      .default([]),
+  })
+  .superRefine((preset, ctx) => {
+    const stores = new Set<string>();
+    // An alias names ONE place: the stock import builds a single map from
+    // every alias in the database, so the same name on two places would be
+    // decided by whichever loaded last. Checked across the whole preset.
+    const aliasOwner = new Map<string, string>();
+    preset.stores.forEach((store, i) => {
+      if (stores.has(store.storeLocation)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `store "${store.storeLocation}" is listed twice`,
+          path: ["stores", i, "storeLocation"],
+        });
+      }
+      stores.add(store.storeLocation);
+      const codes = new Set<string>();
+      store.locations.forEach((loc, j) => {
+        if (codes.has(loc.code)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `code "${loc.code}" appears twice in store "${store.storeLocation}"`,
+            path: ["stores", i, "locations", j, "code"],
+          });
+        }
+        codes.add(loc.code);
+        for (const alias of loc.aliases) {
+          const key = alias.toLowerCase();
+          const here = `${store.storeLocation} / ${loc.code}`;
+          const there = aliasOwner.get(key);
+          if (there && there !== here) {
+            ctx.addIssue({
+              code: "custom",
+              message: `alias "${alias}" is claimed by both ${there} and ${here}`,
+              path: ["stores", i, "locations", j, "aliases"],
+            });
+          } else {
+            aliasOwner.set(key, here);
+          }
+        }
+      });
+    });
+  });
+
+// --------------------------------------------------------------------------
 // The bundle
 // --------------------------------------------------------------------------
 
@@ -372,6 +474,7 @@ export const presetSchema = z.discriminatedUnion("kind", [
   importDefinitionPresetSchema,
   trafficStoreMappingPresetSchema,
   rolesPresetSchema,
+  stockLocationsPresetSchema,
 ]);
 
 export const presetBundleSchema = z
@@ -404,6 +507,8 @@ export type ImportDefinitionPreset = z.infer<typeof importDefinitionPresetSchema
 export type TrafficStoreMappingPreset = z.infer<typeof trafficStoreMappingPresetSchema>;
 export type RolePresetEntry = z.infer<typeof rolePresetEntrySchema>;
 export type RolesPreset = z.infer<typeof rolesPresetSchema>;
+export type StockLocationPresetEntry = z.infer<typeof stockLocationPresetEntrySchema>;
+export type StockLocationsPreset = z.infer<typeof stockLocationsPresetSchema>;
 export type Preset = z.infer<typeof presetSchema>;
 export type PresetBundle = z.infer<typeof presetBundleSchema>;
 export type PresetKind = Preset["kind"];

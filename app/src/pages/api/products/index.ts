@@ -88,10 +88,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       typeName: type?.name,
     }));
 
-    res.status(200).json({ products: safeProducts, total });
+    return res.status(200).json({ products: safeProducts, total });
   } catch (error) {
     logError("Error fetching products", error);
-    res.status(500).json({ error: "Error fetching products" });
+    return res.status(500).json({ error: "Error fetching products" });
   }
 }
 

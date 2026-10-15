@@ -1,0 +1,61 @@
+# Store layout (places inside each store) — SHIPPED DEFAULT.
+#
+# Tuned to the demo seed database (prisma/seed/demo/locations.ts), so applying
+# it to a freshly seeded database changes nothing: it is that database's layout,
+# exported with the same code a real deployment uses to capture its own
+# (Admin > Settings > Configuration > Export, or loadDbConfigState).
+#
+# A real deployment overrides it by putting a stock-locations preset with the
+# SAME name in config/local/ — local wins. Applying is declarative: a place this
+# preset stops listing is deactivated, never deleted (it may hold stock), and a
+# store that does not exist fails the apply instead of being created.
+
+version: 1
+description: Default store layout, matching the demo seed data.
+presets:
+  - kind: stock-locations
+    name: stock-locations
+    stores:
+      - storeLocation: Central Distribution Warehouse
+        locations:
+          - code: BULK
+            name: Central Warehouse — Bulk Storage
+            squareFootage: 24000
+            aliases:
+              - Central Warehouse
+              - Warehouse
+          - code: HOLD
+            name: Central Warehouse — Sold Goods Staging
+            squareFootage: 1500
+            aliases:
+              - Sold Goods Staging
+            holdsCommittedStock: true
+            sortOrder: 1
+      - storeLocation: Millbrook Falls Showroom
+        locations:
+          - code: BACK
+            name: Millbrook Falls Showroom — Back Stock
+            squareFootage: 1800
+            aliases:
+              - MBF Back Stock
+            sortOrder: 1
+          - code: FLOOR
+            name: Millbrook Falls Showroom — Sales Floor
+            locationType: FLOOR
+            squareFootage: 9200
+            aliases:
+              - MBF Floor
+      - storeLocation: Wintergreen Harbor Showroom
+        locations:
+          - code: BACK
+            name: Wintergreen Harbor Showroom — Back Stock
+            squareFootage: 1100
+            aliases:
+              - WGH Back Stock
+            sortOrder: 1
+          - code: FLOOR
+            name: Wintergreen Harbor Showroom — Sales Floor
+            locationType: FLOOR
+            squareFootage: 6400
+            aliases:
+              - WGH Floor

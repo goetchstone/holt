@@ -20,14 +20,13 @@
     "test:all": "npm run test:unit && npm run test:integration",
     "test:coverage": "bash scripts/test-coverage.sh",
     "test:coverage:unit": "node --max-old-space-size=1024 ./node_modules/.bin/jest --selectProjects unit --coverage",
-    "typecheck:strict": "tsc --noEmit -p tsconfig.strict.json",
     "validate": "npm run lint && npm run typecheck && npm run format:check",
     "sonar:scan": "cd .. && docker run --rm --network=host -e SONAR_HOST_URL=\"${SONAR_HOST_URL:-http://localhost:9000}\" -e SONAR_TOKEN=\"$SONAR_TOKEN\" -e SONAR_SCANNER_OPTS=\"-Xmx3072m\" -e SONAR_SCANNER_JAVASCRIPT_MAX_SPACE=6144 -v \"$(pwd):/usr/src\" sonarsource/sonar-scanner-cli:latest -Dsonar.javascript.node.maxspace=6144",
     "security:semgrep": "cd .. && docker run --rm -v \"$(pwd):/src\" semgrep/semgrep semgrep scan --config p/typescript --config p/react --config p/nextjs --config p/nodejs --config p/owasp-top-ten --config p/secrets --severity ERROR --error /src/app/src /src/scripts",
     "security:deps": "cd .. && docker run --rm -v \"$(pwd):/src\" -w /src ghcr.io/google/osv-scanner:latest --config=osv-scanner.toml --lockfile=app/package-lock.json --format=table",
     "security:overrides": "node scripts/audit-overrides.mjs",
     "security:scan": "npm run security:semgrep && npm run security:deps && npm run security:overrides",
-    "lint:md": "cd .. && npx --yes markdownlint-cli2 \"**/*.md\" \"!**/node_modules/**\"",
+    "lint:md": "cd .. && markdownlint-cli2 \"**/*.md\" \"!**/node_modules/**\"",
     "check:local": "bash scripts/check-local.sh",
     "prepare": "cd .. && git config core.hooksPath .githooks",
     "db:push": "echo 'CREATE EXTENSION IF NOT EXISTS pg_trgm;' | prisma db execute --stdin && prisma db push && prisma generate",
@@ -106,6 +105,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-sonarjs": "^4.2.2",
     "jest": "^30.5.2",
+    "markdownlint-cli2": "0.23.3",
     "nyc": "^18.0.0",
     "postcss": "^8.5.18",
     "prettier": "^3.9.10",
@@ -147,6 +147,7 @@
     "deepmerge-ts": "^8.0.1",
     "fflate": "^0.8.3",
     "qs": "^6.16.0",
+    "smol-toml": "^1.9.0",
     "prisma": {
       "mysql2": "^3.24.4"
     }

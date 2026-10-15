@@ -55,6 +55,7 @@ import {
   type PresetBundle,
   type PresetKind,
   type RolesPreset,
+  type StockLocationsPreset,
   type TrafficStoreMappingPreset,
 } from "@/lib/config/presetSchema";
 import { BUILT_IN_ROLES } from "@/lib/auth/permissionCatalog";
@@ -110,6 +111,9 @@ export async function applyPreset(preset: Preset, opts: ApplyPresetOpts): Promis
         break;
       case "roles":
         outcome = await applyRoles(db, preset, opts);
+        break;
+      case "stock-locations":
+        outcome = await applyStockLocations(db, preset, opts);
         break;
     }
   } catch (err) {
@@ -742,19 +746,32 @@ export async function currentTrafficStoreOwners(
   db: PrismaClient,
   storeNames: readonly string[],
 ): Promise<Map<string, string>> {
+  return currentStoreOwners(db, "traffic-store-mapping", storeNames);
+}
+
+/**
+ * The same single-owner lookup for any kind that claims whole stores
+ * (traffic-store-mapping, stock-locations): for each store name, the preset of
+ * `kind` whose most recent APPLIED/UNCHANGED ConfigChangeLog row still lists it
+ * in `summary.ownedStores`. Scans that kind's history newest-first and stops
+ * once every name has an answer.
+ */
+export async function currentStoreOwners(
+  db: PrismaClient,
+  kind: PresetKind,
+  storeNames: readonly string[],
+): Promise<Map<string, string>> {
   const owners = new Map<string, string>();
   if (storeNames.length === 0) return owners;
   const remaining = new Set(storeNames);
-
   const rows = await db.configChangeLog.findMany({
     where: {
-      presetKind: "traffic-store-mapping",
+      presetKind: kind,
       action: { in: ["APPLIED", "UNCHANGED"] },
     },
     orderBy: { created: "desc" },
     select: { presetName: true, summary: true },
   });
-
   for (const row of rows) {
     if (remaining.size === 0) break;
     for (const name of ownedStoresOf(row.summary)) {
@@ -903,6 +920,414 @@ async function applyTrafficStoreMapping(
   return {
     result: { kind: preset.kind, name: preset.name, action: "APPLIED", changes, messages },
     summary: { changes, ownedStores, messages },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// kind: stock-locations
+// ---------------------------------------------------------------------------
+//
+// Declarative layout of the places inside each listed store. For every store
+// the preset lists, the file is the truth for the places IT lists:
+//   - a listed place that does not exist is created;
+//   - a listed place that differs (or was deactivated) is updated to match;
+//   - a place this preset listed on its last apply and no longer lists is
+//     DEACTIVATED, with its POS aliases cleared, and never deleted -- a place
+//     can hold stock, and deleting it would orphan or merge that stock;
+//   - a place this preset never listed (made at Warehouse > Locations) is
+//     left alone.
+// A second apply of the same file writes nothing (rule 63). Unknown stores and
+// stores owned by another stock-locations preset fail closed.
+
+export interface StockLocationRow {
+  id: number;
+  storeLocationId: number;
+  code: string;
+  name: string;
+  description: string | null;
+  locationType: string;
+  building: string | null;
+  floor: number | null;
+  area: number | null;
+  squareFootage: number | null;
+  locationAliases: string[];
+  holdsCommittedStock: boolean;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+const STOCK_LOCATION_SELECT = {
+  id: true,
+  storeLocationId: true,
+  code: true,
+  name: true,
+  description: true,
+  locationType: true,
+  building: true,
+  floor: true,
+  area: true,
+  squareFootage: true,
+  locationAliases: true,
+  holdsCommittedStock: true,
+  isActive: true,
+  sortOrder: true,
+} as const;
+
+/**
+ * How ownership of one place is recorded: the JSON pair [store name, code].
+ * Not a delimited string -- a store name or code may contain any character,
+ * and "store|code" split on "|" would attribute a place to the wrong store.
+ */
+export function placeOwnershipKey(storeName: string, code: string): string {
+  return JSON.stringify([storeName, code]);
+}
+
+/** The inverse of placeOwnershipKey; null for anything else (summary JSON is
+ *  untyped, so a malformed entry is skipped rather than trusted). */
+export function parsePlaceOwnershipKey(key: string): { store: string; code: string } | null {
+  try {
+    const v: unknown = JSON.parse(key);
+    if (
+      Array.isArray(v) &&
+      v.length === 2 &&
+      typeof v[0] === "string" &&
+      typeof v[1] === "string"
+    ) {
+      return { store: v[0], code: v[1] };
+    }
+  } catch {
+    // not a key this kind wrote
+  }
+  return null;
+}
+
+/** The `ownedLocations` list from a ConfigChangeLog.summary blob, read
+ *  defensively (untyped JSON), like ownedStoresOf. */
+function ownedLocationsOf(summary: unknown): string[] {
+  if (
+    summary &&
+    typeof summary === "object" &&
+    !Array.isArray(summary) &&
+    Array.isArray((summary as Record<string, unknown>).ownedLocations)
+  ) {
+    return ((summary as Record<string, unknown>).ownedLocations as unknown[]).filter(
+      (v): v is string => typeof v === "string",
+    );
+  }
+  return [];
+}
+
+/** The places this same preset claimed on its last successful apply. */
+async function previouslyOwnedLocations(db: PrismaClient, presetName: string): Promise<string[]> {
+  const last = await db.configChangeLog.findFirst({
+    where: {
+      presetKind: "stock-locations",
+      presetName,
+      action: { in: ["APPLIED", "UNCHANGED"] },
+    },
+    orderBy: { created: "desc" },
+    select: { summary: true },
+  });
+  return ownedLocationsOf(last?.summary);
+}
+
+export type StockLocationData = Omit<StockLocationRow, "id" | "storeLocationId" | "code">;
+
+/** A preset entry -> the exact column values it asks for. Absent optional
+ *  fields mean "none" (null), because the file is the desired state. */
+function desiredStockLocation(
+  loc: StockLocationsPreset["stores"][number]["locations"][number],
+): StockLocationData {
+  return {
+    name: loc.name,
+    description: loc.description ?? null,
+    locationType: loc.locationType,
+    building: loc.building ?? null,
+    floor: loc.floor ?? null,
+    area: loc.area ?? null,
+    squareFootage: loc.squareFootage ?? null,
+    locationAliases: [...new Set(loc.aliases)].sort((a, b) => a.localeCompare(b)),
+    holdsCommittedStock: loc.holdsCommittedStock,
+    isActive: true,
+    sortOrder: loc.sortOrder ?? 0,
+  };
+}
+
+/** The fields that differ between a row and what the preset asks for. */
+function changedStockLocationFields(row: StockLocationRow, want: StockLocationData): string[] {
+  const changed: string[] = [];
+  const keys: (keyof StockLocationData)[] = [
+    "name",
+    "description",
+    "locationType",
+    "building",
+    "floor",
+    "area",
+    "squareFootage",
+    "holdsCommittedStock",
+    "isActive",
+    "sortOrder",
+  ];
+  for (const key of keys) {
+    if (row[key] !== want[key]) changed.push(key);
+  }
+  const current = [...row.locationAliases].sort((a, b) => a.localeCompare(b));
+  if (!arraysEqual(current, want.locationAliases)) changed.push("aliases");
+  return changed;
+}
+
+/** Stores that do not exist, or whose layout another preset owns: the reasons
+ *  to refuse the whole apply, or none. */
+async function stockLocationStoreProblems(
+  db: PrismaClient,
+  preset: StockLocationsPreset,
+  storeByName: Map<string, { id: number; name: string }>,
+): Promise<string[]> {
+  const names = preset.stores.map((s) => s.storeLocation);
+  const missing = names.filter((n) => !storeByName.has(n));
+  if (missing.length) {
+    return [
+      `unknown store(s): ${missing.join(", ")} — a stock-locations preset lays out places in ` +
+        "existing stores, it does not create them",
+    ];
+  }
+  // One owner per store's layout, exactly as for traffic-store-mapping: two
+  // presets listing the same store would otherwise overwrite each other's
+  // places on every apply.
+  const owners = await currentStoreOwners(db, "stock-locations", names);
+  return names
+    .map((n) => ({ name: n, owner: owners.get(n) }))
+    .filter(
+      (o): o is { name: string; owner: string } => Boolean(o.owner) && o.owner !== preset.name,
+    )
+    .map(
+      (c) =>
+        `store "${c.name}" is already laid out by stock-locations preset "${c.owner}" — a store's ` +
+        `layout may be owned by only one preset. Remove the store from "${c.owner}" and apply it ` +
+        `first, then claim it under "${preset.name}".`,
+    );
+}
+
+/**
+ * Aliases the preset wants that a place OUTSIDE it already uses. An alias
+ * names one place -- the stock import builds one map from every alias in the
+ * database -- so such a clash would make that import ambiguous. Places the
+ * preset lists, or is about to deactivate, do not count.
+ */
+async function stockLocationAliasClashes(
+  db: PrismaClient,
+  preset: StockLocationsPreset,
+  managedKeys: Set<string>,
+): Promise<string[]> {
+  const wanted = new Map<string, string>();
+  for (const store of preset.stores) {
+    for (const loc of store.locations) {
+      for (const alias of loc.aliases) {
+        wanted.set(alias.toLowerCase(), `${store.storeLocation} / ${loc.code}`);
+      }
+    }
+  }
+  if (wanted.size === 0) return [];
+  const others = await db.stockLocation.findMany({
+    where: { isActive: true, locationAliases: { isEmpty: false } },
+    select: { code: true, locationAliases: true, storeLocation: { select: { name: true } } },
+  });
+  const clashes: string[] = [];
+  for (const other of others) {
+    if (managedKeys.has(placeOwnershipKey(other.storeLocation.name, other.code))) continue;
+    for (const alias of other.locationAliases) {
+      const wantedBy = wanted.get(alias.toLowerCase());
+      if (wantedBy) {
+        clashes.push(
+          `alias "${alias}" is wanted by ${wantedBy} but already belongs to ` +
+            `${other.storeLocation.name} / ${other.code}`,
+        );
+      }
+    }
+  }
+  return clashes;
+}
+
+export interface StockLocationPlan {
+  creates: Array<{ storeLocationId: number; code: string; data: StockLocationData }>;
+  updates: Array<{ id: number; data: StockLocationData }>;
+  deactivations: Array<{ id: number }>;
+  messages: string[];
+}
+
+/**
+ * What applying the preset would change, from the rows that exist now. Pure,
+ * so the create / update / deactivate rules are testable without a database.
+ * `rowByKey` holds the existing places of every store involved, keyed by
+ * placeOwnershipKey; `dropped` are keys this preset owned and no longer lists.
+ */
+export function planStockLocationChanges(
+  preset: StockLocationsPreset,
+  storeIdByName: Map<string, number>,
+  rowByKey: Map<string, StockLocationRow>,
+  dropped: readonly string[],
+): StockLocationPlan {
+  const plan: StockLocationPlan = { creates: [], updates: [], deactivations: [], messages: [] };
+  for (const store of preset.stores) {
+    const storeLocationId = storeIdByName.get(store.storeLocation)!;
+    for (const loc of store.locations) {
+      const want = desiredStockLocation(loc);
+      const label = `${store.storeLocation} / ${loc.code}`;
+      const row = rowByKey.get(placeOwnershipKey(store.storeLocation, loc.code));
+      if (!row) {
+        plan.creates.push({ storeLocationId, code: loc.code, data: want });
+        plan.messages.push(`${label}: created`);
+        continue;
+      }
+      const changed = changedStockLocationFields(row, want);
+      if (changed.length) {
+        plan.updates.push({ id: row.id, data: want });
+        plan.messages.push(`${label}: updated (${changed.join(", ")})`);
+      }
+    }
+  }
+  for (const key of dropped) {
+    const row = rowByKey.get(key);
+    const place = parsePlaceOwnershipKey(key);
+    if (row && place && (row.isActive || row.locationAliases.length > 0)) {
+      plan.deactivations.push({ id: row.id });
+      plan.messages.push(
+        `${place.store} / ${place.code}: deactivated (no longer listed by preset "${preset.name}")`,
+      );
+    }
+  }
+  return plan;
+}
+
+async function writeStockLocationPlan(
+  db: PrismaClient,
+  plan: StockLocationPlan,
+  actor: string | null,
+): Promise<void> {
+  await db.$transaction(async (tx) => {
+    for (const c of plan.creates) {
+      await tx.stockLocation.create({
+        data: { storeLocationId: c.storeLocationId, code: c.code, ...c.data, createdBy: actor },
+      });
+    }
+    for (const u of plan.updates) {
+      await tx.stockLocation.update({ where: { id: u.id }, data: { ...u.data, updatedBy: actor } });
+    }
+    for (const d of plan.deactivations) {
+      // Aliases go too: the stock import matches aliases on inactive places
+      // as well, so a deactivated place keeping them would still capture that
+      // POS location's stock.
+      await tx.stockLocation.update({
+        where: { id: d.id },
+        data: { isActive: false, locationAliases: [], updatedBy: actor },
+      });
+    }
+  }, TX_TIMEOUT.SHORT);
+}
+
+/** Existing places of the given stores, keyed by placeOwnershipKey. */
+async function stockLocationRowsByKey(
+  db: PrismaClient,
+  storeNameById: Map<number, string>,
+): Promise<Map<string, StockLocationRow>> {
+  const rows: StockLocationRow[] = await db.stockLocation.findMany({
+    where: { storeLocationId: { in: [...storeNameById.keys()] } },
+    select: STOCK_LOCATION_SELECT,
+  });
+  const byKey = new Map<string, StockLocationRow>();
+  for (const row of rows) {
+    const storeName = storeNameById.get(row.storeLocationId);
+    if (storeName) byKey.set(placeOwnershipKey(storeName, row.code), row);
+  }
+  return byKey;
+}
+
+async function applyStockLocations(
+  db: PrismaClient,
+  preset: StockLocationsPreset,
+  opts: ApplyPresetOpts,
+): Promise<KindOutcome> {
+  const names = preset.stores.map((s) => s.storeLocation);
+  const stores = await db.storeLocation.findMany({
+    where: { name: { in: names } },
+    select: { id: true, name: true },
+  });
+  const storeByName = new Map(stores.map((s) => [s.name, s]));
+  const storeProblems = await stockLocationStoreProblems(db, preset, storeByName);
+  if (storeProblems.length) return failOutcome(preset, storeProblems);
+
+  const desiredKeys = new Set(
+    preset.stores.flatMap((store) =>
+      store.locations.map((loc) => placeOwnershipKey(store.storeLocation, loc.code)),
+    ),
+  );
+  // Places this preset owned last time and no longer lists -- including every
+  // place in a store block removed from the file.
+  const dropped = (await previouslyOwnedLocations(db, preset.name)).filter(
+    (k) => !desiredKeys.has(k),
+  );
+
+  const aliasClashes = await stockLocationAliasClashes(
+    db,
+    preset,
+    new Set([...desiredKeys, ...dropped]),
+  );
+  if (aliasClashes.length) return failOutcome(preset, aliasClashes);
+
+  const droppedStoreNames = [
+    ...new Set(
+      dropped.map((k) => parsePlaceOwnershipKey(k)?.store).filter((n): n is string => !!n),
+    ),
+  ].filter((n) => !storeByName.has(n));
+  const droppedStores = droppedStoreNames.length
+    ? await db.storeLocation.findMany({
+        where: { name: { in: droppedStoreNames } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const storeNameById = new Map<number, string>(
+    [...stores, ...droppedStores].map((s) => [s.id, s.name]),
+  );
+  const rowByKey = await stockLocationRowsByKey(db, storeNameById);
+
+  const plan = planStockLocationChanges(
+    preset,
+    new Map(stores.map((s) => [s.name, s.id])),
+    rowByKey,
+    dropped,
+  );
+  const ownedStores = [...names].sort((a, b) => a.localeCompare(b));
+  const ownedLocations = [...desiredKeys].sort((a, b) => a.localeCompare(b));
+  const changes: ApplyChangeCounts = {
+    created: plan.creates.length,
+    updated: plan.updates.length,
+    deleted: plan.deactivations.length,
+  };
+
+  if (changes.created + changes.updated + changes.deleted === 0) {
+    return {
+      result: {
+        kind: preset.kind,
+        name: preset.name,
+        action: "UNCHANGED",
+        changes: zeroChanges(),
+        messages: ["no changes"],
+      },
+      summary: { changes: zeroChanges(), ownedStores, ownedLocations, messages: [] },
+    };
+  }
+
+  if (!opts.dryRun) await writeStockLocationPlan(db, plan, opts.actor ?? null);
+
+  return {
+    result: {
+      kind: preset.kind,
+      name: preset.name,
+      action: "APPLIED",
+      changes,
+      messages: plan.messages,
+    },
+    summary: { changes, ownedStores, ownedLocations, messages: plan.messages },
   };
 }
 

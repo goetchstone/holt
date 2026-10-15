@@ -43,6 +43,11 @@ const STORE_DEFS = [
     city: "Millbrook Falls",
     state: "MI",
     zip: "49316",
+    // Square footage per place: the space-by-category report divides it
+    // across the stock sitting there, so a fresh clone has something to show.
+    // Two showrooms of different sizes, so the report has a comparison.
+    floorSqFt: 9200,
+    backSqFt: 1800,
   },
   {
     name: "Wintergreen Harbor Showroom",
@@ -51,6 +56,8 @@ const STORE_DEFS = [
     city: "Wintergreen Harbor",
     state: "MI",
     zip: "49740",
+    floorSqFt: 6400,
+    backSqFt: 1100,
   },
 ] as const;
 
@@ -85,6 +92,7 @@ export async function seedLocations(
       locationType: "STOCK",
       isActive: true,
       sortOrder: 0,
+      squareFootage: 24000,
       locationAliases: ["Warehouse", "Central Warehouse"],
       createdBy: SEED_ACTOR,
     },
@@ -106,6 +114,7 @@ export async function seedLocations(
       locationType: "STOCK",
       isActive: true,
       sortOrder: 1,
+      squareFootage: 1500,
       holdsCommittedStock: true,
       locationAliases: ["Sold Goods Staging"],
       createdBy: SEED_ACTOR,
@@ -141,6 +150,7 @@ export async function seedLocations(
         locationType: "FLOOR",
         isActive: true,
         sortOrder: 0,
+        squareFootage: def.floorSqFt,
         locationAliases: [`${def.code} Floor`],
         createdBy: SEED_ACTOR,
       },
@@ -156,6 +166,7 @@ export async function seedLocations(
         locationType: "STOCK",
         isActive: true,
         sortOrder: 1,
+        squareFootage: def.backSqFt,
         locationAliases: [`${def.code} Back Stock`],
         createdBy: SEED_ACTOR,
       },

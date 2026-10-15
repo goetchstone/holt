@@ -23,7 +23,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
-  render() {
+  override render() {
     if (this.state.error) {
       return (
         <div className="min-h-screen bg-brand-linen flex items-center justify-center p-8">

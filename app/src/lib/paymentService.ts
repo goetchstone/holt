@@ -10,6 +10,7 @@ import { appendEntry } from "@/lib/customerLedger";
 import { logError } from "@/lib/logger";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { isPaymentExcludedFromBalance } from "@/lib/paymentBalance";
+import { isCountedLine } from "@/lib/salesOrderRevenue";
 import type { Payment } from "@prisma/client";
 
 export const round2 = (n: number): number => Math.round(n * 100) / 100;
@@ -21,6 +22,9 @@ interface LineItemForBalance {
   netPrice: Numeric;
   orderedQuantity: Numeric;
   vatAmount?: Numeric | null;
+  /** Required, not optional: a caller that does not select it would silently
+   *  count cancelled and replaced lines (see COUNTED_LINE_STATUSES). */
+  lineItemStatus: string;
 }
 
 interface PaymentForBalance {
@@ -69,8 +73,13 @@ export function computeBalance(
   // Do NOT multiply by orderedQuantity here — that was a bug that inflated totals
   // for multi-qty line items (e.g. a rug pad sold by the square foot). Fixed
   // 2026-04-17.
+  // Only lines the customer still owes. A cancelled or replaced line keeps its
+  // price on the row; summing every row charged customers for cancelled lines
+  // at checkout, on emailed payment links and in portal Pay, and charged a
+  // replaced line twice (the original and its replacement).
   const totalDue = round2(
     lineItems.reduce((sum, li) => {
+      if (!isCountedLine(li.lineItemStatus)) return sum;
       const lineTotal = Number(li.netPrice);
       const vat = Number(li.vatAmount ?? 0);
       return sum + lineTotal + vat;
@@ -146,7 +155,7 @@ export async function calculateOrderBalance(orderId: number): Promise<OrderBalan
     where: { id: orderId },
     include: {
       lineItems: {
-        select: { netPrice: true, orderedQuantity: true, vatAmount: true },
+        select: { netPrice: true, orderedQuantity: true, vatAmount: true, lineItemStatus: true },
       },
       payments: {
         select: {

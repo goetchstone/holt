@@ -200,6 +200,8 @@ Response includes `possibleDuplicateOf: { id, orderno }[]` per quote. UI shows a
 
 `OrderLineItem.netPrice` stores the **line total** (unit price × quantity), not the unit price. Both the POS imports and POS creation follow this model. `computeBalance()` in `lib/paymentService.ts` is the canonical total calculation — always prefer it over re-implementing the formula. If you need the unit price, divide: `netPrice / orderedQuantity`.
 
+**Only lines still owed count** (since 2026-10-15). `computeBalance()` skips any line whose `lineItemStatus` is not in `COUNTED_LINE_STATUSES` (`lib/salesOrderRevenue.ts`: `ACTIVE`, `BACKORDERED`). Cancelling a line, or replacing it, changes its status and **keeps its `netPrice` on the row**, so a total that sums every row charges for cancelled lines and charges a replaced line twice (the original plus its `ACTIVE` replacement). Before this, that is exactly what Stripe checkout, emailed payment links and portal Pay did, since all three charge `calculateOrderBalance()`. `lineItemStatus` is a required field of the balance input, so a caller that forgets to select it is a compile error rather than a silent overcharge. **Known gap:** about 60 other inline line filters (sales journal, AR ledger, revenue reports, commission, lifetime spend) still exclude only `CANCELLED`, or nothing, so a replaced line is still counted twice there. Moving them onto `COUNTED_LINE_STATUSES` is the next step of this work.
+
 ## paymentService → CustomerLedger atomic wiring (Phase 0.5.4, 2026-05-12)
 
 `recordPayment` and `processRefund` in `lib/paymentService.ts` now call `appendEntry` from `lib/customerLedger.ts` **inside the same `$transaction`** as the Payment row write. Three things commit together or not at all:

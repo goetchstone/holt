@@ -1,3 +1,7 @@
+# markdownlint-cli2 (`npm run lint:md` and CI) does NOT read this file; its
+# README lists `.markdownlintignore` as unsupported. Its exclusions come from
+# .gitignore via `"gitignore": true` in .markdownlint-cli2.jsonc, which covers
+# node_modules, .next, app/coverage and .claude/worktrees.
 **/node_modules/**
 **/.next/**
 **/coverage/**

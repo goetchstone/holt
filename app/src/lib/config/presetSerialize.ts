@@ -197,6 +197,39 @@ function orderBundle(bundle: PresetBundle): Record<string, unknown> {
             })),
         };
       }
+      if (preset.kind === "stock-locations") {
+        // Stores by name, places by code, aliases sorted, and optional fields
+        // only when set -- so a GUI export and a hand-written file of the same
+        // layout compare equal, and the defaults (STOCK, no aliases, not
+        // holding committed stock) stay out of the diff.
+        return {
+          kind: preset.kind,
+          name: preset.name,
+          ...(preset.description ? { description: preset.description } : {}),
+          stores: [...preset.stores]
+            .sort((a, b) => a.storeLocation.localeCompare(b.storeLocation))
+            .map((store) => ({
+              storeLocation: store.storeLocation,
+              locations: [...store.locations]
+                .sort((a, b) => a.code.localeCompare(b.code))
+                .map((loc) => ({
+                  code: loc.code,
+                  name: loc.name,
+                  ...(loc.description ? { description: loc.description } : {}),
+                  ...(loc.locationType === "STOCK" ? {} : { locationType: loc.locationType }),
+                  ...(loc.building ? { building: loc.building } : {}),
+                  ...(loc.floor !== undefined ? { floor: loc.floor } : {}),
+                  ...(loc.area !== undefined ? { area: loc.area } : {}),
+                  ...(loc.squareFootage !== undefined ? { squareFootage: loc.squareFootage } : {}),
+                  ...(loc.aliases.length
+                    ? { aliases: [...loc.aliases].sort((a, b) => a.localeCompare(b)) }
+                    : {}),
+                  ...(loc.holdsCommittedStock ? { holdsCommittedStock: true } : {}),
+                  ...(loc.sortOrder !== undefined ? { sortOrder: loc.sortOrder } : {}),
+                })),
+            })),
+        };
+      }
       if (preset.kind === "traffic-store-mapping") {
         return {
           kind: preset.kind,

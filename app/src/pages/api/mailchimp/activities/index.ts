@@ -56,10 +56,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       campaignId: act.campaign?.id, // Pass campaign ID for detail linking
     }));
 
-    res.status(200).json({ activity: mappedActivity, total });
+    return res.status(200).json({ activity: mappedActivity, total });
   } catch (err) {
     logError("Failed to fetch activity", err);
-    res.status(500).json({ error: "Failed to load activity" });
+    return res.status(500).json({ error: "Failed to load activity" });
   }
 }
 

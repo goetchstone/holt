@@ -107,10 +107,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
     }
 
-    res.status(200).json({ updated, failed, incremental: !full });
+    return res.status(200).json({ updated, failed, incremental: !full });
   } catch (err) {
     logError("Metrics sync failed", err);
-    res.status(500).json({ error: "Sync failed" });
+    return res.status(500).json({ error: "Sync failed" });
   }
 }
 

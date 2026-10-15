@@ -308,10 +308,12 @@ jobs:
   osv-scanner:
     name: Dependency CVE scan
     runs-on: ubuntu-latest
-    # Only execute when we actually want to scan: lockfile changed OR
-    # weekly sweep OR manual trigger. The workflow-level paths filter
-    # already stops most non-relevant PR runs from triggering this job;
-    # this `if` is the belt to that suspenders.
+    # This used to run only when the lockfile changed, behind a workflow-level
+    # paths filter. The filter is gone (the check is required, so it must report
+    # on every PR), and this condition is true for all three of the workflow's
+    # triggers -- schedule, workflow_dispatch and pull_request -- so the scan
+    # runs every time. `push` and `head_commit` can never match here (there is
+    # no `push` trigger, and `head_commit` is a push-event field).
     if: |
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||

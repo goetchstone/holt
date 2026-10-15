@@ -37,14 +37,20 @@ export async function seedOrg(prisma: PrismaClient): Promise<OrgSetup> {
       currency: "USD",
       locale: "en-US",
       timezone: "America/New_York",
+      // Deliberately unlike any real deployment's palette: deep teal with a
+      // burnt-orange accent on a cool off-white, so anyone with several Holt
+      // instances open can tell the demo apart at a glance. (It used to be a
+      // navy / linen / gold close to the built-in default, which real
+      // deployments also start from.)
       theme: {
-        navy: "#1F2A44",
-        linen: "#F5F1EA",
-        gold: "#B98A3E",
-        gray: "#6B6B6B",
-        black: "#1A1A1A",
-        brandGray: "#8C8C86",
-        brandBlue: "#2E4A6B",
+        navy: "#134E4A",
+        linen: "#F3F7F6",
+        gold: "#C2410C",
+        gray: "#56635F",
+        black: "#0F1A18",
+        stripe: "#E8F0EE",
+        brandGray: "#9DB0AB",
+        brandBlue: "#2C7A72",
       },
       // Sensible defaults for a store that runs its whole operation on
       // the platform -- this is the "full native chain" seed, so every

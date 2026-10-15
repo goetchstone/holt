@@ -4,12 +4,21 @@
 # disabled in `.markdownlint.json` -- see comment in that file for
 # rationale and the incremental-tightening plan.
 #
-# Runs on every push / PR / Monday weekly sweep. Fails fast and
+# Runs on every PR to main, the Monday weekly sweep and manual dispatch
+# (no push trigger, no path filter). Fails fast and
 # inline-annotates the offending line so PR reviewers see issues
 # without downloading artifacts.
 #
-# Excludes: node_modules (third-party READMEs we don't control),
-# .next, coverage outputs, .git internals, and worktree scratch.
+# Excludes whatever .gitignore excludes (`"gitignore": true` in
+# `.markdownlint-cli2.jsonc`): node_modules, .next, coverage outputs,
+# worktree scratch, and the private local planning docs. Here that is
+# only app/node_modules, which `npm ci` below creates.
+#
+# markdownlint-cli2 is an exact-version devDependency in app/package.json,
+# so this job runs the version and dependency tree app/package-lock.json
+# pins, the same one `npm run lint:md` runs locally, and Dependabot bumps it
+# like any other dependency. No path filter, so a PR that only bumps it
+# runs this check.
 
 name: Markdown lint
 
@@ -34,17 +43,26 @@ jobs:
   markdownlint:
     name: Markdown lint
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
 
-      # markdownlint-cli2 reads `.markdownlint.json` + `.markdownlintignore`
-      # at repo root automatically. The negation glob `!**/node_modules/**`
-      # is required because the ignore file alone doesn't always exclude
-      # nested node_modules under app/.
+      # --ignore-scripts: this job needs one JS binary, so none of the app
+      # tree's install scripts (prisma's engines, @parcel/watcher, ...) or its
+      # git-hooks `prepare` run in a job holding a pull-requests: write token.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # `lint:md` runs markdownlint-cli2 from the repo root, where it reads
+      # `.markdownlint-cli2.jsonc` + `.markdownlint.json` automatically. It does
+      # NOT read `.markdownlintignore` (unsupported per its README).
       - name: Run markdownlint-cli2
-        run: |
-          npx --yes markdownlint-cli2 "**/*.md" "!**/node_modules/**"
+        run: npm run lint:md

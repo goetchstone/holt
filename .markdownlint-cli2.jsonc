@@ -1,0 +1,15 @@
+// markdownlint-cli2 options. Rule settings stay in `.markdownlint.json`, which
+// takes precedence over a `config` property here, so this file carries none.
+{
+  // Lint only Markdown that git tracks or would track. Without this, the
+  // `**/*.md` glob in `npm run lint:md` also lints gitignored local files
+  // (`/PLAN.md`, `/ROADMAP.md`, ...; see `.gitignore`) that CI never sees, so
+  // `npm run check:local` failed on errors in files no branch can change.
+  // In CI the only ignored files are the app/node_modules that `npm ci` creates,
+  // which lint:md's `!**/node_modules/**` glob also excludes, so CI lints the
+  // same set either way.
+  // Note: a tracked file that also matches a `.gitignore` pattern (force-added
+  // with `git add -f`) is skipped too; `git ls-files -ci --exclude-standard`
+  // lists any such file.
+  "gitignore": true
+}
