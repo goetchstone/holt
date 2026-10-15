@@ -13,6 +13,7 @@ import type { ParsedJLProduct, ParsedJLCollection } from "@/lib/pricing/jensenLe
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { upsertCollectionIds } from "@/lib/pricing/upsertCollectionIds";
 export const config = {
   api: {
     bodyParser: {
@@ -115,7 +116,7 @@ export default requirePermission(
           update: {},
         });
 
-        const tierMap: Record<string, number> = {};
+        const tierMap = new Map<string, number>();
         for (const tier of GRADE_TIERS) {
           const t = await tx.priceDimensionTier.upsert({
             where: {
@@ -129,19 +130,15 @@ export default requirePermission(
             },
             update: { sortOrder: tier.sort },
           });
-          tierMap[tier.code] = t.id;
+          tierMap.set(tier.code, t.id);
         }
 
         // 3. Collections
-        const collectionMap: Record<string, number> = {};
-        for (const col of collections) {
-          const collection = await tx.collection.upsert({
-            where: { vendorId_name: { vendorId, name: col.name } },
-            create: { vendorId, name: col.name },
-            update: {},
-          });
-          collectionMap[col.name] = collection.id;
-        }
+        const collectionMap = await upsertCollectionIds(
+          tx,
+          vendorId,
+          collections.map((col) => col.name),
+        );
 
         // 4. Mark existing styles as discontinued
         await tx.vendorStyle.updateMany({
@@ -179,7 +176,7 @@ export default requirePermission(
                 vendorId,
                 departmentId: department.id,
                 categoryId: category.id,
-                collectionId: collectionMap[item.collection] || null,
+                collectionId: collectionMap.get(item.collection) || null,
                 baseCost,
                 baseRetail,
                 framePrice: frameRetail,
@@ -190,7 +187,7 @@ export default requirePermission(
               },
               update: {
                 name: item.description || item.itemNumber,
-                collectionId: collectionMap[item.collection] || undefined,
+                collectionId: collectionMap.get(item.collection) || undefined,
                 baseCost: baseCost ?? undefined,
                 baseRetail: baseRetail ?? undefined,
                 framePrice: frameRetail ?? undefined,
@@ -202,7 +199,7 @@ export default requirePermission(
 
             // StyleGradePrice rows (both cost and retail)
             for (const gp of item.gradePrices) {
-              const tierId = tierMap[gp.grade];
+              const tierId = tierMap.get(gp.grade);
               if (!tierId) continue;
 
               const retail = safeDecimal(gp.retail);
