@@ -222,6 +222,19 @@ export function parseDmarcReport(xml: string): DmarcReport {
     throw new DmarcParseError("This doesn't look like a DMARC aggregate report.");
   }
 
+  try {
+    return extractReport(root);
+  } catch (e) {
+    if (e instanceof DmarcParseError) throw e;
+    // A document can parse cleanly and still defeat extraction: thousands of
+    // elements nested inside one field overflow the stack when its text is
+    // read (a RangeError). Surface it like any other unreadable report
+    // (__tests__/fuzz/dmarcReport.fuzz.test.ts).
+    throw new DmarcParseError("That report is malformed or too deeply nested to read.");
+  }
+}
+
+function extractReport(root: XmlElement): DmarcReport {
   const metadata = childEl(root, "report_metadata");
   const policyPublished = childEl(root, "policy_published");
   const recordEls = childEls(root, "record");

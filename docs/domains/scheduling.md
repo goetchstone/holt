@@ -32,6 +32,17 @@ existing deployments keep working with zero config. Gated by the existing
   `hhmmToMinutes`, `minutesToHHMM`, `slugify`. Tested.
 - `serviceRequestBody.ts` — zod parsers for service / window / block create +
   service update. Tested.
+- `requestBody.ts` / `ics.ts` / `icsToken.ts` — the public booking body, the
+  `.ics` download and its HMAC capability token. Fuzzed in
+  `__tests__/fuzz/booking.fuzz.test.ts` and `capabilityTokens.fuzz.test.ts`, which
+  found three bugs. A body with an empty date made the end-after-start refine
+  call `.getTime()` on a string, and the resulting TypeError went to the
+  visitor as the 400 message. The admin time-off parser in
+  `serviceRequestBody.ts` had the same refine, and both now compare only real
+  `Date`s. A control character in customer text made
+  an invalid `.ics` (TEXT values now drop CTLs other than HTAB). A 32-character
+  non-ASCII `?token=` threw inside `timingSafeEqual` (the check now compares byte
+  lengths).
 
 ## API
 
