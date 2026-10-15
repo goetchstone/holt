@@ -1,17 +1,35 @@
 // /app/src/pages/api/warehouse/transfers/[id]/status.ts
 //
-// Advances transfer status and adjusts InventoryPositions in a transaction.
-// DRAFT -> IN_TRANSIT: decrements source position
-// IN_TRANSIT -> RECEIVED: increments destination position
-// Any -> CANCELLED: reverses any position changes already applied
+// Advances transfer status and moves the stock, in one transaction, through
+// lib/inventory/ledger.ts (the single writer of InventoryPosition).
+// DRAFT -> IN_TRANSIT: takes the units from free stock at the source, or refuses
+//                      (409) if the source does not hold enough
+// IN_TRANSIT -> RECEIVED: adds the units shipped to the destination
+// IN_TRANSIT -> CANCELLED: puts the units shipped back at the source
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { allocate } from "@/lib/inventory/allocation";
+import type { Prisma } from "@prisma/client";
+import { allocate, freePositionWhere } from "@/lib/inventory/allocation";
+import { drawLegs, postMovement } from "@/lib/inventory/ledger";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { toQty, roundQty, qtyIsZero } from "@/lib/inventory/quantity";
+import { toQty, roundQty } from "@/lib/inventory/quantity";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+
+/** Another request changed this transfer's status first. */
+class TransferRaceError extends Error {}
+
+/** The source holds less free stock than the transfer asks to ship. */
+class TransferShortError extends Error {
+  constructor(
+    readonly available: number,
+    readonly requested: number,
+    readonly source: string,
+  ) {
+    super("Not enough free stock at the source to ship this transfer.");
+  }
+}
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ["IN_TRANSIT", "CANCELLED"],
@@ -20,7 +38,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 
 // Advancing transfer status moves inventory between stores. Warehouse staff
 // and their managers only.
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") return res.status(405).json({ error: "Method not allowed" });
 
   const { id } = req.query;
@@ -56,27 +74,59 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     }
 
     await prisma.$transaction(async (tx) => {
-      if (newStatus === "IN_TRANSIT") {
-        // Decrement source position
-        const sourcePosition = await tx.inventoryPosition.findFirst({
-          where: {
-            productId: transfer.productId,
-            storeLocationId: transfer.fromLocationId!,
-            stockLocationId: transfer.fromStockLocationId ?? null,
-            salesOrderId: null,
-          },
-        });
+      const quantity = toQty(transfer.quantity);
+      const actor = session.user!.email;
 
-        if (sourcePosition) {
-          const newQty = roundQty(toQty(sourcePosition.quantity) - toQty(transfer.quantity));
-          if (qtyIsZero(newQty) || newQty < 0) {
-            await tx.inventoryPosition.delete({ where: { id: sourcePosition.id } });
-          } else {
-            await tx.inventoryPosition.update({
-              where: { id: sourcePosition.id },
-              data: { quantity: newQty, updatedBy: session.user!.email },
-            });
-          }
+      // Claim the transition before moving any stock: only the request that
+      // finds the transfer still in the status it read may proceed. Without
+      // this, a double-clicked "Ship" ran twice and took the units twice --
+      // the status check above happens outside this transaction.
+      const claimed = await tx.inventoryTransfer.updateMany({
+        where: { id: transferId, status: transfer.status },
+        data: { status: newStatus },
+      });
+      if (claimed.count === 0) throw new TransferRaceError();
+
+      if (newStatus === "IN_TRANSIT") {
+        // Take the units from the source. A stock location the user chose is
+        // taken at its word: its uncommitted units go, whether or not the
+        // location is flagged as holding customers' stock (moving that stock
+        // between stores is a real task). With none chosen ("any"), only
+        // genuinely free stock at that store will do.
+        //
+        // This used to look for a free row with exactly the chosen stock
+        // location -- null for "any" -- and, finding none, do nothing at all.
+        // Imported stock always carries a stock location, so "any" never found
+        // it: the source kept its units and RECEIVED then created them again at
+        // the destination. Stock appeared from nowhere on the ordinary path.
+        // Now the source either gives up the units or the ship is refused.
+        const sourceWhere: Prisma.InventoryPositionWhereInput =
+          transfer.fromStockLocationId == null
+            ? { AND: [freePositionWhere(), { storeLocationId: transfer.fromLocationId! }] }
+            : {
+                storeLocationId: transfer.fromLocationId!,
+                stockLocationId: transfer.fromStockLocationId,
+                salesOrderId: null,
+              };
+        const { legs, shortfall } = await drawLegs(tx, {
+          productId: transfer.productId,
+          where: sourceWhere,
+          quantity,
+        });
+        if (shortfall > 0) {
+          throw new TransferShortError(
+            roundQty(quantity - shortfall),
+            quantity,
+            transfer.fromLocation,
+          );
+        }
+        for (const leg of legs) {
+          await postMovement(tx, {
+            productId: transfer.productId,
+            quantity: leg.take,
+            from: leg.place,
+            actor,
+          });
         }
 
         await tx.inventoryTransfer.update({
@@ -84,47 +134,18 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           data: { status: "IN_TRANSIT", shippedAt: new Date() },
         });
       } else if (newStatus === "RECEIVED") {
-        // Increment the destination position, or create it.
-        //
-        // NOT an upsert. InventoryPosition's unique key contains two NULLABLE
-        // columns (stockLocationId, salesOrderId), and the index does not
-        // declare NULLS NOT DISTINCT -- so Postgres treats every free-stock row
-        // as distinct and the upsert's `where` could NEVER match one. Every
-        // receipt created a NEW row instead of incrementing the existing one,
-        // fragmenting free stock across duplicate rows for the same product,
-        // store and bin. It lost no units, so nothing ever complained.
-        //
-        // The `null as unknown as number` cast the upsert needed to compile was
-        // the tell: a cast that exists only to satisfy a key the value cannot
-        // legally take means the operation is wrong. lib/inventory/allocation.ts
-        // avoids the same trap in release(); this matches its shape.
-        const destination = await tx.inventoryPosition.findFirst({
-          where: {
-            productId: transfer.productId,
+        // The units shipped arrive at the destination as free stock. Through
+        // the single writer, which merges into the existing row (rule 64).
+        await postMovement(tx, {
+          productId: transfer.productId,
+          quantity,
+          to: {
             storeLocationId: transfer.toLocationId!,
             stockLocationId: transfer.toStockLocationId ?? null,
             salesOrderId: null,
           },
+          actor,
         });
-        if (destination) {
-          await tx.inventoryPosition.update({
-            where: { id: destination.id },
-            data: {
-              quantity: { increment: transfer.quantity },
-              updatedBy: session.user!.email,
-            },
-          });
-        } else {
-          await tx.inventoryPosition.create({
-            data: {
-              productId: transfer.productId,
-              storeLocationId: transfer.toLocationId!,
-              stockLocationId: transfer.toStockLocationId ?? null,
-              quantity: transfer.quantity,
-              createdBy: session.user!.email,
-            },
-          });
-        }
 
         // The stock has landed at the destination store, so an order that was
         // waiting on it can finally hold it. Allocation is store-scoped, which
@@ -165,28 +186,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           },
         });
       } else if (newStatus === "CANCELLED") {
-        // Reverse changes if transfer was already in transit
+        // Put the shipped units back at the source. Through the single writer:
+        // the upsert this replaced could never match a free row (rule 64), so
+        // every cancel created another duplicate. When the ship drew from
+        // several stock locations ("any"), they come back to the store with no
+        // stock location; returning each to the exact place it left needs the
+        // movement journal (plan phase 6).
         if (transfer.status === "IN_TRANSIT") {
-          await tx.inventoryPosition.upsert({
-            where: {
-              productId_storeLocationId_stockLocationId_salesOrderId: {
-                productId: transfer.productId,
-                storeLocationId: transfer.fromLocationId!,
-                stockLocationId: (transfer.fromStockLocationId ?? null) as number,
-                salesOrderId: null as unknown as number,
-              },
-            },
-            update: {
-              quantity: { increment: transfer.quantity },
-              updatedBy: session.user!.email,
-            },
-            create: {
-              productId: transfer.productId,
+          await postMovement(tx, {
+            productId: transfer.productId,
+            quantity,
+            to: {
               storeLocationId: transfer.fromLocationId!,
               stockLocationId: transfer.fromStockLocationId ?? null,
-              quantity: transfer.quantity,
-              createdBy: session.user!.email,
+              salesOrderId: null,
             },
+            actor,
           });
         }
 
@@ -203,6 +218,18 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
     return res.status(200).json(updated);
   } catch (error) {
+    if (error instanceof TransferRaceError) {
+      return res.status(409).json({
+        error: "This transfer was just changed by someone else. Refresh to see its current status.",
+      });
+    }
+    if (error instanceof TransferShortError) {
+      return res.status(409).json({
+        error:
+          `Only ${error.available} of the ${error.requested} requested are free to ship from ` +
+          `${error.source}. Ship fewer, or correct the stock count first.`,
+      });
+    }
     logError("Error updating transfer status", error);
     return res.status(500).json({ error: "Failed to update transfer status" });
   }

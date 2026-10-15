@@ -127,7 +127,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           where: { salesOrderId: orderId },
           data: { salesOrderId: null },
         });
-        await tx.inventoryPosition.deleteMany({ where: { salesOrderId: orderId } });
+        // The order's committed stock goes back to free stock where it sits.
+        // This used to delete those rows, so deleting an order destroyed the
+        // sofas it had reserved: physically still on the floor, gone from the
+        // books.
+        await release(orderId, tx);
         // Delete child records in dependency order
         await tx.payment.deleteMany({ where: { salesOrderId: orderId } });
         await tx.invoiceLineItem.deleteMany({

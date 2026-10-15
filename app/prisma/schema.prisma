@@ -1635,7 +1635,14 @@ model InventoryPosition {
   createdBy String?
   updatedBy String?
 
-  @@unique([productId, storeLocationId, stockLocationId, salesOrderId])
+  // No unique key. The one this replaced, on [productId, storeLocationId,
+  // stockLocationId, salesOrderId], held two nullable columns and Postgres
+  // treats NULLs as distinct in a unique index, so it never prevented duplicate
+  // free rows -- its only effect was letting upserts through it compile, and
+  // those upserts never matched (CLAUDE.md rule 64). One row per place is now
+  // kept by the single writer, lib/inventory/ledger.ts, which merges on write.
+  @@index([productId, storeLocationId, stockLocationId])
+  @@index([salesOrderId])
 }
 
 /// A shortfall recorded by `allocate()` (src/lib/inventory/allocation.ts): a

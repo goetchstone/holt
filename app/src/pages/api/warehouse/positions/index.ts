@@ -4,11 +4,12 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { freePositionWhere } from "@/lib/inventory/allocation";
+import { placeWhere, setPlaceQuantity } from "@/lib/inventory/ledger";
 import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     try {
       const page = Number.parseInt(req.query.page as string) || 1;
@@ -106,29 +107,35 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         return res.status(400).json({ error: "productId and storeLocationId are required." });
       }
 
-      const position = await prisma.inventoryPosition.upsert({
-        where: {
-          productId_storeLocationId_stockLocationId_salesOrderId: {
-            productId,
-            storeLocationId,
-            stockLocationId: stockLocationId ?? null,
-            salesOrderId: salesOrderId ?? null,
-          },
-        },
-        update: {
-          quantity: quantity ?? 1,
-          notes: notes ?? null,
-          updatedBy: session.user?.email || null,
-        },
-        create: {
+      if (quantity !== undefined && !(Number(quantity) >= 0)) {
+        return res.status(400).json({ error: "quantity must be zero or more." });
+      }
+
+      // "This place holds N": set the place to the stated quantity, recorded as
+      // a movement of the difference through the single writer. The upsert this
+      // replaced could never match a free row (rule 64), so it created a
+      // duplicate instead of setting the existing one.
+      const place = {
+        storeLocationId,
+        stockLocationId: stockLocationId ?? null,
+        salesOrderId: salesOrderId ?? null,
+      };
+      const position = await prisma.$transaction(async (tx) => {
+        await setPlaceQuantity(tx, {
           productId,
-          storeLocationId,
-          stockLocationId: stockLocationId ?? null,
-          quantity: quantity ?? 1,
-          salesOrderId: salesOrderId ?? null,
-          notes: notes ?? null,
-          createdBy: session.user?.email || null,
-        },
+          place,
+          target: quantity === undefined ? 1 : Number(quantity),
+          actor: session.user?.email || null,
+          // Absent leaves the note alone; null clears it.
+          note: notes,
+        });
+        // Setting a place to 0 leaves no row; say so explicitly rather than
+        // answering 201 with an empty body.
+        const row = await tx.inventoryPosition.findFirst({
+          where: placeWhere(productId, place),
+          orderBy: { id: "asc" },
+        });
+        return row ?? { productId, ...place, quantity: 0 };
       });
 
       return res.status(201).json(position);
