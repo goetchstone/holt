@@ -84,19 +84,12 @@ export function safeJoin(root: string, ...segments: string[]): string {
 }
 
 async function readIfSmallEnough(filePath: string): Promise<string> {
-  // Size-check before reading so an enormous file is refused rather than
-  // buffered. Both go through one open handle, so the size checked is the size
-  // of the file read, not of whatever was at the path a moment earlier.
-  const fh = await fs.open(filePath, "r");
-  try {
-    const stat = await fh.stat();
-    if (stat.size > MAX_PRESET_BYTES) {
-      throw new Error(`file is ${stat.size} bytes, over the ${MAX_PRESET_BYTES}-byte limit`);
-    }
-    return await fh.readFile("utf8");
-  } finally {
-    await fh.close();
+  // stat before read so an enormous file is refused rather than buffered.
+  const stat = await fs.stat(filePath);
+  if (stat.size > MAX_PRESET_BYTES) {
+    throw new Error(`file is ${stat.size} bytes, over the ${MAX_PRESET_BYTES}-byte limit`);
   }
+  return fs.readFile(filePath, "utf8");
 }
 
 async function listPresetFiles(dir: string): Promise<string[]> {
@@ -115,7 +108,7 @@ async function listPresetFiles(dir: string): Promise<string[]> {
   // config/local/ at a private repo with `ln -s` is a documented deployment
   // shape ($HOLT_CONFIG_DIR exists for it), so this has to work.
   //
-  // `open` (unlike `lstat`/`readdir`) follows the link, so a dangling symlink
+  // `stat` (unlike `lstat`/`readdir`) follows the link, so a dangling symlink
   // throws in readIfSmallEnough and surfaces as a load error rather than
   // silence.
   return entries

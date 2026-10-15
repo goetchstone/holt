@@ -531,8 +531,8 @@ describe("disk loader", () => {
   });
 
   it("refuses an oversized file on disk before reading it", async () => {
-    // readIfSmallEnough checks the size through the same handle it reads from
-    // (CodeQL js/file-system-race #21); the refusal itself must still hold.
+    // readIfSmallEnough stats before it reads, so a file over the limit is
+    // reported, never buffered.
     await shipped("huge.yaml", `# ${"x".repeat(MAX_PRESET_BYTES)}\n`);
     await shipped("a.yaml", trafficPreset("alpha", "A"));
     const report = await loadAllPresets(root);
