@@ -1,5 +1,10 @@
 # Holt
 
+[![CI](https://github.com/goetchstone/holt/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/goetchstone/holt/actions/workflows/ci.yml)
+[![Security](https://github.com/goetchstone/holt/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/goetchstone/holt/actions/workflows/security.yml)
+[![CodeQL](https://github.com/goetchstone/holt/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/goetchstone/holt/security/code-scanning)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
+
 > **Use at your own risk.** Holt is an independent project under active
 > development. It is not affiliated with, endorsed by, or supported by any
 > other company, and it is provided **as is, without warranty of any kind**
