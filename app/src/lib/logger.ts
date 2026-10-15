@@ -14,11 +14,25 @@ interface LogEntry {
 
 const isProduction = process.env.NODE_ENV === "production";
 
+/**
+ * Remove CR and LF so a value cannot start a forged log line.
+ *
+ * Every plain-text log line built from a request value goes through this:
+ * a message that interpolates `?dateFrom=` or a request path otherwise lets
+ * the caller write `\nERROR ... ` and have it read as a separate entry
+ * (CodeQL js/log-injection). Removal rather than escaping, because CodeQL
+ * recognises a replace-with-empty as the sanitiser; the JSON format used in
+ * production escapes both characters on its own.
+ */
+export function stripLineBreaks(value: string): string {
+  return String(value).replace(/[\r\n]/g, "");
+}
+
 function formatDev(entry: LogEntry): string {
   const { timestamp, level, message, ...context } = entry;
   const prefix = `[${timestamp}] ${level.toUpperCase()}`;
   const contextStr = Object.keys(context).length > 0 ? ` ${JSON.stringify(context)}` : "";
-  return `${prefix}: ${message}${contextStr}`;
+  return `${prefix}: ${stripLineBreaks(message)}${contextStr}`;
 }
 
 function log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
