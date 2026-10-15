@@ -14,6 +14,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import type { ALParsedProduct, ALParsedPage } from "@/lib/pricing/americanLeatherExtractor";
 import {
+  extractCushionOptions,
   parseOptionPrices,
   parseMattressPrices,
   extractPowerBatteryOptions,
@@ -340,14 +341,9 @@ export default requirePermission(
             const powerOpts = extractPowerBatteryOptions(page.optionsText);
 
             // Split parsed options: cushion fills (asterisk prefix) vs general options
-            const cushionNames = new Set<string>();
-            // [^=\n]+? avoids the ambiguous \w/\s/\s* nesting flagged by polynomial-redos.
-            // Greedy [^=\n]+ can't backtrack across `=` (excluded from char class).
-            const cushionPattern = /\*([^=\n]+)=\s{0,16}\$(\d+)/g;
-            let m;
-            while ((m = cushionPattern.exec(page.optionsText)) !== null) {
-              cushionNames.add(m[1].trim().toLowerCase());
-            }
+            const cushionNames = new Set(
+              extractCushionOptions(page.optionsText).map((o) => o.name.toLowerCase()),
+            );
 
             const cushionOptions: ParsedPageOptions["cushionOptions"] = [];
             const generalOptions: ParsedPageOptions["generalOptions"] = [];
