@@ -50,6 +50,16 @@ The invoice import (`runInvoicesImport`) links invoices to sales orders by match
 
 `/inventory/warehouse/inbound` provides a month/week drill-down view of incoming POs with clickable summary cards and filters for stock type, customer, vendor, and department. Uses the same PO data but presents it in an operations-focused layout for warehouse staff.
 
+## Import form fields
+
+`import-nuorder.ts` and `import-zsupply.ts` read their multipart fields with
+`pickFormFields(rawFields, FIELD_NAMES)` (`lib/importFormFields.ts`): only the
+named fields, via `Object.hasOwn`, each flattened to one string (`""` when
+absent). Copying every client-chosen field name into an object let a field
+named `constructor` shadow the object's members (CodeQL
+js/remote-property-injection, 2026-10-15). A new import route lists its
+fields the same way.
+
 ## Key Files
 
 - `lib/importHelpers.ts` -- `derivePOStatus()`, `findProduct()`

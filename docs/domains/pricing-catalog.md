@@ -100,6 +100,15 @@ Import page at `/sales/import-hd`, nav card on the Sales hub.
 4. Add vendor name aliases to `resolveVendorKey()` and `POSMapping.ts`
 5. Create a vendor runbook in `docs/domains/vendors/{vendor}.md`
 6. If the parser uses `pdf-parse`, ensure it is NOT imported from client-side code
+7. Key every lookup built from upload or request text (tier codes, collection
+   names, program types) with a `Map`, never `{}`: a plain object drops a key
+   named `__proto__`, and reads `constructor` / `toString` back as functions,
+   which pass an `if (!tierId)` check and fail later in Prisma. Upsert
+   collections with `upsertCollectionIds()` (`lib/pricing/upsertCollectionIds.ts`).
+   Regexes over uploaded text use bounded runs (`{1,200}`, not `+`) where a
+   run is followed by a literal, as `extractCushionOptions()` does: an
+   unbounded run is quadratic on a long line with no match (CodeQL
+   js/polynomial-redos; 2026-10-15)
 
 ## Verification Checklist
 
@@ -110,6 +119,7 @@ Import page at `/sales/import-hd`, nav card on the Sales hub.
 - [ ] Option seeds use upsert to preserve manual edits
 - [ ] Vendor added to `POSMapping.ts` for POS matching
 - [ ] Vendor runbook created or updated
+- [ ] Lookups keyed by upload text are `Map`s (step 7)
 
 ## Test Coverage
 
