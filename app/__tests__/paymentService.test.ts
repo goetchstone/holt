@@ -23,14 +23,32 @@ describe("round2", () => {
 });
 
 describe("computeBalance", () => {
+  // Rule 33's line-level sister: cancelling or replacing a line keeps its price
+  // on the row, so the balance must skip it -- or checkout, emailed payment
+  // links and portal Pay charge for it (and a replaced line twice).
+  it("counts only lines still owed: cancelled and replaced lines are out, backordered is in", () => {
+    const result = computeBalance(
+      [
+        { netPrice: 1000, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" },
+        { netPrice: 400, orderedQuantity: 1, vatAmount: 28, lineItemStatus: "CANCELLED" },
+        { netPrice: 800, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "REPLACED" },
+        { netPrice: 900, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" }, // the replacement
+        { netPrice: 250, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "BACKORDERED" },
+      ],
+      [{ paymentAmount: 500, isRefund: false, status: "COMPLETED" }],
+    );
+    expect(result.totalDue).toBe(2150);
+    expect(result.balanceDue).toBe(1650);
+  });
+
   it("calculates total due from line items (netPrice is LINE TOTAL, not unit price)", () => {
     // Line 1: $500 total + $35 vat = $535
     // Line 2: qty 2 of something totaling $500 (stored as netPrice=500) + $35 vat = $535
     // Do NOT multiply netPrice by orderedQuantity — netPrice is already the line total.
     const result = computeBalance(
       [
-        { netPrice: 500, orderedQuantity: 1, vatAmount: 35 },
-        { netPrice: 500, orderedQuantity: 2, vatAmount: 35 },
+        { netPrice: 500, orderedQuantity: 1, vatAmount: 35, lineItemStatus: "ACTIVE" },
+        { netPrice: 500, orderedQuantity: 2, vatAmount: 35, lineItemStatus: "ACTIVE" },
       ],
       [],
     );
@@ -43,13 +61,16 @@ describe("computeBalance", () => {
     // Regression test: rug pad line, 120 sq ft, stored as line total of $180
     // Old buggy behavior: 180 * 120 = $21,600 inflated line total
     // Correct: $180 line total regardless of quantity
-    const result = computeBalance([{ netPrice: 180, orderedQuantity: 120, vatAmount: 0 }], []);
+    const result = computeBalance(
+      [{ netPrice: 180, orderedQuantity: 120, vatAmount: 0, lineItemStatus: "ACTIVE" }],
+      [],
+    );
     expect(result.totalDue).toBe(180);
   });
 
   it("subtracts payments from balance", () => {
     const result = computeBalance(
-      [{ netPrice: 1000, orderedQuantity: 1, vatAmount: 0 }],
+      [{ netPrice: 1000, orderedQuantity: 1, vatAmount: 0, lineItemStatus: "ACTIVE" }],
       [
         { paymentAmount: 300, isRefund: false, status: "COMPLETED" },
         { paymentAmount: 200, isRefund: false, status: "COMPLETED" },
@@ -62,7 +83,7 @@ describe("computeBalance", () => {
 
   it("excludes VOIDED payments", () => {
     const result = computeBalance(
-      [{ netPrice: 1000, orderedQuantity: 1 }],
+      [{ netPrice: 1000, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [
         { paymentAmount: 500, isRefund: false, status: "COMPLETED" },
         { paymentAmount: 200, isRefund: false, status: "VOIDED" },
@@ -74,7 +95,7 @@ describe("computeBalance", () => {
 
   it("excludes FAILED payments", () => {
     const result = computeBalance(
-      [{ netPrice: 1000, orderedQuantity: 1 }],
+      [{ netPrice: 1000, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [
         { paymentAmount: 500, isRefund: false, status: "COMPLETED" },
         { paymentAmount: 300, isRefund: false, status: "FAILED" },
@@ -92,7 +113,7 @@ describe("computeBalance", () => {
     // (every re-charge path refuses once balanceDue <= 0). PENDING becomes
     // real money only when completePayment() flips it to COMPLETED.
     const result = computeBalance(
-      [{ netPrice: 1000, orderedQuantity: 1 }],
+      [{ netPrice: 1000, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [{ paymentAmount: 1000, isRefund: false, status: "PENDING" }],
     );
     expect(result.totalPaid).toBe(0);
@@ -101,7 +122,7 @@ describe("computeBalance", () => {
 
   it("a PENDING row alongside a real COMPLETED payment only counts the COMPLETED one", () => {
     const result = computeBalance(
-      [{ netPrice: 1000, orderedQuantity: 1 }],
+      [{ netPrice: 1000, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [
         { paymentAmount: 400, isRefund: false, status: "COMPLETED" },
         { paymentAmount: 600, isRefund: false, status: "PENDING" },
@@ -118,7 +139,7 @@ describe("computeBalance", () => {
     // Excluding REFUNDED too would double-count the refund and understate
     // totalPaid by the refunded amount.
     const result = computeBalance(
-      [{ netPrice: 1000, orderedQuantity: 1 }],
+      [{ netPrice: 1000, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [
         { paymentAmount: 500, isRefund: false, status: "REFUNDED" },
         { paymentAmount: 500, isRefund: true, status: "COMPLETED" },
@@ -130,7 +151,7 @@ describe("computeBalance", () => {
 
   it("subtracts refund amounts from total paid", () => {
     const result = computeBalance(
-      [{ netPrice: 1000, orderedQuantity: 1 }],
+      [{ netPrice: 1000, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [
         { paymentAmount: 1000, isRefund: false, status: "COMPLETED" },
         { paymentAmount: 200, isRefund: true, status: "COMPLETED" },
@@ -142,7 +163,7 @@ describe("computeBalance", () => {
 
   it("handles refund with negative amount correctly", () => {
     const result = computeBalance(
-      [{ netPrice: 1000, orderedQuantity: 1 }],
+      [{ netPrice: 1000, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [
         { paymentAmount: 1000, isRefund: false, status: "COMPLETED" },
         { paymentAmount: -200, isRefund: true, status: "COMPLETED" },
@@ -154,13 +175,23 @@ describe("computeBalance", () => {
   });
 
   it("handles null vatAmount", () => {
-    const result = computeBalance([{ netPrice: 500, orderedQuantity: 1, vatAmount: null }], []);
+    const result = computeBalance(
+      [{ netPrice: 500, orderedQuantity: 1, vatAmount: null, lineItemStatus: "ACTIVE" }],
+      [],
+    );
     expect(result.totalDue).toBe(500);
   });
 
   it("handles string amounts from Prisma Decimal", () => {
     const result = computeBalance(
-      [{ netPrice: "1499.99", orderedQuantity: "1", vatAmount: "104.99" }],
+      [
+        {
+          netPrice: "1499.99",
+          orderedQuantity: "1",
+          vatAmount: "104.99",
+          lineItemStatus: "ACTIVE",
+        },
+      ],
       [{ paymentAmount: "800.00", isRefund: false, status: "COMPLETED" }],
     );
     expect(result.totalDue).toBe(1604.98);
@@ -170,7 +201,7 @@ describe("computeBalance", () => {
 
   it("handles payments with null status", () => {
     const result = computeBalance(
-      [{ netPrice: 500, orderedQuantity: 1 }],
+      [{ netPrice: 500, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [{ paymentAmount: 500, isRefund: false, status: null }],
     );
     // null status should not be excluded
@@ -184,8 +215,8 @@ describe("computeBalance", () => {
     // Total: $185.07. netPrice is NOT multiplied by qty — already a line total.
     const result = computeBalance(
       [
-        { netPrice: 100, orderedQuantity: 3, vatAmount: 19.13 },
-        { netPrice: 50, orderedQuantity: 5, vatAmount: 15.94 },
+        { netPrice: 100, orderedQuantity: 3, vatAmount: 19.13, lineItemStatus: "ACTIVE" },
+        { netPrice: 50, orderedQuantity: 5, vatAmount: 15.94, lineItemStatus: "ACTIVE" },
       ],
       [],
     );
@@ -194,7 +225,7 @@ describe("computeBalance", () => {
 
   it("returns zero balance when fully paid", () => {
     const result = computeBalance(
-      [{ netPrice: 2500, orderedQuantity: 1, vatAmount: 175 }],
+      [{ netPrice: 2500, orderedQuantity: 1, vatAmount: 175, lineItemStatus: "ACTIVE" }],
       [{ paymentAmount: 2675, isRefund: false, status: "COMPLETED" }],
     );
     expect(result.balanceDue).toBe(0);
@@ -202,7 +233,7 @@ describe("computeBalance", () => {
 
   it("handles overpayment (negative balance)", () => {
     const result = computeBalance(
-      [{ netPrice: 500, orderedQuantity: 1 }],
+      [{ netPrice: 500, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [{ paymentAmount: 600, isRefund: false, status: "COMPLETED" }],
     );
     expect(result.balanceDue).toBe(-100);
@@ -218,7 +249,7 @@ describe("computeBalance", () => {
   it("snaps micro-balances to zero (the POS rounding)", () => {
     // $0.01 remaining — should be treated as paid in full
     const result = computeBalance(
-      [{ netPrice: 500, orderedQuantity: 1 }],
+      [{ netPrice: 500, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [{ paymentAmount: 499.99, isRefund: false, status: null }],
     );
     expect(result.balanceDue).toBe(0);
@@ -227,7 +258,7 @@ describe("computeBalance", () => {
   it("snaps small negative micro-balances to zero", () => {
     // $0.02 overpayment — should also snap to zero
     const result = computeBalance(
-      [{ netPrice: 500, orderedQuantity: 1 }],
+      [{ netPrice: 500, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [{ paymentAmount: 500.02, isRefund: false, status: null }],
     );
     expect(result.balanceDue).toBe(0);
@@ -236,7 +267,7 @@ describe("computeBalance", () => {
   it("preserves real balances above threshold", () => {
     // $1.50 remaining — real balance, should not snap
     const result = computeBalance(
-      [{ netPrice: 500, orderedQuantity: 1 }],
+      [{ netPrice: 500, orderedQuantity: 1, lineItemStatus: "ACTIVE" }],
       [{ paymentAmount: 498.5, isRefund: false, status: null }],
     );
     expect(result.balanceDue).toBe(1.5);
