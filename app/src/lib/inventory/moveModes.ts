@@ -7,14 +7,15 @@
 //            received at B (in parts if need be), so stock on its way is
 //            visible and owned the whole time.
 //
-// A place may set a mode; a place without one takes its store's; a store
-// without one takes the default -- QUICK within a store, TRACKED between
-// stores. A move uses the stricter of its two ends. The mode is a minimum:
-// anyone may always take the longer way and raise a transfer for a move that
-// could have been quick.
+// A place may set a mode; a place without one takes the nearest place above
+// it that has one (requiredMoveMode), then its store's; a store without one
+// takes the default -- QUICK within a store, TRACKED between stores. A move
+// uses the stricter of its two ends. The mode is a minimum: anyone may always
+// take the longer way and raise a transfer for a move that could have been
+// quick.
 //
-// SCANNED (tracked, with a scan at load and unload) arrives with the handheld
-// pages that can satisfy it (ledger plan PR 4).
+// SCANNED (tracked, with a scan at load and unload) is not built: the
+// handheld move is quick only. Tracked in ROADMAP.md, "Handheld floor".
 
 import { ancestry } from "./placeTree";
 import type { PrismaTx } from "./ledger";

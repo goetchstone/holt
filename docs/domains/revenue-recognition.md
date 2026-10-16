@@ -304,6 +304,18 @@ invoiceDeliveredOrder(tx, { salesOrderId, serviceAppointmentId, deliveredAt, act
 Runs inside the caller's transaction; current delivery handlers are bare
 `prisma.update` calls and need wrapping.
 
+> **Changed since this was written (2026-10-16, ledger-plan PR 4).** The stop
+> route now checks transitions (`isValidStopTransition`), and completion goes
+> through `lib/fulfilment/stops.ts` `completeStop`, which claims the stop once
+> before anything follows. `OrderLineItem.fulfilledQty` is written: a part
+> delivery (`recordDelivery` in `lib/fulfilment/handover.ts`) raises it line by
+> line from the driver's counts, and `markHandedOver` sets it to the ordered
+> quantity. `consume()` already ran from `markHandedOver`. The invoice hook
+> belongs in `completeStop` / `recordDelivery`, and a part delivery is no longer
+> unknowable: it is the lines' `fulfilledQty` (DECISIONS #23). The
+> precondition, idempotency and "partial delivery" notes below describe the code
+> before that.
+
 **Trigger — exactly one primary:** `PUT /api/dispatch/stops/[id]` on the
 transition into `COMPLETED`. It is the only event with physical evidence behind
 it (signature/photo via `stops/[id]/proof.ts:49-60`). Second entry point:

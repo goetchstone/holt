@@ -277,6 +277,9 @@ Since 2026-04-24:
 
 ## Physical count workflow
 
+This is the store-grain count against the POS, kept for the cutover. Holt's own
+count is by place: see "The handheld floor" → "Counting" (DECISIONS #21).
+
 1. **Freeze** — `pages/inventory/freeze.tsx` declares a count event for a location. Locks edits while the count runs.
 2. **Scan** — barcode scanner posts UPCs to `/api/inventory/physical-count`. Each scan creates a `PhysicalInventoryCount` row. Unidentified UPCs (no `Upc` row, no `Product` match) become `UnidentifiedScan` with an optional photo.
 3. **Reconcile** — `pages/inventory/reconcile-photos.tsx` walks each unidentified scan; admin either creates a new Product (with the photo attached) or marks the scan as "not stock" (e.g., display fixture).
@@ -402,6 +405,7 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 - `inventorySnapshot.test.ts` — unit tests for `summarizeInventoryAggregate` (the shared freeze/snapshot roll-up)
 - `snapshotImport.test.ts` — unit tests for `resolveSnapshotImportRow` (the POS cutover importer's per-row resolution)
 - `inventorySnapshotGenerate.integration.test.ts` — real-DB coverage for `POST /api/inventory/snapshot/generate`, including a product with no `externalId` and same-day re-run idempotency
+- The handheld floor, phases 15–20: `scanCodes.test.ts`, `labelRender.test.ts`, `boxes.test.ts`, `countDifference.test.ts`, `deliveredLines.test.ts`; real-DB `resolveScan`, `withAction`, `handheldReceive`, `stockCount`, `stockMove`, `stockPick`, `stockDelivery` and `returnPickupStop` (`*.integration.test.ts`)
 
 ## Document flows (since 2026-10-17)
 
@@ -473,6 +477,99 @@ at another store, units on an open PO (earliest due), or start a draft PO -- and
 exports CSV. The warehouse dashboard shows its count and the returned-stock
 queue's.
 
+## The handheld floor
+
+Ledger plan phases 15–20 (PR 4). Web pages under `/app/scan` for a scanner
+that types what it reads (a Zebra running DataWedge, or any keyboard-wedge
+scanner). Each page sits behind the permission of the desk screen that does
+the same job, and the API routes under `pages/api/scan/` behind the same
+permission. Tested with keyboard-wedge input in a browser. A real Zebra on
+HTTPS staging is **unverified** until someone runs it on one (rule 58).
+
+| Page | Permission | Does |
+|---|---|---|
+| `/app/scan` | signed in | the menu |
+| `/app/scan/lookup` | `inventory.read` | what a product is and where it is, or what a place holds; free and committed apart |
+| `/app/scan/receive` | `purchasing.receive` | goods in against a PO |
+| `/app/scan/count` | `inventory.count` | count a place; posting needs `inventory.adjust` too |
+| `/app/scan/move` | `inventory.transfer` | put away and move |
+| `/app/scan/pick` | `warehouse.operate` | pick a run to the loading bay, then load it |
+
+**What a scan is** (`lib/scan/resolveScan.ts`, one resolver for every page
+and `GET /api/scan/resolve`). Holt's own labels come first: `L-<placeId>` for
+a place and `B-<productId>-<box>-<of>` for one box of a multi-box unit
+(`lib/scan/scanCodes.ts`). Then the text as scanned: a UPC, a consignment
+rug's barcode, a product number, and last a place's own code at the store the
+scanner is working in.
+
+**Done once.** Every handheld write carries an action key the page chose
+(`lib/inventory/withAction.ts`). The first request with a key does the work
+and stores its answer in `StockAction`; a resend gets that answer back and
+moves nothing. Each movement records its key (`StockMovement.actionKey`).
+
+**Labels.** Product, place and box labels render through one function,
+`lib/labels/renderTemplate.ts`, whose `LABEL_FIELDS` lists what each label may
+use. See `docs/domains/printing.md`.
+
+**Boxes are evidence** (DECISIONS #22). `Product.boxesPerUnit` is the only box
+fact stored. A manufacturer's UPC repeats on every box, so a multi-box product
+is received by Holt's box labels, printed first, or by "+1 whole". Box scans
+are assembled into whole units (`lib/inventory/boxes.ts`). A unit short of
+boxes is an **incomplete set**: received as one unit into quarantine
+(condition "Incomplete set") with an INCOMPLETE `BoxNote` naming the missing
+boxes. When the missing boxes arrive, the unit moves to stock, is committed if
+its PO's order still needs it, and the note clears
+(`addBoxesToIncompleteSet`). A box moved on its own leaves a STRAY note.
+
+**Counting** (`lib/inventory/count.ts`, DECISIONS #21). A count is of one place
+(never a GROUP place).
+
+- **PLACE scope:** everything at the place. A product on the books there but
+  not counted is counted absent.
+- **PRODUCTS scope:** a quick count, which speaks only for the products listed.
+
+Submitting needs `inventory.count`. Posting changes the books, so it needs
+`inventory.adjust`, on the handheld or from Inventory › Counts. Posting moves
+the difference as ADJUST movements:
+
+- extra stock is added as free stock;
+- a shortfall takes free stock first, then committed units, and those orders
+  are resynced;
+- box notes the count answers are cleared.
+
+The Oversold report shows, for each short product, the last posted count's
+difference at a place holding it ("Last count off by"). That tells a miscount
+from an oversale.
+
+**Moving** (`lib/inventory/floorMove.ts`). Quick moves only: free units first,
+then committed units, each keeping its order. A move that a place's mode wants
+tracked is refused and raised as a transfer instead. A place without a mode
+takes the nearest one above it in the place tree, then its store's
+(`lib/inventory/moveModes.ts`).
+
+**Picking** (`lib/fulfilment/pick.ts`).
+
+- A pick moves the order's own unit from where the pull list says it is to a
+  STAGING place (the loading bay), still committed, and ticks the run's
+  printed pick list.
+- A multi-box unit is picked only whole.
+- A stray box picked with its unit is reunited (its note clears).
+- `loadRun` refuses while anything is left to pull.
+
+**Delivery** (`lib/fulfilment/stops.ts`, DECISIONS #23).
+
+- The driver says how many of each line went (`lib/fulfilment/deliveredLines.ts`).
+- **A part delivery:** what went leaves stock from the loading bay first, and
+  `OrderLineItem.fulfilledQty` goes up. The rest stays committed, and a
+  DELIVERY appointment for it goes back in the dispatch pool.
+- **The last units are the handover** (`markHandedOver`). It consumes only
+  what was still to fulfil: `getActiveOrderLines` returns ordered less
+  fulfilled, so a resync never commits stock again for units already gone.
+- **A stop that could not be done** comes off the run. The reason goes on the
+  order, and the stock stays committed at the loading bay until a handheld
+  move puts it back or the next run takes it.
+- **A return pickup** is a stop of its own: see `docs/domains/service-dispatch.md`.
+
 ## Roadmap: stock as a ledger of movements
 
 The tracked plan for the rest of the warehouse model (rule 50). Phase 1, the
@@ -491,7 +588,7 @@ table at the end of this section belongs to one of them:
 | 2. Documents move stock correctly | 5–11 | the transfer commit inside the receipt; `parseInt` on new transfers; a zero-quantity line counted as received; the returns UI's restock; `Return.quantity`; cancelled lines on pick lists | 1 |
 | 2b. Returns money ✅ built | — | refund to the original method or to store credit, a store-credit tender, restocking fees, and the refund bugs listed in `docs/domains/returns.md` → "Returns money" (closed there; what is left is tracked there) | 2 |
 | 3. Places and space | 12–14 | — | 1 (after 2: one test database, rule 59) |
-| 4. Handheld floor | 15–20, plus the retry key (`withAction`) phase 4 named, built with the handheld pages that use it | counts and reconciliation (count by area replaces both) | 2, 3 |
+| 4. Handheld floor | 15–20, plus the retry key (`withAction`) phase 4 named, built with the handheld pages that use it | native counts by place, with the store-grain count kept as the cutover tool (DECISIONS #21); the Oversold count flag | 2, 3 |
 
 PR 4's device gate stands. Its pages are tested with keyboard-wedge input in a
 browser; a real Zebra on HTTPS staging stays unverified until it is run on one
@@ -522,7 +619,16 @@ browser; a real Zebra on HTTPS staging stays unverified until it is run on one
 
 **D. Handheld floor** (web pages on DataWedge scanners; HTTPS required)
 
-15. PWA shell, scan resolution (including place labels, `L-<id>`), lookup. 16. Boxes as evidence (`boxesPerUnit`, box labels, incomplete sets held in quarantine). 17. Count by area. 18. Put away and move, with stray-box notes. 19. Pick, stage, load. 20. Partial and failed delivery, and return pickups on a run.
+Detail under "The handheld floor" below.
+
+15. ✅ The scanner shell and lookup: `/app/scan`, installable from the browser (`app/manifest.ts`), reading a keyboard-wedge scanner (`useWedgeScan`). One resolver for every scan (`lib/scan/resolveScan.ts`). Lookup by product or place. Place labels (`L-<id>`) printed from Warehouse › Locations. The retry key (`withAction`). Admin › Stock ledger (`ledgerDrift`). Tests: `scanCodes.test.ts`, `labelRender.test.ts`, `resolveScan.integration.test.ts`, `withAction.integration.test.ts`.
+16. ✅ Boxes as evidence (DECISIONS #22): `Product.boxesPerUnit`, box labels (`B-<product>-<box>-<of>`), incomplete sets held in quarantine with a `BoxNote`. The desk and the handheld receive through one function, `lib/purchasing/receivePurchaseOrder.ts` (rule 42). Tests: `boxes.test.ts`, `handheldReceive.integration.test.ts`.
+17. ✅ Count by place (DECISIONS #21), posted from Inventory › Counts; the Oversold report's count flag. Tests: `countDifference.test.ts`, `stockCount.integration.test.ts`, `oversoldReport.integration.test.ts`.
+18. ✅ Put away and move, with stray-box notes; move modes inherited down the place tree. Test: `stockMove.integration.test.ts`.
+19. ✅ Pick to the loading bay, tick the run's pick list, load the run. Test: `stockPick.integration.test.ts`.
+20. ✅ Part and failed deliveries, and return pickups as run stops (DECISIONS #23). Tests: `deliveredLines.test.ts`, `stockDelivery.integration.test.ts`, `returnPickupStop.integration.test.ts`.
+
+Not built in PR 4, tracked in `ROADMAP.md` → "Handheld floor" (rule 50): an offline outbox, the SCANNED move mode, a truck place per run, and the store-grain count's whole-number columns.
 
 **Found while building phases 1 and 2, scheduled rather than fixed in them** (rule 48):
 
@@ -535,7 +641,7 @@ browser; a real Zebra on HTTPS staging stays unverified until it is run on one
 | ✅ `InventoryPosition` and `InventoryTransfer` quantities reached screens as strings: the positions and transfers routes sent the Prisma Decimal as-is, and JSON writes a Decimal as `"12.625"`, so anything summing them with `+` concatenated (`0 + "3"` is `"03"`). All seven responses under these routes now convert with `toQty`. Test: `warehouseQuantities.integration.test.ts`. The register's sum never showed `"03"` on screen because of the next row | `warehouse/positions/*`, `warehouse/transfers/*` | fixed (#29) |
 | ✅ The register never showed stock: it read `storeLocation.name`, which `/api/warehouse/positions` does not send, and asked for all stock rather than free stock. It now asks with `freeOnly` and folds by `locationName` (`onHandByStore`). Test: `onHandSummary.test.ts` | `sales/pos/PosView.tsx` | fixed (PR 1) |
 | ✅ `Return.quantity` was `Int` read with `parseInt`, so a returned part roll became whole units. Decimal(12,3), parsed with `parseQty`, sent as a number | `Return`, `returns/*` | fixed (PR 2) |
-| `PhysicalInventoryCount.quantity` and `Reconciliation`'s expected/counted/variance columns are `Int`: counting a 12.5-yard roll records 12, and the variance against the Decimal balance is off by the fraction | `inventory/physical-count.ts`, `inventory/reconcile.ts` | phase 17 (count by area replaces both) |
+| `PhysicalInventoryCount.quantity` and `Reconciliation`'s expected/counted/variance columns are `Int`: counting a 12.5-yard roll records 12, and the variance against the Decimal balance is off by the fraction | `inventory/physical-count.ts`, `inventory/reconcile.ts` | not replaced after all: the native count is by place (phase 17), and this store-grain flow stays as the POS cutover check (DECISIONS #21). Tracked in `ROADMAP.md` → "Handheld floor" |
 | ✅ A transfer could not be entered as a part roll (`parseInt`); the same on Receive PO and New Return. All three read the quantity as typed and parse with `parseQty` (`lib/inventory/qtyInput.ts`) | `NewTransferView`, `ReceivePOView`, `NewReturnView` | fixed (PR 2) |
 | ✅ The Buyers report cast on-hand sums to `bigint`, which rounds: a 12.625-yard roll read 13 and a 0.375-yard remnant read 0. The sums are sent as text now, and floor stock is `freePositionSql()`. Test: `stockPlaces.integration.test.ts` | `lib/reports/buyersReport.ts` | fixed (PR 1) |
 | ✅ The New Return screen sent `orderId`; the route reads `salesOrderId`, so every return created from the screen was refused with a 400. Found writing the returns tests; fixed | `NewReturnView.tsx` | fixed (PR 2) |
@@ -545,4 +651,4 @@ browser; a real Zebra on HTTPS staging stays unverified until it is run on one
 | ✅ The Buyers report would have counted a committed receipt twice (ledger and PO chain). Per order and product, the PO-chain half now counts only what the ledger does not already hold as committed | `lib/reports/buyersReport.ts` (query 2) | fixed (PR 2) |
 
 ---
-Last verified: 2026-10-17
+Last verified: 2026-10-16

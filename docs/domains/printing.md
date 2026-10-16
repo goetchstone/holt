@@ -27,7 +27,17 @@ Human-readable errors include the printer IP and actionable guidance ("Check tha
 
 ### Template rendering
 
-Templates use Mustache (`Mustache.render`) — simpler than Handlebars for the per-label substitution we do. Template stored as a `LabelTemplate` row keyed by name (`product-label`, `shelf-tag`, `pick-ticket`, etc.). Field substitution: product name, part number, barcode, price, store.
+Every label renders through `lib/labels/renderTemplate.ts` (Mustache). Templates are `LabelTemplate` rows, and each has a `context`; `LABEL_FIELDS` there lists, once, the fields each context may use:
+
+| Context | Fields | Rendered by |
+|---|---|---|
+| PRODUCT | name, sku, vendor, barcode (first UPC, else the product number), width, depth, height, baseCost, baseRetail | `renderLabel` in `lib/labelPrinter.ts` |
+| LOCATION | locationCode, locationName, path, store, barcode (`L-<placeId>`) | `lib/labels/placeLabel.ts` |
+| BOX | name, sku, box, of, barcode (`B-<productId>-<box>-<of>`), poNumber | `lib/labels/boxLabel.ts` |
+
+A value is escaped for ZPL: `^` and `~` start ZPL commands, so they are replaced with a space. A product named "50^ off" would otherwise end its field and run the rest as a command. Test: `labelRender.test.ts`.
+
+Place and box labels choose their template and printer with `routeContextLabel(context, storeName)`: the first template of that context, and a printer loaded with its tag size, one at the store first. With none set up it throws `LabelSetupError` naming what to set up, rather than printing on whatever is nearest. `printZpl(printerId, zpl)` sends to the stored address of a printer chosen by id, never an address from the request.
 
 ## API surfaces
 
@@ -39,6 +49,8 @@ Templates use Mustache (`Mustache.render`) — simpler than Handlebars for the p
 | `POST /api/print-label/batch` | Print N labels in one call | **10 req/min**, max 50 items, 10 copies per item |
 | `POST /api/print-label/*` (single) | Print one label | **30 req/min** |
 | `POST /api/print/order/*` | Generate receipt/invoice print HTML | 30 req/min |
+| `POST /api/warehouse/stock-locations/[id]/label` | A place's label (`{ copies }`), from Warehouse › Locations | `inventory.locations.manage` or `warehouse.operate` |
+| `POST /api/scan/box-labels` | A PO line's box labels, printed before a multi-box product is received | `purchasing.receive` or `warehouse.operate` |
 
 Auth: `roles: ["ADMIN", "MANAGER", "REGISTER", "WAREHOUSE"]` on user-facing endpoints. ADMIN-only for printer-config CRUD.
 
@@ -77,7 +89,7 @@ Add a printer: store IP, ping-test from the admin UI, save. The ping test does a
 | Surface | Coverage |
 |---|---|
 | `labelPrinter.ts` retry logic | Unit tests TBD — **gap**, would mock the `net.Socket` |
-| Mustache template rendering | None |
+| Template rendering | `labelRender.test.ts`: each context's fields, ZPL escaping |
 | Batch endpoint caps | None |
 | Receipt total cross-check | None — should be a real-DB integration |
 
