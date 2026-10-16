@@ -78,6 +78,7 @@ export async function seedAccounting(prisma: PrismaClient): Promise<AccountingSe
   // reconciliation resolves it through the SystemGLMapping row below
   // (lib/dailyReconciliation.ts), and the generator always did
   // (lib/journalEntry.ts).
+  await upsertGl("4-4950", "Restocking Fees", "REVENUE");
   await upsertGl("5-5900", "Cash Over/Short", "EXPENSE");
   await upsertGl("5-5005", "Transfers (Between Stores)", "EXPENSE");
   await upsertGl("5-5010", "Shrinkage / Write-offs", "EXPENSE");
@@ -164,6 +165,7 @@ export async function seedAccounting(prisma: PrismaClient): Promise<AccountingSe
   // --- SystemGLMapping: POS_TRANSACTIONS ------------------------------
   await upsertMapping("POS_TRANSACTIONS", "Sales Tax", "2-2120");
   await upsertMapping("POS_TRANSACTIONS", "Over/Short", "5-5900");
+  await upsertMapping("POS_TRANSACTIONS", "Restocking Fee", "4-4950");
 
   // --- Tax setup (one district, Standard Retail at SEED_TAX_RATE, 3 exempt reasons) --
   const district = await prisma.taxDistrict.upsert({

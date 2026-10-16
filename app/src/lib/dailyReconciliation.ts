@@ -24,6 +24,7 @@ import {
   SALES_TAX_MAPPING_LABEL,
   OVER_SHORT_MAPPING_LABEL,
   OVER_SHORT_ALERT_THRESHOLD,
+  RESTOCKING_FEE_MAPPING_LABEL,
 } from "./glMapping";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
@@ -311,7 +312,9 @@ export async function resolveReconciliationAccounts(
           { section: POS_PAYMENTS_SECTION },
           {
             section: POS_TRANSACTIONS_SECTION,
-            label: { in: [SALES_TAX_MAPPING_LABEL, OVER_SHORT_MAPPING_LABEL] },
+            label: {
+              in: [SALES_TAX_MAPPING_LABEL, OVER_SHORT_MAPPING_LABEL, RESTOCKING_FEE_MAPPING_LABEL],
+            },
           },
         ],
       },
@@ -328,6 +331,10 @@ export async function resolveReconciliationAccounts(
     if (g.salesAccountId != null) revenue.add(g.salesAccountId);
     if (g.cogsAccountId != null) cost.add(g.cogsAccountId);
   }
+  // A restocking fee is a line on a return's order, so source revenue counts
+  // it; the journal credits it to its own account, which is revenue too.
+  const feeId = mappingId(POS_TRANSACTIONS_SECTION, RESTOCKING_FEE_MAPPING_LABEL);
+  if (feeId != null) revenue.add(feeId);
 
   const tax = new Set<number>();
   for (const d of districts) {

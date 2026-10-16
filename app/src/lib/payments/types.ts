@@ -138,6 +138,13 @@ export interface RefundRequest {
   providerTxnId: string;
   amount: number;
   reason?: string;
+  /**
+   * The same key for every attempt at one refund (`holt-refund-<Payment.id>`
+   * of the PENDING refund row), so a retry after a crash or a timeout can
+   * never refund twice. Stripe honours a key for 24 hours, so a retry is only
+   * offered within that window (lib/paymentService.ts REFUND_RETRY_WINDOW_MS).
+   */
+  idempotencyKey: string;
 }
 
 export interface RefundResult {

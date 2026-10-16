@@ -24,7 +24,7 @@ Fields driving the workflow:
 | `salesOrderId` + `lineItemId`        | Direct FK to the original sale (NOT available for imported returns)                                                                                                                                                                                                                                                                                               |
 | `pickupRequired` + `pickupAddressId` | Optional pickup scheduling — feeds the warehouse returns queue's pickup tab and the pickup schedule at `/app/warehouse/pickups` if true                                                                                                                                                                                                                           |
 | `exchangeOrderId`                    | If the return triggers a replacement order, this links to it                                                                                                                                                                                                                                                                                                      |
-| `refundPaymentId` + `refundAmount`   | Stamped by the refund endpoint once a refund `Payment` is issued                                                                                                                                                                                                                                                                                                  |
+| `returnOrderId` + `restockingFeeLineItemId` | Set the first time money moves: the return's own RETURNED order and the fee line on it (see "Returns money"). Refunds are `Payment` rows carrying `returnId`, so a return can be paid out in several payments |
 | `portalToken` + `portalRequestedAt`  | Set when staff mint a customer-portal return link; the portal routes key off them                                                                                                                                                                                                                                                                                 |
 
 ## UI + API
@@ -36,7 +36,7 @@ Fields driving the workflow:
 | Return detail     | `/app/sales/returns/[id]` → `GET /api/returns/[id]`; `PUT /api/returns/[id]` edits pickup fields + `reasonNotes` only                                                                      |
 | Returns queue     | `/app/warehouse/returns` → `GET /api/warehouse/returns/queue` (pickup / inspection / decision tabs)                                                                                        |
 | State transitions | `PUT /api/returns/[id]/status` with the target status in the body — rejected unless `isValidTransition` allows the edge                                                                    |
-| Refund            | `POST /api/returns/[id]/refund` → `processRefund` in `lib/paymentService.ts`, then stamps `refundPaymentId` + `refundAmount`                                                               |
+| Refund            | `POST /api/returns/[id]/refund` → `refundReturn` in `lib/returns/refundReturn.ts` (to the original payment, or to store credit; `retryRefundPaymentId` finishes one waiting on its processor) |
 | Exchange          | `POST /api/returns/[id]/exchange` — creates an exchange `SalesOrder` linked via `exchangeOrderId`, mirrors the original storeLocation + salesperson + customer                             |
 | Pickup planning   | `/app/warehouse/pickups` → `GET /api/warehouse/returns/pickups` reads `pickupRequired = true && status IN INITIATED/PICKUP_SCHEDULED`                                                      |
 | Customer portal   | `GET /api/portal/returns/[token]` + `POST /api/portal/returns/request` — token-only, no staff session; staff mint the token with `POST /api/sales/orders/[id]/return-link` (`sales.write`) |
@@ -154,39 +154,95 @@ Every state transition writes to `OrderChangeLog` for the linked `salesOrderId`.
 
 - **Native pickup scheduling integration** with dispatch board — `pickupRequired` flag exists but the dispatch UI doesn't yet pull return-pickups into the run-planner
 - **Vendor return path** for damaged items (consignment-specific in `docs/domains/consignment.md`; non-consignment vendor returns have no formal workflow)
-- **Restocking fees** — not modelled at all: no field on `Return`, and nothing in `app/src` computes one
 
-## Returns money: found 2026-10-16, scheduled for ledger-plan PR 2b
+## Returns money (since ledger-plan PR 2b)
 
 Owner direction 2026-10-16: a return never holds up the customer. The refund
 goes back to the original payment method **or** onto the customer's account as
 store credit, usable toward a new sale or a rewrite, and a return may carry a
-restocking fee. Putting the piece back on the shelf or writing it off is a
-separate per-store queue (ledger plan PR 2, phase 8), not a step the customer
-waits on.
+restocking fee. Putting the piece back or writing it off is the store's
+returned-stock queue (above), not a step the customer waits on.
 
-Found reading the code (static read, nothing exercised), each tracked here
-until PR 2b closes it (rule 50):
+**A return books as its own order** (DECISIONS #20, `lib/returns/bookReturn.ts`)
+the first time money moves for it: a RETURNED `SalesOrder` numbered with the
+return number, carrying one negative line for what came back (its share of the
+original line's net, tax and cost, by quantity; the return that completes a
+line takes the remainder) and one positive line for the restocking fee. It gets
+an invoice dated the return day **only when the original order was invoiced**:
+a sale that was recognised is reversed the same way, on the day the return
+happens. The original order is never rewritten. The customer's AR ledger gets a
+negative SALE entry for what they are owed; the refunds that pay it out bring
+it back. Once booked, the return cannot be cancelled and its order cannot be
+edited through the order or line routes (`returnOrderEditProblem`).
 
-| Finding | Where |
+**Paying it out** (`lib/returns/refundReturn.ts`, the return detail screen's
+Refund panel):
+
+1. What the original order still owes is paid first, from the return, as store
+   credit spent on that order. A customer who owes $500 and returns a $400 piece
+   owes $100 and is refunded nothing. A walk-in sale has no customer to hold the
+   credit, so it is skipped.
+2. What is left is refundable: the value, less the fee, less every refund that
+   is COMPLETED or still PENDING (`returnMoney.ts`). Refunds may be split.
+3. **To the original payment:** a payment on the original order, refunded the
+   way it was taken (`processRefund`). A card refund is reserved as a PENDING
+   row, sent to the processor outside any transaction with the key
+   `holt-refund-<id>`, then settled. If the processor errors, the row stays
+   PENDING: it still counts against the cap, stays out of balances and the
+   journal, and Retry sends the same key, so a refund that did go through is
+   never repeated. Past 24 hours a retry is refused and the operator checks the
+   processor's dashboard; the stale-payment sweeper never touches a PENDING
+   refund.
+4. **To store credit:** credit on the customer's account (`lib/customerCredit.ts`),
+   with no processor and no till. Nothing goes back to the card.
+
+**Restocking fee:** typed per return by the person refunding it, as a percent
+of the goods' net or an amount, 0 unless they say otherwise. It is fixed by the
+first refund. A nonzero fee needs `POS_TRANSACTIONS`/"Restocking Fee" mapped to
+an income account (the migration adds the row unmapped); the journal books the
+fee line there, and the daily reconciliation counts that account as revenue.
+**Defaults pending the owner** (asked 2026-10-16): the fee is per return rather
+than a store default percent; the fee is not taxed, so the full tax goes back;
+the salesperson's commission is not adjusted for the fee (a native return
+claws back commission in its own period, as an imported one does).
+
+**Store credit** is spent at the register (a "Store Credit" tender, shown when
+the order's customer has some) or on an order's screen ("Apply store credit",
+for rewrites and exchanges). Credit is spent only on the same customer's order,
+under a per-customer lock, and never past zero (CHECK
+`Customer_creditBalance_nonnegative`).
+
+The findings of 2026-10-16, all closed here (rule 48):
+
+| Finding | Closed by |
 |---|---|
-| Refunding a card payment "to store credit" refunds the card **and** issues credit: the processor refund does not depend on the chosen method | `lib/paymentService.ts` `processRefund` (~647) |
-| Refund to store credit issues nothing when the payment row has no customer (no fallback to the order's customer), while the refund row says "Store Credit" | `processRefund` (~698) |
-| The processor call runs inside the database transaction: a rollback after it leaves the customer refunded and nothing recorded | `processRefund` (613/650) |
-| The refund route checks neither the return's status (a CANCELLED return can refund), that the payment belongs to the return's order, nor a cap at the returned line's value; a second refund overwrites the first's record | `pages/api/returns/[id]/refund.ts` |
-| `computeRefundable` is exported and tested but unused; `processRefund` re-derives it inline (rule 42) | `paymentService.ts:105` vs `:625` |
-| Store credit can be spent on another customer's order: `recordPayment` never checks the credit's customer against the order's | `paymentService.ts` STORE_CREDIT branch (~248) |
-| No screen offers store credit: the register's tenders are cash/check/card/gift card; nothing calls `/api/customers/[id]/credit`; manual credit adjustments reach no GL | `PosView.tsx:101`, `credit/adjust.ts` |
-| The return detail screen reads fields the API does not send (`order`, `createdAt`, `payments`, …). **Reproduced 2026-10-17 on a seeded scratch database:** opening a return crashes with "RangeError: Invalid time value" at `ReturnDetailView.tsx:339` (`format(new Date(returnData.createdAt))`), so no refund can be issued from it. The New Return screen now lands there after a successful submit | `ReturnDetailView.tsx` vs `pages/api/returns/[id].ts` |
-| Native returns write no negative lines, so revenue is never reversed and `computeBalance` shows a refunded order owing the refund again — chargeable by payment links and portal Pay | `pages/api/returns/index.ts` |
-| `REFUND_ISSUED`'s ledger sign is +1 in code and negative in the schema comment and accounting.md; refund-to-credit raises open AR while raising the credit balance | `lib/customerLedger.ts:294` |
-| No restocking fee field, computation or GL account | — |
+| Refunding a card payment "to store credit" refunded the card **and** issued credit | `processRefund` has no method override; store credit is its own destination with no processor (`refundReturn`) |
+| Refund to store credit issued nothing when the payment row had no customer | The credit goes to the return's customer, else the order's; with neither, the refund is refused before anything is written |
+| The processor call ran inside the database transaction | Reserve, call, settle (`processRefund`); test: the processor error and retry case in `returnMoney.integration.test.ts` |
+| The refund route checked neither the return's status, the payment's order, nor a cap; a second refund overwrote the first's record | `POST /api/returns/[id]/refund`: 409 for a cancelled return, 400 for another order's payment or over the cap; refunds are rows with `returnId` |
+| `computeRefundable` was unused; `processRefund` re-derived it | `processRefund`'s cap is `computeRefundable`, counting COMPLETED and PENDING refunds only |
+| Store credit could be spent on another customer's order | `spendStoreCredit` refuses any order but the credit's customer's, and an order with no customer |
+| No screen offered store credit; manual credit adjustments reached no GL | The register tender and "Apply store credit". **Manual adjustments still post no journal**: tracked below |
+| The return detail screen crashed on load (`createdAt`, `order`, `payments` never sent) | One contract, `lib/returns/returnDetailContract.ts`, for the API and the screen |
+| Native returns wrote no negative lines, so a refunded order showed owing the refund again | The return's own RETURNED order |
+| `REFUND_ISSUED`'s sign was +1 in code and negative in the comments and accounting.md | The comments and runbook now say +1; the return's SALE entry is what makes refund-to-credit net out |
+| No restocking fee | Above |
 
-PR 2 changes what the journal generator reads for a return's disposition:
-`resolveReturnBookingPath()` classified a return by its terminal status
-(`RESTOCKED`/`WRITTEN_OFF`). Once the returned-stock queue puts pieces back or
-writes them off after the customer's return is closed, the classification reads
-the return's recorded disposition instead.
+Also fixed on the way: the sales journal now leaves out PENDING, FAILED and
+VOIDED payments (it journaled every row on the day), and so does the till's
+expected count; the register's tender route was refused to the REGISTER role
+(it was a MANAGER/ADMIN list) and now takes `payment.take`.
+
+**Not done, tracked here (rule 50):**
+
+| Gap | Why it waits |
+|---|---|
+| A manual store-credit adjustment (`customer.credit.adjust`) moves the balance but posts no journal entry | Needs an adjustment journal type and an account pair to post between; its own change |
+| A return booked against an original that is invoiced **later** is never reversed in the journal (it had no invoice to mirror when it was booked) | Native sales are rarely invoiced today (see accounting.md "The billing service could not invoice a sales order"); revisit when delivery invoices them |
+| A write-off decided after the return day's journal is posted still books as restock on that day | The queue's write-off should post its own Dr Shrinkage / Cr Inventory; with returned-stock journal work |
+| A PENDING processor refund older than 24 hours can only be voided, not marked as paid, from the screen | Needs an admin settle action with the processor's refund id |
+| Refunds paid at the returns desk are not tied to a till | The returns desk has no register context today |
+| The register's "return mode" cart writes negative lines with no Return record and no payout path | A separate flow; left as it is |
 
 ---
 

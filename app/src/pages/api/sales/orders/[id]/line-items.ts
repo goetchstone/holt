@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
@@ -20,6 +21,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
   const orderId = Number.parseInt(id);
   const changedBy = session.user?.email || null;
+
+  if (req.method !== "GET" && !Number.isNaN(orderId)) {
+    const locked = await returnOrderEditProblem(prisma, orderId);
+    if (locked) return res.status(409).json({ error: locked });
+  }
 
   // POST: Add a new line item to the order
   if (req.method === "POST") {

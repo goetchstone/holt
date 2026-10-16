@@ -489,7 +489,7 @@ table at the end of this section belongs to one of them:
 |---|---|---|---|
 | 1. Stock you can trust | 3, 4 | the register never shows stock; the Buyers report rounds | — |
 | 2. Documents move stock correctly | 5–11 | the transfer commit inside the receipt; `parseInt` on new transfers; a zero-quantity line counted as received; the returns UI's restock; `Return.quantity`; cancelled lines on pick lists | 1 |
-| 2b. Returns money | — | refund to the original method or to store credit, a store-credit tender, restocking fees, and the refund bugs listed in `docs/domains/returns.md` → "Returns money" | 2 |
+| 2b. Returns money ✅ built | — | refund to the original method or to store credit, a store-credit tender, restocking fees, and the refund bugs listed in `docs/domains/returns.md` → "Returns money" (closed there; what is left is tracked there) | 2 |
 | 3. Places and space | 12–14 | — | 1 (after 2: one test database, rule 59) |
 | 4. Handheld floor | 15–20, plus the retry key (`withAction`) phase 4 named, built with the handheld pages that use it | counts and reconciliation (count by area replaces both) | 2, 3 |
 

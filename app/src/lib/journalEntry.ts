@@ -9,7 +9,9 @@ import {
   SALES_TAX_MAPPING_LABEL,
   OVER_SHORT_MAPPING_LABEL,
   OVER_SHORT_ALERT_THRESHOLD,
+  RESTOCKING_FEE_MAPPING_LABEL,
 } from "@/lib/glMapping";
+import { countedPaymentWhere } from "@/lib/paymentBalance";
 import { businessDayRange } from "@/lib/reports/businessDay";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 
@@ -111,6 +113,12 @@ export interface SalesOrderForJournal {
   // branching). Optional/undefined for callers that predate this field
   // (existing unit-test fixtures) -- treated the same as an empty array.
   returns?: ReturnForJournal[];
+  /**
+   * This order IS a native return's own order (lib/returns/bookReturn.ts):
+   * its negative lines reverse the sale on the return day, so a refund paid
+   * out on it settles the receivable its invoice raised like any payment.
+   */
+  isReturnOrder?: boolean;
 }
 
 export interface SalesLineForJournal {
@@ -668,7 +676,17 @@ export function buildJournalLines(
     // Refunding a DEPOSIT is different and does balance on its own: the money
     // went back and the liability the business was carrying is discharged.
     // Dr Deposits / Cr Cash, no plug, nothing unexplained.
-    if (payment.reversesPaymentId != null && payment.settles === "RECEIVABLE") continue;
+    //
+    // Except on a native return's own order: there the reversing legs DO exist
+    // (its negative lines, recognised on its invoice date), so the refund
+    // settles the negative receivable they raised, like any payment.
+    if (
+      payment.reversesPaymentId != null &&
+      payment.settles === "RECEIVABLE" &&
+      !order.isReturnOrder
+    ) {
+      continue;
+    }
 
     const creditGlId = payment.settles === "RECEIVABLE" ? arGlId : depositGlId;
     // A payment posted straight to the account it would be credited to IS the
@@ -832,6 +850,17 @@ export function buildJournalLines(
  * would mean an order recognised through one path booked different lines from
  * the same order recognised through the other.
  */
+/** A Return's fields the journal classifies a return line by. Shared by both includes below. */
+export const RETURN_FOR_JOURNAL_SELECT = {
+  id: true,
+  lineItemId: true,
+  productId: true,
+  status: true,
+  inspectionCondition: true,
+  restockedAt: true,
+  writtenOffAt: true,
+} as const;
+
 const ORDER_FOR_JOURNAL_INCLUDE = {
   include: {
     // invoiceDate decides BOTH which day recognises the order and whether a
@@ -882,17 +911,11 @@ const ORDER_FOR_JOURNAL_INCLUDE = {
     // defaulting every return to restock. Empty for every imported
     // historical return (the Return table is never populated by
     // import -- docs/domains/returns.md "the dual reality").
-    returns: {
-      select: {
-        id: true,
-        lineItemId: true,
-        productId: true,
-        status: true,
-        inspectionCondition: true,
-        restockedAt: true,
-        writtenOffAt: true,
-      },
-    },
+    returns: { select: RETURN_FOR_JOURNAL_SELECT },
+    // Set when this order is a native return's own order: its Return record
+    // classifies its negative line (the order's `returns` are the returns OF
+    // it, which a return order has none of), and names its fee line.
+    returnFor: { select: { ...RETURN_FOR_JOURNAL_SELECT, restockingFeeLineItemId: true } },
   },
 } as const;
 
@@ -904,7 +927,13 @@ type OrderRow = Prisma.SalesOrderGetPayload<{ include: typeof ORDER_FOR_JOURNAL_
  * Shared by the payment path and the recognition path for the same reason the
  * include is: the same order must book identically whichever one loaded it.
  */
-function toOrderForJournal(o: OrderRow, fallbackTaxGlId: number | null): SalesOrderForJournal {
+function toOrderForJournal(
+  o: OrderRow,
+  fallbackTaxGlId: number | null,
+  /** POS_TRANSACTIONS/"Restocking Fee": where a return's fee line is income. */
+  restockingFeeGlId: number | null = null,
+): SalesOrderForJournal {
+  const feeLineId = o.returnFor?.restockingFeeLineItemId ?? null;
   return {
     id: o.id,
     hasInvoices: (o.invoices?.length || 0) > 0,
@@ -918,20 +947,28 @@ function toOrderForJournal(o: OrderRow, fallbackTaxGlId: number | null): SalesOr
       quantity: toNum(li.orderedQuantity),
       taxAmount: toNum(li.vatAmount),
       productId: li.productId ?? null,
-      accountGroup: li.product?.category?.accountGroup
-        ? {
-            name: li.product.category.accountGroup.name,
-            salesGlId: li.product.category.accountGroup.salesAccount?.id || null,
-            cogsGlId: li.product.category.accountGroup.cogsAccount?.id || null,
-            inventoryGlId: li.product.category.accountGroup.inventoryAccount?.id || null,
-            shrinkageGlId: li.product.category.accountGroup.shrinkageAccount?.id || null,
-          }
-        : null,
+      accountGroup:
+        li.id === feeLineId
+          ? {
+              name: "Restocking fees",
+              salesGlId: restockingFeeGlId,
+              cogsGlId: null,
+              inventoryGlId: null,
+            }
+          : li.product?.category?.accountGroup
+            ? {
+                name: li.product.category.accountGroup.name,
+                salesGlId: li.product.category.accountGroup.salesAccount?.id || null,
+                cogsGlId: li.product.category.accountGroup.cogsAccount?.id || null,
+                inventoryGlId: li.product.category.accountGroup.inventoryAccount?.id || null,
+                shrinkageGlId: li.product.category.accountGroup.shrinkageAccount?.id || null,
+              }
+            : null,
     })),
     // B3: hand the order's Return records through so buildJournalLines can
     // classify each return-shaped line (resolveReturnBookingPath) instead of
     // assuming restock for every one of them.
-    returns: o.returns.map((r) => ({
+    returns: [...o.returns, ...(o.returnFor ? [o.returnFor] : [])].map((r) => ({
       id: r.id,
       lineItemId: r.lineItemId,
       productId: r.productId,
@@ -940,6 +977,7 @@ function toOrderForJournal(o: OrderRow, fallbackTaxGlId: number | null): SalesOr
       restockedAt: r.restockedAt,
       writtenOffAt: r.writtenOffAt,
     })),
+    isReturnOrder: o.returnFor != null,
   };
 }
 
@@ -1034,6 +1072,14 @@ export async function generateSalesJournal(
   });
   const overShortGlId = overShortMapping?.glAccount?.id || null;
 
+  const feeMapping = await prisma.systemGLMapping.findUnique({
+    where: {
+      section_label: { section: POS_TRANSACTIONS_SECTION, label: RESTOCKING_FEE_MAPPING_LABEL },
+    },
+    select: { glAccountId: true },
+  });
+  const restockingFeeGlId = feeMapping?.glAccountId ?? null;
+
   // Resolve deposit GL for offset on cash payments without invoices
   const depositMapping = paymentGlMap.get("on account") || paymentGlMap.get("deposit") || null;
   const depositGlId = depositMapping?.glAccountId || null;
@@ -1049,8 +1095,11 @@ export async function generateSalesJournal(
   const arGlId = arMapping?.glAccountId || null;
 
   // Query all payments for the date
+  // Money that moved: a PENDING, FAILED or VOIDED payment never did (a
+  // PENDING refund is waiting on its processor). NULL-safe, rule 51.
   const paymentWhere: Record<string, unknown> = {
     paymentDate: { gte: dayStart, lt: dayEndExclusive },
+    ...countedPaymentWhere(),
   };
   if (storeLocation) {
     paymentWhere.storeLocation = storeLocation;
@@ -1132,7 +1181,9 @@ export async function generateSalesJournal(
       // it settles the receivable the invoice created. No invoice at all -> it
       // can only be a deposit.
       settles: settlesOf(payment.salesOrder?.invoices?.[0]?.invoiceDate, payment.paymentDate),
-      order: payment.salesOrder ? toOrderForJournal(payment.salesOrder, fallbackTaxGlId) : null,
+      order: payment.salesOrder
+        ? toOrderForJournal(payment.salesOrder, fallbackTaxGlId, restockingFeeGlId)
+        : null,
     });
   }
 
@@ -1143,7 +1194,7 @@ export async function generateSalesJournal(
   if (recognisedOrders.length > 0) {
     const priorByOrder = new Map<number, number>();
     const priorPayments = await prisma.payment.findMany({
-      where: { salesOrderId: { in: recognisedOrders.map((o) => o.id) } },
+      where: { salesOrderId: { in: recognisedOrders.map((o) => o.id) }, ...countedPaymentWhere() },
       select: { salesOrderId: true, paymentAmount: true, paymentDate: true, isRefund: true },
     });
     const invoiceDateByOrder = new Map(
@@ -1163,7 +1214,7 @@ export async function generateSalesJournal(
     }
 
     for (const row of recognisedOrders) {
-      const order = toOrderForJournal(row, fallbackTaxGlId);
+      const order = toOrderForJournal(row, fallbackTaxGlId, restockingFeeGlId);
       const orderTotal = round2(
         order.lineItems.reduce((sum, li) => sum + li.netPrice + li.taxAmount, 0),
       );

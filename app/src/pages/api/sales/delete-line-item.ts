@@ -6,6 +6,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 
 export default requirePermission(
   "sales.cancel",
@@ -21,6 +22,8 @@ export default requirePermission(
         select: { id: true, salesOrderId: true, partNo: true, lineNumber: true },
       });
       if (!line) return res.status(404).json({ error: "Line item not found" });
+      const locked = await returnOrderEditProblem(prisma, line.salesOrderId);
+      if (locked) return res.status(409).json({ error: locked });
 
       await prisma.orderLineItem.delete({ where: { id: lineItemId } });
 

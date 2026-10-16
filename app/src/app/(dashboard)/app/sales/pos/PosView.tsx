@@ -93,7 +93,7 @@ interface PaymentSummary {
   orderno: string;
 }
 
-type PaymentMethodType = "CASH" | "CHECK" | "CARD" | "GIFT_CARD";
+type PaymentMethodType = "CASH" | "CHECK" | "CARD" | "GIFT_CARD" | "STORE_CREDIT";
 type DeliveryMethod = "TAKEN" | "PICKUP" | "DELIVERY";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
@@ -105,6 +105,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethodType, string> = {
   CHECK: "Check",
   CARD: "Card",
   GIFT_CARD: "Gift Card",
+  STORE_CREDIT: "Store Credit",
 };
 
 const DELIVERY_METHODS: DeliveryMethod[] = ["TAKEN", "PICKUP", "DELIVERY"];
@@ -120,6 +121,20 @@ function resolvePrice(product: { baseRetail?: number | null; baseCost?: number |
   if (product.baseRetail) return Number(product.baseRetail);
   if (product.baseCost) return Number(product.baseCost) * 2.5;
   return 0;
+}
+
+/** Why store credit cannot pay `amount`, or null when it can. */
+function storeCreditProblem(
+  hasCustomer: boolean,
+  credit: number | null,
+  amount: number,
+  fmt: MoneyFmt,
+): string | null {
+  if (!hasCustomer) return "Store credit needs the customer on the order";
+  if ((credit ?? 0) < amount) {
+    return `Not enough store credit: ${fmt(credit ?? 0)} available, ${fmt(amount)} required`;
+  }
+  return null;
 }
 
 function onHandAt(item: CartItem, locationName: string): number {
@@ -165,6 +180,10 @@ export function PosView() {
   const [checkNumber, setCheckNumber] = useState("");
   const [giftCardBarcode, setGiftCardBarcode] = useState("");
   const [giftCardInfo, setGiftCardInfo] = useState<GiftCardInfo | null>(null);
+  // The order's customer's store credit, offered as a tender when there is
+  // some (lib/customerCredit.ts spends it, on their own order only). Null:
+  // no customer, or not loaded.
+  const [storeCredit, setStoreCredit] = useState<number | null>(null);
   const [giftCardError, setGiftCardError] = useState("");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
@@ -523,9 +542,30 @@ export function PosView() {
     }
   };
 
+  const loadStoreCredit = useCallback(async (customerId: number | null | undefined) => {
+    if (!customerId) {
+      setStoreCredit(null);
+      return;
+    }
+    try {
+      const res = await axios.get<{ balance: number }>(`/api/customers/${customerId}/credit`);
+      setStoreCredit(Number(res.data.balance) || 0);
+    } catch {
+      setStoreCredit(null);
+    }
+  }, []);
+
+  const creditCustomerId = selectedCustomer?.id;
+  useEffect(() => {
+    void loadStoreCredit(creditCustomerId);
+  }, [creditCustomerId, loadStoreCredit]);
+
   // Validate the method-specific fields before recording. Returns an error
   // message to toast, or null when the tender is acceptable.
   const validatePayment = (method: PaymentMethodType, amount: number): string | null => {
+    if (method === "STORE_CREDIT") {
+      return storeCreditProblem(selectedCustomer != null, storeCredit, amount, fmt);
+    }
     if (method === "CHECK" && !checkNumber.trim()) {
       return "Enter a check number";
     }
@@ -585,6 +625,7 @@ export function PosView() {
       }
 
       await axios.post(`/api/sales/orders/${createdOrder.id}/payments`, payload);
+      void loadStoreCredit(selectedCustomer?.id);
 
       const change =
         paymentMethod === "CASH"
@@ -691,6 +732,7 @@ export function PosView() {
         setGiftCardInfo={setGiftCardInfo}
         giftCardError={giftCardError}
         setGiftCardError={setGiftCardError}
+        storeCredit={storeCredit}
         paymentProcessing={paymentProcessing}
         onLookupGiftCard={handleGiftCardLookup}
         onRecordPayment={handleRecordPayment}
@@ -1186,6 +1228,7 @@ function TakePaymentPanel({
   setGiftCardInfo,
   giftCardError,
   setGiftCardError,
+  storeCredit,
   paymentProcessing,
   onLookupGiftCard,
   onRecordPayment,
@@ -1210,6 +1253,8 @@ function TakePaymentPanel({
   setPayAmount: Dispatch<SetStateAction<string>>;
   giftCardError: string;
   setGiftCardError: Dispatch<SetStateAction<string>>;
+  /** The customer's store credit; null when the order has no customer. */
+  storeCredit: number | null;
   paymentProcessing: boolean;
   onLookupGiftCard: () => void;
   onRecordPayment: () => void;
@@ -1295,7 +1340,10 @@ function TakePaymentPanel({
 
       {!paymentMethod ? (
         <div className="grid grid-cols-2 gap-4">
-          {PAYMENT_METHODS.map((method) => (
+          {[
+            ...PAYMENT_METHODS,
+            ...(storeCredit && storeCredit > 0 ? (["STORE_CREDIT"] as const) : []),
+          ].map((method) => (
             <button
               key={method}
               onClick={() => setPaymentMethod(method)}
@@ -1420,6 +1468,19 @@ function TakePaymentPanel({
                     </p>
                   )}
                 </div>
+              )}
+            </div>
+          )}
+
+          {paymentMethod === "STORE_CREDIT" && (
+            <div className="bg-brand-linen rounded-lg p-3">
+              <p className="text-sm font-medium text-brand-black">
+                Store credit: {fmt(storeCredit ?? 0)}
+              </p>
+              {(storeCredit ?? 0) < payingNow && (
+                <p className="text-xs text-red-600 mt-1">
+                  Not enough credit for the {fmt(payingNow)} being tendered
+                </p>
               )}
             </div>
           )}

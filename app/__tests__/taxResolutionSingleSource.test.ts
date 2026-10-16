@@ -44,13 +44,15 @@ function codeOf(rel: string): string {
 /**
  * Files that write a vatRate WITHOUT resolving it, each with a reason.
  *
- * Both current entries copy a rate that already exists on the row they are
+ * Every entry copies a rate that already exists on the row it is
  * amending — the tax on a sold line is a recorded fact and must not silently
  * re-rate itself because a district was edited afterwards.
  */
 const COPIES_AN_EXISTING_RATE: Record<string, string> = {
   "src/pages/api/sales/orders/[id]/line-items/[lineItemId].ts":
     "Replacement/edit of an existing line reuses that line's own vatRate — the rate charged at sale time is a recorded fact, not something to re-derive later.",
+  "src/lib/returns/bookReturn.ts":
+    "A native return's own order reverses the original line at the rate that line was sold at (it selects `vatRate: true` and copies it) — re-resolving would refund a different tax than was charged.",
 };
 
 /** Rate literals that are never a tax rate. 0 and 1 are identity values. */

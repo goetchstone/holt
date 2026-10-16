@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
@@ -39,6 +40,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
       const existing = await prisma.salesOrder.findUnique({ where: { id: Number.parseInt(id) } });
       if (!existing) return res.status(404).json({ error: "Order not found" });
+      const locked = await returnOrderEditProblem(prisma, existing.id);
+      if (locked) return res.status(409).json({ error: locked });
 
       const changedBy = session.user?.email || null;
 
@@ -117,6 +120,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
     try {
       const orderId = Number.parseInt(id);
+      const locked = await returnOrderEditProblem(prisma, orderId);
+      if (locked) return res.status(409).json({ error: locked });
       await prisma.$transaction(async (tx) => {
         // Nullify references that don't cascade
         await tx.customerInteraction.updateMany({

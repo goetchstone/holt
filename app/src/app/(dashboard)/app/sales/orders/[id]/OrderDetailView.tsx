@@ -23,6 +23,7 @@ import Modal from "@/components/ui/Modal";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
 import { computeTotalPaid } from "@/lib/paymentBalance";
+import { ApplyStoreCredit } from "./ApplyStoreCredit";
 
 interface LineItem {
   id: number;
@@ -826,6 +827,15 @@ export function OrderDetailView({ id }: { id: string }) {
             <p>
               <strong>Balance Due:</strong> {formatCurrency(balanceDue)}
             </p>
+            {orderDetails.customer && balanceDue > 0 && (
+              <ApplyStoreCredit
+                orderId={orderDetails.id}
+                customerId={orderDetails.customer.id}
+                balanceDue={balanceDue}
+                formatCurrency={formatCurrency}
+                onApplied={fetchOrder}
+              />
+            )}
             {isManager && balanceDue > 0 && (
               <div className="mt-4 border-t border-brand-gray/20 pt-3">
                 <p className="text-xs text-brand-gray mb-2">Payment Request</p>

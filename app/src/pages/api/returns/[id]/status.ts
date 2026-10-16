@@ -38,6 +38,13 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         error: `Cannot transition from ${ret.status} to ${newStatus}`,
       });
     }
+    // Once money moved the return is booked as its own order and refunds
+    // stand against it; cancelling would leave both behind.
+    if (newStatus === "CANCELLED" && ret.returnOrderId != null) {
+      return res.status(409).json({
+        error: "This return has been refunded or booked, so it cannot be cancelled.",
+      });
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       // Claim the transition before any side effect: only the request that

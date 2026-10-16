@@ -20,9 +20,10 @@
 //    no orphan ledger row, no out-of-sync balance.
 //
 // 3. The signed-amount convention matches `CustomerCreditTransaction`:
-//    positive amount → balance INCREASES (sale, deposit received,
-//    adjustment-debit). Negative amount → balance DECREASES (payment,
-//    refund issued, adjustment-credit, deposit applied to invoice).
+//    positive amount → balance INCREASES (sale, deposit received, refund
+//    issued, adjustment-debit). Negative amount → balance DECREASES
+//    (payment, adjustment-credit, deposit applied to invoice). A refund is
+//    positive because it undoes a payment: see signForType below.
 //
 // 4. `computeRunningBalance()` is a pure function — the canonical
 //    re-derivation used by the daily-recon cron and by validation
@@ -79,8 +80,8 @@ export interface AppendEntryInput {
   type: CustomerLedgerEntryType;
   /**
    * Signed amount. Positive = balance increases (sale, deposit-received,
-   * adjustment-debit). Negative = balance decreases (payment,
-   * refund-issued, deposit-applied, adjustment-credit).
+   * refund-issued, adjustment-debit). Negative = balance decreases
+   * (payment, deposit-applied, adjustment-credit). See signForType.
    */
   amount: number;
   salesOrderId?: number;
