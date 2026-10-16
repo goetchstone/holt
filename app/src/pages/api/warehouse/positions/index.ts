@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { freePositionWhere } from "@/lib/inventory/allocation";
 import { placeWhere, setPlaceQuantity } from "@/lib/inventory/ledger";
+import { toQty } from "@/lib/inventory/quantity";
 import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
@@ -81,7 +82,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         stockLocationId: p.stockLocationId,
         stockLocationName: p.stockLocation?.name || null,
         stockLocationCode: p.stockLocation?.code || null,
-        quantity: p.quantity,
+        quantity: toQty(p.quantity),
         salesOrderId: p.salesOrderId,
         salesOrderNo: p.salesOrder?.orderno || null,
         notes: p.notes,
@@ -138,7 +139,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         return row ?? { productId, ...place, quantity: 0 };
       });
 
-      return res.status(201).json(position);
+      return res.status(201).json({ ...position, quantity: toQty(position.quantity) });
     } catch (error) {
       logError("Error creating position", error);
       return res.status(500).json({ error: "Failed to create inventory position" });

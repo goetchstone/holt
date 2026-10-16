@@ -6,8 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { toQty } from "@/lib/inventory/quantity";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     try {
       const page = Number.parseInt(req.query.page as string) || 1;
@@ -57,7 +58,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         productId: t.productId,
         productName: t.product.name,
         productNumber: t.product.productNumber,
-        quantity: t.quantity,
+        quantity: toQty(t.quantity),
         fromLocation: t.fromStoreLocation?.name || t.fromLocation,
         fromStockLocation: t.fromStockLocation?.name || null,
         toLocation: t.toStoreLocation?.name || t.toLocation,
@@ -154,7 +155,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         },
       });
 
-      return res.status(201).json(transfer);
+      return res.status(201).json({ ...transfer, quantity: toQty(transfer.quantity) });
     } catch (error) {
       logError("Error creating transfer", error);
       return res.status(500).json({ error: "Failed to create transfer" });

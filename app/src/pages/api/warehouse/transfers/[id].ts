@@ -4,8 +4,9 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { success, badRequest, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
+import { toQty } from "@/lib/inventory/quantity";
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+export async function handler(req: NextApiRequest, res: NextApiResponse) {
   const transferId = Number.parseInt(req.query.id as string);
   if (Number.isNaN(transferId)) return badRequest(res, "Invalid transfer ID");
 
@@ -30,7 +31,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         productId: transfer.productId,
         productName: transfer.product.name,
         productNumber: transfer.product.productNumber,
-        quantity: transfer.quantity,
+        quantity: toQty(transfer.quantity),
         fromLocation: transfer.fromStoreLocation?.name || transfer.fromLocation,
         fromLocationId: transfer.fromLocationId,
         fromStockLocation: transfer.fromStockLocation?.name || null,

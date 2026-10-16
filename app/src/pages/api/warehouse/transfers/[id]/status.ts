@@ -216,7 +216,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       where: { id: transferId },
     });
 
-    return res.status(200).json(updated);
+    return res.status(200).json(updated && { ...updated, quantity: toQty(updated.quantity) });
   } catch (error) {
     if (error instanceof TransferRaceError) {
       return res.status(409).json({
