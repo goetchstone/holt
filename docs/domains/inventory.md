@@ -281,7 +281,9 @@ Since 2026-04-24:
 2. **Scan** — barcode scanner posts UPCs to `/api/inventory/physical-count`. Each scan creates a `PhysicalInventoryCount` row. Unidentified UPCs (no `Upc` row, no `Product` match) become `UnidentifiedScan` with an optional photo.
 3. **Reconcile** — `pages/inventory/reconcile-photos.tsx` walks each unidentified scan; admin either creates a new Product (with the photo attached) or marks the scan as "not stock" (e.g., display fixture).
 4. **Variance report** — `pages/inventory/variance-report.tsx` shows scanned-qty vs expected-qty per product. Admin posts a reconciliation per product (accept count, accept book, or split).
-5. **Apply** — `pages/api/inventory/reconcile.ts` writes the accepted qty back to `InventoryPosition` and stamps a `Reconciliation` row for audit. `undo-reconciliation.ts` reverses if needed.
+5. **Reconcile a variance** — `pages/api/inventory/reconcile.ts` stamps a `Reconciliation` row per product and place (found, confirmed, or a corrected count). It does not change stock: nothing reads `Reconciliation` back into `InventoryPosition`, and only `lib/inventory/ledger.ts` writes positions. `undo-reconciliation.ts` deletes the row.
+
+Counts are fractional like the balance (`Decimal(12,3)`, since 2026-10-16): a roll of fabric is counted in yards. `PhysicalInventoryCount.quantity` and `Reconciliation`'s expected, counted and variance columns were `Int`, and Prisma truncated silently: a count of 12.5 yards was stored as 12, and two scans of 0.1 and 0.2 as 0 and 0. The sums, the variance and the numbers sent to a screen go through `lib/inventory/storeCount.ts`; a typed count is read with `parseCount` (`lib/inventory/qtyInput.ts`), where zero is a count. Tests: `storeCount.test.ts`, `storeCountFractional.integration.test.ts`.
 
 ## Warehouse dashboards
 
@@ -346,7 +348,7 @@ Known limits, tracked in the roadmap below: with no source stock location chosen
 - `variance-apparel.tsx` — specific apparel variance (department-filtered). Smaller items, higher count cadence.
 - `variance-report.tsx` — general variance across all categories.
 
-Both read from `PhysicalInventoryCount` + `InventoryPosition` and compute scanned vs book delta. Per CLAUDE.md rule 33, cancelled line items must never inflate book qty — handled at the import side.
+Both compare `PhysicalInventoryCount` with `InventorySnapshot` (the expected baseline), per product. Per CLAUDE.md rule 33, cancelled line items must never inflate book qty — handled at the import side.
 
 ## On-hand reporting
 
@@ -535,7 +537,7 @@ browser; a real Zebra on HTTPS staging stays unverified until it is run on one
 | ✅ `InventoryPosition` and `InventoryTransfer` quantities reached screens as strings: the positions and transfers routes sent the Prisma Decimal as-is, and JSON writes a Decimal as `"12.625"`, so anything summing them with `+` concatenated (`0 + "3"` is `"03"`). All seven responses under these routes now convert with `toQty`. Test: `warehouseQuantities.integration.test.ts`. The register's sum never showed `"03"` on screen because of the next row | `warehouse/positions/*`, `warehouse/transfers/*` | fixed (#29) |
 | ✅ The register never showed stock: it read `storeLocation.name`, which `/api/warehouse/positions` does not send, and asked for all stock rather than free stock. It now asks with `freeOnly` and folds by `locationName` (`onHandByStore`). Test: `onHandSummary.test.ts` | `sales/pos/PosView.tsx` | fixed (PR 1) |
 | ✅ `Return.quantity` was `Int` read with `parseInt`, so a returned part roll became whole units. Decimal(12,3), parsed with `parseQty`, sent as a number | `Return`, `returns/*` | fixed (PR 2) |
-| `PhysicalInventoryCount.quantity` and `Reconciliation`'s expected/counted/variance columns are `Int`: counting a 12.5-yard roll records 12, and the variance against the Decimal balance is off by the fraction | `inventory/physical-count.ts`, `inventory/reconcile.ts` | phase 17 (count by area replaces both) |
+| ✅ `PhysicalInventoryCount.quantity` and `Reconciliation`'s expected/counted/variance columns were `Int`: counting a 12.5-yard roll recorded 12. The store-grain count stays as the POS cutover check, so the columns are `Decimal(12,3)` now (migration `20261021120000_store_count_decimal`). Test: `storeCountFractional.integration.test.ts` | `inventory/physical-count.ts`, `inventory/reconcile.ts` | fixed |
 | ✅ A transfer could not be entered as a part roll (`parseInt`); the same on Receive PO and New Return. All three read the quantity as typed and parse with `parseQty` (`lib/inventory/qtyInput.ts`) | `NewTransferView`, `ReceivePOView`, `NewReturnView` | fixed (PR 2) |
 | ✅ The Buyers report cast on-hand sums to `bigint`, which rounds: a 12.625-yard roll read 13 and a 0.375-yard remnant read 0. The sums are sent as text now, and floor stock is `freePositionSql()`. Test: `stockPlaces.integration.test.ts` | `lib/reports/buyersReport.ts` | fixed (PR 1) |
 | ✅ The New Return screen sent `orderId`; the route reads `salesOrderId`, so every return created from the screen was refused with a 400. Found writing the returns tests; fixed | `NewReturnView.tsx` | fixed (PR 2) |

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { AsyncParser } from "@json2csv/node";
 import { Prisma } from "@prisma/client";
 import { logError } from "@/lib/logger";
+import { toQty } from "@/lib/inventory/quantity";
 
 const APPAREL_DEPARTMENTS = ["Accessories", "Mens Apparel", "Womens Apparel"];
 
@@ -36,7 +37,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
     }
 
-    const varianceWhereClause: Prisma.IntFilter = {};
+    const varianceWhereClause: Prisma.DecimalFilter = {};
     if (varianceType === "additions") {
       varianceWhereClause.gt = 0;
     } else if (varianceType === "missing") {
@@ -77,11 +78,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       productNumber: item.product.productNumber,
       externalId: item.product.externalId,
       isPotentialTransfer:
-        item.finalVariance > 0 && missingExternalIds.has(item.product.externalId),
+        toQty(item.finalVariance) > 0 && missingExternalIds.has(item.product.externalId),
       location: item.location,
-      expected: item.initialExpected,
-      counted: item.finalCount,
-      variance: item.finalVariance,
+      expected: toQty(item.initialExpected),
+      counted: toQty(item.finalCount),
+      variance: toQty(item.finalVariance),
       actionTaken: item.actionTaken,
     }));
 

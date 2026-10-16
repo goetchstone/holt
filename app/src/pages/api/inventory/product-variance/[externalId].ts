@@ -4,6 +4,8 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { roundQty, toQty } from "@/lib/inventory/quantity";
+import { countVariance } from "@/lib/inventory/storeCount";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -56,7 +58,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       if (!locationData[p.stockLocation]) {
         locationData[p.stockLocation] = { expected: 0, counted: 0 };
       }
-      locationData[p.stockLocation].counted += p.quantity;
+      locationData[p.stockLocation].counted = roundQty(
+        locationData[p.stockLocation].counted + toQty(p.quantity),
+      );
     });
 
     const report = Object.entries(locationData)
@@ -64,7 +68,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         location,
         expected: data.expected,
         counted: data.counted,
-        variance: data.counted - data.expected,
+        variance: countVariance(data.counted, data.expected),
       }))
       .filter((row) => row.expected !== 0 || row.counted !== 0)
       .sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance));
