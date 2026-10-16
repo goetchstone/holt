@@ -64,3 +64,16 @@ export function computeTotalPaid(payments: readonly PaymentForTotal[]): number {
     return sum + (p.isRefund ? -Math.abs(p.paymentAmount) : p.paymentAmount);
   }, 0);
 }
+
+/**
+ * The same rule as a Prisma filter, for queries that read money straight from
+ * the table (the sales journal, the till). NULL-safe by construction (rule 51):
+ * a legacy row with no status is money and stays in.
+ */
+export function countedPaymentWhere(): {
+  OR: ({ status: null } | { status: { notIn: PaymentStatus[] } })[];
+} {
+  return {
+    OR: [{ status: null }, { status: { notIn: [...PAYMENT_STATUSES_EXCLUDED_FROM_BALANCE] } }],
+  };
+}

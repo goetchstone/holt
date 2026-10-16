@@ -2,7 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { recordPayment, calculateOrderBalance, onPaymentReceived } from "@/lib/paymentService";
 import { logError } from "@/lib/logger";
 
@@ -80,4 +80,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN"], handler);
+// Taking money is payment.take, held by the Register as well as managers: the
+// register's checkout posts its tenders here, and the MANAGER/ADMIN role list
+// this replaced refused it.
+export default requirePermission("payment.take", handler);

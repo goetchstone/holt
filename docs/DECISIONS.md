@@ -474,6 +474,35 @@ the warehouse dashboard, is where that shows.
 
 ---
 
+## 20. A native return books as its own order
+
+**Rejected:** negative lines (or an edited quantity) on the original order.
+
+**Why:** the original order's recognition is keyed to its own invoice date.
+Negative lines on it would reverse the sale on the day the sale was recognised,
+not the day the goods came back, and every revenue report would quietly rewrite
+that earlier day. Imported POS returns already book as a separate RETURNED
+order of negative lines (the B3 path), so a native return does the same
+(`lib/returns/bookReturn.ts`): one negative line for what came back, the
+restocking fee as a positive line, an invoice dated the return day when the
+original was invoiced, and refunds written against it. The original order is
+never rewritten; what it still owes is paid first, from the return, as store
+credit spent on it.
+
+**Cost accepted:** a return is two orders, the original and its own, and
+reports that list orders show both (a RETURNED order is in
+`SALES_REVENUE_STATUSES`, rule 47). A return booked against an original that is
+invoiced only later is not reversed in the journal; tracked in
+`docs/domains/returns.md`.
+
+**Enforced by:** `__tests__/integration/returnMoney.integration.test.ts` (the
+return day's journal balances with no plug), `returnOrderEditProblem` on every
+order and line edit route.
+
+**Source:** [`docs/domains/returns.md`](domains/returns.md) "Returns money".
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

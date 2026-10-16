@@ -6,12 +6,16 @@ import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
 import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering";
 import { assertCapability, getProviderForPayment } from "@/lib/payments";
 import { syncServiceAppointments } from "@/lib/serviceDispatchService";
-import { appendEntry } from "@/lib/customerLedger";
+import { appendEntry, signForType } from "@/lib/customerLedger";
 import { logError } from "@/lib/logger";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
-import { isPaymentExcludedFromBalance } from "@/lib/paymentBalance";
+import { countedPaymentWhere, isPaymentExcludedFromBalance } from "@/lib/paymentBalance";
 import { isCountedLine } from "@/lib/salesOrderRevenue";
-import type { Payment } from "@prisma/client";
+import { issueStoreCredit, spendStoreCredit } from "@/lib/customerCredit";
+import { refundCounts } from "@/lib/returns/returnMoney";
+import type { Payment, Prisma } from "@prisma/client";
+
+type Tx = Prisma.TransactionClient;
 
 export const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -101,7 +105,9 @@ export function computeBalance(
   return { totalDue, totalPaid, balanceDue };
 }
 
-// Pure computation for refundable amount
+// Pure computation for refundable amount: the original less every refund that
+// paid out or may still pay out (see refundCounts -- a FAILED or VOIDED refund
+// did not). processRefund's cap, and nothing else's.
 export function computeRefundable(originalAmount: number, previousRefundAmounts: number[]): number {
   const totalRefunded = previousRefundAmounts.reduce((sum, a) => sum + Math.abs(a), 0);
   return round2(originalAmount - totalRefunded);
@@ -124,16 +130,34 @@ interface RecordPaymentInput {
   createdBy?: string;
 }
 
-interface RefundInput {
+export interface RefundInput {
   amount: number;
-  method?: string;
   reason?: string;
   registerId?: number;
   tillId?: number;
   staffMemberId?: number;
-  customerId?: number;
   createdBy?: string;
+  /** The native return this refund pays out (lib/returns/refundReturn.ts). */
+  returnId?: number;
+  /** The order the refund row books to; a return's own order. Default: the original's. */
+  salesOrderId?: number;
+  /**
+   * Runs inside the reserving transaction, after the payment's lock and the
+   * payment's own cap: a caller's further check (a return's refundable cap).
+   */
+  guard?: (tx: Tx) => Promise<void>;
 }
+
+/** A refund refused before any money moved: the caller said something wrong. */
+export class RefundError extends Error {}
+
+/**
+ * The processor did not confirm the refund. The refund row stays PENDING --
+ * counted by the cap, out of balances and the journal -- because an error is
+ * not proof that no money moved; a retry reuses the same idempotency key, so
+ * it can never refund twice (retryProcessorRefund).
+ */
+export class RefundProcessorError extends Error {}
 
 interface OrderBalance {
   totalDue: number;
@@ -191,133 +215,129 @@ export async function calculateOrderBalance(orderId: number): Promise<OrderBalan
 }
 
 export async function recordPayment(orderId: number, input: RecordPaymentInput): Promise<Payment> {
+  return prisma.$transaction((tx) => recordPaymentTx(tx, orderId, input));
+}
+
+/** recordPayment inside the caller's transaction. */
+export async function recordPaymentTx(
+  tx: Tx,
+  orderId: number,
+  input: RecordPaymentInput,
+): Promise<Payment> {
   const rounded = round2(input.amount);
   if (rounded <= 0) {
     throw new Error("Payment amount must be positive");
   }
 
-  return prisma.$transaction(async (tx) => {
-    // Hydrate orderno alongside the existence check — saves a round trip
-    // for the ledger reference field below.
-    const order = await tx.salesOrder.findUniqueOrThrow({
-      where: { id: orderId },
-      select: { id: true, orderno: true, customerId: true },
+  // Hydrate orderno alongside the existence check — saves a round trip
+  // for the ledger reference field below.
+  const order = await tx.salesOrder.findUniqueOrThrow({
+    where: { id: orderId },
+    select: { id: true, orderno: true, customerId: true },
+  });
+
+  if (input.tillId) {
+    const till = await tx.till.findUniqueOrThrow({ where: { id: input.tillId } });
+    if (till.status !== "OPEN") {
+      throw new Error(`Till ${input.tillId} is not open (status: ${till.status})`);
+    }
+  }
+
+  const paymentType = METHOD_DISPLAY[input.method] ?? input.method;
+
+  if (input.method === "GIFT_CARD") {
+    if (!input.giftCardId) {
+      throw new Error("giftCardId is required for gift card payments");
+    }
+    const card = await tx.giftCard.findUniqueOrThrow({
+      where: { id: input.giftCardId },
     });
-
-    if (input.tillId) {
-      const till = await tx.till.findUniqueOrThrow({ where: { id: input.tillId } });
-      if (till.status !== "OPEN") {
-        throw new Error(`Till ${input.tillId} is not open (status: ${till.status})`);
-      }
+    const balance = Number(card.currentBalance);
+    if (balance < rounded) {
+      throw new Error(
+        `Insufficient gift card balance: available $${balance.toFixed(2)}, requested $${rounded.toFixed(2)}`,
+      );
     }
+    const balanceBefore = balance;
+    const balanceAfter = round2(balanceBefore - rounded);
 
-    const paymentType = METHOD_DISPLAY[input.method] ?? input.method;
-
-    if (input.method === "GIFT_CARD") {
-      if (!input.giftCardId) {
-        throw new Error("giftCardId is required for gift card payments");
-      }
-      const card = await tx.giftCard.findUniqueOrThrow({
-        where: { id: input.giftCardId },
-      });
-      const balance = Number(card.currentBalance);
-      if (balance < rounded) {
-        throw new Error(
-          `Insufficient gift card balance: available $${balance.toFixed(2)}, requested $${rounded.toFixed(2)}`,
-        );
-      }
-      const balanceBefore = balance;
-      const balanceAfter = round2(balanceBefore - rounded);
-
-      await tx.giftCardTransaction.create({
-        data: {
-          giftCardId: input.giftCardId,
-          transactionType: "REDEMPTION",
-          amount: -rounded,
-          balanceBefore,
-          balanceAfter,
-          createdBy: input.createdBy,
-        },
-      });
-      await tx.giftCard.update({
-        where: { id: input.giftCardId },
-        data: { currentBalance: balanceAfter },
-      });
-    }
-
-    if (input.method === "STORE_CREDIT") {
-      if (!input.customerId) {
-        throw new Error("customerId is required for store credit payments");
-      }
-      const customer = await tx.customer.findUniqueOrThrow({
-        where: { id: input.customerId },
-        select: { creditBalance: true },
-      });
-      const balanceBefore = Number(customer.creditBalance);
-      if (balanceBefore < rounded) {
-        throw new Error(
-          `Insufficient store credit: available $${balanceBefore.toFixed(2)}, requested $${rounded.toFixed(2)}`,
-        );
-      }
-      const balanceAfter = round2(balanceBefore - rounded);
-
-      await tx.customerCreditTransaction.create({
-        data: {
-          customerId: input.customerId,
-          type: "USAGE",
-          amount: -rounded,
-          balanceBefore,
-          balanceAfter,
-          salesOrderId: orderId,
-          createdBy: input.createdBy,
-        },
-      });
-      await tx.customer.update({
-        where: { id: input.customerId },
-        data: { creditBalance: balanceAfter },
-      });
-    }
-
-    const payment = await tx.payment.create({
+    await tx.giftCardTransaction.create({
       data: {
-        salesOrderId: orderId,
-        paymentDate: new Date(),
-        paymentType,
-        paymentAmount: rounded,
-        status: "COMPLETED",
-        method: input.method as any,
-        registerId: input.registerId,
-        tillId: input.tillId,
-        staffMemberId: input.staffMemberId,
-        customerId: input.customerId,
-        processorType: input.processorType,
-        processorTxnId: input.processorTxnId,
-        processorData: input.processorData ?? undefined,
-        cardLast4: input.cardLast4,
-        cardBrand: input.cardBrand,
-        checkNumber: input.checkNumber,
         giftCardId: input.giftCardId,
+        transactionType: "REDEMPTION",
+        amount: -rounded,
+        balanceBefore,
+        balanceAfter,
         createdBy: input.createdBy,
       },
     });
+    await tx.giftCard.update({
+      where: { id: input.giftCardId },
+      data: { currentBalance: balanceAfter },
+    });
+  }
 
-    // Phase 0.5.4 (2026-05-12) — append the AR-ledger entry inside the
-    // SAME transaction so Customer.openArBalance and the Payment row
-    // commit atomically. Extracted to keep recordPayment under the cog-
-    // complexity gate; the helper handles customerId resolution + the
-    // appendEntry call + error surfacing.
-    await appendPaymentLedger(tx, {
-      customerId: input.customerId ?? order.customerId ?? null,
-      type: "PAYMENT",
-      amount: -rounded,
+  // Store credit is the order's own customer's (spendStoreCredit refuses
+  // anyone else's), so the customer defaults to the order's.
+  const creditCustomerId =
+    input.method === "STORE_CREDIT" ? (input.customerId ?? order.customerId ?? null) : null;
+  if (input.method === "STORE_CREDIT" && creditCustomerId == null) {
+    throw new Error(
+      "Store credit can only be spent on an order with a customer: add the customer to the order first.",
+    );
+  }
+
+  const payment = await tx.payment.create({
+    data: {
       salesOrderId: orderId,
+      paymentDate: new Date(),
+      paymentType,
+      paymentAmount: rounded,
+      status: "COMPLETED",
+      method: input.method as any,
+      registerId: input.registerId,
+      tillId: input.tillId,
+      staffMemberId: input.staffMemberId,
+      customerId: creditCustomerId ?? input.customerId,
+      processorType: input.processorType,
+      processorTxnId: input.processorTxnId,
+      processorData: input.processorData ?? undefined,
+      cardLast4: input.cardLast4,
+      cardBrand: input.cardBrand,
+      checkNumber: input.checkNumber,
+      giftCardId: input.giftCardId,
+      createdBy: input.createdBy,
+    },
+  });
+
+  // After the row exists, so the credit's USAGE row points at the payment
+  // that spent it.
+  if (creditCustomerId != null) {
+    await spendStoreCredit(tx, {
+      customerId: creditCustomerId,
+      amount: rounded,
       paymentId: payment.id,
-      reference: order.orderno || `order-${orderId}`,
+      salesOrderId: orderId,
       createdBy: input.createdBy,
     });
+  }
 
-    return payment;
+  // Phase 0.5.4 (2026-05-12) — append the AR-ledger entry inside the
+  // SAME transaction so Customer.openArBalance and the Payment row
+  // commit atomically. Extracted to keep recordPayment under the cog-
+  // complexity gate; the helper handles customerId resolution + the
+  // appendEntry call + error surfacing.
+  await appendPaymentLedger(tx, {
+    customerId: input.customerId ?? order.customerId ?? null,
+    type: "PAYMENT",
+    amount: -rounded,
+    salesOrderId: orderId,
+    paymentId: payment.id,
+    reference: order.orderno || `order-${orderId}`,
+    createdBy: input.createdBy,
   });
+
+  return payment;
 }
 
 /**
@@ -329,7 +349,7 @@ export async function recordPayment(orderId: number, input: RecordPaymentInput):
  * wiring was added to prevent.
  */
 async function appendPaymentLedger(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  tx: Tx,
   input: {
     customerId: number | null;
     type: "PAYMENT" | "REFUND_ISSUED";
@@ -443,7 +463,13 @@ export async function findActivePendingPayment(
 ): Promise<ActivePendingPayment | null> {
   const cutoff = new Date(Date.now() - PENDING_SESSION_LIFETIME_MS);
   const pending = await prisma.payment.findFirst({
-    where: { salesOrderId: orderId, status: "PENDING", paymentDate: { gte: cutoff } },
+    // A PENDING refund is not an open checkout.
+    where: {
+      salesOrderId: orderId,
+      status: "PENDING",
+      isRefund: false,
+      paymentDate: { gte: cutoff },
+    },
     orderBy: { paymentDate: "desc" },
   });
   if (!pending) return null;
@@ -532,7 +558,9 @@ export interface StalePendingSweepResult {
 export async function sweepStalePendingPayments(): Promise<StalePendingSweepResult> {
   const cutoff = new Date(Date.now() - PENDING_SESSION_LIFETIME_MS);
   const stale = await prisma.payment.findMany({
-    where: { status: "PENDING", paymentDate: { lt: cutoff } },
+    // Never a PENDING refund: it waits on a processor that may have paid it
+    // out, and failing it would let the same money be refunded again.
+    where: { status: "PENDING", isRefund: false, paymentDate: { lt: cutoff } },
     select: { id: true, salesOrderId: true, paymentAmount: true, paymentDate: true },
   });
 
@@ -604,174 +632,302 @@ export async function completePayment(
   });
 }
 
+/** Advisory-lock key space for refunds of one payment; see STOCK_LOCK_SPACE in inventory/ledger.ts. */
+const REFUND_LOCK_SPACE = 5_461_070;
+
+/**
+ * How long a PENDING processor refund can be retried with its key. Stripe
+ * keeps an idempotency key for 24 hours; after that the same key could refund
+ * again, so an older PENDING refund is settled by hand from the processor's
+ * dashboard (void it if nothing went out) instead of retried.
+ */
+export const REFUND_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+const refundKey = (refundPaymentId: number) => `holt-refund-${refundPaymentId}`;
+
+/**
+ * Give money back on a payment, to the way it was paid: a card through the
+ * processor that took it, cash or a check from the till, a gift card reloaded,
+ * store credit put back on the account. There is no "refund it as something
+ * else": a refund to store credit instead of the card is a different
+ * transaction (lib/returns/refundReturn.ts), never a card refund that also
+ * issues credit.
+ *
+ * Three steps, so the record and the money cannot disagree:
+ *   1. Reserve, in one transaction under the payment's lock: check the cap
+ *      and write the refund row. Without a processor that is the whole
+ *      refund: the row is COMPLETED with its side effects and ledger entry.
+ *      With one, the row is PENDING -- counted by the cap, out of balances.
+ *   2. Call the processor OUTSIDE any transaction, with an idempotency key
+ *      that is the refund row's id.
+ *   3. Settle: PENDING -> COMPLETED with the processor's refund id, ledger
+ *      entry and side effects, in one transaction.
+ * A crash between 2 and 3 leaves the PENDING row as the record, and
+ * retryProcessorRefund finishes it with the same key.
+ */
 export async function processRefund(paymentId: number, input: RefundInput): Promise<Payment> {
   const rounded = round2(input.amount);
   if (rounded <= 0) {
-    throw new Error("Refund amount must be positive");
+    throw new RefundError("Refund amount must be positive");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const reserved = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${REFUND_LOCK_SPACE}::int, ${paymentId}::int)`;
     const original = await tx.payment.findUniqueOrThrow({
       where: { id: paymentId },
-      include: { refundedPayments: true },
+      include: { refundedPayments: { select: { paymentAmount: true, status: true } } },
     });
-
+    if (original.isRefund) throw new RefundError("A refund cannot itself be refunded.");
     if (original.status !== "COMPLETED") {
-      throw new Error(
+      throw new RefundError(
         `Cannot refund payment ${paymentId}: status is ${original.status}, expected COMPLETED`,
       );
     }
-
-    const originalAmount = Number(original.paymentAmount);
-    const previousRefunds = original.refundedPayments.reduce(
-      (sum, r) => sum + Math.abs(Number(r.paymentAmount)),
-      0,
+    const refundable = computeRefundable(
+      Number(original.paymentAmount),
+      original.refundedPayments
+        .filter((r) => refundCounts(r.status))
+        .map((r) => Number(r.paymentAmount)),
     );
-    const refundable = round2(originalAmount - previousRefunds);
-
     if (rounded > refundable) {
-      throw new Error(
+      throw new RefundError(
         `Refund amount $${rounded.toFixed(2)} exceeds refundable balance $${refundable.toFixed(2)}`,
       );
     }
+    await input.guard?.(tx);
 
-    // Issue refund through Stripe if original payment was processed via Stripe
-    // Route by the ORIGINAL payment's processor — never the currently-active
-    // one. After an org switches providers, previously captured payments must
-    // still refund through whoever actually took the money; sending them to the
-    // new provider would refund against a transaction it has never seen.
-    // Provider-specific indirection (Stripe must resolve checkout session ->
-    // payment intent; Square refunds its payment id directly) lives inside each
-    // implementation, so this stays processor-neutral.
-    let providerRefundId: string | null = null;
-    if (original.processorType && original.processorTxnId) {
-      const provider = getProviderForPayment(original.processorType);
-      assertCapability(provider, "refunds");
-      const result = await provider.refund!({
-        providerTxnId: original.processorTxnId,
-        amount: rounded,
-        reason: input.reason,
-      });
-      providerRefundId = result.refundId;
-    }
-
-    const refundMethod = input.method ?? original.method;
-    const paymentType = refundMethod
-      ? (METHOD_DISPLAY[refundMethod] ?? refundMethod)
-      : original.paymentType;
-
-    const refundPayment = await tx.payment.create({
+    // Route by the ORIGINAL payment's processor -- never the currently-active
+    // one (rule 60). After an org switches providers, previously captured
+    // payments must still refund through whoever actually took the money.
+    const viaProcessor = !!(original.processorType && original.processorTxnId);
+    const row = await tx.payment.create({
       data: {
-        salesOrderId: original.salesOrderId,
+        salesOrderId: input.salesOrderId ?? original.salesOrderId,
         paymentDate: new Date(),
-        paymentType,
+        paymentType: original.paymentType,
         paymentAmount: rounded,
-        status: "COMPLETED",
-        method: (refundMethod as any) ?? undefined,
+        status: viaProcessor ? "PENDING" : "COMPLETED",
+        method: original.method ?? undefined,
         isRefund: true,
         originalPaymentId: paymentId,
+        returnId: input.returnId,
         refundReason: input.reason,
         registerId: input.registerId,
         tillId: input.tillId,
         staffMemberId: input.staffMemberId,
         customerId: original.customerId,
-        // The refund was issued by the same processor that captured the original,
-        // so the type carries over unchanged rather than being re-derived.
         processorType: original.processorType,
-        processorTxnId: providerRefundId || undefined,
+        giftCardId: original.giftCardId,
         createdBy: input.createdBy,
       },
     });
-
-    // If fully refunded, mark the original
-    const totalRefunded = round2(previousRefunds + rounded);
-    if (totalRefunded >= originalAmount) {
-      await tx.payment.update({
-        where: { id: paymentId },
-        data: { status: "REFUNDED" },
-      });
-    }
-
-    // Method-specific side effects
-    const effectiveMethod = refundMethod ?? original.method;
-
-    if (effectiveMethod === "STORE_CREDIT" && original.customerId) {
-      const customer = await tx.customer.findUniqueOrThrow({
-        where: { id: original.customerId },
-        select: { creditBalance: true },
-      });
-      const balanceBefore = Number(customer.creditBalance);
-      const balanceAfter = round2(balanceBefore + rounded);
-
-      await tx.customerCreditTransaction.create({
-        data: {
-          customerId: original.customerId,
-          type: "REFUND_CREDIT",
-          amount: rounded,
-          balanceBefore,
-          balanceAfter,
-          paymentId: refundPayment.id,
-          salesOrderId: original.salesOrderId ?? undefined,
-          notes: input.reason,
-          createdBy: input.createdBy,
-        },
-      });
-      await tx.customer.update({
-        where: { id: original.customerId },
-        data: { creditBalance: balanceAfter },
-      });
-    }
-
-    if (effectiveMethod === "GIFT_CARD" && original.giftCardId) {
-      const card = await tx.giftCard.findUniqueOrThrow({
-        where: { id: original.giftCardId },
-      });
-      const balanceBefore = Number(card.currentBalance);
-      const balanceAfter = round2(balanceBefore + rounded);
-
-      await tx.giftCardTransaction.create({
-        data: {
-          giftCardId: original.giftCardId,
-          transactionType: "RELOAD",
-          amount: rounded,
-          balanceBefore,
-          balanceAfter,
-          notes: input.reason,
-          createdBy: input.createdBy,
-        },
-      });
-      await tx.giftCard.update({
-        where: { id: original.giftCardId },
-        data: { currentBalance: balanceAfter },
-      });
-    }
-
-    // Phase 0.5.4 (2026-05-12) — append REFUND_ISSUED entry inside the
-    // same tx as the refund Payment row. REFUND_ISSUED is positive-signed
-    // (we gave money back → customer balance owed goes UP, mirroring
-    // computeBalance's "refunds SUBTRACT from totalPaid" rule). Order
-    // lookup is conditional — original.salesOrderId can be null for
-    // legacy unlinked payments.
-    const orderForLedger =
-      original.salesOrderId === null
-        ? null
-        : await tx.salesOrder.findUnique({
-            where: { id: original.salesOrderId },
-            select: { customerId: true, orderno: true },
-          });
-    await appendPaymentLedger(tx, {
-      customerId: original.customerId ?? orderForLedger?.customerId ?? null,
-      type: "REFUND_ISSUED",
-      amount: rounded,
-      salesOrderId: original.salesOrderId ?? undefined,
-      paymentId: refundPayment.id,
-      reference: orderForLedger?.orderno || `refund-${refundPayment.id}`,
-      notes: input.reason,
-      createdBy: input.createdBy,
-    });
-
-    return refundPayment;
+    if (!viaProcessor) await settleRefund(tx, row.id);
+    return { row, viaProcessor };
   });
+
+  if (!reserved.viaProcessor) {
+    return prisma.payment.findUniqueOrThrow({ where: { id: reserved.row.id } });
+  }
+  return callProcessorAndSettle(reserved.row.id);
+}
+
+/**
+ * Finish a PENDING processor refund left by a crash or a processor error,
+ * with the same idempotency key, so a refund that did go through is not
+ * repeated.
+ */
+export async function retryProcessorRefund(refundPaymentId: number): Promise<Payment> {
+  const row = await prisma.payment.findUniqueOrThrow({ where: { id: refundPaymentId } });
+  if (row.status === "COMPLETED") return row;
+  if (!row.isRefund || row.status !== "PENDING") {
+    throw new RefundError(`Payment ${refundPaymentId} is not a refund waiting on its processor.`);
+  }
+  if (Date.now() - row.created.getTime() > REFUND_RETRY_WINDOW_MS) {
+    throw new RefundError(
+      "This refund has waited on the processor for more than a day, past the window a retry is safe in. Check the processor's dashboard: if nothing went out, void it; if it did, ask an admin to settle it.",
+    );
+  }
+  return callProcessorAndSettle(refundPaymentId);
+}
+
+async function callProcessorAndSettle(refundPaymentId: number): Promise<Payment> {
+  const row = await prisma.payment.findUniqueOrThrow({
+    where: { id: refundPaymentId },
+    include: { originalPayment: true },
+  });
+  const original = row.originalPayment;
+  if (!original?.processorType || !original.processorTxnId) {
+    throw new RefundError(`Refund ${refundPaymentId} has no processor payment to refund.`);
+  }
+  const provider = getProviderForPayment(original.processorType);
+  assertCapability(provider, "refunds");
+  let providerRefundId: string | null;
+  try {
+    const result = await provider.refund!({
+      providerTxnId: original.processorTxnId,
+      amount: round2(Number(row.paymentAmount)),
+      reason: row.refundReason ?? undefined,
+      idempotencyKey: refundKey(row.id),
+    });
+    providerRefundId = result.refundId;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "The processor did not confirm the refund";
+    logError(`Processor refund ${row.id} not confirmed`, err);
+    throw new RefundProcessorError(
+      `${message}. The refund is recorded as pending: retry it, or void it once the processor shows nothing went out.`,
+    );
+  }
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.payment.updateMany({
+      where: { id: row.id, status: "PENDING" },
+      data: {
+        status: "COMPLETED",
+        paymentDate: new Date(),
+        processorTxnId: providerRefundId ?? undefined,
+      },
+    });
+    // Already settled by a concurrent retry: its side effects are done.
+    if (updated.count === 1) await settleRefund(tx, row.id);
+    return tx.payment.findUniqueOrThrow({ where: { id: row.id } });
+  });
+}
+
+/**
+ * A COMPLETED refund's consequences, once: the money goes back where it came
+ * from (gift card reloaded, store credit put back), the original is marked
+ * REFUNDED when nothing is left on it, and the customer's ledger moves.
+ */
+async function settleRefund(tx: Tx, refundPaymentId: number): Promise<void> {
+  const refund = await tx.payment.findUniqueOrThrow({
+    where: { id: refundPaymentId },
+    include: {
+      originalPayment: {
+        include: { refundedPayments: { select: { paymentAmount: true, status: true } } },
+      },
+      salesOrder: { select: { customerId: true, orderno: true } },
+    },
+  });
+  const original = refund.originalPayment!;
+  const amount = round2(Number(refund.paymentAmount));
+  const customerId = original.customerId ?? refund.salesOrder?.customerId ?? null;
+
+  if (original.method === "GIFT_CARD" && original.giftCardId) {
+    const card = await tx.giftCard.findUniqueOrThrow({ where: { id: original.giftCardId } });
+    const balanceBefore = Number(card.currentBalance);
+    const balanceAfter = round2(balanceBefore + amount);
+    await tx.giftCardTransaction.create({
+      data: {
+        giftCardId: original.giftCardId,
+        transactionType: "RELOAD",
+        amount,
+        balanceBefore,
+        balanceAfter,
+        notes: refund.refundReason,
+        createdBy: refund.createdBy,
+      },
+    });
+    await tx.giftCard.update({
+      where: { id: original.giftCardId },
+      data: { currentBalance: balanceAfter },
+    });
+  }
+
+  if (original.method === "STORE_CREDIT") {
+    if (customerId == null) {
+      throw new RefundError(
+        "This store credit payment has no customer to give the credit back to.",
+      );
+    }
+    await issueStoreCredit(tx, {
+      customerId,
+      amount,
+      paymentId: refund.id,
+      salesOrderId: refund.salesOrderId,
+      notes: refund.refundReason,
+      createdBy: refund.createdBy,
+    });
+  }
+
+  const refunded = original.refundedPayments
+    .filter((r) => r.status === "COMPLETED" || r.status == null)
+    .reduce((sum, r) => sum + Math.abs(Number(r.paymentAmount)), 0);
+  if (round2(refunded) >= round2(Number(original.paymentAmount))) {
+    await tx.payment.update({ where: { id: original.id }, data: { status: "REFUNDED" } });
+  }
+
+  // REFUND_ISSUED is +1 (customerLedger.signForType): money went back, so
+  // the payment it reverses no longer reduces what the customer owes.
+  await appendPaymentLedger(tx, {
+    customerId,
+    type: "REFUND_ISSUED",
+    amount: signForType("REFUND_ISSUED") * amount,
+    salesOrderId: refund.salesOrderId ?? undefined,
+    paymentId: refund.id,
+    reference: refund.salesOrder?.orderno || `refund-${refund.id}`,
+    notes: refund.refundReason ?? undefined,
+    createdBy: refund.createdBy,
+  });
+}
+
+/**
+ * A refund to the customer's store credit, written in the caller's
+ * transaction: a COMPLETED refund row on `salesOrderId` (a return's own
+ * order) with no processor and no till, the credit issued against it, and the
+ * ledger entry. Used by lib/returns/refundReturn.ts.
+ */
+export async function refundToStoreCreditTx(
+  tx: Tx,
+  input: {
+    customerId: number;
+    amount: number;
+    salesOrderId: number;
+    returnId?: number;
+    reason?: string;
+    staffMemberId?: number;
+    createdBy?: string;
+  },
+): Promise<Payment> {
+  const amount = round2(input.amount);
+  if (amount <= 0) throw new RefundError("Refund amount must be positive");
+  const order = await tx.salesOrder.findUniqueOrThrow({
+    where: { id: input.salesOrderId },
+    select: { orderno: true },
+  });
+  const row = await tx.payment.create({
+    data: {
+      salesOrderId: input.salesOrderId,
+      paymentDate: new Date(),
+      paymentType: METHOD_DISPLAY.STORE_CREDIT,
+      paymentAmount: amount,
+      status: "COMPLETED",
+      method: "STORE_CREDIT",
+      isRefund: true,
+      returnId: input.returnId,
+      refundReason: input.reason,
+      staffMemberId: input.staffMemberId,
+      customerId: input.customerId,
+      createdBy: input.createdBy,
+    },
+  });
+  await issueStoreCredit(tx, {
+    customerId: input.customerId,
+    amount,
+    paymentId: row.id,
+    salesOrderId: input.salesOrderId,
+    notes: input.reason,
+    createdBy: input.createdBy,
+  });
+  await appendPaymentLedger(tx, {
+    customerId: input.customerId,
+    type: "REFUND_ISSUED",
+    amount: signForType("REFUND_ISSUED") * amount,
+    salesOrderId: input.salesOrderId,
+    paymentId: row.id,
+    reference: order.orderno,
+    notes: input.reason,
+    createdBy: input.createdBy,
+  });
+  return row;
 }
 
 // Called after a payment is completed (from webhook, manual entry, or POS).
@@ -996,13 +1152,10 @@ export async function calculateTillExpected(tillId: number): Promise<{
     select: { openingCash: true },
   });
 
-  // Use OR: { status: null } because Postgres treats NULL != 'VOIDED' as unknown
-  // and excludes every NULL-status payment (pre-status-field data).
+  // Money that moved: not VOIDED, FAILED or PENDING (a PENDING refund has not
+  // left the drawer or the card yet). NULL-safe, rule 51.
   const payments = await prisma.payment.findMany({
-    where: {
-      tillId,
-      OR: [{ status: null }, { status: { not: "VOIDED" } }],
-    },
+    where: { tillId, ...countedPaymentWhere() },
     select: { method: true, paymentAmount: true, isRefund: true },
   });
 

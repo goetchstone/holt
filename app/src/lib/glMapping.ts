@@ -38,6 +38,13 @@ export const SALES_TAX_MAPPING_LABEL = "Sales Tax";
 export const OVER_SHORT_MAPPING_LABEL = "Over/Short";
 
 /**
+ * Income from restocking fees kept on a native return (lib/returns/). Seeded
+ * unmapped by migration 20261019120000_returns_money; a nonzero fee is refused
+ * until an admin maps it, so a fee is never booked to no account.
+ */
+export const RESTOCKING_FEE_MAPPING_LABEL = "Restocking Fee";
+
+/**
  * Dollar magnitude above which an Over/Short plug stops being rounding noise
  * and starts being a missing payment or a missing line item.
  *

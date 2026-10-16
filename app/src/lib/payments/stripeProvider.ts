@@ -151,11 +151,15 @@ export const stripeProvider: PaymentProvider = {
         typeof session.payment_intent === "string" ? session.payment_intent : null;
       if (!paymentIntentId) return { refundId: null };
 
-      const refund = await stripe.refunds.create({
-        payment_intent: paymentIntentId,
-        amount: toMinorUnits(req.amount),
-        reason: "requested_by_customer",
-      });
+      const refund = await stripe.refunds.create(
+        {
+          payment_intent: paymentIntentId,
+          amount: toMinorUnits(req.amount),
+          reason: "requested_by_customer",
+          metadata: { holt_refund_key: req.idempotencyKey },
+        },
+        { idempotencyKey: req.idempotencyKey },
+      );
       return { refundId: refund.id };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Stripe refund failed";

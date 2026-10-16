@@ -14,7 +14,13 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { processRefund, calculateOrderBalance } from "@/lib/paymentService";
+import { prisma } from "@/lib/prisma";
+import {
+  processRefund,
+  calculateOrderBalance,
+  RefundError,
+  RefundProcessorError,
+} from "@/lib/paymentService";
 import { badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
@@ -24,19 +30,28 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   if (Number.isNaN(orderId)) return badRequest(res, "Invalid order ID");
 
   try {
-    const { paymentId, amount, method, reason, registerId, tillId, staffMemberId, customerId } =
-      req.body;
+    // A refund goes back the way the payment was taken; there is no `method`
+    // to send it some other way (a card refunded "to store credit" refunded
+    // the card and issued credit too). Store credit for a return is
+    // /api/returns/[id]/refund.
+    const { paymentId, amount, reason, registerId, tillId, staffMemberId } = req.body;
 
     if (!paymentId || !amount) return badRequest(res, "paymentId and amount are required");
 
+    const payment = await prisma.payment.findUnique({
+      where: { id: Number.parseInt(paymentId) },
+      select: { salesOrderId: true },
+    });
+    if (!payment || payment.salesOrderId !== orderId) {
+      return badRequest(res, "That payment is not a payment on this order.");
+    }
+
     const refund = await processRefund(Number.parseInt(paymentId), {
       amount: Number.parseFloat(amount),
-      method: method || undefined,
       reason: reason || undefined,
       registerId: registerId ? Number.parseInt(registerId) : undefined,
       tillId: tillId ? Number.parseInt(tillId) : undefined,
       staffMemberId: staffMemberId ? Number.parseInt(staffMemberId) : undefined,
-      customerId: customerId ? Number.parseInt(customerId) : undefined,
       createdBy: session.user?.email || undefined,
     });
 
@@ -50,6 +65,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       balance,
     });
   } catch (err) {
+    if (err instanceof RefundProcessorError) return res.status(502).json({ error: err.message });
+    if (err instanceof RefundError) return badRequest(res, err.message);
     return handleError(res, err, "POST /sales/orders/[id]/refunds");
   }
 }

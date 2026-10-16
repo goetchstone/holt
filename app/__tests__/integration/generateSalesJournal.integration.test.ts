@@ -290,6 +290,35 @@ describe("generateSalesJournal (real DB)", () => {
     expect(byCode.get("1-1380")?.credit).toBe(400); // inventory credited
   });
 
+  it("journals only money that moved: a PENDING, FAILED or VOIDED payment is left out", async () => {
+    const fx = await seedAccountingFixtures();
+    const order = await seedSale({
+      productId: fx.product.id,
+      netPrice: 1000,
+      cost: 400,
+      vatAmount: 60,
+      paymentAmount: 1060,
+      paymentType: "Cash",
+      withInvoice: true,
+    });
+    for (const status of ["PENDING", "FAILED", "VOIDED"] as const) {
+      await prisma.payment.create({
+        data: {
+          paymentAmount: 500,
+          paymentDate: DAY_AT,
+          status,
+          paymentType: "Cash",
+          salesOrderId: order.id,
+        },
+      });
+    }
+
+    const je = posted(await generateSalesJournal(DAY));
+    const byCode = new Map(je.lines.map((l) => [l.glAccount?.code, l]));
+    expect(byCode.get("1-1006")?.debit).toBe(1060);
+    expect(byCode.get("5-5900")).toBeUndefined(); // no plug
+  });
+
   it("(B1) excludes CANCELLED line items from sales / COGS / inventory totals", async () => {
     // Headline scenario: a $1000 active line + a $9999 cancelled line.
     // CANCELLED line must not contribute to revenue, COGS, or inventory

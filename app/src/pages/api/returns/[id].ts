@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { toQty } from "@/lib/inventory/quantity";
 import { logError } from "@/lib/logger";
+import { loadReturnDetail } from "@/lib/returns/returnDetail";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
@@ -23,60 +24,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
 async function handleGet(id: number, res: NextApiResponse) {
   try {
-    const ret = await prisma.return.findUnique({
-      where: { id },
-      include: {
-        salesOrder: { select: { id: true, orderno: true, storeLocation: true } },
-        lineItem: {
-          select: {
-            id: true,
-            productName: true,
-            partNo: true,
-            netPrice: true,
-            orderedQuantity: true,
-          },
-        },
-        customer: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-            addresses: true,
-          },
-        },
-        product: { select: { id: true, name: true, productNumber: true } },
-        pickupAddress: true,
-        receivedBy: { select: { id: true, displayName: true } },
-        receivedLocation: { select: { id: true, name: true } },
-        inspectedBy: { select: { id: true, displayName: true } },
-        restockedLocation: { select: { id: true, name: true } },
-        refundPayment: {
-          select: { id: true, paymentAmount: true, paymentDate: true, method: true },
-        },
-        exchangeOrder: { select: { id: true, orderno: true, status: true } },
-        vendorReturnPOs: { select: { id: true, poNumber: true, status: true } },
-      },
-    });
-
-    if (!ret) return res.status(404).json({ error: "Return not found" });
-
-    return res.status(200).json({
-      ...ret,
-      quantity: toQty(ret.quantity),
-      refundAmount: ret.refundAmount ? Number(ret.refundAmount) : null,
-      refundPayment: ret.refundPayment
-        ? { ...ret.refundPayment, paymentAmount: Number(ret.refundPayment.paymentAmount) }
-        : null,
-      lineItem: ret.lineItem
-        ? {
-            ...ret.lineItem,
-            netPrice: Number(ret.lineItem.netPrice),
-            orderedQuantity: Number(ret.lineItem.orderedQuantity),
-          }
-        : null,
-    });
+    // The shared contract (lib/returns/returnDetailContract.ts): what the
+    // return detail screen reads, sent exactly as it reads it.
+    const detail = await loadReturnDetail(prisma, id);
+    if (!detail) return res.status(404).json({ error: "Return not found" });
+    return res.status(200).json(detail);
   } catch (error) {
     logError("Error fetching return", error);
     return res.status(500).json({ error: "Failed to fetch return" });

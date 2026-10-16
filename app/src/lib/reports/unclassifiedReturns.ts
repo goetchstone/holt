@@ -30,6 +30,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   matchReturnForLine,
   resolveReturnBookingPath,
+  RETURN_FOR_JOURNAL_SELECT,
   type ReturnForJournal,
 } from "@/lib/journalEntry";
 
@@ -185,20 +186,20 @@ export async function getUnclassifiedReturns(
         where: { lineItemStatus: { not: "CANCELLED" }, netPrice: { lt: 0 } },
         select: { id: true, productId: true, productName: true, partNo: true, netPrice: true },
       },
-      returns: {
-        select: {
-          id: true,
-          lineItemId: true,
-          productId: true,
-          status: true,
-          inspectionCondition: true,
-          restockedAt: true,
-          writtenOffAt: true,
-        },
-      },
+      // The journal's own select (rule 6), so this report can never classify
+      // a line differently from what was posted. A native return's order is
+      // classified by the Return it was booked from (returnFor).
+      returns: { select: RETURN_FOR_JOURNAL_SELECT },
+      returnFor: { select: RETURN_FOR_JOURNAL_SELECT },
     },
     orderBy: { orderDate: "desc" },
   });
 
-  return buildUnclassifiedReturnsRows(orders, { startDate, endDate });
+  return buildUnclassifiedReturnsRows(
+    orders.map(({ returnFor, ...o }) => ({
+      ...o,
+      returns: [...o.returns, ...(returnFor ? [returnFor] : [])],
+    })),
+    { startDate, endDate },
+  );
 }

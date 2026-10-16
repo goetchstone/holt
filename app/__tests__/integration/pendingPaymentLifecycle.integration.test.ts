@@ -247,6 +247,28 @@ describe("pending payment lifecycle (real DB)", () => {
       expect(result.swept).toBe(0);
     });
 
+    it("does NOT fail a stale PENDING refund -- it waits on a processor that may have paid it out", async () => {
+      const order = await seedOrder("SWEEP-REFUND-01");
+      const refund = await prisma.payment.create({
+        data: {
+          salesOrderId: order.id,
+          paymentDate: new Date(Date.now() - PENDING_SESSION_LIFETIME_MS - 3_600_000),
+          paymentType: "Card",
+          paymentAmount: 80,
+          status: "PENDING",
+          method: "CARD",
+          isRefund: true,
+        },
+      });
+
+      const result = await sweepStalePendingPayments();
+
+      expect(result.swept).toBe(0);
+      expect((await prisma.payment.findUniqueOrThrow({ where: { id: refund.id } })).status).toBe(
+        "PENDING",
+      );
+    });
+
     it("sweeps across multiple orders in one run", async () => {
       const orderA = await seedOrder("SWEEP-MULTI-A-01");
       const orderB = await seedOrder("SWEEP-MULTI-B-01");

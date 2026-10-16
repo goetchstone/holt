@@ -137,7 +137,7 @@ The output. One JE per (date, store) pair (today: combined across stores per use
 
 Distinct from the JE pipeline above. The JE flows MONEY into the GL; the ledger flows AR (what each customer owes). Both have to balance to source-of-truth, and the daily-recon cron (Phase 0.5.5) cross-checks them.
 
-- One `CustomerLedgerEntry` row per money-affecting event per customer. Sign convention: positive = balance increases (SALE, DEPOSIT_RECEIVED, ADJUSTMENT_DEBIT); negative = balance decreases (PAYMENT, REFUND_ISSUED, DEPOSIT_APPLIED, ADJUSTMENT_CREDIT).
+- One `CustomerLedgerEntry` row per money-affecting event per customer. Sign convention: positive = balance increases (SALE, DEPOSIT_RECEIVED, REFUND_ISSUED, ADJUSTMENT_DEBIT); negative = balance decreases (PAYMENT, DEPOSIT_APPLIED, ADJUSTMENT_CREDIT). A refund is positive because it undoes a payment (`customerLedger.signForType`); a native return books its own SALE entry, negative, for what the customer is owed, so the refund that pays it out brings the balance back to where it was.
 - `Customer.openArBalance` is the stored running total. ATOMICALLY maintained by `lib/customerLedger.ts:appendEntry()` — every insert + balance bump happens inside the same `prisma.$transaction()`. Direct `prisma.customerLedgerEntry.create()` calls in application code BYPASS this contract and break the running-total invariant — only test fixtures that don't depend on the running balance are exempt.
 - Source-of-truth back-references: `salesOrderId`, `paymentId`, `invoiceId` (all nullable). Reports drill back through these to the originating event.
 - Pure helpers: `computeRunningBalance(entries)` re-derives the balance from a chronologically ordered list (exercised by the ledger tests and the books-reconcile integration test, not by the drift cron); `validateAgainstSource(ledger, source)` compares ledger-derived balance to `paymentService.computeBalance` summed across the customer's orders, with `LEDGER_TOLERANCE = 0.005` (half-cent). Both pure helpers tested in `__tests__/customerLedger.test.ts`.
@@ -444,6 +444,28 @@ partial refund records an amount, not which lines it unwinds, and inventing a
 proportional line-level reversal would be guessing. Proportional reversal is a
 deliberate non-goal here; it needs a decision about which lines a partial
 refund reverses.
+
+### Since PR 2b: a native return reverses itself
+
+A refund that pays out a **native return** is written against the return's own
+RETURNED order (`lib/returns/bookReturn.ts`), not the original. That order's
+negative lines are the reversing legs this section said were missing: on the
+return day they debit revenue and tax, debit inventory (or the shrinkage GL for
+a written-off piece) and credit COGS. A restocking fee is a positive line booked
+to `POS_TRANSACTIONS`/"Restocking Fee". The return order has an invoice dated
+that day when the original was invoiced, so the refund settles the negative
+receivable it raised and the day balances with no plug. Worked example, $1,000
+net, $63.50 tax, $400 cost, a 15% fee, refunded in cash the same day: Dr Sales
+1,000, Dr Sales Tax 63.50, Dr Inventory 400 / Cr COGS 400, Cr Restocking Fee 150,
+Cr Cash 913.50 (`returnMoney.integration.test.ts`). To store credit instead, the
+credit is to the Store Credit liability; spending the credit later debits it.
+
+So the `reversesPaymentId` guard now skips the receivable leg only when the
+refund's order is **not** a native return's order (`isReturnOrder`). A refund
+through `/api/sales/orders/[id]/refunds`, against the original order with no
+return, still leaves the plug and its warning described above. The journal
+also leaves out PENDING, FAILED and VOIDED payments (`countedPaymentWhere`): it
+used to journal every row dated that day.
 
 ## Sort order convention
 

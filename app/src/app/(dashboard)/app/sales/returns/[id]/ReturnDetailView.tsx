@@ -2,12 +2,12 @@
 
 // /app/src/app/(dashboard)/app/sales/returns/[id]/ReturnDetailView.tsx
 //
-// Return detail (summary, pickup, inspection, disposition, refund, exchange,
-// vendor return, change history). App Router port of the legacy
-// sales/returns/[id] body (minus MainLayout chrome, which the (dashboard) layout
-// supplies). Reads + writes the shared REST endpoints (/api/returns/:id[/status
-// /refund /exchange], /api/sales/orders/:id/changelog), which stay REST. The id
-// arrives as a prop from the server page (params awaited there).
+// Return detail (summary, pickup, inspection, where the piece is, refund,
+// exchange, vendor return, change history). Reads GET /api/returns/:id in the
+// shared contract (lib/returns/returnDetailContract.ts), so a field the API
+// renames is a compile error here instead of a crash on load. Putting the
+// piece back or writing it off is the store's returned-stock queue
+// (Warehouse > Returns), not this screen; the refund is RefundPanel.
 
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
@@ -16,7 +16,9 @@ import { toast } from "react-toastify";
 import { format } from "date-fns";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { getErrorMessage } from "@/lib/toastError";
+import type { ReturnDetail } from "@/lib/returns/returnDetailContract";
+import { RefundPanel } from "./RefundPanel";
 
 const STATUS_LABELS: Record<string, string> = {
   INITIATED: "Initiated",
@@ -78,53 +80,6 @@ const STATUS_ORDER = [
   "CANCELLED",
 ];
 
-interface ReturnDetail {
-  id: number;
-  returnNumber: string;
-  status: string;
-  reason: string;
-  reasonNotes: string | null;
-  quantity: number;
-  pickupRequired: boolean;
-  pickupAddress: string | null;
-  pickupDate: string | null;
-  pickupTimeSlot: string | null;
-  pickupNotes: string | null;
-  inspectionCondition: string | null;
-  inspectionNotes: string | null;
-  inspectedBy: string | null;
-  inspectedAt: string | null;
-  restockedLocation: string | null;
-  writeOffReason: string | null;
-  refundAmount: number | null;
-  refundPaymentId: number | null;
-  refundPaymentType: string | null;
-  exchangeOrderId: number | null;
-  exchangeOrderNo: string | null;
-  createdAt: string;
-  order: {
-    id: number;
-    orderno: string;
-  };
-  customer: {
-    firstName: string;
-    lastName: string;
-  } | null;
-  product: {
-    name: string;
-    productNumber: string | null;
-  } | null;
-  vendorReturnPOs: {
-    id: number;
-    poNumber: string;
-  }[];
-  payments: {
-    id: number;
-    paymentType: string;
-    paymentAmount: number;
-  }[];
-}
-
 interface ChangeLogEntry {
   id: number;
   changeType: string;
@@ -143,7 +98,6 @@ function isAtOrPastStatus(current: string, target: string): boolean {
 }
 
 export function ReturnDetailView({ id }: { id: string }) {
-  const formatCurrency = useMoneyFormatter();
   const [returnData, setReturnData] = useState<ReturnDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -154,34 +108,24 @@ export function ReturnDetailView({ id }: { id: string }) {
   const [inspectionCondition, setInspectionCondition] = useState("");
   const [inspectionNotes, setInspectionNotes] = useState("");
 
-  // Disposition state
-  const [showRestockForm, setShowRestockForm] = useState(false);
-  const [restockLocation, setRestockLocation] = useState("");
-  const [showWriteOffForm, setShowWriteOffForm] = useState(false);
-  const [writeOffReason, setWriteOffReason] = useState("");
-
-  // Refund form state
-  const [showRefundForm, setShowRefundForm] = useState(false);
-  const [refundPaymentId, setRefundPaymentId] = useState<number | "">("");
-  const [refundAmount, setRefundAmount] = useState("");
-
   const fetchReturn = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await axios.get(`/api/returns/${encodeURIComponent(String(id))}`);
+      const res = await axios.get<ReturnDetail>(`/api/returns/${encodeURIComponent(String(id))}`);
       setReturnData(res.data);
-    } catch {
-      toast.error("Failed to load return details.");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not load the return."));
     } finally {
       setLoading(false);
     }
   }, [id]);
 
+  const orderId = returnData?.salesOrder.id;
   const fetchChangeLog = useCallback(async () => {
-    if (!returnData?.order?.id) return;
+    if (!orderId) return;
     try {
-      const res = await axios.get(`/api/sales/orders/${returnData.order.id}/changelog`);
+      const res = await axios.get(`/api/sales/orders/${orderId}/changelog`);
       const entries = (res.data || []).filter((e: ChangeLogEntry) =>
         e.changeType.startsWith("RETURN_"),
       );
@@ -189,7 +133,7 @@ export function ReturnDetailView({ id }: { id: string }) {
     } catch {
       // Non-critical, silently ignore
     }
-  }, [returnData?.order?.id]);
+  }, [orderId]);
 
   useEffect(() => {
     fetchReturn();
@@ -210,11 +154,7 @@ export function ReturnDetailView({ id }: { id: string }) {
       toast.success(`Status updated to ${STATUS_LABELS[newStatus]}`);
       fetchReturn();
     } catch (err: unknown) {
-      const message =
-        axios.isAxiosError(err) && err.response?.data?.error
-          ? err.response.data.error
-          : "Failed to update status";
-      toast.error(message);
+      toast.error(getErrorMessage(err, "Could not update the status."));
     } finally {
       setUpdating(false);
     }
@@ -234,74 +174,21 @@ export function ReturnDetailView({ id }: { id: string }) {
     setInspectionNotes("");
   };
 
-  const handleRestock = () => {
-    if (!restockLocation.trim()) {
-      toast.error("Please enter a restock location.");
-      return;
-    }
-    updateStatus("RESTOCKED", { restockedLocation: restockLocation });
-    setShowRestockForm(false);
-    setRestockLocation("");
-  };
-
-  const handleWriteOff = () => {
-    if (!writeOffReason.trim()) {
-      toast.error("Please enter a write-off reason.");
-      return;
-    }
-    updateStatus("WRITTEN_OFF", { writeOffReason });
-    setShowWriteOffForm(false);
-    setWriteOffReason("");
-  };
-
-  const handleIssueRefund = async () => {
-    if (!id || !refundPaymentId || !refundAmount) {
-      toast.error("Please select a payment and enter an amount.");
-      return;
-    }
-    setUpdating(true);
-    try {
-      await axios.post(`/api/returns/${encodeURIComponent(String(id))}/refund`, {
-        paymentId: refundPaymentId,
-        amount: Number.parseFloat(refundAmount),
-      });
-      toast.success("Refund issued.");
-      fetchReturn();
-      setShowRefundForm(false);
-      setRefundPaymentId("");
-      setRefundAmount("");
-    } catch (err: unknown) {
-      const message =
-        axios.isAxiosError(err) && err.response?.data?.error
-          ? err.response.data.error
-          : "Failed to issue refund";
-      toast.error(message);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
   const handleCreateExchange = async () => {
     if (!id || updating) return;
     setUpdating(true);
     try {
-      const res = await axios.post(`/api/returns/${encodeURIComponent(String(id))}/exchange`);
+      await axios.post(`/api/returns/${encodeURIComponent(String(id))}/exchange`);
       toast.success("Exchange order created.");
-      if (res.data.exchangeOrderId) {
-        fetchReturn();
-      }
+      fetchReturn();
     } catch (err: unknown) {
-      const message =
-        axios.isAxiosError(err) && err.response?.data?.error
-          ? err.response.data.error
-          : "Failed to create exchange";
-      toast.error(message);
+      toast.error(getErrorMessage(err, "Could not create the exchange."));
     } finally {
       setUpdating(false);
     }
   };
 
-  if (loading) {
+  if (loading && !returnData) {
     return <p className="text-brand-gray">Loading return details...</p>;
   }
 
@@ -309,9 +196,9 @@ export function ReturnDetailView({ id }: { id: string }) {
     return <p className="text-brand-gray">Return not found.</p>;
   }
 
-  const showPickupCard = returnData.pickupRequired;
+  const { pickup, inspection, disposition } = returnData;
   const showInspectionCard = isAtOrPastStatus(returnData.status, "RECEIVED");
-  const showDispositionCard = isAtOrPastStatus(returnData.status, "INSPECTED");
+  const showDispositionCard = disposition.receivedPlace != null;
   const showVendorCard =
     returnData.reason === "DEFECTIVE" || returnData.reason === "DAMAGED_IN_DELIVERY";
 
@@ -336,7 +223,7 @@ export function ReturnDetailView({ id }: { id: string }) {
             </span>
           </div>
           <p className="text-sm text-brand-gray mt-1">
-            Created {format(new Date(returnData.createdAt), "PPP")}
+            Created {format(new Date(returnData.created), "PPP")}
           </p>
         </div>
       </div>
@@ -349,17 +236,15 @@ export function ReturnDetailView({ id }: { id: string }) {
             <p>
               <span className="font-medium text-brand-black">Order:</span>{" "}
               <Link
-                href={`/app/sales/orders/${returnData.order.id}`}
+                href={`/app/sales/orders/${returnData.salesOrder.id}`}
                 className="text-brand-blue hover:underline"
               >
-                {returnData.order.orderno}
+                {returnData.salesOrder.orderno}
               </Link>
             </p>
             <p>
               <span className="font-medium text-brand-black">Customer:</span>{" "}
-              {returnData.customer
-                ? `${returnData.customer.firstName} ${returnData.customer.lastName}`
-                : "N/A"}
+              {returnData.customer?.name || "N/A"}
             </p>
             <p>
               <span className="font-medium text-brand-black">Product:</span>{" "}
@@ -389,32 +274,29 @@ export function ReturnDetailView({ id }: { id: string }) {
       </div>
 
       {/* Pickup Card */}
-      {showPickupCard && (
+      {pickup.required && (
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-3">Pickup</h2>
           <div className="text-sm space-y-1.5">
-            {returnData.pickupAddress && (
+            {pickup.address && (
               <p>
-                <span className="font-medium text-brand-black">Address:</span>{" "}
-                {returnData.pickupAddress}
+                <span className="font-medium text-brand-black">Address:</span> {pickup.address}
               </p>
             )}
-            {returnData.pickupDate && (
+            {pickup.date && (
               <p>
                 <span className="font-medium text-brand-black">Date:</span>{" "}
-                {format(new Date(returnData.pickupDate), "PPP")}
+                {format(new Date(pickup.date), "PPP")}
               </p>
             )}
-            {returnData.pickupTimeSlot && (
+            {pickup.timeSlot && (
               <p>
-                <span className="font-medium text-brand-black">Time Slot:</span>{" "}
-                {returnData.pickupTimeSlot}
+                <span className="font-medium text-brand-black">Time Slot:</span> {pickup.timeSlot}
               </p>
             )}
-            {returnData.pickupNotes && (
+            {pickup.notes && (
               <p>
-                <span className="font-medium text-brand-black">Notes:</span>{" "}
-                {returnData.pickupNotes}
+                <span className="font-medium text-brand-black">Notes:</span> {pickup.notes}
               </p>
             )}
           </div>
@@ -447,296 +329,158 @@ export function ReturnDetailView({ id }: { id: string }) {
       {showInspectionCard && (
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-3">Inspection</h2>
-          {returnData.inspectionCondition ? (
+          {inspection.condition && (
             <div className="text-sm space-y-1.5">
               <p>
                 <span className="font-medium text-brand-black">Condition:</span>{" "}
                 <span
-                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${CONDITION_COLORS[returnData.inspectionCondition] || "bg-gray-100 text-gray-800"}`}
+                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${CONDITION_COLORS[inspection.condition] || "bg-gray-100 text-gray-800"}`}
                 >
-                  {CONDITION_LABELS[returnData.inspectionCondition] ||
-                    returnData.inspectionCondition}
+                  {CONDITION_LABELS[inspection.condition] || inspection.condition}
                 </span>
               </p>
-              {returnData.inspectionNotes && (
+              {inspection.notes && (
                 <p>
-                  <span className="font-medium text-brand-black">Notes:</span>{" "}
-                  {returnData.inspectionNotes}
+                  <span className="font-medium text-brand-black">Notes:</span> {inspection.notes}
                 </p>
               )}
-              {returnData.inspectedBy && (
+              {inspection.inspectedBy && (
                 <p>
                   <span className="font-medium text-brand-black">Inspected by:</span>{" "}
-                  {returnData.inspectedBy}
+                  {inspection.inspectedBy}
                 </p>
               )}
-              {returnData.inspectedAt && (
+              {inspection.inspectedAt && (
                 <p>
                   <span className="font-medium text-brand-black">Inspected at:</span>{" "}
-                  {format(new Date(returnData.inspectedAt), "PPP p")}
+                  {format(new Date(inspection.inspectedAt), "PPP p")}
                 </p>
               )}
             </div>
-          ) : returnData.status === "RECEIVED" ? (
-            <>
-              {!showInspectionForm ? (
-                <Button size="sm" onClick={() => setShowInspectionForm(true)}>
-                  Record Inspection
+          )}
+          {!inspection.condition && returnData.status === "RECEIVED" && !showInspectionForm && (
+            <Button size="sm" onClick={() => setShowInspectionForm(true)}>
+              Record Inspection
+            </Button>
+          )}
+          {!inspection.condition && returnData.status === "RECEIVED" && showInspectionForm && (
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="inspection-condition" className="block text-sm font-medium mb-1">
+                  Condition
+                </label>
+                <select
+                  id="inspection-condition"
+                  value={inspectionCondition}
+                  onChange={(e) => setInspectionCondition(e.target.value)}
+                  className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">Select condition...</option>
+                  <option value="LIKE_NEW">Like New</option>
+                  <option value="MINOR_DAMAGE">Minor Damage</option>
+                  <option value="MAJOR_DAMAGE">Major Damage</option>
+                  <option value="UNSALVAGEABLE">Unsalvageable</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="inspection-notes" className="block text-sm font-medium mb-1">
+                  Notes
+                </label>
+                <textarea
+                  id="inspection-notes"
+                  value={inspectionNotes}
+                  onChange={(e) => setInspectionNotes(e.target.value)}
+                  rows={3}
+                  className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
+                  placeholder="Describe the item condition..."
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleInspectionSubmit} disabled={updating}>
+                  {updating ? "Saving..." : "Save Inspection"}
                 </Button>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <label
-                      htmlFor="inspection-condition"
-                      className="block text-sm font-medium mb-1"
-                    >
-                      Condition
-                    </label>
-                    <select
-                      id="inspection-condition"
-                      value={inspectionCondition}
-                      onChange={(e) => setInspectionCondition(e.target.value)}
-                      className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
-                    >
-                      <option value="">Select condition...</option>
-                      <option value="LIKE_NEW">Like New</option>
-                      <option value="MINOR_DAMAGE">Minor Damage</option>
-                      <option value="MAJOR_DAMAGE">Major Damage</option>
-                      <option value="UNSALVAGEABLE">Unsalvageable</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="inspection-notes" className="block text-sm font-medium mb-1">
-                      Notes
-                    </label>
-                    <textarea
-                      id="inspection-notes"
-                      value={inspectionNotes}
-                      onChange={(e) => setInspectionNotes(e.target.value)}
-                      rows={3}
-                      className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
-                      placeholder="Describe the item condition..."
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleInspectionSubmit} disabled={updating}>
-                      {updating ? "Saving..." : "Save Inspection"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setShowInspectionForm(false);
-                        setInspectionCondition("");
-                        setInspectionNotes("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-brand-gray">No inspection recorded yet.</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowInspectionForm(false);
+                    setInspectionCondition("");
+                    setInspectionNotes("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+          {!inspection.condition && returnData.status !== "RECEIVED" && (
+            <p className="text-sm text-brand-gray">No inspection recorded.</p>
+          )}
+          {returnData.status === "INSPECTED" && (
+            <div className="mt-4">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => updateStatus("CLOSED")}
+                disabled={updating}
+              >
+                {updating ? "Updating..." : "Close Return"}
+              </Button>
+              <p className="text-xs text-brand-gray mt-1">
+                The customer&apos;s return can close now; the piece waits in the store&apos;s
+                returned-stock queue until someone puts it back or writes it off.
+              </p>
+            </div>
           )}
         </div>
       )}
 
-      {/* Disposition Card */}
+      {/* Where the piece is */}
       {showDispositionCard && (
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-          <h2 className="text-xl font-semibold mb-3">Disposition</h2>
-          {returnData.status === "RESTOCKED" && returnData.restockedLocation ? (
-            <p className="text-sm">
-              <span className="font-medium text-brand-black">Restocked to:</span>{" "}
-              {returnData.restockedLocation}
-            </p>
-          ) : returnData.status === "WRITTEN_OFF" && returnData.writeOffReason ? (
-            <p className="text-sm">
-              <span className="font-medium text-brand-black">Write-off reason:</span>{" "}
-              {returnData.writeOffReason}
-            </p>
-          ) : returnData.status === "INSPECTED" ? (
-            <div className="space-y-3">
-              {!showRestockForm && !showWriteOffForm && (
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => setShowRestockForm(true)}>
-                    Restock
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => setShowWriteOffForm(true)}>
-                    Write Off
-                  </Button>
-                </div>
-              )}
-
-              {showRestockForm && (
-                <div className="space-y-3">
-                  <div>
-                    <label htmlFor="restock-location" className="block text-sm font-medium mb-1">
-                      Restock Location
-                    </label>
-                    <select
-                      id="restock-location"
-                      value={restockLocation}
-                      onChange={(e) => setRestockLocation(e.target.value)}
-                      className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
-                    >
-                      <option value="">Select location...</option>
-                      <option value="Main Showroom">Main Showroom</option>
-                      <option value="Main Warehouse">Main Warehouse</option>
-                      <option value="West Showroom">West Showroom</option>
-                    </select>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleRestock} disabled={updating}>
-                      {updating ? "Saving..." : "Confirm Restock"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setShowRestockForm(false);
-                        setRestockLocation("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {showWriteOffForm && (
-                <div className="space-y-3">
-                  <div>
-                    <label htmlFor="writeoff-reason" className="block text-sm font-medium mb-1">
-                      Write-Off Reason
-                    </label>
-                    <textarea
-                      id="writeoff-reason"
-                      value={writeOffReason}
-                      onChange={(e) => setWriteOffReason(e.target.value)}
-                      rows={3}
-                      className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
-                      placeholder="Explain why the item cannot be restocked..."
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleWriteOff} disabled={updating}>
-                      {updating ? "Saving..." : "Confirm Write Off"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setShowWriteOffForm(false);
-                        setWriteOffReason("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-brand-gray">Pending disposition.</p>
-          )}
-        </div>
-      )}
-
-      {/* Refund Card */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-        <h2 className="text-xl font-semibold mb-3">Refund</h2>
-        {returnData.refundAmount != null ? (
+          <h2 className="text-xl font-semibold mb-3">The piece</h2>
           <div className="text-sm space-y-1.5">
-            <p>
-              <span className="font-medium text-brand-black">Refund Amount:</span>{" "}
-              {formatCurrency(returnData.refundAmount)}
-            </p>
-            {returnData.refundPaymentType && (
+            {disposition.restockedAt && (
               <p>
-                <span className="font-medium text-brand-black">Payment Method:</span>{" "}
-                {returnData.refundPaymentType}
+                <span className="font-medium text-brand-black">Put back at:</span>{" "}
+                {disposition.restockedPlace ?? "—"} on{" "}
+                {format(new Date(disposition.restockedAt), "PPP")}
+              </p>
+            )}
+            {disposition.writtenOffAt && (
+              <p>
+                <span className="font-medium text-brand-black">Written off:</span>{" "}
+                {format(new Date(disposition.writtenOffAt), "PPP")}
+                {disposition.writeOffReason ? `, ${disposition.writeOffReason}` : ""}
+              </p>
+            )}
+            {!disposition.restockedAt && !disposition.writtenOffAt && (
+              <p>
+                Waiting in <span className="font-medium">{disposition.receivedPlace}</span>.{" "}
+                <Link href="/app/warehouse/returns" className="text-brand-blue hover:underline">
+                  Put it back or write it off from Warehouse › Returns › Returned stock
+                </Link>
+                .
               </p>
             )}
           </div>
-        ) : (
-          <>
-            {!showRefundForm ? (
-              <Button size="sm" onClick={() => setShowRefundForm(true)}>
-                Issue Refund
-              </Button>
-            ) : (
-              <div className="space-y-3">
-                <div>
-                  <label htmlFor="refund-payment" className="block text-sm font-medium mb-1">
-                    Original Payment
-                  </label>
-                  <select
-                    id="refund-payment"
-                    value={refundPaymentId}
-                    onChange={(e) =>
-                      setRefundPaymentId(e.target.value ? Number(e.target.value) : "")
-                    }
-                    className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
-                  >
-                    <option value="">Select payment...</option>
-                    {(returnData.payments || []).map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.paymentType} - {formatCurrency(p.paymentAmount)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="refund-amount" className="block text-sm font-medium mb-1">
-                    Refund Amount
-                  </label>
-                  <input
-                    id="refund-amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={refundAmount}
-                    onChange={(e) => setRefundAmount(e.target.value)}
-                    className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={handleIssueRefund} disabled={updating}>
-                    {updating ? "Processing..." : "Submit Refund"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setShowRefundForm(false);
-                      setRefundPaymentId("");
-                      setRefundAmount("");
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Refund */}
+      <RefundPanel returnId={returnData.id} detail={returnData} onChanged={fetchReturn} />
 
       {/* Exchange Card */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <h2 className="text-xl font-semibold mb-3">Exchange</h2>
-        {returnData.exchangeOrderId ? (
+        {returnData.exchangeOrder ? (
           <p className="text-sm">
             <span className="font-medium text-brand-black">Exchange Order:</span>{" "}
             <Link
-              href={`/app/sales/orders/${returnData.exchangeOrderId}`}
+              href={`/app/sales/orders/${returnData.exchangeOrder.id}`}
               className="text-brand-blue hover:underline"
             >
-              {returnData.exchangeOrderNo || `Order #${returnData.exchangeOrderId}`}
+              {returnData.exchangeOrder.orderno}
             </Link>
           </p>
         ) : (
@@ -750,7 +494,7 @@ export function ReturnDetailView({ id }: { id: string }) {
       {showVendorCard && (
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-3">Vendor Return</h2>
-          {returnData.vendorReturnPOs && returnData.vendorReturnPOs.length > 0 ? (
+          {returnData.vendorReturnPOs.length > 0 ? (
             <div className="text-sm space-y-1">
               {returnData.vendorReturnPOs.map((po) => (
                 <p key={po.id}>

@@ -105,3 +105,8 @@ ALTER TABLE "InventoryTransfer" DROP CONSTRAINT IF EXISTS "InventoryTransfer_rec
 ALTER TABLE "InventoryTransfer" ADD CONSTRAINT "InventoryTransfer_received_within_quantity" CHECK (
   "receivedQuantity" >= 0 AND "receivedQuantity" <= quantity
 );
+
+-- 20261019120000_returns_money
+-- Store credit is never spent past zero.
+ALTER TABLE "Customer" DROP CONSTRAINT IF EXISTS "Customer_creditBalance_nonnegative";
+ALTER TABLE "Customer" ADD CONSTRAINT "Customer_creditBalance_nonnegative" CHECK ("creditBalance" >= 0);

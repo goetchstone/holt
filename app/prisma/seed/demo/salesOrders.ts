@@ -381,7 +381,7 @@ export async function seedSalesOrdersAndTills(
         });
       }
 
-      await prisma.payment.create({
+      const salePayment = await prisma.payment.create({
         data: {
           salesOrderId: salesOrder.id,
           paymentDate: order.date,
@@ -478,6 +478,9 @@ export async function seedSalesOrdersAndTills(
             status: "COMPLETED",
             method: order.method,
             isRefund: true,
+            // The payment it gives money back on, so that payment shows what
+            // is left to refund on it.
+            originalPaymentId: salePayment.id,
             refundReason: "Customer return — seeded demo data",
             registerId,
             tillId: till.id,
@@ -510,6 +513,11 @@ export async function seedSalesOrdersAndTills(
           dispositionRoll < 0.5 ? "RESTOCKED" : dispositionRoll < 0.7 ? "WRITTEN_OFF" : "RECEIVED";
         const inspected = returnStatus !== "RECEIVED";
         const refundProduct = productById.get(refundLine.productId)!;
+        // The line it came back from (lines are numbered from 1, in order).
+        const returnedLine = await prisma.orderLineItem.findFirstOrThrow({
+          where: { salesOrderId: salesOrder.id, lineNumber: order.refundLineIndex + 1 },
+          select: { id: true },
+        });
 
         await prisma.return.create({
           data: {
@@ -518,6 +526,7 @@ export async function seedSalesOrdersAndTills(
             reason:
               returnStatus === "WRITTEN_OFF" ? "DAMAGED_IN_DELIVERY" : "CUSTOMER_CHANGED_MIND",
             salesOrderId: salesOrder.id,
+            lineItemId: returnedLine.id,
             customerId: order.customerId,
             productId: refundLine.productId,
             productName: refundProduct.name,
@@ -534,8 +543,8 @@ export async function seedSalesOrdersAndTills(
                 : "MAJOR_DAMAGE"
               : null,
             restockedAt: returnStatus === "RESTOCKED" ? refundTime : null,
-            refundPaymentId: refundPayment.id,
-            refundAmount,
+            // The refund row is the return's payout (Payment.returnId).
+            refunds: { connect: { id: refundPayment.id } },
             createdBy: SEED_ACTOR,
           },
         });

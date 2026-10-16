@@ -2704,6 +2704,8 @@ model SalesOrder {
   changeLogs          OrderChangeLog[]
   returns             Return[]
   exchangeReturns     Return[]                    @relation("ExchangeOrder")
+  /// Set when this order IS a native return, booked by lib/returns/bookReturn.ts.
+  returnFor           Return?                     @relation("ReturnOrder")
   serviceAppointments ServiceAppointment[]
   pickLists           PickList[]
   consignmentItems    ConsignmentItem[]
@@ -2777,6 +2779,8 @@ model OrderLineItem {
   purchaseOrderItems  PurchaseOrderItem[]
   invoiceLineItems    InvoiceLineItem[]
   returns             Return[]
+  /// The restocking fee line on a native return's own order.
+  restockingFeeFor    Return?              @relation("ReturnFeeLine")
   serviceAppointments ServiceAppointment[]
   pickListItems       PickListItem[]
 
@@ -2959,7 +2963,10 @@ model Payment {
 
   creditTransactions CustomerCreditTransaction[]
   ledgerEntries      CustomerLedgerEntry[]
-  returnRefunds      Return[]
+  /// The native return this refund pays out (lib/returns/refundReturn.ts).
+  /// A return can be refunded in several payments, to a card and to credit.
+  returnId           Int?
+  return             Return?                     @relation("ReturnRefunds", fields: [returnId], references: [id])
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
@@ -2970,6 +2977,7 @@ model Payment {
   @@index([paymentDate])
   @@index([tillId])
   @@index([invoiceId])
+  @@index([returnId])
 }
 
 // ---------------------------------------------------------------------------
@@ -3503,8 +3511,9 @@ model CustomerCreditTransaction {
 // timing gaps that historically caused customer-page balance jitter).
 //
 // Sign convention (matches CustomerCreditTransaction):
-//   amount > 0 increases balance owed (SALE, ADJUSTMENT_DEBIT)
-//   amount < 0 decreases balance owed (PAYMENT, REFUND_ISSUED, ADJUSTMENT_CREDIT)
+//   amount > 0 increases balance owed (SALE, REFUND_ISSUED, ADJUSTMENT_DEBIT)
+//   amount < 0 decreases balance owed (PAYMENT, ADJUSTMENT_CREDIT)
+//   A refund is > 0 because it undoes a payment (customerLedger.signForType).
 //   DEPOSIT_RECEIVED is amount > 0 (a deposit creates an offsetting debit
 //   to the customer that nets when invoicing happens — same shape as a
 //   sale for the running-balance math)
@@ -3911,10 +3920,15 @@ model Return {
   // back or writes it off.
   writtenOffAt             DateTime?
 
-  // Refund (uses existing payment system)
-  refundPaymentId Int?
-  refundPayment   Payment? @relation(fields: [refundPaymentId], references: [id])
-  refundAmount    Decimal?
+  // Money (ledger plan PR 2b, lib/returns/). The first time money moves the
+  // return books as its own RETURNED order: negative lines for what came back,
+  // and the restocking fee as a positive line on it. The original order is
+  // never rewritten. Refunds are Payment rows carrying returnId.
+  returnOrderId           Int?           @unique
+  returnOrder             SalesOrder?    @relation("ReturnOrder", fields: [returnOrderId], references: [id])
+  restockingFeeLineItemId Int?           @unique
+  restockingFeeLineItem   OrderLineItem? @relation("ReturnFeeLine", fields: [restockingFeeLineItemId], references: [id])
+  refunds                 Payment[]      @relation("ReturnRefunds")
 
   // Exchange (linked replacement order)
   exchangeOrderId Int?

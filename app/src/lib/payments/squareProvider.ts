@@ -249,7 +249,7 @@ export const squareProvider: PaymentProvider = {
       const { refund } = await squareRequest<{ refund: { id: string } }>("/v2/refunds", {
         method: "POST",
         body: {
-          idempotency_key: randomUUID(),
+          idempotency_key: req.idempotencyKey,
           payment_id: paymentId,
           amount_money: {
             amount: toMinorUnits(req.amount),
