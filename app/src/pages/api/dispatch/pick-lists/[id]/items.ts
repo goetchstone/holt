@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { toQty } from "@/lib/inventory/quantity";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") {
@@ -73,7 +74,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       }
     }
 
-    return res.status(200).json(updatedItem);
+    return res.status(200).json({ ...updatedItem, quantity: toQty(updatedItem.quantity) });
   } catch (error) {
     logError("Error updating pick list item", error);
     return res.status(500).json({ error: "Failed to update pick list item" });

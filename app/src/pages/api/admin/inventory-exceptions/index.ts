@@ -11,6 +11,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { toQty } from "@/lib/inventory/quantity";
 
 export interface InventoryExceptionRow {
   id: number;
@@ -64,9 +65,9 @@ export default requirePermission(
         partNo: r.product.productNumber,
         storeLocationId: r.storeLocationId,
         storeLocationName: r.storeLocation.name,
-        requested: r.requested,
-        allocated: r.allocated,
-        shortfall: r.shortfall,
+        requested: toQty(r.requested),
+        allocated: toQty(r.allocated),
+        shortfall: toQty(r.shortfall),
         occurredAt: r.occurredAt.toISOString(),
         resolvedAt: r.resolvedAt ? r.resolvedAt.toISOString() : null,
         resolvedBy: r.resolvedBy,

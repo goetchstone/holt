@@ -4,10 +4,14 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import { generatePickList, PICK_LIST_DETAIL_INCLUDE } from "@/lib/deliveryService";
+import {
+  generatePickList,
+  PICK_LIST_DETAIL_INCLUDE,
+  pickListForClient,
+} from "@/lib/deliveryService";
 import { logError } from "@/lib/logger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     return handleGet(req, res);
   } else if (req.method === "POST") {
@@ -60,7 +64,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
   try {
     if (deliveryRunId) {
       const pickList = await generatePickList(Number.parseInt(deliveryRunId), createdBy);
-      return res.status(201).json(pickList);
+      return res.status(201).json(pickList && pickListForClient(pickList));
     }
 
     // Per-order pick list
@@ -113,12 +117,12 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
       });
     }
 
-    const result = await prisma.pickList.findUnique({
+    const result = await prisma.pickList.findUniqueOrThrow({
       where: { id: pickList.id },
       include: PICK_LIST_DETAIL_INCLUDE,
     });
 
-    return res.status(201).json(result);
+    return res.status(201).json(pickListForClient(result));
   } catch (error) {
     logError("Error creating pick list", error);
     return res.status(500).json({ error: "Failed to create pick list" });

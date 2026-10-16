@@ -3,6 +3,7 @@
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayStamp } from "@/lib/reports/businessDay";
 import { prisma } from "@/lib/prisma";
+import { toQty } from "@/lib/inventory/quantity";
 import type { DeliveryRunStatus, DeliveryStopStatus, Prisma } from "@prisma/client";
 
 const VALID_RUN_TRANSITIONS: Record<DeliveryRunStatus, DeliveryRunStatus[]> = {
@@ -114,9 +115,26 @@ export const PICK_LIST_DETAIL_INCLUDE = {
   },
 } satisfies Prisma.PickListInclude;
 
+/**
+ * A pick list on its way to a screen. A line's quantity is Decimal, because a
+ * line can be a part roll, and JSON would send a Decimal as a string.
+ */
+export function pickListForClient<T extends { items: { quantity: Prisma.Decimal }[] }>(
+  pickList: T,
+) {
+  return {
+    ...pickList,
+    items: pickList.items.map((item) => ({ ...item, quantity: toQty(item.quantity) })),
+  };
+}
+
 // Build a pick list for all stops on a delivery run
-export async function generatePickList(deliveryRunId: number, createdBy: string, tx?: any) {
-  const db = tx || prisma;
+export async function generatePickList(
+  deliveryRunId: number,
+  createdBy: string,
+  tx?: Prisma.TransactionClient,
+) {
+  const db: Prisma.TransactionClient = tx ?? prisma;
 
   const run = await db.deliveryRun.findUnique({
     where: { id: deliveryRunId },
@@ -175,7 +193,7 @@ export async function generatePickList(deliveryRunId: number, createdBy: string,
           pickListId: pickList.id,
           orderLineItemId: li.id,
           productId: li.productId,
-          quantity: li.quantity ?? 1,
+          quantity: Number(li.orderedQuantity) || 1,
           fromStockLocationId: position?.stockLocationId ?? null,
           fromStoreLocationId: position?.storeLocationId ?? null,
         },

@@ -23,6 +23,7 @@
 // apiRouteAuthorization tripwire.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { InventoryException } from "@prisma/client";
 import { toQty } from "@/lib/inventory/quantity";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
@@ -33,6 +34,14 @@ import { handler as orderHandler } from "@/pages/api/sales/orders/[id]";
 import { handler as dispatchHandler } from "@/pages/api/sales/orders/[id]/dispatch";
 import { handler as lineItemsHandler } from "@/pages/api/sales/orders/[id]/line-items";
 import { handler as lineItemHandler } from "@/pages/api/sales/orders/[id]/line-items/[lineItemId]";
+
+// An exception's three quantities are Decimal (a part roll can be short), so
+// they are read as numbers to compare.
+const quantities = (e: InventoryException) => ({
+  requested: toQty(e.requested),
+  allocated: toQty(e.allocated),
+  shortfall: toQty(e.shortfall),
+});
 
 function makeReq(overrides: Partial<NextApiRequest> = {}): NextApiRequest {
   return {
@@ -172,13 +181,8 @@ describe("inventory order wiring (real DB)", () => {
 
     const exceptions = await prisma.inventoryException.findMany({ where: { salesOrderId: orderId } });
     expect(exceptions).toHaveLength(1);
-    expect(exceptions[0]).toMatchObject({
-      productId: product.id,
-      storeLocationId: store.id,
-      requested: 3,
-      allocated: 1,
-      shortfall: 2,
-    });
+    expect(exceptions[0]).toMatchObject({ productId: product.id, storeLocationId: store.id });
+    expect(quantities(exceptions[0])).toEqual({ requested: 3, allocated: 1, shortfall: 2 });
     expect(exceptions[0].resolvedAt).toBeNull();
   });
 
@@ -218,7 +222,8 @@ describe("inventory order wiring (real DB)", () => {
 
     const exceptions = await prisma.inventoryException.findMany({ where: { salesOrderId: orderId } });
     expect(exceptions).toHaveLength(1);
-    expect(exceptions[0]).toMatchObject({ productId: product.id, requested: 2, allocated: 1, shortfall: 1 });
+    expect(exceptions[0]).toMatchObject({ productId: product.id });
+    expect(quantities(exceptions[0])).toEqual({ requested: 2, allocated: 1, shortfall: 1 });
   });
 
   it("a sale with no matching StoreLocation skips allocation instead of failing the sale", async () => {

@@ -1666,9 +1666,11 @@ model InventoryException {
   storeLocationId Int
   storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id])
 
-  requested Int
-  allocated Int
-  shortfall Int
+  // Decimal, like the InventoryPosition.quantity they are measured against: a
+  // sale of 4.5 yards short by 0.3 was recorded as 4 asked and 0 short.
+  requested Decimal @db.Decimal(12, 3)
+  allocated Decimal @db.Decimal(12, 3)
+  shortfall Decimal @db.Decimal(12, 3)
 
   occurredAt DateTime @default(now())
 
@@ -4056,7 +4058,7 @@ model PickListItem {
   orderLineItem       OrderLineItem? @relation(fields: [orderLineItemId], references: [id])
   productId           Int
   product             Product        @relation(fields: [productId], references: [id])
-  quantity            Int            @default(1)
+  quantity            Decimal        @default(1) @db.Decimal(12, 3)
   fromStockLocationId Int?
   fromStockLocation   StockLocation? @relation("PickFrom", fields: [fromStockLocationId], references: [id])
   fromStoreLocationId Int?
@@ -4725,7 +4727,8 @@ model InventoryFreeze {
   description String?
   status      InventoryFreezeStatus @default(IN_PROGRESS)
   totalItems  Int                   @default(0)
-  totalUnits  Int                   @default(0)
+  // Units, so fractional (a part roll); totalItems is a row count and stays Int.
+  totalUnits  Decimal               @default(0) @db.Decimal(12, 3)
 
   items InventoryFreezeItem[]
 
@@ -4741,7 +4744,7 @@ model InventoryFreezeItem {
   product         Product         @relation(fields: [productId], references: [id])
   storeLocationId Int?
   storeLocation   StoreLocation?  @relation(fields: [storeLocationId], references: [id])
-  quantity        Int
+  quantity        Decimal         @db.Decimal(12, 3)
 
   @@index([freezeId])
   @@index([productId])

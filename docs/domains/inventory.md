@@ -299,13 +299,13 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 ## Roadmap: stock as a ledger of movements
 
 The tracked plan for the rest of the warehouse model (rule 50). Phase 1, the
-single writer, shipped 2026-10-14. One PR per phase, each with a named real-DB
-regression test.
+single writer, shipped 2026-10-14 (#13); phase 2, fractional record columns,
+2026-10-15. One PR per phase, each with a named real-DB regression test.
 
 **A. Make stock trustworthy**
 
 1. ✅ Single writer (`ledger.ts`), duplicate rows merged, nullable unique key dropped.
-2. Fractional quantity columns: `InventoryException`, `InventoryFreeze(Item)`, `PickListItem` are `Int` but receive fractional values (roll goods). Plausible crash, not yet exercised — the PR starts with a failing test.
+2. ✅ Fractional quantity columns: `InventoryException.{requested,allocated,shortfall}`, `InventoryFreeze.totalUnits`, `InventoryFreezeItem.quantity` and `PickListItem.quantity` are `Decimal(12,3)` like the balance (migration `20261015120000_fractional_stock_records`). Exercised first, it was not a crash: the Int columns **truncated silently** — a 4.5-yard oversell recorded as 4 asked, a 37.625-yard freeze as 37, a 12.5-yard pick line as 12. The routes that send these to a screen convert with `toQty` (`pickListForClient` for pick lists), since JSON sends a Decimal as a string. Freeze compare tests equality with `qtyEquals`. Also fixed: the delivery-run pick list wrote 1 on every line (`li.quantity`, a field that does not exist, read through an `any` client); `generatePickList` now takes a typed client and reads `orderedQuantity`. Test: `fractionalStock.integration.test.ts`.
 3. Every unit has a place: `stockLocationId` NOT NULL, a `quantity > 0` CHECK, a location-type catalog, and system places per site. Preflight counts on a restored copy first (rules 41, 59).
 4. `StockMovement`: an append-only journal written by `postMovement`, with a drift check (journal sum vs balance) asserted after every inventory test.
 
@@ -329,7 +329,7 @@ regression test.
 
 15. PWA shell, scan resolution, lookup. 16. Boxes as evidence (`boxesPerUnit`, box labels, incomplete sets held in quarantine). 17. Count by area. 18. Put away and move, with stray-box notes. 19. Pick, stage, load. 20. Partial and failed delivery, and return pickups on a run.
 
-**Found while building phase 1, scheduled rather than fixed in it** (rule 48):
+**Found while building phases 1 and 2, scheduled rather than fixed in them** (rule 48):
 
 | Finding | Where | Scheduled |
 |---|---|---|
@@ -337,7 +337,9 @@ regression test.
 | Native PO receiving counts a zero-quantity line as fully received, so a PO with nothing received can read RECEIVED_PARTIAL (rule 39) | `purchasing/orders/[id]/receive.ts` status recalc | phase 7 |
 | The returns UI never sends `restockedLocationId`, so restocking from the screen adds no stock while the journal entry books it | `ReturnDetailView.tsx`, `ReturnsQueueView` | phase 8 |
 | Pick-list builders include cancelled and replaced lines (rule 33) and two builders diverge | `lib/deliveryService.ts`, `dispatch/pick-lists/index.ts` | phase 9 |
-| The register may display on-hand as concatenated text when a store has several rows (a Decimal serialises as a string and is summed with `+`). Plausible from the code, not reproduced | `sales/pos/PosView.tsx` | phase 10 |
+| `InventoryPosition` and `InventoryTransfer` quantities reach screens as strings: the positions and transfers routes send the Prisma Decimal as-is, and JSON writes a Decimal as `"3"`. The register sums it with `(n \|\| 0) + p.quantity`, which gives `"03"` for 3 on hand and `"033"` for two rows. The mechanism is verified (2026-10-15: `JSON.stringify(new Prisma.Decimal("3.000"))` gives `"3"`, and `0 + "3"` gives `"03"`); it has not been reproduced on the screen. Fix: `toQty` at every route that sends one, as `pickListForClient` does | `warehouse/positions/*`, `warehouse/transfers/*`, `sales/pos/PosView.tsx` | its own PR, before phase 3 |
+| `Return.quantity` is `Int` and the create route reads it with `parseInt`, so a returned part roll is recorded, and later restocked, as whole units | `returns/index.ts`, `Return` model | phase 8 |
+| `PhysicalInventoryCount.quantity` and `Reconciliation`'s expected/counted/variance columns are `Int`: counting a 12.5-yard roll records 12, and the variance against the Decimal balance is off by the fraction | `inventory/physical-count.ts`, `inventory/reconcile.ts` | phase 17 (count by area replaces both) |
 
 ---
-Last verified: 2026-10-14
+Last verified: 2026-10-15

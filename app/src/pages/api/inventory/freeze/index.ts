@@ -5,6 +5,7 @@ import { Session } from "next-auth";
 import { requireAuth, requirePermission } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { aggregateCurrentInventory } from "@/lib/inventory/snapshot";
+import { roundQty, toQty } from "@/lib/inventory/quantity";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
@@ -25,10 +26,10 @@ async function handleGet(_req: NextApiRequest, res: NextApiResponse, _session: S
     },
   });
 
-  return res.json(freezes);
+  return res.json(freezes.map((f) => ({ ...f, totalUnits: toQty(f.totalUnits) })));
 }
 
-async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { description } = req.body || {};
 
   const freeze = await prisma.$transaction(async (tx) => {
@@ -56,7 +57,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
       });
     }
 
-    const totalUnits = positions.reduce((sum, p) => sum + p.quantity, 0);
+    const totalUnits = roundQty(positions.reduce((sum, p) => sum + p.quantity, 0));
 
     const updated = await tx.inventoryFreeze.update({
       where: { id: newFreeze.id },
@@ -70,5 +71,5 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
     return updated;
   }, TX_TIMEOUT.LONG);
 
-  return res.status(201).json(freeze);
+  return res.status(201).json({ ...freeze, totalUnits: toQty(freeze.totalUnits) });
 }
