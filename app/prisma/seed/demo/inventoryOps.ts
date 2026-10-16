@@ -184,6 +184,13 @@ export async function seedInventoryOps(
     "CANCELLED",
   ];
   const orderIds = soldOrders.map((o) => o.id);
+  // The orders that bought each product, so a transfer raised for an order
+  // moves something that order bought.
+  const ordersFor = new Map<number, number[]>();
+  for (const o of soldOrders) {
+    const productId = o.lineItems[0]?.productId;
+    if (productId != null) ordersFor.set(productId, [...(ordersFor.get(productId) ?? []), o.id]);
+  }
 
   // A transfer is raised for stock that is actually at its source, and the
   // ones already under way have moved it, exactly as the transfer status route
@@ -214,16 +221,20 @@ export async function seedInventoryOps(
       }))
       .filter((r) => r.free >= 1);
     if (available.length === 0) continue;
-    const chosen = pick(oRng, available);
+    // Half the transfers exist because somebody bought something. That link is
+    // what separates "move stock for a customer" from "rebalance the floor",
+    // and reports read them differently. Such a transfer moves a product its
+    // order bought; with none of those here it is a rebalance (until
+    // 2026-10-16 it named a random order, which committed stock to an order
+    // with no line for it).
+    const forOrder = i % 2 === 0 && orderIds.length > 0;
+    const bought = forOrder ? available.filter((r) => ordersFor.has(r.productId)) : [];
+    const chosen = pick(oRng, bought.length ? bought : available);
     const quantity = Math.min(randInt(oRng, 1, 3), Math.floor(chosen.free));
     const key = `${from.id}|${chosen.productId}`;
     promised.set(key, (promised.get(key) ?? 0) + quantity);
 
-    // Half the transfers exist because somebody bought something. That link is
-    // what separates "move stock for a customer" from "rebalance the floor",
-    // and reports read them differently.
-    const forOrder = i % 2 === 0 && orderIds.length > 0;
-    const salesOrderId = forOrder ? pick(oRng, orderIds) : null;
+    const salesOrderId = bought.length ? pick(oRng, ordersFor.get(chosen.productId)!) : null;
     const raisedAt = new Date(today.getTime() - randInt(oRng, 1, 45) * 86_400_000);
 
     const transfer = await prisma.inventoryTransfer.create({
@@ -239,7 +250,7 @@ export async function seedInventoryOps(
         salesOrderId,
         requestedByUserId: actorUserId,
         status: "DRAFT",
-        notes: forOrder ? "Raised to fulfil a customer order." : null,
+        notes: salesOrderId != null ? "Raised to fulfil a customer order." : null,
       },
     });
 
@@ -267,7 +278,7 @@ export async function seedInventoryOps(
     });
     result.transfersCreated += 1;
     if (status === "IN_TRANSIT") result.inTransitTransfers += 1;
-    if (forOrder) result.orderLinkedTransfers += 1;
+    if (salesOrderId != null) result.orderLinkedTransfers += 1;
   }
 
   // ---- freezes, and the counts taken against them ------------------------

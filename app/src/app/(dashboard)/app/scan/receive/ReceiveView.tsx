@@ -189,6 +189,10 @@ export function ReceiveView() {
         })),
       });
       const d = res.data;
+      reset();
+      // Reload the PO first: loading it shows its own header, which would
+      // otherwise replace the confirmation.
+      await loadPo(po.po.poNumber, storeRef.current);
       setMessage({
         tone: "ok",
         text:
@@ -196,8 +200,6 @@ export function ReceiveView() {
           (d.incompleteSets ? `, ${d.incompleteSets} incomplete set(s) to quarantine` : "") +
           (d.completedSets ? `, ${d.completedSets} set(s) completed` : ""),
       });
-      reset();
-      await loadPo(po.po.poNumber, storeRef.current);
     } catch (err) {
       // The key is kept: sending again is the same action, never a second receipt.
       setMessage({ tone: "error", text: getErrorMessage(err, "Not received: send it again.") });

@@ -122,9 +122,11 @@ export async function printZpl(printerId: number, zpl: string): Promise<void> {
 
 /**
  * The template and printer for a kind of label: the first template of that
- * context (LabelTemplate.context), and a printer loaded with its tag size,
- * one at `storeName` first. Refuses, naming what to set up, rather than
- * printing on whatever is nearest (rule 63).
+ * context (LabelTemplate.context), and a printer loaded with its tag size at
+ * `storeName`. Refuses, naming what to set up, rather than printing on
+ * whatever is nearest (rule 63): a warehouse with no printer of its own does
+ * not get its labels from a showroom's. With no store named, the first
+ * printer loaded with the size.
  */
 export async function routeContextLabel(
   context: LabelContext,
@@ -145,10 +147,10 @@ export async function routeContextLabel(
     select: { id: true, store: true },
     orderBy: { id: "asc" },
   });
-  const printer = printers.find((p) => storeName && p.store === storeName) ?? printers[0];
+  const printer = storeName ? printers.find((p) => p.store === storeName) : printers[0];
   if (!printer) {
     throw new LabelSetupError(
-      `No printer is loaded with ${template.tagSize} labels for template "${template.name}".`,
+      `No printer${storeName ? ` at ${storeName}` : ""} is loaded with ${template.tagSize} labels for template "${template.name}": set one up in Admin › Setup › Printers.`,
     );
   }
   return { template, printerId: printer.id };

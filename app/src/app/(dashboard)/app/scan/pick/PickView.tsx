@@ -31,9 +31,16 @@ interface Row {
   productNumber: string;
   boxesPerUnit: number;
   quantity: number;
+  fromStoreLocationId: number | null;
   fromStockLocationId: number | null;
   fromPath: string | null;
   crossSite: boolean;
+}
+
+/** A row needs a transfer first: once the bay is scanned, if it is at another store. */
+function needsTransfer(r: Row, bay: ScannedPlace | null): boolean {
+  if (r.fromStoreLocationId == null) return false;
+  return bay ? r.fromStoreLocationId !== bay.storeLocationId : r.crossSite;
 }
 
 interface Stray {
@@ -218,7 +225,7 @@ export function PickView() {
                 <span className="text-brand-gray">for {r.orderno}</span>
                 <span className="block text-xs">
                   {r.fromPath ? `at ${r.fromPath}` : "nothing to pull: short"}
-                  {r.crossSite ? " · at another store: transfer it first" : ""}
+                  {needsTransfer(r, bay) ? " · at another store: transfer it first" : ""}
                 </span>
                 {strays
                   .filter((s) => s.productId === r.productId)

@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { UNASSIGNED_DELIVERY_WHERE } from "@/lib/deliveryService";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -13,11 +14,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   try {
     const appointments = await prisma.serviceAppointment.findMany({
-      where: {
-        type: "DELIVERY",
-        deliveryStop: null,
-        status: { in: ["PENDING", "SCHEDULED", "CONFIRMED"] },
-      },
+      where: UNASSIGNED_DELIVERY_WHERE,
       include: {
         customer: { select: { id: true, firstName: true, lastName: true, phone: true } },
         address: { select: { address1: true, city: true, state: true, zip: true } },

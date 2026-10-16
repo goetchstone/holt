@@ -76,7 +76,10 @@ export function LookupView() {
                   {result?.kind === "place" ? (
                     <>
                       {l.productName}
-                      <span className="block text-xs text-brand-gray">{l.placePath}</span>
+                      {/* The number tells apart two products of one name. */}
+                      <span className="block text-xs text-brand-gray">
+                        {l.productNumber} · {l.placePath}
+                      </span>
                     </>
                   ) : (
                     <>

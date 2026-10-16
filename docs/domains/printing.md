@@ -37,7 +37,7 @@ Every label renders through `lib/labels/renderTemplate.ts` (Mustache). Templates
 
 A value is escaped for ZPL: `^` and `~` start ZPL commands, so they are replaced with a space. A product named "50^ off" would otherwise end its field and run the rest as a command. Test: `labelRender.test.ts`.
 
-Place and box labels choose their template and printer with `routeContextLabel(context, storeName)`: the first template of that context, and a printer loaded with its tag size, one at the store first. With none set up it throws `LabelSetupError` naming what to set up, rather than printing on whatever is nearest. `printZpl(printerId, zpl)` sends to the stored address of a printer chosen by id, never an address from the request.
+Place and box labels choose their template and printer with `routeContextLabel(context, storeName)`: the first template of that context, and a printer at that store loaded with its tag size. A store with no such printer gets `LabelSetupError` naming what to set up, never another store's printer (it fell back to the first printer anywhere until 2026-10-16, so a warehouse place's label came out at a showroom). Test: `labelRouting.integration.test.ts`. `printZpl(printerId, zpl)` sends to the stored address of a printer chosen by id, never an address from the request.
 
 ## API surfaces
 

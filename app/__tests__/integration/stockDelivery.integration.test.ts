@@ -19,6 +19,7 @@ import { completeStop, failStop, StopError } from "@/lib/fulfilment/stops";
 import { DeliveryError } from "@/lib/fulfilment/handover";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { buildPullList } from "@/lib/fulfilment/pullList";
+import { UNASSIGNED_DELIVERY_WHERE } from "@/lib/deliveryService";
 import { stockAt } from "../helpers/stock";
 
 async function world() {
@@ -265,8 +266,31 @@ describe("delivery stop outcomes (real DB)", () => {
     expect(await delivered(w.lamp.id)).toBe(0);
   });
 
+  it("refuses a delivery of nothing: that stop could not be done", async () => {
+    const w = await world();
+    await expect(
+      prisma.$transaction((tx) =>
+        completeStop(tx, w.stop.id, {
+          at: new Date(),
+          delivered: [
+            { orderLineItemId: w.lampLine.id, quantity: 0 },
+            { orderLineItemId: w.sofaLine.id, quantity: 0 },
+          ],
+          actor: null,
+        }),
+      ),
+    ).rejects.toThrow("Couldn't deliver");
+    const stop = await prisma.deliveryStop.findUniqueOrThrow({ where: { id: w.stop.id } });
+    expect(stop.status).toBe("ARRIVED");
+  });
+
   it("a stop that could not be done comes off the run, back to the pool", async () => {
     const w = await world();
+    // Out on a truck: the service board may have marked it IN_PROGRESS.
+    await prisma.serviceAppointment.update({
+      where: { id: w.appointment.id },
+      data: { status: "IN_PROGRESS" },
+    });
     await expect(
       prisma.$transaction((tx) => failStop(tx, w.stop.id, { reason: "  ", actor: null })),
     ).rejects.toThrow(StopError);
@@ -281,6 +305,8 @@ describe("delivery stop outcomes (real DB)", () => {
     });
     expect(appt.deliveryStop).toBeNull();
     expect(appt.notes).toBe("Could not deliver on run RUN-1: Nobody home");
+    const pool = await prisma.serviceAppointment.findMany({ where: UNASSIGNED_DELIVERY_WHERE });
+    expect(pool.map((a) => a.id)).toContain(w.appointment.id);
     const log = await prisma.orderChangeLog.findFirstOrThrow({
       where: { salesOrderId: w.order.id, changeType: "DELIVERY_FAILED" },
     });

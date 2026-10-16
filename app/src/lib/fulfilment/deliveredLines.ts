@@ -3,8 +3,9 @@
 // The driver's delivered counts (ledger plan phase 20), pure so the driver
 // screen and its test share them. A stop's goods are the order's open product
 // lines: active, with a product, and not yet all delivered. What the driver
-// sends is one count per open line; anything less than open is a part
-// delivery (lib/fulfilment/handover.ts recordDelivery).
+// sends is one count per open line; the server decides what that was
+// (lib/fulfilment/handover.ts recordDelivery: less than open is a part
+// delivery).
 
 export interface StopLine {
   id: number;
@@ -44,8 +45,4 @@ export function deliveredPayload(
     const q = c === undefined || !Number.isFinite(c) ? l.open : Math.min(l.open, Math.max(0, c));
     return { orderLineItemId: l.id, quantity: round(q) };
   });
-}
-
-export function isPartDelivery(open: OpenLine[], counts: Record<number, number>): boolean {
-  return deliveredPayload(open, counts).some((d, i) => d.quantity < open[i].open);
 }

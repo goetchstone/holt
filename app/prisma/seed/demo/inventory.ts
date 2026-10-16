@@ -52,7 +52,11 @@ export async function seedInventory(
   warehouseStockLocationId: number,
   warehouseCommittedStockLocationId: number,
   warehouseStoreId: number,
-  committedOrders: { id: number; storeLocationId: number | null }[],
+  committedOrders: {
+    id: number;
+    storeLocationId: number | null;
+    lineItems: { productId: number | null; orderedQuantity: unknown }[];
+  }[],
 ): Promise<InventoryResult> {
   const invRng = subRng(rng, "inventory");
   const result: InventoryResult = {
@@ -109,14 +113,20 @@ export async function seedInventory(
 
   // Committed stock: sold goods staged for delivery, held against the order
   // they belong to. The `holdsCommittedStock` flag on the staging bay is what
-  // marks these as unavailable, not the location's name.
+  // marks these as unavailable, not the location's name. The product is one of
+  // the order's own lines, never more than it ordered: committed stock the
+  // order has no line for is nothing a pull list, a pick or a delivery can
+  // use (it picked any catalog product until 2026-10-16). One draw of each
+  // kind per order either way, so the rest of the seed is unchanged.
   for (const order of committedOrders) {
-    const product = pick(invRng, products);
+    const line = pick(invRng, order.lineItems.length ? order.lineItems : [null]);
+    const wanted = randInt(invRng, 1, 3);
+    if (!line?.productId) continue;
     rows.push({
-      productId: product.id,
+      productId: line.productId,
       storeLocationId: warehouseStoreId,
       stockLocationId: warehouseCommittedStockLocationId,
-      quantity: randInt(invRng, 1, 3),
+      quantity: Math.min(wanted, Number(line.orderedQuantity)),
       salesOrderId: order.id,
       notes: "Staged for delivery",
     });

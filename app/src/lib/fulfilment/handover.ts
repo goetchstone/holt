@@ -228,6 +228,10 @@ export async function recordDelivery(
   }
 
   const going = [...delivered].filter(([, q]) => q > 0);
+  if (going.length === 0) {
+    // Nothing went: that is a stop that could not be done, not a delivery.
+    throw new DeliveryError("Nothing was delivered: use Couldn't deliver instead.");
+  }
   await lockProducts(
     tx,
     going.map(([id]) => open.get(id)!.productId!),
@@ -246,10 +250,7 @@ export async function recordDelivery(
     data: {
       salesOrderId: input.salesOrderId,
       changeType: "PARTLY_DELIVERED",
-      newValue:
-        going.length === 0
-          ? `Nothing delivered at ${input.at.toISOString()}`
-          : going.map(([id, q]) => `${open.get(id)!.name} x${q}`).join("; "),
+      newValue: going.map(([id, q]) => `${open.get(id)!.name} x${q}`).join("; "),
       changedBy: input.actor ?? "system",
     },
   });

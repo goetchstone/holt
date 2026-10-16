@@ -80,6 +80,9 @@ Since PR 4 of the ledger plan (`docs/domains/inventory.md` → "The handheld
 floor", DECISIONS #23). `PUT /api/dispatch/stops/[id]` decides nothing itself:
 `lib/fulfilment/stops.ts` does.
 
+- **Arrived.** A stop goes PENDING → ARRIVED directly: nothing sets EN_ROUTE,
+  so with only PENDING → EN_ROUTE allowed, "Mark Arrived" was refused and no
+  stop could be completed (fixed 2026-10-16; `deliveryService.ts`).
 - **Completed.** `completeStop` claims the stop first (it sets COMPLETED only
   where the stop was not already COMPLETED), so a driver's retry or two racing
   taps hand nothing over twice. Then:
@@ -87,6 +90,7 @@ floor", DECISIONS #23). `PUT /api/dispatch/stops/[id]` decides nothing itself:
     the driver screen. All of it is the handover (`markHandedOver`).
   - **Less than all of it** is a part delivery (`recordDelivery`): the units
     that went leave stock and `fulfilledQty` goes up, and the order stays open.
+    Nothing at all is refused: that stop could not be done.
     A new PENDING DELIVERY appointment for the rest goes into the unassigned
     pool (`/api/dispatch/unassigned`), copying the customer, address, zone and
     access notes. The order's change log gets PARTLY_DELIVERED.
@@ -96,10 +100,13 @@ floor", DECISIONS #23). `PUT /api/dispatch/stops/[id]` decides nothing itself:
   collect" on the driver screen). `failStop` removes the stop from the run,
   adds the reason to the appointment's notes, and writes DELIVERY_FAILED or
   RETURN_PICKUP_FAILED on the order. A delivery's appointment is back in the
-  unassigned pool. A return keeps its appointment and its PICKUP_SCHEDULED
+  unassigned pool (`UNASSIGNED_DELIVERY_WHERE`: any open status, IN_PROGRESS
+  included, with no stop). A return keeps its appointment and its PICKUP_SCHEDULED
   status, with the reason added to its pickup notes, and goes on a run again
   from the pickup schedule. Nothing was handed over, so nothing is reversed:
   the stock stays committed to the order.
+- The driver screen's message comes from what the server did (`completion` in
+  the response), never from the counts it sent.
 
 **Return pickups on a run.** On the pickup schedule (`/app/warehouse/pickups`),
 "Add to run" posts `{ returnId }` to `/api/dispatch/runs/[id]/stops`

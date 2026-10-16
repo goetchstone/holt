@@ -18,8 +18,12 @@
 //     loading bay) until runs carry a truck place of their own;
 //   - what the order needs but holds nothing of is a row with no place, so the
 //     shortfall shows instead of vanishing;
-//   - a unit committed at a different store than the order's is flagged: it
-//     needs a store-to-store transfer before it can be pulled.
+//   - a unit committed at a store the order does not leave from is flagged:
+//     it needs a store-to-store transfer before it can be pulled. A pickup
+//     leaves from its pickup store; a delivery from the order's store or the
+//     store that fulfils for it (StoreLocation.fulfilmentStoreLocationId,
+//     typically the warehouse its deliveries leave from). The handheld pick
+//     checks the loading bay's store as well (PickView).
 
 import type { Prisma } from "@prisma/client";
 import { pickupPlaceId } from "@/lib/inventory/places";
@@ -76,6 +80,7 @@ export async function buildPullList(
       select: {
         orderno: true,
         storeLocationId: true,
+        store: { select: { fulfilmentStoreLocationId: true } },
         deliveryMethod: true,
         pickupLocationId: true,
         lineItems: {
@@ -86,6 +91,14 @@ export async function buildPullList(
       },
     });
     if (!order) continue;
+
+    // The stores it can leave from: a unit anywhere else needs a transfer.
+    const leavesFrom = new Set(
+      (order.deliveryMethod === "PICKUP"
+        ? [order.pickupLocationId ?? order.storeLocationId]
+        : [order.storeLocationId, order.store?.fulfilmentStoreLocationId]
+      ).filter((id): id is number => id != null),
+    );
 
     // Where this order leaves from: units already there are pulled.
     let pickupPlace: number | null = null;
@@ -150,8 +163,7 @@ export async function buildPullList(
           quantity: take,
           fromStoreLocationId: place.storeLocationId,
           fromStockLocationId: place.stockLocationId,
-          crossSite:
-            order.storeLocationId != null && place.storeLocationId !== order.storeLocationId,
+          crossSite: leavesFrom.size > 0 && !leavesFrom.has(place.storeLocationId),
         });
         place.left = roundQty(place.left - take);
         need = roundQty(need - take);

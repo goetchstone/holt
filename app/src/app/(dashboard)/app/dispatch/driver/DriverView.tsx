@@ -23,7 +23,8 @@ import { format } from "date-fns";
 import Link from "next/link";
 import { Check, MapPin, Phone, Truck } from "lucide-react";
 import { getErrorMessage } from "@/lib/toastError";
-import { deliveredPayload, isPartDelivery, openStopLines } from "@/lib/fulfilment/deliveredLines";
+import { deliveredPayload, openStopLines } from "@/lib/fulfilment/deliveredLines";
+import type { StopCompletion } from "@/lib/fulfilment/stops";
 import { CouldNotForm, DeliveredCounts, PickupItems, type StopReturn } from "./StopParts";
 
 type LineItem = {
@@ -125,8 +126,8 @@ export function DriverView() {
       await axios.put(`/api/dispatch/stops/${stopId}`, { status: "ARRIVED" });
       toast.success("Marked as arrived");
       fetchActiveRun();
-    } catch {
-      toast.error("Failed to update stop");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to update stop"));
     }
   }
 
@@ -177,17 +178,11 @@ export function DriverView() {
       // Mark completed, with what went for a delivery.
       const pickup = stop.serviceAppointment.type === "RETURN_PICKUP";
       const open = openStopLines(stop.serviceAppointment.salesOrder?.lineItems ?? []);
-      await axios.put(`/api/dispatch/stops/${stopId}`, {
+      const res = await axios.put(`/api/dispatch/stops/${stopId}`, {
         status: "COMPLETED",
         ...(pickup ? {} : { delivered: deliveredPayload(open, counts) }),
       });
-
-      let done = "Delivery completed";
-      if (pickup) done = "Pickup completed";
-      else if (isPartDelivery(open, counts)) {
-        done = "Part delivery recorded: the rest is back with dispatch";
-      }
-      toast.success(done);
+      toast.success(completionMessage(res.data?.completion, pickup));
       setCompletingStopId(null);
       setSignatureData(null);
       setPhotoFile(null);
@@ -409,7 +404,7 @@ export function DriverView() {
 
               {/* Actions */}
               <div className="mt-4">
-                {stop.status === "PENDING" && (
+                {(stop.status === "PENDING" || stop.status === "EN_ROUTE") && (
                   <button
                     onClick={() => markArrived(stop.id)}
                     className="w-full min-h-[60px] bg-brand-blue text-white font-serif font-semibold text-base rounded-lg shadow-md hover:bg-brand-black transition"
@@ -513,6 +508,19 @@ export function DriverView() {
       </div>
     </DriverLayout>
   );
+}
+
+/** What the server did (lib/fulfilment/stops.ts), never what was asked. */
+function completionMessage(completion: StopCompletion | null | undefined, pickup: boolean): string {
+  if (!completion?.claimed) return "This stop was already completed";
+  if (pickup) return completion.pickedUp ? "Pickup completed" : "Stop completed";
+  if (completion.delivery && !completion.delivery.changed) {
+    return "Stop completed: the order was already recorded as delivered";
+  }
+  if (completion.delivery && !completion.delivery.complete) {
+    return "Part delivery recorded: the rest is back with dispatch";
+  }
+  return "Delivery completed";
 }
 
 function DriverLayout({ children }: { children: React.ReactNode }) {

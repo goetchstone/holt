@@ -40,7 +40,6 @@ export function CountView() {
   const [message, setMessage] = useState<ScanMessage | null>(null);
   const [busy, setBusy] = useState(false);
   const keyRef = useRef<string | null>(null);
-  const storeRef = useRef<number | null>(null);
 
   const change = (next: Record<number, Line>) => {
     keyRef.current = null;
@@ -48,7 +47,6 @@ export function CountView() {
   };
 
   const onScan = async (code: string, storeLocationId: number | null) => {
-    storeRef.current = storeLocationId;
     try {
       const res = await axios.get<{ result: ScanResult }>("/api/scan/resolve", {
         params: { code, storeLocationId: storeLocationId ?? undefined },
@@ -100,13 +98,15 @@ export function CountView() {
   };
 
   const submit = async (post: boolean) => {
-    if (!place || storeRef.current == null) return;
+    if (!place) return;
     keyRef.current ??= newKey();
     setBusy(true);
     try {
       const res = await axios.post("/api/scan/count", {
         actionKey: keyRef.current,
-        storeLocationId: storeRef.current,
+        // The place's own store: a place label is good at any store the
+        // scanner is set to (the picker is for codes that need one).
+        storeLocationId: place.storeLocationId,
         stockLocationId: place.id,
         scope,
         post,

@@ -555,6 +555,10 @@ takes the nearest one above it in the place tree, then its store's
 - A multi-box unit is picked only whole.
 - A stray box picked with its unit is reunited (its note clears).
 - `loadRun` refuses while anything is left to pull.
+- "Transfer it first" on a pull row: a pickup's units must be at its pickup
+  store; a delivery's at its order's store or the store that fulfils for it
+  (`fulfilmentStoreLocationId`). Once the loading bay is scanned, the pick page
+  compares with the bay's store instead.
 
 **Delivery** (`lib/fulfilment/stops.ts`, DECISIONS #23).
 
