@@ -41,7 +41,40 @@ Fields driving the workflow:
 | Pickup planning   | `/app/warehouse/pickups` → `GET /api/warehouse/returns/pickups` reads `pickupRequired = true && status IN INITIATED/PICKUP_SCHEDULED`                                                      |
 | Customer portal   | `GET /api/portal/returns/[token]` + `POST /api/portal/returns/request` — token-only, no staff session; staff mint the token with `POST /api/sales/orders/[id]/return-link` (`sales.write`) |
 
-Auth is mixed. `/api/returns`, `/api/returns/[id]` and `/api/returns/[id]/exchange` gate on `requirePermission("sales.return")`, which MANAGER, REGISTER and WAREHOUSE hold by default (`lib/auth/permissionCatalog.ts`) on top of ADMIN/SUPER_ADMIN. `/api/returns/[id]/status` is still `requireAuthWithRole(["REGISTER", "MANAGER", "ADMIN"])` and `/api/returns/[id]/refund` is `requireAuthWithRole(["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"])`. The list/new/detail pages require only a signed-in user. The warehouse queue and pickup PAGES are MANAGER/ADMIN/WAREHOUSE, but the endpoints behind them are not: `/api/warehouse/returns/queue` and `/api/warehouse/returns/pickups` are bare `getServerSession` with no role check, so any signed-in user can read the customer names, phone numbers and pickup addresses they return.
+Auth is mixed. `/api/returns`, `/api/returns/[id]` and `/api/returns/[id]/exchange` gate on `requirePermission("sales.return")`, which MANAGER, REGISTER and WAREHOUSE hold by default (`lib/auth/permissionCatalog.ts`) on top of ADMIN/SUPER_ADMIN. `/api/returns/[id]/status` takes `sales.return` too since 2026-10-17 (it was a role list without WAREHOUSE, whose staff work the returns queue), as do `/api/returns/[id]/disposition` and `/api/warehouse/returns/returned-stock` (either `sales.return` or `inventory.transfer`); and `/api/returns/[id]/refund` is `requireAuthWithRole(["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"])`. The list/new/detail pages require only a signed-in user. The warehouse queue and pickup PAGES are MANAGER/ADMIN/WAREHOUSE, but the endpoints behind them are not: `/api/warehouse/returns/queue` and `/api/warehouse/returns/pickups` are bare `getServerSession` with no role check, so any signed-in user can read the customer names, phone numbers and pickup addresses they return.
+
+## Returned stock: the piece, not the paperwork (since 2026-10-17)
+
+Owner direction 2026-10-16 (DECISIONS #19): a return never holds up the
+customer. What happens to the returned piece is the store's, through
+`lib/inventory/returnStock.ts`:
+
+- **RECEIVED** puts the piece into the store's **returns place** -- the store's
+  `returnsStockLocationId`, or a `RETURNS` place of type QUARANTINE created the
+  first time -- as a `RETURN` movement, and records the store and place on the
+  return (`receivedLocationId`, `receivedStockLocationId`). The store is the one
+  named, or where it was received, or the order's own: receipt is never refused
+  for want of one. A store that points its returns place at a sellable place has
+  returns back on sale at once.
+- The return can then be inspected and closed whenever the customer side is
+  done.
+- **The returned-stock queue** (Warehouse > Returns > Returned stock;
+  `/api/warehouse/returns/returned-stock`, per store) lists every return whose
+  piece was received and neither put back nor written off. **Put back** moves
+  the piece from its recorded place to a sellable place at that store (the
+  store's receiving place when none is chosen); **Write off** takes it out of
+  the books (`WRITE_OFF`). Each is claimed on the return first
+  (`restockedAt` / `writtenOffAt`), so a second click is a 409, and neither
+  changes the return's status. `/api/returns/[id]/disposition` does both.
+- The status route's RESTOCKED and WRITTEN_OFF do the same, for screens that
+  close a return that way. A return received before returns places existed has
+  no recorded place; restocking it adds the piece from outside the books, the
+  old way.
+- The journal generator's `classifyReturnDisposition` reads the recorded
+  disposition first (`writtenOffAt`, then `restockedAt`), then a terminal
+  status, then the inspection condition: a piece put back after the return was
+  closed books as a restock.
+- `Return.quantity` is Decimal(12,3): a part roll comes back as a length.
 
 ## Accounting view — returns are sales-in-reverse
 
@@ -122,6 +155,38 @@ Every state transition writes to `OrderChangeLog` for the linked `salesOrderId`.
 - **Native pickup scheduling integration** with dispatch board — `pickupRequired` flag exists but the dispatch UI doesn't yet pull return-pickups into the run-planner
 - **Vendor return path** for damaged items (consignment-specific in `docs/domains/consignment.md`; non-consignment vendor returns have no formal workflow)
 - **Restocking fees** — not modelled at all: no field on `Return`, and nothing in `app/src` computes one
+
+## Returns money: found 2026-10-16, scheduled for ledger-plan PR 2b
+
+Owner direction 2026-10-16: a return never holds up the customer. The refund
+goes back to the original payment method **or** onto the customer's account as
+store credit, usable toward a new sale or a rewrite, and a return may carry a
+restocking fee. Putting the piece back on the shelf or writing it off is a
+separate per-store queue (ledger plan PR 2, phase 8), not a step the customer
+waits on.
+
+Found reading the code (static read, nothing exercised), each tracked here
+until PR 2b closes it (rule 50):
+
+| Finding | Where |
+|---|---|
+| Refunding a card payment "to store credit" refunds the card **and** issues credit: the processor refund does not depend on the chosen method | `lib/paymentService.ts` `processRefund` (~647) |
+| Refund to store credit issues nothing when the payment row has no customer (no fallback to the order's customer), while the refund row says "Store Credit" | `processRefund` (~698) |
+| The processor call runs inside the database transaction: a rollback after it leaves the customer refunded and nothing recorded | `processRefund` (613/650) |
+| The refund route checks neither the return's status (a CANCELLED return can refund), that the payment belongs to the return's order, nor a cap at the returned line's value; a second refund overwrites the first's record | `pages/api/returns/[id]/refund.ts` |
+| `computeRefundable` is exported and tested but unused; `processRefund` re-derives it inline (rule 42) | `paymentService.ts:105` vs `:625` |
+| Store credit can be spent on another customer's order: `recordPayment` never checks the credit's customer against the order's | `paymentService.ts` STORE_CREDIT branch (~248) |
+| No screen offers store credit: the register's tenders are cash/check/card/gift card; nothing calls `/api/customers/[id]/credit`; manual credit adjustments reach no GL | `PosView.tsx:101`, `credit/adjust.ts` |
+| The return detail screen reads fields the API does not send (`order`, `createdAt`, `payments`, …). **Reproduced 2026-10-17 on a seeded scratch database:** opening a return crashes with "RangeError: Invalid time value" at `ReturnDetailView.tsx:339` (`format(new Date(returnData.createdAt))`), so no refund can be issued from it. The New Return screen now lands there after a successful submit | `ReturnDetailView.tsx` vs `pages/api/returns/[id].ts` |
+| Native returns write no negative lines, so revenue is never reversed and `computeBalance` shows a refunded order owing the refund again — chargeable by payment links and portal Pay | `pages/api/returns/index.ts` |
+| `REFUND_ISSUED`'s ledger sign is +1 in code and negative in the schema comment and accounting.md; refund-to-credit raises open AR while raising the credit balance | `lib/customerLedger.ts:294` |
+| No restocking fee field, computation or GL account | — |
+
+PR 2 changes what the journal generator reads for a return's disposition:
+`resolveReturnBookingPath()` classified a return by its terminal status
+(`RESTOCKED`/`WRITTEN_OFF`). Once the returned-stock queue puts pieces back or
+writes them off after the customer's return is closed, the classification reads
+the return's recorded disposition instead.
 
 ---
 

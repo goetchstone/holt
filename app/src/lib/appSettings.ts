@@ -71,6 +71,9 @@ export interface ResolvedAppSettings {
   bookingConfig: BookingConfig;
   /** Which SourceAdapter pulls data from a prior system. "none" = nothing does. */
   sourceAdapterId: string;
+  /** The store whose "Unmatched — Needs Review" place takes POS stock rows the
+   *  import cannot place. null = such rows are reported and not written. */
+  unmatchedStockStoreLocationId: number | null;
   /** Store-wide retail markup fallback. null = unset; the catalog then shows
    * cost and refuses to invent a retail price when a vendor also lacks one. */
   pricing: { defaultMarkup: number | null };
@@ -124,6 +127,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   features: {},
   bookingConfig: { ...BOOKING_DEFAULTS },
   sourceAdapterId: "none",
+  unmatchedStockStoreLocationId: null,
   pricing: { defaultMarkup: null },
   google: {
     drive: { projectsRootFolderId: null, projectSubfolders: [...DEFAULT_GOOGLE_SUBFOLDERS] },
@@ -160,6 +164,7 @@ interface AppSettingsRow {
   // row read before the column existed, simply doesn't carry it. Absent
   // resolves to the default exactly as an empty string does.
   sourceAdapterId?: string | null;
+  unmatchedStockStoreLocationId?: number | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -218,6 +223,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     // what the database says, so a typo surfaces as "adapter X is not in this
     // build" rather than silently reverting to "none".
     sourceAdapterId: row.sourceAdapterId?.trim() || DEFAULT_APP_SETTINGS.sourceAdapterId,
+    unmatchedStockStoreLocationId: row.unmatchedStockStoreLocationId ?? null,
     pricing: parsePricingConfig(row.pricing),
     google: parseGoogleConfig(row.google),
     portalTokenTtlHours: parsePortalTokenTtlHours(row.portalTokenTtlHours),

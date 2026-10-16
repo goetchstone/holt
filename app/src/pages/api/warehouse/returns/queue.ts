@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { toQty } from "@/lib/inventory/quantity";
 import type { ReturnStatus } from "@prisma/client";
 import { logError } from "@/lib/logger";
 
@@ -53,7 +54,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         ? `${r.customer.firstName || ""} ${r.customer.lastName || ""}`.trim()
         : "",
       productName: r.productName,
-      quantity: r.quantity,
+      quantity: toQty(r.quantity),
       pickupRequired: r.pickupRequired,
       pickupDate: r.pickupDate,
       inspectionCondition: r.inspectionCondition,

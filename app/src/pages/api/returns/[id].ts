@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { toQty } from "@/lib/inventory/quantity";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
@@ -63,6 +64,7 @@ async function handleGet(id: number, res: NextApiResponse) {
 
     return res.status(200).json({
       ...ret,
+      quantity: toQty(ret.quantity),
       refundAmount: ret.refundAmount ? Number(ret.refundAmount) : null,
       refundPayment: ret.refundPayment
         ? { ...ret.refundPayment, paymentAmount: Number(ret.refundPayment.paymentAmount) }
@@ -103,7 +105,7 @@ async function handlePut(
       },
     });
 
-    return res.status(200).json(ret);
+    return res.status(200).json({ ...ret, quantity: toQty(ret.quantity) });
   } catch (error) {
     logError("Error updating return", error);
     return res.status(500).json({ error: "Failed to update return" });

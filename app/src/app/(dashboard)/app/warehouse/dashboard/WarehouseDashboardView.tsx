@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
+import Link from "next/link";
 
 interface LocationSummary {
   id: number;
@@ -34,6 +35,8 @@ export function WarehouseDashboardView() {
   const [inbound, setInbound] = useState<InboundPO[]>([]);
   const [transfersInTransit, setTransfersInTransit] = useState(0);
   const [pendingDispatch, setPendingDispatch] = useState(0);
+  const [oversoldOpen, setOversoldOpen] = useState(0);
+  const [returnedStockWaiting, setReturnedStockWaiting] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -46,6 +49,8 @@ export function WarehouseDashboardView() {
         setLocations(summaryRes.data.locations);
         setTransfersInTransit(summaryRes.data.transfersInTransit);
         setPendingDispatch(summaryRes.data.pendingDispatch);
+        setOversoldOpen(summaryRes.data.oversoldOpen ?? 0);
+        setReturnedStockWaiting(summaryRes.data.returnedStockWaiting ?? 0);
         setInbound(inboundRes.data.inbound);
       } catch {
         // Silent fail -- dashboard shows empty state
@@ -83,6 +88,20 @@ export function WarehouseDashboardView() {
           <p className="text-sm text-brand-gray">Inbound POs</p>
           <p className="text-2xl font-semibold text-brand-black">{inbound.length}</p>
         </div>
+        <Link
+          href="/app/reports/oversold"
+          className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5 hover:bg-brand-linen/40"
+        >
+          <p className="text-sm text-brand-gray">Oversold</p>
+          <p className="text-2xl font-semibold text-brand-black">{oversoldOpen}</p>
+        </Link>
+        <Link
+          href="/app/warehouse/returns"
+          className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5 hover:bg-brand-linen/40"
+        >
+          <p className="text-sm text-brand-gray">Returned stock to put away</p>
+          <p className="text-2xl font-semibold text-brand-black">{returnedStockWaiting}</p>
+        </Link>
       </div>
 
       {/* Location inventory cards */}

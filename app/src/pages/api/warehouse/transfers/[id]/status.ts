@@ -1,36 +1,31 @@
 // /app/src/pages/api/warehouse/transfers/[id]/status.ts
 //
-// Advances transfer status and moves the stock, in one transaction, through
-// lib/inventory/ledger.ts (the single writer of InventoryPosition).
-// DRAFT -> IN_TRANSIT: takes the units from free stock at the source, or refuses
-//                      (409) if the source does not hold enough
-// IN_TRANSIT -> RECEIVED: adds the units shipped to the destination
-// IN_TRANSIT -> CANCELLED: puts the units shipped back at the source
+// Advances a transfer and moves its stock, in one transaction. What moves is
+// decided in lib/inventory/transfers.ts:
+// DRAFT -> IN_TRANSIT: the units go to the source store's in-transit place, or
+//                      the ship is refused (409) if the source is short
+// IN_TRANSIT -> RECEIVED: `quantity` (default: all still on its way) arrives;
+//                      the transfer stays IN_TRANSIT until all of it has
+// IN_TRANSIT -> CANCELLED: what is still on its way goes back where it left
 
 import { NextApiRequest, NextApiResponse } from "next";
-import type { Prisma } from "@prisma/client";
-import { allocate, freePositionWhere } from "@/lib/inventory/allocation";
-import { drawLegs, postMovement } from "@/lib/inventory/ledger";
-import { placeAt } from "@/lib/inventory/places";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { toQty, roundQty } from "@/lib/inventory/quantity";
+import { toQty } from "@/lib/inventory/quantity";
+import { parseQty } from "@/lib/inventory/qtyInput";
+import {
+  cancelTransfer,
+  receiveTransfer,
+  shipTransfer,
+  TransferQuantityError,
+  TransferShortError,
+  transferForClient,
+} from "@/lib/inventory/transfers";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 
-/** Another request changed this transfer's status first. */
+/** Another request changed this transfer first. */
 class TransferRaceError extends Error {}
-
-/** The source holds less free stock than the transfer asks to ship. */
-class TransferShortError extends Error {
-  constructor(
-    readonly available: number,
-    readonly requested: number,
-    readonly source: string,
-  ) {
-    super("Not enough free stock at the source to ship this transfer.");
-  }
-}
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ["IN_TRANSIT", "CANCELLED"],
@@ -74,146 +69,51 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       });
     }
 
-    await prisma.$transaction(async (tx) => {
-      const quantity = toQty(transfer.quantity);
-      const actor = session.user!.email;
+    const actor = session.user?.email ?? null;
+    const receiveQty =
+      newStatus === "RECEIVED" && req.body.quantity != null ? parseQty(req.body.quantity) : null;
+    if (newStatus === "RECEIVED" && req.body.quantity != null && receiveQty == null) {
+      return res.status(400).json({ error: "quantity must be a positive number." });
+    }
 
-      // Claim the transition before moving any stock: only the request that
-      // finds the transfer still in the status it read may proceed. Without
-      // this, a double-clicked "Ship" ran twice and took the units twice --
-      // the status check above happens outside this transaction.
-      const claimed = await tx.inventoryTransfer.updateMany({
-        where: { id: transferId, status: transfer.status },
-        data: { status: newStatus },
-      });
-      if (claimed.count === 0) throw new TransferRaceError();
+    await prisma.$transaction(async (tx) => {
+      // Claim the change before moving any stock: only the request that finds
+      // the transfer as it read it may proceed. Without this a double-clicked
+      // "Ship" ran twice and took the units twice -- the checks above happen
+      // outside this transaction.
+      const claim = (data: Parameters<typeof tx.inventoryTransfer.updateMany>[0]["data"]) =>
+        tx.inventoryTransfer.updateMany({
+          where: {
+            id: transferId,
+            status: transfer.status,
+            receivedQuantity: transfer.receivedQuantity,
+          },
+          data,
+        });
 
       if (newStatus === "IN_TRANSIT") {
-        // Take the units from the source. A stock location the user chose is
-        // taken at its word: its uncommitted units go, whether or not the
-        // location is flagged as holding customers' stock (moving that stock
-        // between stores is a real task). With none chosen ("any"), only
-        // genuinely free stock at that store will do.
-        //
-        // This used to look for a free row with exactly the chosen stock
-        // location -- null for "any" -- and, finding none, do nothing at all.
-        // Imported stock always carries a stock location, so "any" never found
-        // it: the source kept its units and RECEIVED then created them again at
-        // the destination. Stock appeared from nowhere on the ordinary path.
-        // Now the source either gives up the units or the ship is refused.
-        const sourceWhere: Prisma.InventoryPositionWhereInput =
-          transfer.fromStockLocationId == null
-            ? { AND: [freePositionWhere(), { storeLocationId: transfer.fromLocationId! }] }
-            : {
-                storeLocationId: transfer.fromLocationId!,
-                stockLocationId: transfer.fromStockLocationId,
-                salesOrderId: null,
-              };
-        const { legs, shortfall } = await drawLegs(tx, {
-          productId: transfer.productId,
-          where: sourceWhere,
-          quantity,
-        });
-        if (shortfall > 0) {
-          throw new TransferShortError(
-            roundQty(quantity - shortfall),
-            quantity,
-            transfer.fromLocation,
-          );
+        if ((await claim({ status: "IN_TRANSIT", shippedAt: new Date() })).count === 0) {
+          throw new TransferRaceError();
         }
-        for (const leg of legs) {
-          await postMovement(tx, {
-            productId: transfer.productId,
-            quantity: leg.take,
-            from: leg.place,
-            reason: "TRANSFER",
-            source: { type: "InventoryTransfer", id: transferId },
-            actor,
-          });
-        }
-
-        await tx.inventoryTransfer.update({
-          where: { id: transferId },
-          data: { status: "IN_TRANSIT", shippedAt: new Date() },
-        });
+        await shipTransfer(tx, transfer, actor);
       } else if (newStatus === "RECEIVED") {
-        // The units shipped arrive at the destination as free stock. Through
-        // the single writer, which merges into the existing row (rule 64).
-        await postMovement(tx, {
-          productId: transfer.productId,
-          quantity,
-          to: await placeAt(tx, {
-            storeLocationId: transfer.toLocationId!,
-            stockLocationId: transfer.toStockLocationId,
-          }),
-          reason: "TRANSFER",
-          source: { type: "InventoryTransfer", id: transferId },
-          actor,
+        const remaining = toQty(transfer.quantity) - toQty(transfer.receivedQuantity);
+        const take = receiveQty ?? remaining;
+        const willComplete = take >= remaining - 0.0005;
+        const claimed = await claim({
+          receivedQuantity: Math.min(
+            toQty(transfer.quantity),
+            toQty(transfer.receivedQuantity) + take,
+          ),
+          ...(willComplete
+            ? { status: "RECEIVED", receivedAt: new Date(), receivedByUserId: actor }
+            : {}),
         });
-
-        // The stock has landed at the destination store, so an order that was
-        // waiting on it can finally hold it. Allocation is store-scoped, which
-        // is the whole reason the transfer existed.
-        //
-        // Best-effort on purpose: the goods HAVE physically arrived, and a
-        // receipt must not fail because the order was cancelled or already
-        // filled from elsewhere while the stock was in transit. The transfer is
-        // recorded either way and the order simply stays short, which the
-        // shortfall queue already surfaces.
-        if (transfer.salesOrderId) {
-          try {
-            await allocate(
-              transfer.salesOrderId,
-              [
-                {
-                  productId: transfer.productId,
-                  storeLocationId: transfer.toLocationId!,
-                  quantity: toQty(transfer.quantity),
-                },
-              ],
-              tx,
-            );
-          } catch (err) {
-            logError("Transfer received but allocating to its order failed", err, {
-              transferId,
-              salesOrderId: transfer.salesOrderId,
-            });
-          }
-        }
-
-        await tx.inventoryTransfer.update({
-          where: { id: transferId },
-          data: {
-            status: "RECEIVED",
-            receivedAt: new Date(),
-            receivedByUserId: session.user!.email,
-          },
-        });
+        if (claimed.count === 0) throw new TransferRaceError();
+        await receiveTransfer(tx, transfer, take, actor);
       } else if (newStatus === "CANCELLED") {
-        // Put the shipped units back at the source. Through the single writer:
-        // the upsert this replaced could never match a free row (rule 64), so
-        // every cancel created another duplicate. When the ship drew from
-        // several stock locations ("any"), they come back to the source
-        // store's receiving place; returning each to the exact place it left
-        // reads the journal (plan phase 6).
-        if (transfer.status === "IN_TRANSIT") {
-          await postMovement(tx, {
-            productId: transfer.productId,
-            quantity,
-            to: await placeAt(tx, {
-              storeLocationId: transfer.fromLocationId!,
-              stockLocationId: transfer.fromStockLocationId,
-            }),
-            reason: "TRANSFER",
-            source: { type: "InventoryTransfer", id: transferId },
-            actor,
-          });
-        }
-
-        await tx.inventoryTransfer.update({
-          where: { id: transferId },
-          data: { status: "CANCELLED" },
-        });
+        if ((await claim({ status: "CANCELLED" })).count === 0) throw new TransferRaceError();
+        if (transfer.status === "IN_TRANSIT") await cancelTransfer(tx, transfer, actor);
       }
     });
 
@@ -221,7 +121,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       where: { id: transferId },
     });
 
-    return res.status(200).json(updated && { ...updated, quantity: toQty(updated.quantity) });
+    return res.status(200).json(updated && transferForClient(updated));
   } catch (error) {
     if (error instanceof TransferRaceError) {
       return res.status(409).json({
@@ -231,9 +131,12 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     if (error instanceof TransferShortError) {
       return res.status(409).json({
         error:
-          `Only ${error.available} of the ${error.requested} requested are free to ship from ` +
-          `${error.source}. Ship fewer, or correct the stock count first.`,
+          `Only ${error.available} of the ${error.requested} requested are at ` +
+          `${error.source}. Move fewer, or correct the stock count first.`,
       });
+    }
+    if (error instanceof TransferQuantityError) {
+      return res.status(400).json({ error: error.message });
     }
     logError("Error updating transfer status", error);
     return res.status(500).json({ error: "Failed to update transfer status" });

@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
+import { RECEIPT_CONDITIONS } from "@/lib/purchasing/receiptConditions";
 
 interface LineItem {
   id: number;
@@ -65,7 +66,8 @@ interface ReceiveLineState {
   needsUpc: boolean;
 }
 
-const CONDITIONS = ["OK", "Damaged", "Wrong Item", "Short"];
+// Damaged and Wrong Item arrive in the store's quarantine place, not for sale.
+const CONDITIONS = RECEIPT_CONDITIONS;
 
 export function ReceivePOView({ id }: { id: string }) {
   const router = useRouter();
@@ -302,11 +304,13 @@ export function ReceivePOView({ id }: { id: string }) {
                         <label className="block text-[10px] text-brand-gray mb-0.5">Qty</label>
                         <input
                           type="number"
-                          min={1}
+                          min={0}
+                          step="any"
                           max={remaining}
                           value={ls.quantity}
                           onChange={(e) =>
-                            updateLine(li.id, { quantity: Number.parseInt(e.target.value) || 0 })
+                            // A part roll arrives as a length; parseInt made 12.5 yards 12.
+                            updateLine(li.id, { quantity: Number.parseFloat(e.target.value) || 0 })
                           }
                           className="w-full border border-brand-gray/30 rounded px-2 py-1.5 text-sm"
                         />

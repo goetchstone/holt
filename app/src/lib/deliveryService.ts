@@ -4,6 +4,7 @@ import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayStamp } from "@/lib/reports/businessDay";
 import { prisma } from "@/lib/prisma";
 import { toQty } from "@/lib/inventory/quantity";
+import { buildPullList } from "@/lib/fulfilment/pullList";
 import type { DeliveryRunStatus, DeliveryStopStatus, Prisma } from "@prisma/client";
 
 const VALID_RUN_TRANSITIONS: Record<DeliveryRunStatus, DeliveryRunStatus[]> = {
@@ -128,80 +129,48 @@ export function pickListForClient<T extends { items: { quantity: Prisma.Decimal 
   };
 }
 
-// Build a pick list for all stops on a delivery run
+/**
+ * Write a pick list from the pull list (lib/fulfilment/pullList.ts): for a
+ * delivery run, every order on its stops; for one order, that order. Each item
+ * is the order's own committed stock at the place it sits, or -- for what the
+ * order holds none of -- a line with no place, so the gap shows on the list.
+ */
 export async function generatePickList(
-  deliveryRunId: number,
+  scope: { deliveryRunId: number } | { salesOrderId: number },
   createdBy: string,
   tx?: Prisma.TransactionClient,
 ) {
   const db: Prisma.TransactionClient = tx ?? prisma;
 
-  const run = await db.deliveryRun.findUnique({
-    where: { id: deliveryRunId },
-    include: {
-      stops: {
-        include: {
-          serviceAppointment: {
-            include: {
-              salesOrder: {
-                include: {
-                  lineItems: {
-                    where: { productId: { not: null } },
-                    include: { product: true },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!run) {
-    throw new Error(`DeliveryRun ${deliveryRunId} not found`);
+  if ("deliveryRunId" in scope) {
+    const run = await db.deliveryRun.findUnique({ where: { id: scope.deliveryRunId } });
+    if (!run) throw new Error(`DeliveryRun ${scope.deliveryRunId} not found`);
   }
 
-  const pickListNumber = await generatePickListNumber();
-
+  const { rows } = await buildPullList(db, scope);
   const pickList = await db.pickList.create({
     data: {
-      pickListNumber,
-      deliveryRunId,
+      pickListNumber: await generatePickListNumber(),
+      ...scope,
       status: "CREATED",
       createdBy,
     },
   });
-
-  for (const stop of run.stops) {
-    const lineItems = stop.serviceAppointment?.salesOrder?.lineItems ?? [];
-
-    for (const li of lineItems) {
-      if (!li.productId) continue;
-
-      // Find the current inventory position for this product
-      const position = await db.inventoryPosition.findFirst({
-        where: {
-          productId: li.productId,
-          quantity: { gt: 0 },
-        },
-        orderBy: { quantity: "desc" },
-      });
-
-      await db.pickListItem.create({
-        data: {
-          pickListId: pickList.id,
-          orderLineItemId: li.id,
-          productId: li.productId,
-          quantity: Number(li.orderedQuantity) || 1,
-          fromStockLocationId: position?.stockLocationId ?? null,
-          fromStoreLocationId: position?.storeLocationId ?? null,
-        },
-      });
-    }
+  if (rows.length > 0) {
+    await db.pickListItem.createMany({
+      data: rows.map((row) => ({
+        pickListId: pickList.id,
+        orderLineItemId: row.orderLineItemId,
+        productId: row.productId,
+        quantity: row.quantity,
+        fromStockLocationId: row.fromStockLocationId,
+        fromStoreLocationId: row.fromStoreLocationId,
+        notes: row.crossSite ? "At another store: transfer it before pulling" : null,
+      })),
+    });
   }
 
-  return db.pickList.findUnique({
+  return db.pickList.findUniqueOrThrow({
     where: { id: pickList.id },
     include: PICK_LIST_DETAIL_INCLUDE,
   });

@@ -86,6 +86,7 @@ export const MOVEMENT_REASONS = {
   RELEASE: "Released from a sales order to free stock",
   DELIVER: "Left with the customer",
   RETURN: "Returned by a customer",
+  WRITE_OFF: "Written off: out of the books",
   TRANSFER: "Moved between places",
   ADJUST: "Corrected by hand",
   IMPORT_SYNC: "Set by the POS stock import",

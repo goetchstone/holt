@@ -4,10 +4,12 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { toQty } from "@/lib/inventory/quantity";
+import { parseQty } from "@/lib/inventory/qtyInput";
 import { generateReturnNumber } from "@/lib/returnService";
 import { logError } from "@/lib/logger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     return handleGet(req, res);
   } else if (req.method === "POST") {
@@ -79,7 +81,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
         ? `${r.customer.firstName || ""} ${r.customer.lastName || ""}`.trim()
         : "",
       productName: r.productName,
-      quantity: r.quantity,
+      quantity: toQty(r.quantity),
       pickupRequired: r.pickupRequired,
       created: r.created,
     }));
@@ -142,7 +144,8 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, changedBy: 
           productId: lineItem?.productId,
           productName: lineItem?.productName,
           partNo: lineItem?.partNo,
-          quantity: quantity ? Number.parseInt(quantity) : 1,
+          // A part roll returns as a length: parsed, never truncated.
+          quantity: quantity != null && quantity !== "" ? (parseQty(quantity) ?? 1) : 1,
           pickupRequired: pickupRequired || false,
           pickupAddressId: pickupAddressId ? Number.parseInt(pickupAddressId) : undefined,
           createdBy: changedBy,
@@ -163,7 +166,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, changedBy: 
       return ret;
     });
 
-    return res.status(201).json(result);
+    return res.status(201).json({ ...result, quantity: toQty(result.quantity) });
   } catch (error) {
     logError("Error creating return", error);
     return res.status(500).json({ error: "Failed to create return" });

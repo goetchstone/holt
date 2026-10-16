@@ -77,7 +77,7 @@ In-stock filter (default: on) requires ALL of a customer's orders to have all PO
 ## Key Files
 
 - `lib/serviceDispatchService.ts` -- transitions, number generation, auto-sync
-- `lib/deliveryService.ts` -- delivery zone resolution, assignOrderToRun(), findOrCreatePlanningRun(), `generatePickList()` (a run's pick list), `pickListForClient()` (every pick-list response goes through it: a line's quantity is Decimal, a part roll, and is sent as a number)
+- `lib/deliveryService.ts` -- delivery zone resolution, assignOrderToRun(), findOrCreatePlanningRun(), `generatePickList()` (a run's or an order's pick list, written from the pull list in `lib/fulfilment/pullList.ts`: active lines only, the order's own committed stock at the place it sits, what is already staged or at the pickup place left off, units at another store flagged), `pickListForClient()` (every pick-list response goes through it: a line's quantity is Decimal, a part roll, and is sent as a number)
 - `lib/paymentService.ts` -- `computeBalance()` used by dispatch board for balance due
 - `pages/api/dispatch/` -- dispatch API endpoints (orders-by-zone, ready-to-deliver, delivery-planner, pencil-in, runs, stops, vehicles, assign-order)
 - `pages/dispatch/` -- dispatch pages (board, ready-to-deliver, planner)
@@ -101,7 +101,9 @@ Covered: `serviceDispatch.test.ts` (transitions, number generation)
 
 Covered: `fractionalStock.integration.test.ts` (a run's and an order's pick list carry the line's quantity -- the run builder wrote 1 on every line until 2026-10-15 -- and the pick-list API answers it as a number); `costUnreadPayloads.integration.test.ts` (pick-list create/read payloads carry no cost).
 
-Gaps: the rest of `deliveryService.ts` (zones, assignOrderToRun, findOrCreatePlanningRun) has no tests. Pencil-in endpoint has no tests. Both pick-list builders still include cancelled lines (inventory ledger plan, phase 9).
+Covered: `pullList.integration.test.ts` (the one builder both pick lists use).
+
+Gaps: the rest of `deliveryService.ts` (zones, assignOrderToRun, findOrCreatePlanningRun) has no tests. Pencil-in endpoint has no tests.
 
 ## Data Cleanup
 

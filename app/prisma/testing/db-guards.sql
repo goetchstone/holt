@@ -98,3 +98,10 @@ CREATE TRIGGER stock_movement_append_only
 BEFORE UPDATE OR DELETE ON "StockMovement"
 FOR EACH ROW
 EXECUTE FUNCTION enforce_stock_movement_append_only();
+
+-- 20261017120000_document_stock_flows
+-- A transfer never receives less than nothing or more than it shipped.
+ALTER TABLE "InventoryTransfer" DROP CONSTRAINT IF EXISTS "InventoryTransfer_received_within_quantity";
+ALTER TABLE "InventoryTransfer" ADD CONSTRAINT "InventoryTransfer_received_within_quantity" CHECK (
+  "receivedQuantity" >= 0 AND "receivedQuantity" <= quantity
+);

@@ -19,6 +19,7 @@ interface StockLocationData {
   locationAliases: string[];
   isActive: boolean;
   holdsCommittedStock: boolean;
+  moveMode?: string | null;
 }
 
 type Props = {
@@ -43,6 +44,7 @@ export default function StockLocationModal({
     locationType: "STOCK",
     squareFootage: "",
     locationAliases: "",
+    moveMode: "",
   });
   const [isActive, setIsActive] = useState(true);
   const [holdsCommittedStock, setHoldsCommittedStock] = useState(false);
@@ -59,6 +61,7 @@ export default function StockLocationModal({
         locationType: stockLocation.locationType || "STOCK",
         squareFootage: stockLocation.squareFootage?.toString() || "",
         locationAliases: (stockLocation.locationAliases || []).join(", "),
+        moveMode: stockLocation.moveMode ?? "",
       });
       setIsActive(stockLocation.isActive);
       setHoldsCommittedStock(stockLocation.holdsCommittedStock === true);
@@ -72,6 +75,7 @@ export default function StockLocationModal({
         locationType: "STOCK",
         squareFootage: "",
         locationAliases: "",
+        moveMode: "",
       });
       setIsActive(true);
       setHoldsCommittedStock(false);
@@ -115,6 +119,7 @@ export default function StockLocationModal({
             .filter(Boolean),
           isActive,
           holdsCommittedStock,
+          moveMode: form.moveMode || null,
         }),
       });
 
@@ -227,6 +232,21 @@ export default function StockLocationModal({
             onChange={(v) => handleChange("squareFootage", v)}
           />
         )}
+      </div>
+      <div>
+        <label htmlFor="stock-location-move-mode" className="block text-sm text-brand-gray mb-1">
+          Moves in and out
+        </label>
+        <select
+          id="stock-location-move-mode"
+          value={form.moveMode}
+          onChange={(e) => handleChange("moveMode", e.target.value)}
+          className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
+        >
+          <option value="">As its store says</option>
+          <option value="QUICK">Quick: move in one step</option>
+          <option value="TRACKED">Tracked: a transfer, received at the other end</option>
+        </select>
       </div>
       <div>
         <FormInput
