@@ -13,7 +13,8 @@
 // warehouse-positions endpoint, so a regression here is a regression
 // everywhere at once.
 
-import { freePositionWhere, planDraw } from "@/lib/inventory/allocation";
+import { freePositionSql, freePositionWhere, planDraw } from "@/lib/inventory/allocation";
+import { SELLABLE_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
 
 describe("planDraw", () => {
   it("takes the exact amount from a single position, decrementing it", () => {
@@ -131,21 +132,34 @@ describe("freePositionWhere", () => {
     expect("not" in (where as Record<string, unknown>)).toBe(false);
   });
 
-  it("excludes committed-stock locations by flag, with an explicit null branch for no-location rows", () => {
-    // Rule 51 again, on the OTHER nullable column. stockLocationId is
-    // nullable and a position with no stock location IS free, so the test
-    // has to be a disjunction: `NOT: { stockLocation: {...} }` on a nullable
-    // to-one relation conflates "the location doesn't hold committed stock"
-    // with "there is no location".
+  it("is free only in an unflagged place of a sellable type, with no null branch left", () => {
+    // Every position has a place now (stockLocationId is NOT NULL), so the
+    // place conditions are plain equalities on a required relation. The old
+    // `OR: [{ stockLocationId: null }, ...]` branch existed only because a
+    // position could have no place.
     const where = freePositionWhere();
-    expect(where.OR).toEqual([
-      { stockLocationId: null },
-      { stockLocation: { holdsCommittedStock: false } },
-    ]);
+    expect(where.stockLocation).toEqual({
+      holdsCommittedStock: false,
+      locationType: { in: SELLABLE_LOCATION_TYPES },
+    });
+    expect(where.OR).toBeUndefined();
+    // Owned but not for sale: quarantine, in transit, staged for a delivery.
+    expect(SELLABLE_LOCATION_TYPES).not.toContain("QUARANTINE");
+    expect(SELLABLE_LOCATION_TYPES).not.toContain("TRANSIT");
+    expect(SELLABLE_LOCATION_TYPES).not.toContain("STAGING");
     // No name matching anywhere: the Ordorite "Customer%" convention lives
     // in the Ordorite adapter now, not in shared inventory code (rule 61).
     expect(JSON.stringify(where)).not.toMatch(/customer/i);
     // And no bare NOT, which is what the flag replaced.
     expect(where.NOT).toBeUndefined();
+  });
+
+  it("has a SQL twin that tests the same three things", () => {
+    const sql = freePositionSql("ip", "sl");
+    expect(sql).toContain(`ip."salesOrderId" IS NULL`);
+    expect(sql).toContain(`NOT sl."holdsCommittedStock"`);
+    for (const type of SELLABLE_LOCATION_TYPES) expect(sql).toContain(`'${type}'`);
+    expect(sql).not.toContain("'QUARANTINE'");
+    expect(() => freePositionSql("ip; DROP TABLE x", "sl")).toThrow();
   });
 });

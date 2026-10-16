@@ -18,6 +18,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
+import { placeAt } from "@/lib/inventory/places";
 import { toQty } from "@/lib/inventory/quantity";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { allocate } from "@/lib/inventory/allocation";
@@ -133,11 +134,12 @@ async function scenario() {
   const high = await mk("HIGH");
   const user = await prisma.user.create({ data: { email: "warehouse@example.com" } });
   const session = { user: { email: user.email, id: user.id } } as unknown as Session;
-  const free = (productId: number, quantity: number, stockLocationId: number | null = null) =>
+  const free = async (productId: number, quantity: number, stockLocationId: number | null = null) =>
     postMovement(prisma, {
       productId,
       quantity,
-      to: { storeLocationId: store.id, stockLocationId, salesOrderId: null },
+      to: await placeAt(prisma, { storeLocationId: store.id, stockLocationId }),
+      reason: "OPENING",
     });
   return { vendor, store, other, low, high, user, session, free };
 }
@@ -403,12 +405,22 @@ describe("single stock writer: edges found in review", () => {
 
   it("refuses a quantity that is not a number instead of silently doing nothing", async () => {
     const s = await scenario();
-    const place = { storeLocationId: s.store.id, stockLocationId: null, salesOrderId: null };
+    const place = await placeAt(prisma, { storeLocationId: s.store.id });
     await expect(
-      setPlaceQuantity(prisma, { productId: s.low.id, place, target: Number.NaN }),
+      setPlaceQuantity(prisma, {
+        productId: s.low.id,
+        place,
+        target: Number.NaN,
+        reason: "ADJUST",
+      }),
     ).rejects.toThrow(/number/);
     await expect(
-      postMovement(prisma, { productId: s.low.id, quantity: Number.NaN, to: place }),
+      postMovement(prisma, {
+        productId: s.low.id,
+        quantity: Number.NaN,
+        to: place,
+        reason: "ADJUST",
+      }),
     ).rejects.toThrow(/numeric/);
   });
 });

@@ -33,8 +33,10 @@ import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { recordPayment, calculateOrderBalance } from "@/lib/paymentService";
 import { allocate, consume, availableQuantity } from "@/lib/inventory/allocation";
+import { placeOf, postMovement } from "@/lib/inventory/ledger";
 import { generateSalesJournal, transitionJournalEntry } from "@/lib/journalEntry";
 import { posted } from "../helpers/postedJournal";
+import { stockAt } from "../helpers/stock";
 import { computeDailyReconciliation } from "@/lib/dailyReconciliation";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { createDraftInvoice, issueInvoice } from "@/lib/billing/invoiceService";
@@ -321,13 +323,11 @@ describe("a complete trading day (real DB)", () => {
           condition: "OK",
         },
       });
-      await prisma.inventoryPosition.create({
-        data: {
-          productId: line.productId!,
-          storeLocationId: world.store.id,
-          stockLocationId: world.warehouse.id,
-          quantity: 1,
-        },
+      await stockAt({
+        productId: line.productId!,
+        storeLocationId: world.store.id,
+        stockLocationId: world.warehouse.id,
+        quantity: 1,
       });
     }
     await prisma.purchaseOrder.update({
@@ -374,7 +374,7 @@ describe("a complete trading day (real DB)", () => {
 
     await prisma.$transaction(async (tx) => {
       for (const pos of before) {
-        await tx.inventoryTransfer.create({
+        const transfer = await tx.inventoryTransfer.create({
           data: {
             productId: pos.productId,
             quantity: Number(pos.quantity),
@@ -387,9 +387,14 @@ describe("a complete trading day (real DB)", () => {
             status: "RECEIVED",
           },
         });
-        await tx.inventoryPosition.update({
-          where: { id: pos.id },
-          data: { stockLocationId: world.backroom.id },
+        await postMovement(tx, {
+          productId: pos.productId,
+          quantity: Number(pos.quantity),
+          from: placeOf(pos),
+          to: { ...placeOf(pos), stockLocationId: world.backroom.id },
+          reason: "TRANSFER",
+          source: { type: "InventoryTransfer", id: transfer.id },
+          actor: "test",
         });
       }
     });

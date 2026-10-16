@@ -137,6 +137,20 @@ describe("database guards reach the integration test DB", () => {
     expect(readFileSync(GUARDS, "utf8")).toContain(block![0]);
   });
 
+  it("carries the stock journal's append-only trigger VERBATIM from its migration", () => {
+    // Same reason as the payment trigger above: a retyped body can keep every
+    // name and still fail to parse, or quietly stop refusing.
+    const migration = readFileSync(
+      join(MIGRATIONS, "20261016120000_stock_places_and_journal", "migration.sql"),
+      "utf8",
+    );
+    const block = migration.match(
+      /CREATE OR REPLACE FUNCTION enforce_stock_movement_append_only[\s\S]*?EXECUTE FUNCTION enforce_stock_movement_append_only\(\);/,
+    );
+    expect(block).not.toBeNull();
+    expect(readFileSync(GUARDS, "utf8")).toContain(block![0]);
+  });
+
   it("every exclusion is named in the guards file with its reason", () => {
     // An exclusion that lives only in this test is invisible to anyone reading
     // the SQL and wondering why a constraint is missing.
@@ -152,7 +166,9 @@ describe("database guards reach the integration test DB", () => {
     // assertions above pass while covering nothing.
     const { triggers, checks } = guardsDeclaredInMigrations();
     expect(triggers).toContain("payment_delete_immutability");
+    expect(triggers).toContain("stock_movement_append_only");
     expect(checks).toContain("JournalEntry_balanced_check");
+    expect(checks).toContain("InventoryPosition_quantity_positive");
     expect(checks).toContain("ImportDefinition_reconcile_requires_runner");
   });
 });

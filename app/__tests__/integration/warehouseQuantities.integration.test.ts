@@ -17,6 +17,7 @@ import type { Session } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { stockAt } from "../helpers/stock";
 import { handler as positionsHandler } from "@/pages/api/warehouse/positions/index";
 import { handler as positionHandler } from "@/pages/api/warehouse/positions/[id]";
 import { handler as transfersHandler } from "@/pages/api/warehouse/transfers/index";
@@ -91,16 +92,12 @@ beforeEach(async () => {
 describe("positions routes send the quantity as a number (real DB)", () => {
   it("GET lists a part roll as 12.625, and two rows add up as numbers", async () => {
     const s = await scenario();
-    await prisma.inventoryPosition.create({
-      data: { productId: s.product.id, storeLocationId: s.mill.id, quantity: ROLL },
-    });
-    await prisma.inventoryPosition.create({
-      data: {
-        productId: s.product.id,
-        storeLocationId: s.mill.id,
-        stockLocationId: s.shelf.id,
-        quantity: 3,
-      },
+    await stockAt({ productId: s.product.id, storeLocationId: s.mill.id, quantity: ROLL });
+    await stockAt({
+      productId: s.product.id,
+      storeLocationId: s.mill.id,
+      stockLocationId: s.shelf.id,
+      quantity: 3,
     });
 
     const res = makeRes();
@@ -137,8 +134,10 @@ describe("positions routes send the quantity as a number (real DB)", () => {
 
   it("PUT answers with the edited place's quantity as a number", async () => {
     const s = await scenario();
-    const row = await prisma.inventoryPosition.create({
-      data: { productId: s.product.id, storeLocationId: s.mill.id, quantity: 20 },
+    const row = await stockAt({
+      productId: s.product.id,
+      storeLocationId: s.mill.id,
+      quantity: 20,
     });
 
     const res = makeRes();
@@ -211,9 +210,7 @@ describe("transfers routes send the quantity as a number (real DB)", () => {
 
   it("PUT status answers with the shipped transfer's quantity as a number", async () => {
     const s = await scenario();
-    await prisma.inventoryPosition.create({
-      data: { productId: s.product.id, storeLocationId: s.mill.id, quantity: 30 },
-    });
+    await stockAt({ productId: s.product.id, storeLocationId: s.mill.id, quantity: 30 });
     const created = await createTransfer(s);
     expect(created.statusCode).toBe(201);
 

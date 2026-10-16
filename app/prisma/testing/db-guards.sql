@@ -60,3 +60,41 @@ ALTER TABLE "ImportDefinition"
   ADD CONSTRAINT "ImportDefinition_reconcile_requires_runner" CHECK (
     "importMode" <> 'RECONCILE' OR "runnerKey" IS NOT NULL
   );
+
+-- 20261016120000_stock_places_and_journal
+-- A position always holds something; a row at zero or below is no stock.
+ALTER TABLE "InventoryPosition" DROP CONSTRAINT IF EXISTS "InventoryPosition_quantity_positive";
+ALTER TABLE "InventoryPosition" ADD CONSTRAINT "InventoryPosition_quantity_positive" CHECK (quantity > 0);
+
+-- The stock journal: positive quantities, at least one side in the books, and
+-- each side a whole place or nothing.
+ALTER TABLE "StockMovement" DROP CONSTRAINT IF EXISTS "StockMovement_quantity_positive";
+ALTER TABLE "StockMovement" ADD CONSTRAINT "StockMovement_quantity_positive" CHECK (quantity > 0);
+ALTER TABLE "StockMovement" DROP CONSTRAINT IF EXISTS "StockMovement_has_a_side";
+ALTER TABLE "StockMovement" ADD CONSTRAINT "StockMovement_has_a_side" CHECK (
+  "fromStoreLocationId" IS NOT NULL OR "toStoreLocationId" IS NOT NULL
+);
+ALTER TABLE "StockMovement" DROP CONSTRAINT IF EXISTS "StockMovement_whole_places";
+ALTER TABLE "StockMovement" ADD CONSTRAINT "StockMovement_whole_places" CHECK (
+  ("fromStoreLocationId" IS NULL) = ("fromStockLocationId" IS NULL)
+  AND ("toStoreLocationId" IS NULL) = ("toStockLocationId" IS NULL)
+  AND ("fromSalesOrderId" IS NULL OR "fromStoreLocationId" IS NOT NULL)
+  AND ("toSalesOrderId" IS NULL OR "toStoreLocationId" IS NOT NULL)
+);
+
+-- The journal is never rewritten: a correction is a new movement.
+CREATE OR REPLACE FUNCTION enforce_stock_movement_append_only()
+RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION
+    'StockMovement is append-only (id=%): correct stock with a new movement through lib/inventory/ledger.ts, never by changing history.',
+    OLD.id
+    USING ERRCODE = 'check_violation';
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS stock_movement_append_only ON "StockMovement";
+CREATE TRIGGER stock_movement_append_only
+BEFORE UPDATE OR DELETE ON "StockMovement"
+FOR EACH ROW
+EXECUTE FUNCTION enforce_stock_movement_append_only();

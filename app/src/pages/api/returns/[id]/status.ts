@@ -8,6 +8,7 @@ import { isValidTransition } from "@/lib/returnService";
 import type { ReturnStatus } from "@prisma/client";
 import { logError } from "@/lib/logger";
 import { postMovement } from "@/lib/inventory/ledger";
+import { placeAt } from "@/lib/inventory/places";
 
 export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") {
@@ -79,18 +80,19 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           if (fields.restockedLocationId)
             updateData.restockedLocationId = Number.parseInt(fields.restockedLocationId);
           // The returned unit comes back from the customer into free stock at
-          // the restocking store. Through the single writer, which merges into
-          // the existing row: the upsert this replaced could never match a free
-          // row (rule 64), so every restock created another duplicate.
+          // the restocking store's receiving place. Through the single writer,
+          // which merges into the existing row: the upsert this replaced could
+          // never match a free row (rule 64), so every restock created another
+          // duplicate.
           if (ret.productId && fields.restockedLocationId && ret.quantity > 0) {
             await postMovement(tx, {
               productId: ret.productId,
               quantity: ret.quantity,
-              to: {
+              to: await placeAt(tx, {
                 storeLocationId: Number.parseInt(fields.restockedLocationId),
-                stockLocationId: null,
-                salesOrderId: null,
-              },
+              }),
+              reason: "RETURN",
+              source: { type: "Return", id },
               actor: changedBy,
             });
           }

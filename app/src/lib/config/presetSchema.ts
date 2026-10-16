@@ -27,6 +27,7 @@
 // Rule 7 (shared client/server contracts live in one file) applies here.
 
 import { z } from "zod";
+import { STOCK_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
 
 import {
   isPermissionKey,
@@ -380,10 +381,10 @@ export const rolesPresetSchema = z
 // and no longer lists is DEACTIVATED, never deleted -- a place can hold stock,
 // and deleting it would orphan or merge that stock silently.
 
-/** The place types the code reads today (FLOOR = sales floor, STOCK = back
- *  stock). The location-type catalog planned in docs/domains/inventory.md
- *  (Roadmap, phase 3) widens this list; a preset cannot invent a type. */
-export const STOCK_LOCATION_TYPES = ["FLOOR", "STOCK"] as const;
+// The place types come from the one catalog, lib/inventory/locationTypes.ts;
+// a preset chooses from it and cannot invent a type. Re-exported for the
+// importers that already read it from here.
+export { STOCK_LOCATION_TYPES };
 
 export const stockLocationPresetEntrySchema = z.object({
   /** Unique within its store. The identity a re-apply matches on, and what

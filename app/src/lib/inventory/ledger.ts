@@ -16,6 +16,14 @@
 //
 // Everything else in lib/inventory is built from these three.
 //
+// THE JOURNAL
+//
+// Every movement is also written to StockMovement, in the same transaction, with
+// why it moved (MOVEMENT_REASONS) and the document that moved it. The journal is
+// append-only (a trigger refuses UPDATE and DELETE), so the balance at any place
+// can be re-derived from it, and ledgerDrift() checks that it still can. The
+// integration suite asserts no drift after every test.
+//
 // WHY ONE WRITER
 //
 // Before this file there were nine files writing InventoryPosition, each with
@@ -45,9 +53,10 @@
 // them. lockProducts called once with the whole set is what prevents that:
 // every such transaction takes its locks in the same ascending order.
 //
-// A place is matched by EXPLICIT equality on every column, nulls included
-// (rule 64): `stockLocationId: null` and `salesOrderId: null` are tested as
-// values, never left out and never compared with `not`.
+// A place is matched by EXPLICIT equality on every column (rule 64): free
+// stock is `salesOrderId: null`, tested as a value, never left out and never
+// compared with `not`. Every place has a stock location (NOT NULL), so that
+// column is never null.
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { roundQty, toQty, qtyEquals, qtyIsZero, QTY_EPSILON } from "./quantity";
@@ -55,13 +64,39 @@ import { roundQty, toQty, qtyEquals, qtyIsZero, QTY_EPSILON } from "./quantity";
 export type PrismaTx = PrismaClient | Prisma.TransactionClient;
 type Tx = Prisma.TransactionClient;
 
-/** Where stock sits: a store, an optional stock location in it, and who owns it. */
+/**
+ * Where stock sits: a store, the place in it, and who owns it. Every unit is
+ * somewhere -- a caller that knows only the store resolves the place with
+ * lib/inventory/places.ts (its receiving place).
+ */
 export interface Place {
   storeLocationId: number;
-  /** null = at the store with no recorded stock location. */
-  stockLocationId: number | null;
+  stockLocationId: number;
   /** null = free stock; a number = committed to that sales order. */
   salesOrderId: number | null;
+}
+
+/**
+ * Why stock moved. One catalog (rule 37); StockMovement.reason holds the key.
+ */
+export const MOVEMENT_REASONS = {
+  OPENING: "Already there when the journal started, or first recorded by hand",
+  RECEIVE: "Received from a supplier",
+  ALLOCATE: "Committed to a sales order",
+  RELEASE: "Released from a sales order to free stock",
+  DELIVER: "Left with the customer",
+  RETURN: "Returned by a customer",
+  TRANSFER: "Moved between places",
+  ADJUST: "Corrected by hand",
+  IMPORT_SYNC: "Set by the POS stock import",
+} as const;
+
+export type MovementReason = keyof typeof MOVEMENT_REASONS;
+
+/** The document a movement belongs to, recorded on the journal row. */
+export interface MovementSource {
+  type: "SalesOrder" | "PurchaseOrder" | "Return" | "InventoryTransfer";
+  id: number;
 }
 
 export interface Movement {
@@ -72,9 +107,11 @@ export interface Movement {
   from?: Place | null;
   /** Omitted or null = to outside Holt's books (customer, write-off). */
   to?: Place | null;
-  /** Who did it, for createdBy/updatedBy. */
+  reason: MovementReason;
+  source?: MovementSource | null;
+  /** Who did it, for createdBy/updatedBy and the journal. */
   actor?: string | null;
-  /** Stamped on the destination row when given. */
+  /** Stamped on the destination row when given, and kept on the journal row. */
   note?: string | null;
 }
 
@@ -159,13 +196,26 @@ export function placeWhere(productId: number, place: Place): Prisma.InventoryPos
   return {
     productId,
     storeLocationId: place.storeLocationId,
-    stockLocationId: place.stockLocationId ?? null,
+    stockLocationId: place.stockLocationId,
     salesOrderId: place.salesOrderId ?? null,
   };
 }
 
+/** The place a position row sits at. */
+export function placeOf(row: {
+  storeLocationId: number;
+  stockLocationId: number;
+  salesOrderId: number | null;
+}): Place {
+  return {
+    storeLocationId: row.storeLocationId,
+    stockLocationId: row.stockLocationId,
+    salesOrderId: row.salesOrderId ?? null,
+  };
+}
+
 function placeKey(place: Place): string {
-  return `${place.storeLocationId}|${place.stockLocationId ?? ""}|${place.salesOrderId ?? ""}`;
+  return `${place.storeLocationId}|${place.stockLocationId}|${place.salesOrderId ?? ""}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +290,9 @@ export async function postMovement(db: PrismaTx, movement: Movement): Promise<vo
   if (!movement.from && !movement.to) {
     throw new Error("A stock movement needs a place on at least one side.");
   }
+  if (!(movement.reason in MOVEMENT_REASONS)) {
+    throw new Error(`Unknown stock movement reason: ${movement.reason}.`);
+  }
 
   await withStockTx(db, async (tx) => {
     await lockProduct(tx, movement.productId);
@@ -279,11 +332,12 @@ export async function postMovement(db: PrismaTx, movement: Movement): Promise<vo
           data: { quantity: { increment: quantity }, updatedBy: actor, ...note },
         });
       } else {
+        await assertPlaceAtStore(tx, movement.to);
         await tx.inventoryPosition.create({
           data: {
             productId: movement.productId,
             storeLocationId: movement.to.storeLocationId,
-            stockLocationId: movement.to.stockLocationId ?? null,
+            stockLocationId: movement.to.stockLocationId,
             salesOrderId: movement.to.salesOrderId ?? null,
             quantity,
             createdBy: actor,
@@ -292,7 +346,45 @@ export async function postMovement(db: PrismaTx, movement: Movement): Promise<vo
         });
       }
     }
+
+    await tx.stockMovement.create({
+      data: {
+        productId: movement.productId,
+        quantity,
+        fromStoreLocationId: movement.from?.storeLocationId ?? null,
+        fromStockLocationId: movement.from?.stockLocationId ?? null,
+        fromSalesOrderId: movement.from?.salesOrderId ?? null,
+        toStoreLocationId: movement.to?.storeLocationId ?? null,
+        toStockLocationId: movement.to?.stockLocationId ?? null,
+        toSalesOrderId: movement.to?.salesOrderId ?? null,
+        reason: movement.reason,
+        sourceType: movement.source?.type ?? null,
+        sourceId: movement.source?.id ?? null,
+        actor,
+        note: movement.note ?? null,
+      },
+    });
   });
+}
+
+/**
+ * A place is in its store. Checked when a movement opens a new row, the only
+ * time a (store, place) pair enters the table: a unit recorded at one store in
+ * another store's stock room would be counted at the wrong site for good.
+ */
+async function assertPlaceAtStore(tx: Tx, place: Place): Promise<void> {
+  const location = await tx.stockLocation.findUnique({
+    where: { id: place.stockLocationId },
+    select: { storeLocationId: true },
+  });
+  if (!location) {
+    throw new Error(`Stock location ${place.stockLocationId} does not exist.`);
+  }
+  if (location.storeLocationId !== place.storeLocationId) {
+    throw new Error(
+      `Stock location ${place.stockLocationId} is not at store ${place.storeLocationId}.`,
+    );
+  }
 }
 
 export interface DrawLeg {
@@ -331,12 +423,7 @@ export async function drawLegs(
 
     const legs = new Map<string, DrawLeg>();
     for (const step of plan.steps) {
-      const row = byId.get(step.id)!;
-      const place: Place = {
-        storeLocationId: row.storeLocationId,
-        stockLocationId: row.stockLocationId ?? null,
-        salesOrderId: row.salesOrderId ?? null,
-      };
+      const place = placeOf(byId.get(step.id)!);
       const key = placeKey(place);
       const leg = legs.get(key);
       if (leg) leg.take = roundQty(leg.take + step.take);
@@ -359,6 +446,8 @@ export async function setPlaceQuantity(
     productId: number;
     place: Place;
     target: number;
+    reason: MovementReason;
+    source?: MovementSource | null;
     actor?: string | null;
     note?: string | null;
   },
@@ -384,6 +473,8 @@ export async function setPlaceQuantity(
         productId: args.productId,
         quantity: delta,
         to: args.place,
+        reason: args.reason,
+        source: args.source,
         actor: args.actor,
         note: args.note,
       });
@@ -392,6 +483,8 @@ export async function setPlaceQuantity(
         productId: args.productId,
         quantity: -delta,
         from: args.place,
+        reason: args.reason,
+        source: args.source,
         actor: args.actor,
       });
     }
@@ -416,28 +509,78 @@ export async function setPlaceQuantity(
   });
 }
 
+// ---------------------------------------------------------------------------
+// THE CHECK
+// ---------------------------------------------------------------------------
+
+export interface LedgerDrift {
+  productId: number;
+  storeLocationId: number;
+  stockLocationId: number;
+  salesOrderId: number | null;
+  /** What the journal says the place holds. */
+  journal: number;
+  /** What InventoryPosition says it holds. */
+  balance: number;
+}
+
 /**
- * Remove a row that holds no units (zero, or negative from data written before
- * this module existed). Nothing moves, so there is nothing to record; a row
- * that still holds units is refused, because removing it would lose them
- * silently -- move them out with postMovement instead.
+ * Every place where the balance is not the sum of the journal: what moved in,
+ * minus what moved out. Empty when stock and its history agree.
+ *
+ * It can disagree for exactly the reasons it exists to catch: a write to
+ * InventoryPosition that did not go through postMovement, or a journal row that
+ * was lost. Pass `productIds` to check only those products.
  */
-export async function dropEmptyRow(db: PrismaTx, id: number): Promise<void> {
-  await withStockTx(db, async (tx) => {
-    const seen = await tx.inventoryPosition.findUnique({
-      where: { id },
-      select: { productId: true },
-    });
-    if (!seen) return;
-    await lockProduct(tx, seen.productId);
-    // Re-read under the lock: the quantity seen before it may already be stale.
-    const row = await tx.inventoryPosition.findUnique({ where: { id } });
-    if (!row) return;
-    if (toQty(row.quantity) > 0) {
-      throw new Error(
-        `Position ${id} still holds units; move them out rather than dropping the row.`,
-      );
-    }
-    await tx.inventoryPosition.delete({ where: { id } });
-  });
+export async function ledgerDrift(db: PrismaTx, productIds?: number[]): Promise<LedgerDrift[]> {
+  const filter = productIds && productIds.length > 0 ? productIds : null;
+  const rows = await db.$queryRaw<
+    {
+      productId: number;
+      storeLocationId: number;
+      stockLocationId: number;
+      salesOrderId: number | null;
+      journal: string;
+      balance: string;
+    }[]
+  >`
+    WITH legs AS (
+      SELECT "productId", "toStoreLocationId" AS s, "toStockLocationId" AS l,
+             "toSalesOrderId" AS o, quantity AS q
+      FROM "StockMovement" WHERE "toStoreLocationId" IS NOT NULL
+      UNION ALL
+      SELECT "productId", "fromStoreLocationId", "fromStockLocationId",
+             "fromSalesOrderId", -quantity
+      FROM "StockMovement" WHERE "fromStoreLocationId" IS NOT NULL
+    ),
+    journal AS (
+      SELECT "productId", s, l, o, SUM(q) AS q FROM legs GROUP BY 1, 2, 3, 4
+    ),
+    balance AS (
+      SELECT "productId", "storeLocationId" AS s, "stockLocationId" AS l,
+             "salesOrderId" AS o, SUM(quantity) AS q
+      FROM "InventoryPosition" GROUP BY 1, 2, 3, 4
+    )
+    SELECT COALESCE(j."productId", b."productId") AS "productId",
+           COALESCE(j.s, b.s) AS "storeLocationId",
+           COALESCE(j.l, b.l) AS "stockLocationId",
+           COALESCE(j.o, b.o) AS "salesOrderId",
+           COALESCE(j.q, 0)::text AS journal,
+           COALESCE(b.q, 0)::text AS balance
+    FROM journal j
+    FULL OUTER JOIN balance b
+      ON b."productId" = j."productId" AND b.s = j.s AND b.l = j.l
+     AND b.o IS NOT DISTINCT FROM j.o
+    WHERE COALESCE(j.q, 0) <> COALESCE(b.q, 0)
+      AND (${filter}::int[] IS NULL OR COALESCE(j."productId", b."productId") = ANY(${filter}::int[]))
+    ORDER BY 1, 2, 3, 4
+  `;
+  return rows.map((r) => ({
+    productId: r.productId,
+    storeLocationId: r.storeLocationId,
+    stockLocationId: r.stockLocationId,
+    salesOrderId: r.salesOrderId,
+    journal: Number(r.journal),
+    balance: Number(r.balance),
+  }));
 }

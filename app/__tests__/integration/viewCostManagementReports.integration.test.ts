@@ -25,6 +25,7 @@ import { prisma } from "@/lib/prisma";
 import { FRAME_PUBLIC_FIELDS } from "@/lib/buyPerformance";
 import PoGapsPage from "@/app/(dashboard)/app/reports/po-gaps/page";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { stockAt } from "../helpers/stock";
 import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import { appRouter } from "@/server/trpc/routers/_app";
@@ -130,12 +131,8 @@ beforeAll(async () => {
   const store = await prisma.storeLocation.create({
     data: { name: "Harbor Showroom", code: "HAR", type: "STORE" },
   });
-  await prisma.inventoryPosition.createMany({
-    data: [
-      { productId: sideboard.id, storeLocationId: store.id, quantity: 2 },
-      { productId: lamp.id, storeLocationId: store.id, quantity: 10 },
-    ],
-  });
+  await stockAt({ productId: sideboard.id, storeLocationId: store.id, quantity: 2 });
+  await stockAt({ productId: lamp.id, storeLocationId: store.id, quantity: 10 });
 
   // A confirmed PO for both, received before the sale, still missing its ESD.
   const po = await prisma.purchaseOrder.create({

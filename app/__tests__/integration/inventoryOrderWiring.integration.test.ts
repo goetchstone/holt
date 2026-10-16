@@ -28,6 +28,7 @@ import { toQty } from "@/lib/inventory/quantity";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { stockAt } from "../helpers/stock";
 import { availableQuantity } from "@/lib/inventory/allocation";
 import { handler as createFromCartHandler } from "@/pages/api/sales/orders/create-from-cart";
 import { handler as orderHandler } from "@/pages/api/sales/orders/[id]";
@@ -91,7 +92,13 @@ async function seed() {
     data: { storeLocationId: store.id, code: "FLOOR", name: "Floor" },
   });
   const product = await prisma.product.create({
-    data: { productNumber: "P1", name: "Sofa", vendorId: vendor.id, departmentId: dept.id, categoryId: cat.id },
+    data: {
+      productNumber: "P1",
+      name: "Sofa",
+      vendorId: vendor.id,
+      departmentId: dept.id,
+      categoryId: cat.id,
+    },
   });
   return { store, floor, product };
 }
@@ -130,8 +137,11 @@ describe("inventory order wiring (real DB)", () => {
 
   it("a POS sale (create-from-cart) reduces available stock", async () => {
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
 
     const res = await createOrderViaCart(store.name, [
@@ -149,8 +159,11 @@ describe("inventory order wiring (real DB)", () => {
 
   it("a return line in the cart never allocates", async () => {
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
 
     // The client sign-flips a return's quantity before sending it.
@@ -167,8 +180,11 @@ describe("inventory order wiring (real DB)", () => {
 
   it("an oversold sale still succeeds AND leaves an InventoryException row", async () => {
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 1 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 1,
     });
 
     const res = await createOrderViaCart(store.name, [
@@ -179,7 +195,9 @@ describe("inventory order wiring (real DB)", () => {
     expect(res.statusCode).toBe(201);
     const orderId = (res.body as { id: number }).id;
 
-    const exceptions = await prisma.inventoryException.findMany({ where: { salesOrderId: orderId } });
+    const exceptions = await prisma.inventoryException.findMany({
+      where: { salesOrderId: orderId },
+    });
     expect(exceptions).toHaveLength(1);
     expect(exceptions[0]).toMatchObject({ productId: product.id, storeLocationId: store.id });
     expect(quantities(exceptions[0])).toEqual({ requested: 3, allocated: 1, shortfall: 2 });
@@ -208,8 +226,11 @@ describe("inventory order wiring (real DB)", () => {
   it("a stocked line on the SAME order still allocates and still reports", async () => {
     // The filter must be per-line, not per-order -- a mixed cart is ordinary.
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 1 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 1,
     });
 
     const res = await createOrderViaCart(store.name, [
@@ -220,7 +241,9 @@ describe("inventory order wiring (real DB)", () => {
     expect(res.statusCode).toBe(201);
     const orderId = (res.body as { id: number }).id;
 
-    const exceptions = await prisma.inventoryException.findMany({ where: { salesOrderId: orderId } });
+    const exceptions = await prisma.inventoryException.findMany({
+      where: { salesOrderId: orderId },
+    });
     expect(exceptions).toHaveLength(1);
     expect(exceptions[0]).toMatchObject({ productId: product.id });
     expect(quantities(exceptions[0])).toEqual({ requested: 2, allocated: 1, shortfall: 1 });
@@ -241,8 +264,11 @@ describe("inventory order wiring (real DB)", () => {
 
   it("cancelling an order (status -> CANCELLED) releases committed stock", async () => {
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
     const createRes = await createOrderViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
@@ -264,8 +290,11 @@ describe("inventory order wiring (real DB)", () => {
 
   it("fulfilling an order (status -> FULFILLED) consumes committed stock outright", async () => {
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
     const createRes = await createOrderViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
@@ -288,8 +317,11 @@ describe("inventory order wiring (real DB)", () => {
 
   it("dispatchStatus -> FULFILLED also consumes committed stock", async () => {
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
     const createRes = await createOrderViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
@@ -298,7 +330,11 @@ describe("inventory order wiring (real DB)", () => {
 
     const res = makeRes();
     await dispatchHandler(
-      makeReq({ method: "PUT", query: { id: String(orderId) }, body: { dispatchStatus: "FULFILLED" } }),
+      makeReq({
+        method: "PUT",
+        query: { id: String(orderId) },
+        body: { dispatchStatus: "FULFILLED" },
+      }),
       res,
       registerSession,
     );
@@ -310,8 +346,11 @@ describe("inventory order wiring (real DB)", () => {
 
   it("dispatchStatus -> CANCELLED releases committed stock", async () => {
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
     const createRes = await createOrderViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
@@ -320,7 +359,11 @@ describe("inventory order wiring (real DB)", () => {
 
     const res = makeRes();
     await dispatchHandler(
-      makeReq({ method: "PUT", query: { id: String(orderId) }, body: { dispatchStatus: "CANCELLED" } }),
+      makeReq({
+        method: "PUT",
+        query: { id: String(orderId) },
+        body: { dispatchStatus: "CANCELLED" },
+      }),
       res,
       registerSession,
     );
@@ -332,8 +375,11 @@ describe("inventory order wiring (real DB)", () => {
 
   it("a routine dispatch write (no terminal transition) does not touch inventory", async () => {
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
     const createRes = await createOrderViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
@@ -358,8 +404,11 @@ describe("inventory order wiring (real DB)", () => {
 
   it("adding a line item resyncs allocation to commit the new line's stock", async () => {
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
     const createRes = await createOrderViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
@@ -388,8 +437,11 @@ describe("inventory order wiring (real DB)", () => {
 
   it("cancelling a line item resyncs allocation to release its stock", async () => {
     const { store, floor, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
     const createRes = await createOrderViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },

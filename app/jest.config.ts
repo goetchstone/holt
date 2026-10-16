@@ -65,6 +65,8 @@ export default {
       // Jest run.
       testMatch: ["**/__tests__/integration/**/*.test.ts"],
       globalSetup: "<rootDir>/jest.integration.setup.ts",
+      // Stock and its journal agree after every test (ledger plan phase 4).
+      setupFilesAfterEnv: ["<rootDir>/jest.integration.afterEach.ts"],
     },
     {
       ...sharedProject,

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import FormInput from "@/components/form/FormInput";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/Modal";
+import { LOCATION_TYPE_INFO, STOCK_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
 
 interface StockLocationData {
   id: number;
@@ -209,8 +210,12 @@ export default function StockLocationModal({
             onChange={(e) => handleChange("locationType", e.target.value)}
             className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
           >
-            <option value="STOCK">Stock</option>
-            <option value="FLOOR">Floor</option>
+            {STOCK_LOCATION_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {LOCATION_TYPE_INFO[type].label}
+                {LOCATION_TYPE_INFO[type].sellable ? "" : " (not for sale)"}
+              </option>
+            ))}
           </select>
         </div>
         {form.locationType === "FLOOR" && (

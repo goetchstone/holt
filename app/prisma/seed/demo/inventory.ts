@@ -132,9 +132,10 @@ export async function seedInventory(
       quantity: row.quantity,
       to: {
         storeLocationId: row.storeLocationId,
-        stockLocationId: row.stockLocationId ?? null,
+        stockLocationId: row.stockLocationId,
         salesOrderId: row.salesOrderId ?? null,
       },
+      reason: "OPENING",
       actor: SEED_ACTOR,
       note: row.notes,
     });
