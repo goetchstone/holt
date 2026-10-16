@@ -15,6 +15,7 @@ import { toast } from "react-toastify";
 import { getErrorMessage } from "@/lib/toastError";
 import StockLocationModal from "@/components/modals/StockLocationModal";
 import { isStockLocationType, LOCATION_TYPE_INFO } from "@/lib/inventory/locationTypes";
+import { LANDING_PLACES, type LandingPlace } from "@/lib/inventory/landingPlaces";
 
 interface StockLocationItem {
   id: number;
@@ -46,6 +47,12 @@ interface StoreLocation {
   sortOrder: number;
   externalLocationName: string | null;
   defaultReceivingStockLocationId: number | null;
+  pickupStockLocationId: number | null;
+  returnsStockLocationId: number | null;
+  quarantineStockLocationId: number | null;
+  transitStockLocationId: number | null;
+  fulfilmentStoreLocationId: number | null;
+  moveMode: string | null;
 }
 
 const LOCATION_TYPES = ["STORE", "WAREHOUSE", "OFFSITE"];
@@ -174,15 +181,21 @@ export function LocationsView() {
     return groups;
   };
 
-  const handleDefaultReceivingChange = async (locId: number, stockLocationId: number | null) => {
+  // One store setting at a time (a landing place, the fulfilment store, the
+  // move mode). The server checks each place is at this store and of a type
+  // the setting allows, and says which when it is not.
+  const handleStoreSettingChange = async (
+    locId: number,
+    field: string,
+    value: number | string | null,
+    label: string,
+  ) => {
     try {
-      await axios.put(`/api/warehouse/locations/${locId}`, {
-        defaultReceivingStockLocationId: stockLocationId,
-      });
-      toast.success("Default receiving location updated");
+      await axios.put(`/api/warehouse/locations/${locId}`, { [field]: value });
+      toast.success(`${label} updated`);
       fetchLocations();
-    } catch {
-      toast.error("Failed to update default receiving location");
+    } catch (err) {
+      toast.error(getErrorMessage(err, `Failed to update ${label.toLowerCase()}`));
     }
   };
 
@@ -406,34 +419,112 @@ export function LocationsView() {
               {/* Expanded stock locations */}
               {expandedId === loc.id && (
                 <div className="border-t border-brand-gray/10 px-4 py-3">
-                  {/* Default receiving location */}
-                  <div className="mb-4 flex items-center gap-3">
-                    <label
-                      htmlFor={`default-receiving-${loc.id}`}
-                      className="text-sm text-brand-gray whitespace-nowrap"
-                    >
-                      Default Receiving Location:
-                    </label>
-                    <select
-                      id={`default-receiving-${loc.id}`}
-                      value={loc.defaultReceivingStockLocationId || ""}
-                      onChange={(e) =>
-                        handleDefaultReceivingChange(
-                          loc.id,
-                          e.target.value ? Number.parseInt(e.target.value) : null,
-                        )
-                      }
-                      className="border border-brand-gray/30 rounded px-2 py-1 text-sm"
-                    >
-                      <option value="">None</option>
-                      {loc.stockLocations
-                        .filter((sl) => sl.isActive)
-                        .map((sl) => (
-                          <option key={sl.id} value={sl.id}>
-                            {sl.code} - {sl.name}
-                          </option>
-                        ))}
-                    </select>
+                  {/* Where stock lands at this store, and where its orders draw from */}
+                  <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                    {(Object.keys(LANDING_PLACES) as LandingPlace[]).map((kind) => {
+                      const info = LANDING_PLACES[kind];
+                      const selectId = `landing-${kind}-${loc.id}`;
+                      return (
+                        <div key={kind} className="flex items-center gap-3">
+                          <label
+                            htmlFor={selectId}
+                            className="text-sm text-brand-gray w-36 shrink-0"
+                          >
+                            {info.setting}:
+                          </label>
+                          <select
+                            id={selectId}
+                            value={loc[info.pointer] ?? ""}
+                            onChange={(e) =>
+                              handleStoreSettingChange(
+                                loc.id,
+                                info.pointer,
+                                e.target.value ? Number.parseInt(e.target.value) : null,
+                                info.setting,
+                              )
+                            }
+                            className="border border-brand-gray/30 rounded px-2 py-1 text-sm min-w-0 flex-1"
+                          >
+                            <option value="">
+                              {info.create
+                                ? `Created when first needed (${info.create.name})`
+                                : "None"}
+                            </option>
+                            {loc.stockLocations
+                              .filter((sl) => sl.isActive)
+                              .filter(
+                                (sl) =>
+                                  info.allowedTypes === "any" ||
+                                  (info.allowedTypes as readonly string[]).includes(
+                                    sl.locationType,
+                                  ),
+                              )
+                              .map((sl) => (
+                                <option key={sl.id} value={sl.id}>
+                                  {sl.code} - {sl.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                    <div className="flex items-center gap-3">
+                      <label
+                        htmlFor={`fulfilment-${loc.id}`}
+                        className="text-sm text-brand-gray w-36 shrink-0"
+                      >
+                        Also draws from:
+                      </label>
+                      <select
+                        id={`fulfilment-${loc.id}`}
+                        value={loc.fulfilmentStoreLocationId ?? ""}
+                        onChange={(e) =>
+                          handleStoreSettingChange(
+                            loc.id,
+                            "fulfilmentStoreLocationId",
+                            e.target.value ? Number.parseInt(e.target.value) : null,
+                            "Fulfilment store",
+                          )
+                        }
+                        className="border border-brand-gray/30 rounded px-2 py-1 text-sm min-w-0 flex-1"
+                      >
+                        <option value="">Only its own stock</option>
+                        {locations
+                          .filter((other) => other.id !== loc.id && other.isActive)
+                          .map((other) => (
+                            <option key={other.id} value={other.id}>
+                              {other.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label
+                        htmlFor={`move-mode-${loc.id}`}
+                        className="text-sm text-brand-gray w-36 shrink-0"
+                      >
+                        Moves:
+                      </label>
+                      <select
+                        id={`move-mode-${loc.id}`}
+                        value={loc.moveMode ?? ""}
+                        onChange={(e) =>
+                          handleStoreSettingChange(
+                            loc.id,
+                            "moveMode",
+                            e.target.value || null,
+                            "Move mode",
+                          )
+                        }
+                        className="border border-brand-gray/30 rounded px-2 py-1 text-sm min-w-0 flex-1"
+                      >
+                        <option value="">Default (quick within, tracked between stores)</option>
+                        <option value="QUICK">Quick: move in one step</option>
+                        <option value="TRACKED">
+                          Tracked: a transfer, received at the other end
+                        </option>
+                      </select>
+                    </div>
                   </div>
 
                   {loc.stockLocations.length === 0 ? (

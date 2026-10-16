@@ -314,8 +314,14 @@ describe("single stock writer: edges found in review", () => {
         advance(s, t.id, "IN_TRANSIT"),
       ]);
       expect(results.map((r) => r.statusCode).sort()).toEqual([200, 409]);
-      const left = await prisma.inventoryPosition.findMany({ where: { productId: s.low.id } });
-      expect(left.reduce((sum, r) => sum + toQty(r.quantity), 0)).toBe(3);
+      // Two shipped once: 2 in the in-transit place, 3 still on the shelf.
+      const left = await prisma.inventoryPosition.findMany({
+        where: { productId: s.low.id },
+        include: { stockLocation: { select: { locationType: true } } },
+      });
+      const inTransit = left.filter((r) => r.stockLocation.locationType === "TRANSIT");
+      expect(inTransit.reduce((sum, r) => sum + toQty(r.quantity), 0)).toBe(2);
+      expect(left.reduce((sum, r) => sum + toQty(r.quantity), 0)).toBe(5);
     });
   });
 

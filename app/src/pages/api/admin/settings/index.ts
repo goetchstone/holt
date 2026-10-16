@@ -10,6 +10,7 @@ import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { getErrorCode } from "@/lib/errorCode";
 import {
   DEFAULT_ORG_ID,
   DEFAULT_THEME,
@@ -208,6 +209,25 @@ function parseSourceAdapter(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// Which store's "Unmatched — Needs Review" place takes POS stock rows the
+// import cannot place. A store id, or null to stop writing them (they are then
+// reported only). Replaces a store looked up by the literal name "Warehouse"
+// (rule 61); whether the id exists is the foreign key's job, answered as a 400.
+function parseUnmatchedStockStore(body: Body, data: SettingsData): ParseError {
+  const raw = body.unmatchedStockStoreLocationId;
+  if (raw === undefined) return null;
+  if (raw === null || raw === "") {
+    data.unmatchedStockStoreLocationId = null;
+    return null;
+  }
+  const id = Number(raw);
+  if (!Number.isInteger(id) || id <= 0) {
+    return { error: "unmatchedStockStoreLocationId must be a store id, or empty for none." };
+  }
+  data.unmatchedStockStoreLocationId = id;
+  return null;
+}
+
 // A plain-object view of an unknown value, for reading nested settings.
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
@@ -309,6 +329,7 @@ const SETTINGS_PARSERS = [
   parseFeatures,
   parseBooking,
   parseSourceAdapter,
+  parseUnmatchedStockStore,
   parseGoogle,
   parsePortalTokenTtl,
   parsePrefixes,
@@ -337,6 +358,9 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
       update: { ...data, updatedBy: actor },
     });
   } catch (err) {
+    if (getErrorCode(err) === "P2003") {
+      return res.status(400).json({ error: "The unmatched-stock store does not exist." });
+    }
     logError("Failed to update app settings", err);
     return res.status(500).json({ error: "Failed to save settings" });
   }

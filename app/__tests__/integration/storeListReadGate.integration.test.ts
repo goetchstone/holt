@@ -286,6 +286,14 @@ describe("the setup read answers to either setup screen's key", () => {
         "sortOrder",
         "externalLocationName",
         "defaultReceivingStockLocationId",
+        // The store's other landing places, the store it also draws from,
+        // and its move mode: Warehouse > Locations edits each of them.
+        "pickupStockLocationId",
+        "returnsStockLocationId",
+        "quarantineStockLocationId",
+        "transitStockLocationId",
+        "fulfilmentStoreLocationId",
+        "moveMode",
         "stockLocations",
       ].sort(),
     );
@@ -304,6 +312,7 @@ describe("the setup read answers to either setup screen's key", () => {
         "sortOrder",
         "locationAliases",
         "holdsCommittedStock",
+        "moveMode",
       ].sort(),
     );
     expect(main).toMatchObject({ address: "1 Harbour Rd", sortOrder: 1 });

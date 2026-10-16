@@ -311,7 +311,7 @@ describe("fractional quantities outside the balance (real DB)", () => {
     const order = await orderFor(12.5, "SO-RUN");
     const run = await deliveryRunFor(order.id, order.customerId!);
 
-    const pickList = await generatePickList(run.id, "wh@example.test");
+    const pickList = await generatePickList({ deliveryRunId: run.id }, "wh@example.test");
 
     expect(pickList!.items.map((i) => toQty(i.quantity))).toEqual([12.5]);
   });

@@ -81,12 +81,65 @@ import { SELLABLE_LOCATION_TYPES, sellableTypesSql } from "./locationTypes";
 export { planDraw } from "./ledger";
 export type { PrismaTx, PositionForDraw, DrawStep, DrawPlan } from "./ledger";
 
-/** A line to allocate: one product, one quantity, one store. */
+/** A line to allocate: one product, one quantity, the order's store. */
 export interface AllocationLine {
   productId: number;
-  /** Whole units. Non-positive quantities (e.g. a return line) are skipped. */
+  /** Non-positive quantities (e.g. a return line) are skipped. */
   quantity: number;
+  /** The order's store. Free stock is drawn from its scope (allocationTiers). */
   storeLocationId: number;
+  /** The customer takes it today: drawn from this store only, floor piece first. */
+  takeWith?: boolean;
+}
+
+/** One step of an allocation's draw order: a store, and floor or back stock. */
+export interface DrawTier {
+  storeLocationId: number;
+  floor: boolean;
+}
+
+/**
+ * Pure: the order an order line draws free stock in (ledger plan phase 10).
+ *
+ *   - Take-with: the customer leaves with the piece in front of them, so only
+ *     the order's own store, the floor piece first, then its back stock.
+ *   - Everything else: back stock anywhere in reach -- the order's own store,
+ *     then the store it is fulfilled from (StoreLocation.
+ *     fulfilmentStoreLocationId, one hop) -- and floor models last, own store
+ *     first again.
+ */
+export function allocationTiers(
+  scope: { storeLocationId: number; fulfilmentStoreLocationId: number | null },
+  takeWith: boolean,
+): DrawTier[] {
+  const own = scope.storeLocationId;
+  if (takeWith) {
+    return [
+      { storeLocationId: own, floor: true },
+      { storeLocationId: own, floor: false },
+    ];
+  }
+  const stores = [own];
+  const other = scope.fulfilmentStoreLocationId;
+  if (other != null && other !== own) stores.push(other);
+  return [
+    ...stores.map((storeLocationId) => ({ storeLocationId, floor: false })),
+    ...stores.map((storeLocationId) => ({ storeLocationId, floor: true })),
+  ];
+}
+
+const BACK_STOCK_TYPES = SELLABLE_LOCATION_TYPES.filter((t) => t !== "FLOOR");
+
+function tierWhere(tier: DrawTier): Prisma.InventoryPositionWhereInput {
+  return {
+    AND: [
+      freePositionWhere(),
+      {
+        storeLocationId: tier.storeLocationId,
+        stockLocation: { locationType: tier.floor ? "FLOOR" : { in: BACK_STOCK_TYPES } },
+      },
+    ],
+  };
 }
 
 /** A line to consume: allocation is already store-scoped via salesOrderId,
@@ -205,22 +258,42 @@ async function allocateIn(
     active.map((l) => l.productId),
   );
 
+  const fulfilmentOf = new Map<number, number | null>();
   for (const line of active) {
-    const { legs, shortfall } = await drawLegs(tx, {
-      productId: line.productId,
-      where: { AND: [freePositionWhere(), { storeLocationId: line.storeLocationId }] },
-      quantity: line.quantity,
-    });
-
-    for (const leg of legs) {
-      await postMovement(tx, {
-        productId: line.productId,
-        quantity: leg.take,
-        from: leg.place,
-        to: { ...leg.place, salesOrderId: orderId },
-        reason: "ALLOCATE",
-        source: { type: "SalesOrder", id: orderId },
+    if (!fulfilmentOf.has(line.storeLocationId)) {
+      const store = await tx.storeLocation.findUnique({
+        where: { id: line.storeLocationId },
+        select: { fulfilmentStoreLocationId: true },
       });
+      fulfilmentOf.set(line.storeLocationId, store?.fulfilmentStoreLocationId ?? null);
+    }
+    const tiers = allocationTiers(
+      {
+        storeLocationId: line.storeLocationId,
+        fulfilmentStoreLocationId: fulfilmentOf.get(line.storeLocationId) ?? null,
+      },
+      line.takeWith === true,
+    );
+
+    let shortfall = line.quantity;
+    for (const tier of tiers) {
+      if (!(shortfall > 0)) break;
+      const drawn = await drawLegs(tx, {
+        productId: line.productId,
+        where: tierWhere(tier),
+        quantity: shortfall,
+      });
+      for (const leg of drawn.legs) {
+        await postMovement(tx, {
+          productId: line.productId,
+          quantity: leg.take,
+          from: leg.place,
+          to: { ...leg.place, salesOrderId: orderId },
+          reason: "ALLOCATE",
+          source: { type: "SalesOrder", id: orderId },
+        });
+      }
+      shortfall = drawn.shortfall;
     }
 
     if (shortfall > 0) {
@@ -300,6 +373,44 @@ async function releaseIn(orderId: number, tx: PrismaTx): Promise<void> {
       source: { type: "SalesOrder", id: orderId },
     });
   }
+}
+
+/**
+ * Return `quantity` of one product an order holds to free stock, from places
+ * where it is for sale first, so units already in transit or staged for the
+ * order are the last to be let go. For a line edit that lowers what an order
+ * needs: the rest of the commitment stays exactly where it is.
+ */
+export async function releaseUnits(
+  orderId: number,
+  productId: number,
+  quantity: number,
+  db: PrismaTx,
+): Promise<void> {
+  if (!(quantity > 0)) return;
+  return withStockTx(db, async (tx) => {
+    await lockProducts(tx, [productId]);
+    let left = quantity;
+    const sellable = { locationType: { in: SELLABLE_LOCATION_TYPES } };
+    for (const where of [
+      { salesOrderId: orderId, stockLocation: sellable },
+      { salesOrderId: orderId, NOT: { stockLocation: sellable } },
+    ]) {
+      if (!(left > 0)) break;
+      const { legs, shortfall } = await drawLegs(tx, { productId, where, quantity: left });
+      for (const leg of legs) {
+        await postMovement(tx, {
+          productId,
+          quantity: leg.take,
+          from: leg.place,
+          to: { ...leg.place, salesOrderId: null },
+          reason: "RELEASE",
+          source: { type: "SalesOrder", id: orderId },
+        });
+      }
+      left = shortfall;
+    }
+  });
 }
 
 /**

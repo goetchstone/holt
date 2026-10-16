@@ -32,6 +32,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
         productName: transfer.product.name,
         productNumber: transfer.product.productNumber,
         quantity: toQty(transfer.quantity),
+        receivedQuantity: toQty(transfer.receivedQuantity),
         fromLocation: transfer.fromStoreLocation?.name || transfer.fromLocation,
         fromLocationId: transfer.fromLocationId,
         fromStockLocation: transfer.fromStockLocation?.name || null,

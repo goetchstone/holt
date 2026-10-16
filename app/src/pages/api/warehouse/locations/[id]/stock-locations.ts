@@ -8,6 +8,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { isStockLocationType, STOCK_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
+import { isMoveMode, MOVE_MODES } from "@/lib/inventory/moveModes";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
@@ -49,6 +50,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         squareFootage,
         locationAliases,
         holdsCommittedStock,
+        moveMode,
       } = req.body;
 
       if (!code || !name) {
@@ -60,6 +62,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       // whole location is not a failure mode worth having.
       if (holdsCommittedStock !== undefined && typeof holdsCommittedStock !== "boolean") {
         return res.status(400).json({ error: "holdsCommittedStock must be a boolean." });
+      }
+      if (moveMode !== undefined && moveMode !== null && moveMode !== "" && !isMoveMode(moveMode)) {
+        return res.status(400).json({ error: `moveMode must be one of ${MOVE_MODES.join(", ")}.` });
       }
       // Chosen from the catalog: the type decides whether stock here is sellable.
       if (locationType !== undefined && locationType !== "" && !isStockLocationType(locationType)) {
@@ -87,6 +92,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           squareFootage: squareFootage != null ? Number.parseInt(squareFootage) : null,
           locationAliases: Array.isArray(locationAliases) ? locationAliases : [],
           holdsCommittedStock: holdsCommittedStock === true,
+          moveMode: moveMode || null,
           sortOrder: nextSort,
           createdBy: session.user?.email || null,
         },

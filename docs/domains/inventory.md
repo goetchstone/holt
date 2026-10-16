@@ -207,21 +207,24 @@ table and still reads the raw rows on purpose.
 
 ## Stock-by-Item import (daily)
 
-CSV: `<Org>_Stock_by_Item.csv` from the POS (Gmail auto-import, e.g. 06:10 local). Runner: `runStockByItemImport` in `lib/importRunners.ts`. One row per (product, store location) with current on-hand qty.
+CSV: `<Org>_Stock_by_Item.csv` from the POS (Gmail auto-import, e.g. 06:10 local). Runner: `runStockByItemImport` in `lib/adapters/ordorite/runners.ts`. One row per (product, POS location) with current on-hand qty. On a live site this is a one-time opening load (DECISIONS #18).
 
 **The location-matching gotcha** (post-failure 2026-04-24):
 
-the POS emits `Stocklocation` as a free-text string per row. The import matches against `StockLocation.name` AND `StockLocation.locationAliases` (case-insensitive, exact — no fuzzy match). Historically, unmatched rows were silently dropped, causing the Buyers Report to understate on-hand by several units when an alias was missing.
+the POS emits `Stocklocation` as a free-text string per row. The import matches it against `StockLocation.locationAliases` only (case-insensitive, exact — no fuzzy match, and not the place's name). Historically, unmatched rows were silently dropped, causing the Buyers Report to understate on-hand by several units when an alias was missing.
 
 Since 2026-04-24:
 
-- **Unmatched rows land at a catch-all** — `StockLocation.code = "UNMATCHED"`, name "Unmatched — Needs Review". Original CSV location preserved in `InventoryPosition.notes`.
+- **Unmatched rows land at a catch-all** — `StockLocation.code = "UNMATCHED"`, name "Unmatched — Needs Review", at the store `AppSettings.unmatchedStockStoreLocationId` names (Settings > Configuration). The POS names are kept in `InventoryPosition.notes`. **With no store set, unmatched rows are reported (`unmatchedRowsNotWritten`, and the result message says so) and not written** (rule 63); this replaced a store found by the name "Warehouse", then any active store (rule 61). Migration `20261017120000_document_stock_flows` set the setting from the store already holding the catch-all place.
 - **Known the POS placeholders** like `Z_TEMP_MISS_INV` also route here.
 - **Result surfaces `unmappedLocations`** array. Admin should add aliases (or create the proper StockLocation) so future imports land correctly.
 
 **Rule for any new inventory-bearing import**: never silently drop a row with an unmappable location. Always route to the catch-all and surface the unmapped name to the admin.
 
-**How it writes (since 2026-10-14):** each row sets its place's **total** through `setPlaceQuantity`, recorded as a movement of the difference — not one row's quantity, so duplicate rows can no longer add their units on top of the file's number. A row reporting negative on-hand (the POS has sold more than it holds) is recorded as zero, counted in the result's `negativeClampedToZero`. Still to fix (plan phase 5): zero-quantity rows are skipped rather than applied, positions missing from the file are never zeroed, and several unmatched names at the catch-all overwrite each other instead of summing.
+**How it writes (since 2026-10-17, a ledger client):** the runner resolves each row's product and place, then applies the whole file at once (`lib/inventory/importSync.ts`):
+
+- `planImportSync` (pure) makes one **physical** target per place: rows landing on one place are **summed** (two aliases of one place, several unmatched names at the catch-all), each row clamped at zero first (`negativeClampedToZero`); a **zero row zeroes** its place; and a product the file no longer lists at a place it **covers** (any row resolved there) is set to zero. Places the file does not mention are untouched.
+- `applyImportSync` writes it through `setPlaceQuantity` (`IMPORT_SYNC`), a hundred products per transaction under their locks, setting **free** stock to physical minus what is committed to orders at that place. A commitment survives the file; where the file says fewer than are committed, free goes to zero and the place is counted in `shortOfCommitted`. A second run of the same file changes nothing (`positionsUpserted` counts only places that changed).
 
 ## Inventory snapshot generation (Step 1 of a physical count)
 
@@ -362,14 +365,85 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 - `snapshotImport.test.ts` — unit tests for `resolveSnapshotImportRow` (the POS cutover importer's per-row resolution)
 - `inventorySnapshotGenerate.integration.test.ts` — real-DB coverage for `POST /api/inventory/snapshot/generate`, including a product with no `externalId` and same-day re-run idempotency
 
+## Document flows (since 2026-10-17)
+
+Every flow below is a composition of `postMovement`; each has one home in
+`lib/inventory/` (rule 42) and a real-DB suite.
+
+**Landing places** (`lib/inventory/places.ts`, catalog `landingPlaces.ts`). Each
+store says where stock lands when a flow names no place: receiving, returns,
+quarantine, in transit, pickup (`StoreLocation.*StockLocationId`, set in
+Warehouse > Locations). The first four are created the first time a store that
+has none needs one (codes `RECEIVING`, `RETURNS`, `QUARANTINE`, `TRANSIT`);
+pickup has no default and a pull asks for one. A setting must point at a place
+in its own store, of a type it allows (`landingPlaceProblem`). The same screen
+sets the store an order also draws from and the move mode.
+
+**Transfers** (`lib/inventory/transfers.ts`; `stockTransfer.integration.test.ts`).
+Ship moves the units into the source store's transit place: owned, counted, not
+for sale. A transfer for an order takes the order's own units first and commits
+every unit it ships to the order, so the commitment travels and nothing
+re-allocates on arrival (the old best-effort `allocate` on receipt, which could
+abort the receipt, is gone). Receipts can be partial (`receivedQuantity`); the
+transfer is RECEIVED once all of it has arrived. Cancel sends what is still on
+its way back to the exact places it left, from the transfer's journal legs,
+newest first. **Move modes** (`lib/inventory/moveModes.ts`): QUICK (one
+movement) or TRACKED (a transfer); a place's setting, else its store's, else
+QUICK within a store and TRACKED between stores; the stricter end wins. "Move
+now" on New Transfer and an admin position move are quick moves and are refused
+(409) where the mode is TRACKED. Transfers shipped before transit places existed
+are received and cancelled the old way.
+
+**Receiving** (`lib/inventory/receiving.ts`; `stockReceive.integration.test.ts`).
+Damaged and Wrong Item go to the store's quarantine place
+(`lib/purchasing/receiptConditions.ts`, the one list the screen also reads). A
+PO line raised for an open order (its own line, or a PO for the whole order)
+arrives committed to the order up to what it still needs; the rest arrives
+free. PO status after a receipt is `nativeReceiptStatus`
+(`lib/purchasing/receiptStatus.ts`), which leaves zero-quantity lines out of
+both counts (rule 39).
+
+**Returns** (`lib/inventory/returnStock.ts`; `stockReturns.integration.test.ts`;
+DECISIONS #19). RECEIVED puts the piece in the store's returns place and records
+it; the store's returned-stock queue (Warehouse > Returns > Returned stock)
+lists every piece waiting to be put back on a sellable place or written off
+(`WRITE_OFF`, out of the books). Neither waits on, or changes, the customer's
+return. See `docs/domains/returns.md`.
+
+**Pull list** (`lib/fulfilment/pullList.ts`; `pullList.integration.test.ts`).
+One builder for delivery-run and per-order pick lists: active lines only (rule
+33), what is still to fulfil, from the order's own committed stock at the place
+it sits; units already where the order leaves from (its pickup place, or a
+STAGING place for a delivery) count as pulled; what it holds none of is a row
+with no place; units committed at another store are flagged for a transfer.
+
+**Allocation scope** (`allocationTiers` in `allocation.ts`;
+`allocationScope.test.ts`, `allocationScope.integration.test.ts`). A sale draws
+back stock in reach -- its own store, then `fulfilmentStoreLocationId` (one hop)
+-- before floor models, own store first. A take-with line (marked TAKE, or the
+order TAKEN) draws at its own store only, the floor piece first. Delivery
+consumes from wherever the units were committed. An order's resync after a line
+edit is a per-product delta (`releaseUnits` / allocate the deficit), so a
+commitment in transit or staged is never released and lost.
+
+**Oversold** (`lib/reports/oversold.ts`; Reports > Oversold;
+`oversoldReport.integration.test.ts`). One open `InventoryException` per order
+and product; `settleShortfalls` closes it once the order holds what it needs
+(after a sale or resync, a receipt for the order, a transfer arriving for it).
+The report groups open shortfalls by product with a suggested fix -- free stock
+at another store, units on an open PO (earliest due), or start a draft PO -- and
+exports CSV. The warehouse dashboard shows its count and the returned-stock
+queue's.
+
 ## Roadmap: stock as a ledger of movements
 
 The tracked plan for the rest of the warehouse model (rule 50). Phase 1, the
 single writer, shipped 2026-10-14 (#13); phase 2, fractional record columns,
 2026-10-15 (#28). Each phase has a named real-DB regression test.
 
-**Delivery: four PRs (planned 2026-10-16).** A CI run takes 20–30 minutes, so
-the remaining phases ship as four PRs, not eighteen. Each PR is pushed once,
+**Delivery: four PRs and one for returns money (planned 2026-10-16).** A CI run
+takes 20–30 minutes, so the remaining phases ship as four PRs, not eighteen;
+the owner's returns direction of the same day adds 2b, for the money side. Each PR is pushed once,
 after the full local gate (`npm run check:local`) passes. Every finding in the
 table at the end of this section belongs to one of them:
 
@@ -377,7 +451,8 @@ table at the end of this section belongs to one of them:
 |---|---|---|---|
 | 1. Stock you can trust | 3, 4 | the register never shows stock; the Buyers report rounds | — |
 | 2. Documents move stock correctly | 5–11 | the transfer commit inside the receipt; `parseInt` on new transfers; a zero-quantity line counted as received; the returns UI's restock; `Return.quantity`; cancelled lines on pick lists | 1 |
-| 3. Places and space | 12–14 | — | 1 (can run beside 2) |
+| 2b. Returns money | — | refund to the original method or to store credit, a store-credit tender, restocking fees, and the refund bugs listed in `docs/domains/returns.md` → "Returns money" | 2 |
+| 3. Places and space | 12–14 | — | 1 (after 2: one test database, rule 59) |
 | 4. Handheld floor | 15–20, plus the retry key (`withAction`) phase 4 named, built with the handheld pages that use it | counts and reconciliation (count by area replaces both) | 2, 3 |
 
 PR 4's device gate stands. Its pages are tested with keyboard-wedge input in a
@@ -393,13 +468,13 @@ browser; a real Zebra on HTTPS staging stays unverified until it is run on one
 
 **B. Fix the document flows**
 
-5. The POS import as a ledger client: honour zero rows, zero positions missing from a file that covers their place, sum aliased and unmatched rows, and a configured catch-all store instead of a store found by name (rule 61).
-6. Transfers through an in-transit place: partial receipts, cancel returns units to the exact places they left, and a per-site/per-place move mode (quick, tracked, tracked with scans).
-7. Receiving: damaged or wrong items go to quarantine; lines on a PO linked to an order arrive committed to it.
-8. Returns: received into the site's returns place, restocked to a chosen sellable place or written off; per-site landing places (pickup, returns, quarantine, transit).
-9. One pull-list builder (delivery runs, pickups, order transfers across sites), excluding cancelled lines (rule 33).
-10. Allocation scope: a store's orders can draw from its fulfilment store; floor models are committed last.
-11. Oversold report: grouped, a suggested fix for each shortfall, and rows that close themselves when the shortfall is covered.
+5. ✅ The POS import as a ledger client (see "Stock-by-Item import"). Tests: `importSync.test.ts`, `stockImportSync.integration.test.ts`.
+6. ✅ Transfers through an in-transit place, partial receipts, cancel to the exact places, quick and tracked move modes (scans with PR 4). Test: `stockTransfer.integration.test.ts`.
+7. ✅ Receiving: quarantine for damaged and wrong goods; receipts for an order arrive committed. Test: `stockReceive.integration.test.ts`.
+8. ✅ Returns into the store's returns place and a per-store returned-stock queue; landing places for every store. Tests: `stockReturns.integration.test.ts`.
+9. ✅ One pull-list builder. Test: `pullList.integration.test.ts`.
+10. ✅ Allocation scope. Tests: `allocationScope.test.ts`, `allocationScope.integration.test.ts`.
+11. ✅ Oversold report (the count-variance flag comes with count by area, PR 4). Test: `oversoldReport.integration.test.ts`.
 
 **C. Places and space**
 
@@ -415,17 +490,21 @@ browser; a real Zebra on HTTPS staging stays unverified until it is run on one
 
 | Finding | Where | Scheduled |
 |---|---|---|
-| A transfer's "best-effort" commit on RECEIVED runs inside the transaction, so an error there aborts the whole receipt rather than failing softly | `warehouse/transfers/[id]/status.ts` | phase 6 |
-| Native PO receiving counts a zero-quantity line as fully received, so a PO with nothing received can read RECEIVED_PARTIAL (rule 39) | `purchasing/orders/[id]/receive.ts` status recalc | phase 7 |
-| The returns UI never sends `restockedLocationId`, so restocking from the screen adds no stock while the journal entry books it | `ReturnDetailView.tsx`, `ReturnsQueueView` | phase 8 |
-| Pick-list builders include cancelled and replaced lines (rule 33) and two builders diverge | `lib/deliveryService.ts`, `dispatch/pick-lists/index.ts` | phase 9 |
+| ✅ A transfer's "best-effort" commit on RECEIVED ran inside the transaction and could abort the receipt. Gone: a transfer for an order carries the commitment the whole way, so nothing re-allocates on arrival | `lib/inventory/transfers.ts` | fixed (PR 2) |
+| ✅ Native PO receiving counted a zero-quantity line as fully received, so a PO with nothing received could read RECEIVED_PARTIAL (rule 39). `nativeReceiptStatus` leaves such lines out of both counts | `lib/purchasing/receiptStatus.ts` | fixed (PR 2) |
+| ✅ Restocking from the returns screen added no stock while the journal booked it. A return's piece now enters the books when it is RECEIVED and is put back or written off from the store's returned-stock queue | `lib/inventory/returnStock.ts`, `ReturnedStockPanel.tsx` | fixed (PR 2) |
+| ✅ Pick-list builders included cancelled and replaced lines (rule 33) and diverged. One builder, the pull list | `lib/fulfilment/pullList.ts` | fixed (PR 2) |
 | ✅ `InventoryPosition` and `InventoryTransfer` quantities reached screens as strings: the positions and transfers routes sent the Prisma Decimal as-is, and JSON writes a Decimal as `"12.625"`, so anything summing them with `+` concatenated (`0 + "3"` is `"03"`). All seven responses under these routes now convert with `toQty`. Test: `warehouseQuantities.integration.test.ts`. The register's sum never showed `"03"` on screen because of the next row | `warehouse/positions/*`, `warehouse/transfers/*` | fixed (#29) |
 | ✅ The register never showed stock: it read `storeLocation.name`, which `/api/warehouse/positions` does not send, and asked for all stock rather than free stock. It now asks with `freeOnly` and folds by `locationName` (`onHandByStore`). Test: `onHandSummary.test.ts` | `sales/pos/PosView.tsx` | fixed (PR 1) |
-| `Return.quantity` is `Int` and the create route reads it with `parseInt`, so a returned part roll is recorded, and later restocked, as whole units | `returns/index.ts`, `Return` model | phase 8 |
+| ✅ `Return.quantity` was `Int` read with `parseInt`, so a returned part roll became whole units. Decimal(12,3), parsed with `parseQty`, sent as a number | `Return`, `returns/*` | fixed (PR 2) |
 | `PhysicalInventoryCount.quantity` and `Reconciliation`'s expected/counted/variance columns are `Int`: counting a 12.5-yard roll records 12, and the variance against the Decimal balance is off by the fraction | `inventory/physical-count.ts`, `inventory/reconcile.ts` | phase 17 (count by area replaces both) |
-| A transfer cannot be entered as a part roll: the new-transfer form reads the quantity with `parseInt`, so 12.5 yards is sent as 12 | `warehouse/transfers/new/NewTransferView.tsx` | phase 6 |
+| ✅ A transfer could not be entered as a part roll (`parseInt`); the same on Receive PO and New Return. All three read the quantity as typed and parse with `parseQty` (`lib/inventory/qtyInput.ts`) | `NewTransferView`, `ReceivePOView`, `NewReturnView` | fixed (PR 2) |
 | ✅ The Buyers report cast on-hand sums to `bigint`, which rounds: a 12.625-yard roll read 13 and a 0.375-yard remnant read 0. The sums are sent as text now, and floor stock is `freePositionSql()`. Test: `stockPlaces.integration.test.ts` | `lib/reports/buyersReport.ts` | fixed (PR 1) |
-| The Buyers report's customer stock adds stock committed to an order to the PO-chain derivation (received special orders on open orders). Today a receipt arrives as free stock, so nothing is counted twice; once phase 7 makes a receipt for an order arrive committed to it, the same units would be in both. The PO-chain half has to stop counting what the ledger already holds as committed | `lib/reports/buyersReport.ts` (query 2) | PR 2, with phase 7 |
+| ✅ The New Return screen sent `orderId`; the route reads `salesOrderId`, so every return created from the screen was refused with a 400. Found writing the returns tests; fixed | `NewReturnView.tsx` | fixed (PR 2) |
+| ✅ The returns status route was gated on a role list without WAREHOUSE, whose staff work the returns queue; it now takes `sales.return` like the other returns routes | `returns/[id]/status.ts` | fixed (PR 2) |
+| ✅ The inventory-exceptions page was gated on `admin.settings` while its API needs `inventory.adjust`; both are `inventory.adjust` now | `admin/inventory-exceptions/page.tsx` | fixed (PR 2) |
+| What makes a PO "partially received" differs: native receiving counts any quantity, the POS import a complete line. Owner decision (ROADMAP, "Decisions only you can make" #3); not merged until decided | `lib/purchasing/receiptStatus.ts`, `runners.ts` `classifyPOReceiptStatus` | owner |
+| ✅ The Buyers report would have counted a committed receipt twice (ledger and PO chain). Per order and product, the PO-chain half now counts only what the ledger does not already hold as committed | `lib/reports/buyersReport.ts` (query 2) | fixed (PR 2) |
 
 ---
-Last verified: 2026-10-16
+Last verified: 2026-10-17

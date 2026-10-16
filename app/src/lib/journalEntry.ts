@@ -157,6 +157,9 @@ export interface ReturnForJournal {
   productId: number | null;
   status: string; // Prisma `ReturnStatus`
   inspectionCondition: string | null; // Prisma `InspectionCondition` | null
+  /** The returned-stock queue's decision, recorded apart from the status. */
+  restockedAt?: Date | null;
+  writtenOffAt?: Date | null;
 }
 
 export type ReturnDisposition = "RESTOCK" | "WRITEOFF";
@@ -174,8 +177,10 @@ export type ReturnBookingPath =
 /**
  * Maps a matched Return record to a restock/writeoff disposition, or null
  * when the record doesn't carry enough signal yet to decide (not yet
- * inspected). Terminal status (RESTOCKED / WRITTEN_OFF) wins when present --
- * a human already made the call. Otherwise falls back to the inspection-
+ * inspected). A recorded disposition wins -- the returned-stock queue put the
+ * piece back (restockedAt) or wrote it off (writtenOffAt), which can happen
+ * after the customer's return is closed -- then a terminal status (RESTOCKED /
+ * WRITTEN_OFF, from returns closed that way); either way a human made the call. Otherwise falls back to the inspection-
  * condition heuristic, mirroring `suggestDisposition` in
  * `lib/returnService.ts` (LIKE_NEW / MINOR_DAMAGE -> restock; MAJOR_DAMAGE /
  * UNSALVAGEABLE -> writeoff).
@@ -184,6 +189,8 @@ export function classifyReturnDisposition(
   ret: ReturnForJournal | null | undefined,
 ): ReturnDisposition | null {
   if (!ret) return null;
+  if (ret.writtenOffAt) return "WRITEOFF";
+  if (ret.restockedAt) return "RESTOCK";
   if (ret.status === "RESTOCKED") return "RESTOCK";
   if (ret.status === "WRITTEN_OFF") return "WRITEOFF";
   switch (ret.inspectionCondition) {
@@ -882,6 +889,8 @@ const ORDER_FOR_JOURNAL_INCLUDE = {
         productId: true,
         status: true,
         inspectionCondition: true,
+        restockedAt: true,
+        writtenOffAt: true,
       },
     },
   },
@@ -928,6 +937,8 @@ function toOrderForJournal(o: OrderRow, fallbackTaxGlId: number | null): SalesOr
       productId: r.productId,
       status: r.status,
       inspectionCondition: r.inspectionCondition,
+      restockedAt: r.restockedAt,
+      writtenOffAt: r.writtenOffAt,
     })),
   };
 }
