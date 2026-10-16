@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { lockProducts, postMovement } from "@/lib/inventory/ledger";
+import { placeAt } from "@/lib/inventory/places";
 
 interface ReceiveItem {
   purchaseOrderItemId: number;
@@ -126,17 +127,19 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
         if (poItem.product) {
           // Received goods arrive from outside Holt's books into free stock at
-          // the chosen place. Through the single writer, which merges into the
-          // existing row: the upsert this replaced could never match a free row
-          // (rule 64), so every receipt created another duplicate.
+          // the chosen place, or the store's receiving place when none was
+          // chosen. Through the single writer, which merges into the existing
+          // row: the upsert this replaced could never match a free row (rule
+          // 64), so every receipt created another duplicate.
           await postMovement(tx, {
             productId: poItem.product.id,
             quantity: item.quantityReceived,
-            to: {
+            to: await placeAt(tx, {
               storeLocationId,
-              stockLocationId: item.destinationStockLocationId ?? null,
-              salesOrderId: null,
-            },
+              stockLocationId: item.destinationStockLocationId,
+            }),
+            reason: "RECEIVE",
+            source: { type: "PurchaseOrder", id: poId },
             actor: session.user?.email || null,
           });
 

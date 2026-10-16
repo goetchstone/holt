@@ -33,6 +33,7 @@ import {
   type ProductFact,
 } from "@/lib/buyersRollup";
 import { buildFrameDecisions, type FrameInput } from "@/lib/frameRollup";
+import { freePositionSql } from "@/lib/inventory/allocation";
 
 export type { BuyersPivot } from "@/lib/buyersRollup";
 
@@ -98,12 +99,12 @@ function parseDate(v: string | undefined | null): Date | null {
 // Raw row shapes returned by the four parallel queries below.
 interface RawOnHandRow {
   productId: number;
-  floor_qty: bigint;
-  customer_loc_qty: bigint;
+  floor_qty: string;
+  customer_loc_qty: string;
 }
 interface RawCustomerStockRow {
   productId: number;
-  customer_qty: bigint;
+  customer_qty: string;
 }
 interface RawOnOrderRow {
   productId: number | null;
@@ -271,20 +272,23 @@ export async function getBuyersSummary(
     //    the flag from that name); a deployment with different naming
     //    sets the flag from the admin UI instead.
     //
-    //    The join is a LEFT JOIN -- InventoryPosition.stockLocationId is
-    //    nullable, and a position with no stock location is floor stock --
-    //    so the flag arrives as NULL for those rows and MUST be
-    //    COALESCEd. A bare `CASE WHEN sl."holdsCommittedStock"` would
-    //    land in ELSE for a NULL, which happens to be the right bucket
-    //    here; spelling it out means the second reader doesn't have to
-    //    re-derive that, and the sign can't flip by accident.
+    //    Floor stock is exactly what the allocator would sell
+    //    (freePositionSql, the SQL twin of freePositionWhere): not committed
+    //    to an order, not in a flagged location, and in a sellable place.
+    //    Stock committed to an order by a native sale is the customer's,
+    //    like stock in a flagged location. Stock in quarantine or in transit
+    //    is neither: owned, not available. Every position has a place, so
+    //    this is an inner join.
+    //
+    //    Sums are sent as text, not ::bigint: a bigint cast rounds, so a
+    //    12.625-yard roll read 13 and a 0.375-yard remnant read 0.
     prisma.$queryRawUnsafe(
       `
           SELECT ip."productId" AS "productId",
-                 COALESCE(SUM(CASE WHEN COALESCE(sl."holdsCommittedStock", FALSE) THEN 0 ELSE ip.quantity END), 0)::bigint AS floor_qty,
-                 COALESCE(SUM(CASE WHEN COALESCE(sl."holdsCommittedStock", FALSE) THEN ip.quantity ELSE 0 END), 0)::bigint AS customer_loc_qty
+                 COALESCE(SUM(CASE WHEN ${freePositionSql("ip", "sl")} THEN ip.quantity ELSE 0 END), 0)::text AS floor_qty,
+                 COALESCE(SUM(CASE WHEN sl."holdsCommittedStock" OR ip."salesOrderId" IS NOT NULL THEN ip.quantity ELSE 0 END), 0)::text AS customer_loc_qty
           FROM "InventoryPosition" ip
-          LEFT JOIN "StockLocation" sl ON sl.id = ip."stockLocationId"
+          JOIN "StockLocation" sl ON sl.id = ip."stockLocationId"
           WHERE 1=1
             AND ($1::int IS NULL OR ip."storeLocationId" = $1)
           GROUP BY ip."productId"
@@ -346,7 +350,7 @@ export async function getBuyersSummary(
               )
           )
           SELECT "productId",
-                 SUM(qty)::bigint AS customer_qty
+                 SUM(qty)::text AS customer_qty
           FROM allocated_pois
           GROUP BY "productId"
         `,
@@ -585,9 +589,8 @@ export async function getBuyersPositions(
         vendor: { select: { name: true } },
       },
     }),
-    // Per-location breakdown with the same customer-hold-location test
-    // the main summary query uses (StockLocation.holdsCommittedStock,
-    // COALESCEd because the join is LEFT).
+    // Per-location breakdown with the same customer test the main summary
+    // query uses: a flagged location, or committed to an order.
     //
     // `holdsCommittedStock` is added to the GROUP BY, not just the SELECT.
     // The old form was an expression OVER a grouped column (sl.name), so
@@ -601,7 +604,7 @@ export async function getBuyersPositions(
         loc_code: string | null;
         loc_name: string | null;
         is_customer: boolean;
-        qty: bigint;
+        qty: string;
       }>
     >(
       `
@@ -609,13 +612,13 @@ export async function getBuyersPositions(
             store.name AS store_name,
             sl.code AS loc_code,
             sl.name AS loc_name,
-            COALESCE(sl."holdsCommittedStock", FALSE) AS is_customer,
-            COALESCE(SUM(ip.quantity), 0)::bigint AS qty
+            (sl."holdsCommittedStock" OR ip."salesOrderId" IS NOT NULL) AS is_customer,
+            COALESCE(SUM(ip.quantity), 0)::text AS qty
           FROM "InventoryPosition" ip
-          LEFT JOIN "StoreLocation" store ON store.id = ip."storeLocationId"
-          LEFT JOIN "StockLocation" sl ON sl.id = ip."stockLocationId"
+          JOIN "StoreLocation" store ON store.id = ip."storeLocationId"
+          JOIN "StockLocation" sl ON sl.id = ip."stockLocationId"
           WHERE ip."productId" = $1
-          GROUP BY store.name, sl.code, sl.name, sl."holdsCommittedStock"
+          GROUP BY store.name, sl.code, sl.name, (sl."holdsCommittedStock" OR ip."salesOrderId" IS NOT NULL)
           ORDER BY store.name NULLS LAST, sl.code NULLS LAST
         `,
       productId,

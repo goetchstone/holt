@@ -1914,6 +1914,7 @@ export async function runStockByItemImport(
             salesOrderId: null,
           },
           target: Math.max(0, quantity),
+          reason: "IMPORT_SYNC",
           actor: userEmail,
           note: positionNotes,
         });

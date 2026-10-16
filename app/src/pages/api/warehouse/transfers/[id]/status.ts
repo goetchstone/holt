@@ -11,6 +11,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
 import { allocate, freePositionWhere } from "@/lib/inventory/allocation";
 import { drawLegs, postMovement } from "@/lib/inventory/ledger";
+import { placeAt } from "@/lib/inventory/places";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { toQty, roundQty } from "@/lib/inventory/quantity";
@@ -125,6 +126,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             productId: transfer.productId,
             quantity: leg.take,
             from: leg.place,
+            reason: "TRANSFER",
+            source: { type: "InventoryTransfer", id: transferId },
             actor,
           });
         }
@@ -139,11 +142,12 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         await postMovement(tx, {
           productId: transfer.productId,
           quantity,
-          to: {
+          to: await placeAt(tx, {
             storeLocationId: transfer.toLocationId!,
-            stockLocationId: transfer.toStockLocationId ?? null,
-            salesOrderId: null,
-          },
+            stockLocationId: transfer.toStockLocationId,
+          }),
+          reason: "TRANSFER",
+          source: { type: "InventoryTransfer", id: transferId },
           actor,
         });
 
@@ -189,18 +193,19 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         // Put the shipped units back at the source. Through the single writer:
         // the upsert this replaced could never match a free row (rule 64), so
         // every cancel created another duplicate. When the ship drew from
-        // several stock locations ("any"), they come back to the store with no
-        // stock location; returning each to the exact place it left needs the
-        // movement journal (plan phase 6).
+        // several stock locations ("any"), they come back to the source
+        // store's receiving place; returning each to the exact place it left
+        // reads the journal (plan phase 6).
         if (transfer.status === "IN_TRANSIT") {
           await postMovement(tx, {
             productId: transfer.productId,
             quantity,
-            to: {
+            to: await placeAt(tx, {
               storeLocationId: transfer.fromLocationId!,
-              stockLocationId: transfer.fromStockLocationId ?? null,
-              salesOrderId: null,
-            },
+              stockLocationId: transfer.fromStockLocationId,
+            }),
+            reason: "TRANSFER",
+            source: { type: "InventoryTransfer", id: transferId },
             actor,
           });
         }

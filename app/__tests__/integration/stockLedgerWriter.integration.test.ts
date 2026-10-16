@@ -13,8 +13,14 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { toQty } from "@/lib/inventory/quantity";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { stockAt } from "../helpers/stock";
 import { allocate } from "@/lib/inventory/allocation";
-import { InsufficientStockError, postMovement, setPlaceQuantity } from "@/lib/inventory/ledger";
+import {
+  InsufficientStockError,
+  placeOf,
+  postMovement,
+  setPlaceQuantity,
+} from "@/lib/inventory/ledger";
 import { handler as receiveHandler } from "@/pages/api/purchasing/orders/[id]/receive";
 import { handler as returnStatusHandler } from "@/pages/api/returns/[id]/status";
 import { handler as transferStatusHandler } from "@/pages/api/warehouse/transfers/[id]/status";
@@ -80,7 +86,7 @@ async function scenario() {
   return { vendor, storeA, storeB, backA, product, user, session };
 }
 
-const rowsAt = (productId: number, storeLocationId: number, stockLocationId: number | null) =>
+const rowsAt = (productId: number, storeLocationId: number, stockLocationId: number) =>
   prisma.inventoryPosition.findMany({
     where: { productId, storeLocationId, stockLocationId, salesOrderId: null },
   });
@@ -124,8 +130,9 @@ describe("InventoryPosition's single writer", () => {
       expect(res.statusCode).toBe(200);
     }
 
-    // No stock location: exactly the NULL the old upsert key could never match.
-    const rows = await rowsAt(product.id, storeA.id, null);
+    // No stock location given: the store's receiving place, one row for both receipts.
+    const store = await prisma.storeLocation.findUniqueOrThrow({ where: { id: storeA.id } });
+    const rows = await rowsAt(product.id, storeA.id, store.defaultReceivingStockLocationId!);
     expect(rows).toHaveLength(1);
     expect(toQty(rows[0].quantity)).toBe(3);
   });
@@ -157,7 +164,8 @@ describe("InventoryPosition's single writer", () => {
       expect(res.statusCode).toBe(200);
     }
 
-    const rows = await rowsAt(product.id, storeA.id, null);
+    const store = await prisma.storeLocation.findUniqueOrThrow({ where: { id: storeA.id } });
+    const rows = await rowsAt(product.id, storeA.id, store.defaultReceivingStockLocationId!);
     expect(rows).toHaveLength(1);
     expect(toQty(rows[0].quantity)).toBe(2);
   });
@@ -194,10 +202,11 @@ describe("InventoryPosition's single writer", () => {
       // Imported stock always carries a stock location. The old IN_TRANSIT
       // looked only for a row with NO stock location, found none, shipped
       // nothing -- and RECEIVED then created the units at Store B anyway.
-      await postMovement(prisma, {
+      await stockAt({
         productId: s.product.id,
+        storeLocationId: s.storeA.id,
+        stockLocationId: s.backA.id,
         quantity: 3,
-        to: { storeLocationId: s.storeA.id, stockLocationId: s.backA.id, salesOrderId: null },
       });
       const t = await transfer(s, 2, null);
 
@@ -214,11 +223,7 @@ describe("InventoryPosition's single writer", () => {
 
     it("refuses to ship more than the source holds, says why, and moves nothing", async () => {
       const s = await scenario();
-      await postMovement(prisma, {
-        productId: s.product.id,
-        quantity: 1,
-        to: { storeLocationId: s.storeA.id, stockLocationId: null, salesOrderId: null },
-      });
+      await stockAt({ productId: s.product.id, storeLocationId: s.storeA.id, quantity: 1 });
       const t = await transfer(s, 2, null);
 
       const res = await advance(s, t.id, "IN_TRANSIT");
@@ -232,16 +237,16 @@ describe("InventoryPosition's single writer", () => {
 
     it("cancelling an in-transit transfer puts the units back in one row (rule 64)", async () => {
       const s = await scenario();
-      await postMovement(prisma, {
+      const stocked = await stockAt({
         productId: s.product.id,
+        storeLocationId: s.storeA.id,
         quantity: 3,
-        to: { storeLocationId: s.storeA.id, stockLocationId: null, salesOrderId: null },
       });
       const t = await transfer(s, 2, null);
       await advance(s, t.id, "IN_TRANSIT");
       expect((await advance(s, t.id, "CANCELLED")).statusCode).toBe(200);
 
-      const rows = await rowsAt(s.product.id, s.storeA.id, null);
+      const rows = await rowsAt(s.product.id, s.storeA.id, stocked.stockLocationId);
       expect(rows).toHaveLength(1);
       expect(toQty(rows[0].quantity)).toBe(3);
     });
@@ -274,7 +279,8 @@ describe("InventoryPosition's single writer", () => {
 
   it("setting a place's quantity counts every row already there, so duplicates cannot add on top", async () => {
     const { storeA, backA, product } = await scenario();
-    // Duplicates as the old upserts left them.
+    // Duplicates as the old upserts left them: raw rows (stockAt would merge them),
+    // each with the journal row that keeps the drift check honest.
     for (const quantity of [2, 3]) {
       await prisma.inventoryPosition.create({
         data: {
@@ -284,17 +290,26 @@ describe("InventoryPosition's single writer", () => {
           quantity,
         },
       });
+      await prisma.stockMovement.create({
+        data: {
+          productId: product.id,
+          quantity,
+          toStoreLocationId: storeA.id,
+          toStockLocationId: backA.id,
+          reason: "OPENING",
+        },
+      });
     }
     const place = { storeLocationId: storeA.id, stockLocationId: backA.id, salesOrderId: null };
 
-    await setPlaceQuantity(prisma, { productId: product.id, place, target: 4 });
+    await setPlaceQuantity(prisma, { productId: product.id, place, target: 4, reason: "ADJUST" });
     expect(await totalAt(product.id, storeA.id)).toBe(4);
 
-    await setPlaceQuantity(prisma, { productId: product.id, place, target: 7 });
+    await setPlaceQuantity(prisma, { productId: product.id, place, target: 7, reason: "ADJUST" });
     expect(await totalAt(product.id, storeA.id)).toBe(7);
 
     await expect(
-      setPlaceQuantity(prisma, { productId: product.id, place, target: -1 }),
+      setPlaceQuantity(prisma, { productId: product.id, place, target: -1, reason: "ADJUST" }),
     ).rejects.toThrow(/negative/);
   });
 
@@ -313,10 +328,11 @@ describe("InventoryPosition's single writer", () => {
     const order = await prisma.salesOrder.create({
       data: { orderno: "SO-D", status: "ORDER", storeLocation: storeA.name },
     });
-    await postMovement(prisma, {
+    await stockAt({
       productId: product.id,
+      storeLocationId: storeA.id,
+      stockLocationId: backA.id,
       quantity: 2,
-      to: { storeLocationId: storeA.id, stockLocationId: backA.id, salesOrderId: null },
     });
     await allocate(
       order.id,
@@ -338,22 +354,19 @@ describe("InventoryPosition's single writer", () => {
 
   it("refuses to take more than a place holds, and writes nothing", async () => {
     const { storeA, product } = await scenario();
-    const place = { storeLocationId: storeA.id, stockLocationId: null, salesOrderId: null };
-    await postMovement(prisma, { productId: product.id, quantity: 1, to: place });
+    const place = placeOf(
+      await stockAt({ productId: product.id, storeLocationId: storeA.id, quantity: 1 }),
+    );
 
     await expect(
-      postMovement(prisma, { productId: product.id, quantity: 2, from: place }),
+      postMovement(prisma, { productId: product.id, quantity: 2, from: place, reason: "ADJUST" }),
     ).rejects.toBeInstanceOf(InsufficientStockError);
     expect(await totalAt(product.id, storeA.id)).toBe(1);
   });
 
   it("two registers selling the last unit at once: one gets it, the other is recorded short", async () => {
     const { storeA, product } = await scenario();
-    await postMovement(prisma, {
-      productId: product.id,
-      quantity: 1,
-      to: { storeLocationId: storeA.id, stockLocationId: null, salesOrderId: null },
-    });
+    await stockAt({ productId: product.id, storeLocationId: storeA.id, quantity: 1 });
     const [o1, o2] = await Promise.all(
       ["SO-1", "SO-2"].map((orderno) =>
         prisma.salesOrder.create({

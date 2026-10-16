@@ -72,8 +72,9 @@
 import type { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import { toQty, roundQty } from "./quantity";
-import { drawLegs, dropEmptyRow, lockProducts, postMovement, withStockTx } from "./ledger";
+import { drawLegs, lockProducts, placeOf, postMovement, withStockTx } from "./ledger";
 import type { PrismaTx, Place } from "./ledger";
+import { SELLABLE_LOCATION_TYPES, sellableTypesSql } from "./locationTypes";
 
 // The draw arithmetic and the transaction type moved to ledger.ts, the single
 // writer of InventoryPosition. Re-exported so existing importers keep working.
@@ -118,29 +119,34 @@ export interface AllocationResult {
  * anything else that needs "is this position free to sell" can never drift
  * from each other. A position is free when:
  *   - it is not committed to an order (salesOrderId is null), AND
- *   - it is not sitting in a location flagged as holding committed stock.
+ *   - its place is not flagged as holding committed stock, AND
+ *   - its place is a sellable type (lib/inventory/locationTypes.ts): stock in
+ *     quarantine or in transit is owned, not for sale.
  *
- * Rule 51, twice. `salesOrderId: null` is an explicit equality check, never a
- * `not`, because it's the nullable column we actually mean to test. And
- * `stockLocationId` is nullable too -- a position with NO stock location is
- * free stock -- so the location test is written as an explicit disjunction
- * rather than a `NOT: { stockLocation: {...} }`. A relation-level NOT on a
- * nullable to-one relation is exactly the three-valued-logic hazard rule 51
- * warns about: it is the difference between "the location does not hold
- * committed stock" and "there is no location", and getting it wrong drops
- * every location-less position out of available stock silently.
- *
- * Callers spread the result into a larger where clause. Any caller that also
- * needs a disjunction of its own must nest it under `AND`, NOT set a
- * sibling `OR:` -- an object-literal spread would overwrite the one below
- * and silently re-admit committed stock as free. No caller does today
- * (availableQuantity and allocate, both in this file).
+ * `salesOrderId: null` is an explicit equality check, never a `not`, because
+ * it is the nullable column we mean to test (rule 51). Every position has a
+ * place (stockLocationId is NOT NULL), so the place conditions are plain
+ * equalities on a required relation; there is no "no place" branch to forget.
  */
 export function freePositionWhere(): Prisma.InventoryPositionWhereInput {
   return {
     salesOrderId: null,
-    OR: [{ stockLocationId: null }, { stockLocation: { holdsCommittedStock: false } }],
+    stockLocation: {
+      holdsCommittedStock: false,
+      locationType: { in: SELLABLE_LOCATION_TYPES },
+    },
   };
+}
+
+/**
+ * freePositionWhere() for raw SQL: the same three conditions against an
+ * InventoryPosition alias and its joined StockLocation alias. Reports that sum
+ * stock in SQL use this so they cannot call "free" something the allocator
+ * would not sell.
+ */
+export function freePositionSql(position: string, place: string): string {
+  if (!/^[a-z_][a-z0-9_]*$/i.test(position)) throw new Error(`Bad SQL alias: ${position}`);
+  return `(${position}."salesOrderId" IS NULL AND NOT ${place}."holdsCommittedStock" AND ${sellableTypesSql(place)})`;
 }
 
 /**
@@ -212,6 +218,8 @@ async function allocateIn(
         quantity: leg.take,
         from: leg.place,
         to: { ...leg.place, salesOrderId: orderId },
+        reason: "ALLOCATE",
+        source: { type: "SalesOrder", id: orderId },
       });
     }
 
@@ -274,19 +282,8 @@ async function releaseIn(orderId: number, tx: PrismaTx): Promise<void> {
   // (possible in data written before the single writer existed) move together.
   const byPlace = new Map<string, { productId: number; place: Place; quantity: number }>();
   for (const row of committed) {
-    // A committed row holding nothing (written before the single writer) is
-    // dropped rather than left on the order, where it would linger and, if the
-    // order were deleted, become a stray free row.
-    if (toQty(row.quantity) <= 0) {
-      await dropEmptyRow(tx, row.id);
-      continue;
-    }
-    const place: Place = {
-      storeLocationId: row.storeLocationId,
-      stockLocationId: row.stockLocationId ?? null,
-      salesOrderId: orderId,
-    };
-    const key = `${row.productId}|${row.storeLocationId}|${row.stockLocationId ?? ""}`;
+    const place: Place = placeOf(row);
+    const key = `${row.productId}|${row.storeLocationId}|${row.stockLocationId}`;
     const entry = byPlace.get(key);
     if (entry) entry.quantity = roundQty(entry.quantity + toQty(row.quantity));
     else byPlace.set(key, { productId: row.productId, place, quantity: toQty(row.quantity) });
@@ -299,6 +296,8 @@ async function releaseIn(orderId: number, tx: PrismaTx): Promise<void> {
       quantity,
       from: place,
       to: { ...place, salesOrderId: null },
+      reason: "RELEASE",
+      source: { type: "SalesOrder", id: orderId },
     });
   }
 }
@@ -337,7 +336,13 @@ async function consumeIn(orderId: number, lines: ConsumptionLine[], tx: PrismaTx
       quantity: line.quantity,
     });
     for (const leg of legs) {
-      await postMovement(tx, { productId: line.productId, quantity: leg.take, from: leg.place });
+      await postMovement(tx, {
+        productId: line.productId,
+        quantity: leg.take,
+        from: leg.place,
+        reason: "DELIVER",
+        source: { type: "SalesOrder", id: orderId },
+      });
     }
   }
 }

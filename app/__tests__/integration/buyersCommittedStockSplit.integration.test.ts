@@ -19,12 +19,12 @@
 // numbers and the test fails. A same-name-same-flag fixture would pass
 // against either implementation and prove nothing.
 //
-// Also pins the LEFT JOIN's NULL case: a position with no stock location at
-// all is floor stock, not committed. `sl."holdsCommittedStock"` is NULL for
-// those rows, and an un-COALESCEd NULL in the CASE would silently move them.
+// Also pins stock recorded with no place named: it sits in the store's
+// receiving place, which is sellable, so it is floor stock, not committed.
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { stockAt } from "../helpers/stock";
 import { getBuyersPositions, getBuyersSummary } from "@/lib/reports/buyersReport";
 
 async function seed() {
@@ -74,21 +74,17 @@ describe("Buyers Report committed-stock split (real DB)", () => {
 
   it("splits on the flag, not the location name", async () => {
     const { store, committed, decoy, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: {
-        productId: product.id,
-        storeLocationId: store.id,
-        stockLocationId: committed.id,
-        quantity: 6,
-      },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: committed.id,
+      quantity: 6,
     });
-    await prisma.inventoryPosition.create({
-      data: {
-        productId: product.id,
-        storeLocationId: store.id,
-        stockLocationId: decoy.id,
-        quantity: 4,
-      },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: decoy.id,
+      quantity: 4,
     });
 
     const summary = await getBuyersSummary(prisma, RANGE);
@@ -98,18 +94,14 @@ describe("Buyers Report committed-stock split (real DB)", () => {
     expect(summary.totals.customerStock).toBe(6);
   });
 
-  it("counts a position with no stock location as floor stock (LEFT JOIN NULL)", async () => {
+  it("counts stock recorded with no place named as floor stock (the receiving place)", async () => {
     const { store, committed, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, quantity: 5 },
-    });
-    await prisma.inventoryPosition.create({
-      data: {
-        productId: product.id,
-        storeLocationId: store.id,
-        stockLocationId: committed.id,
-        quantity: 2,
-      },
+    await stockAt({ productId: product.id, storeLocationId: store.id, quantity: 5 });
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: committed.id,
+      quantity: 2,
     });
 
     const summary = await getBuyersSummary(prisma, RANGE);
@@ -120,24 +112,25 @@ describe("Buyers Report committed-stock split (real DB)", () => {
 
   it("flags the same way in the per-product location breakdown", async () => {
     const { store, committed, decoy, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: {
-        productId: product.id,
-        storeLocationId: store.id,
-        stockLocationId: committed.id,
-        quantity: 6,
-      },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: committed.id,
+      quantity: 6,
     });
-    await prisma.inventoryPosition.create({
-      data: {
-        productId: product.id,
-        storeLocationId: store.id,
-        stockLocationId: decoy.id,
-        quantity: 4,
-      },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: decoy.id,
+      quantity: 4,
     });
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, quantity: 1 },
+    const received = await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      quantity: 1,
+    });
+    const receiving = await prisma.stockLocation.findUniqueOrThrow({
+      where: { id: received.stockLocationId },
     });
 
     const positions = await getBuyersPositions(prisma, product.id);
@@ -147,23 +140,21 @@ describe("Buyers Report committed-stock split (real DB)", () => {
 
     // Per row: a flagged location reports its quantity as customerQty, an
     // unflagged one as floorQty -- again, inverted against the old names.
-    const byName = new Map(positions.positions.map((p) => [p.locationName ?? "(none)", p]));
+    const byName = new Map(positions.positions.map((p) => [p.locationName, p]));
     expect(byName.get("Warehouse B")).toMatchObject({ floorQty: 0, customerQty: 6 });
     expect(byName.get("Customer Overflow")).toMatchObject({ floorQty: 4, customerQty: 0 });
-    expect(byName.get("(none)")).toMatchObject({ floorQty: 1, customerQty: 0 });
+    expect(byName.get(receiving.name)).toMatchObject({ floorQty: 1, customerQty: 0 });
   });
 
   it("flipping the flag moves the stock between the two columns", async () => {
     // The admin-facing behaviour the flag exists for: a deployment that
     // doesn't use Ordorite naming can now classify its own locations.
     const { store, decoy, product } = await seed();
-    await prisma.inventoryPosition.create({
-      data: {
-        productId: product.id,
-        storeLocationId: store.id,
-        stockLocationId: decoy.id,
-        quantity: 9,
-      },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: decoy.id,
+      quantity: 9,
     });
 
     const before = await getBuyersSummary(prisma, RANGE);
@@ -189,12 +180,8 @@ describe("Buyers Report committed-stock split (real DB)", () => {
     const storeB = await prisma.storeLocation.create({
       data: { name: "Store B", code: "STB", type: "STORE" },
     });
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, quantity: 6 },
-    });
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: storeB.id, quantity: 9 },
-    });
+    await stockAt({ productId: product.id, storeLocationId: store.id, quantity: 6 });
+    await stockAt({ productId: product.id, storeLocationId: storeB.id, quantity: 9 });
 
     // No storeId -> both stores' floor stock.
     const all = await getBuyersSummary(prisma, RANGE);

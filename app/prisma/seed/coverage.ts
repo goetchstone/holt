@@ -228,6 +228,8 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   StaffMember: { status: "seeded" },
   StaffShift: { status: "seeded" },
   StockLocation: { status: "seeded" },
+  // Written by every stock movement the demo seed posts through the ledger.
+  StockMovement: { status: "seeded" },
   StoreLocation: { status: "seeded" },
   StyleAxisPrice: { status: "todo", tranche: "special-order-pricing" },
   StyleGradePrice: { status: "todo", tranche: "special-order-pricing" },

@@ -14,6 +14,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { getErrorMessage } from "@/lib/toastError";
 import StockLocationModal from "@/components/modals/StockLocationModal";
+import { isStockLocationType, LOCATION_TYPE_INFO } from "@/lib/inventory/locationTypes";
 
 interface StockLocationItem {
   id: number;
@@ -466,7 +467,9 @@ export function LocationsView() {
                                         : "bg-brand-gray/10 text-brand-gray"
                                     }`}
                                   >
-                                    {sl.locationType === "FLOOR" ? "Floor" : "Stock"}
+                                    {isStockLocationType(sl.locationType)
+                                      ? LOCATION_TYPE_INFO[sl.locationType].label
+                                      : sl.locationType}
                                   </span>
                                   {sl.locationType === "FLOOR" && sl.squareFootage && (
                                     <span className="text-[10px] text-brand-gray">

@@ -6,13 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { success, badRequest, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
 import {
-  dropEmptyRow,
   lockProducts,
+  placeOf,
   placeWhere,
   postMovement,
   setPlaceQuantity,
 } from "@/lib/inventory/ledger";
 import type { Place } from "@/lib/inventory/ledger";
+import { placeAt } from "@/lib/inventory/places";
 import { toQty } from "@/lib/inventory/quantity";
 
 // Mutating inventory positions (quantity changes, moves, deletes) is a
@@ -63,30 +64,32 @@ export const handler = async (req: NextApiRequest, res: NextApiResponse, session
         const row = await lockedRow(tx, positionId);
         if (!row) return null;
 
-        const from: Place = {
-          storeLocationId: row.storeLocationId,
-          stockLocationId: row.stockLocationId ?? null,
-          salesOrderId: row.salesOrderId ?? null,
-        };
-        const to: Place = {
-          storeLocationId: storeLocationId ?? row.storeLocationId,
-          stockLocationId:
-            stockLocationId === undefined ? from.stockLocationId : (stockLocationId ?? null),
+        const from = placeOf(row);
+        // A new store with no place named, or a place cleared to null, means
+        // that store's receiving place: a place in the old store cannot follow
+        // the units to a new one.
+        const toStore = storeLocationId ?? row.storeLocationId;
+        const keepPlace = stockLocationId === undefined && toStore === row.storeLocationId;
+        const to: Place = await placeAt(tx, {
+          storeLocationId: toStore,
+          stockLocationId: keepPlace ? from.stockLocationId : stockLocationId,
           salesOrderId: salesOrderId === undefined ? from.salesOrderId : (salesOrderId ?? null),
-        };
+        });
 
-        // A row at zero or below (written before the single writer) holds no
-        // units: drop it and treat it as empty.
-        const rowQty = toQty(row.quantity);
-        if (rowQty <= 0) await dropEmptyRow(tx, row.id);
-        const units = Math.max(0, rowQty);
-
+        const units = toQty(row.quantity);
         const moved =
           to.storeLocationId !== from.storeLocationId ||
           to.stockLocationId !== from.stockLocationId ||
           to.salesOrderId !== from.salesOrderId;
-        if (moved && units > 0) {
-          await postMovement(tx, { productId: row.productId, quantity: units, from, to, actor });
+        if (moved) {
+          await postMovement(tx, {
+            productId: row.productId,
+            quantity: units,
+            from,
+            to,
+            reason: "TRANSFER",
+            actor,
+          });
         }
 
         // The stated quantity is what this row's units should now be. Other
@@ -103,6 +106,7 @@ export const handler = async (req: NextApiRequest, res: NextApiResponse, session
             productId: row.productId,
             place: to,
             target: Math.max(0, target),
+            reason: "ADJUST",
             actor,
             note: notes === undefined ? undefined : (notes ?? null),
           });
@@ -123,21 +127,14 @@ export const handler = async (req: NextApiRequest, res: NextApiResponse, session
       const found = await prisma.$transaction(async (tx) => {
         const row = await lockedRow(tx, positionId);
         if (!row) return false;
-        const rowQty = toQty(row.quantity);
-        if (rowQty <= 0) {
-          await dropEmptyRow(tx, row.id);
-        } else {
-          await postMovement(tx, {
-            productId: row.productId,
-            quantity: rowQty,
-            from: {
-              storeLocationId: row.storeLocationId,
-              stockLocationId: row.stockLocationId ?? null,
-              salesOrderId: row.salesOrderId ?? null,
-            },
-            actor,
-          });
-        }
+        // Deleting a position is its units leaving Holt's books by hand.
+        await postMovement(tx, {
+          productId: row.productId,
+          quantity: toQty(row.quantity),
+          from: placeOf(row),
+          reason: "ADJUST",
+          actor,
+        });
         return true;
       });
       if (!found) return notFound(res, "Position");

@@ -227,37 +227,7 @@ export async function seedInventoryOps(
     const salesOrderId = forOrder ? pick(oRng, orderIds) : null;
     const raisedAt = new Date(today.getTime() - randInt(oRng, 1, 45) * 86_400_000);
 
-    // Shipped (in transit, received): the units have left the source.
-    // Cancelled after shipping: they left and came back, so nothing moves.
-    if (status === "IN_TRANSIT" || status === "RECEIVED") {
-      await postMovement(prisma, {
-        productId: chosen.productId,
-        quantity,
-        from: fromPlace,
-        actor: "seed:demo",
-      });
-    }
-    if (status === "RECEIVED") {
-      await postMovement(prisma, {
-        productId: chosen.productId,
-        quantity,
-        to: {
-          storeLocationId: to.id,
-          stockLocationId: to.floorStockLocationId,
-          salesOrderId: null,
-        },
-        actor: "seed:demo",
-      });
-      if (salesOrderId != null) {
-        await allocate(
-          salesOrderId,
-          [{ productId: chosen.productId, quantity, storeLocationId: to.id }],
-          prisma,
-        );
-      }
-    }
-
-    await prisma.inventoryTransfer.create({
+    const transfer = await prisma.inventoryTransfer.create({
       data: {
         productId: chosen.productId,
         quantity,
@@ -275,7 +245,43 @@ export async function seedInventoryOps(
         receivedByUserId: status === "RECEIVED" ? actorUserId : null,
         notes: forOrder ? "Raised to fulfil a customer order." : null,
       },
+      select: { id: true },
     });
+    const source = { type: "InventoryTransfer" as const, id: transfer.id };
+
+    // Shipped (in transit, received): the units have left the source.
+    // Cancelled after shipping: they left and came back, so nothing moves.
+    if (status === "IN_TRANSIT" || status === "RECEIVED") {
+      await postMovement(prisma, {
+        productId: chosen.productId,
+        quantity,
+        from: fromPlace,
+        reason: "TRANSFER",
+        source,
+        actor: "seed:demo",
+      });
+    }
+    if (status === "RECEIVED") {
+      await postMovement(prisma, {
+        productId: chosen.productId,
+        quantity,
+        to: {
+          storeLocationId: to.id,
+          stockLocationId: to.floorStockLocationId,
+          salesOrderId: null,
+        },
+        reason: "TRANSFER",
+        source,
+        actor: "seed:demo",
+      });
+      if (salesOrderId != null) {
+        await allocate(
+          salesOrderId,
+          [{ productId: chosen.productId, quantity, storeLocationId: to.id }],
+          prisma,
+        );
+      }
+    }
     result.transfersCreated += 1;
     if (status === "IN_TRANSIT") result.inTransitTransfers += 1;
     if (forOrder) result.orderLinkedTransfers += 1;

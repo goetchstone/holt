@@ -18,6 +18,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { stockAt } from "../helpers/stock";
 import { markHandedOver, handoverMethodFor } from "@/lib/fulfilment/handover";
 import { availableQuantity } from "@/lib/inventory/allocation";
 import { isValidStopTransition } from "@/lib/deliveryService";
@@ -83,13 +84,11 @@ async function seedOrderWithStock(orderno: string, deliveryMethod?: string) {
     },
   });
   // Stock allocated to this order -- what a handover has to consume.
-  await prisma.inventoryPosition.create({
-    data: {
-      productId: product.id,
-      storeLocationId: store.id,
-      quantity: 1,
-      salesOrderId: order.id,
-    },
+  await stockAt({
+    productId: product.id,
+    storeLocationId: store.id,
+    quantity: 1,
+    salesOrderId: order.id,
   });
   return { order, product, store, customer };
 }

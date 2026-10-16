@@ -48,8 +48,10 @@ order write commits stock to an order that failed to save.
   stock location), or derived by an import adapter from its source's own
   convention.
 
-Free stock requires *neither*. `buyersReport.ts` reads the same flag for its
-floor-vs-`Cust Stock` split, so the two can't drift.
+Free stock requires *neither*, and a sellable place. `buyersReport.ts` splits
+floor from `Cust Stock` with `freePositionSql()`, the SQL twin of the
+allocator's predicate, so the two can't drift: stock committed by a native sale
+counts as the customer's, and quarantine or transit stock as neither.
 
 **This was a hardcoded string until 2026-08.** Both `allocation.ts` and
 `buyersReport.ts` tested `StockLocation.name ILIKE 'customer%'` — an
@@ -64,14 +66,50 @@ same after the migration as before it. The prefix itself now lives in
 wherever that adapter creates a stock location — one adapter's fact about its
 source, not a product assumption (CLAUDE.md rule 61/62).
 
-The nullable-FK trap comes with it: `InventoryPosition.stockLocationId` is
-nullable and a position with **no** stock location is free stock, so the
-predicate is a disjunction —
-`OR: [{ stockLocationId: null }, { stockLocation: { holdsCommittedStock: false } }]`
-— not `NOT: { stockLocation: {…} }`, which is rule 51's three-valued-logic
-hazard on a to-one relation. Callers spread `freePositionWhere()` into a
-larger clause, so a caller that needs its own disjunction must nest it under
-`AND` rather than setting a sibling `OR:` that would overwrite this one.
+Free stock is one predicate, `freePositionWhere()` in `lib/inventory/allocation.ts`
+(and `freePositionSql()`, its raw-SQL twin for reports): not committed to an
+order (`salesOrderId: null`), not in a flagged place, and in a place whose type
+is sellable (`lib/inventory/locationTypes.ts`). Every position has a place
+(`stockLocationId` is NOT NULL since 2026-10-16), so there is no "no place"
+branch for a reader to forget. Callers spread `freePositionWhere()` into a
+larger clause or nest it under `AND`.
+
+### Every unit has a place (since 2026-10-16)
+
+A place's type comes from one catalog, `lib/inventory/locationTypes.ts`:
+
+| Type | Sellable | For |
+|---|---|---|
+| `FLOOR` | yes | the sales floor |
+| `STOCK` | yes | a stock room or warehouse bay |
+| `RECEIVING` | yes | arrived, not yet put away |
+| `STAGING` | no | picked and waiting to load |
+| `QUARANTINE` | no | damaged, an incomplete set, a return awaiting inspection |
+| `TRANSIT` | no | on its way between sites |
+
+Owned is not sellable: quarantine and transit stock is counted and valued, but
+not offered for sale or allocated. The stock-location routes and the preset
+refuse a type that is not in the catalog.
+
+A caller that names a store but no place in it (a receipt with no destination,
+a transfer to "the store", an admin entry, a restock) gets the store's
+**receiving place**: `StoreLocation.defaultReceivingStockLocationId`, or a place
+coded `RECEIVING` that `lib/inventory/places.ts` creates and points the setting
+at the first time the store needs one. `postMovement` refuses a place that
+belongs to a different store. The database refuses a position with no place
+(`NOT NULL`) or with nothing in it (`InventoryPosition_quantity_positive`, a
+CHECK mirrored in `prisma/testing/db-guards.sql`). A stock location that stock
+has moved through cannot be deleted, only deactivated, since the journal keeps
+its history.
+
+Migration `20261016120000_stock_places_and_journal` moved any place-less rows to
+their store's receiving place, merged rows that then shared a place, and removed
+rows holding zero or less. Measured on a restored copy first (rules 41, 59):
+22,165 rows, none place-less; 2,843 negative rows (−6,514 units) and 5 zero rows,
+all written before the single writer. The POS import already reads a negative
+on-hand as zero, so removing them leaves each place where the import would put
+it. After the migration: 19,317 rows holding 43,146 units, the sum of the
+positive rows before it.
 
 ### Overselling is allowed, deliberately
 
@@ -130,15 +168,42 @@ upsert through it no longer compiles.
 **The gate.** `__tests__/stockWriterTripwire.test.ts` fails if any file under
 `src/`, `prisma/seed/` or `scripts/` writes the table outside `ledger.ts`, and
 also if its manifest names a file that no longer writes it (rule 65). Tests
-are out of scope on purpose: fixtures create positions directly.
+put fixture stock in place through `__tests__/helpers/stock.ts`, so it has a
+journal row behind it like any other stock.
 
-### Still raw
+### The journal (since 2026-10-16)
 
-`/api/warehouse/positions` and the POS availability display still sum raw
-`quantity`, which includes stock committed to another order. The data is
-correct; what reads it is not yet. `InventoryPositionsView.tsx` is an admin
-audit table that genuinely needs the raw rows, so that change needs its own
-care rather than flipping the endpoint's default.
+Every movement `postMovement` makes is also a `StockMovement` row, written in
+the same transaction: product, quantity, the place it came from and the place it
+went to (a side with no store is outside the books), why (`MOVEMENT_REASONS` in
+`ledger.ts`: `OPENING`, `RECEIVE`, `ALLOCATE`, `RELEASE`, `DELIVER`, `RETURN`,
+`TRANSFER`, `ADJUST`, `IMPORT_SYNC`), the document that moved it
+(`sourceType` and `sourceId`), who, and when. Every caller must name a reason; the compiler
+enforces it.
+
+- **Append-only.** A trigger (`stock_movement_append_only`) refuses UPDATE and
+  DELETE. A correction is a new movement. CHECKs require a positive quantity, at
+  least one side in the books, and each side a whole place.
+- **Opening balance.** The migration wrote one `OPENING` movement per existing
+  position, so the journal sums to the balance from its first day.
+- **The check.** `ledgerDrift(db)` lists every place where the balance is not
+  what moved in minus what moved out. It is the instrument that can disagree:
+  a write that skipped the ledger, or a lost journal row, shows up there.
+  `jest.integration.afterEach.ts` runs it after **every** integration test, so a
+  code path that changes stock without the journal fails whichever suite
+  exercises it.
+- **Order ids are facts, not keys.** `fromSalesOrderId`/`toSalesOrderId` are plain
+  ids: an order can be deleted (its stock is released first) and the journal
+  keeps that the stock was once committed to it.
+
+### The register reads free stock
+
+The register's "on hand here" asks `/api/warehouse/positions` for the product's
+free positions (`freeOnly`) and folds them by store with `onHandByStore`
+(`lib/inventory/onHandSummary.ts`). It used to read `storeLocation.name`, which
+the route does not send, so every line said nothing was on hand, and it asked for
+all stock, committed included. `InventoryPositionsView.tsx` is an admin audit
+table and still reads the raw rows on purpose.
 
 ## Stock-by-Item import (daily)
 
@@ -301,14 +366,30 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 
 The tracked plan for the rest of the warehouse model (rule 50). Phase 1, the
 single writer, shipped 2026-10-14 (#13); phase 2, fractional record columns,
-2026-10-15. One PR per phase, each with a named real-DB regression test.
+2026-10-15 (#28). Each phase has a named real-DB regression test.
+
+**Delivery: four PRs (planned 2026-10-16).** A CI run takes 20–30 minutes, so
+the remaining phases ship as four PRs, not eighteen. Each PR is pushed once,
+after the full local gate (`npm run check:local`) passes. Every finding in the
+table at the end of this section belongs to one of them:
+
+| PR | Phases | Also closes | Waits for |
+|---|---|---|---|
+| 1. Stock you can trust | 3, 4 | the register never shows stock; the Buyers report rounds | — |
+| 2. Documents move stock correctly | 5–11 | the transfer commit inside the receipt; `parseInt` on new transfers; a zero-quantity line counted as received; the returns UI's restock; `Return.quantity`; cancelled lines on pick lists | 1 |
+| 3. Places and space | 12–14 | — | 1 (can run beside 2) |
+| 4. Handheld floor | 15–20, plus the retry key (`withAction`) phase 4 named, built with the handheld pages that use it | counts and reconciliation (count by area replaces both) | 2, 3 |
+
+PR 4's device gate stands. Its pages are tested with keyboard-wedge input in a
+browser; a real Zebra on HTTPS staging stays unverified until it is run on one
+(rule 58).
 
 **A. Make stock trustworthy**
 
 1. ✅ Single writer (`ledger.ts`), duplicate rows merged, nullable unique key dropped.
 2. ✅ Fractional quantity columns: `InventoryException.{requested,allocated,shortfall}`, `InventoryFreeze.totalUnits`, `InventoryFreezeItem.quantity` and `PickListItem.quantity` are `Decimal(12,3)` like the balance (migration `20261015120000_fractional_stock_records`). Exercised first, it was not a crash: the Int columns **truncated silently** — a 4.5-yard oversell recorded as 4 asked, a 37.625-yard freeze as 37, a 12.5-yard pick line as 12. The routes that send these to a screen convert with `toQty` (`pickListForClient` for pick lists), since JSON sends a Decimal as a string. Freeze compare tests equality with `qtyEquals`. Also fixed: the delivery-run pick list wrote 1 on every line (`li.quantity`, a field that does not exist, read through an `any` client); `generatePickList` now takes a typed client and reads `orderedQuantity`. Test: `fractionalStock.integration.test.ts`.
-3. Every unit has a place: `stockLocationId` NOT NULL, a `quantity > 0` CHECK, a location-type catalog, and system places per site. Preflight counts on a restored copy first (rules 41, 59).
-4. `StockMovement`: an append-only journal written by `postMovement`, with a drift check (journal sum vs balance) asserted after every inventory test.
+3. ✅ Every unit has a place: `stockLocationId` NOT NULL, a `quantity > 0` CHECK, the location-type catalog (`lib/inventory/locationTypes.ts`), and a receiving place per store for units written with none (`lib/inventory/places.ts`). Preflight counts on a restored copy are under "Every unit has a place" above. The other system places (quarantine, transit) arrive with their flows in phases 6–8. Test: `stockPlaces.integration.test.ts`.
+4. ✅ `StockMovement`: an append-only journal written by `postMovement`, with `ledgerDrift()` asserted after every integration test (`jest.integration.afterEach.ts`). The retry key (`withAction`) moves to PR 4 with the handheld pages that use it. Test: `stockJournal.integration.test.ts`.
 
 **B. Fix the document flows**
 
@@ -339,11 +420,12 @@ single writer, shipped 2026-10-14 (#13); phase 2, fractional record columns,
 | The returns UI never sends `restockedLocationId`, so restocking from the screen adds no stock while the journal entry books it | `ReturnDetailView.tsx`, `ReturnsQueueView` | phase 8 |
 | Pick-list builders include cancelled and replaced lines (rule 33) and two builders diverge | `lib/deliveryService.ts`, `dispatch/pick-lists/index.ts` | phase 9 |
 | ✅ `InventoryPosition` and `InventoryTransfer` quantities reached screens as strings: the positions and transfers routes sent the Prisma Decimal as-is, and JSON writes a Decimal as `"12.625"`, so anything summing them with `+` concatenated (`0 + "3"` is `"03"`). All seven responses under these routes now convert with `toQty`. Test: `warehouseQuantities.integration.test.ts`. The register's sum never showed `"03"` on screen because of the next row | `warehouse/positions/*`, `warehouse/transfers/*` | fixed (#29) |
-| The register never shows stock. It reads `p.storeLocation?.name` from `/api/warehouse/positions`, which sends `locationName`, so it skips every row and each cart line says "0 on hand here". From the code (2026-10-15), not reproduced on screen. It also asks for all stock, not `freeOnly`, so fixing only the name would count stock committed to other orders (see "Still raw") | `sales/pos/PosView.tsx` `fetchInventorySummary` | its own PR, with "Still raw" |
+| ✅ The register never showed stock: it read `storeLocation.name`, which `/api/warehouse/positions` does not send, and asked for all stock rather than free stock. It now asks with `freeOnly` and folds by `locationName` (`onHandByStore`). Test: `onHandSummary.test.ts` | `sales/pos/PosView.tsx` | fixed (PR 1) |
 | `Return.quantity` is `Int` and the create route reads it with `parseInt`, so a returned part roll is recorded, and later restocked, as whole units | `returns/index.ts`, `Return` model | phase 8 |
 | `PhysicalInventoryCount.quantity` and `Reconciliation`'s expected/counted/variance columns are `Int`: counting a 12.5-yard roll records 12, and the variance against the Decimal balance is off by the fraction | `inventory/physical-count.ts`, `inventory/reconcile.ts` | phase 17 (count by area replaces both) |
 | A transfer cannot be entered as a part roll: the new-transfer form reads the quantity with `parseInt`, so 12.5 yards is sent as 12 | `warehouse/transfers/new/NewTransferView.tsx` | phase 6 |
-| The Buyers report casts on-hand sums to `bigint`, which rounds: a 12.625-yard roll reads 13 and a 0.375-yard remnant reads 0 (Postgres 17, 2026-10-15) | `lib/reports/buyersReport.ts` (`floor_qty`, `customer_loc_qty`, `customer_qty`, `qty`) | its own PR |
+| ✅ The Buyers report cast on-hand sums to `bigint`, which rounds: a 12.625-yard roll read 13 and a 0.375-yard remnant read 0. The sums are sent as text now, and floor stock is `freePositionSql()`. Test: `stockPlaces.integration.test.ts` | `lib/reports/buyersReport.ts` | fixed (PR 1) |
+| The Buyers report's customer stock adds stock committed to an order to the PO-chain derivation (received special orders on open orders). Today a receipt arrives as free stock, so nothing is counted twice; once phase 7 makes a receipt for an order arrive committed to it, the same units would be in both. The PO-chain half has to stop counting what the ledger already holds as committed | `lib/reports/buyersReport.ts` (query 2) | PR 2, with phase 7 |
 
 ---
-Last verified: 2026-10-15
+Last verified: 2026-10-16

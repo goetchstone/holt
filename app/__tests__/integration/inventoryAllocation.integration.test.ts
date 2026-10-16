@@ -17,6 +17,7 @@
 import { prisma } from "@/lib/prisma";
 import { toQty } from "@/lib/inventory/quantity";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { stockAt } from "../helpers/stock";
 import { allocate, availableQuantity, consume, release } from "@/lib/inventory/allocation";
 
 async function seed() {
@@ -83,8 +84,11 @@ describe("inventory allocation (real DB)", () => {
 
   it("selling reduces available stock", async () => {
     const { store, floor, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
 
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(5);
@@ -101,14 +105,23 @@ describe("inventory allocation (real DB)", () => {
 
   it("splits a position rather than moving all of it", async () => {
     const { store, floor, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
 
-    await allocate(order.id, [{ productId: product.id, quantity: 2, storeLocationId: store.id }], prisma);
+    await allocate(
+      order.id,
+      [{ productId: product.id, quantity: 2, storeLocationId: store.id }],
+      prisma,
+    );
 
     const free = await freeRows(product.id);
-    const committed = await prisma.inventoryPosition.findMany({ where: { salesOrderId: order.id } });
+    const committed = await prisma.inventoryPosition.findMany({
+      where: { salesOrderId: order.id },
+    });
     expect(free.map((r) => toQty(r.quantity))).toEqual([3]);
     expect(committed.map((r) => toQty(r.quantity))).toEqual([2]);
   });
@@ -117,11 +130,18 @@ describe("inventory allocation (real DB)", () => {
     // The bug. With an upsert keyed on the compound unique index, the
     // salesOrderId: null side never matches and this leaves TWO free rows.
     const { store, floor, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
 
-    await allocate(order.id, [{ productId: product.id, quantity: 2, storeLocationId: store.id }], prisma);
+    await allocate(
+      order.id,
+      [{ productId: product.id, quantity: 2, storeLocationId: store.id }],
+      prisma,
+    );
     await release(order.id, prisma);
 
     const free = await freeRows(product.id);
@@ -130,16 +150,17 @@ describe("inventory allocation (real DB)", () => {
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(5);
   });
 
-  it("merges correctly when the position has NO stock location", async () => {
-    // stockLocationId is nullable too, and it is the other half of the same
-    // NULL-distinct problem -- a null there breaks the key match just as a
-    // null salesOrderId does.
+  it("merges correctly for stock recorded with no place named (the store's receiving place)", async () => {
+    // A caller that names only the store gets its receiving place; release
+    // must merge back into that place's free row, not open a second one.
     const { store, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, quantity: 4 },
-    });
+    await stockAt({ productId: product.id, storeLocationId: store.id, quantity: 4 });
 
-    await allocate(order.id, [{ productId: product.id, quantity: 1, storeLocationId: store.id }], prisma);
+    await allocate(
+      order.id,
+      [{ productId: product.id, quantity: 1, storeLocationId: store.id }],
+      prisma,
+    );
     await release(order.id, prisma);
 
     const free = await freeRows(product.id);
@@ -150,14 +171,27 @@ describe("inventory allocation (real DB)", () => {
   it("allocating twice for one order merges into a single committed row", async () => {
     // Two cart lines for the same product is ordinary, not an edge case.
     const { store, floor, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 9 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 9,
     });
 
-    await allocate(order.id, [{ productId: product.id, quantity: 2, storeLocationId: store.id }], prisma);
-    await allocate(order.id, [{ productId: product.id, quantity: 3, storeLocationId: store.id }], prisma);
+    await allocate(
+      order.id,
+      [{ productId: product.id, quantity: 2, storeLocationId: store.id }],
+      prisma,
+    );
+    await allocate(
+      order.id,
+      [{ productId: product.id, quantity: 3, storeLocationId: store.id }],
+      prisma,
+    );
 
-    const committed = await prisma.inventoryPosition.findMany({ where: { salesOrderId: order.id } });
+    const committed = await prisma.inventoryPosition.findMany({
+      where: { salesOrderId: order.id },
+    });
     expect(committed).toHaveLength(1);
     expect(toQty(committed[0].quantity)).toBe(5);
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(4);
@@ -165,11 +199,18 @@ describe("inventory allocation (real DB)", () => {
 
   it("fulfilment removes the stock outright", async () => {
     const { store, floor, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
 
-    await allocate(order.id, [{ productId: product.id, quantity: 2, storeLocationId: store.id }], prisma);
+    await allocate(
+      order.id,
+      [{ productId: product.id, quantity: 2, storeLocationId: store.id }],
+      prisma,
+    );
     await consume(order.id, [{ productId: product.id, quantity: 2 }], prisma);
 
     expect(await prisma.inventoryPosition.count({ where: { salesOrderId: order.id } })).toBe(0);
@@ -179,10 +220,17 @@ describe("inventory allocation (real DB)", () => {
 
   it("never draws from another order's committed stock", async () => {
     const { store, floor, product, order, other } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 3 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 3,
     });
-    await allocate(other.id, [{ productId: product.id, quantity: 3, storeLocationId: store.id }], prisma);
+    await allocate(
+      other.id,
+      [{ productId: product.id, quantity: 3, storeLocationId: store.id }],
+      prisma,
+    );
 
     const result = await allocate(
       order.id,
@@ -199,8 +247,11 @@ describe("inventory allocation (real DB)", () => {
     // sell the same sofa twice. Note the location is called "Warehouse B" --
     // the flag is doing this, not the name.
     const { store, held, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: held.id, quantity: 7 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: held.id,
+      quantity: 7,
     });
 
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(0);
@@ -220,8 +271,11 @@ describe("inventory allocation (real DB)", () => {
     // Ordorite naming convention every deployment inherited whether or not
     // it used it (CLAUDE.md rule 61).
     const { store, decoy, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: decoy.id, quantity: 7 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: decoy.id,
+      quantity: 7,
     });
 
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(7);
@@ -235,16 +289,12 @@ describe("inventory allocation (real DB)", () => {
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(5);
   });
 
-  it("counts a position with NO stock location as free", async () => {
-    // Rule 51 on the other nullable column. The location test is a
-    // disjunction (`stockLocationId: null` OR `holdsCommittedStock: false`)
-    // precisely so this row survives; a `NOT: { stockLocation: {...} }`
-    // against a nullable to-one relation is where three-valued logic
-    // silently swallows every bin-less position.
+  it("counts stock recorded with no place named as free (the receiving place is sellable)", async () => {
+    // Before every unit had a place, this row had a null stockLocationId and
+    // survived only because the predicate carried a null branch. Now it sits
+    // in the store's receiving place, which is a sellable type.
     const { store, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, quantity: 4 },
-    });
+    await stockAt({ productId: product.id, storeLocationId: store.id, quantity: 4 });
 
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(4);
 
@@ -263,8 +313,11 @@ describe("inventory allocation (real DB)", () => {
       [held.id, 6],
       [decoy.id, 3],
     ] as const) {
-      await prisma.inventoryPosition.create({
-        data: { productId: product.id, storeLocationId: store.id, stockLocationId, quantity },
+      await stockAt({
+        productId: product.id,
+        storeLocationId: store.id,
+        stockLocationId,
+        quantity,
       });
     }
 
@@ -289,8 +342,11 @@ describe("inventory allocation (real DB)", () => {
     // The owner's rule: if a cashier scans it, it sells. The discrepancy is
     // back-office work, never a checkout interruption.
     const { store, floor, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 1 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 1,
     });
 
     const result = await allocate(
@@ -300,20 +356,35 @@ describe("inventory allocation (real DB)", () => {
     );
 
     expect(result.shortfalls).toEqual([
-      { productId: product.id, storeLocationId: store.id, requested: 3, allocated: 1, shortfall: 2 },
+      {
+        productId: product.id,
+        storeLocationId: store.id,
+        requested: 3,
+        allocated: 1,
+        shortfall: 2,
+      },
     ]);
     // It took what existed rather than refusing or taking nothing.
-    const committed = await prisma.inventoryPosition.findMany({ where: { salesOrderId: order.id } });
+    const committed = await prisma.inventoryPosition.findMany({
+      where: { salesOrderId: order.id },
+    });
     expect(toQty(committed[0].quantity)).toBe(1);
   });
 
   it("a return line allocates nothing", async () => {
     const { store, floor, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 5 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 5,
     });
 
-    await allocate(order.id, [{ productId: product.id, quantity: -1, storeLocationId: store.id }], prisma);
+    await allocate(
+      order.id,
+      [{ productId: product.id, quantity: -1, storeLocationId: store.id }],
+      prisma,
+    );
 
     expect(await prisma.inventoryPosition.count({ where: { salesOrderId: order.id } })).toBe(0);
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(5);
@@ -321,12 +392,13 @@ describe("inventory allocation (real DB)", () => {
 
   it("draws across several free positions when one is not enough", async () => {
     const { store, floor, product, order } = await seed();
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, stockLocationId: floor.id, quantity: 2 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: store.id,
+      stockLocationId: floor.id,
+      quantity: 2,
     });
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: store.id, quantity: 3 },
-    });
+    await stockAt({ productId: product.id, storeLocationId: store.id, quantity: 3 });
 
     const result = await allocate(
       order.id,

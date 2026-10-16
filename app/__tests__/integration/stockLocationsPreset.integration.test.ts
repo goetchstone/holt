@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { stockAt } from "../helpers/stock";
 import { applyPreset } from "@/lib/config/applyPreset";
 import { loadDbConfigState } from "@/lib/config/dbConfigState";
 import { stockLocationsPresetSchema, type StockLocationsPreset } from "@/lib/config/presetSchema";
@@ -129,8 +130,11 @@ describe("stock-locations preset", () => {
         categoryId: cat.id,
       },
     });
-    await prisma.inventoryPosition.create({
-      data: { productId: product.id, storeLocationId: a.id, stockLocationId: back.id, quantity: 2 },
+    await stockAt({
+      productId: product.id,
+      storeLocationId: a.id,
+      stockLocationId: back.id,
+      quantity: 2,
     });
 
     const trimmed = baseLayout();

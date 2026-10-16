@@ -15,6 +15,7 @@
 import { prisma } from "@/lib/prisma";
 import { toQty } from "@/lib/inventory/quantity";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { stockAt } from "../helpers/stock";
 import { availableQuantity } from "@/lib/inventory/allocation";
 
 async function scenario() {
@@ -43,9 +44,7 @@ async function scenario() {
     data: { orderno: "SO-1", customerId: customer.id, status: "ORDER", orderDate: new Date() },
   });
   // The stock is at B; the sale is at A.
-  await prisma.inventoryPosition.create({
-    data: { productId: product.id, storeLocationId: storeB.id, quantity: 3 },
-  });
+  await stockAt({ productId: product.id, storeLocationId: storeB.id, quantity: 3 });
   return { storeA, storeB, product, order };
 }
 
@@ -94,24 +93,7 @@ describe("receiving a transfer merges stock instead of fragmenting it", () => {
     const { storeA, storeB, product } = await scenario();
     // Simulate what the receive path does, twice.
     for (const qty of [1, 2]) {
-      const existing = await prisma.inventoryPosition.findFirst({
-        where: {
-          productId: product.id,
-          storeLocationId: storeA.id,
-          stockLocationId: null,
-          salesOrderId: null,
-        },
-      });
-      if (existing) {
-        await prisma.inventoryPosition.update({
-          where: { id: existing.id },
-          data: { quantity: { increment: qty } },
-        });
-      } else {
-        await prisma.inventoryPosition.create({
-          data: { productId: product.id, storeLocationId: storeA.id, quantity: qty },
-        });
-      }
+      await stockAt({ productId: product.id, storeLocationId: storeA.id, quantity: qty });
     }
 
     const rows = await prisma.inventoryPosition.findMany({

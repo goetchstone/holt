@@ -23,6 +23,7 @@ import { toQty } from "@/lib/inventory/quantity";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { stockAt } from "../helpers/stock";
 import { handlePost } from "@/pages/api/inventory/snapshot/generate";
 
 function makeReq(): NextApiRequest {
@@ -57,7 +58,9 @@ function makeRes() {
 const managerSession = { user: { email: "manager@example.com" } } as unknown as Session;
 
 async function seedCatalog() {
-  const vendor = await prisma.vendor.create({ data: { name: "Test Vendor", pricingModel: "FLAT" } });
+  const vendor = await prisma.vendor.create({
+    data: { name: "Test Vendor", pricingModel: "FLAT" },
+  });
   const dept = await prisma.department.create({ data: { name: "Furniture" } });
   const cat = await prisma.category.create({
     data: { name: "Sofas", departmentId: dept.id, trackInventory: true },
@@ -73,7 +76,13 @@ async function seedCatalog() {
   // no externalId. This is exactly the product shape the old
   // externalId-keyed InventorySnapshot silently excluded.
   const nativeProduct = await prisma.product.create({
-    data: { productNumber: "NATIVE-1", name: "Native Sofa", vendorId: vendor.id, departmentId: dept.id, categoryId: cat.id },
+    data: {
+      productNumber: "NATIVE-1",
+      name: "Native Sofa",
+      vendorId: vendor.id,
+      departmentId: dept.id,
+      categoryId: cat.id,
+    },
   });
   // POS-imported product, for contrast.
   const importedProduct = await prisma.product.create({
@@ -102,15 +111,9 @@ describe("POST /api/inventory/snapshot/generate (real DB)", () => {
   it("generates LOCAL snapshot rows from InventoryPosition, including a product with no externalId", async () => {
     const { storeA, storeB, nativeProduct, importedProduct } = await seedCatalog();
 
-    await prisma.inventoryPosition.createMany({
-      data: [
-        { productId: nativeProduct.id, storeLocationId: storeA.id, quantity: 4 },
-        { productId: importedProduct.id, storeLocationId: storeA.id, quantity: 6 },
-        { productId: importedProduct.id, storeLocationId: storeB.id, quantity: 2 },
-        // Zero/negative positions are not stock on the floor -- excluded.
-        { productId: nativeProduct.id, storeLocationId: storeB.id, quantity: 0 },
-      ],
-    });
+    await stockAt({ productId: nativeProduct.id, storeLocationId: storeA.id, quantity: 4 });
+    await stockAt({ productId: importedProduct.id, storeLocationId: storeA.id, quantity: 6 });
+    await stockAt({ productId: importedProduct.id, storeLocationId: storeB.id, quantity: 2 });
 
     const req = makeReq();
     const res = makeRes();
@@ -140,18 +143,14 @@ describe("POST /api/inventory/snapshot/generate (real DB)", () => {
   it("a same-day re-run replaces LOCAL rows instead of duplicating or crashing", async () => {
     const { storeA, nativeProduct, importedProduct } = await seedCatalog();
 
-    await prisma.inventoryPosition.create({
-      data: { productId: nativeProduct.id, storeLocationId: storeA.id, quantity: 4 },
-    });
+    await stockAt({ productId: nativeProduct.id, storeLocationId: storeA.id, quantity: 4 });
     await handlePost(makeReq(), makeRes(), managerSession);
     expect(await prisma.inventorySnapshot.count()).toBe(1);
 
     // Inventory moves during the day (e.g. a receiving event, or a mapping
     // fix); the count should reflect current data on a re-run, not stack up
     // stale rows next to fresh ones.
-    await prisma.inventoryPosition.create({
-      data: { productId: importedProduct.id, storeLocationId: storeA.id, quantity: 9 },
-    });
+    await stockAt({ productId: importedProduct.id, storeLocationId: storeA.id, quantity: 9 });
 
     const res2 = makeRes();
     await handlePost(makeReq(), res2, managerSession);
@@ -176,9 +175,7 @@ describe("POST /api/inventory/snapshot/generate (real DB)", () => {
       },
     });
 
-    await prisma.inventoryPosition.create({
-      data: { productId: nativeProduct.id, storeLocationId: storeA.id, quantity: 4 },
-    });
+    await stockAt({ productId: nativeProduct.id, storeLocationId: storeA.id, quantity: 4 });
     await handlePost(makeReq(), makeRes(), managerSession);
 
     const rows = await prisma.inventorySnapshot.findMany();

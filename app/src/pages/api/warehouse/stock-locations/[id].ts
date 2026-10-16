@@ -7,11 +7,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { isStockLocationType, STOCK_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id } = req.query;
   if (!id || typeof id !== "string") {
     return res.status(400).json({ error: "Stock location ID is required." });
@@ -44,6 +45,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       // "available to sell" and "already spoken for".
       if (holdsCommittedStock !== undefined && typeof holdsCommittedStock !== "boolean") {
         return res.status(400).json({ error: "holdsCommittedStock must be a boolean." });
+      }
+      // Chosen from the catalog: the type decides whether stock here is
+      // sellable, so a typo must not quietly make a stock room unsellable.
+      if (locationType !== undefined && !isStockLocationType(locationType)) {
+        return res.status(400).json({
+          error: `locationType must be one of ${STOCK_LOCATION_TYPES.join(", ")}.`,
+        });
       }
 
       const stockLocation = await prisma.stockLocation.update({
@@ -91,6 +99,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       if (positionCount > 0) {
         return res.status(400).json({
           error: `Cannot delete: ${positionCount} inventory position(s) reference this stock location. Deactivate instead.`,
+        });
+      }
+
+      // Stock that once sat here is in the journal, which is never rewritten,
+      // so a place with history is kept: deactivating hides it everywhere.
+      const movementCount = await prisma.stockMovement.count({
+        where: {
+          OR: [{ fromStockLocationId: stockLocationId }, { toStockLocationId: stockLocationId }],
+        },
+      });
+      if (movementCount > 0) {
+        return res.status(400).json({
+          error: "Cannot delete: stock has moved through this location. Deactivate instead.",
         });
       }
 

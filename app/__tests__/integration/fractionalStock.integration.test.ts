@@ -18,6 +18,7 @@ import type { Session } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import { setStock, stockAt } from "../helpers/stock";
 import { allocate, consume, availableQuantity, planDraw } from "@/lib/inventory/allocation";
 import { toQty, roundQty, qtyEquals, qtyIsZero } from "@/lib/inventory/quantity";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
@@ -57,9 +58,7 @@ beforeEach(async () => {
 });
 
 async function bolt(yards: number) {
-  return prisma.inventoryPosition.create({
-    data: { productId, storeLocationId: storeId, quantity: yards },
-  });
+  return stockAt({ productId, storeLocationId: storeId, quantity: yards });
 }
 
 async function orderFor(yards: number, orderno: string) {
@@ -299,7 +298,7 @@ describe("fractional quantities outside the balance (real DB)", () => {
 
     expect((await compare(before.id, again.id)).differences).toEqual([]);
 
-    await prisma.inventoryPosition.update({ where: { id: roll.id }, data: { quantity: 10 } });
+    await setStock(roll, 10);
     const after = await freeze();
 
     const { differences } = await compare(before.id, after.id);

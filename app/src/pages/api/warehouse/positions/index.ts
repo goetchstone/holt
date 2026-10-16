@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { freePositionWhere } from "@/lib/inventory/allocation";
 import { placeWhere, setPlaceQuantity } from "@/lib/inventory/ledger";
+import { placeAt } from "@/lib/inventory/places";
 import { toQty } from "@/lib/inventory/quantity";
 import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -115,17 +116,15 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       // "This place holds N": set the place to the stated quantity, recorded as
       // a movement of the difference through the single writer. The upsert this
       // replaced could never match a free row (rule 64), so it created a
-      // duplicate instead of setting the existing one.
-      const place = {
-        storeLocationId,
-        stockLocationId: stockLocationId ?? null,
-        salesOrderId: salesOrderId ?? null,
-      };
+      // duplicate instead of setting the existing one. No stock location given
+      // means the store's receiving place: every unit is somewhere.
       const position = await prisma.$transaction(async (tx) => {
+        const place = await placeAt(tx, { storeLocationId, stockLocationId, salesOrderId });
         await setPlaceQuantity(tx, {
           productId,
           place,
           target: quantity === undefined ? 1 : Number(quantity),
+          reason: "ADJUST",
           actor: session.user?.email || null,
           // Absent leaves the note alone; null clears it.
           note: notes,

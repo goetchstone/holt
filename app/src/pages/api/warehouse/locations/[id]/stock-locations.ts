@@ -7,11 +7,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { isStockLocationType, STOCK_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id } = req.query;
   if (!id || typeof id !== "string") {
     return res.status(400).json({ error: "Location ID is required." });
@@ -59,6 +60,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       // whole location is not a failure mode worth having.
       if (holdsCommittedStock !== undefined && typeof holdsCommittedStock !== "boolean") {
         return res.status(400).json({ error: "holdsCommittedStock must be a boolean." });
+      }
+      // Chosen from the catalog: the type decides whether stock here is sellable.
+      if (locationType !== undefined && locationType !== "" && !isStockLocationType(locationType)) {
+        return res.status(400).json({
+          error: `locationType must be one of ${STOCK_LOCATION_TYPES.join(", ")}.`,
+        });
       }
 
       const maxSort = await prisma.stockLocation.aggregate({

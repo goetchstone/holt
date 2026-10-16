@@ -21,6 +21,7 @@ import { useProductSearch } from "@/hooks/useProductSearch";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
 import { priceCart, type CartDiscount, type DiscountType } from "@/lib/pos/cartPricing";
+import { onHandByStore } from "@/lib/inventory/onHandSummary";
 
 const REGISTER_STORAGE_KEY = "pos-register-id";
 
@@ -270,27 +271,15 @@ export function PosView() {
   const { subtotal, orderDiscountAmount, netSubtotal } = priced;
   const cartItemCount = cart.reduce((sum, item) => sum + Math.abs(item.quantity), 0);
 
-  // Fetch on-hand counts per store location for informational display only.
-  // Failures are silently ignored -- inventory never blocks a sale.
+  // Free stock per store, for informational display only. Failures are
+  // silently ignored -- inventory never blocks a sale.
   const fetchInventorySummary = useCallback(
     async (productId: number): Promise<InventorySummary[]> => {
       try {
         const posRes = await axios.get("/api/warehouse/positions", {
-          params: { productId, limit: 50 },
+          params: { productId, freeOnly: 1, limit: 100 },
         });
-        const positions = posRes.data.positions || [];
-        // Aggregate quantity by store location name
-        const byLocation: Record<string, number> = {};
-        for (const p of positions) {
-          if (p.quantity <= 0) continue;
-          const locName = p.storeLocation?.name;
-          if (!locName) continue;
-          byLocation[locName] = (byLocation[locName] || 0) + p.quantity;
-        }
-        return Object.entries(byLocation).map(([locationName, available]) => ({
-          locationName,
-          available,
-        }));
+        return onHandByStore(posRes.data.positions || []);
       } catch {
         return [];
       }
