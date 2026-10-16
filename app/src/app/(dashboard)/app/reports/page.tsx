@@ -82,6 +82,20 @@ const ITEMS: CardGridItem[] = [
     roles: ["MANAGER", "ADMIN"],
   },
   {
+    title: "Oversold",
+    description:
+      "Sales that went through with less free stock than they needed, by product — the orders waiting, and the quickest fix: stock free at another store, units already on a PO, or start a draft PO. Rows close themselves once covered.",
+    href: "/app/reports/oversold",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
+    title: "Stock and Space",
+    description:
+      "Everything in a store, a building or any place inside it, grouped by the places in it, place type, department, category, vendor or collection — with the units and each group's share of the measured floor.",
+    href: "/app/reports/stock-by",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
     title: "Unclassified Returns",
     description:
       "Returns booked on the default restock assumption because no Return record classifies them — the accountant's worklist to review and correct any that were actually written off.",

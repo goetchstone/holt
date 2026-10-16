@@ -4,11 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import {
-  generatePickList,
-  PICK_LIST_DETAIL_INCLUDE,
-  pickListForClient,
-} from "@/lib/deliveryService";
+import { generatePickList, pickListForClient } from "@/lib/deliveryService";
 import { logError } from "@/lib/logger";
 
 export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
@@ -62,67 +58,25 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
   }
 
   try {
+    // One builder for both: the pull list (lib/fulfilment/pullList.ts).
     if (deliveryRunId) {
-      const pickList = await generatePickList(Number.parseInt(deliveryRunId), createdBy);
-      return res.status(201).json(pickList && pickListForClient(pickList));
+      const pickList = await generatePickList(
+        { deliveryRunId: Number.parseInt(deliveryRunId) },
+        createdBy,
+      );
+      return res.status(201).json(pickListForClient(pickList));
     }
 
-    // Per-order pick list
+    const orderId = Number.parseInt(salesOrderId);
     const order = await prisma.salesOrder.findUnique({
-      where: { id: Number.parseInt(salesOrderId) },
-      include: {
-        lineItems: {
-          where: { productId: { not: null } },
-          include: { product: true },
-        },
-      },
+      where: { id: orderId },
+      select: { id: true },
     });
-
     if (!order) {
       return res.status(404).json({ error: "Sales order not found" });
     }
-
-    const { generatePickListNumber } = await import("@/lib/deliveryService");
-    const pickListNumber = await generatePickListNumber();
-
-    const pickList = await prisma.pickList.create({
-      data: {
-        pickListNumber,
-        salesOrderId: order.id,
-        status: "CREATED",
-        createdBy,
-      },
-    });
-
-    for (const li of order.lineItems) {
-      if (!li.productId) continue;
-
-      const position = await prisma.inventoryPosition.findFirst({
-        where: {
-          productId: li.productId,
-          quantity: { gt: 0 },
-        },
-        orderBy: { quantity: "desc" },
-      });
-
-      await prisma.pickListItem.create({
-        data: {
-          pickListId: pickList.id,
-          orderLineItemId: li.id,
-          productId: li.productId,
-          quantity: Number(li.orderedQuantity) || 1,
-          fromStockLocationId: position?.stockLocationId ?? null,
-          fromStoreLocationId: position?.storeLocationId ?? null,
-        },
-      });
-    }
-
-    const result = await prisma.pickList.findUniqueOrThrow({
-      where: { id: pickList.id },
-      include: PICK_LIST_DETAIL_INCLUDE,
-    });
-
-    return res.status(201).json(pickListForClient(result));
+    const pickList = await generatePickList({ salesOrderId: orderId }, createdBy);
+    return res.status(201).json(pickListForClient(pickList));
   } catch (error) {
     logError("Error creating pick list", error);
     return res.status(500).json({ error: "Failed to create pick list" });

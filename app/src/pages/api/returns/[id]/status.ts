@@ -2,13 +2,19 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { isValidTransition } from "@/lib/returnService";
 import type { ReturnStatus } from "@prisma/client";
 import { logError } from "@/lib/logger";
-import { postMovement } from "@/lib/inventory/ledger";
-import { placeAt } from "@/lib/inventory/places";
+import { toQty } from "@/lib/inventory/quantity";
+import { resolveOrderStoreLocationId } from "@/lib/inventory/orderInventorySync";
+import {
+  putBackReturn,
+  receiveReturnStock,
+  ReturnDispositionError,
+  writeOffReturn,
+} from "@/lib/inventory/returnStock";
 
 export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") {
@@ -59,12 +65,35 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             updateData.pickupAddressId = Number.parseInt(fields.pickupAddressId);
           break;
 
-        case "RECEIVED":
+        case "RECEIVED": {
+          // The piece is back: it goes into the store's returns place, owned
+          // and waiting in that store's returned-stock queue, recorded here so
+          // putting it back or writing it off takes it from where it is (rule
+          // 60). The store is the one named, or the one it was received at, or
+          // the order's own -- never a reason to refuse the customer.
           updateData.receivedAt = new Date();
           if (fields.receivedById) updateData.receivedById = Number.parseInt(fields.receivedById);
-          if (fields.receivedLocationId)
-            updateData.receivedLocationId = Number.parseInt(fields.receivedLocationId);
+          const order = await tx.salesOrder.findUnique({
+            where: { id: ret.salesOrderId },
+            select: { storeLocationId: true, storeLocation: true },
+          });
+          const storeLocationId =
+            (fields.receivedLocationId ? Number.parseInt(fields.receivedLocationId) : null) ??
+            ret.receivedLocationId ??
+            order?.storeLocationId ??
+            (await resolveOrderStoreLocationId(order?.storeLocation, tx));
+          if (storeLocationId == null) {
+            throw new ReturnDispositionError("Choose the store the piece came back to.", 400);
+          }
+          updateData.receivedLocationId = storeLocationId;
+          updateData.receivedStockLocationId = await receiveReturnStock(
+            tx,
+            ret,
+            storeLocationId,
+            changedBy,
+          );
           break;
+        }
 
         case "INSPECTED":
           updateData.inspectedAt = new Date();
@@ -75,31 +104,31 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           if (fields.inspectionNotes) updateData.inspectionNotes = fields.inspectionNotes;
           break;
 
-        case "RESTOCKED":
-          updateData.restockedAt = new Date();
-          if (fields.restockedLocationId)
-            updateData.restockedLocationId = Number.parseInt(fields.restockedLocationId);
-          // The returned unit comes back from the customer into free stock at
-          // the restocking store's receiving place. Through the single writer,
-          // which merges into the existing row: the upsert this replaced could
-          // never match a free row (rule 64), so every restock created another
-          // duplicate.
-          if (ret.productId && fields.restockedLocationId && ret.quantity > 0) {
-            await postMovement(tx, {
-              productId: ret.productId,
-              quantity: ret.quantity,
-              to: await placeAt(tx, {
-                storeLocationId: Number.parseInt(fields.restockedLocationId),
-              }),
-              reason: "RETURN",
-              source: { type: "Return", id },
-              actor: changedBy,
-            });
+        // Putting the piece back or writing it off is the returned-stock
+        // queue's job (lib/inventory/returnStock.ts); these two statuses do the
+        // same, for screens that still close a return that way.
+        case "RESTOCKED": {
+          const storeLocationId =
+            (fields.restockedLocationId ? Number.parseInt(fields.restockedLocationId) : null) ??
+            ret.receivedLocationId;
+          if (storeLocationId == null) {
+            throw new ReturnDispositionError("Choose the store to put the piece back at.", 400);
           }
+          await putBackReturn(tx, ret, {
+            storeLocationId,
+            stockLocationId: fields.restockedStockLocationId
+              ? Number.parseInt(fields.restockedStockLocationId)
+              : null,
+            actor: changedBy,
+          });
           break;
+        }
 
         case "WRITTEN_OFF":
-          if (fields.writeOffReason) updateData.writeOffReason = fields.writeOffReason;
+          await writeOffReturn(tx, ret, {
+            reason: fields.writeOffReason ?? null,
+            actor: changedBy,
+          });
           break;
 
         case "CANCELLED":
@@ -132,11 +161,17 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         error: "This return was just changed by someone else. Refresh to see its current status.",
       });
     }
-    return res.status(200).json(result);
+    return res.status(200).json({ ...result, quantity: toQty(result.quantity) });
   } catch (error) {
+    if (error instanceof ReturnDispositionError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     logError("Error updating return status", error);
     return res.status(500).json({ error: "Failed to update return status" });
   }
 }
 
-export default requireAuthWithRole(["REGISTER", "MANAGER", "ADMIN"], handler);
+// The same key as the other returns routes (/api/returns, /api/returns/[id]):
+// it was a role list that left out WAREHOUSE, whose staff work the returns
+// queue.
+export default requirePermission("sales.return", handler);

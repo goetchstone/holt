@@ -15,15 +15,15 @@ import { toast } from "react-toastify";
 import { getErrorMessage } from "@/lib/toastError";
 import StockLocationModal from "@/components/modals/StockLocationModal";
 import { isStockLocationType, LOCATION_TYPE_INFO } from "@/lib/inventory/locationTypes";
+import { LANDING_PLACES, landingAllows, type LandingPlace } from "@/lib/inventory/landingPlaces";
+import { treeOrder } from "@/lib/inventory/placeTree";
 
 interface StockLocationItem {
   id: number;
   code: string;
   name: string;
   description: string | null;
-  building: string | null;
-  floor: number | null;
-  area: number | null;
+  parentId: number | null;
   locationType: string;
   squareFootage: number | null;
   locationAliases: string[];
@@ -46,6 +46,12 @@ interface StoreLocation {
   sortOrder: number;
   externalLocationName: string | null;
   defaultReceivingStockLocationId: number | null;
+  pickupStockLocationId: number | null;
+  returnsStockLocationId: number | null;
+  quarantineStockLocationId: number | null;
+  transitStockLocationId: number | null;
+  fulfilmentStoreLocationId: number | null;
+  moveMode: string | null;
 }
 
 const LOCATION_TYPES = ["STORE", "WAREHOUSE", "OFFSITE"];
@@ -54,13 +60,6 @@ const TYPE_LABELS: Record<string, string> = {
   STORE: "Store",
   WAREHOUSE: "Warehouse",
   OFFSITE: "Offsite",
-};
-
-const FLOOR_LABELS: Record<number, string> = {
-  0: "Basement",
-  1: "1st Floor",
-  2: "2nd Floor",
-  3: "Attic",
 };
 
 const emptyForm = {
@@ -164,25 +163,21 @@ export function LocationsView() {
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
-  const groupByBuilding = (items: StockLocationItem[]) => {
-    const groups: Record<string, StockLocationItem[]> = {};
-    for (const item of items) {
-      const key = item.building || "General";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(item);
-    }
-    return groups;
-  };
-
-  const handleDefaultReceivingChange = async (locId: number, stockLocationId: number | null) => {
+  // One store setting at a time (a landing place, the fulfilment store, the
+  // move mode). The server checks each place is at this store and of a type
+  // the setting allows, and says which when it is not.
+  const handleStoreSettingChange = async (
+    locId: number,
+    field: string,
+    value: number | string | null,
+    label: string,
+  ) => {
     try {
-      await axios.put(`/api/warehouse/locations/${locId}`, {
-        defaultReceivingStockLocationId: stockLocationId,
-      });
-      toast.success("Default receiving location updated");
+      await axios.put(`/api/warehouse/locations/${locId}`, { [field]: value });
+      toast.success(`${label} updated`);
       fetchLocations();
-    } catch {
-      toast.error("Failed to update default receiving location");
+    } catch (err) {
+      toast.error(getErrorMessage(err, `Failed to update ${label.toLowerCase()}`));
     }
   };
 
@@ -406,98 +401,156 @@ export function LocationsView() {
               {/* Expanded stock locations */}
               {expandedId === loc.id && (
                 <div className="border-t border-brand-gray/10 px-4 py-3">
-                  {/* Default receiving location */}
-                  <div className="mb-4 flex items-center gap-3">
-                    <label
-                      htmlFor={`default-receiving-${loc.id}`}
-                      className="text-sm text-brand-gray whitespace-nowrap"
-                    >
-                      Default Receiving Location:
-                    </label>
-                    <select
-                      id={`default-receiving-${loc.id}`}
-                      value={loc.defaultReceivingStockLocationId || ""}
-                      onChange={(e) =>
-                        handleDefaultReceivingChange(
-                          loc.id,
-                          e.target.value ? Number.parseInt(e.target.value) : null,
-                        )
-                      }
-                      className="border border-brand-gray/30 rounded px-2 py-1 text-sm"
-                    >
-                      <option value="">None</option>
-                      {loc.stockLocations
-                        .filter((sl) => sl.isActive)
-                        .map((sl) => (
-                          <option key={sl.id} value={sl.id}>
-                            {sl.code} - {sl.name}
-                          </option>
-                        ))}
-                    </select>
+                  {/* Where stock lands at this store, and where its orders draw from */}
+                  <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                    {(Object.keys(LANDING_PLACES) as LandingPlace[]).map((kind) => {
+                      const info = LANDING_PLACES[kind];
+                      const selectId = `landing-${kind}-${loc.id}`;
+                      return (
+                        <div key={kind} className="flex items-center gap-3">
+                          <label
+                            htmlFor={selectId}
+                            className="text-sm text-brand-gray w-36 shrink-0"
+                          >
+                            {info.setting}:
+                          </label>
+                          <select
+                            id={selectId}
+                            value={loc[info.pointer] ?? ""}
+                            onChange={(e) =>
+                              handleStoreSettingChange(
+                                loc.id,
+                                info.pointer,
+                                e.target.value ? Number.parseInt(e.target.value) : null,
+                                info.setting,
+                              )
+                            }
+                            className="border border-brand-gray/30 rounded px-2 py-1 text-sm min-w-0 flex-1"
+                          >
+                            <option value="">
+                              {info.create
+                                ? `Created when first needed (${info.create.name})`
+                                : "None"}
+                            </option>
+                            {loc.stockLocations
+                              .filter((sl) => sl.isActive)
+                              .filter((sl) => landingAllows(info, sl.locationType))
+                              .map((sl) => (
+                                <option key={sl.id} value={sl.id}>
+                                  {sl.code} - {sl.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                    <div className="flex items-center gap-3">
+                      <label
+                        htmlFor={`fulfilment-${loc.id}`}
+                        className="text-sm text-brand-gray w-36 shrink-0"
+                      >
+                        Also draws from:
+                      </label>
+                      <select
+                        id={`fulfilment-${loc.id}`}
+                        value={loc.fulfilmentStoreLocationId ?? ""}
+                        onChange={(e) =>
+                          handleStoreSettingChange(
+                            loc.id,
+                            "fulfilmentStoreLocationId",
+                            e.target.value ? Number.parseInt(e.target.value) : null,
+                            "Fulfilment store",
+                          )
+                        }
+                        className="border border-brand-gray/30 rounded px-2 py-1 text-sm min-w-0 flex-1"
+                      >
+                        <option value="">Only its own stock</option>
+                        {locations
+                          .filter((other) => other.id !== loc.id && other.isActive)
+                          .map((other) => (
+                            <option key={other.id} value={other.id}>
+                              {other.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label
+                        htmlFor={`move-mode-${loc.id}`}
+                        className="text-sm text-brand-gray w-36 shrink-0"
+                      >
+                        Moves:
+                      </label>
+                      <select
+                        id={`move-mode-${loc.id}`}
+                        value={loc.moveMode ?? ""}
+                        onChange={(e) =>
+                          handleStoreSettingChange(
+                            loc.id,
+                            "moveMode",
+                            e.target.value || null,
+                            "Move mode",
+                          )
+                        }
+                        className="border border-brand-gray/30 rounded px-2 py-1 text-sm min-w-0 flex-1"
+                      >
+                        <option value="">Default (quick within, tracked between stores)</option>
+                        <option value="QUICK">Quick: move in one step</option>
+                        <option value="TRACKED">
+                          Tracked: a transfer, received at the other end
+                        </option>
+                      </select>
+                    </div>
                   </div>
 
                   {loc.stockLocations.length === 0 ? (
                     <p className="text-sm text-brand-gray py-2">No stock locations configured</p>
                   ) : (
-                    <div className="space-y-4">
-                      {Object.entries(groupByBuilding(loc.stockLocations)).map(
-                        ([building, items]) => (
-                          <div key={building}>
-                            <h4 className="text-xs font-medium text-brand-gray uppercase tracking-wide mb-2">
-                              {building}
-                            </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
-                              {items.map((sl) => (
-                                <div
-                                  key={sl.id}
-                                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-brand-stripe/50 text-sm group"
-                                >
-                                  <span className="text-xs font-mono text-brand-gray w-[90px] shrink-0">
-                                    {sl.code}
-                                  </span>
-                                  <span
-                                    className={`text-brand-black ${!sl.isActive ? "line-through opacity-50" : ""}`}
-                                  >
-                                    {sl.name}
-                                  </span>
-                                  <span
-                                    className={`text-[10px] px-1.5 py-0.5 rounded ${
-                                      sl.locationType === "FLOOR"
-                                        ? "bg-blue-50 text-blue-700"
-                                        : "bg-brand-gray/10 text-brand-gray"
-                                    }`}
-                                  >
-                                    {isStockLocationType(sl.locationType)
-                                      ? LOCATION_TYPE_INFO[sl.locationType].label
-                                      : sl.locationType}
-                                  </span>
-                                  {sl.locationType === "FLOOR" && sl.squareFootage && (
-                                    <span className="text-[10px] text-brand-gray">
-                                      {sl.squareFootage.toLocaleString()} sqft
-                                    </span>
-                                  )}
-                                  {sl.floor != null && (
-                                    <span className="text-xs text-brand-gray">
-                                      {FLOOR_LABELS[sl.floor] || `Floor ${sl.floor}`}
-                                    </span>
-                                  )}
-                                  <button
-                                    onClick={() =>
-                                      setStockModal({
-                                        stockLocation: sl,
-                                        storeLocationId: loc.id,
-                                      })
-                                    }
-                                    className="text-xs text-brand-gray hover:text-brand-blue opacity-0 group-hover:opacity-100 ml-auto"
-                                  >
-                                    Edit
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ),
-                      )}
+                    // Places contain places: each shown inside the one it sits in.
+                    <div className="space-y-0.5">
+                      {treeOrder(loc.stockLocations).map(({ place: sl, depth }) => (
+                        <div
+                          key={sl.id}
+                          style={{ paddingLeft: `${depth * 1.25 + 0.5}rem` }}
+                          className="flex items-center gap-2 pr-2 py-1.5 rounded hover:bg-brand-stripe/50 text-sm group"
+                        >
+                          <span className="text-xs font-mono text-brand-gray w-[110px] shrink-0">
+                            {sl.code}
+                          </span>
+                          <span
+                            className={`text-brand-black ${!sl.isActive ? "line-through opacity-50" : ""} ${sl.locationType === "GROUP" ? "font-medium" : ""}`}
+                          >
+                            {sl.name}
+                          </span>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded ${
+                              sl.locationType === "FLOOR"
+                                ? "bg-blue-50 text-blue-700"
+                                : "bg-brand-gray/10 text-brand-gray"
+                            }`}
+                          >
+                            {isStockLocationType(sl.locationType)
+                              ? LOCATION_TYPE_INFO[sl.locationType].label
+                              : sl.locationType}
+                          </span>
+                          {sl.squareFootage != null && sl.squareFootage > 0 && (
+                            <span className="text-[10px] text-brand-gray">
+                              {sl.squareFootage.toLocaleString()} sqft
+                            </span>
+                          )}
+                          <button
+                            onClick={() =>
+                              setStockModal({
+                                stockLocation: sl,
+                                storeLocationId: loc.id,
+                              })
+                            }
+                            className="text-xs text-brand-gray hover:text-brand-blue opacity-0 group-hover:opacity-100 ml-auto"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -527,6 +580,7 @@ export function LocationsView() {
         <StockLocationModal
           stockLocation={stockModal.stockLocation}
           storeLocationId={stockModal.storeLocationId}
+          places={locations.find((l) => l.id === stockModal.storeLocationId)?.stockLocations ?? []}
           onClose={() => setStockModal(null)}
           onRefresh={fetchLocations}
         />

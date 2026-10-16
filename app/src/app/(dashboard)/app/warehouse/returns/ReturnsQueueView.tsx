@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { format } from "date-fns";
+import { ReturnedStockPanel } from "./ReturnedStockPanel";
 
 interface QueueReturn {
   id: number;
@@ -30,7 +31,7 @@ interface QueueReturn {
   created: string;
 }
 
-type Tab = "pickup" | "inspection" | "decision";
+type Tab = "pickup" | "inspection" | "stock";
 
 const STATUS_LABELS: Record<string, string> = {
   INITIATED: "Initiated",
@@ -70,10 +71,9 @@ const CONDITION_STYLES: Record<string, string> = {
 
 export function ReturnsQueueView() {
   const [tab, setTab] = useState<Tab>("pickup");
-  const [returns, setReturns] = useState<Record<Tab, QueueReturn[]>>({
+  const [returns, setReturns] = useState<Record<"pickup" | "inspection", QueueReturn[]>>({
     pickup: [],
     inspection: [],
-    decision: [],
   });
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -86,18 +86,16 @@ export function ReturnsQueueView() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [pickupRes, inspectionRes, decisionRes] = await Promise.all([
+      const [pickupRes, inspectionRes] = await Promise.all([
         axios.get("/api/warehouse/returns/queue?tab=pickup"),
         axios.get("/api/warehouse/returns/queue?tab=inspection"),
-        axios.get("/api/warehouse/returns/queue?tab=decision"),
       ]);
       setReturns({
         pickup: pickupRes.data.returns,
         inspection: inspectionRes.data.returns,
-        decision: decisionRes.data.returns,
       });
     } catch {
-      setReturns({ pickup: [], inspection: [], decision: [] });
+      setReturns({ pickup: [], inspection: [] });
     } finally {
       setLoading(false);
     }
@@ -162,7 +160,9 @@ export function ReturnsQueueView() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "pickup", label: "Pending Pickup" },
     { key: "inspection", label: "Awaiting Inspection" },
-    { key: "decision", label: "Needs Decision" },
+    // Putting a returned piece back or writing it off is not a step the
+    // customer's return waits on: it is the store's returned-stock queue.
+    { key: "stock", label: "Returned stock" },
   ];
 
   return (
@@ -180,7 +180,8 @@ export function ReturnsQueueView() {
                 : "border-transparent text-brand-gray hover:text-brand-black"
             }`}
           >
-            {t.label} ({returns[t.key].length})
+            {t.label}
+            {t.key === "stock" ? "" : ` (${returns[t.key].length})`}
           </button>
         ))}
       </div>
@@ -213,12 +214,7 @@ export function ReturnsQueueView() {
           onSubmit={handleInspect}
         />
       ) : (
-        <DecisionTable
-          returns={returns.decision}
-          submitting={submitting}
-          onRestock={(id) => updateStatus(id, "RESTOCKED")}
-          onWriteOff={(id) => updateStatus(id, "WRITTEN_OFF")}
-        />
+        <ReturnedStockPanel />
       )}
     </div>
   );
@@ -230,16 +226,6 @@ function StatusBadge({ status }: { status: string }) {
       className={`text-xs px-2 py-0.5 rounded ${STATUS_STYLES[status] || "bg-brand-gray/20 text-brand-gray"}`}
     >
       {STATUS_LABELS[status] || status}
-    </span>
-  );
-}
-
-function ConditionBadge({ condition }: { condition: string }) {
-  return (
-    <span
-      className={`text-xs px-2 py-0.5 rounded ${CONDITION_STYLES[condition] || "bg-brand-gray/20 text-brand-gray"}`}
-    >
-      {CONDITION_LABELS[condition] || condition}
     </span>
   );
 }
@@ -423,77 +409,6 @@ function InspectionTable({
                   </tr>
                 )}
               </>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function DecisionTable({
-  returns,
-  submitting,
-  onRestock,
-  onWriteOff,
-}: {
-  returns: QueueReturn[];
-  submitting: boolean;
-  onRestock: (id: number) => void;
-  onWriteOff: (id: number) => void;
-}) {
-  return (
-    <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-brand-gray/20 bg-brand-stripe">
-            <th className="text-left px-4 py-3 font-medium text-brand-gray">Return #</th>
-            <th className="text-left px-4 py-3 font-medium text-brand-gray">Customer</th>
-            <th className="text-left px-4 py-3 font-medium text-brand-gray">Product</th>
-            <th className="text-left px-4 py-3 font-medium text-brand-gray w-[120px]">Condition</th>
-            <th className="text-left px-4 py-3 font-medium text-brand-gray">Notes</th>
-            <th className="text-right px-4 py-3 font-medium text-brand-gray w-[200px]">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {returns.length === 0 ? (
-            <EmptyRow colSpan={6} message="No returns needing a decision" />
-          ) : (
-            returns.map((r) => (
-              <tr key={r.id} className="border-b border-brand-gray/10 hover:bg-brand-stripe/50">
-                <td className="px-4 py-2 text-brand-black font-medium">{r.returnNumber}</td>
-                <td className="px-4 py-2 text-brand-gray">{r.customerName}</td>
-                <td className="px-4 py-2 text-brand-gray">{r.productName || "--"}</td>
-                <td className="px-4 py-2">
-                  {r.inspectionCondition ? (
-                    <ConditionBadge condition={r.inspectionCondition} />
-                  ) : (
-                    "--"
-                  )}
-                </td>
-                <td className="px-4 py-2 text-brand-gray text-xs">{r.inspectionNotes || "--"}</td>
-                <td className="px-4 py-2 text-right">
-                  <div className="flex gap-1 justify-end">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={submitting}
-                      onClick={() => onRestock(r.id)}
-                    >
-                      Restock
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={submitting}
-                      className="text-red-700 border-red-300 hover:bg-red-50"
-                      onClick={() => onWriteOff(r.id)}
-                    >
-                      Write Off
-                    </Button>
-                  </div>
-                </td>
-              </tr>
             ))
           )}
         </tbody>

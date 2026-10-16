@@ -60,6 +60,7 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { roundQty, toQty, qtyEquals, qtyIsZero, QTY_EPSILON } from "./quantity";
+import { isStockLocationType, LOCATION_TYPE_INFO } from "./locationTypes";
 
 export type PrismaTx = PrismaClient | Prisma.TransactionClient;
 type Tx = Prisma.TransactionClient;
@@ -86,6 +87,7 @@ export const MOVEMENT_REASONS = {
   RELEASE: "Released from a sales order to free stock",
   DELIVER: "Left with the customer",
   RETURN: "Returned by a customer",
+  WRITE_OFF: "Written off: out of the books",
   TRANSFER: "Moved between places",
   ADJUST: "Corrected by hand",
   IMPORT_SYNC: "Set by the POS stock import",
@@ -368,14 +370,16 @@ export async function postMovement(db: PrismaTx, movement: Movement): Promise<vo
 }
 
 /**
- * A place is in its store. Checked when a movement opens a new row, the only
- * time a (store, place) pair enters the table: a unit recorded at one store in
- * another store's stock room would be counted at the wrong site for good.
+ * A place is in its store and can hold stock. Checked when a movement opens a
+ * new row, the only time a (store, place) pair enters the table: a unit
+ * recorded at one store in another store's stock room would be counted at the
+ * wrong site for good, and a GROUP place (a building, a floor) holds places,
+ * not units.
  */
 async function assertPlaceAtStore(tx: Tx, place: Place): Promise<void> {
   const location = await tx.stockLocation.findUnique({
     where: { id: place.stockLocationId },
-    select: { storeLocationId: true },
+    select: { storeLocationId: true, locationType: true, name: true },
   });
   if (!location) {
     throw new Error(`Stock location ${place.stockLocationId} does not exist.`);
@@ -383,6 +387,14 @@ async function assertPlaceAtStore(tx: Tx, place: Place): Promise<void> {
   if (location.storeLocationId !== place.storeLocationId) {
     throw new Error(
       `Stock location ${place.stockLocationId} is not at store ${place.storeLocationId}.`,
+    );
+  }
+  if (
+    isStockLocationType(location.locationType) &&
+    !LOCATION_TYPE_INFO[location.locationType].holdsStock
+  ) {
+    throw new Error(
+      `"${location.name}" groups places and holds no stock itself; choose a place inside it.`,
     );
   }
 }

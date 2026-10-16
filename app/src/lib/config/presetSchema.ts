@@ -386,6 +386,18 @@ export const rolesPresetSchema = z
 // importers that already read it from here.
 export { STOCK_LOCATION_TYPES };
 
+// Retired by places-contain-places (inventory roadmap phase 12). Refused, not
+// dropped: zod strips keys it does not know, so a file in the old shape would
+// apply with every place moved to the top of its store, undoing the tree the
+// migration built from these same fields (rule 63: fail closed).
+const retiredPlaceField = z
+  .undefined({
+    error:
+      "building, floor and area were replaced by `inside`: a building or a floor is a GROUP " +
+      "place of its own. Export the layout again (Settings › Configuration) for the new shape.",
+  })
+  .optional();
+
 export const stockLocationPresetEntrySchema = z.object({
   /** Unique within its store. The identity a re-apply matches on, and what
    *  buyer-draft exports send to the POS, so renaming a code is a new place. */
@@ -393,9 +405,14 @@ export const stockLocationPresetEntrySchema = z.object({
   name: z.string().trim().min(1).max(200),
   description: z.string().max(2000).optional(),
   locationType: z.enum(STOCK_LOCATION_TYPES).default("STOCK"),
-  building: z.string().trim().min(1).max(200).optional(),
-  floor: z.number().int().min(-10).max(200).optional(),
-  area: z.number().int().min(0).max(100_000).optional(),
+  /** The code of the place this one is inside, listed in the same store
+   *  (lib/inventory/placeTree.ts). Absent = at the top of the store. Replaces
+   *  free-text building / floor / area: a building or a floor is a GROUP
+   *  place of its own. */
+  inside: z.string().trim().min(1).max(50).optional(),
+  building: retiredPlaceField,
+  floor: retiredPlaceField,
+  area: retiredPlaceField,
   squareFootage: z.number().int().min(0).max(10_000_000).optional(),
   /** The POS's names for this place (the stock import matches them,
    *  case-insensitively). */
@@ -462,6 +479,34 @@ export const stockLocationsPresetSchema = z
           } else {
             aliasOwner.set(key, here);
           }
+        }
+      });
+      // `inside` names a place listed in the same store, and following it
+      // never comes back round: a loop would leave every place in it nowhere.
+      const parentOf = new Map(store.locations.map((loc) => [loc.code, loc.inside ?? null]));
+      store.locations.forEach((loc, j) => {
+        if (loc.inside == null) return;
+        if (!parentOf.has(loc.inside)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `"${loc.code}" is inside "${loc.inside}", which store "${store.storeLocation}" does not list`,
+            path: ["stores", i, "locations", j, "inside"],
+          });
+          return;
+        }
+        const seen = new Set<string>([loc.code]);
+        let next: string | null = loc.inside;
+        while (next != null) {
+          if (seen.has(next)) {
+            ctx.addIssue({
+              code: "custom",
+              message: `"${loc.code}" is inside itself through "${loc.inside}"`,
+              path: ["stores", i, "locations", j, "inside"],
+            });
+            break;
+          }
+          seen.add(next);
+          next = parentOf.get(next) ?? null;
         }
       });
     });

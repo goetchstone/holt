@@ -1,13 +1,15 @@
 // /app/src/app/(dashboard)/app/admin/inventory-exceptions/page.tsx
 //
-// Oversell queue -- MANAGER / ADMIN (back-office work). Lists InventoryException
-// rows: sales that went through with less free stock than requested. Reads
-// the shared /api/admin/inventory-exceptions REST endpoint.
+// Oversell queue: InventoryException rows, sales that went through with less
+// free stock than requested, to resolve by hand. Gated on the same key as the
+// API it reads (/api/admin/inventory-exceptions, inventory.adjust); it was on
+// admin.settings, so a role could reach one without the other. The grouped
+// view with suggested fixes is Reports > Oversold.
 
 import { requirePage } from "@/lib/auth/requirePage";
 import { InventoryExceptionsView } from "./InventoryExceptionsView";
 
 export default async function InventoryExceptionsPage() {
-  await requirePage(undefined, { permission: "admin.settings" });
+  await requirePage(undefined, { permission: "inventory.adjust" });
   return <InventoryExceptionsView />;
 }

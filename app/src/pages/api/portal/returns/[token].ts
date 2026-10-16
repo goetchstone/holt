@@ -2,6 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
+import { toQty } from "@/lib/inventory/quantity";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
 
@@ -37,7 +38,7 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
       return res.status(404).json({ error: "Return not found" });
     }
 
-    return res.status(200).json(returnRecord);
+    return res.status(200).json({ ...returnRecord, quantity: toQty(returnRecord.quantity) });
   } catch (error) {
     logError("Portal return lookup error", error);
     return res.status(500).json({ error: "Failed to retrieve return information" });

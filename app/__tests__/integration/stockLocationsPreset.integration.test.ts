@@ -44,14 +44,15 @@ const baseLayout = () =>
     {
       storeLocation: "Ridge Warehouse",
       locations: [
+        // Listed after the place inside it: parents are set once every place
+        // in the file exists.
         {
           code: "01-03-01-01",
           name: "Stock Sofas",
-          building: "North",
-          floor: 3,
-          area: 1,
+          inside: "NORTH",
           aliases: ["RW Sofas"],
         },
+        { code: "NORTH", name: "North Barn", locationType: "GROUP" },
         { code: "HOLD", name: "Customer Holding", holdsCommittedStock: true },
       ],
     },
@@ -66,7 +67,7 @@ describe("stock-locations preset", () => {
     const { a, w } = await seedStores();
     const result = await applyPreset(baseLayout(), opts);
     expect(result.action).toBe("APPLIED");
-    expect(result.changes).toEqual({ created: 4, updated: 0, deleted: 0 });
+    expect(result.changes).toEqual({ created: 5, updated: 0, deleted: 0 });
 
     const floor = (await placesOf(a.id)).find((p) => p.code === "FLR")!;
     expect(floor).toMatchObject({
@@ -74,11 +75,11 @@ describe("stock-locations preset", () => {
       locationType: "FLOOR",
       squareFootage: 6000,
     });
+    const north = (await placesOf(w.id)).find((p) => p.code === "NORTH")!;
+    expect(north).toMatchObject({ locationType: "GROUP", parentId: null });
     const sofas = (await placesOf(w.id)).find((p) => p.code === "01-03-01-01")!;
     expect(sofas).toMatchObject({
-      building: "North",
-      floor: 3,
-      area: 1,
+      parentId: north.id,
       locationAliases: ["RW Sofas"],
       holdsCommittedStock: false,
       isActive: true,
@@ -97,7 +98,7 @@ describe("stock-locations preset", () => {
   it("a dry run reports the diff and writes nothing", async () => {
     const { a } = await seedStores();
     const dry = await applyPreset(baseLayout(), { ...opts, dryRun: true });
-    expect(dry.changes.created).toBe(4);
+    expect(dry.changes.created).toBe(5);
     expect(await placesOf(a.id)).toHaveLength(0);
     expect(await prisma.configChangeLog.count()).toBe(0);
   });
@@ -204,6 +205,73 @@ describe("stock-locations preset", () => {
     expect(result.action).toBe("FAILED");
     expect(result.messages[0]).toContain('alias "HS Back"');
     expect(await prisma.stockLocation.count()).toBe(1);
+  });
+
+  it("moves a place by its inside, and taking inside away puts it at the top", async () => {
+    const { w } = await seedStores();
+    await applyPreset(baseLayout(), opts);
+    const flat = baseLayout();
+    flat.stores[1].locations = flat.stores[1].locations.map((l) =>
+      l.code === "01-03-01-01" ? { ...l, inside: undefined } : l,
+    );
+    const result = await applyPreset(flat, opts);
+    expect(result.messages).toEqual(["Ridge Warehouse / 01-03-01-01: updated (inside)"]);
+    const sofas = (await placesOf(w.id)).find((p) => p.code === "01-03-01-01")!;
+    expect(sofas.parentId).toBeNull();
+    expect((await applyPreset(flat, opts)).action).toBe("UNCHANGED");
+  });
+
+  it("refuses to make a group of a place still holding stock, and writes nothing (rule 42)", async () => {
+    const { a } = await seedStores();
+    await applyPreset(baseLayout(), opts);
+    const back = (await placesOf(a.id)).find((p) => p.code === "BACK")!;
+    const vendor = await prisma.vendor.create({ data: { name: "V", pricingModel: "FLAT" } });
+    const dept = await prisma.department.create({ data: { name: "D" } });
+    const cat = await prisma.category.create({ data: { name: "C", departmentId: dept.id } });
+    const product = await prisma.product.create({
+      data: {
+        productNumber: "P",
+        name: "P",
+        vendorId: vendor.id,
+        departmentId: dept.id,
+        categoryId: cat.id,
+      },
+    });
+    await stockAt({
+      productId: product.id,
+      storeLocationId: a.id,
+      stockLocationId: back.id,
+      quantity: 2,
+    });
+
+    const grouped = baseLayout();
+    grouped.stores[0].locations = grouped.stores[0].locations.map((l) =>
+      l.code === "BACK" ? { ...l, locationType: "GROUP" as const, name: "Back (renamed)" } : l,
+    );
+    const result = await applyPreset(grouped, opts);
+    expect(result.action).toBe("FAILED");
+    expect(result.messages).toEqual([
+      "Harbor Showroom / BACK: This place holds stock; move it out before making the place a group.",
+    ]);
+    expect(await prisma.stockLocation.findUniqueOrThrow({ where: { id: back.id } })).toMatchObject({
+      locationType: "STOCK",
+      name: "Back Stock",
+    });
+  });
+
+  it("exports a place inside an inactive place at the top, so the file never names a place it leaves out", async () => {
+    const { w } = await seedStores();
+    await applyPreset(baseLayout(), opts);
+    const north = (await placesOf(w.id)).find((p) => p.code === "NORTH")!;
+    await prisma.stockLocation.update({ where: { id: north.id }, data: { isActive: false } });
+
+    const { bundle } = await loadDbConfigState(prisma);
+    const exported = bundle.presets.find(
+      (p) => p.kind === "stock-locations",
+    ) as StockLocationsPreset;
+    const ridge = exported.stores.find((s) => s.storeLocation === "Ridge Warehouse")!;
+    expect(ridge.locations.find((l) => l.code === "01-03-01-01")?.inside).toBeUndefined();
+    expect(stockLocationsPresetSchema.safeParse(exported).success).toBe(true);
   });
 
   it("a database export, applied back, changes nothing", async () => {

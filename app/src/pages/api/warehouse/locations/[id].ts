@@ -10,8 +10,10 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
+import { landingPlaceProblem } from "@/lib/inventory/places";
+import { isMoveMode, MOVE_MODES } from "@/lib/inventory/moveModes";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id } = req.query;
   if (!id || typeof id !== "string") {
     return res.status(400).json({ error: "Location ID is required." });
@@ -34,9 +36,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
               code: true,
               name: true,
               description: true,
-              building: true,
-              floor: true,
-              area: true,
+              parentId: true,
               locationType: true,
               squareFootage: true,
               isActive: true,
@@ -67,7 +67,41 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         sortOrder,
         externalLocationName,
         defaultReceivingStockLocationId,
+        pickupStockLocationId,
+        returnsStockLocationId,
+        quarantineStockLocationId,
+        transitStockLocationId,
+        fulfilmentStoreLocationId,
+        moveMode,
       } = req.body;
+
+      // Each landing place must be a place at this store, of a type its
+      // setting allows: a "transit" place that is really the sales floor would
+      // put every shipped unit back on sale.
+      const asId = (v: unknown): number | null | undefined => {
+        if (v === undefined) return undefined;
+        return v ? Number(v) : null;
+      };
+      const places = {
+        RECEIVING: asId(defaultReceivingStockLocationId),
+        PICKUP: asId(pickupStockLocationId),
+        RETURNS: asId(returnsStockLocationId),
+        QUARANTINE: asId(quarantineStockLocationId),
+        TRANSIT: asId(transitStockLocationId),
+      };
+      const placeProblem = await landingPlaceProblem(
+        prisma,
+        locationId,
+        Object.fromEntries(Object.entries(places).filter(([, v]) => v !== undefined)),
+      );
+      if (placeProblem) return res.status(400).json({ error: placeProblem });
+      const fulfilment = asId(fulfilmentStoreLocationId);
+      if (fulfilment === locationId) {
+        return res.status(400).json({ error: "A store cannot fulfil its own orders from itself." });
+      }
+      if (moveMode !== undefined && moveMode !== null && moveMode !== "" && !isMoveMode(moveMode)) {
+        return res.status(400).json({ error: `moveMode must be one of ${MOVE_MODES.join(", ")}.` });
+      }
 
       const location = await prisma.storeLocation.update({
         where: { id: locationId },
@@ -84,9 +118,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           ...(externalLocationName !== undefined && {
             externalLocationName: externalLocationName || null,
           }),
-          ...(defaultReceivingStockLocationId !== undefined && {
-            defaultReceivingStockLocationId: defaultReceivingStockLocationId || null,
+          ...(places.RECEIVING !== undefined && {
+            defaultReceivingStockLocationId: places.RECEIVING,
           }),
+          ...(places.PICKUP !== undefined && { pickupStockLocationId: places.PICKUP }),
+          ...(places.RETURNS !== undefined && { returnsStockLocationId: places.RETURNS }),
+          ...(places.QUARANTINE !== undefined && { quarantineStockLocationId: places.QUARANTINE }),
+          ...(places.TRANSIT !== undefined && { transitStockLocationId: places.TRANSIT }),
+          ...(fulfilment !== undefined && { fulfilmentStoreLocationId: fulfilment }),
+          ...(moveMode !== undefined && { moveMode: moveMode || null }),
           updatedBy: session.user?.email || null,
         },
       });
@@ -95,6 +135,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     } catch (error: unknown) {
       if (getErrorCode(error) === "P2002") {
         return res.status(409).json({ error: "A location with that name or code already exists." });
+      }
+      if (getErrorCode(error) === "P2003") {
+        return res.status(400).json({ error: "The fulfilment store does not exist." });
       }
       logError("Error updating location", error);
       return res.status(500).json({ error: "Failed to update location" });

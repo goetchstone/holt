@@ -11,6 +11,7 @@ import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
 import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering";
 import { hasOrderFlag, SKIP_SAME_DAY_REWRITE_CLEANUP } from "@/lib/adapters/ordorite/orderFlags";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
+import { getAppSettings } from "@/lib/appSettings";
 import {
   safeString,
   safeFloat,
@@ -48,7 +49,7 @@ import { planAutoLinks, type DraftCandidate, type UpcIndex } from "@/lib/buyerDr
 import { planAutoFulfill, type DraftPoForAutoFulfill } from "@/lib/buyerDraftAutoFulfillPo";
 import { planPoAutoLinks } from "@/lib/buyerDraftPoAutoLink";
 import { logger, logError } from "@/lib/logger";
-import { lockProducts, setPlaceQuantity } from "@/lib/inventory/ledger";
+import { applyImportSync, planImportSync, type ImportStockRow } from "@/lib/inventory/importSync";
 
 const BATCH_SIZE = 50;
 
@@ -1616,11 +1617,17 @@ export interface StockByItemImportResult {
   message: string;
   productsCreated: number;
   productsUpdated: number;
+  /** Places whose free stock the file changed. A place already matching the
+   *  file is not counted: a second run of the same file changes nothing. */
   positionsUpserted: number;
-  skippedZeroQty: number;
   /** Rows whose on-hand was below zero, recorded as zero. A place cannot hold
    *  negative stock; the POS reports it when it has sold more than it holds. */
   negativeClampedToZero: number;
+  /** Rows at a POS location matching no place, not written because no
+   *  unmatched-stock store is set (Settings > Configuration). */
+  unmatchedRowsNotWritten: number;
+  /** Places where the file says fewer than are already committed to orders. */
+  shortOfCommitted: number;
   /** Rows whose On Hand is not a number. Skipped, never written as stock. */
   skippedUnparseableQty: number;
   unmappedLocations: string[];
@@ -1642,32 +1649,27 @@ export interface StockByItemImportResult {
 const CATCHALL_CODE = "UNMATCHED";
 const CATCHALL_NAME = "Unmatched — Needs Review";
 
+/**
+ * The catch-all place at the store AppSettings.unmatchedStockStoreLocationId
+ * names, created there the first time it is needed. null when the setting is
+ * unset: the import then reports unmatched rows and writes none of them, rather
+ * than guessing a store (rule 63). It used to look for a store named
+ * "Warehouse", then any active store -- one deployment's naming, in shared code
+ * (rule 61).
+ */
 async function ensureCatchallStockLocation(): Promise<{
   stockLocationId: number;
   storeLocationId: number;
-}> {
-  // Try to find an existing catch-all first
-  const existing = await prisma.stockLocation.findFirst({
-    where: { code: CATCHALL_CODE },
-    select: { id: true, storeLocationId: true },
-  });
-  if (existing) {
-    return { stockLocationId: existing.id, storeLocationId: existing.storeLocationId };
-  }
-  // Create at the Warehouse store (or first active StoreLocation if
-  // Warehouse doesn't exist)
-  const store =
-    (await prisma.storeLocation.findFirst({ where: { name: "Warehouse" } })) ??
-    (await prisma.storeLocation.findFirst({ where: { isActive: true } })) ??
-    (await prisma.storeLocation.findFirst());
-  if (!store) {
-    throw new Error("No StoreLocation exists -- cannot create catch-all stock location");
-  }
-  const created = await prisma.stockLocation.create({
-    data: {
+} | null> {
+  const { unmatchedStockStoreLocationId: storeLocationId } = await getAppSettings();
+  if (storeLocationId == null) return null;
+  // The compound key holds no nullable column, so this upsert can match (rule 64).
+  const place = await prisma.stockLocation.upsert({
+    where: { storeLocationId_code: { storeLocationId, code: CATCHALL_CODE } },
+    create: {
       code: CATCHALL_CODE,
       name: CATCHALL_NAME,
-      storeLocationId: store.id,
+      storeLocationId,
       locationType: "STOCK",
       // Derive holt's committed-stock flag from Ordorite's location-naming
       // convention -- this adapter is the only place in the codebase that
@@ -1677,9 +1679,10 @@ async function ensureCatchallStockLocation(): Promise<{
       // creates gets it right instead of quietly defaulting to sellable.
       holdsCommittedStock: ordoriteHoldsCommittedStock(CATCHALL_NAME),
     },
+    update: {},
     select: { id: true, storeLocationId: true },
   });
-  return { stockLocationId: created.id, storeLocationId: created.storeLocationId };
+  return { stockLocationId: place.id, storeLocationId: place.storeLocationId };
 }
 
 export async function runStockByItemImport(
@@ -1732,24 +1735,21 @@ export async function runStockByItemImport(
 
   let productsCreated = 0;
   let productsUpdated = 0;
-  let positionsUpserted = 0;
-  let skippedZeroQty = 0;
   let negativeClampedToZero = 0;
+  let unmatchedRowsNotWritten = 0;
   let skippedUnparseableQty = 0;
   const unmappedLocations = new Set<string>();
   const userEmail = createdBy || null;
+  // Every row's stock, resolved to a place, applied once the whole file is
+  // read (lib/inventory/importSync.ts): a place the file covers is set from
+  // all of its rows together, and products missing from it there are zeroed.
+  const fileRows: ImportStockRow[] = [];
 
   const SBI_BATCH_SIZE = 100;
   for (let i = 0; i < records.length; i += SBI_BATCH_SIZE) {
     const batch = records.slice(i, i + SBI_BATCH_SIZE);
 
     await prisma.$transaction(async (tx) => {
-      // Stock writes are collected and applied after the loop, once every
-      // product in the batch is locked in ascending order. Writing each row as
-      // it is read would lock up to 100 products in file order, held until the
-      // batch commits, and deadlock with any sale locking them in another order.
-      const pendingStock: Parameters<typeof setPlaceQuantity>[1][] = [];
-
       for (const row of batch) {
         const stockId = Number.parseInt(String(row.Stockid || row.stockid || "").trim(), 10);
         if (Number.isNaN(stockId)) continue;
@@ -1883,55 +1883,40 @@ export async function runStockByItemImport(
           skippedUnparseableQty++;
           continue;
         }
-        if (quantity === 0) {
-          skippedZeroQty++;
-          continue;
-        }
-
         if (!locationName) continue;
         const locationMatch = aliasMap.get(locationName.toLowerCase());
-        // If no alias matches, route to the catch-all location rather than
-        // dropping the row. Preserve the original CSV location name in
-        // `notes` so an admin can either (a) add an alias to the real
-        // StockLocation, or (b) create the missing StockLocation and
-        // reassign. Also track the set of unmapped names for the import
-        // result UI.
-        const resolved = locationMatch ?? catchall;
-        const positionNotes =
-          locationMatch == null ? `Unmatched CSV location: ${locationName}` : undefined;
+        // A row whose POS location matches no Holt place goes to the
+        // catch-all place, keeping the POS name in the place's notes so an
+        // admin can add the alias or create the place. With no catch-all
+        // store set, it is counted and reported, not written anywhere.
         if (!locationMatch) unmappedLocations.add(locationName);
-
-        // The file states absolute on-hand for a place; record it as a
-        // movement of the difference through the single writer. Setting the
-        // PLACE's total, not one row's, means duplicate rows left by the old
-        // upserts can no longer add their units on top of the file's number.
+        const resolved = locationMatch ?? catchall;
+        if (!resolved) {
+          unmatchedRowsNotWritten++;
+          continue;
+        }
         if (quantity < 0) negativeClampedToZero++;
-        pendingStock.push({
+        fileRows.push({
           productId,
-          place: {
-            storeLocationId: resolved.storeLocationId,
-            stockLocationId: resolved.stockLocationId,
-            salesOrderId: null,
-          },
-          target: Math.max(0, quantity),
-          reason: "IMPORT_SYNC",
-          actor: userEmail,
-          note: positionNotes,
+          storeLocationId: resolved.storeLocationId,
+          stockLocationId: resolved.stockLocationId,
+          quantity,
+          unmatchedName: locationMatch ? null : locationName,
         });
-      }
-
-      // File order is kept for the writes themselves, so a later row for the
-      // same place still wins as it always has; only the locking is sorted.
-      await lockProducts(
-        tx,
-        pendingStock.map((w) => w.productId),
-      );
-      for (const write of pendingStock) {
-        await setPlaceQuantity(tx, write);
-        positionsUpserted++;
       }
     }, TX_TIMEOUT.LONG);
   }
+
+  // What every place the file covers holds now, so products the file leaves
+  // out there are set to zero.
+  const coveredPlaceIds = Array.from(new Set(fileRows.map((r) => r.stockLocationId)));
+  const held = await prisma.inventoryPosition.findMany({
+    where: { stockLocationId: { in: coveredPlaceIds }, salesOrderId: null },
+    select: { productId: true, storeLocationId: true, stockLocationId: true },
+    distinct: ["productId", "storeLocationId", "stockLocationId"],
+  });
+  const sync = await applyImportSync(prisma, planImportSync(fileRows, held), userEmail);
+  const positionsUpserted = sync.placesChanged;
 
   const unmappedArr = Array.from(unmappedLocations);
 
@@ -1945,6 +1930,8 @@ export async function runStockByItemImport(
     productsUpdated,
     positionsUpserted,
     unmappedCount: unmappedArr.length,
+    unmatchedRowsNotWritten,
+    shortOfCommitted: sync.shortOfCommitted.length,
     buyerDraftsAutoLinked,
   });
 
@@ -1953,8 +1940,9 @@ export async function runStockByItemImport(
     productsCreated,
     productsUpdated,
     positionsUpserted,
-    skippedZeroQty,
     negativeClampedToZero,
+    unmatchedRowsNotWritten,
+    shortOfCommitted: sync.shortOfCommitted.length,
     skippedUnparseableQty,
     unmappedLocations: unmappedArr,
     ...(buyerDraftsAutoLinked > 0 ? { buyerDraftsAutoLinked } : {}),
@@ -1969,6 +1957,8 @@ function buildStockByItemMessage(parts: {
   productsUpdated: number;
   positionsUpserted: number;
   unmappedCount: number;
+  unmatchedRowsNotWritten: number;
+  shortOfCommitted: number;
   buyerDraftsAutoLinked: number;
 }): string {
   const segments: string[] = [
@@ -1978,7 +1968,16 @@ function buildStockByItemMessage(parts: {
   ];
   if (parts.unmappedCount > 0) {
     const noun = parts.unmappedCount === 1 ? "location name" : "location names";
-    segments.push(`${parts.unmappedCount} unmatched ${noun} routed to "${CATCHALL_NAME}"`);
+    segments.push(
+      parts.unmatchedRowsNotWritten > 0
+        ? `${parts.unmappedCount} unmatched ${noun} NOT written (${parts.unmatchedRowsNotWritten} rows): set the unmatched-stock store in Settings > Configuration`
+        : `${parts.unmappedCount} unmatched ${noun} routed to "${CATCHALL_NAME}"`,
+    );
+  }
+  if (parts.shortOfCommitted > 0) {
+    segments.push(
+      `${parts.shortOfCommitted} places hold fewer than are committed to orders; commitments kept`,
+    );
   }
   if (parts.buyerDraftsAutoLinked > 0) {
     const noun = parts.buyerDraftsAutoLinked === 1 ? "buyer draft" : "buyer drafts";

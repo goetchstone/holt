@@ -8,6 +8,12 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { isStockLocationType, STOCK_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
+import { isMoveMode, MOVE_MODES } from "@/lib/inventory/moveModes";
+import {
+  placeDeactivateProblem,
+  placeParentProblem,
+  placeTypeProblem,
+} from "@/lib/inventory/placeTree";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
@@ -29,15 +35,14 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         code,
         name,
         description,
-        building,
-        floor,
-        area,
+        parentId,
         isActive,
         sortOrder,
         locationType,
         squareFootage,
         locationAliases,
         holdsCommittedStock,
+        moveMode,
       } = req.body;
 
       // Validated rather than coerced -- see the POST route. Flipping this
@@ -45,6 +50,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       // "available to sell" and "already spoken for".
       if (holdsCommittedStock !== undefined && typeof holdsCommittedStock !== "boolean") {
         return res.status(400).json({ error: "holdsCommittedStock must be a boolean." });
+      }
+      if (moveMode !== undefined && moveMode !== null && moveMode !== "" && !isMoveMode(moveMode)) {
+        return res.status(400).json({ error: `moveMode must be one of ${MOVE_MODES.join(", ")}.` });
       }
       // Chosen from the catalog: the type decides whether stock here is
       // sellable, so a typo must not quietly make a stock room unsellable.
@@ -54,15 +62,35 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         });
       }
 
+      const current = await prisma.stockLocation.findUnique({
+        where: { id: stockLocationId },
+        select: { storeLocationId: true },
+      });
+      if (!current) return res.status(404).json({ error: "Stock location not found." });
+      if (parentId !== undefined) {
+        const problem = await placeParentProblem(prisma, {
+          placeId: stockLocationId,
+          storeLocationId: current.storeLocationId,
+          parentId: parentId ? Number(parentId) : null,
+        });
+        if (problem) return res.status(400).json({ error: problem });
+      }
+      if (locationType !== undefined) {
+        const problem = await placeTypeProblem(prisma, { placeId: stockLocationId, locationType });
+        if (problem) return res.status(400).json({ error: problem });
+      }
+      if (isActive === false) {
+        const problem = await placeDeactivateProblem(prisma, stockLocationId);
+        if (problem) return res.status(400).json({ error: problem });
+      }
+
       const stockLocation = await prisma.stockLocation.update({
         where: { id: stockLocationId },
         data: {
           ...(code !== undefined && { code }),
           ...(name !== undefined && { name }),
           ...(description !== undefined && { description: description || null }),
-          ...(building !== undefined && { building: building || null }),
-          ...(floor !== undefined && { floor: floor != null ? Number.parseInt(floor) : null }),
-          ...(area !== undefined && { area: area != null ? Number.parseInt(area) : null }),
+          ...(parentId !== undefined && { parentId: parentId ? Number(parentId) : null }),
           ...(isActive !== undefined && { isActive }),
           ...(sortOrder !== undefined && { sortOrder }),
           ...(locationType !== undefined && { locationType }),
@@ -73,6 +101,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             locationAliases: Array.isArray(locationAliases) ? locationAliases : [],
           }),
           ...(holdsCommittedStock !== undefined && { holdsCommittedStock }),
+          ...(moveMode !== undefined && { moveMode: moveMode || null }),
           updatedBy: session.user?.email || null,
         },
       });
@@ -99,6 +128,14 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       if (positionCount > 0) {
         return res.status(400).json({
           error: `Cannot delete: ${positionCount} inventory position(s) reference this stock location. Deactivate instead.`,
+        });
+      }
+
+      // A place other places sit inside keeps them; move or delete those first.
+      const childCount = await prisma.stockLocation.count({ where: { parentId: stockLocationId } });
+      if (childCount > 0) {
+        return res.status(400).json({
+          error: `Cannot delete: ${childCount} place(s) are inside this one. Move them first.`,
         });
       }
 

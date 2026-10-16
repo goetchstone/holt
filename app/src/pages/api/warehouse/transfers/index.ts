@@ -7,6 +7,9 @@ import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { toQty } from "@/lib/inventory/quantity";
+import { parseQty } from "@/lib/inventory/qtyInput";
+import { InsufficientStockError, lockProducts } from "@/lib/inventory/ledger";
+import { MoveModeError, quickMove, transferForClient } from "@/lib/inventory/transfers";
 
 export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
@@ -59,6 +62,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         productName: t.product.name,
         productNumber: t.product.productNumber,
         quantity: toQty(t.quantity),
+        receivedQuantity: toQty(t.receivedQuantity),
         fromLocation: t.fromStoreLocation?.name || t.fromLocation,
         fromStockLocation: t.fromStockLocation?.name || null,
         toLocation: t.toStoreLocation?.name || t.toLocation,
@@ -88,15 +92,35 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         fromStockLocationId,
         toLocationId,
         toStockLocationId,
-        quantity,
         salesOrderId,
         notes,
+        moveNow,
       } = req.body;
+      // A part roll moves as a length: parsed, never truncated with parseInt.
+      const quantity = parseQty(req.body.quantity);
 
-      if (!productId || !fromLocationId || !toLocationId || !quantity) {
-        return res
-          .status(400)
-          .json({ error: "productId, fromLocationId, toLocationId, and quantity are required." });
+      if (!productId || !fromLocationId || !toLocationId || quantity == null) {
+        return res.status(400).json({
+          error: "productId, fromLocationId, toLocationId, and a positive quantity are required.",
+        });
+      }
+
+      // A named place must be at the store it is named for, or the units would
+      // be recorded at one store in another store's stock room.
+      for (const [stockId, storeId, side] of [
+        [fromStockLocationId, fromLocationId, "from"],
+        [toStockLocationId, toLocationId, "to"],
+      ] as const) {
+        if (!stockId) continue;
+        const place = await prisma.stockLocation.findUnique({
+          where: { id: Number(stockId) },
+          select: { storeLocationId: true },
+        });
+        if (!place || place.storeLocationId !== Number(storeId)) {
+          return res
+            .status(400)
+            .json({ error: `The ${side} stock location is not at the ${side} store.` });
+        }
       }
 
       const [fromLoc, toLoc] = await Promise.all([
@@ -136,27 +160,75 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         }
       }
 
+      const data = {
+        productId,
+        quantity,
+        fromLocation: fromLoc.name,
+        toLocation: toLoc.name,
+        fromLocationId,
+        fromStockLocationId: fromStockLocationId || null,
+        toLocationId,
+        toStockLocationId: toStockLocationId || null,
+        notes: notes || null,
+        // The order this move serves, when it serves one. Validated above, so
+        // a bad id is a 400 rather than a transfer silently linked to nothing.
+        salesOrderId: salesOrderId ?? null,
+        requestedByUserId: user.id,
+      };
+
+      // "Move now": one movement from a named place to a named place, where
+      // the two ends' move mode allows a quick move. Recorded as a transfer
+      // that is already received, so the move is still a document.
+      if (moveNow) {
+        if (!fromStockLocationId || !toStockLocationId) {
+          return res.status(400).json({ error: "Moving now needs both stock locations named." });
+        }
+        const actor = session.user.email ?? null;
+        const moved = await prisma.$transaction(async (tx) => {
+          const created = await tx.inventoryTransfer.create({
+            data: {
+              ...data,
+              status: "RECEIVED",
+              receivedQuantity: quantity,
+              shippedAt: new Date(),
+              receivedAt: new Date(),
+              receivedByUserId: actor,
+            },
+          });
+          await lockProducts(tx, [productId]);
+          await quickMove(tx, {
+            productId,
+            quantity,
+            from: {
+              storeLocationId: fromLocationId,
+              stockLocationId: Number(fromStockLocationId),
+              salesOrderId: null,
+            },
+            to: {
+              storeLocationId: toLocationId,
+              stockLocationId: Number(toStockLocationId),
+              salesOrderId: null,
+            },
+            actor,
+            source: { type: "InventoryTransfer", id: created.id },
+          });
+          return created;
+        });
+        return res.status(201).json(transferForClient(moved));
+      }
+
       const transfer = await prisma.inventoryTransfer.create({
-        data: {
-          productId,
-          quantity,
-          fromLocation: fromLoc.name,
-          toLocation: toLoc.name,
-          fromLocationId,
-          fromStockLocationId: fromStockLocationId || null,
-          toLocationId,
-          toStockLocationId: toStockLocationId || null,
-          notes: notes || null,
-          // The order this move serves, when it serves one. Validated below, so
-          // a bad id is a 400 rather than a transfer silently linked to nothing.
-          salesOrderId: salesOrderId ?? null,
-          requestedByUserId: user.id,
-          status: "DRAFT",
-        },
+        data: { ...data, status: "DRAFT" },
       });
 
-      return res.status(201).json({ ...transfer, quantity: toQty(transfer.quantity) });
+      return res.status(201).json(transferForClient(transfer));
     } catch (error) {
+      if (error instanceof MoveModeError) return res.status(409).json({ error: error.message });
+      if (error instanceof InsufficientStockError) {
+        return res.status(409).json({
+          error: `Only ${error.available} are at that stock location; ${error.requested} requested.`,
+        });
+      }
       logError("Error creating transfer", error);
       return res.status(500).json({ error: "Failed to create transfer" });
     }

@@ -272,6 +272,8 @@ ALL = visible to every signed-in user (Designer, Manager, Admin, Marketing). Des
 | Stale Quote Cleanup       | `/app/reports/stale-quotes`         | ADMIN                                      | ADMIN                                                                                   | Old quotes by age and value, for follow-up or closure.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Balance Due Aging         | `/app/reports/balance-aging`        | ADMIN                                      | ADMIN                                                                                   | Unpaid balances on ORDER-status orders by age bucket. Excludes QUOTE.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Unclassified Returns      | `/app/reports/unclassified-returns` | MANAGER, ADMIN                             | MANAGER+ADMIN (`roleProcedure(MANAGER_ADMIN)`)                                          | B3 exception report: return-shaped lines booked on the default-restock assumption because no `Return` record classifies them (imported/historical returns, or a native `Return` not yet inspected). Date, order #, store, customer, amount, and why it's unclassified. Accountant's worklist to review before export.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Oversold                  | `/app/reports/oversold`             | MANAGER, ADMIN                             | `reporting.read`                                                                        | Open stock shortfalls by product: the orders waiting and the quickest fix. Rows close themselves once covered. Detail: `docs/domains/inventory.md` → phase 11.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Stock and Space           | `/app/reports/stock-by`             | MANAGER, ADMIN                             | `reporting.read`                                                                        | Units and square feet inside a store or any place, grouped by the places in it, place type or a product field. See "Stock and Space" below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Open PO Gaps              | `/app/reports/po-gaps`              | ADMIN                                      | ADMIN; PO cost: View cost                                                               | POs missing expected delivery date or vendor acknowledgement number.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### Internal endpoints (no card; called by other pages)
@@ -370,6 +372,30 @@ stock-vs-special split / margin engine is reused untouched). Data assembly in
 
 Tests: `__tests__/poSellThrough.test.ts` (windowing + realized retail +
 input parsing).
+
+### Stock and Space
+
+Engine: `lib/reports/stockBy.ts` (`getStockBy`, pure `splitSpaceBy`); route
+`/api/reports/stock-by`; page `/app/reports/stock-by`. Pick what to look inside —
+every store, a store, or any place and everything inside it — and group by one
+of `STOCK_BY_FIELDS`: the places directly inside (the stores, when looking at
+everything), place type, department, category, type, vendor or collection.
+
+- **Population.** Every `InventoryPosition` in scope, committed or free: a sold
+  sofa still takes up floor until it leaves (principle 2). There are no line
+  items in it, so rules 33 and 47 do not apply.
+- **Space.** Each unit counts toward its nearest measured place (itself, or the
+  closest place above it with `squareFootage`). That place's footage is split
+  over those units by unit share, a v1 choice until enough products carry a
+  footprint (rule 41). A measured place with nothing in it is "Empty space".
+  Units with no measured place above them inside the scope are "Unmeasured
+  units". A measured building above the place you look inside is not divided
+  among its units.
+- **Warnings.** A measured place inside another measured place counts that
+  floor twice, and the report says which two.
+
+Tests: `__tests__/splitSpaceBy.test.ts`,
+`__tests__/integration/stockBy.integration.test.ts`.
 
 ### Balance Due Aging
 

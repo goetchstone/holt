@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { toQty } from "@/lib/inventory/quantity";
+import { returnedStockQueueWhere } from "@/lib/inventory/returnStock";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -12,40 +13,50 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const [locations, positionsByLocation, transfersInTransit, pendingDispatch] = await Promise.all(
-      [
-        prisma.storeLocation.findMany({
-          where: { isActive: true },
-          orderBy: { sortOrder: "asc" },
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            type: true,
-            stockLocations: {
-              where: { isActive: true },
-              orderBy: { sortOrder: "asc" },
-              select: { id: true, code: true, name: true },
-            },
+    const [
+      locations,
+      positionsByLocation,
+      transfersInTransit,
+      pendingDispatch,
+      oversoldOpen,
+      returnedStockWaiting,
+    ] = await Promise.all([
+      prisma.storeLocation.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          type: true,
+          stockLocations: {
+            where: { isActive: true },
+            orderBy: { sortOrder: "asc" },
+            select: { id: true, code: true, name: true },
           },
-        }),
+        },
+      }),
 
-        prisma.inventoryPosition.groupBy({
-          by: ["storeLocationId", "stockLocationId"],
-          _sum: { quantity: true },
-        }),
+      prisma.inventoryPosition.groupBy({
+        by: ["storeLocationId", "stockLocationId"],
+        _sum: { quantity: true },
+      }),
 
-        prisma.inventoryTransfer.count({
-          where: { status: "IN_TRANSIT" },
-        }),
+      prisma.inventoryTransfer.count({
+        where: { status: "IN_TRANSIT" },
+      }),
 
-        prisma.salesOrder.count({
-          where: {
-            dispatchStatus: { in: ["PO_PLACED", "RECEIVED_IN_WAREHOUSE"] },
-          },
-        }),
-      ],
-    );
+      prisma.salesOrder.count({
+        where: {
+          dispatchStatus: { in: ["PO_PLACED", "RECEIVED_IN_WAREHOUSE"] },
+        },
+      }),
+
+      // Open shortfalls (Reports > Oversold) and returned pieces waiting to
+      // be put back or written off (the returned-stock queue).
+      prisma.inventoryException.count({ where: { resolvedAt: null, shortfall: { gt: 0 } } }),
+      prisma.return.count({ where: returnedStockQueueWhere() }),
+    ]);
 
     // Build per-location summaries with stock location breakdowns
     const locationSummaries = locations.map((loc) => {
@@ -82,6 +93,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       locations: locationSummaries,
       transfersInTransit,
       pendingDispatch,
+      oversoldOpen,
+      returnedStockWaiting,
     });
   } catch (error) {
     logError("Error fetching dashboard summary", error);

@@ -5,8 +5,10 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { lockProducts, postMovement } from "@/lib/inventory/ledger";
-import { placeAt } from "@/lib/inventory/places";
+import { lockProducts } from "@/lib/inventory/ledger";
+import { receiveIntoStock } from "@/lib/inventory/receiving";
+import { parseQty } from "@/lib/inventory/qtyInput";
+import { nativeReceiptStatus } from "@/lib/purchasing/receiptStatus";
 
 interface ReceiveItem {
   purchaseOrderItemId: number;
@@ -80,9 +82,12 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           error: `Item ${item.purchaseOrderItemId} does not belong to PO ${po.poNumber}.`,
         });
       }
-      if (!item.quantityReceived || item.quantityReceived <= 0) {
+      // A part roll arrives as a length: parsed, never truncated.
+      const quantity = parseQty(item.quantityReceived);
+      if (quantity == null) {
         return res.status(400).json({ error: "quantityReceived must be positive." });
       }
+      item.quantityReceived = quantity;
     }
 
     const printItems: { productId: number; quantity: number }[] = [];
@@ -126,20 +131,19 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         }
 
         if (poItem.product) {
-          // Received goods arrive from outside Holt's books into free stock at
-          // the chosen place, or the store's receiving place when none was
-          // chosen. Through the single writer, which merges into the existing
-          // row: the upsert this replaced could never match a free row (rule
-          // 64), so every receipt created another duplicate.
-          await postMovement(tx, {
+          // Into the chosen place, the store's receiving place, or -- received
+          // Damaged or Wrong Item -- its quarantine place; committed to the
+          // order the line was raised for, up to what it still needs
+          // (lib/inventory/receiving.ts). Through the single writer, which
+          // merges into the existing row (rule 64).
+          await receiveIntoStock(tx, {
+            po,
+            poItem,
             productId: poItem.product.id,
             quantity: item.quantityReceived,
-            to: await placeAt(tx, {
-              storeLocationId,
-              stockLocationId: item.destinationStockLocationId,
-            }),
-            reason: "RECEIVE",
-            source: { type: "PurchaseOrder", id: poId },
+            storeLocationId,
+            stockLocationId: item.destinationStockLocationId,
+            condition: item.condition,
             actor: session.user?.email || null,
           });
 
@@ -158,27 +162,15 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         include: { receivingRecords: { select: { quantityReceived: true } } },
       });
 
-      let allReceived = true;
-      let anyReceived = false;
-      for (const ui of updatedItems) {
-        const totalReceived = ui.receivingRecords.reduce(
-          (sum, r) => sum + Number(r.quantityReceived),
-          0,
-        );
-        if (totalReceived >= Number(ui.orderedQuantity)) {
-          anyReceived = true;
-        } else {
-          allReceived = false;
-          if (totalReceived > 0) anyReceived = true;
-        }
-      }
-
-      let newStatus = po.status;
-      if (allReceived && updatedItems.length > 0) {
-        newStatus = "RECEIVED_FULL";
-      } else if (anyReceived) {
-        newStatus = "RECEIVED_PARTIAL";
-      }
+      // Zero-quantity lines are cancelled lines and count on neither side
+      // (rule 39); nativeReceiptStatus says why.
+      const newStatus = nativeReceiptStatus(
+        updatedItems.map((ui) => ({
+          ordered: Number(ui.orderedQuantity),
+          received: ui.receivingRecords.reduce((sum, r) => sum + Number(r.quantityReceived), 0),
+        })),
+        po.status,
+      );
 
       if (newStatus !== po.status) {
         await tx.purchaseOrder.update({

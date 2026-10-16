@@ -331,18 +331,31 @@ had no repeatable way to get its real layout back.
       locations:
         - code: FLR                       # identity within the store
           name: Sales Floor
-          locationType: FLOOR             # FLOOR | STOCK (default STOCK)
+          locationType: FLOOR             # a type from lib/inventory/locationTypes.ts (default STOCK)
           squareFootage: 6000
+        - code: BARN
+          name: North Barn
+          locationType: GROUP             # holds places, never stock
         - code: BACK
           name: Back Stock
+          inside: BARN                    # the code of a place this store lists
           aliases: [HS Back]              # the POS's names for this place
           holdsCommittedStock: false      # true = on hand but already sold
 ```
 
-Optional per place: `description`, `building`, `floor`, `area`,
-`squareFootage`, `aliases`, `holdsCommittedStock`, `sortOrder`. An absent
-optional field means "none": the file is the desired state, so applying it
-clears a value set elsewhere.
+Optional per place: `description`, `inside`, `squareFootage`, `aliases`,
+`holdsCommittedStock`, `sortOrder`. An absent optional field means "none": the
+file is the desired state, so applying it clears a value set elsewhere — a
+place with no `inside` goes to the top of its store.
+
+`inside` names a place listed in the same store block, in any order: parents are
+set once every place in the file exists. The schema refuses an `inside` the
+store does not list and a loop however long. It also refuses the retired
+`building`, `floor` and `area` fields instead of dropping them, which would
+otherwise move every place of an old file to the top of its store. A file in
+the old shape is converted by exporting the layout again after the
+`20261018120000_places_contain_places` migration has run
+(`docs/domains/inventory.md` → "Places contain places").
 
 **Applying** is a diff, computed first, written in one transaction, and a no-op
 the second time (rule 63). For each store the preset lists:
@@ -361,7 +374,9 @@ creates stores, for the reason given under `traffic-store-mapping`), when a
 store's layout is owned by a differently-named `stock-locations` preset, or when
 an alias the preset wants already names a place outside it — the stock import
 builds one alias map from every place, so a duplicate alias would make it
-ambiguous. The schema also refuses one alias on two places within the file,
+ambiguous. It also fails closed when the file would make a GROUP of a place
+still holding stock (`placeTypeProblem`, the check the stock-location route
+uses). The schema also refuses one alias on two places within the file,
 regardless of case, and a code repeated within a store.
 
 **Ownership** works exactly as for `traffic-store-mapping` (below): one owner
@@ -388,10 +403,6 @@ Import/Export panel.
 layout, exported from a freshly seeded database; applying it there reports
 `UNCHANGED`. A deployment overrides it with a `stock-locations` preset of the
 same name in `config/local/`.
-
-The place model is changing: `docs/domains/inventory.md` → Roadmap phase 12
-replaces `building`/`floor`/`area` with places nested inside places. This kind's
-fields will follow that change.
 
 ## Adding a kind
 

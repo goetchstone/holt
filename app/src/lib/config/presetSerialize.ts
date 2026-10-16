@@ -217,9 +217,7 @@ function orderBundle(bundle: PresetBundle): Record<string, unknown> {
                   name: loc.name,
                   ...(loc.description ? { description: loc.description } : {}),
                   ...(loc.locationType === "STOCK" ? {} : { locationType: loc.locationType }),
-                  ...(loc.building ? { building: loc.building } : {}),
-                  ...(loc.floor !== undefined ? { floor: loc.floor } : {}),
-                  ...(loc.area !== undefined ? { area: loc.area } : {}),
+                  ...(loc.inside ? { inside: loc.inside } : {}),
                   ...(loc.squareFootage !== undefined ? { squareFootage: loc.squareFootage } : {}),
                   ...(loc.aliases.length
                     ? { aliases: [...loc.aliases].sort((a, b) => a.localeCompare(b)) }

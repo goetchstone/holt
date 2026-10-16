@@ -17,6 +17,7 @@ import { parseLocalDate } from "@/lib/dateUtils";
 import { ArrowLeft, Search } from "lucide-react";
 import Link from "next/link";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { parseQty } from "@/lib/inventory/qtyInput";
 
 interface OrderSearchResult {
   id: number;
@@ -98,7 +99,8 @@ export function NewReturnView() {
   // Step 3: Return details
   const [reason, setReason] = useState("");
   const [reasonNotes, setReasonNotes] = useState("");
-  const [quantity, setQuantity] = useState(1);
+  // Kept as typed, so a part roll can be returned as 2.5; parsed when sent.
+  const [quantity, setQuantity] = useState("1");
   const [pickupRequired, setPickupRequired] = useState(false);
   const [pickupAddressId, setPickupAddressId] = useState<number | "">("");
   const [pickupDate, setPickupDate] = useState("");
@@ -170,11 +172,13 @@ export function NewReturnView() {
     setSubmitting(true);
     try {
       const payload: Record<string, unknown> = {
-        orderId: selectedOrder.id,
+        // The route's field is salesOrderId; this sent orderId, so every return
+        // created from this screen was refused with a 400.
+        salesOrderId: selectedOrder.id,
         lineItemId: selectedLineItemId,
         reason,
         reasonNotes: reasonNotes || undefined,
-        quantity,
+        quantity: parseQty(quantity) ?? 1,
         pickupRequired,
       };
 
@@ -407,10 +411,11 @@ export function NewReturnView() {
               <input
                 id="return-quantity"
                 type="number"
-                min={1}
+                min={0}
+                step="any"
                 max={selectedLineItem.orderedQuantity}
                 value={quantity}
-                onChange={(e) => setQuantity(Number.parseInt(e.target.value, 10) || 1)}
+                onChange={(e) => setQuantity(e.target.value)}
                 className="w-32 border border-brand-gray/30 rounded-lg px-3 py-2.5 text-sm"
               />
               <p className="text-xs text-brand-gray mt-1">

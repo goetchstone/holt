@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { toQty } from "@/lib/inventory/quantity";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { stockAt } from "../helpers/stock";
-import { allocate } from "@/lib/inventory/allocation";
+import { allocate, availableQuantity } from "@/lib/inventory/allocation";
 import {
   InsufficientStockError,
   placeOf,
@@ -211,7 +211,9 @@ describe("InventoryPosition's single writer", () => {
       const t = await transfer(s, 2, null);
 
       expect((await advance(s, t.id, "IN_TRANSIT")).statusCode).toBe(200);
-      expect(await totalAt(s.product.id, s.storeA.id)).toBe(1);
+      // Shipped units wait in Store A's in-transit place: still A's, not for sale.
+      expect(await availableQuantity(s.product.id, s.storeA.id, prisma)).toBe(1);
+      expect(await totalAt(s.product.id, s.storeA.id)).toBe(3);
 
       expect((await advance(s, t.id, "RECEIVED")).statusCode).toBe(200);
       expect(await totalAt(s.product.id, s.storeB.id)).toBe(2);
