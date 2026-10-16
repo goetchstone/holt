@@ -110,8 +110,8 @@ export function DriverView() {
       // Fetch the full run detail for the first active run
       const detail = await axios.get(`/api/dispatch/runs/${runs[0].id}`);
       setRun(detail.data);
-    } catch {
-      toast.error("Failed to load delivery run");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to load delivery run"));
     } finally {
       setLoading(false);
     }
@@ -200,8 +200,8 @@ export function DriverView() {
       await axios.put(`/api/dispatch/runs/${run.id}/status`, { status: "COMPLETED" });
       toast.success("Run completed");
       setRun(null);
-    } catch {
-      toast.error("Failed to complete run");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to complete run"));
     }
   }
 

@@ -46,8 +46,6 @@ src/pages/api/dispatch/orders-by-zone.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  propo
 src/pages/api/dispatch/pencil-in.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.write  widens: +DESIGNER,INSTALLER
 src/pages/api/dispatch/pick-lists/[id]/items.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.read  widens: +DESIGNER,INSTALLER
 src/pages/api/dispatch/ready-to-deliver.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.write  widens: +DESIGNER,INSTALLER
-src/pages/api/dispatch/runs/[id]/status.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.read  widens: +DESIGNER,INSTALLER
-src/pages/api/dispatch/stops/[id].ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.read  widens: +DESIGNER,INSTALLER
 src/pages/api/goals/index.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
 src/pages/api/portal/generate-link.ts  roles=[DESIGNER,REGISTER,MANAGER,ADMIN]  proposed=(none)  no domain rule
 src/pages/api/print-label.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=(none)  no domain rule

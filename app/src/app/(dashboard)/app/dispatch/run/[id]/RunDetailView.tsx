@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { getErrorMessage } from "@/lib/toastError";
 import { format } from "date-fns";
 import Link from "next/link";
 import { ArrowUp, ArrowDown, Trash2, Plus, FileText, Phone } from "lucide-react";
@@ -108,8 +109,8 @@ export function RunDetailView({ id }: { id: string }) {
     try {
       const res = await axios.get(`/api/dispatch/runs/${encodeURIComponent(String(id))}`);
       setRun(res.data);
-    } catch {
-      toast.error("Failed to load run");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to load run"));
     } finally {
       setLoading(false);
     }
@@ -139,8 +140,8 @@ export function RunDetailView({ id }: { id: string }) {
         ...(res.data.unzoned || []),
       ];
       setUnassigned(all);
-    } catch {
-      toast.error("Failed to load unassigned deliveries");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to load unassigned deliveries"));
     }
   }
 
@@ -151,8 +152,8 @@ export function RunDetailView({ id }: { id: string }) {
         driverId: driverId || null,
       });
       fetchRun();
-    } catch {
-      toast.error("Failed to update driver");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to update driver"));
     }
   }
 
@@ -166,12 +167,8 @@ export function RunDetailView({ id }: { id: string }) {
       await axios.put(`/api/dispatch/runs/${run.id}/status`, { status: nextStatus });
       toast.success(`Status updated to ${STATUS_LABELS[nextStatus]}`);
       fetchRun();
-    } catch (err: unknown) {
-      const msg =
-        axios.isAxiosError(err) && err.response?.data?.error
-          ? err.response.data.error
-          : "Failed to update status";
-      toast.error(msg);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to update status"));
     }
   }
 
@@ -187,8 +184,8 @@ export function RunDetailView({ id }: { id: string }) {
     try {
       await axios.put(`/api/dispatch/runs/${run.id}/stops`, { stopIds });
       fetchRun();
-    } catch {
-      toast.error("Failed to reorder stops");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to reorder stops"));
     }
   }
 
@@ -198,8 +195,8 @@ export function RunDetailView({ id }: { id: string }) {
       await axios.delete(`/api/dispatch/runs/${run.id}/stops?stopId=${stopId}`);
       toast.success("Stop removed");
       fetchRun();
-    } catch {
-      toast.error("Failed to remove stop");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to remove stop"));
     }
   }
 
@@ -212,8 +209,8 @@ export function RunDetailView({ id }: { id: string }) {
       toast.success("Stop added");
       setShowAddStop(false);
       fetchRun();
-    } catch {
-      toast.error("Failed to add stop");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to add stop"));
     }
   }
 
@@ -223,8 +220,8 @@ export function RunDetailView({ id }: { id: string }) {
       await axios.post("/api/dispatch/pick-lists", { deliveryRunId: run.id });
       toast.success("Pick list generated");
       fetchRun();
-    } catch {
-      toast.error("Failed to generate pick list");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to generate pick list"));
     }
   }
 
