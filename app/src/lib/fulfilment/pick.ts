@@ -29,7 +29,7 @@ export class PickError extends Error {}
 
 async function runOrders(tx: Tx, deliveryRunId: number): Promise<number[]> {
   const stops = await tx.deliveryStop.findMany({
-    where: { deliveryRunId },
+    where: { deliveryRunId, serviceAppointment: { type: { not: "RETURN_PICKUP" } } },
     select: { serviceAppointment: { select: { salesOrderId: true } } },
   });
   return stops.map((s) => s.serviceAppointment.salesOrderId);

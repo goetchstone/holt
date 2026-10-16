@@ -51,8 +51,12 @@ async function ordersOf(
   scope: { deliveryRunId: number } | { salesOrderId: number },
 ): Promise<number[]> {
   if ("salesOrderId" in scope) return [scope.salesOrderId];
+  // A return pickup is a stop that brings goods back, not one that takes them.
   const stops = await db.deliveryStop.findMany({
-    where: { deliveryRunId: scope.deliveryRunId },
+    where: {
+      deliveryRunId: scope.deliveryRunId,
+      serviceAppointment: { type: { not: "RETURN_PICKUP" } },
+    },
     orderBy: { stopOrder: "asc" },
     select: { serviceAppointment: { select: { salesOrderId: true } } },
   });

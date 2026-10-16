@@ -3209,6 +3209,10 @@ enum ServiceAppointmentType {
   INSTALL
   DELIVERY
   HOUSE_CALL
+  /// Collecting a customer's return on a delivery run (lib/fulfilment/
+  /// returnPickup.ts). Never a handover: completing its stop records the
+  /// pickup on the Return, not a delivery of the order.
+  RETURN_PICKUP
 }
 
 enum ServiceAppointmentStatus {
@@ -4022,6 +4026,9 @@ model Return {
   restockingFeeLineItem   OrderLineItem? @relation("ReturnFeeLine", fields: [restockingFeeLineItemId], references: [id])
   refunds                 Payment[]      @relation("ReturnRefunds")
 
+  // The run stop collecting it, when its pickup is on a delivery run.
+  pickupAppointment ServiceAppointment? @relation("ReturnPickupAppointment")
+
   // Exchange (linked replacement order)
   exchangeOrderId Int?
   exchangeOrder   SalesOrder? @relation("ExchangeOrder", fields: [exchangeOrderId], references: [id])
@@ -4080,6 +4087,9 @@ model ServiceAppointment {
 
   salesOrderId Int
   salesOrder   SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  /// RETURN_PICKUP only: the return being collected (its order is salesOrderId).
+  returnId     Int?           @unique
+  return       Return?        @relation("ReturnPickupAppointment", fields: [returnId], references: [id])
   lineItemId   Int?
   lineItem     OrderLineItem? @relation(fields: [lineItemId], references: [id])
   customerId   Int?

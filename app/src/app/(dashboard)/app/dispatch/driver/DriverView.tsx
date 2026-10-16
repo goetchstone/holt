@@ -8,6 +8,11 @@
 // body. The focused warehouse/driver wrapper (full-bleed linen background, no
 // dashboard max-width) is PRESERVED via the local DriverLayout. Reads the shared
 // /api/dispatch/* REST endpoints.
+//
+// Completing a delivery says how many of each line went (fewer is a part
+// delivery: the rest stays with the order for a later run). A stop that could
+// not be done goes back to dispatch with the reason. A return pickup is a stop
+// that collects the returned piece (lib/fulfilment/stops.ts).
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,11 +22,17 @@ import { toast } from "react-toastify";
 import { format } from "date-fns";
 import Link from "next/link";
 import { Check, MapPin, Phone, Truck } from "lucide-react";
+import { getErrorMessage } from "@/lib/toastError";
+import { deliveredPayload, isPartDelivery, openStopLines } from "@/lib/fulfilment/deliveredLines";
+import { CouldNotForm, DeliveredCounts, PickupItems, type StopReturn } from "./StopParts";
 
 type LineItem = {
   id: number;
+  productId: number | null;
   productName: string | null;
   orderedQuantity: number;
+  fulfilledQty: number | string | null;
+  lineItemStatus: string;
 };
 
 type Customer = {
@@ -42,6 +53,8 @@ type Address = {
 type ServiceAppointment = {
   id: number;
   appointmentNumber: string;
+  type: string;
+  return: StopReturn | null;
   accessInstructions: string | null;
   notes: string | null;
   customer: Customer | null;
@@ -79,6 +92,8 @@ export function DriverView() {
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [counts, setCounts] = useState<Record<number, number>>({});
+  const [failingStopId, setFailingStopId] = useState<number | null>(null);
 
   const fetchActiveRun = useCallback(async () => {
     try {
@@ -117,11 +132,28 @@ export function DriverView() {
 
   function startCompletion(stopId: number) {
     setCompletingStopId(stopId);
+    setFailingStopId(null);
     setSignatureData(null);
     setPhotoFile(null);
+    setCounts({});
   }
 
-  async function submitProofAndComplete(stopId: number) {
+  async function markCouldNot(stopId: number, reason: string) {
+    setSubmitting(true);
+    try {
+      await axios.put(`/api/dispatch/stops/${stopId}`, { failReason: reason });
+      toast.success("Back to dispatch");
+      setFailingStopId(null);
+      fetchActiveRun();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Could not send it back to dispatch"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitProofAndComplete(stop: Stop) {
+    const stopId = stop.id;
     if (!signatureData && !photoFile) {
       toast.error("Capture a signature or photo before completing");
       return;
@@ -142,16 +174,26 @@ export function DriverView() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      // Mark completed
-      await axios.put(`/api/dispatch/stops/${stopId}`, { status: "COMPLETED" });
+      // Mark completed, with what went for a delivery.
+      const pickup = stop.serviceAppointment.type === "RETURN_PICKUP";
+      const open = openStopLines(stop.serviceAppointment.salesOrder?.lineItems ?? []);
+      await axios.put(`/api/dispatch/stops/${stopId}`, {
+        status: "COMPLETED",
+        ...(pickup ? {} : { delivered: deliveredPayload(open, counts) }),
+      });
 
-      toast.success("Delivery completed");
+      let done = "Delivery completed";
+      if (pickup) done = "Pickup completed";
+      else if (isPartDelivery(open, counts)) {
+        done = "Part delivery recorded: the rest is back with dispatch";
+      }
+      toast.success(done);
       setCompletingStopId(null);
       setSignatureData(null);
       setPhotoFile(null);
       fetchActiveRun();
-    } catch {
-      toast.error("Failed to complete delivery");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to complete delivery"));
     } finally {
       setSubmitting(false);
     }
@@ -264,6 +306,9 @@ export function DriverView() {
 
           const isNext = stop.id === nextStopId;
           const isCompleting = stop.id === completingStopId;
+          const isFailing = stop.id === failingStopId;
+          const isPickup = appt.type === "RETURN_PICKUP";
+          const openLines = openStopLines(appt.salesOrder?.lineItems ?? []);
           const fullAddress = appt.address
             ? [
                 appt.address.address1,
@@ -329,7 +374,8 @@ export function DriverView() {
               )}
 
               {/* Items */}
-              {appt.salesOrder && appt.salesOrder.lineItems.length > 0 && (
+              {isPickup && appt.return && <PickupItems ret={appt.return} />}
+              {!isPickup && appt.salesOrder && appt.salesOrder.lineItems.length > 0 && (
                 <div className="mt-2 bg-brand-linen rounded-lg p-3">
                   <p className="text-xs font-semibold text-brand-gray uppercase tracking-wide mb-1">
                     Items
@@ -372,17 +418,44 @@ export function DriverView() {
                   </button>
                 )}
 
-                {stop.status === "ARRIVED" && !isCompleting && (
-                  <button
-                    onClick={() => startCompletion(stop.id)}
-                    className="w-full min-h-[60px] bg-green-600 text-white font-serif font-semibold text-base rounded-lg shadow-md hover:bg-green-700 transition"
-                  >
-                    Complete Delivery
-                  </button>
+                {stop.status === "ARRIVED" && !isCompleting && !isFailing && (
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => startCompletion(stop.id)}
+                      className="w-full min-h-[60px] bg-green-600 text-white font-serif font-semibold text-base rounded-lg shadow-md hover:bg-green-700 transition"
+                    >
+                      {isPickup ? "Complete Pickup" : "Complete Delivery"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCompletingStopId(null);
+                        setFailingStopId(stop.id);
+                      }}
+                      className="w-full min-h-[60px] border border-red-300 text-red-700 font-semibold text-base rounded-lg"
+                    >
+                      {isPickup ? "Couldn't collect" : "Couldn't deliver"}
+                    </button>
+                  </div>
+                )}
+
+                {isFailing && (
+                  <CouldNotForm
+                    pickup={isPickup}
+                    busy={submitting}
+                    onSubmit={(reason) => markCouldNot(stop.id, reason)}
+                    onCancel={() => setFailingStopId(null)}
+                  />
                 )}
 
                 {isCompleting && (
                   <div className="space-y-4 border-t border-brand-gray/10 pt-4">
+                    {!isPickup && (
+                      <DeliveredCounts
+                        lines={openLines}
+                        counts={counts}
+                        onChange={(lineId, q) => setCounts((c) => ({ ...c, [lineId]: q }))}
+                      />
+                    )}
                     <SignatureCapture
                       onSave={(data) => setSignatureData(data)}
                       width={600}
@@ -408,7 +481,7 @@ export function DriverView() {
                     </div>
 
                     <button
-                      onClick={() => submitProofAndComplete(stop.id)}
+                      onClick={() => submitProofAndComplete(stop)}
                       disabled={submitting || (!signatureData && !photoFile)}
                       className="w-full min-h-[60px] bg-green-600 text-white font-serif font-semibold text-base rounded-lg shadow-md hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
