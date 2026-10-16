@@ -67,7 +67,6 @@ src/pages/api/reports/monthly-percentages.ts  roles=[MANAGER,ADMIN]  proposed=re
 src/pages/api/reports/pay-period-sales/confirm.ts  roles=[SUPER_ADMIN]  proposed=reporting.read  widens: +ADMIN,DESIGNER,MANAGER,MARKETING
 src/pages/api/reports/pay-period-sales/report-issue.ts  roles=[SUPER_ADMIN]  proposed=reporting.read  widens: +ADMIN,DESIGNER,MANAGER,MARKETING
 src/pages/api/returns/[id]/refund.ts  roles=[SUPER_ADMIN,MANAGER,ADMIN,REGISTER,WAREHOUSE]  proposed=(none)  no domain rule
-src/pages/api/returns/[id]/status.ts  roles=[REGISTER,MANAGER,ADMIN]  proposed=(none)  no domain rule
 src/pages/api/sales/orders/[id]/payments.ts  roles=[MANAGER,ADMIN]  proposed=sales.write  widens: +DESIGNER,REGISTER
 src/pages/api/sales/pipeline/bulk-archive.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
 src/pages/api/service/cases/[id]/tasks.ts  roles=[DESIGNER,MANAGER,ADMIN,WAREHOUSE,MARKETING,REGISTER,INSTALLER]  proposed=service.write   tightens: -MARKETING,REGISTER

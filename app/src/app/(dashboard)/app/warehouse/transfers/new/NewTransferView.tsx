@@ -14,6 +14,7 @@ import { toast } from "react-toastify";
 import { getErrorMessage } from "@/lib/toastError";
 import { Button } from "@/components/ui/button";
 import { useProductSearch } from "@/hooks/useProductSearch";
+import { parseQty } from "@/lib/inventory/qtyInput";
 
 interface StockLocationOption {
   id: number;
@@ -47,8 +48,10 @@ export function NewTransferView() {
     fromStockLocationId: "",
     toLocationId: "",
     toStockLocationId: "",
-    quantity: 1,
+    // Kept as typed, so a part roll can be entered as 12.5; parsed on submit.
+    quantity: "1",
     notes: "",
+    moveNow: false,
   });
 
   useEffect(() => {
@@ -86,6 +89,16 @@ export function NewTransferView() {
       return;
     }
 
+    const quantity = parseQty(form.quantity);
+    if (quantity == null) {
+      toast.error("Enter a quantity greater than zero");
+      return;
+    }
+    if (form.moveNow && (!form.fromStockLocationId || !form.toStockLocationId)) {
+      toast.error("Moving now needs both stock locations chosen");
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await axios.post("/api/warehouse/transfers", {
@@ -96,10 +109,11 @@ export function NewTransferView() {
           : null,
         toLocationId: Number.parseInt(form.toLocationId),
         toStockLocationId: form.toStockLocationId ? Number.parseInt(form.toStockLocationId) : null,
-        quantity: form.quantity,
+        quantity,
         notes: form.notes || null,
+        moveNow: form.moveNow,
       });
-      toast.success("Transfer created");
+      toast.success(form.moveNow ? "Moved" : "Transfer created");
       router.push(`/app/warehouse/transfers/${res.data.id}`);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Failed to create transfer"));
@@ -205,7 +219,7 @@ export function NewTransferView() {
                   onChange={(e) => setForm((f) => ({ ...f, fromStockLocationId: e.target.value }))}
                   className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 >
-                  <option value="">Any stock location</option>
+                  <option value="">Any free stock at this store</option>
                   {fromLocation.stockLocations.map((sl) => (
                     <option key={sl.id} value={sl.id}>
                       {sl.name}
@@ -256,7 +270,7 @@ export function NewTransferView() {
                   onChange={(e) => setForm((f) => ({ ...f, toStockLocationId: e.target.value }))}
                   className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
                 >
-                  <option value="">Any stock location</option>
+                  <option value="">The store&apos;s receiving place</option>
                   {toLocation.stockLocations.map((sl) => (
                     <option key={sl.id} value={sl.id}>
                       {sl.name}
@@ -277,11 +291,10 @@ export function NewTransferView() {
             <input
               id="transfer-quantity"
               type="number"
-              min={1}
+              min={0}
+              step="any"
               value={form.quantity}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, quantity: Number.parseInt(e.target.value) || 1 }))
-              }
+              onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
               className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
             />
           </div>
@@ -298,6 +311,21 @@ export function NewTransferView() {
               placeholder="Optional"
             />
           </div>
+          <label className="flex items-start gap-2 text-sm text-brand-black sm:col-span-2">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={form.moveNow}
+              onChange={(e) => setForm((f) => ({ ...f, moveNow: e.target.checked }))}
+            />
+            <span>
+              Move now
+              <span className="block text-xs text-brand-gray">
+                One step, no transit: for stock already where it should be recorded. Needs both
+                stock locations, and is refused where the places need a tracked transfer.
+              </span>
+            </span>
+          </label>
         </div>
 
         {/* Actions */}

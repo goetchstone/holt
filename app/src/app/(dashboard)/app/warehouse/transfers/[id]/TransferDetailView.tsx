@@ -14,6 +14,7 @@ import { toast } from "react-toastify";
 import { format } from "date-fns";
 import { getErrorMessage } from "@/lib/toastError";
 import { Button } from "@/components/ui/button";
+import { parseQty } from "@/lib/inventory/qtyInput";
 
 interface TransferDetail {
   id: number;
@@ -21,6 +22,7 @@ interface TransferDetail {
   productName: string;
   productNumber: string;
   quantity: number;
+  receivedQuantity: number;
   fromLocation: string;
   fromLocationId: number | null;
   fromStockLocation: string | null;
@@ -56,6 +58,7 @@ export function TransferDetailView({ id }: { id: string }) {
   const [transfer, setTransfer] = useState<TransferDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [receiveQty, setReceiveQty] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -66,11 +69,14 @@ export function TransferDetailView({ id }: { id: string }) {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const updateStatus = async (newStatus: string) => {
+  const updateStatus = async (newStatus: string, quantity?: number) => {
     if (!transfer) return;
     setUpdating(true);
     try {
-      await axios.put(`/api/warehouse/transfers/${transfer.id}/status`, { status: newStatus });
+      await axios.put(`/api/warehouse/transfers/${transfer.id}/status`, {
+        status: newStatus,
+        ...(quantity != null ? { quantity } : {}),
+      });
       const res = await axios.get(`/api/warehouse/transfers/${transfer.id}`);
       setTransfer(res.data);
       toast.success(`Transfer ${STATUS_LABELS[newStatus]?.toLowerCase() || newStatus}`);
@@ -97,6 +103,10 @@ export function TransferDetailView({ id }: { id: string }) {
     );
   }
 
+  // What is still on its way: the rest arrives by a later receipt.
+  const remaining =
+    Math.round((transfer.quantity - (transfer.receivedQuantity ?? 0)) * 1000) / 1000;
+
   const formatLoc = (name: string, stockLoc: string | null) =>
     stockLoc ? `${name} - ${stockLoc}` : name;
 
@@ -122,6 +132,11 @@ export function TransferDetailView({ id }: { id: string }) {
           <div>
             <p className="text-brand-gray mb-1">Quantity</p>
             <p className="text-brand-black font-medium">{transfer.quantity}</p>
+            {transfer.receivedQuantity > 0 && transfer.receivedQuantity < transfer.quantity && (
+              <p className="text-xs text-brand-gray">
+                {transfer.receivedQuantity} received, {remaining} still on its way
+              </p>
+            )}
           </div>
           <div>
             <p className="text-brand-gray mb-1">From</p>
@@ -189,8 +204,33 @@ export function TransferDetailView({ id }: { id: string }) {
         )}
         {transfer.status === "IN_TRANSIT" && (
           <>
-            <Button size="sm" onClick={() => updateStatus("RECEIVED")} disabled={updating}>
-              Mark Received
+            <label htmlFor="receive-quantity" className="sr-only">
+              Quantity arriving
+            </label>
+            <input
+              id="receive-quantity"
+              type="number"
+              min={0}
+              step="any"
+              value={receiveQty}
+              onChange={(e) => setReceiveQty(e.target.value)}
+              placeholder={String(remaining)}
+              className="w-24 border border-brand-gray/30 rounded px-2 py-1 text-sm"
+            />
+            <Button
+              size="sm"
+              onClick={() => {
+                const qty = receiveQty ? parseQty(receiveQty) : remaining;
+                if (qty == null) {
+                  toast.error("Enter a quantity greater than zero");
+                  return;
+                }
+                setReceiveQty("");
+                updateStatus("RECEIVED", qty);
+              }}
+              disabled={updating}
+            >
+              {receiveQty && parseQty(receiveQty) !== remaining ? "Receive these" : "Mark Received"}
             </Button>
             <Button
               variant="outline"

@@ -14,6 +14,8 @@ import {
 } from "@/lib/inventory/ledger";
 import type { Place } from "@/lib/inventory/ledger";
 import { placeAt } from "@/lib/inventory/places";
+import { requiredMoveMode } from "@/lib/inventory/moveModes";
+import { MoveModeError } from "@/lib/inventory/transfers";
 import { toQty } from "@/lib/inventory/quantity";
 
 // Mutating inventory positions (quantity changes, moves, deletes) is a
@@ -77,6 +79,15 @@ export const handler = async (req: NextApiRequest, res: NextApiResponse, session
         });
 
         const units = toQty(row.quantity);
+        // Moving units to another place by hand is a quick move, allowed only
+        // where the two places' move mode says so (between stores it is a
+        // tracked transfer by default).
+        if (
+          to.stockLocationId !== from.stockLocationId &&
+          (await requiredMoveMode(tx, from.stockLocationId, to.stockLocationId)) !== "QUICK"
+        ) {
+          throw new MoveModeError();
+        }
         const moved =
           to.storeLocationId !== from.storeLocationId ||
           to.stockLocationId !== from.stockLocationId ||
@@ -118,6 +129,7 @@ export const handler = async (req: NextApiRequest, res: NextApiResponse, session
       if (result === null) return notFound(res, "Position");
       return success(res, { ...result, quantity: toQty(result.quantity) });
     } catch (err) {
+      if (err instanceof MoveModeError) return res.status(409).json({ error: err.message });
       return handleError(res, err, "PUT /warehouse/positions/[id]");
     }
   }

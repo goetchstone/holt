@@ -301,6 +301,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             productId: item.productId as number,
             quantity: item.orderedQuantity,
             storeLocationId,
+            // Taken today: committed at this store, the floor piece first.
+            takeWith: item.fulfillment === "TAKE" || deliveryMethod === "TAKEN",
           }));
 
         if (allocationLines.length > 0) {

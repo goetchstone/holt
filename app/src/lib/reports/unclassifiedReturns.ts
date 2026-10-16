@@ -192,6 +192,8 @@ export async function getUnclassifiedReturns(
           productId: true,
           status: true,
           inspectionCondition: true,
+          restockedAt: true,
+          writtenOffAt: true,
         },
       },
     },

@@ -8,6 +8,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { isStockLocationType, STOCK_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
+import { isMoveMode, MOVE_MODES } from "@/lib/inventory/moveModes";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
@@ -38,6 +39,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         squareFootage,
         locationAliases,
         holdsCommittedStock,
+        moveMode,
       } = req.body;
 
       // Validated rather than coerced -- see the POST route. Flipping this
@@ -45,6 +47,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       // "available to sell" and "already spoken for".
       if (holdsCommittedStock !== undefined && typeof holdsCommittedStock !== "boolean") {
         return res.status(400).json({ error: "holdsCommittedStock must be a boolean." });
+      }
+      if (moveMode !== undefined && moveMode !== null && moveMode !== "" && !isMoveMode(moveMode)) {
+        return res.status(400).json({ error: `moveMode must be one of ${MOVE_MODES.join(", ")}.` });
       }
       // Chosen from the catalog: the type decides whether stock here is
       // sellable, so a typo must not quietly make a stock room unsellable.
@@ -73,6 +78,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             locationAliases: Array.isArray(locationAliases) ? locationAliases : [],
           }),
           ...(holdsCommittedStock !== undefined && { holdsCommittedStock }),
+          ...(moveMode !== undefined && { moveMode: moveMode || null }),
           updatedBy: session.user?.email || null,
         },
       });

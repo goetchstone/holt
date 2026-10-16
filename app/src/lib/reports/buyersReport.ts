@@ -322,7 +322,7 @@ export async function getBuyersSummary(
             -- across totally unrelated orders — same root cause as the
             -- stock-vs-special classifier bug below. Path (a) is
             -- whole-PO-level so it already implies the link.
-            SELECT DISTINCT ON (poi.id) poi.id, poi."productId", rcv.qty
+            SELECT DISTINCT ON (poi.id) poi.id, poi."productId", rcv.qty, po."salesOrderId" AS so_id
             FROM "PurchaseOrderItem" poi
             JOIN received rcv ON rcv."purchaseOrderItemId" = poi.id
             JOIN "PurchaseOrder" po ON po.id = poi."purchaseOrderId"
@@ -348,11 +348,28 @@ export async function getBuyersSummary(
                     AND li_por."lineItemStatus" != 'CANCELLED'
                     AND EXISTS (SELECT 1 FROM "SalesOrder" WHERE id = li_por."salesOrderId" AND status = 'ORDER'))
               )
+          ),
+          -- A receipt for an order now arrives committed to it (ledger plan
+          -- phase 7), so query 1 already counts those units as customer stock.
+          -- Per order and product, this half counts only what the ledger does
+          -- not already hold as committed: the received special orders the
+          -- POS import knows about and the ledger has never seen.
+          by_order AS (
+            SELECT so_id, "productId", SUM(qty) AS qty
+            FROM allocated_pois
+            GROUP BY so_id, "productId"
+          ),
+          held AS (
+            SELECT "salesOrderId", "productId", SUM(quantity) AS qty
+            FROM "InventoryPosition"
+            WHERE "salesOrderId" IS NOT NULL
+            GROUP BY "salesOrderId", "productId"
           )
-          SELECT "productId",
-                 SUM(qty)::text AS customer_qty
-          FROM allocated_pois
-          GROUP BY "productId"
+          SELECT b."productId",
+                 SUM(GREATEST(b.qty - COALESCE(h.qty, 0), 0))::text AS customer_qty
+          FROM by_order b
+          LEFT JOIN held h ON h."salesOrderId" = b.so_id AND h."productId" = b."productId"
+          GROUP BY b."productId"
         `,
     ),
     // 2) On-order per product: sum(orderedQuantity) - sum(received) across

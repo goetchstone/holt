@@ -9,16 +9,20 @@
 // does the same thing instead of five slightly different re-implementations.
 
 import type { PrismaTx, AllocationLine, AllocationShortfall } from "@/lib/inventory/allocation";
-import { allocate, release } from "@/lib/inventory/allocation";
+import { allocate, releaseUnits } from "@/lib/inventory/allocation";
+import { roundQty, toQty } from "@/lib/inventory/quantity";
 import { lockProducts } from "@/lib/inventory/ledger";
 import { buildLocationMap } from "@/lib/storeLocationResolver";
 import { logger } from "@/lib/logger";
+import { settleShortfalls } from "@/lib/reports/oversold";
 
 export interface OrderLineForAllocation {
   productId: number;
   /** May be negative for a return line -- allocate()/consume() both skip
    *  non-positive quantities, so callers can pass this straight through. */
   quantity: number;
+  /** The customer takes it today (the line is TAKE, or the order is TAKEN). */
+  takeWith: boolean;
 }
 
 /**
@@ -56,50 +60,71 @@ export async function getActiveOrderLines(
 ): Promise<OrderLineForAllocation[]> {
   const lines = await tx.orderLineItem.findMany({
     where: { salesOrderId: orderId, lineItemStatus: "ACTIVE", productId: { not: null } },
-    select: { productId: true, orderedQuantity: true },
+    select: {
+      productId: true,
+      orderedQuantity: true,
+      fulfillment: true,
+      salesOrder: { select: { deliveryMethod: true } },
+    },
   });
   return lines.map((l) => ({
     productId: l.productId as number,
     quantity: Number(l.orderedQuantity),
+    takeWith: l.fulfillment === "TAKE" || l.salesOrder.deliveryMethod === "TAKEN",
   }));
 }
 
 /**
- * Record allocate()'s shortfalls as durable InventoryException rows. See
- * that function's file header: overselling is allowed on purpose and never
- * blocks the sale, but the gap must land somewhere back office can see and
- * work it. No-ops on an empty list so callers can call this unconditionally.
+ * Record allocate()'s shortfalls as InventoryException rows, one open row per
+ * (order, product): a re-sync after a line edit updates the open row rather
+ * than adding another, so the Oversold report counts each gap once. Then
+ * settle the order's open rows -- any it now holds enough for close
+ * themselves (lib/reports/oversold.ts). Overselling is allowed on purpose and
+ * never blocks the sale; the gap must land somewhere back office can see it.
  */
 export async function recordShortfalls(
   orderId: number,
   shortfalls: AllocationShortfall[],
   tx: PrismaTx,
 ): Promise<void> {
-  if (shortfalls.length === 0) return;
+  for (const s of shortfalls) {
+    const open = await tx.inventoryException.findFirst({
+      where: { salesOrderId: orderId, productId: s.productId, resolvedAt: null },
+      select: { id: true },
+    });
+    if (!open) {
+      await tx.inventoryException.create({
+        data: {
+          salesOrderId: orderId,
+          productId: s.productId,
+          storeLocationId: s.storeLocationId,
+          requested: s.requested,
+          allocated: s.allocated,
+          shortfall: s.shortfall,
+        },
+      });
+    }
+  }
+  await settleShortfalls(tx, orderId);
 
-  await tx.inventoryException.createMany({
-    data: shortfalls.map((s) => ({
-      salesOrderId: orderId,
-      productId: s.productId,
-      storeLocationId: s.storeLocationId,
-      requested: s.requested,
-      allocated: s.allocated,
-      shortfall: s.shortfall,
-    })),
-  });
-
-  logger.warn("Inventory exception recorded -- sale proceeded oversold", {
-    orderId,
-    shortfalls,
-  });
+  if (shortfalls.length > 0) {
+    logger.warn("Inventory exception recorded -- sale proceeded oversold", {
+      orderId,
+      shortfalls,
+    });
+  }
 }
 
 /**
- * Full resync for a line-item add/change/remove: release everything the
- * order currently has committed, then re-allocate against its current
- * active lines. See allocation.ts's `release()` doc comment for why this is
- * a full resync rather than per-line delta math -- a partial-release
- * implementation is where split/merged positions go wrong.
+ * Resync for a line-item add/change/remove: per product, compare what the
+ * order holds with what its active lines need, release only the excess and
+ * allocate only the deficit.
+ *
+ * This was a full release-then-reallocate. That was safe while every committed
+ * unit sat somewhere allocate() could find it again; it is not once a
+ * commitment can be in transit to the order's store or staged for its
+ * delivery, places allocate() does not draw from. Releasing those to re-commit
+ * them would have handed the order's units back to free stock in a truck.
  *
  * Skips allocation (logging why) when the order's storeLocation string
  * can't be resolved to a StoreLocation id -- never throws, never blocks the
@@ -120,20 +145,40 @@ export async function resyncOrderAllocation(
   }
 
   // Lock every product this resync will touch -- the ones the order holds now
-  // and the ones its lines want -- once, in ascending order, before release
-  // and allocate lock them again. Locking them in two batches (release's, then
-  // allocate's) could take 9 then 2 while a sale takes 2 then 9: a deadlock.
+  // and the ones its lines want -- once, in ascending order. Locking them in
+  // two batches could take 9 then 2 while a sale takes 2 then 9: a deadlock.
   const lines = await getActiveOrderLines(orderId, tx);
-  const held = await tx.inventoryPosition.findMany({
+  const held = await tx.inventoryPosition.groupBy({
+    by: ["productId"],
     where: { salesOrderId: orderId },
-    select: { productId: true },
-    distinct: ["productId"],
+    _sum: { quantity: true },
   });
   await lockProducts(tx, [...held.map((p) => p.productId), ...lines.map((l) => l.productId)]);
 
-  await release(orderId, tx);
+  const needed = new Map<number, number>();
+  const takeWith = new Set<number>();
+  for (const line of lines) {
+    if (line.quantity > 0) {
+      needed.set(line.productId, roundQty((needed.get(line.productId) ?? 0) + line.quantity));
+      if (line.takeWith) takeWith.add(line.productId);
+    }
+  }
+  const holding = new Map(held.map((h) => [h.productId, toQty(h._sum.quantity)]));
 
-  const allocationLines: AllocationLine[] = lines.map((l) => ({ ...l, storeLocationId }));
-  const result = await allocate(orderId, allocationLines, tx);
+  const deficits: AllocationLine[] = [];
+  for (const productId of new Set([...needed.keys(), ...holding.keys()])) {
+    const difference = roundQty((needed.get(productId) ?? 0) - (holding.get(productId) ?? 0));
+    if (difference < 0) await releaseUnits(orderId, productId, -difference, tx);
+    else if (difference > 0) {
+      deficits.push({
+        productId,
+        quantity: difference,
+        storeLocationId,
+        takeWith: takeWith.has(productId),
+      });
+    }
+  }
+
+  const result = await allocate(orderId, deficits, tx);
   await recordShortfalls(orderId, result.shortfalls, tx);
 }

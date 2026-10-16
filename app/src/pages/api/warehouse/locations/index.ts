@@ -64,6 +64,12 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
         sortOrder: true,
         externalLocationName: true,
         defaultReceivingStockLocationId: true,
+        pickupStockLocationId: true,
+        returnsStockLocationId: true,
+        quarantineStockLocationId: true,
+        transitStockLocationId: true,
+        fulfilmentStoreLocationId: true,
+        moveMode: true,
         stockLocations: {
           orderBy: { sortOrder: "asc" },
           select: {
@@ -87,6 +93,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
             // next save.
             locationAliases: true,
             holdsCommittedStock: true,
+            moveMode: true,
           },
         },
       },

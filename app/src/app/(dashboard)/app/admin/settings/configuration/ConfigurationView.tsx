@@ -29,6 +29,7 @@ import { ImportDefinitionsPanel } from "./ImportDefinitionsPanel";
 import { ImportExportPanel } from "./ImportExportPanel";
 import { ChangeHistoryPanel } from "./ChangeHistoryPanel";
 import { SourceSystemPanel } from "./SourceSystemPanel";
+import { UnmatchedStockPanel } from "./UnmatchedStockPanel";
 
 function DiskReportBanner({
   diskReport,
@@ -132,6 +133,9 @@ export function ConfigurationView() {
 
         <TabsContent tabValue="source">
           <SourceSystemPanel />
+          <div className="mt-6 border-t border-brand-linen pt-4">
+            <UnmatchedStockPanel />
+          </div>
         </TabsContent>
 
         <TabsContent tabValue="traffic">

@@ -43,9 +43,8 @@ import { pick, randInt, subRng } from "./rng";
 import type { CatalogProduct } from "./catalog";
 import type { StoreSetup } from "./locations";
 import type { StaffSetup } from "./staff";
-import { postMovement } from "@/lib/inventory/ledger";
-import { allocate } from "@/lib/inventory/allocation";
 import { toQty } from "@/lib/inventory/quantity";
+import { receiveTransfer, shipTransfer } from "@/lib/inventory/transfers";
 
 const SEED_ACTOR = "seed:demo";
 
@@ -239,49 +238,33 @@ export async function seedInventoryOps(
         toStockLocationId: to.floorStockLocationId,
         salesOrderId,
         requestedByUserId: actorUserId,
-        status,
-        shippedAt: status === "DRAFT" ? null : raisedAt,
-        receivedAt: status === "RECEIVED" ? new Date(raisedAt.getTime() + 2 * 86_400_000) : null,
-        receivedByUserId: status === "RECEIVED" ? actorUserId : null,
+        status: "DRAFT",
         notes: forOrder ? "Raised to fulfil a customer order." : null,
       },
-      select: { id: true },
     });
-    const source = { type: "InventoryTransfer" as const, id: transfer.id };
 
-    // Shipped (in transit, received): the units have left the source.
+    // Moved the way the app moves them (lib/inventory/transfers.ts): shipped
+    // into the source store's in-transit place, then received at the
+    // destination -- an order's transfer carries its commitment the whole way.
     // Cancelled after shipping: they left and came back, so nothing moves.
-    if (status === "IN_TRANSIT" || status === "RECEIVED") {
-      await postMovement(prisma, {
-        productId: chosen.productId,
-        quantity,
-        from: fromPlace,
-        reason: "TRANSFER",
-        source,
-        actor: "seed:demo",
-      });
-    }
-    if (status === "RECEIVED") {
-      await postMovement(prisma, {
-        productId: chosen.productId,
-        quantity,
-        to: {
-          storeLocationId: to.id,
-          stockLocationId: to.floorStockLocationId,
-          salesOrderId: null,
-        },
-        reason: "TRANSFER",
-        source,
-        actor: "seed:demo",
-      });
-      if (salesOrderId != null) {
-        await allocate(
-          salesOrderId,
-          [{ productId: chosen.productId, quantity, storeLocationId: to.id }],
-          prisma,
-        );
+    await prisma.$transaction(async (tx) => {
+      if (status === "IN_TRANSIT" || status === "RECEIVED") {
+        await shipTransfer(tx, transfer, "seed:demo");
       }
-    }
+      if (status === "RECEIVED") {
+        await receiveTransfer(tx, transfer, null, "seed:demo");
+      }
+      await tx.inventoryTransfer.update({
+        where: { id: transfer.id },
+        data: {
+          status,
+          receivedQuantity: status === "RECEIVED" ? quantity : 0,
+          shippedAt: status === "DRAFT" ? null : raisedAt,
+          receivedAt: status === "RECEIVED" ? new Date(raisedAt.getTime() + 2 * 86_400_000) : null,
+          receivedByUserId: status === "RECEIVED" ? actorUserId : null,
+        },
+      });
+    });
     result.transfersCreated += 1;
     if (status === "IN_TRANSIT") result.inTransitTransfers += 1;
     if (forOrder) result.orderLinkedTransfers += 1;

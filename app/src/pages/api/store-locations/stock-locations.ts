@@ -1,8 +1,9 @@
 // /app/src/pages/api/store-locations/stock-locations.ts
 //
 // The stock-location picker: each store with the stock locations inside it,
-// for the three screens that choose one: Receive PO (purchasing.write), New
-// Transfer and Inventory Positions (whose roles all hold inventory.transfer).
+// for the screens that choose one: Receive PO (purchasing.write), New
+// Transfer and Inventory Positions (whose roles all hold inventory.transfer),
+// and the returned-stock queue's "put back" (sales.return).
 // Either key admits, so granting a role one of those screens in Roles grants
 // the picker behind it (SEC-15, 2026-09-30).
 //
@@ -42,10 +43,10 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
-    return requirePermission({ anyOf: ["inventory.transfer", "purchasing.write"] }, handleGet)(
-      req,
-      res,
-    );
+    return requirePermission(
+      { anyOf: ["inventory.transfer", "purchasing.write", "sales.return"] },
+      handleGet,
+    )(req, res);
   }
   res.setHeader("Allow", "GET");
   return res.status(405).json({ error: "Method not allowed" });

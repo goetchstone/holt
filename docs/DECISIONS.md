@@ -293,8 +293,10 @@ number is the wrong trade every time. So `allocate` commits whatever exists,
 records the shortfall, and never throws.
 
 But "never block" is only half the rule. The discrepancy is real and somebody
-should see it, so it lands in `InventoryException` with an admin queue rather
-than a toast the cashier dismisses. Made-to-order lines are excluded, because a
+should see it, so it lands in `InventoryException` -- one open row per order
+and product, which closes itself when the order comes to hold what it needs,
+grouped with a suggested fix in Reports > Oversold -- rather than a toast the
+cashier dismisses. Made-to-order lines are excluded, because a
 queue full of the normal case is a queue nobody reads — the same reasoning that
 rate-limits error alerts in `errorRecorder.ts`.
 
@@ -414,6 +416,61 @@ impersonation and bootstrap rules survive the move),
 
 **Source:** [`docs/domains/staff-auth.md`](domains/staff-auth.md),
 [`app/src/lib/auth/permissionCatalog.ts`](../app/src/lib/auth/permissionCatalog.ts)
+
+---
+
+## 18. Holt owns its stock; the POS import is a client of the ledger
+
+**Rejected:** a per-store "import mode" flag that hands a store's stock to the
+POS file, and letting the import write positions directly.
+
+**Why:** Holt is standalone. On a live site the POS stock file is a one-time
+opening load; the owner's daily import exists for testing. So the import is
+one more writer through `lib/inventory/ledger.ts` like a receipt or a sale:
+`planImportSync` turns the file into one physical target per place (aliased
+rows summed, zero rows honoured, products a covered place no longer lists set
+to zero) and `applyImportSync` sets free stock to physical minus what is
+already committed to orders. A sale's commitment survives the file, the
+journal records every change, and a second run writes nothing. A store-level
+mode switch would have been a setting that exists only for the testing setup,
+and two writers with different rules for one balance.
+
+**Cost accepted:** while the daily test import runs, a place the file covers is
+reset to the file each day, natively received stock included. Floor flows are
+tested on `holt_demo` or with the import paused.
+
+**Enforced by:** `__tests__/importSync.test.ts`,
+`__tests__/integration/stockImportSync.integration.test.ts`, the single-writer
+tripwire (`stockWriterTripwire.test.ts`) and the suite-wide ledger drift check.
+
+**Source:** [`docs/domains/inventory.md`](domains/inventory.md)
+
+---
+
+## 19. A return never holds up the customer
+
+**Rejected:** a return status machine where putting the piece back
+(`RESTOCKED`) or writing it off (`WRITTEN_OFF`) is the step that finishes the
+return.
+
+**Why:** owner direction, 2026-10-16: the customer's return is processed and
+done; what happens to the piece is the store's job. So RECEIVED puts the piece
+into the store's returns place (owned, not for sale) and records where; the
+return can be inspected and closed at once. A per-store returned-stock queue
+lists every piece still waiting, and putting it back or writing it off is
+recorded on the return (`restockedAt` / `writtenOffAt`) apart from its status.
+The journal generator classifies a return by that recorded disposition first.
+A store that wants returns sellable at once points its returns place at a
+sellable place; the place's type is the whole setting.
+
+**Cost accepted:** a closed return can still have a piece in the queue, so
+"closed" no longer means "dealt with" for stock. The queue, and its count on
+the warehouse dashboard, is where that shows.
+
+**Enforced by:** `__tests__/integration/stockReturns.integration.test.ts`.
+
+**Source:** [`docs/domains/returns.md`](domains/returns.md),
+[`app/src/lib/inventory/returnStock.ts`](../app/src/lib/inventory/returnStock.ts)
 
 ---
 
