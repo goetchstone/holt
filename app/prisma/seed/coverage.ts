@@ -50,6 +50,14 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
     status: "skipped",
     reason: "Runtime floor notes, written when a handheld scans boxes; the demo has scanned none.",
   },
+  StockCount: {
+    status: "skipped",
+    reason: "Runtime floor counts, made on a handheld; the demo has counted nothing.",
+  },
+  StockCountLine: {
+    status: "skipped",
+    reason: "Lines of a StockCount, which the demo does not seed.",
+  },
   VendorNumberPrefix: { status: "seeded" },
   AdapterOrderFlag: {
     status: "skipped",

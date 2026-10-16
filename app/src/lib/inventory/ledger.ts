@@ -97,7 +97,7 @@ export type MovementReason = keyof typeof MOVEMENT_REASONS;
 
 /** The document a movement belongs to, recorded on the journal row. */
 export interface MovementSource {
-  type: "SalesOrder" | "PurchaseOrder" | "Return" | "InventoryTransfer";
+  type: "SalesOrder" | "PurchaseOrder" | "Return" | "InventoryTransfer" | "StockCount";
   id: number;
 }
 
