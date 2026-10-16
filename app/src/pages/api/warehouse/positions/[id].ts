@@ -112,7 +112,7 @@ export const handler = async (req: NextApiRequest, res: NextApiResponse, session
       });
 
       if (result === null) return notFound(res, "Position");
-      return success(res, result);
+      return success(res, { ...result, quantity: toQty(result.quantity) });
     } catch (err) {
       return handleError(res, err, "PUT /warehouse/positions/[id]");
     }
