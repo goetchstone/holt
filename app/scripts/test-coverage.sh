@@ -4,7 +4,7 @@
 # Combined coverage gate: runs unit tests + every integration test
 # file, collects coverage from each into its own directory, then
 # merges them with `nyc merge` and emits a single `coverage/lcov.info`
-# the Sonar gate consumes.
+# (the pre-PR hook checks it is newer than the branch's last commit).
 #
 # Why this script exists (Phase 0.6.5):
 # Phase 0.6.3 conversions moved C+ mocked-Prisma orchestration tests
@@ -20,7 +20,7 @@
 #
 # OUTPUTS
 #   coverage/coverage-final.json — merged Istanbul coverage
-#   coverage/lcov.info             — for Sonar
+#   coverage/lcov.info             — line coverage, for the pre-PR hook
 #   coverage/coverage-summary.json — summary numbers
 #
 # THRESHOLD ENFORCEMENT
@@ -75,7 +75,7 @@ for dir in "${INT_DIRS[@]}"; do
   fi
 done
 
-# ── Step 4: Generate the merged report (lcov for Sonar + json summary)
+# ── Step 4: Generate the merged report (lcov + json summary)
 echo ""
 echo "=== Merged coverage report ==="
 mkdir -p coverage
@@ -106,7 +106,7 @@ npx --no-install nyc check-coverage \
   --functions=70 \
   --lines=59
 
-# Cleanup intermediate dirs (keep coverage/ for Sonar)
+# Cleanup intermediate dirs (keep coverage/)
 rm -rf coverage-unit
 for dir in "${INT_DIRS[@]}"; do
   rm -rf "$dir"

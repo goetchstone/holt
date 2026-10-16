@@ -21,7 +21,6 @@
     "test:coverage": "bash scripts/test-coverage.sh",
     "test:coverage:unit": "node --max-old-space-size=1024 ./node_modules/.bin/jest --selectProjects unit --coverage",
     "validate": "npm run lint && npm run typecheck && npm run format:check",
-    "sonar:scan": "cd .. && docker run --rm --network=host -e SONAR_HOST_URL=\"${SONAR_HOST_URL:-http://localhost:9000}\" -e SONAR_TOKEN=\"$SONAR_TOKEN\" -e SONAR_SCANNER_OPTS=\"-Xmx3072m\" -e SONAR_SCANNER_JAVASCRIPT_MAX_SPACE=6144 -v \"$(pwd):/usr/src\" sonarsource/sonar-scanner-cli:latest -Dsonar.javascript.node.maxspace=6144",
     "security:semgrep": "cd .. && docker run --rm -v \"$(pwd):/src\" semgrep/semgrep semgrep scan --config p/typescript --config p/react --config p/nextjs --config p/nodejs --config p/owasp-top-ten --config p/secrets --severity ERROR --error /src/app/src /src/scripts",
     "security:deps": "cd .. && docker run --rm -v \"$(pwd):/src\" -w /src ghcr.io/google/osv-scanner:latest --config=app/osv-scanner.toml --lockfile=app/package-lock.json --format=table",
     "security:overrides": "node scripts/audit-overrides.mjs",

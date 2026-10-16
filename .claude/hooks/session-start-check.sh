@@ -7,15 +7,13 @@
 #
 # Always exit 0 -- informational only. Blocking session start is
 # user-hostile, and every check below is best-effort: missing tooling
-# (no git repo yet, no docker, no network to the local Sonar container,
-# unparseable dates) degrades to skipping that one section, never to a
+# (no git repo yet, unparseable dates) degrades to skipping that one section, never to a
 # non-zero exit.
 
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SKILL_PATH="$REPO_ROOT/.claude/skills/start-session/SKILL.md"
-SONAR_PROJECT_KEY="holt"
 
 {
   echo ""
@@ -37,39 +35,6 @@ SONAR_PROJECT_KEY="holt"
     BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null || echo "")"
     if [ -n "$BRANCH" ] && [ "$BRANCH" != "main" ]; then
       echo "Current branch: $BRANCH (not main -- confirm that's intentional)"
-    fi
-  fi
-
-  # Surface a RED Sonar gate inherited from the prior session, if the
-  # local Sonar container is reachable. Silent skip otherwise -- most
-  # sessions (fresh clones, CI-less dev boxes) won't have it running.
-  if [ -f "$REPO_ROOT/app/.env.local" ] && command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
-    SONAR_TOKEN=$(grep '^SONAR_TOKEN=' "$REPO_ROOT/app/.env.local" 2>/dev/null | cut -d= -f2- | tr -d '\n\r')
-    SONAR_HOST_URL=$(grep '^SONAR_HOST_URL=' "$REPO_ROOT/app/.env.local" 2>/dev/null | cut -d= -f2- | sed 's:/$::' | tr -d '\n\r')
-    SONAR_HOST_URL="${SONAR_HOST_URL:-http://localhost:9000}"
-
-    if [ -n "$SONAR_TOKEN" ]; then
-      GATE_JSON=$(curl -s --max-time 2 -u "${SONAR_TOKEN}:" \
-        "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}" 2>/dev/null || echo "")
-      if [ -n "$GATE_JSON" ] && echo "$GATE_JSON" | grep -q '"projectStatus"'; then
-        STATUS=$(echo "$GATE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['projectStatus']['status'])" 2>/dev/null || echo "UNKNOWN")
-        if [ "$STATUS" = "ERROR" ]; then
-          echo ""
-          echo "WARNING: Sonar gate is RED on the new code period."
-          echo "$GATE_JSON" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-for c in d.get('projectStatus', {}).get('conditions', []):
-    if c.get('status') == 'ERROR':
-        op = '<' if c.get('comparator') == 'LT' else '>'
-        print(f\"  - {c.get('metricKey')}: actual {c.get('actualValue')} {op} threshold {c.get('errorThreshold')}\")
-" 2>/dev/null
-          echo "  Fix before new feature work (rule 48), or confirm a working-branch"
-          echo "  commit carries \`sonar-gate-justified:\`."
-        elif [ "$STATUS" = "OK" ]; then
-          echo "Sonar gate: GREEN"
-        fi
-      fi
     fi
   fi
 

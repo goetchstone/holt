@@ -17,7 +17,6 @@ Every PR runs through this gate:
 | CodeQL (default setup, extended suite) | GitHub-managed | Every PR + weekly | **Yes**: the ruleset refuses a merge with a high-or-critical alert |
 | Client-data tripwire | Inside the unit tests | Every PR; patterns from the `CLIENT_DATA_PATTERNS` secret | **Yes** (fails without the secret) |
 | Secret scanning push protection | GitHub | Every push | **Yes**: a push carrying a recognised credential is refused |
-| Sonar Quality Gate | Local (developer machine) | Pre-PR via `npm run check:local` | Hook-enforced via `pre-pr-check.sh` |
 | Docker image CVE scan (Trivy) | GitHub Actions (`security.yml`) | **Weekly Monday + manual `workflow_dispatch`** | No |
 | OpenSSF Scorecard | GitHub Actions (`scorecard.yml`) | Every push to `main` + weekly (Tuesday) | No: publishes the README badge and the report at [scorecard.dev](https://scorecard.dev/viewer/?uri=github.com/goetchstone/holt) |
 
@@ -79,38 +78,29 @@ Tracked as an optional cost-saving step; do this if the $5/month budget runs tig
 
 ## The local check pipeline
 
-`npm run check:local` (in `app/`) runs the local-developer equivalent of CI plus Sonar:
+`npm run check:local` (in `app/`) runs the local-developer equivalent of CI. (It ran a local SonarQube scan as well until 2026-10-16; CodeQL in CI covers that ground, and the SonarSource rules worth keeping run in lint through `eslint-plugin-sonarjs`.)
 
 1. **`validate`** — lint + typecheck + format (~30 sec)
 2. **`test:coverage`** — unit + integration tests, merged coverage gate (~1 min)
-3. **`sonar:scan` + gate query** — code quality + duplications + cog complexity + some security (~5 min via Docker)
-4. **`lint:md`** — markdown formatting (~5 sec). Lints only Markdown git tracks or would track (`"gitignore": true` in `.markdownlint-cli2.jsonc`), so gitignored local docs such as `/PLAN.md` can't fail it. CI's Markdown lint job runs this same script, so both use the markdownlint-cli2 version pinned exactly in `app/package.json` (Dependabot bumps it)
-5. **`security:semgrep`** — OWASP/Next.js/secrets pattern scan (~2 min via Docker)
-6. **`security:deps`** — OSV CVE scan, only when `package-lock.json` changed in last commit (~30 sec)
+3. **`lint:md`** — markdown formatting (~5 sec). Lints only Markdown git tracks or would track (`"gitignore": true` in `.markdownlint-cli2.jsonc`), so gitignored local docs such as `/PLAN.md` can't fail it. CI's Markdown lint job runs this same script, so both use the markdownlint-cli2 version pinned exactly in `app/package.json` (Dependabot bumps it)
+4. **`security:semgrep`** — OWASP/Next.js/secrets pattern scan (~2 min via Docker)
+5. **`security:deps`** — OSV CVE scan, only when `package-lock.json` changed in last commit (~30 sec)
 
-Total wall time: ~7-10 min for a clean run.
+Most of the wall time is the integration tests.
 
 The `pre-pr-check.sh` hook fires before `gh pr create` and verifies:
 
 - `coverage/lcov.info` exists and is newer than the HEAD commit (i.e. tests were re-run since last code change)
-- Sonar gate is GREEN, OR a commit on the branch carries `sonar-gate-justified: <rationale>` marker
+- substantial code under `app/src` changed with a runbook (or CLAUDE.md / ROADMAP.md) touched, OR a commit on the branch carries a `docs-not-needed: <rationale>` marker
 
 ## Required setup (local checks)
 
 One-time:
 
 ```bash
-# Pull the Docker images used by local Sonar + Semgrep + OSV scans
-docker pull sonarsource/sonar-scanner-cli:latest
+# Pull the Docker images used by the local Semgrep + OSV scans
 docker pull semgrep/semgrep
 docker pull ghcr.io/google/osv-scanner:latest
-
-# Sonar token + host go in app/.env.local (already gitignored):
-echo 'SONAR_TOKEN=squ_xxxxxxxxxxxxxxxxxxxxxxxxx' >> app/.env.local
-echo 'SONAR_HOST_URL=http://localhost:9000' >> app/.env.local
-
-# Sonar server runs in Docker -- bring it up if not already:
-docker compose up -d sonarqube  # or whatever your compose service is named
 ```
 
 Markdownlint and Jest are devDependencies in `app/package.json`, so `npm ci` in `app/` installs them — no separate install.
@@ -244,5 +234,5 @@ Track significant CI changes here as they're made. Initial entries to record whe
 |---|---|
 | 2026-10-07 | Fresh repository. `main protection` ruleset `24667944` created by `scripts/apply-github-ruleset.sh`: six required checks, strict, CodeQL high-alert rule, push protection, Dependabot security updates, private vulnerability reporting, CodeQL default setup |
 | 2026-10-15 | OpenSSF Scorecard added (`scorecard.yml`, README badge). Every action pinned to a commit SHA and the Dockerfile base image to a digest. `osv-scanner.toml` moved beside the lockfile (`app/`), where Scorecard reads it. `security.yml` runs on push to `main` again so its badge tracks `main` |
-| — | Local Sonar gate required before push |
+| — | Local Sonar gate required before push. **Removed 2026-10-16:** SonarQube, its compose file, gate script and hook block are gone; CodeQL (default setup, required) covers the analysis |
 | — | CI trim: dropped manual CodeQL job, moved Trivy to weekly-only, path-filtered OSV/markdownlint, dropped `Dependency CVE scan` from required-status-checks. Reduced per-PR minutes from ~20 to ~7. **Superseded:** none of the workflows carries a path filter now, and `Dependency CVE scan` is a required check again (2026-10-07 row above), so the ~7 minutes describes a shape that no longer exists. |
