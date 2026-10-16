@@ -287,6 +287,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/scan/count": { permission: "inventory.count" },
   "/app/scan/lookup": { permission: "inventory.read" },
   "/app/scan/move": { permission: "inventory.transfer" },
+  "/app/scan/pick": { permission: "warehouse.operate" },
   "/app/scan/receive": { permission: "purchasing.receive" },
   "/app/service": { permission: "service.read" },
   "/app/service/cases/[id]": { permission: "service.read" },
