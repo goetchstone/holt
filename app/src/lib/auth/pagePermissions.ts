@@ -284,6 +284,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
     reason: "the handheld menu; every floor job behind it checks its own permission",
   },
   "/app/scan/lookup": { permission: "inventory.read" },
+  "/app/scan/receive": { permission: "purchasing.receive" },
   "/app/service": { permission: "service.read" },
   "/app/service/cases/[id]": { permission: "service.read" },
   "/app/service/cases/new": { permission: "service.write" },

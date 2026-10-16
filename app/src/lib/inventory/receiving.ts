@@ -47,7 +47,7 @@ export async function receiptOrderId(
 }
 
 /** What an order still needs committed of a product: its active lines less what it holds. */
-async function stillNeeded(tx: Tx, orderId: number, productId: number): Promise<number> {
+export async function stillNeeded(tx: Tx, orderId: number, productId: number): Promise<number> {
   const [lines, held] = await Promise.all([
     tx.orderLineItem.aggregate({
       where: { salesOrderId: orderId, productId, lineItemStatus: "ACTIVE" },
@@ -73,10 +73,17 @@ export async function receiveIntoStock(
     stockLocationId?: number | null;
     condition?: string | null;
     actor: string | null;
+    actionKey?: string | null;
   },
 ): Promise<{ committedTo: number | null }> {
   const source = { type: "PurchaseOrder", id: args.po.id } as const;
-  const base = { productId: args.productId, reason: "RECEIVE" as const, source, actor: args.actor };
+  const base = {
+    productId: args.productId,
+    reason: "RECEIVE" as const,
+    source,
+    actor: args.actor,
+    actionKey: args.actionKey,
+  };
 
   if (isQuarantinedCondition(args.condition)) {
     const quarantine = await landingPlaceId(tx, args.storeLocationId, "QUARANTINE");

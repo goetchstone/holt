@@ -46,6 +46,10 @@ export interface SeedCoverageEntry {
 }
 
 export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
+  BoxNote: {
+    status: "skipped",
+    reason: "Runtime floor notes, written when a handheld scans boxes; the demo has scanned none.",
+  },
   VendorNumberPrefix: { status: "seeded" },
   AdapterOrderFlag: {
     status: "skipped",

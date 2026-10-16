@@ -388,6 +388,7 @@ model Product {
   updated   DateTime? @updatedAt
   createdBy String?
   updatedBy String?
+  boxNotes  BoxNote[]
 }
 
 // Vendor collections group styles/products (e.g., "CORAL" for Jensen, "Curata" for Hooker)
@@ -1652,6 +1653,7 @@ model StockLocation {
   updated   DateTime? @updatedAt
   createdBy String?
   updatedBy String?
+  boxNotes  BoxNote[]
 
   @@unique([storeLocationId, code])
 }
@@ -1740,6 +1742,35 @@ model StockMovement {
   @@index([productId, occurredAt])
   @@index([sourceType, sourceId])
   @@index([actionKey])
+}
+
+/// A note about boxes, never a quantity (lib/inventory/boxes.ts). INCOMPLETE:
+/// a unit at this place is missing these boxes (it waits in quarantine).
+/// STRAY: these boxes sit here, away from the rest of their unit. Item counts
+/// stay the only count; a note clears itself when the boxes are reunited,
+/// picked with their unit, counted absent, or cleared by hand.
+model BoxNote {
+  id              Int           @id @default(autoincrement())
+  kind            String // BOX_NOTE_KINDS
+  productId       Int
+  product         Product       @relation(fields: [productId], references: [id])
+  storeLocationId Int
+  stockLocationId Int
+  stockLocation   StockLocation @relation(fields: [stockLocationId], references: [id])
+  /// INCOMPLETE: the box numbers missing. STRAY: the box numbers here.
+  boxes           Int[]
+  boxesPerUnit    Int
+  sourceType      String?
+  sourceId        Int?
+  note            String?
+  created         DateTime      @default(now())
+  createdBy       String?
+  clearedAt       DateTime?
+  clearedBy       String?
+  clearReason     String?
+
+  @@index([productId, clearedAt])
+  @@index([stockLocationId, clearedAt])
 }
 
 /// One handheld action, done once however many times it is sent
