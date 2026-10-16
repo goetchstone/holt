@@ -39,6 +39,43 @@ describe("stock-locations preset schema", () => {
     ).toBe(false);
   });
 
+  it("refuses the retired building / floor / area, saying what replaced them", () => {
+    const r = preset([
+      { storeLocation: "S", locations: [{ code: "A", name: "A", building: "North", floor: 2 }] },
+    ]);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0].message).toContain("replaced by `inside`");
+  });
+
+  it("refuses an inside that the store does not list, and a loop", () => {
+    const unknown = preset([
+      { storeLocation: "S", locations: [{ code: "A", name: "A", inside: "NOPE" }] },
+    ]);
+    expect(unknown.success).toBe(false);
+    const loop = preset([
+      {
+        storeLocation: "S",
+        locations: [
+          { code: "A", name: "A", inside: "B" },
+          { code: "B", name: "B", inside: "A" },
+        ],
+      },
+    ]);
+    expect(loop.success).toBe(false);
+    if (!loop.success) expect(loop.error.issues[0].message).toContain("inside itself");
+    expect(
+      preset([
+        {
+          storeLocation: "S",
+          locations: [
+            { code: "A", name: "A", inside: "B" },
+            { code: "B", name: "B", locationType: "GROUP" },
+          ],
+        },
+      ]).success,
+    ).toBe(true);
+  });
+
   it("refuses the same code twice in one store", () => {
     const r = preset([
       {
@@ -82,7 +119,8 @@ describe("stock-locations serialisation", () => {
               storeLocation: "Zeta",
               locations: [
                 { code: "B", name: "Back", aliases: ["z", "a"] },
-                { code: "A", name: "Floor", locationType: "FLOOR", floor: 0 },
+                { code: "A", name: "Floor", locationType: "FLOOR", inside: "BLDG" },
+                { code: "BLDG", name: "Building", locationType: "GROUP" },
               ],
             },
             { storeLocation: "Alpha", locations: [{ code: "X", name: "X" }] },
@@ -94,7 +132,7 @@ describe("stock-locations serialisation", () => {
     const yaml = serializePresetBundle(parsed.bundle, "yaml");
     expect(yaml.indexOf("Alpha")).toBeLessThan(yaml.indexOf("Zeta"));
     expect(yaml.indexOf("code: A")).toBeLessThan(yaml.indexOf("code: B"));
-    expect(yaml).toContain("floor: 0");
+    expect(yaml).toContain("inside: BLDG");
     expect(yaml).not.toContain("locationType: STOCK");
     expect(yaml).not.toContain("holdsCommittedStock");
     // Round trip: parse what we wrote, serialise again, same bytes.
@@ -126,14 +164,12 @@ describe("planStockLocationChanges", () => {
     name: "X",
     description: null,
     locationType: "STOCK",
-    building: null,
-    floor: null,
-    area: null,
     squareFootage: null,
     locationAliases: [],
     holdsCommittedStock: false,
     isActive: true,
     sortOrder: 0,
+    parentCode: null,
     ...over,
   });
 

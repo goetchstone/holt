@@ -22,9 +22,10 @@
 
 import type { Prisma } from "@prisma/client";
 import { withStockTx, type Place, type PrismaTx } from "./ledger";
-import { isStockLocationType } from "./locationTypes";
 import {
   LANDING_PLACES,
+  landingAllows,
+  landingTypesText,
   type LandingPlace,
   type LandingPlaceInfo,
   type StorePointer,
@@ -170,11 +171,8 @@ export async function landingPlaceProblem(
     if (place.storeLocationId !== storeLocationId) {
       return `${info.setting}: "${place.name}" is at a different store.`;
     }
-    if (
-      info.allowedTypes !== "any" &&
-      !(isStockLocationType(place.locationType) && info.allowedTypes.includes(place.locationType))
-    ) {
-      return `${info.setting}: "${place.name}" is a ${place.locationType} place; it must be ${info.allowedTypes.join(" or ")}.`;
+    if (!landingAllows(info, place.locationType)) {
+      return `${info.setting}: "${place.name}" is a ${place.locationType} place; it must be ${landingTypesText(info)}.`;
     }
   }
   return null;

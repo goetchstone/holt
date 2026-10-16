@@ -62,6 +62,7 @@ import { BUILT_IN_ROLES } from "@/lib/auth/permissionCatalog";
 import { invalidateRoleGrantCache, type RoleGrantRow } from "@/lib/auth/permissionResolver";
 import { countStaffHolding, lockoutMessage, LOCKOUT_PERMISSION } from "@/lib/auth/roleAdmin";
 import { invalidateTrafficStoreMap } from "@/lib/trafficStoreMap";
+import { placeTypeProblem } from "@/lib/inventory/placeTree";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -946,14 +947,13 @@ export interface StockLocationRow {
   name: string;
   description: string | null;
   locationType: string;
-  building: string | null;
-  floor: number | null;
-  area: number | null;
   squareFootage: number | null;
   locationAliases: string[];
   holdsCommittedStock: boolean;
   isActive: boolean;
   sortOrder: number;
+  /** The code of the place it is inside, in the same store; null at the top. */
+  parentCode: string | null;
 }
 
 const STOCK_LOCATION_SELECT = {
@@ -963,14 +963,12 @@ const STOCK_LOCATION_SELECT = {
   name: true,
   description: true,
   locationType: true,
-  building: true,
-  floor: true,
-  area: true,
   squareFootage: true,
   locationAliases: true,
   holdsCommittedStock: true,
   isActive: true,
   sortOrder: true,
+  parent: { select: { code: true } },
 } as const;
 
 /**
@@ -1042,14 +1040,12 @@ function desiredStockLocation(
     name: loc.name,
     description: loc.description ?? null,
     locationType: loc.locationType,
-    building: loc.building ?? null,
-    floor: loc.floor ?? null,
-    area: loc.area ?? null,
     squareFootage: loc.squareFootage ?? null,
     locationAliases: [...new Set(loc.aliases)].sort((a, b) => a.localeCompare(b)),
     holdsCommittedStock: loc.holdsCommittedStock,
     isActive: true,
     sortOrder: loc.sortOrder ?? 0,
+    parentCode: loc.inside ?? null,
   };
 }
 
@@ -1060,9 +1056,6 @@ function changedStockLocationFields(row: StockLocationRow, want: StockLocationDa
     "name",
     "description",
     "locationType",
-    "building",
-    "floor",
-    "area",
     "squareFootage",
     "holdsCommittedStock",
     "isActive",
@@ -1071,6 +1064,7 @@ function changedStockLocationFields(row: StockLocationRow, want: StockLocationDa
   for (const key of keys) {
     if (row[key] !== want[key]) changed.push(key);
   }
+  if (row.parentCode !== want.parentCode) changed.push("inside");
   const current = [...row.locationAliases].sort((a, b) => a.localeCompare(b));
   if (!arraysEqual(current, want.locationAliases)) changed.push("aliases");
   return changed;
@@ -1205,13 +1199,41 @@ async function writeStockLocationPlan(
   actor: string | null,
 ): Promise<void> {
   await db.$transaction(async (tx) => {
+    const placed: { storeLocationId: number; id: number; parentCode: string | null }[] = [];
     for (const c of plan.creates) {
-      await tx.stockLocation.create({
-        data: { storeLocationId: c.storeLocationId, code: c.code, ...c.data, createdBy: actor },
+      const { parentCode, ...data } = c.data;
+      const row = await tx.stockLocation.create({
+        data: { storeLocationId: c.storeLocationId, code: c.code, ...data, createdBy: actor },
+        select: { id: true },
       });
+      placed.push({ storeLocationId: c.storeLocationId, id: row.id, parentCode });
     }
     for (const u of plan.updates) {
-      await tx.stockLocation.update({ where: { id: u.id }, data: { ...u.data, updatedBy: actor } });
+      const { parentCode, ...data } = u.data;
+      const row = await tx.stockLocation.update({
+        where: { id: u.id },
+        data: { ...data, updatedBy: actor },
+        select: { id: true, storeLocationId: true },
+      });
+      placed.push({ storeLocationId: row.storeLocationId, id: row.id, parentCode });
+    }
+    // Parents last, once every place in the file exists: a place may be inside
+    // one created in the same apply. The schema already refused unknown codes
+    // and loops.
+    for (const p of placed) {
+      const parent =
+        p.parentCode == null
+          ? null
+          : await tx.stockLocation.findUnique({
+              where: {
+                storeLocationId_code: { storeLocationId: p.storeLocationId, code: p.parentCode },
+              },
+              select: { id: true },
+            });
+      await tx.stockLocation.update({
+        where: { id: p.id },
+        data: { parentId: parent?.id ?? null },
+      });
     }
     for (const d of plan.deactivations) {
       // Aliases go too: the stock import matches aliases on inactive places
@@ -1230,10 +1252,12 @@ async function stockLocationRowsByKey(
   db: PrismaClient,
   storeNameById: Map<number, string>,
 ): Promise<Map<string, StockLocationRow>> {
-  const rows: StockLocationRow[] = await db.stockLocation.findMany({
-    where: { storeLocationId: { in: [...storeNameById.keys()] } },
-    select: STOCK_LOCATION_SELECT,
-  });
+  const rows: StockLocationRow[] = (
+    await db.stockLocation.findMany({
+      where: { storeLocationId: { in: [...storeNameById.keys()] } },
+      select: STOCK_LOCATION_SELECT,
+    })
+  ).map(({ parent, ...row }) => ({ ...row, parentCode: parent?.code ?? null }));
   const byKey = new Map<string, StockLocationRow>();
   for (const row of rows) {
     const storeName = storeNameById.get(row.storeLocationId);
@@ -1296,6 +1320,24 @@ async function applyStockLocations(
     rowByKey,
     dropped,
   );
+  // A group holds only places: the preset, like the stock-location route,
+  // never makes one of a place still holding stock (rule 42).
+  const labelById = new Map(
+    [...rowByKey].map(([k, row]) => {
+      const place = parsePlaceOwnershipKey(k);
+      return [row.id, place ? `${place.store} / ${place.code}` : `#${row.id}`];
+    }),
+  );
+  const typeProblems: string[] = [];
+  for (const u of plan.updates) {
+    const problem = await placeTypeProblem(db, {
+      placeId: u.id,
+      locationType: u.data.locationType,
+    });
+    if (problem) typeProblems.push(`${labelById.get(u.id)}: ${problem}`);
+  }
+  if (typeProblems.length) return failOutcome(preset, typeProblems);
+
   const ownedStores = [...names].sort((a, b) => a.localeCompare(b));
   const ownedLocations = [...desiredKeys].sort((a, b) => a.localeCompare(b));
   const changes: ApplyChangeCounts = {

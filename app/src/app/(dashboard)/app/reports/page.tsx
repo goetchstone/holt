@@ -89,6 +89,13 @@ const ITEMS: CardGridItem[] = [
     roles: ["MANAGER", "ADMIN"],
   },
   {
+    title: "Stock and Space",
+    description:
+      "Everything in a store, a building or any place inside it, grouped by the places in it, place type, department, category, vendor or collection — with the units and each group's share of the measured floor.",
+    href: "/app/reports/stock-by",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
     title: "Unclassified Returns",
     description:
       "Returns booked on the default restock assumption because no Return record classifies them — the accountant's worklist to review and correct any that were actually written off.",

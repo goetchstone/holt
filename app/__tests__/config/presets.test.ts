@@ -274,7 +274,7 @@ presets:
           - code: FLR
             name: Sales Floor
             locationType: FLOOR
-            floor: 0
+            inside: BACK
             squareFootage: 6000
 `;
     const json = JSON.stringify({
@@ -297,7 +297,7 @@ presets:
                   code: "FLR",
                   name: "Sales Floor",
                   locationType: "FLOOR",
-                  floor: 0,
+                  inside: "BACK",
                   squareFootage: 6000,
                 },
               ],

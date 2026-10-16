@@ -1595,20 +1595,25 @@ model StoreLocation {
 }
 
 model StockLocation {
-  id              Int           @id @default(autoincrement())
+  id              Int             @id @default(autoincrement())
   storeLocationId Int
-  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id])
+  storeLocation   StoreLocation   @relation(fields: [storeLocationId], references: [id])
   code            String
   name            String
   description     String?
-  building        String?
-  floor           Int?
-  area            Int?
-  locationType    String        @default("STOCK") // FLOOR or STOCK
+  // Places contain places: North Barn > Floor 2 > Stock Sofas > Shelf 3 are
+  // all StockLocations, nested as deep as a store wants (a small store stays
+  // flat). A parent is in the same store and a place is never inside itself
+  // (lib/inventory/placeTree.ts). This replaced free-text building/floor/area
+  // columns, converted into parent places by 20261018120000_places_contain_places.
+  parentId        Int?
+  parent          StockLocation?  @relation("PlaceTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children        StockLocation[] @relation("PlaceTree")
+  locationType    String          @default("STOCK") // STOCK_LOCATION_TYPES in lib/inventory/locationTypes.ts
   squareFootage   Int?
   locationAliases String[] // the POS location names that map to this USL
-  isActive        Boolean       @default(true)
-  sortOrder       Int           @default(0)
+  isActive        Boolean         @default(true)
+  sortOrder       Int             @default(0)
 
   // How stock moves in or out of this place (MOVE_MODES); null = its store's.
   moveMode String?

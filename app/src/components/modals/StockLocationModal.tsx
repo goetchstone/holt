@@ -5,15 +5,14 @@ import FormInput from "@/components/form/FormInput";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/Modal";
 import { LOCATION_TYPE_INFO, STOCK_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
+import { descendantIds, treeOrder } from "@/lib/inventory/placeTree";
 
 interface StockLocationData {
   id: number;
   code: string;
   name: string;
   description: string | null;
-  building: string | null;
-  floor: number | null;
-  area: number | null;
+  parentId: number | null;
   locationType: string;
   squareFootage: number | null;
   locationAliases: string[];
@@ -25,6 +24,15 @@ interface StockLocationData {
 type Props = {
   stockLocation: StockLocationData | null;
   storeLocationId: number;
+  /** The store's places, for the "Inside" picker. */
+  places: {
+    id: number;
+    code: string;
+    name: string;
+    parentId: number | null;
+    sortOrder: number;
+    isActive: boolean;
+  }[];
   onClose: () => void;
   onRefresh: () => void;
 };
@@ -32,6 +40,7 @@ type Props = {
 export default function StockLocationModal({
   stockLocation,
   storeLocationId,
+  places,
   onClose,
   onRefresh,
 }: Props) {
@@ -39,8 +48,7 @@ export default function StockLocationModal({
     code: "",
     name: "",
     description: "",
-    building: "",
-    floor: "",
+    parentId: "",
     locationType: "STOCK",
     squareFootage: "",
     locationAliases: "",
@@ -56,8 +64,7 @@ export default function StockLocationModal({
         code: stockLocation.code || "",
         name: stockLocation.name || "",
         description: stockLocation.description || "",
-        building: stockLocation.building || "",
-        floor: stockLocation.floor?.toString() || "",
+        parentId: stockLocation.parentId?.toString() || "",
         locationType: stockLocation.locationType || "STOCK",
         squareFootage: stockLocation.squareFootage?.toString() || "",
         locationAliases: (stockLocation.locationAliases || []).join(", "),
@@ -70,8 +77,7 @@ export default function StockLocationModal({
         code: "",
         name: "",
         description: "",
-        building: "",
-        floor: "",
+        parentId: "",
         locationType: "STOCK",
         squareFootage: "",
         locationAliases: "",
@@ -81,6 +87,14 @@ export default function StockLocationModal({
       setHoldsCommittedStock(false);
     }
   }, [stockLocation]);
+
+  // A place cannot be inside itself, anything inside it, or an inactive place.
+  const excluded = stockLocation
+    ? new Set([stockLocation.id, ...descendantIds(places, stockLocation.id)])
+    : new Set<number>();
+  const insideOptions = treeOrder(places.filter((p) => p.isActive)).filter(
+    ({ place }) => !excluded.has(place.id),
+  );
 
   const handleChange = (name: string, value: string) => {
     setForm({ ...form, [name]: value });
@@ -106,13 +120,12 @@ export default function StockLocationModal({
           code: form.code,
           name: form.name,
           description: form.description || null,
-          building: form.building || null,
-          floor: form.floor ? Number.parseInt(form.floor) : null,
+          parentId: form.parentId ? Number(form.parentId) : null,
           locationType: form.locationType,
-          squareFootage:
-            form.locationType === "FLOOR" && form.squareFootage
-              ? Number.parseInt(form.squareFootage)
-              : null,
+          // Any place can be measured (the space report counts each unit
+          // toward its nearest measured place). This was sent only for floor
+          // places, so saving any other place wiped its square footage.
+          squareFootage: form.squareFootage ? Number.parseInt(form.squareFootage) : null,
           locationAliases: form.locationAliases
             .split(",")
             .map((s) => s.trim())
@@ -192,20 +205,23 @@ export default function StockLocationModal({
         value={form.description}
         onChange={(v) => handleChange("description", v)}
       />
-      <div className="grid grid-cols-2 gap-4">
-        <FormInput
-          label="Building"
-          name="building"
-          value={form.building}
-          onChange={(v) => handleChange("building", v)}
-        />
-        <FormInput
-          label="Floor"
-          name="floor"
-          type="number"
-          value={form.floor}
-          onChange={(v) => handleChange("floor", v)}
-        />
+      <div>
+        <label htmlFor="stock-location-inside" className="block text-sm text-brand-gray mb-1">
+          Inside
+        </label>
+        <select
+          id="stock-location-inside"
+          value={form.parentId}
+          onChange={(e) => handleChange("parentId", e.target.value)}
+          className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
+        >
+          <option value="">Nothing: at the top of the store</option>
+          {insideOptions.map(({ place, depth }) => (
+            <option key={place.id} value={place.id}>
+              {`${"\u00a0\u00a0".repeat(depth)}${place.code} - ${place.name}`}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -223,15 +239,13 @@ export default function StockLocationModal({
             ))}
           </select>
         </div>
-        {form.locationType === "FLOOR" && (
-          <FormInput
-            label="Square Footage"
-            name="squareFootage"
-            type="number"
-            value={form.squareFootage}
-            onChange={(v) => handleChange("squareFootage", v)}
-          />
-        )}
+        <FormInput
+          label="Square Footage"
+          name="squareFootage"
+          type="number"
+          value={form.squareFootage}
+          onChange={(v) => handleChange("squareFootage", v)}
+        />
       </div>
       <div>
         <label htmlFor="stock-location-move-mode" className="block text-sm text-brand-gray mb-1">

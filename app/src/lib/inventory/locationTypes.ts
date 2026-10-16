@@ -14,9 +14,9 @@
 // between sites is Holt's and is counted and valued, but nobody can sell it
 // until it is somewhere sellable.
 //
-// WORK_CENTRE is reserved for manufacturing and GROUP (a place that holds only
-// other places) arrives with nested places; neither is listed until something
-// uses it.
+// GROUP is a place that holds only other places -- a building, a floor -- and
+// never stock itself. WORK_CENTRE is reserved for manufacturing and is not
+// listed until something uses it.
 
 export const STOCK_LOCATION_TYPES = [
   "FLOOR",
@@ -25,6 +25,7 @@ export const STOCK_LOCATION_TYPES = [
   "STAGING",
   "QUARANTINE",
   "TRANSIT",
+  "GROUP",
 ] as const;
 
 export type StockLocationType = (typeof STOCK_LOCATION_TYPES)[number];
@@ -33,19 +34,22 @@ interface LocationTypeInfo {
   label: string;
   /** Free stock here can be sold and allocated. */
   sellable: boolean;
+  /** Stock can sit here. False only for GROUP, which holds places. */
+  holdsStock: boolean;
 }
 
 export const LOCATION_TYPE_INFO: Record<StockLocationType, LocationTypeInfo> = {
-  FLOOR: { label: "Sales floor", sellable: true },
-  STOCK: { label: "Stock room", sellable: true },
+  FLOOR: { label: "Sales floor", sellable: true, holdsStock: true },
+  STOCK: { label: "Stock room", sellable: true, holdsStock: true },
   // Arrived and not yet put away. Still sellable: a customer can buy the sofa
   // that came off the truck this morning.
-  RECEIVING: { label: "Receiving", sellable: true },
+  RECEIVING: { label: "Receiving", sellable: true, holdsStock: true },
   // Picked and waiting to load. Not offered for sale, so a unit pulled for one
   // delivery is not sold again from the dock.
-  STAGING: { label: "Staging", sellable: false },
-  QUARANTINE: { label: "Quarantine", sellable: false },
-  TRANSIT: { label: "In transit", sellable: false },
+  STAGING: { label: "Staging", sellable: false, holdsStock: true },
+  QUARANTINE: { label: "Quarantine", sellable: false, holdsStock: true },
+  TRANSIT: { label: "In transit", sellable: false, holdsStock: true },
+  GROUP: { label: "Group of places", sellable: false, holdsStock: false },
 };
 
 export const SELLABLE_LOCATION_TYPES: StockLocationType[] = STOCK_LOCATION_TYPES.filter(

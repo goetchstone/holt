@@ -7,8 +7,9 @@
 // Either key admits, so granting a role one of those screens in Roles grants
 // the picker behind it (SEC-15, 2026-09-30).
 //
-// Only what a picker shows: no aliases, no "holds committed stock" flag, no
-// building/floor/area or addresses. Those belong to store and stock-location
+// Only what a picker shows -- each place with the place it is inside, so a
+// picker can show the path -- and no aliases, no "holds committed stock" flag
+// or addresses. Those belong to store and stock-location
 // setup, which reads /api/warehouse/locations.
 
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -30,7 +31,14 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
         defaultReceivingStockLocationId: true,
         stockLocations: {
           orderBy: { sortOrder: "asc" },
-          select: { id: true, code: true, name: true, locationType: true, isActive: true },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            locationType: true,
+            isActive: true,
+            parentId: true,
+          },
         },
       },
     });

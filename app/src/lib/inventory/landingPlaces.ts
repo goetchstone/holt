@@ -5,7 +5,7 @@
 // from places.ts, which reads the database, so the Warehouse > Locations
 // screen can list the same settings without bundling the database client.
 
-import type { StockLocationType } from "./locationTypes";
+import { isStockLocationType, LOCATION_TYPE_INFO, type StockLocationType } from "./locationTypes";
 
 export type StorePointer =
   | "defaultReceivingStockLocationId"
@@ -21,7 +21,7 @@ export interface LandingPlaceInfo {
   setting: string;
   /** Created when missing, with this code, name and type; null = never created. */
   create: { code: string; name: string; type: StockLocationType } | null;
-  /** Types the setting may point at. */
+  /** Types the setting may point at; "any" = any type that holds stock. */
   allowedTypes: readonly StockLocationType[] | "any";
 }
 
@@ -62,3 +62,20 @@ export const LANDING_PLACES = {
 } as const satisfies Record<string, LandingPlaceInfo>;
 
 export type LandingPlace = keyof typeof LANDING_PLACES;
+
+/**
+ * Whether a landing place may point at a place of `locationType`. Stock lands
+ * there, so never a GROUP, whatever the setting allows. One check for the
+ * store route and the screen's pickers.
+ */
+export function landingAllows(info: LandingPlaceInfo, locationType: string): boolean {
+  if (!isStockLocationType(locationType) || !LOCATION_TYPE_INFO[locationType].holdsStock) {
+    return false;
+  }
+  return info.allowedTypes === "any" || info.allowedTypes.includes(locationType);
+}
+
+/** The types `info` allows, for an error that lists them. */
+export function landingTypesText(info: LandingPlaceInfo): string {
+  return info.allowedTypes === "any" ? "a place that holds stock" : info.allowedTypes.join(" or ");
+}

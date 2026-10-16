@@ -86,6 +86,7 @@ A place's type comes from one catalog, `lib/inventory/locationTypes.ts`:
 | `STAGING` | no | picked and waiting to load |
 | `QUARANTINE` | no | damaged, an incomplete set, a return awaiting inspection |
 | `TRANSIT` | no | on its way between sites |
+| `GROUP` | — | a building or a floor: holds places, never stock |
 
 Owned is not sellable: quarantine and transit stock is counted and valued, but
 not offered for sale or allocated. The stock-location routes and the preset
@@ -110,6 +111,43 @@ all written before the single writer. The POS import already reads a negative
 on-hand as zero, so removing them leaves each place where the import would put
 it. After the migration: 19,317 rows holding 43,146 units, the sum of the
 positive rows before it.
+
+### Places contain places
+
+A store's places form a tree through `StockLocation.parentId`: North Barn ›
+Floor 2 › Stock Sofas › Shelf 3 are all places, nested as deep as a store
+wants, and a small store stays flat. A `GROUP` place (a building, a floor)
+holds only places. `postMovement` refuses stock into one, and a place still
+holding stock cannot become one.
+
+Every writer of a place applies the same rules through
+`lib/inventory/placeTree.ts` (rule 42): the stock-location routes and the
+stock-locations preset. A parent is an active place at the same store. A place
+is never inside itself, however deep the loop. A place still holding stock, or
+one a store lands stock in (its receiving, returns or other landing place),
+never becomes a group, and no landing place can point at a group. A place with
+active places inside it stays active, and one with any places inside it is not
+deleted (the database's `ON DELETE RESTRICT` backs the route). A place left
+inside an inactive one (a preset can drop a group that a hand-made place sits
+in) shows, and exports, at the top of its store. Warehouse › Locations shows each store's
+places as a tree and sets a place's parent with "Inside". The preset says it
+with `inside` (`docs/domains/config-presets.md`). Totals for a building, a
+floor or a store are the sum of everything inside it (`descendantIds`).
+
+Migration `20261018120000_places_contain_places` retired the free-text
+`building`, `floor` and `area` columns. Each building at a store became a GROUP
+place coded `BLDG-<name>`. Each floor became a GROUP place coded
+`FLR-[<building>-]<n>` and named "<building> Floor <n>", inside its building.
+Every place went inside its floor, else its building. `area` was an index within
+a floor that every place's code already carried, so it was not kept. The
+migration refuses to finish if any place that had a building or a floor would
+end up in no group. Measured on a restored copy first (rule 41): 60 places, 42
+with a building across 3 buildings, 54 with a floor. After it: 13 GROUP places
+(8 of them floors inside a building), 54 of the 60 places inside a group, and
+stock unchanged at 19,317 rows and 43,146 units.
+
+**Stock and space** (Reports › Stock and Space, `lib/reports/stockBy.ts`) reads
+this tree; see `docs/domains/reporting.md`.
 
 ### Overselling is allowed, deliberately
 
@@ -478,13 +516,13 @@ browser; a real Zebra on HTTPS staging stays unverified until it is run on one
 
 **C. Places and space**
 
-12. Places contain places (`parentId`), replacing the free `building`/`floor`/`area` fields.
-13. Stock and space by any place or product field.
-14. (optional) A declarative stock-location preset.
+12. ✅ Places contain places (`parentId`), replacing the free `building`/`floor`/`area` fields (see "Places contain places"). Place labels (`L-<id>`) move to phase 15, where the scanner reads them. Tests: `placeTree.test.ts`, `stockPlaceTree.integration.test.ts`.
+13. ✅ Stock and space by any place or product field (Reports › Stock and Space). Tests: `splitSpaceBy.test.ts`, `stockBy.integration.test.ts`.
+14. ✅ A declarative stock-location preset: the `stock-locations` kind already existed, and now says where a place is with `inside`. It refuses the retired fields rather than dropping them, and never makes a group of a place holding stock. Tests: `stockLocationsPreset.test.ts`, `stockLocationsPreset.integration.test.ts`.
 
 **D. Handheld floor** (web pages on DataWedge scanners; HTTPS required)
 
-15. PWA shell, scan resolution, lookup. 16. Boxes as evidence (`boxesPerUnit`, box labels, incomplete sets held in quarantine). 17. Count by area. 18. Put away and move, with stray-box notes. 19. Pick, stage, load. 20. Partial and failed delivery, and return pickups on a run.
+15. PWA shell, scan resolution (including place labels, `L-<id>`), lookup. 16. Boxes as evidence (`boxesPerUnit`, box labels, incomplete sets held in quarantine). 17. Count by area. 18. Put away and move, with stray-box notes. 19. Pick, stage, load. 20. Partial and failed delivery, and return pickups on a run.
 
 **Found while building phases 1 and 2, scheduled rather than fixed in them** (rule 48):
 

@@ -9,6 +9,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { isStockLocationType, STOCK_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
 import { isMoveMode, MOVE_MODES } from "@/lib/inventory/moveModes";
+import { placeParentProblem } from "@/lib/inventory/placeTree";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
@@ -43,9 +44,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         code,
         name,
         description,
-        building,
-        floor,
-        area,
+        parentId,
         locationType,
         squareFootage,
         locationAliases,
@@ -73,6 +72,13 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         });
       }
 
+      const parentProblem = await placeParentProblem(prisma, {
+        placeId: null,
+        storeLocationId,
+        parentId: parentId ? Number(parentId) : null,
+      });
+      if (parentProblem) return res.status(400).json({ error: parentProblem });
+
       const maxSort = await prisma.stockLocation.aggregate({
         where: { storeLocationId },
         _max: { sortOrder: true },
@@ -85,9 +91,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           code,
           name,
           description: description || null,
-          building: building || null,
-          floor: floor != null ? Number.parseInt(floor) : null,
-          area: area != null ? Number.parseInt(area) : null,
+          parentId: parentId ? Number(parentId) : null,
           locationType: locationType || "STOCK",
           squareFootage: squareFootage != null ? Number.parseInt(squareFootage) : null,
           locationAliases: Array.isArray(locationAliases) ? locationAliases : [],

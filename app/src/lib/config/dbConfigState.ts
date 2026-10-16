@@ -210,9 +210,7 @@ function toStockLocationEntry(p: {
   name: string;
   description: string | null;
   locationType: string;
-  building: string | null;
-  floor: number | null;
-  area: number | null;
+  parent: { code: string; isActive: boolean } | null;
   squareFootage: number | null;
   locationAliases: string[];
   holdsCommittedStock: boolean;
@@ -223,9 +221,10 @@ function toStockLocationEntry(p: {
     name: p.name,
     ...(p.description ? { description: p.description } : {}),
     locationType: p.locationType as StockLocationEntry["locationType"],
-    ...(p.building ? { building: p.building } : {}),
-    ...(p.floor === null ? {} : { floor: p.floor }),
-    ...(p.area === null ? {} : { area: p.area }),
+    // Only active places are exported, so a place inside an inactive one is
+    // written at the top of its store -- where Warehouse > Locations shows
+    // it -- and the file never names a place it does not list.
+    ...(p.parent?.isActive ? { inside: p.parent.code } : {}),
     ...(p.squareFootage === null ? {} : { squareFootage: p.squareFootage }),
     aliases: p.locationAliases,
     holdsCommittedStock: p.holdsCommittedStock,
@@ -252,9 +251,7 @@ async function loadStockLocationPresets(db: PrismaClient): Promise<StockLocation
       name: true,
       description: true,
       locationType: true,
-      building: true,
-      floor: true,
-      area: true,
+      parent: { select: { code: true, isActive: true } },
       squareFootage: true,
       locationAliases: true,
       holdsCommittedStock: true,

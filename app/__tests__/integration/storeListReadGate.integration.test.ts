@@ -134,7 +134,6 @@ beforeEach(async () => {
       locationType: "STORAGE",
       locationAliases: ["BR"],
       holdsCommittedStock: true,
-      building: "B1",
     },
   });
   await prisma.storeLocation.update({
@@ -227,10 +226,12 @@ describe("the stock-location picker follows the keys of the screens that pick", 
         name: "Back room",
         locationType: "STORAGE",
         isActive: true,
+        // Where it sits in the store's tree, so a picker can show the path.
+        parentId: null,
       },
     ]);
     const text = JSON.stringify(res.body);
-    for (const hidden of ["holdsCommittedStock", "locationAliases", "Harbour", "B1", "setup@"]) {
+    for (const hidden of ["holdsCommittedStock", "locationAliases", "Harbour", "setup@"]) {
       expect(text).not.toContain(hidden);
     }
   });
@@ -303,9 +304,7 @@ describe("the setup read answers to either setup screen's key", () => {
         "code",
         "name",
         "description",
-        "building",
-        "floor",
-        "area",
+        "parentId",
         "locationType",
         "squareFootage",
         "isActive",
@@ -317,7 +316,7 @@ describe("the setup read answers to either setup screen's key", () => {
     );
     expect(main).toMatchObject({ address: "1 Harbour Rd", sortOrder: 1 });
     expect(main.stockLocations[0]).toMatchObject({
-      building: "B1",
+      parentId: null,
       locationAliases: ["BR"],
       holdsCommittedStock: true,
     });

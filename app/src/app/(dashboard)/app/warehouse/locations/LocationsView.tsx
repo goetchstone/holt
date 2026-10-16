@@ -15,16 +15,15 @@ import { toast } from "react-toastify";
 import { getErrorMessage } from "@/lib/toastError";
 import StockLocationModal from "@/components/modals/StockLocationModal";
 import { isStockLocationType, LOCATION_TYPE_INFO } from "@/lib/inventory/locationTypes";
-import { LANDING_PLACES, type LandingPlace } from "@/lib/inventory/landingPlaces";
+import { LANDING_PLACES, landingAllows, type LandingPlace } from "@/lib/inventory/landingPlaces";
+import { treeOrder } from "@/lib/inventory/placeTree";
 
 interface StockLocationItem {
   id: number;
   code: string;
   name: string;
   description: string | null;
-  building: string | null;
-  floor: number | null;
-  area: number | null;
+  parentId: number | null;
   locationType: string;
   squareFootage: number | null;
   locationAliases: string[];
@@ -61,13 +60,6 @@ const TYPE_LABELS: Record<string, string> = {
   STORE: "Store",
   WAREHOUSE: "Warehouse",
   OFFSITE: "Offsite",
-};
-
-const FLOOR_LABELS: Record<number, string> = {
-  0: "Basement",
-  1: "1st Floor",
-  2: "2nd Floor",
-  3: "Attic",
 };
 
 const emptyForm = {
@@ -169,16 +161,6 @@ export function LocationsView() {
 
   const toggleExpand = (id: number) => {
     setExpandedId((prev) => (prev === id ? null : id));
-  };
-
-  const groupByBuilding = (items: StockLocationItem[]) => {
-    const groups: Record<string, StockLocationItem[]> = {};
-    for (const item of items) {
-      const key = item.building || "General";
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(item);
-    }
-    return groups;
   };
 
   // One store setting at a time (a landing place, the fulfilment store, the
@@ -452,13 +434,7 @@ export function LocationsView() {
                             </option>
                             {loc.stockLocations
                               .filter((sl) => sl.isActive)
-                              .filter(
-                                (sl) =>
-                                  info.allowedTypes === "any" ||
-                                  (info.allowedTypes as readonly string[]).includes(
-                                    sl.locationType,
-                                  ),
-                              )
+                              .filter((sl) => landingAllows(info, sl.locationType))
                               .map((sl) => (
                                 <option key={sl.id} value={sl.id}>
                                   {sl.code} - {sl.name}
@@ -530,65 +506,51 @@ export function LocationsView() {
                   {loc.stockLocations.length === 0 ? (
                     <p className="text-sm text-brand-gray py-2">No stock locations configured</p>
                   ) : (
-                    <div className="space-y-4">
-                      {Object.entries(groupByBuilding(loc.stockLocations)).map(
-                        ([building, items]) => (
-                          <div key={building}>
-                            <h4 className="text-xs font-medium text-brand-gray uppercase tracking-wide mb-2">
-                              {building}
-                            </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
-                              {items.map((sl) => (
-                                <div
-                                  key={sl.id}
-                                  className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-brand-stripe/50 text-sm group"
-                                >
-                                  <span className="text-xs font-mono text-brand-gray w-[90px] shrink-0">
-                                    {sl.code}
-                                  </span>
-                                  <span
-                                    className={`text-brand-black ${!sl.isActive ? "line-through opacity-50" : ""}`}
-                                  >
-                                    {sl.name}
-                                  </span>
-                                  <span
-                                    className={`text-[10px] px-1.5 py-0.5 rounded ${
-                                      sl.locationType === "FLOOR"
-                                        ? "bg-blue-50 text-blue-700"
-                                        : "bg-brand-gray/10 text-brand-gray"
-                                    }`}
-                                  >
-                                    {isStockLocationType(sl.locationType)
-                                      ? LOCATION_TYPE_INFO[sl.locationType].label
-                                      : sl.locationType}
-                                  </span>
-                                  {sl.locationType === "FLOOR" && sl.squareFootage && (
-                                    <span className="text-[10px] text-brand-gray">
-                                      {sl.squareFootage.toLocaleString()} sqft
-                                    </span>
-                                  )}
-                                  {sl.floor != null && (
-                                    <span className="text-xs text-brand-gray">
-                                      {FLOOR_LABELS[sl.floor] || `Floor ${sl.floor}`}
-                                    </span>
-                                  )}
-                                  <button
-                                    onClick={() =>
-                                      setStockModal({
-                                        stockLocation: sl,
-                                        storeLocationId: loc.id,
-                                      })
-                                    }
-                                    className="text-xs text-brand-gray hover:text-brand-blue opacity-0 group-hover:opacity-100 ml-auto"
-                                  >
-                                    Edit
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ),
-                      )}
+                    // Places contain places: each shown inside the one it sits in.
+                    <div className="space-y-0.5">
+                      {treeOrder(loc.stockLocations).map(({ place: sl, depth }) => (
+                        <div
+                          key={sl.id}
+                          style={{ paddingLeft: `${depth * 1.25 + 0.5}rem` }}
+                          className="flex items-center gap-2 pr-2 py-1.5 rounded hover:bg-brand-stripe/50 text-sm group"
+                        >
+                          <span className="text-xs font-mono text-brand-gray w-[110px] shrink-0">
+                            {sl.code}
+                          </span>
+                          <span
+                            className={`text-brand-black ${!sl.isActive ? "line-through opacity-50" : ""} ${sl.locationType === "GROUP" ? "font-medium" : ""}`}
+                          >
+                            {sl.name}
+                          </span>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded ${
+                              sl.locationType === "FLOOR"
+                                ? "bg-blue-50 text-blue-700"
+                                : "bg-brand-gray/10 text-brand-gray"
+                            }`}
+                          >
+                            {isStockLocationType(sl.locationType)
+                              ? LOCATION_TYPE_INFO[sl.locationType].label
+                              : sl.locationType}
+                          </span>
+                          {sl.squareFootage != null && sl.squareFootage > 0 && (
+                            <span className="text-[10px] text-brand-gray">
+                              {sl.squareFootage.toLocaleString()} sqft
+                            </span>
+                          )}
+                          <button
+                            onClick={() =>
+                              setStockModal({
+                                stockLocation: sl,
+                                storeLocationId: loc.id,
+                              })
+                            }
+                            className="text-xs text-brand-gray hover:text-brand-blue opacity-0 group-hover:opacity-100 ml-auto"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -618,6 +580,7 @@ export function LocationsView() {
         <StockLocationModal
           stockLocation={stockModal.stockLocation}
           storeLocationId={stockModal.storeLocationId}
+          places={locations.find((l) => l.id === stockModal.storeLocationId)?.stockLocations ?? []}
           onClose={() => setStockModal(null)}
           onRefresh={fetchLocations}
         />
