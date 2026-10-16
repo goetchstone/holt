@@ -228,6 +228,11 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   StaffMember: { status: "seeded" },
   StaffShift: { status: "seeded" },
   StockLocation: { status: "seeded" },
+  StockAction: {
+    status: "skipped",
+    reason:
+      "Runtime retry log. One row per handheld action as it is done; seeding it would mark actions done that never ran.",
+  },
   // Written by every stock movement the demo seed posts through the ledger.
   StockMovement: { status: "seeded" },
   StoreLocation: { status: "seeded" },

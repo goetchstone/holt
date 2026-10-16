@@ -2,8 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
-import Mustache from "mustache";
 import net from "net";
+import { renderTemplate, type LabelContext } from "@/lib/labels/renderTemplate";
 
 const CONNECT_TIMEOUT_MS = 5000;
 const RETRY_DELAY_MS = 2000;
@@ -77,7 +77,10 @@ async function sendToPrinter(ipAddress: string, port: number, zpl: string): Prom
 export async function renderLabel(productId: number, templateId: number): Promise<string> {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    include: { vendor: true },
+    include: {
+      vendor: true,
+      upcs: { orderBy: { sortOrder: "asc" }, take: 1, select: { upc: true } },
+    },
   });
   if (!product) throw new Error(`Product ${productId} not found`);
 
@@ -86,10 +89,13 @@ export async function renderLabel(productId: number, templateId: number): Promis
   });
   if (!template) throw new Error(`Template ${templateId} not found`);
 
-  return Mustache.render(template.zplTemplate, {
+  return renderTemplate(template.zplTemplate, {
     name: product.name,
     sku: product.productNumber,
     vendor: product.vendor.name,
+    // What a scanner reads back to this product (lib/scan/resolveScan.ts):
+    // its first UPC, else its product number.
+    barcode: product.upcs[0]?.upc ?? product.productNumber,
     width: product.width ?? "",
     depth: product.depth ?? "",
     height: product.height ?? "",
@@ -97,6 +103,58 @@ export async function renderLabel(productId: number, templateId: number): Promis
     baseRetail: product.baseRetail ? Number(product.baseRetail).toFixed(2) : "0.00",
   });
 }
+
+/**
+ * Send rendered ZPL to a printer chosen by id (the stored address, never one
+ * from a request: see sendToPrinter). For place and box labels, rendered by
+ * their own callers.
+ */
+export async function printZpl(printerId: number, zpl: string): Promise<void> {
+  const printer = await prisma.printer.findUnique({ where: { id: printerId } });
+  if (!printer) throw new Error(`Printer ${printerId} not found`);
+  try {
+    await sendToPrinter(printer.ipAddress, printer.port || 9100, zpl);
+  } catch (err: unknown) {
+    const detail = err instanceof Error ? err.message : "Unknown printer error";
+    throw new Error(`${printer.name}: ${detail}`);
+  }
+}
+
+/**
+ * The template and printer for a kind of label: the first template of that
+ * context (LabelTemplate.context), and a printer loaded with its tag size,
+ * one at `storeName` first. Refuses, naming what to set up, rather than
+ * printing on whatever is nearest (rule 63).
+ */
+export async function routeContextLabel(
+  context: LabelContext,
+  storeName?: string | null,
+): Promise<{ template: { id: number; name: string; zplTemplate: string }; printerId: number }> {
+  const template = await prisma.labelTemplate.findFirst({
+    where: { context },
+    orderBy: { id: "asc" },
+    select: { id: true, name: true, zplTemplate: true, tagSize: true },
+  });
+  if (!template) {
+    throw new LabelSetupError(
+      `No label template for ${context} labels: add one with context ${context} in Admin › Labels.`,
+    );
+  }
+  const printers = await prisma.printer.findMany({
+    where: { currentSize: template.tagSize },
+    select: { id: true, store: true },
+    orderBy: { id: "asc" },
+  });
+  const printer = printers.find((p) => storeName && p.store === storeName) ?? printers[0];
+  if (!printer) {
+    throw new LabelSetupError(
+      `No printer is loaded with ${template.tagSize} labels for template "${template.name}".`,
+    );
+  }
+  return { template, printerId: printer.id };
+}
+
+export class LabelSetupError extends Error {}
 
 export async function printLabel(
   productId: number,

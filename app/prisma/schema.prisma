@@ -328,6 +328,10 @@ model Product {
   freightClass String?
   shipsVia     String?
   cartonQty    Int?
+  /// How many boxes one unit ships in (a sofa in 3). The only box fact Holt
+  /// stores: boxes are evidence of a unit, never a quantity of their own
+  /// (lib/inventory/boxes.ts). Null or 1 = one box.
+  boxesPerUnit Int?
 
   // Status
   isActive       Boolean @default(true)
@@ -1730,9 +1734,24 @@ model StockMovement {
   actor      String?
   note       String?
   occurredAt DateTime @default(now())
+  /// The handheld action that made this move (StockAction.key), when one did.
+  actionKey  String?
 
   @@index([productId, occurredAt])
   @@index([sourceType, sourceId])
+  @@index([actionKey])
+}
+
+/// One handheld action, done once however many times it is sent
+/// (lib/inventory/withAction.ts). A scanner on bad Wi-Fi retries; the key is
+/// the device's, chosen per action, and a retry gets the first answer back
+/// instead of moving the stock again.
+model StockAction {
+  key     String   @id
+  kind    String
+  actor   String?
+  result  Json?
+  created DateTime @default(now())
 }
 
 /// A shortfall recorded by `allocate()` (src/lib/inventory/allocation.ts): a
