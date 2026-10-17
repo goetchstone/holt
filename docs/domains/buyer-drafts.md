@@ -24,9 +24,14 @@ Three Prisma models, each with its own page panel and its own modal-driven CRUD.
 |---|---|---|
 | `BuyerDraftBuy` | `name`, `season`, `year`, `budget Decimal?`, `kickoff DateTime?`, `notes` | `BuyerDraftBuyStatus`: PLANNING / OPEN / EXPORTED / CLOSED |
 | `BuyerDraftPurchaseOrder` | `vendorId Int?`, `vendorName`, `referenceNumber`, `expectedShipMonth String?` (`YYYY-MM`), `storeLocationId Int?`, `buyId Int?`, `notes` | `BuyerDraftPoStatus`: DRAFT / READY / EXPORTED / FULFILLED / CANCELLED |
-| `BuyerDraftItem` | `partNumber`, `productName`, `cost`, `retail`, `msrp`, dimensions, `itemType` (UPHOLSTERY/CASE_GOODS/OTHER), template-aware fields (grade/fabric/finish/cushions/cleaningCode/tossPillows/hardware/hardwareFinish/options), `description`, `qty`, `stockProgram`, `stockLocationId`, `barcode`, `draftPoId Int?` | `BuyerDraftItemStatus`: DRAFT / READY / EXPORTED / FULFILLED / CANCELLED + `BuyerDraftSource`: MANUAL / HD_PROPOSAL / APPAREL_SCAN / CONFIGURATOR |
+| `BuyerDraftItem` | `partNumber`, `productName`, `cost`, `retail`, `msrp`, dimensions, `itemType` (UPHOLSTERY/CASE_GOODS/OTHER), template-aware fields (grade/fabric/finish/cushions/cleaningCode/tossPillows/hardware/hardwareFinish/options), `description`, `qty Decimal(12,3)`, `stockProgram`, `stockLocationId`, `barcode`, `draftPoId Int?` | `BuyerDraftItemStatus`: DRAFT / READY / EXPORTED / FULFILLED / CANCELLED + `BuyerDraftSource`: MANUAL / HD_PROPOSAL / APPAREL_SCAN / CONFIGURATOR |
 
 All FK relations are `ON DELETE SET NULL` so deleting a parent never cascades through the buyer's work — items stay alive when their PO is deleted, POs stay alive when their Buy is deleted.
+
+**`qty` is fractional** (migration `20261022120000_draft_and_proposal_qty_decimal`, 2026-10-17). Fabric is drafted by the yard, so `qty` is `Decimal(12,3)` like the stock it buys. While it was `Int`, a typed 12.5 yards was stored as 1 (`optionalInt` dropped any non-integer to the default), an edit to 12.5 was refused, and a real PO for 12.5 yards imported as 12 (`draftAndProposalQtyFractional.integration.test.ts`). Now:
+
+- **Writing.** `lib/buyerDraftRequestBody.ts` reads a typed qty with `parseQty` (`lib/inventory/qtyInput.ts`) to three places. Zero stays a qty, as before. On create, a blank, garbage or negative qty falls back to 1. On edit (`validatedQty`), each of those is a 400.
+- **Reading.** JSON sends a Decimal as text, so every route that sends a draft item converts it with `draftItemForClient`, and every rollup prices it with `draftSpend` (`lib/buyerDraftQty.ts`). The routes that convert are the item list, create, get and edit, the draft PO, `GET /buys/[id]` and the archive. The exports and the performance report convert with `toQty`.
 
 ### API surface (`app/src/pages/api/admin/buyer-drafts/`)
 
@@ -252,7 +257,7 @@ When `stockProductIds` is omitted (empty set) the helper falls back to all-sales
 
 Pure helper `lib/buyPerformanceWindow.ts:deriveSalesWindow` (15 A-grade tests including parseShipMonth + shiftWindowOneYearBack). API response gains a `salesWindow: { start, end, source, message }` field; UI renders the message as a chip under the buy title.
 
-**Quick add by barcode — qty input (Slice 6.2)** — `BarcodeLookupModal` shows a numeric qty input next to the action buttons once a preview resolves. Defaults to 1; resets on each open; coerced to int >= 1 at submit (empty/garbage falls back to 1). Buyer can scan → bump qty → save in one flow instead of scan-save-edit-save. 44px tap target per iPad rule.
+**Quick add by barcode — qty input (Slice 6.2)** — `BarcodeLookupModal` shows a numeric qty input next to the action buttons once a preview resolves. Defaults to 1; resets on each open; read with `parseQty` at submit, so a part roll keeps its fraction (empty, garbage or 0 falls back to 1). Buyer can scan → bump qty → save in one flow instead of scan-save-edit-save. 44px tap target per iPad rule.
 
 ## Buys archive (Slice 6.4, 2026-05-13)
 
@@ -406,7 +411,7 @@ One small schema addition + a search/import flow that creates draft graph rows p
 |---|---|
 | Schema | `BuyerDraftPurchaseOrder.importedFromPurchaseOrderId Int? @unique` — FK to `PurchaseOrder`. `@unique` enforces the "one buy per PO" rule structurally. `ON DELETE SET NULL` so killing the real PO doesn't cascade through buyer work. |
 | Schema | `BuyerDraftSource.HISTORICAL_PO_IMPORT` — fifth enum value, stamped on every item created by this flow so it's visually distinguishable from MANUAL drafts. |
-| Helper | `lib/historicalPoImport.ts:buildImportFromPurchaseOrder(po)` — pure, returns `{ draftPo, draftItems, skipped }`. 15 A-grade tests cover field copy, partNo / productName fallbacks, retail fallback to unitCost when product.baseRetail is null, qty truncation for fractional fabric yardage, qty clamp to 1 for zero/negative orderedQty, expectedShipMonth derivation order (estimatedShipDate → expectedDelivery → orderDate), notes concatenation when the real PO has notes, empty-lineItems edge case, all-skipped edge case. |
+| Helper | `lib/historicalPoImport.ts:buildImportFromPurchaseOrder(po)` — pure, returns `{ draftPo, draftItems, skipped }`. 15 A-grade tests cover field copy, partNo / productName fallbacks, retail fallback to unitCost when product.baseRetail is null, fractional fabric yardage kept to three places (truncated to int until 2026-10-17), zero/negative/NaN orderedQty skipped, expectedShipMonth derivation order (estimatedShipDate → expectedDelivery → orderDate), notes concatenation when the real PO has notes, empty-lineItems edge case, all-skipped edge case. |
 | API | `GET /api/admin/buyer-drafts/search-purchase-orders?q&startDate&endDate` — ADMIN-only. Searches by PON prefix/contains or vendor-name contains, plus optional orderDate range. Excludes CANCELLED. Caps at 50 results. Returns each row with `alreadyImported: { draftPoId, buyId, buyName } \| null` flagged via the `buyerDraftImport` back-relation so the UI can show "Already in <Buy>" without a separate lookup. |
 | API | `POST /api/admin/buyer-drafts/import-purchase-order` body `{ buyId, purchaseOrderId }` — ADMIN-only. Pre-checks idempotency (single indexed `findUnique` on the unique FK), refuses CANCELLED POs, runs a single transaction that creates the draft PO + every draft item. Returns `{ draftPoId, buyId, buyName, itemsImported, skipped }`. The 409 response on duplicate import carries `alreadyImported: { draftPoId, buyId, buyName }` so the modal can give a useful message. **Skipped reasons**: `no-product-link` (PurchaseOrderItem.productId is NULL), `zero-quantity` (CLAUDE.md rule 31 — orderedQuantity = 0 means the POS cancelled the line, e.g. partial-receive remainder; importing as qty=1 would inflate "qty ordered" in the Slice 6 report). |
 | API | `GET /api/admin/buyer-drafts/find-sibling-pos?purchaseOrderId=N` — ADMIN-only. Surfaces sibling PONs the buyer should ALSO import after a successful import. Use case: the POS's partial-receive workflow creates a NEW PO for the un-received remainder with no parent reference. Endpoint pulls same-vendor + ± 90-day POs with partNo overlap, scores them via `lib/historicalPoSiblings.ts:scoreSiblings`, returns top 10 ranked by `overlapCount DESC, fullyContainedBySource DESC, orderDate ASC`. Excludes the source itself + candidates already imported into any buy. |
@@ -490,7 +495,7 @@ Pure helper `lib/historicalPoImport.ts:findForwardFlowOverlap(incomingLines, exi
 | `BuyerDraftItem.productName` | `PurchaseOrderItem.productName` ?? `product.name` |
 | `BuyerDraftItem.cost` | `PurchaseOrderItem.unitCost` |
 | `BuyerDraftItem.retail` | `product.baseRetail` ?? `unitCost` (avoids divide-by-zero in margin math; Slice 6.1 display fallback still surfaces catalog values when the draft is blank, but items have non-nullable Decimal columns — must seed SOMETHING) |
-| `BuyerDraftItem.qty` | `PurchaseOrderItem.orderedQuantity`, truncated to int, clamped to >= 1 |
+| `BuyerDraftItem.qty` | `PurchaseOrderItem.orderedQuantity`, read with `parseQty` to three places. A line it refuses (zero, negative, not a number) is skipped, not imported |
 | `BuyerDraftItem.fulfilledProductId` | `PurchaseOrderItem.productId` (the entire reason this flow exists — Slice 6 / 6.7 / 6.8.1 reports all key off this) |
 | `BuyerDraftItem.fulfilledAt` | `PurchaseOrder.orderDate` (best-available proxy for "when the buyer committed") |
 | `BuyerDraftItem.status` | `FULFILLED` |
@@ -503,8 +508,8 @@ Pure helper `lib/historicalPoImport.ts:findForwardFlowOverlap(incomingLines, exi
 ### Edge cases handled
 
 - **CANCELLED real POs** — refused by the handler with a 400; surfaced in search results pre-filtered.
-- **Fractional `orderedQuantity`** (fabric yardage, etc.) — truncated to int in the draft `qty`.
-- **Zero or negative `orderedQuantity`** — clamped to 1 so the draft has a sane non-zero quantity.
+- **Fractional `orderedQuantity`** (fabric yardage, etc.) — kept in the draft `qty` to three places. It was truncated to int until 2026-10-17, while the column was `Int`.
+- **Zero or negative `orderedQuantity`** — skipped with reason `zero-quantity` (rule 31: a zero-quantity line is a cancelled line), not imported. An earlier version of this line said such lines were clamped to 1. `buildImportFromPurchaseOrder` skips them.
 - **Missing `partNo`** on the line — falls back to `product.productNumber`.
 - **Missing `productName`** on the line — falls back to `product.name`.
 - **Real PO has `notes`** — appended after the "Imported from PON…" header so the buyer sees both.

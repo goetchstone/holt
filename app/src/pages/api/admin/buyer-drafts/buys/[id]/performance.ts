@@ -30,6 +30,7 @@ import {
 import { deriveSalesWindow, type BuyPoForWindow } from "@/lib/buyPerformanceWindow";
 import { computeBuyLinkCutoff } from "@/lib/buyerDraftBuyLinkCutoff";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { toQty } from "@/lib/inventory/quantity";
 
 // Consignment stock has no shared frame stems, so it cannot roll up with
 // owned inventory. Identified by the flag rather than by vendor name.
@@ -162,7 +163,7 @@ export default requirePermission(
               : (frameDecisions.get(d.fulfilledProductId) ?? null);
           return {
             draftId: d.id,
-            qty: d.qty,
+            qty: toQty(d.qty),
             costPerUnit: Number(d.cost.toString()),
             retailPerUnit: Number(d.retail.toString()),
             fulfilledProductId: d.fulfilledProductId,

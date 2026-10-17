@@ -6,6 +6,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { parseQty } from "@/lib/inventory/qtyInput";
+import { proposalLineForClient } from "@/lib/proposalQty";
 
 export default requireAuthWithRole(
   ["MANAGER", "ADMIN"],
@@ -40,6 +42,12 @@ export default requireAuthWithRole(
       if (cost === undefined || retailPrice === undefined) {
         return res.status(400).json({ error: "cost and retailPrice are required" });
       }
+      // Fractional: fabric is quoted by the yard. No quantity is one.
+      const qty =
+        quantity === undefined || quantity === null || quantity === "" ? 1 : parseQty(quantity);
+      if (qty === null) {
+        return res.status(400).json({ error: "quantity must be a number greater than zero" });
+      }
 
       const lastItem = await prisma.proposalLineItem.findFirst({
         where: { proposalId },
@@ -61,7 +69,7 @@ export default requireAuthWithRole(
           partNumber: partNumber || null,
           cost: Number(cost),
           retailPrice: Number(retailPrice),
-          quantity: Number(quantity) || 1,
+          quantity: qty,
           selectedGrade: selectedGrade || null,
           selectedFinish: selectedFinish || null,
           selectedOptions: selectedOptions || null,
@@ -70,7 +78,7 @@ export default requireAuthWithRole(
         include: { images: true },
       });
 
-      return res.status(201).json(lineItem);
+      return res.status(201).json(proposalLineForClient(lineItem));
     } catch (err: unknown) {
       logError("Failed to add proposal line item", err);
       return res.status(500).json({ error: "Failed to add line item" });

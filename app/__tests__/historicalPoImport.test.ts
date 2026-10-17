@@ -142,13 +142,17 @@ describe("buildImportFromPurchaseOrder", () => {
     expect(result.draftItems[0].retail).toBe("999.99");
   });
 
-  it("truncates fractional orderedQuantity to int (fabric yardage edge case)", () => {
+  it("keeps a fractional orderedQuantity (fabric is ordered by the yard)", () => {
     const result = buildImportFromPurchaseOrder(
       purchaseOrder({
-        lineItems: [lineItem({ orderedQuantity: "3.75" })],
+        lineItems: [
+          lineItem({ id: 1, orderedQuantity: "3.75" }),
+          lineItem({ id: 2, orderedQuantity: "12.125" }),
+          lineItem({ id: 3, orderedQuantity: "2.0004" }),
+        ],
       }),
     );
-    expect(result.draftItems[0].qty).toBe(3);
+    expect(result.draftItems.map((d) => d.qty)).toEqual([3.75, 12.125, 2]);
   });
 
   // Rule 31: zero-quantity the POS rows are CANCELLED lines. Importing

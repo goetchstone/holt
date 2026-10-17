@@ -126,13 +126,13 @@ describe("Home Accessory Order Import commit — real DB", () => {
     expect(items[0]).toMatchObject({
       partNumber: "KKI-15668B",
       productName: "13.5 Inch Brown Resin Horse",
-      qty: 4,
       barcode: "842657186221",
       source: "HOME_ACCESSORY_ORDER_IMPORT",
       itemType: "OTHER",
       departmentId: dept.id,
       categoryId: cat.id,
     });
+    expect(items[0].qty.toNumber()).toBe(4);
     expect(items[0].cost.toNumber()).toBe(44.5);
     // No selling/msrp typed -> retail falls back to cost (never left blank
     // on the required, non-nullable column).

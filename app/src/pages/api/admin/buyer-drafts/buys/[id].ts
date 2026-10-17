@@ -11,6 +11,8 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { buildBuyUpdateData } from "@/lib/buyerDraftRequestBody";
+import { draftSpend } from "@/lib/buyerDraftQty";
+import { toQty } from "@/lib/inventory/quantity";
 
 export default requirePermission(
   "admin.settings",
@@ -58,14 +60,12 @@ async function getOne(id: number, res: NextApiResponse) {
       where: { draftPo: { buyId: id } },
       select: { qty: true, cost: true },
     });
-    const totalSpent = items.reduce((acc, it) => acc + it.qty * Number(it.cost), 0);
-
     return res.status(200).json({
       buy,
       rollup: {
         poCount: buy.pos.length,
-        itemCount: spent._sum.qty ?? 0,
-        totalSpent: Math.round(totalSpent * 100) / 100,
+        itemCount: toQty(spent._sum.qty),
+        totalSpent: draftSpend(items),
       },
     });
   } catch (err) {

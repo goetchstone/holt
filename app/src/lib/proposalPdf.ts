@@ -65,6 +65,17 @@ function currency(v: number): string {
   });
 }
 
+/**
+ * An item page's price line: the unit price alone for one, otherwise "each x
+ * quantity = line". The test was `quantity > 1`, so half a yard of fabric
+ * showed the price of a whole yard as the line.
+ */
+export function itemPriceText(retailPrice: number, quantity: number): string {
+  return quantity === 1
+    ? currency(retailPrice)
+    : `${currency(retailPrice)} each  x  ${quantity}  =  ${currency(retailPrice * quantity)}`;
+}
+
 function loadImageAsBase64(imagePath: string): string | null {
   // imagePath comes from DB (ProposalItemImage.imageUrl) but we still
   // guard against malformed / malicious values that could reach outside
@@ -213,10 +224,7 @@ export function generateProposalPdf(
     doc.rect(MARGIN, iy - 4, CONTENT_W, 14, "F");
     doc.setTextColor(NAVY);
     doc.setFontSize(14);
-    const priceText =
-      item.quantity > 1
-        ? `${currency(item.retailPrice)} each  x  ${item.quantity}  =  ${currency(item.retailPrice * item.quantity)}`
-        : currency(item.retailPrice);
+    const priceText = itemPriceText(item.retailPrice, item.quantity);
     doc.text(priceText, PAGE_W - MARGIN, iy + 4, { align: "right" });
 
     // Item notes

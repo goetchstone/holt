@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { generateProposalPdf } from "@/lib/proposalPdf";
 import { getAppSettings } from "@/lib/appSettings";
+import { toQty } from "@/lib/inventory/quantity";
 
 export default requireAuthWithRole(
   ["MANAGER", "ADMIN"],
@@ -77,7 +78,7 @@ export default requireAuthWithRole(
             vendorName: li.vendorName,
             partNumber: li.partNumber,
             retailPrice: Number(li.retailPrice),
-            quantity: li.quantity,
+            quantity: toQty(li.quantity),
             selectedGrade: li.selectedGrade,
             selectedFinish: li.selectedFinish,
             itemNotes: li.itemNotes,

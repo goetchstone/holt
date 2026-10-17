@@ -8,6 +8,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
+import { proposalLineForClient } from "@/lib/proposalQty";
 
 export default requireAuthWithRole(
   ["MANAGER", "ADMIN"],
@@ -51,7 +52,9 @@ async function handleGet(id: number, res: NextApiResponse) {
     });
 
     if (!proposal) return res.status(404).json({ error: "Proposal not found" });
-    return res.status(200).json(proposal);
+    return res
+      .status(200)
+      .json({ ...proposal, lineItems: proposal.lineItems.map(proposalLineForClient) });
   } catch (err: unknown) {
     logError("Failed to fetch proposal", err);
     return res.status(500).json({ error: "Failed to fetch proposal" });

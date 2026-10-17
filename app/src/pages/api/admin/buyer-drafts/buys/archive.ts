@@ -14,6 +14,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { draftSpend } from "@/lib/buyerDraftQty";
 
 export default requirePermission(
   "admin.settings",
@@ -50,14 +51,8 @@ export default requirePermission(
       });
 
       const buys = rows.map((b) => {
-        let spent = 0;
         let itemCount = 0;
-        for (const po of b.pos) {
-          itemCount += po._count.items;
-          for (const it of po.items) {
-            spent += Number(it.qty) * Number(it.cost.toString());
-          }
-        }
+        for (const po of b.pos) itemCount += po._count.items;
         return {
           id: b.id,
           name: b.name,
@@ -67,7 +62,7 @@ export default requirePermission(
           budget: b.budget?.toString() ?? null,
           kickoff: b.kickoff?.toISOString() ?? null,
           closedAt: b.updated?.toISOString() ?? null,
-          spent: Math.round(spent * 100) / 100,
+          spent: draftSpend(b.pos.flatMap((po) => po.items)),
           poCount: b._count.pos,
           itemCount,
         };

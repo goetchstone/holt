@@ -19,6 +19,7 @@ import { toast } from "react-toastify";
 import { X, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/toastError";
+import { parseQty } from "@/lib/inventory/qtyInput";
 
 interface ProductPreview {
   id: number;
@@ -60,7 +61,8 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
   const [lookupError, setLookupError] = useState<string | null>(null);
   // Slice 6.2 (2026-05-12) — qty input. Default 1; resets on each open.
   // Stored as string so the input can show empty mid-edit without
-  // forcing 0; coerced to int (min 1) on submit.
+  // forcing 0; read with parseQty on submit (fractional: fabric is drafted
+  // by the yard).
   const [qty, setQty] = useState("1");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -105,12 +107,12 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
     if (!preview) return;
     setAdding(true);
     try {
-      // Slice 6.2 — fold the user-entered qty into the body. parseInt
-      // falls back to 1 for empty/garbage; the backend's buildItemCreateData
-      // also clamps to a sane default but enforcing here keeps the UX
+      // Slice 6.2 — fold the user-entered qty into the body. parseQty
+      // keeps a part roll's fraction and gives null for empty/garbage/0,
+      // which falls back to 1; the backend's buildItemCreateData also
+      // clamps to a sane default but enforcing here keeps the UX
       // predictable ("you typed 0, I'll use 1 instead of erroring").
-      const parsed = Number.parseInt(qty, 10);
-      const effectiveQty = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+      const effectiveQty = parseQty(qty) ?? 1;
       const body = { ...preview.draftBody, qty: effectiveQty };
       const res = await axios.post<{ item: { id: number } }>("/api/admin/buyer-drafts/items", body);
       toast.success(`Added ${effectiveQty} × "${preview.product.name}" from catalog`);
@@ -265,8 +267,9 @@ export default function BarcodeLookupModal({ open, onClose, onCreated }: Readonl
                   <input
                     id="barcode-qty"
                     type="number"
-                    inputMode="numeric"
-                    min={1}
+                    inputMode="decimal"
+                    min={0}
+                    step="any"
                     value={qty}
                     onChange={(e) => setQty(e.target.value)}
                     disabled={adding}

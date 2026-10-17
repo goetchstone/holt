@@ -179,7 +179,12 @@ describe("validatedQty", () => {
     expect(() => validatedQty(-1)).toThrow(TypeError);
     expect(() => validatedQty(-1)).toThrow(/non-negative/);
   });
-  it("throws on float", () => expect(() => validatedQty(3.5)).toThrow(/non-negative/));
+  it("accepts a part roll, to three places", () => {
+    expect(validatedQty(3.5)).toBe(3.5);
+    expect(validatedQty("12.375")).toBe(12.375);
+    expect(validatedQty(12.3456)).toBe(12.346);
+  });
+  it("throws on blank", () => expect(() => validatedQty("")).toThrow(/non-negative/));
   it("throws on non-numeric string", () =>
     expect(() => validatedQty("abc")).toThrow(/non-negative/));
 });
@@ -267,7 +272,9 @@ describe("buildItemCreateData", () => {
     expect(buildItemCreateData({ ...minimal, qty: 5 }, null).qty).toBe(5);
     expect(buildItemCreateData({ ...minimal, qty: 0 }, null).qty).toBe(0);
     expect(buildItemCreateData({ ...minimal, qty: undefined }, null).qty).toBe(1);
-    expect(buildItemCreateData({ ...minimal, qty: "abc" }, null).qty).toBe(1); // non-int falls back
+    expect(buildItemCreateData({ ...minimal, qty: 12.5 }, null).qty).toBe(12.5);
+    expect(buildItemCreateData({ ...minimal, qty: "abc" }, null).qty).toBe(1); // not a qty falls back
+    expect(buildItemCreateData({ ...minimal, qty: -3 }, null).qty).toBe(1);
   });
 
   it("captures barcode when provided (apparel scan path)", () => {
@@ -466,8 +473,10 @@ describe("applyItemNumericPatches", () => {
     expect(() => applyItemNumericPatches({ qty: -1 }, {})).toThrow(/non-negative/);
   });
 
-  it("validates qty: throws on float", () => {
-    expect(() => applyItemNumericPatches({ qty: 1.5 }, {})).toThrow(/non-negative/);
+  it("accepts a fractional qty (fabric is drafted by the yard)", () => {
+    const data: Prisma.BuyerDraftItemUpdateInput = {};
+    applyItemNumericPatches({ qty: 1.5 }, data);
+    expect(data.qty).toBe(1.5);
   });
 
   it("accepts qty = 0 (legitimate value)", () => {
