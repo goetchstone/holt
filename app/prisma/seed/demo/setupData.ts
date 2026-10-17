@@ -85,8 +85,11 @@ const LABEL_TEMPLATES = [
     name: "Product tag 4x6",
     context: "PRODUCT",
     tagSize: "4x6",
+    // Fields: lib/labels/renderTemplate.ts LABEL_FIELDS.PRODUCT. This used
+    // {{productName}}, {{partNo}} and {{retailPrice}}, which renderLabel never
+    // filled, so the demo printed tags with only a barcode on them.
     zplTemplate:
-      "^XA^CF0,40^FO30,30^FD{{productName}}^FS^CF0,28^FO30,90^FD{{partNo}}^FS^FO30,140^BY3^BCN,80,Y,N,N^FD{{barcode}}^FS^CF0,32^FO30,260^FD{{retailPrice}}^FS^XZ",
+      "^XA^CF0,40^FO30,30^FD{{name}}^FS^CF0,28^FO30,90^FD{{sku}}^FS^FO30,140^BY3^BCN,80,Y,N,N^FD{{barcode}}^FS^CF0,32^FO30,260^FD{{baseRetail}}^FS^XZ",
   },
   {
     name: "Receiving tag 2x4",
@@ -95,11 +98,22 @@ const LABEL_TEMPLATES = [
     zplTemplate:
       "^XA^CF0,28^FO20,20^FD{{poNumber}}^FS^FO20,60^FD{{productName}}^FS^FO20,100^BY2^BCN,50,Y,N,N^FD{{barcode}}^FS^XZ",
   },
+  // Place and box labels carry a barcode a handheld scans back (L-<id>,
+  // B-<product>-<box>-<of>; lib/scan/scanCodes.ts). 4x6, the size the demo's
+  // printers are loaded with.
   {
-    name: "Bin location 2x4",
+    name: "Place label 4x6",
     context: "LOCATION",
-    tagSize: "2x4",
-    zplTemplate: "^XA^CF0,44^FO20,25^FD{{locationCode}}^FS^CF0,24^FO20,85^FD{{locationName}}^FS^XZ",
+    tagSize: "4x6",
+    zplTemplate:
+      "^XA^CF0,60^FO40,40^FD{{locationCode}}^FS^CF0,36^FO40,120^FD{{locationName}}^FS^CF0,26^FO40,170^FD{{path}}^FS^FO40,230^BY4^BCN,160,Y,N,N^FD{{barcode}}^FS^XZ",
+  },
+  {
+    name: "Box label 4x6",
+    context: "BOX",
+    tagSize: "4x6",
+    zplTemplate:
+      "^XA^CF0,40^FO40,40^FD{{name}}^FS^CF0,30^FO40,100^FD{{sku}}^FS^CF0,70^FO40,150^FDBox {{box}} of {{of}}^FS^CF0,26^FO40,240^FD{{poNumber}}^FS^FO40,290^BY3^BCN,140,Y,N,N^FD{{barcode}}^FS^XZ",
   },
 ];
 

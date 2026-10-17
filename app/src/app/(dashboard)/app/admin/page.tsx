@@ -124,6 +124,12 @@ const ITEMS: CardGridItem[] = [
     description: "Sales that went through oversold -- the queue of shortfalls to address.",
     href: "/app/admin/inventory-exceptions",
   },
+  {
+    title: "Stock Ledger Check",
+    description:
+      "Every place where what is on hand disagrees with its journal of movements. Empty is the only right answer.",
+    href: "/app/admin/stock-ledger",
+  },
 ];
 
 export default async function AdminLandingPage() {

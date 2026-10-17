@@ -22,12 +22,29 @@ const VALID_RUN_TRANSITIONS: Record<DeliveryRunStatus, DeliveryRunStatus[]> = {
 //
 // COMPLETED is terminal because handing the goods over is not undoable: it sets
 // SalesOrder.deliveredAt, which recognises the sale.
+//
+// PENDING -> ARRIVED directly: nothing sets EN_ROUTE (the driver screen has no
+// such step), so with only PENDING -> EN_ROUTE allowed, the driver's "Mark
+// Arrived" was refused and no stop could be completed (found 2026-10-16).
+// Arriving is what COMPLETED needs; en route is optional.
 const VALID_STOP_TRANSITIONS: Record<DeliveryStopStatus, DeliveryStopStatus[]> = {
-  PENDING: ["EN_ROUTE"],
+  PENDING: ["EN_ROUTE", "ARRIVED"],
   EN_ROUTE: ["ARRIVED", "PENDING"],
   ARRIVED: ["COMPLETED", "PENDING"],
   COMPLETED: [],
 };
+
+/**
+ * The dispatch pool: DELIVERY appointments not on a run, still to do. IN_PROGRESS
+ * is in it: a stop that could not be done comes off its run
+ * (lib/fulfilment/stops.ts failStop) whatever its appointment's status, and an
+ * appointment with no stop is on no truck. Left out, it vanished from dispatch.
+ */
+export const UNASSIGNED_DELIVERY_WHERE = {
+  type: "DELIVERY",
+  deliveryStop: null,
+  status: { in: ["PENDING", "SCHEDULED", "CONFIRMED", "IN_PROGRESS"] },
+} satisfies Prisma.ServiceAppointmentWhereInput;
 
 export function isValidRunTransition(from: DeliveryRunStatus, to: DeliveryRunStatus): boolean {
   return VALID_RUN_TRANSITIONS[from]?.includes(to) ?? false;

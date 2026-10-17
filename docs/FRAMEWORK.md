@@ -44,13 +44,13 @@ Every rule needs a home that matches its enforcement strength:
 | Mechanism | What it does | Strength | When to use |
 |---|---|---|---|
 | **Skills** | Soft prompt — the model reads when activated | Persuasive, not enforced | "Be sure to check X" |
-| **Hooks** | Run code on tool events; can hard-block a tool call | Hard gate | "Don't push if Sonar is RED" |
+| **Hooks** | Run code on tool events; can hard-block a tool call | Hard gate | "Don't open a PR on stale coverage" |
 | **Tripwire tests** | Source-text scan that fails CI if a guard is missing | Backstop | "This code path must always have this filter" |
 
 The mental model: **"Where does this rule live so it can't be forgotten?"**
 
 - A rule in a skill is a polite reminder. Useful for soft conventions ("comments explain *why*, not *what*").
-- A rule in a hook is a runway closure. Useful for hard gates ("local Sonar must pass before push").
+- A rule in a hook is a runway closure. Useful for hard gates ("coverage re-run since the last commit").
 - A rule in a tripwire test is a CI failure. Useful for invariants the codebase must keep ("every aggregation over OrderLineItem.netPrice must filter `lineItemStatus != 'CANCELLED'`").
 
 The pattern: when an incident teaches you a rule, ask which of the three is the right home. Don't put a hard gate in a skill — Claude will read it once and forget.
@@ -118,7 +118,7 @@ The PR mentions "follow-up needed for X" in passing. The conversation scrolls. T
 
 ### B. Silent ignores on findings
 
-Sonar / CodeQL / Semgrep flags a finding. You think "that's not really an issue here." You ignore it. Next scan, it's still there. Six weeks later, 70 ignored findings have accumulated.
+CodeQL / Semgrep / a lint rule flags a finding. You think "that's not really an issue here." You ignore it. Next scan, it's still there. Six weeks later, 70 ignored findings have accumulated.
 
 **Fix**: every finding has exactly three valid endpoints — **fixed**, **tripwire-tested** (a test guards against regression of the underlying pattern), or **explicitly marked won't-fix in the upstream tool with rationale** (so it doesn't churn back next scan). Silent-ignore is forbidden.
 
@@ -189,7 +189,7 @@ The user trusted Migration 1 closed the bug. Two days later they hit the same sy
 
 ### What we go beyond (project-specific extensions)
 
-- **Hard-block hooks with bypass markers**. Anthropic's hook docs show advisory checks. We've made them enforcement gates with a documented escape hatch (`sonar-gate-justified:` in the commit body). The hook runs `python3 -c` against the Sonar API and exits 2 if the gate is RED, blocking `gh pr create`.
+- **Hard-block hooks with bypass markers**. Anthropic's hook docs show advisory checks. We've made them enforcement gates with a documented escape hatch (`docs-not-needed:` in the commit body). The hook exits 2 when substantial code changed with no runbook touched, blocking `gh pr create`. (It also queried a local SonarQube gate, with a `sonar-gate-justified:` escape, until SonarQube was removed on 2026-10-16.)
 - **Test grading rubric** (A / B / B- / C+) with `__tests__/testGrading.test.ts` enforcing placeholder headers. Every mocked-Prisma test must carry a `// PLACEHOLDER TEST — Grade: C+` header pointing at the upgrade target.
 - **Failure log as structured tripwire**. Every entry has symptom + cause + why-not-caught + fix + meta-lesson. The pre-commit hook hard-blocks `fix(...)` commits if the failure log wasn't touched in the last hour.
 - **Domain runbooks split out of CLAUDE.md**. CLAUDE.md is the constitution; runbooks are the law library. Without the split, CLAUDE.md grows past what the model can hold.
@@ -227,7 +227,7 @@ If you're starting fresh, do this in order:
 1. **Write CLAUDE.md with five rules you actually mean.** Don't copy mine — they're calibrated to my incidents. Yours come from your incidents. If you have no incidents yet, start with: KISS, no-tech-debt, no-regressions, production-ready-only, LTS-only. Five is enough to start.
 2. **Add a post-failure skill.** Every incident gets an entry. Every entry has the five fields (symptom / cause / why-not-caught / fix / meta-lesson). After 3-5 entries, patterns will emerge.
 3. **Promote recurring patterns to CLAUDE.md rules** with origin links to their failure log entries. Don't add rules speculatively.
-4. **Add hooks for the rules you can't trust the model to remember.** Sonar gate, pre-commit checklist, session-start orientation — these are good candidates.
+4. **Add hooks for the rules you can't trust the model to remember.** Pre-PR checks, pre-commit checklist, session-start orientation — these are good candidates.
 5. **Add tripwire tests for invariants the codebase must hold.** Source-text scans are cheap; one passes per CI run.
 6. **Split CLAUDE.md when it crosses ~200 lines.** Domain runbooks first, then skills.
 7. **Use subagents from day one.** Don't develop the bad habit I have of doing everything in the main thread. Investigation → `Explore`. Bounded implementation → `general-purpose`. Plan generation → `Plan`.

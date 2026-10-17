@@ -22,6 +22,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         salesOrder: { select: { orderno: true } },
         customer: { select: { firstName: true, lastName: true, phone: true } },
         pickupAddress: true,
+        pickupAppointment: {
+          select: { deliveryStop: { select: { deliveryRun: { select: { runNumber: true } } } } },
+        },
       },
       orderBy: [{ pickupDate: "asc" }, { created: "asc" }],
     });
@@ -40,6 +43,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       pickupDate: r.pickupDate,
       pickupTimeSlot: r.pickupTimeSlot,
       pickupNotes: r.pickupNotes,
+      // On a delivery run already (lib/fulfilment/returnPickup.ts), or not.
+      onRun: r.pickupAppointment?.deliveryStop?.deliveryRun.runNumber ?? null,
       address: r.pickupAddress
         ? {
             address1: r.pickupAddress.address1,

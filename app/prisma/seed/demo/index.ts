@@ -176,7 +176,15 @@ async function main(): Promise<void> {
   // and the committed-stock positions can hang off real sales orders.
   const committedOrders = await prisma.salesOrder.findMany({
     where: { status: "ORDER" },
-    select: { id: true, storeLocationId: true },
+    select: {
+      id: true,
+      storeLocationId: true,
+      lineItems: {
+        where: { lineItemStatus: "ACTIVE", productId: { not: null }, orderedQuantity: { gt: 0 } },
+        select: { productId: true, orderedQuantity: true },
+        orderBy: { lineNumber: "asc" },
+      },
+    },
     take: 25,
     orderBy: { id: "desc" },
   });

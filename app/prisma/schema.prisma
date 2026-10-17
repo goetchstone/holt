@@ -328,6 +328,10 @@ model Product {
   freightClass String?
   shipsVia     String?
   cartonQty    Int?
+  /// How many boxes one unit ships in (a sofa in 3). The only box fact Holt
+  /// stores: boxes are evidence of a unit, never a quantity of their own
+  /// (lib/inventory/boxes.ts). Null or 1 = one box.
+  boxesPerUnit Int?
 
   // Status
   isActive       Boolean @default(true)
@@ -380,10 +384,12 @@ model Product {
 
   fulfilledBuyerDrafts BuyerDraftItem[]
 
-  created   DateTime  @default(now())
-  updated   DateTime? @updatedAt
-  createdBy String?
-  updatedBy String?
+  created         DateTime         @default(now())
+  updated         DateTime?        @updatedAt
+  createdBy       String?
+  updatedBy       String?
+  boxNotes        BoxNote[]
+  stockCountLines StockCountLine[]
 }
 
 // Vendor collections group styles/products (e.g., "CORAL" for Jensen, "Curata" for Hooker)
@@ -1645,10 +1651,12 @@ model StockLocation {
   pickItemsTo        PickListItem[]      @relation("PickTo")
   buyerDraftItems    BuyerDraftItem[]
 
-  created   DateTime  @default(now())
-  updated   DateTime? @updatedAt
-  createdBy String?
-  updatedBy String?
+  created     DateTime     @default(now())
+  updated     DateTime?    @updatedAt
+  createdBy   String?
+  updatedBy   String?
+  boxNotes    BoxNote[]
+  stockCounts StockCount[]
 
   @@unique([storeLocationId, code])
 }
@@ -1731,9 +1739,93 @@ model StockMovement {
   actor      String?
   note       String?
   occurredAt DateTime @default(now())
+  /// The handheld action that made this move (StockAction.key), when one did.
+  actionKey  String?
 
   @@index([productId, occurredAt])
   @@index([sourceType, sourceId])
+  @@index([actionKey])
+}
+
+/// A note about boxes, never a quantity (lib/inventory/boxes.ts). INCOMPLETE:
+/// a unit at this place is missing these boxes (it waits in quarantine).
+/// STRAY: these boxes sit here, away from the rest of their unit. Item counts
+/// stay the only count; a note clears itself when the boxes are reunited,
+/// picked with their unit, counted absent, or cleared by hand.
+model BoxNote {
+  id              Int           @id @default(autoincrement())
+  kind            String // BOX_NOTE_KINDS
+  productId       Int
+  product         Product       @relation(fields: [productId], references: [id])
+  storeLocationId Int
+  stockLocationId Int
+  stockLocation   StockLocation @relation(fields: [stockLocationId], references: [id])
+  /// INCOMPLETE: the box numbers missing. STRAY: the box numbers here.
+  boxes           Int[]
+  boxesPerUnit    Int
+  sourceType      String?
+  sourceId        Int?
+  note            String?
+  created         DateTime      @default(now())
+  createdBy       String?
+  clearedAt       DateTime?
+  clearedBy       String?
+  clearReason     String?
+
+  @@index([productId, clearedAt])
+  @@index([stockLocationId, clearedAt])
+}
+
+/// A count of one place (ledger plan phase 17): what was physically there,
+/// product by product. Posting compares it with the books -- everything at the
+/// place, free and committed -- and moves the difference (lib/inventory/
+/// count.ts). A PLACE count says what is NOT there too: a product on the
+/// books but not counted was counted absent. A PRODUCTS count (a quick count)
+/// speaks only for the products it lists.
+model StockCount {
+  id              Int              @id @default(autoincrement())
+  storeLocationId Int
+  stockLocationId Int
+  stockLocation   StockLocation    @relation(fields: [stockLocationId], references: [id])
+  scope           String // PLACE | PRODUCTS
+  status          String // SUBMITTED | POSTED | CANCELLED (STOCK_COUNT_STATUSES)
+  countedAt       DateTime         @default(now())
+  countedBy       String?
+  postedAt        DateTime?
+  postedBy        String?
+  note            String?
+  lines           StockCountLine[]
+
+  @@index([status, stockLocationId])
+}
+
+model StockCountLine {
+  id         Int        @id @default(autoincrement())
+  countId    Int
+  count      StockCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  productId  Int
+  product    Product    @relation(fields: [productId], references: [id])
+  counted    Decimal    @db.Decimal(12, 3)
+  /// Box labels scanned for it, as evidence (never a quantity).
+  boxes      Int[]
+  /// Set when posted: what the books held there, and what moved.
+  expected   Decimal?   @db.Decimal(12, 3)
+  difference Decimal?   @db.Decimal(12, 3)
+
+  @@unique([countId, productId])
+  @@index([productId])
+}
+
+/// One handheld action, done once however many times it is sent
+/// (lib/inventory/withAction.ts). A scanner on bad Wi-Fi retries; the key is
+/// the device's, chosen per action, and a retry gets the first answer back
+/// instead of moving the stock again.
+model StockAction {
+  key     String   @id
+  kind    String
+  actor   String?
+  result  Json?
+  created DateTime @default(now())
 }
 
 /// A shortfall recorded by `allocate()` (src/lib/inventory/allocation.ts): a
@@ -3118,6 +3210,10 @@ enum ServiceAppointmentType {
   INSTALL
   DELIVERY
   HOUSE_CALL
+  /// Collecting a customer's return on a delivery run (lib/fulfilment/
+  /// returnPickup.ts). Never a handover: completing its stop records the
+  /// pickup on the Return, not a delivery of the order.
+  RETURN_PICKUP
 }
 
 enum ServiceAppointmentStatus {
@@ -3931,6 +4027,9 @@ model Return {
   restockingFeeLineItem   OrderLineItem? @relation("ReturnFeeLine", fields: [restockingFeeLineItemId], references: [id])
   refunds                 Payment[]      @relation("ReturnRefunds")
 
+  // The run stop collecting it, when its pickup is on a delivery run.
+  pickupAppointment ServiceAppointment? @relation("ReturnPickupAppointment")
+
   // Exchange (linked replacement order)
   exchangeOrderId Int?
   exchangeOrder   SalesOrder? @relation("ExchangeOrder", fields: [exchangeOrderId], references: [id])
@@ -3989,6 +4088,9 @@ model ServiceAppointment {
 
   salesOrderId Int
   salesOrder   SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  /// RETURN_PICKUP only: the return being collected (its order is salesOrderId).
+  returnId     Int?           @unique
+  return       Return?        @relation("ReturnPickupAppointment", fields: [returnId], references: [id])
   lineItemId   Int?
   lineItem     OrderLineItem? @relation(fields: [lineItemId], references: [id])
   customerId   Int?

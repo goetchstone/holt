@@ -7,15 +7,17 @@
 //            received at B (in parts if need be), so stock on its way is
 //            visible and owned the whole time.
 //
-// A place may set a mode; a place without one takes its store's; a store
-// without one takes the default -- QUICK within a store, TRACKED between
-// stores. A move uses the stricter of its two ends. The mode is a minimum:
-// anyone may always take the longer way and raise a transfer for a move that
-// could have been quick.
+// A place may set a mode; a place without one takes the nearest place above
+// it that has one (requiredMoveMode), then its store's; a store without one
+// takes the default -- QUICK within a store, TRACKED between stores. A move
+// uses the stricter of its two ends. The mode is a minimum: anyone may always
+// take the longer way and raise a transfer for a move that could have been
+// quick.
 //
-// SCANNED (tracked, with a scan at load and unload) arrives with the handheld
-// pages that can satisfy it (ledger plan PR 4).
+// SCANNED (tracked, with a scan at load and unload) is not built: the
+// handheld move is quick only. Tracked in ROADMAP.md, "Handheld floor".
 
+import { ancestry } from "./placeTree";
 import type { PrismaTx } from "./ledger";
 
 export const MOVE_MODES = ["QUICK", "TRACKED"] as const;
@@ -55,27 +57,35 @@ export function moveModeFor(args: {
   return stricter(args.from ?? fallback, args.to ?? fallback);
 }
 
-/** The mode a move from one stock location to another needs, read from the database. */
+/**
+ * The mode a move from one stock location to another needs, read from the
+ * database. A place without a mode of its own takes the nearest one above it
+ * in its store's tree (lib/inventory/placeTree.ts) -- set TRACKED on a
+ * building and every bay in it is tracked -- then its store's.
+ */
 export async function requiredMoveMode(
   db: PrismaTx,
   fromStockLocationId: number,
   toStockLocationId: number,
 ): Promise<MoveMode> {
-  const places = await db.stockLocation.findMany({
+  const ends = await db.stockLocation.findMany({
     where: { id: { in: [fromStockLocationId, toStockLocationId] } },
-    select: {
-      id: true,
-      storeLocationId: true,
-      moveMode: true,
-      storeLocation: { select: { moveMode: true } },
-    },
+    select: { id: true, storeLocationId: true, storeLocation: { select: { moveMode: true } } },
   });
-  const from = places.find((p) => p.id === fromStockLocationId);
-  const to = places.find((p) => p.id === toStockLocationId);
+  const from = ends.find((p) => p.id === fromStockLocationId);
+  const to = ends.find((p) => p.id === toStockLocationId);
   if (!from || !to) throw new Error("Both ends of a move must be stock locations that exist.");
+  const tree = await db.stockLocation.findMany({
+    where: { storeLocationId: { in: [from.storeLocationId, to.storeLocationId] } },
+    select: { id: true, parentId: true, moveMode: true },
+  });
+  const placeMode = (id: number) =>
+    ancestry(tree, id)
+      .reverse()
+      .find((p) => isMoveMode(p.moveMode))?.moveMode ?? null;
   return moveModeFor({
     sameStore: from.storeLocationId === to.storeLocationId,
-    from: endMode({ placeMode: from.moveMode, storeMode: from.storeLocation.moveMode }),
-    to: endMode({ placeMode: to.moveMode, storeMode: to.storeLocation.moveMode }),
+    from: endMode({ placeMode: placeMode(from.id), storeMode: from.storeLocation.moveMode }),
+    to: endMode({ placeMode: placeMode(to.id), storeMode: to.storeLocation.moveMode }),
   });
 }

@@ -11,7 +11,7 @@ The app is a Next.js 16 application on the **App Router + tRPC** (the modern-sta
 - **App Router** (`src/app/`) — every feature page. Server components under route groups (`(dashboard)` supplies the shared nav chrome; `app/portal/*` is the public, no-auth customer surface; `app/print/*` are minimal-chrome render targets) gate via `requirePage()` and render `"use client"` views. Typed data flows through **tRPC** (`src/server/trpc/`), with query logic in framework-agnostic libs (`src/lib/reports/*` etc.).
 - **REST API** (`src/pages/api/`) — retained by design for exports, mutations, cross-domain shared endpoints (`/api/staff`, `/api/departments`, `/api/dashboard/weekly`, `/api/mailchimp/*`), Stripe/webhook handlers, and file uploads. App Router views call these directly where tRPC isn't the right fit (downloads, multipart, third-party callbacks).
 
-The database is accessed through Prisma ORM in every path. See `MIGRATION-PLAN.md` for the per-domain ledger + the canonical port recipe, and `docs/QUALITY.md` for the SonarQube quality gate.
+The database is accessed through Prisma ORM in every path. See `MIGRATION-PLAN.md` for the per-domain ledger + the canonical port recipe. Quality gates: `docs/CI-OPERATIONS.md`.
 
 ```
 Browser (iPad / Laptop)

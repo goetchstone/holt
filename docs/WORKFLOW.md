@@ -26,7 +26,7 @@ required-check names change or new rules need adding.
 
 ```
   ┌─ feature/fix-X ─ commit ─ push ─┐
-  │                                  ├─ CI ─ Security ─ Sonar (local) ─┐
+  │                                  ├─ CI ─ Security ─ CodeQL ────────┐
   │                                  │                                  │
   └───────────────── PR ─────────────┘─── review diff ─── green? ─── merge ─ main ─ deploy.sh
 ```
@@ -50,25 +50,18 @@ Name convention: `feature/`, `fix/`, `security/`, `docs/`, `refactor/`.
 
 Atomic, imperative subject, explain the **why** not the **what**.
 
-### 4. Local Sonar scan — required before push
+### 4. Local gate — required before push
 
-Every PR runs through local Sonar before push. This is a hard gate, not a "consider running it." Mocked tests, source-text tripwires, mechanical refactors — everything. Scope discipline (rule 45) plus the local Sonar Quality Gate is what keeps the new-code window honest.
+Every PR runs through the local gate before push, docs-only PRs included:
+scope discipline (rule 45) says don't trust your judgment that nothing else
+changed, verify it.
 
 ```bash
-cd app
-npm run test:coverage   # generate lcov.info Sonar reads
-cd .. && npm run sonar:scan   # ~4 min container scan
-# Wait for completion, then check the gate:
-curl -s -u "${SONAR_TOKEN}:" \
-  "${SONAR_HOST_URL:-http://localhost:9000}/api/qualitygates/project_status?projectKey=holt" \
-  | python3 -m json.tool
+cd app && npm run check:local   # lint, typecheck, tests + coverage, markdown, Semgrep, OSV
 ```
 
-The gate must show `"status": "OK"` (or all conditions individually OK). If `new_coverage` is below threshold or `new_violations > 0`, fix or explicitly justify before pushing — don't paper over it. The project uses the **"Holt realistic"** custom gate with `new_coverage >= 40%` (the 80% default is structurally unreachable for mixed-content PRs once UI files are excluded from the coverage denominator via `sonar.coverage.exclusions`).
-
-If the change is docs-only (no code touched) the scan is still required — scope discipline says "don't trust your judgment that nothing else changed," verify it.
-
-Then push:
+CodeQL runs in CI on every PR and refuses a merge with a high or critical
+alert. (A local SonarQube scan was also required until 2026-10-16.)
 
 ### 5. Push → CI runs
 
@@ -86,7 +79,7 @@ gh pr create --fill
 ```
 
 The PR body must include a **Test plan** (what you actually tested) and
-list any doc or runbook updates. If the local Sonar scan flagged anything that you accepted (e.g. coverage at 79% but justified, hotspot triaged), document it in the PR body so the diff reviewer sees the same context.
+list any doc or runbook updates. If a scan (lint, Semgrep, OSV, CodeQL) flagged anything that you accepted (a warning triaged, an alert dismissed with a reason), document it in the PR body so the diff reviewer sees the same context.
 
 ### 8. Review the diff
 
@@ -155,13 +148,7 @@ GitHub Advanced Security ($49/active committer/mo on private repos) would put fi
 ## Weekly review (Mondays, 10 min)
 
 1. **CI security artifacts** — if any Mondays sweep run failed, download the `semgrep-findings` / `osv-findings` artifacts and triage. Otherwise, weekly sweep runs are green and there's nothing to do.
-2. **Local Sonar scan** — run against `main` to see code-smell and coverage drift over the week:
-
-   ```bash
-   docker compose -f docker-compose.sonar.yml up -d  # if not running
-   cd app && npm run test:coverage && npm run sonar:scan
-   open http://localhost:9000
-   ```
+2. **CodeQL alerts** — open alerts on `main` in the repository's Security tab: fix, or dismiss with a reason (rule 48).
 
 3. **ROADMAP.md** — move anything shipped to Done, bump priorities.
 

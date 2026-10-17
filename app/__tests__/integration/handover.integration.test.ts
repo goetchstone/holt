@@ -200,6 +200,10 @@ describe("a stop that could not be delivered goes back on the queue", () => {
     expect(isValidStopTransition("ARRIVED", "PENDING")).toBe(true);
     expect(isValidStopTransition("EN_ROUTE", "PENDING")).toBe(true);
 
+    // The driver screen marks a stop arrived straight from PENDING: nothing
+    // sets EN_ROUTE, and refusing this left no stop completable.
+    expect(isValidStopTransition("PENDING", "ARRIVED")).toBe(true);
+
     // COMPLETED is terminal because handing goods over is not undoable: it sets
     // deliveredAt, which recognises the sale.
     expect(isValidStopTransition("COMPLETED", "PENDING")).toBe(false);

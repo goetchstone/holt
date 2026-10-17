@@ -41,7 +41,7 @@ Fields driving the workflow:
 | Pickup planning   | `/app/warehouse/pickups` → `GET /api/warehouse/returns/pickups` reads `pickupRequired = true && status IN INITIATED/PICKUP_SCHEDULED`                                                      |
 | Customer portal   | `GET /api/portal/returns/[token]` + `POST /api/portal/returns/request` — token-only, no staff session; staff mint the token with `POST /api/sales/orders/[id]/return-link` (`sales.write`) |
 
-Auth is mixed. `/api/returns`, `/api/returns/[id]` and `/api/returns/[id]/exchange` gate on `requirePermission("sales.return")`, which MANAGER, REGISTER and WAREHOUSE hold by default (`lib/auth/permissionCatalog.ts`) on top of ADMIN/SUPER_ADMIN. `/api/returns/[id]/status` takes `sales.return` too since 2026-10-17 (it was a role list without WAREHOUSE, whose staff work the returns queue), as do `/api/returns/[id]/disposition` and `/api/warehouse/returns/returned-stock` (either `sales.return` or `inventory.transfer`); and `/api/returns/[id]/refund` is `requireAuthWithRole(["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"])`. The list/new/detail pages require only a signed-in user. The warehouse queue and pickup PAGES are MANAGER/ADMIN/WAREHOUSE, but the endpoints behind them are not: `/api/warehouse/returns/queue` and `/api/warehouse/returns/pickups` are bare `getServerSession` with no role check, so any signed-in user can read the customer names, phone numbers and pickup addresses they return.
+Auth is mixed. `/api/returns`, `/api/returns/[id]` and `/api/returns/[id]/exchange` gate on `requirePermission("sales.return")`, which MANAGER, REGISTER and WAREHOUSE hold by default (`lib/auth/permissionCatalog.ts`) on top of ADMIN/SUPER_ADMIN. `/api/returns/[id]/status` takes `sales.return` too since 2026-10-17 (it was a role list without WAREHOUSE, whose staff work the returns queue), as do `/api/returns/[id]/disposition` and `/api/warehouse/returns/returned-stock` (either `sales.return` or `inventory.transfer`); and `/api/returns/[id]/refund` is `requireAuthWithRole(["SUPER_ADMIN", "MANAGER", "ADMIN", "REGISTER", "WAREHOUSE"])`. The list/new/detail pages require only a signed-in user. The warehouse queue and pickup PAGES are MANAGER/ADMIN/WAREHOUSE. The endpoints behind them, `/api/warehouse/returns/queue` and `/api/warehouse/returns/pickups`, are `requirePermission("sales.return")` (checked 2026-10-16; this line used to say they had no role check).
 
 ## Returned stock: the piece, not the paperwork (since 2026-10-17)
 
@@ -152,7 +152,7 @@ Every state transition writes to `OrderChangeLog` for the linked `salesOrderId`.
 
 ## Known gaps (master plan)
 
-- **Native pickup scheduling integration** with dispatch board — `pickupRequired` flag exists but the dispatch UI doesn't yet pull return-pickups into the run-planner
+- ✅ **Pickups on a delivery run.** "Add to run" on the pickup schedule makes the pickup a run stop; completing it sets PICKUP_COMPLETED (`lib/fulfilment/returnPickup.ts`, `docs/domains/service-dispatch.md` → "Run stop outcomes"). The run planner does not suggest pickups by zone yet.
 - **Vendor return path** for damaged items (consignment-specific in `docs/domains/consignment.md`; non-consignment vendor returns have no formal workflow)
 
 ## Returns money (since ledger-plan PR 2b)

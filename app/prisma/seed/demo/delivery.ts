@@ -235,6 +235,7 @@ export async function seedDelivery(
       id: true,
       customerId: true,
       storeLocation: true,
+      deliveredAt: true,
       lineItems: {
         where: { lineItemStatus: { not: "CANCELLED" }, productId: { not: null } },
         select: { id: true, productId: true, orderedQuantity: true },
@@ -242,7 +243,7 @@ export async function seedDelivery(
       },
     },
     orderBy: { orderDate: "desc" },
-    take: 24,
+    take: 40,
   });
 
   if (deliverable.length === 0) return result;
@@ -250,11 +251,16 @@ export async function seedDelivery(
   const drivers = staff.warehouseStaff.length > 0 ? staff.warehouseStaff : staff.all;
 
   // Three runs, three states. A dispatch board that can only render one state
-  // demonstrates nothing about being a board.
+  // demonstrates nothing about being a board. The completed run carries orders
+  // already delivered; the open runs carry orders not yet delivered (until
+  // 2026-10-16 they took the next orders whatever their state, so a truck out
+  // today was delivering orders recorded as delivered last week).
+  const delivered = deliverable.filter((o) => o.deliveredAt != null);
+  const open = deliverable.filter((o) => o.deliveredAt == null);
   const runPlans: { status: DeliveryRunStatus; dayOffset: number; orders: typeof deliverable }[] = [
-    { status: "COMPLETED", dayOffset: -1, orders: deliverable.slice(0, 4) },
-    { status: "IN_PROGRESS", dayOffset: 0, orders: deliverable.slice(4, 8) },
-    { status: "PLANNING", dayOffset: 1, orders: deliverable.slice(8, 12) },
+    { status: "COMPLETED", dayOffset: -1, orders: delivered.slice(0, 4) },
+    { status: "IN_PROGRESS", dayOffset: 0, orders: open.slice(0, 4) },
+    { status: "PLANNING", dayOffset: 1, orders: open.slice(4, 8) },
   ];
 
   for (const [runIndex, plan] of runPlans.entries()) {

@@ -181,6 +181,16 @@ export function LocationsView() {
     }
   };
 
+  // The place's label: its barcode L-<id> is what a handheld scans back to it.
+  const printPlaceLabel = async (placeId: number, name: string) => {
+    try {
+      await axios.post(`/api/warehouse/stock-locations/${placeId}/label`, {});
+      toast.success(`Label for ${name} sent to the printer`);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "The label was not printed"));
+    }
+  };
+
   return (
     <div className="py-2 space-y-6 font-serif">
       <div className="flex items-center justify-between">
@@ -539,13 +549,19 @@ export function LocationsView() {
                             </span>
                           )}
                           <button
+                            onClick={() => printPlaceLabel(sl.id, sl.name)}
+                            className="text-xs text-brand-gray hover:text-brand-blue opacity-0 group-hover:opacity-100 ml-auto"
+                          >
+                            Label
+                          </button>
+                          <button
                             onClick={() =>
                               setStockModal({
                                 stockLocation: sl,
                                 storeLocationId: loc.id,
                               })
                             }
-                            className="text-xs text-brand-gray hover:text-brand-blue opacity-0 group-hover:opacity-100 ml-auto"
+                            className="text-xs text-brand-gray hover:text-brand-blue opacity-0 group-hover:opacity-100"
                           >
                             Edit
                           </button>

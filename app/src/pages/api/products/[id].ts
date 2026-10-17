@@ -54,6 +54,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         freightClass: product.freightClass,
         shipsVia: product.shipsVia,
         cartonQty: product.cartonQty,
+        boxesPerUnit: product.boxesPerUnit,
         vendor: product.vendor,
         department: product.department,
         category: product.category,
@@ -88,6 +89,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         length,
         depth,
         height,
+        boxesPerUnit,
         serviceType,
       } = body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- same untyped shape req.body had
 
@@ -102,6 +104,21 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         return Number.isNaN(num) ? null : num;
       };
 
+      // How many boxes one unit ships in: a whole number from 1 to 99, or
+      // cleared (one box). Box labels and box scans count against it.
+      let boxes: number | null | undefined;
+      if (boxesPerUnit === undefined) boxes = undefined;
+      else if (boxesPerUnit === null || boxesPerUnit === "") boxes = null;
+      else {
+        const n = Number(boxesPerUnit);
+        if (!Number.isInteger(n) || n < 1 || n > 99) {
+          return res
+            .status(400)
+            .json({ error: "Boxes per unit must be a whole number from 1 to 99." });
+        }
+        boxes = n;
+      }
+
       const updatedProduct = await prisma.product.update({
         where: { id: productId },
         data: {
@@ -113,6 +130,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           length: parseOptionalFloat(length),
           depth: parseOptionalFloat(depth),
           height: parseOptionalFloat(height),
+          boxesPerUnit: boxes,
           serviceType: resolvedServiceType,
         },
       });
