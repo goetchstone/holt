@@ -1376,7 +1376,8 @@ model PhysicalInventoryCount {
   productId     Int
   product       Product  @relation(fields: [productId], references: [id])
   stockLocation String
-  quantity      Int
+  /// Fractional like the balance: a roll of fabric is counted in yards.
+  quantity      Decimal  @db.Decimal(12, 3)
   countedAt     DateTime @default(now())
 
   userId String?
@@ -1443,12 +1444,12 @@ model Reconciliation {
   productId          Int
   product            Product  @relation(fields: [productId], references: [id])
   location           String
-  initialExpected    Int
-  initialCounted     Int
-  initialVariance    Int
+  initialExpected    Decimal  @db.Decimal(12, 3)
+  initialCounted     Decimal  @db.Decimal(12, 3)
+  initialVariance    Decimal  @db.Decimal(12, 3)
   actionTaken        String
-  finalCount         Int
-  finalVariance      Int
+  finalCount         Decimal  @db.Decimal(12, 3)
+  finalVariance      Decimal  @db.Decimal(12, 3)
   reconciledAt       DateTime @default(now())
   reconciledByUserId String
   reconciledBy       User     @relation(fields: [reconciledByUserId], references: [id])

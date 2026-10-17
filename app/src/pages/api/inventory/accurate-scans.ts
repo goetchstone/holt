@@ -4,11 +4,12 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { countedByProduct, countVariance } from "@/lib/inventory/storeCount";
 import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
 
 const APPAREL_DEPARTMENTS = ["Accessories", "Mens Apparel", "Womens Apparel"];
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+export async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -36,11 +37,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     });
 
     const expectedMap = new Map(snapshotCounts.map((item) => [item.productId, item.quantity]));
-    const countedMap = new Map<number, number>();
-    for (const count of physicalCounts) {
-      const currentCount = countedMap.get(count.productId) || 0;
-      countedMap.set(count.productId, currentCount + count.quantity);
-    }
+    const countedMap = countedByProduct(physicalCounts);
 
     // Keyed on productId, not externalId -- see variance-report.ts. Native
     // products (no externalId) used to be silently excluded here too.
@@ -70,7 +67,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         productNumber: product?.productNumber || "N/A",
         department: product?.department?.name || "Unknown",
         counted,
-        variance: counted - expected,
+        variance: countVariance(counted, expected),
       };
     });
 

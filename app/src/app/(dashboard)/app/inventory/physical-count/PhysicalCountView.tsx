@@ -232,6 +232,8 @@ export function PhysicalCountView() {
             <input
               id="count-qty"
               type="number"
+              min="0"
+              step="any"
               value={quantity}
               onChange={(e) => setQuantity(Number(e.target.value))}
               className="border rounded p-2 w-full text-center text-lg font-bold"

@@ -7,6 +7,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { logError } from "@/lib/logger";
+import { roundQty, toQty } from "@/lib/inventory/quantity";
 import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
 
 const APPAREL_DEPARTMENTS = ["Accessories", "Mens Apparel", "Womens Apparel"];
@@ -181,11 +182,12 @@ async function handler(
           expectedCost: 0,
           countedCost: 0,
         };
-      itemDetails[product.id].countedQty += p.quantity;
+      const counted = toQty(p.quantity);
+      itemDetails[product.id].countedQty = roundQty(itemDetails[product.id].countedQty + counted);
       const itemCost = Number(
         product.baseCost || (product.baseRetail ? Number(product.baseRetail) * 0.5 : 0),
       );
-      itemDetails[product.id].countedCost += p.quantity * itemCost;
+      itemDetails[product.id].countedCost += counted * itemCost;
     });
 
     const report = Object.entries(itemDetails).map(([productId, totals]) => {

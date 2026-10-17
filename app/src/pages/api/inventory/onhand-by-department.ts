@@ -7,6 +7,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { logError } from "@/lib/logger";
+import { roundQty, toQty } from "@/lib/inventory/quantity";
 
 async function handler(
   req: NextApiRequest,
@@ -131,9 +132,9 @@ async function handler(
       const reconciledData = reconciliationMap.get(externalId);
       const rawCount = physicalCounts
         .filter((p) => p.productId === productId)
-        .reduce((sum, current) => sum + current.quantity, 0);
+        .reduce((sum, current) => roundQty(sum + toQty(current.quantity)), 0);
 
-      const finalCount = reconciledData ? reconciledData.finalCount : rawCount;
+      const finalCount = reconciledData ? toQty(reconciledData.finalCount) : rawCount;
 
       const itemCost = Number(
         productInfo?.baseCost ||
