@@ -39,7 +39,7 @@ import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import type { Rng } from "./rng";
 import { randFloat, randInt, round2, subRng } from "./rng";
 import { breakdownCash, TILL_OPENING_FLOAT } from "./tillCash";
-import { buildOrderPlans, type OrderPlan, type PaymentMethodTender } from "./orderPlan";
+import { buildOrderPlans, localTime, type OrderPlan, type PaymentMethodTender } from "./orderPlan";
 import type { CatalogProduct } from "./catalog";
 import { SEED_TAX_RATE } from "./config";
 import type { SeededCustomer } from "./customers";
@@ -47,26 +47,9 @@ import type { SeededStaffMember, StaffSetup } from "./staff";
 
 const SEED_ACTOR = "seed:demo";
 
-/**
- * Where an undelivered order sits in the warehouse pipeline.
- *
- * Weighted so the Ready to Deliver board has a real queue to work from:
- * roughly a third still waiting on the vendor, a third arrived and awaiting a
- * slot (the ones you schedule), a fifth already booked onto a run, and a few
- * being collected by the customer instead.
- */
-function pendingDispatch(
-  rng: Rng,
-): "PO_PLACED" | "RECEIVED_IN_WAREHOUSE" | "SCHEDULED_DELIVERY" | "READY_FOR_PICKUP" {
-  const roll = randInt(rng, 1, 100);
-  if (roll <= 30) return "PO_PLACED";
-  if (roll <= 65) return "RECEIVED_IN_WAREHOUSE";
-  if (roll <= 88) return "SCHEDULED_DELIVERY";
-  return "READY_FOR_PICKUP";
-}
-
 export interface StoreForOrders {
   id: number;
+  name: string;
   registerIds: number[];
 }
 
@@ -93,18 +76,12 @@ interface PaymentRecord {
   time: Date;
 }
 
-function dateKeyUTC(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-/** Same calendar day (UTC), 30min-4h later, clamped to 20:00 so it never
+/** Same business day, 30min-4h later, clamped to 20:30 local so it never
  * spills into the next day's till session. */
-function sameDayLaterTime(rng: Rng, date: Date): Date {
+function sameDayLaterTime(rng: Rng, date: Date, dayKey: string): Date {
   const addMinutes = randInt(rng, 30, 240);
   const t = new Date(date.getTime() + addMinutes * 60_000);
-  const dayEnd = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 20, 0, 0),
-  );
+  const dayEnd = localTime(dayKey, 20, 30);
   return t.getTime() > dayEnd.getTime() ? dayEnd : t;
 }
 
@@ -137,7 +114,7 @@ export async function seedSalesOrdersAndTills(
   // Group by (registerId, calendar day) -- one till session per group.
   const groups = new Map<string, OrderPlan[]>();
   for (const plan of plans) {
-    const key = `${plan.registerId}::${dateKeyUTC(plan.date)}`;
+    const key = `${plan.registerId}::${plan.dayKey}`;
     const arr = groups.get(key);
     if (arr) arr.push(plan);
     else groups.set(key, [plan]);
@@ -160,7 +137,6 @@ export async function seedSalesOrdersAndTills(
   const openIdx = n - 1;
 
   const varianceRng = subRng(rng, "till-variance");
-  const dispatchRng = subRng(rng, "dispatch-pipeline");
   const cashFlowRng = subRng(rng, "gift-card-store-credit");
 
   const result: SalesOrdersResult = {
@@ -257,16 +233,22 @@ export async function seedSalesOrdersAndTills(
         data: {
           orderno: order.orderno,
           orderDate: order.date,
-          status: order.isInvoiced ? "FULFILLED" : "ORDER",
-          // An invoiced order is one that was DELIVERED -- the invoice is what
-          // delivery generates. Without this the canonical handover fact is
-          // empty on a fresh clone, so a DELIVERED-basis commission plan reads
-          // zero and nothing can be filtered by "actually gone".
-          deliveredAt: order.isInvoiced ? order.date : null,
+          // Delivered means invoiced: the invoice is what delivery generates. A
+          // floor sale is delivered as it is rung; a delivery order once its
+          // goods arrived and went out (orderPlan.ts planDelivery). Without
+          // deliveredAt the canonical handover fact is empty on a fresh clone,
+          // so a DELIVERED-basis commission plan reads zero and nothing can be
+          // filtered by "actually gone".
+          status: order.deliveredAt ? "FULFILLED" : "ORDER",
+          deliveredAt: order.deliveredAt,
           customerId: order.customerId,
           salesperson: order.designer.displayName,
           salesPersonId: order.designer.id,
-          storeLocation: null,
+          // The store's NAME, as the register writes it (create-from-cart.ts),
+          // as well as its id. With only the id, every report that groups by
+          // the name -- the dashboard's store cards among them -- put the
+          // whole seeded history under "Unknown" and showed each store $0.
+          storeLocation: order.storeName,
           storeLocationId: storeId,
           taxDistrictId,
           totalTax,
@@ -274,10 +256,16 @@ export async function seedSalesOrdersAndTills(
           // Undelivered orders spread across the REAL dispatch pipeline rather
           // than all sitting at SCHEDULED_DELIVERY. A board where every open
           // order is already scheduled has nothing to schedule, so the one
-          // thing dispatch exists to do cannot be demonstrated -- and
-          // "scheduled" was a lie anyway, since none of them were on a run.
-          dispatchStatus: order.isInvoiced ? "FULFILLED" : pendingDispatch(dispatchRng),
-          deliveryMethod: order.isInvoiced ? "TAKEN" : "DELIVERY",
+          // thing dispatch exists to do cannot be demonstrated. Each order's
+          // place in it follows from its vendors' lead times and today's date
+          // (orderPlan.ts planDelivery), not a draw -- a draw left orders from
+          // last spring still waiting on the vendor.
+          dispatchStatus: order.dispatch,
+          deliveryMethod: order.isInvoiced
+            ? "TAKEN"
+            : order.dispatch === "READY_FOR_PICKUP"
+              ? "PICKUP"
+              : "DELIVERY",
           createdBy: SEED_ACTOR,
         },
       });
@@ -304,18 +292,21 @@ export async function seedSalesOrdersAndTills(
         }),
       });
 
-      if (order.isInvoiced) {
+      if (order.deliveredAt) {
+        // Dated the day it was delivered. For a delivery order that is weeks
+        // after the deposit, which is what moves the deposit out of the
+        // liability and recognises the sale on that day (lib/journalEntry.ts).
         await prisma.invoice.create({
           data: {
             invoiceNo: `INV-${order.orderno.replace("SO-", "")}`,
-            invoiceDate: order.date,
+            invoiceDate: order.deliveredAt,
             taxAmount: totalTax,
             salesOrderId: salesOrder.id,
             customerId: salesOrder.customerId,
             // A complete invoice record. The importer leaves these unset, which is
             // its own bug -- the seed should not model the bug.
             status: "ISSUED",
-            issuedAt: order.date,
+            issuedAt: order.deliveredAt,
             organizationId: 1,
           },
         });
@@ -407,7 +398,7 @@ export async function seedSalesOrdersAndTills(
       if (order.hasRefund) {
         const refundLine = order.lines[order.refundLineIndex];
         const refundAmount = round2(refundLine.netPrice + refundLine.vatAmount);
-        const refundTime = sameDayLaterTime(cashFlowRng, order.date);
+        const refundTime = sameDayLaterTime(cashFlowRng, order.date, order.dayKey);
 
         await prisma.orderLineItem.create({
           data: {

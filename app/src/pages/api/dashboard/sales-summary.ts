@@ -5,6 +5,8 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayKey, businessDayRange, sameDateLastYear } from "@/lib/reports/businessDay";
 
 interface StoreSalesData {
   items: number;
@@ -34,6 +36,7 @@ async function sumSalesByStore(from: Date, to: Date): Promise<Record<string, Sto
     },
     select: {
       storeLocation: true,
+      store: { select: { name: true } },
       lineItems: {
         where: { lineItemStatus: { not: "CANCELLED" } },
         select: { netPrice: true, vatAmount: true },
@@ -44,7 +47,9 @@ async function sumSalesByStore(from: Date, to: Date): Promise<Record<string, Sto
   const result: Record<string, StoreSalesData> = {};
   for (const order of orders) {
     if (order.lineItems.length === 0) continue;
-    const store = order.storeLocation || "Unknown";
+    // The linked store first, then the name the POS wrote: an order carrying
+    // only one of the two still lands on its store's card.
+    const store = order.store?.name || order.storeLocation || "Unknown";
 
     if (!result[store]) {
       result[store] = { items: 0, netSales: 0, tax: 0, total: 0 };
@@ -70,19 +75,16 @@ export default requirePermission(
     }
 
     try {
-      // Date boundaries in UTC (the POS dates are midnight UTC)
-      const now = new Date();
-      const y = now.getUTCFullYear();
-      const m = now.getUTCMonth();
-      const d = now.getUTCDate();
-      const todayStart = new Date(Date.UTC(y, m, d));
-      const todayEnd = new Date(Date.UTC(y, m, d + 1));
-      const lyStart = new Date(Date.UTC(y - 1, m, d));
-      const lyEnd = new Date(Date.UTC(y - 1, m, d + 1));
+      // "Today" is the store's business day, not the UTC one: bucketed in UTC,
+      // an Eastern store's card flipped to tomorrow -- and read $0 -- at 8pm.
+      const timeZone = await getBusinessTimeZone();
+      const todayKey = businessDayKey(new Date(), timeZone);
+      const today = businessDayRange(todayKey, timeZone);
+      const lastYear = businessDayRange(sameDateLastYear(todayKey), timeZone);
 
       const [todaySales, lySales] = await Promise.all([
-        sumSalesByStore(todayStart, todayEnd),
-        sumSalesByStore(lyStart, lyEnd),
+        sumSalesByStore(today.gte, today.lt),
+        sumSalesByStore(lastYear.gte, lastYear.lt),
       ]);
 
       // Merge all store names, excluding "Unknown"

@@ -820,13 +820,32 @@ Indexes on `(staffMemberId, periodStart, periodEnd)` and `(resolvedAt)`. No uniq
 
 The manager grid currently shows **all** active designers to any MANAGER / ADMIN / SUPER_ADMIN. Owner confirmed 2026-05-29 NOT to scope by store, because **a manager can manage more than one store** — store-scoping would be wrong. A proper team model (a manager → many designers, possibly spanning stores) is deferred to a later PR; until then, all-designers visibility stands.
 
-## Team commission view (2026-05-29) — TABLED, SUPER_ADMIN-only
+## Team commission view — folded into Commission (2026-10-17)
 
-Built as a manager view-only surface, then **re-gated to SUPER_ADMIN-only the same day** (owner decision 2026-05-29: commission surfaces are SUPER_ADMIN-only until wider rollout is decided). The code is intact and parked — to restore broader access later, widen the `roles` on the page/card/endpoint.
+Built 2026-05-29 as a manager view-only surface, re-gated to SUPER_ADMIN the same
+day, and **folded into Commission on 2026-10-17** (owner decision). It was a
+read-only copy of Commission -> Locked Payouts with less in it: designers only,
+no date range, no drafts, no paid-date editing, no breakdown or drift. Its page
+gate (`reporting.read`) and its tRPC procedure (`SUPER_ADMIN_ONLY`) also
+disagreed, so a manager reached a page that read "No locked commission payouts
+yet" whatever was locked.
 
-- **Page** `/app/reports/commission` ("Team Commission") — **SUPER_ADMIN only** (`requirePage(["SUPER_ADMIN"])`). Read-only grid of LOCKED payouts per designer per period (designer, pay period, period sales, commission $, paid date + total). No tier config, no preview/commit/edit — those stay on the SUPER_ADMIN `/app/admin/reports/commission-tiers` surface.
-- **Query** the tRPC procedure `reports.commissionPayouts` (`roleProcedure(SUPER_ADMIN_ONLY)`), backed by `lib/reports/commissionPayouts.ts:getCommissionPayouts`. The old REST `GET /api/reports/commission-payouts` no longer exists. It calls the shared `listCommissionPayouts({ designersOnly: true, includeDrafts: false })` so it returns only **locked** payouts for **flagged designers** (never drafts, never non-designers). Decimals serialized to numbers.
-- **Shared query** `lib/commissionPayoutList.ts` — one `findMany` used by BOTH this endpoint AND the SUPER_ADMIN `handleList` (the commission-tiers Locked Payouts tab), so the two surfaces can't diverge on filtering. Real-DB test: `__tests__/integration/commissionPayoutList.integration.test.ts`.
+- **Reports -> Commission** (SUPER_ADMIN, the card that was "Team Commission")
+  opens `/app/admin/reports/commission-tiers?tab=locked`. That page is no longer
+  direct-URL-only; it is still owner-only (`admin.settings`). `?tab=` takes
+  `drafts`, `locked` or `calculator`.
+- **`/app/reports/commission`** is kept as a redirect to the same place, so a
+  bookmark still lands. `CommissionView.tsx`, the tRPC `reports.commissionPayouts`
+  procedure and `lib/reports/commissionPayouts.ts` are gone.
+- **Shared query** `lib/commissionPayoutList.ts` — the Locked Payouts tab's
+  `handleList`. Real-DB test:
+  `__tests__/integration/commissionPayoutList.integration.test.ts`.
+- **The demo seed pays what it locks** (`prisma/seed/demo/commissionPayouts.ts`):
+  each month is locked three days after it closes and paid on the 15th of the
+  next, so Locked Payouts shows paid dates; a month whose payday has not come is
+  locked and unpaid. Designers who have left get the payouts for the months they
+  sold -- the run makes them active for exactly those periods, because
+  `commitPayoutsForPeriod` pays only active staff.
 
 ### Pay-period statement + confirm/issue ledger — also TABLED (SUPER_ADMIN-only)
 

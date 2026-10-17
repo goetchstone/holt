@@ -30,7 +30,7 @@
 //
 //   APPOINTMENTS -> RUNS -> STOPS -- the actual chain. A DeliveryStop is unique
 //     per ServiceAppointment, so appointments must come first. Runs are seeded
-//     across three states (COMPLETED yesterday, IN_PROGRESS today, PLANNING
+//     across three states (COMPLETED on the last delivery day, IN_PROGRESS today, PLANNING
 //     tomorrow) because a board that can only show one state cannot demonstrate
 //     that it is a board.
 //
@@ -227,40 +227,88 @@ export async function seedDelivery(
   }
 
   // ---- appointments, runs, stops, pick lists ----------------------------
-  // Only orders that actually have line items can be delivered; an appointment
-  // against an empty order would make a run sheet with nothing on it.
-  const deliverable = await prisma.salesOrder.findMany({
-    where: { status: { in: ["ORDER", "FULFILLED"] }, lineItems: { some: {} } },
-    select: {
-      id: true,
-      customerId: true,
-      storeLocation: true,
-      deliveredAt: true,
-      lineItems: {
-        where: { lineItemStatus: { not: "CANCELLED" }, productId: { not: null } },
-        select: { id: true, productId: true, orderedQuantity: true },
-        take: 4,
-      },
+  // Three runs, three states. A dispatch board that can only render one state
+  // demonstrates nothing about being a board. Each run carries the orders that
+  // state is true of:
+  //
+  //   COMPLETED -- the last delivery day before today, with the orders that
+  //                were delivered that day (they carry deliveredAt for it).
+  //   IN_PROGRESS -- today, orders booked for delivery whose goods are here.
+  //   PLANNING  -- the next delivery, more of the same, then orders in the
+  //                warehouse waiting for a slot.
+  //
+  // Until 2026-10-17 all three took the forty newest orders, which are mostly
+  // floor sales rung in the last few days: yesterday's "completed" truck
+  // delivered things sold this morning, and today's truck went out with orders
+  // whose goods the vendor had not shipped.
+  const orderSelect = {
+    id: true,
+    customerId: true,
+    storeLocation: true,
+    deliveredAt: true,
+    lineItems: {
+      where: { lineItemStatus: { not: "CANCELLED" as const }, productId: { not: null } },
+      select: { id: true, productId: true, orderedQuantity: true },
+      take: 4,
     },
-    orderBy: { orderDate: "desc" },
-    take: 40,
+  };
+  const startOfToday = new Date(today);
+  startOfToday.setUTCHours(0, 0, 0, 0);
+
+  const recentlyDelivered = await prisma.salesOrder.findMany({
+    where: {
+      deliveryMethod: "DELIVERY",
+      deliveredAt: { not: null, lt: startOfToday },
+      lineItems: { some: {} },
+    },
+    select: orderSelect,
+    orderBy: { deliveredAt: "desc" },
+    take: 12,
+  });
+  const lastRunDay = recentlyDelivered[0]?.deliveredAt?.toISOString().slice(0, 10) ?? null;
+  const delivered = recentlyDelivered
+    .filter((o) => o.deliveredAt?.toISOString().slice(0, 10) === lastRunDay)
+    .slice(0, 4);
+
+  const readyToGo = await prisma.salesOrder.findMany({
+    where: { deliveredAt: null, dispatchStatus: "SCHEDULED_DELIVERY", lineItems: { some: {} } },
+    select: orderSelect,
+    orderBy: { orderDate: "asc" },
+    take: 8,
+  });
+  const inWarehouse = await prisma.salesOrder.findMany({
+    where: { deliveredAt: null, dispatchStatus: "RECEIVED_IN_WAREHOUSE", lineItems: { some: {} } },
+    select: orderSelect,
+    orderBy: { orderDate: "asc" },
+    take: 4,
   });
 
-  if (deliverable.length === 0) return result;
+  if (delivered.length + readyToGo.length + inWarehouse.length === 0) return result;
 
   const drivers = staff.warehouseStaff.length > 0 ? staff.warehouseStaff : staff.all;
 
-  // Three runs, three states. A dispatch board that can only render one state
-  // demonstrates nothing about being a board. The completed run carries orders
-  // already delivered; the open runs carry orders not yet delivered (until
-  // 2026-10-16 they took the next orders whatever their state, so a truck out
-  // today was delivering orders recorded as delivered last week).
-  const delivered = deliverable.filter((o) => o.deliveredAt != null);
-  const open = deliverable.filter((o) => o.deliveredAt == null);
-  const runPlans: { status: DeliveryRunStatus; dayOffset: number; orders: typeof deliverable }[] = [
-    { status: "COMPLETED", dayOffset: -1, orders: delivered.slice(0, 4) },
-    { status: "IN_PROGRESS", dayOffset: 0, orders: open.slice(0, 4) },
-    { status: "PLANNING", dayOffset: 1, orders: open.slice(4, 8) },
+  // The next delivery day after today: Tuesday to Saturday, as orderPlan.ts
+  // books deliveries.
+  let nextDeliveryOffset = 1;
+  while (
+    ![2, 3, 4, 5, 6].includes(
+      new Date(startOfToday.getTime() + nextDeliveryOffset * 86_400_000).getUTCDay(),
+    )
+  ) {
+    nextDeliveryOffset += 1;
+  }
+  const dayOffsetOf = (dayKey: string | null) =>
+    dayKey
+      ? Math.round((Date.parse(`${dayKey}T00:00:00Z`) - startOfToday.getTime()) / 86_400_000)
+      : -1;
+  const runPlans: { status: DeliveryRunStatus; dayOffset: number; orders: typeof delivered }[] = [
+    { status: "COMPLETED", dayOffset: dayOffsetOf(lastRunDay), orders: delivered },
+    { status: "IN_PROGRESS", dayOffset: 0, orders: readyToGo.slice(0, 4) },
+    {
+      status: "PLANNING",
+      dayOffset: nextDeliveryOffset,
+      orders: [...readyToGo.slice(4), ...inWarehouse].slice(0, 4),
+    },
   ];
 
   for (const [runIndex, plan] of runPlans.entries()) {

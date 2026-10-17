@@ -19,7 +19,7 @@
 // Volume:      HOLT_SEED_SCALE=ci|demo (default ci), or --scale=demo
 // Reset:       --reset  (wipes every seeded row and reseeds; refuses to
 //              run at all against an existing dataset without it)
-// Date anchor: HOLT_SEED_AS_OF=YYYY-MM-DD (default 2026-08-01), or --as-of=
+// Date anchor: HOLT_SEED_AS_OF=YYYY-MM-DD (default: today), or --as-of=
 // DB safety:   only a scratch-named database (holt_seed_demo and the like)
 //              seeds unattended; anything else needs --force-unsafe-db or
 //              HOLT_SEED_FORCE_UNSAFE_DB=1. The integration-test database can
@@ -161,7 +161,7 @@ async function main(): Promise<void> {
     locations.stores,
     staff.warehouseStaff,
     volume.purchaseOrderCount,
-    new Date(),
+    window.now,
   );
 
   const consignmentResult = await seedConsignment(
@@ -174,8 +174,13 @@ async function main(): Promise<void> {
 
   // On-hand stock. After purchasing, so the catalog and locations both exist,
   // and the committed-stock positions can hang off real sales orders.
+  // Only orders whose goods are in the building can have stock committed to
+  // them: one still waiting on its vendor (PO_PLACED) has nothing to hold.
   const committedOrders = await prisma.salesOrder.findMany({
-    where: { status: "ORDER" },
+    where: {
+      status: "ORDER",
+      dispatchStatus: { in: ["RECEIVED_IN_WAREHOUSE", "SCHEDULED_DELIVERY", "READY_FOR_PICKUP"] },
+    },
     select: {
       id: true,
       storeLocationId: true,
@@ -227,10 +232,10 @@ async function main(): Promise<void> {
     staff,
     locations.stores,
     accounting.taxDistrictId,
-    new Date(),
+    window.now,
   );
 
-  const schedulingResult = await seedScheduling(prisma, rng, org.organizationId, staff, new Date());
+  const schedulingResult = await seedScheduling(prisma, rng, org.organizationId, staff, window.now);
 
   // After inventory (needs positions to exist) and after salesOrders (oversell
   // exceptions and order-linked transfers both point at real orders).
@@ -240,7 +245,7 @@ async function main(): Promise<void> {
     catalog.products,
     locations.stores,
     staff,
-    new Date(),
+    window.now,
   );
 
   // The front of the funnel, and the setup tables behind Admin -> Setup. Both
@@ -252,10 +257,10 @@ async function main(): Promise<void> {
     staff,
     locations.stores,
     catalog.products,
-    new Date(),
+    window.now,
   );
 
-  const setupResult = await seedSetupData(prisma, rng, staff, locations.stores, new Date());
+  const setupResult = await seedSetupData(prisma, rng, staff, locations.stores, window.now);
 
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 
@@ -277,7 +282,7 @@ async function main(): Promise<void> {
   );
   console.log(
     `Time: ${operationsResult.timeEntries} entries (${operationsResult.unbilledMinutes} unbilled minutes), ` +
-      `${operationsResult.shiftsCreated} shifts (${operationsResult.openShifts} open)`,
+      `${operationsResult.shiftsCreated + setupResult.openShifts} shifts (${setupResult.openShifts} open: today's floor staff)`,
   );
   console.log("");
   console.log("=== Seed complete ===");
@@ -300,13 +305,15 @@ async function main(): Promise<void> {
     `Forced till variances -> note:${salesResult.forcedVariance.note} manager:${salesResult.forcedVariance.manager} escalation:${salesResult.forcedVariance.escalation} (blocked register ${salesResult.blockedRegisterId})`,
   );
   console.log(
-    `Purchase orders: ${purchasingResult.purchaseOrdersCreated}, receiving records: ${purchasingResult.receivingRecordsCreated}`,
+    `Purchase orders: ${purchasingResult.purchaseOrdersCreated} (${purchasingResult.specialOrdersCreated} special orders, ` +
+      `${purchasingResult.overdueOpen} open and overdue), receiving records: ${purchasingResult.receivingRecordsCreated}`,
   );
   console.log(
     `Consignment items: ${consignmentResult.itemsCreated} (vendor ${consignmentResult.vendorId})`,
   );
   console.log(
-    `Commission payouts: ${commissionPayoutsResult.payoutsCreated} across ${commissionPayoutsResult.periodsProcessed} periods (${commissionPayoutsResult.payoutsLocked} locked)`,
+    `Commission payouts: ${commissionPayoutsResult.payoutsCreated} across ${commissionPayoutsResult.periodsProcessed} periods ` +
+      `(${commissionPayoutsResult.payoutsLocked} locked, ${commissionPayoutsResult.payoutsPaid} paid)`,
   );
   console.log(
     `Journal entries: ${journalResult.entries.length} for days [${journalResult.daysProcessed.join(", ")}]`,

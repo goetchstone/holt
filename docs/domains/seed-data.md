@@ -133,20 +133,20 @@ npm run seed:demo -- --reset         # wipe an existing seeded DB and reseed
 
 | Step | Module                 | What lands in the DB                                                                                                                                                                            |
 | ---- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `org.ts`               | `Organization` + `AppSettings` (branding, currency/timezone, feature flags on)                                                                                                                  |
+| 1    | `org.ts`               | `Organization` + `AppSettings` (branding -- the "ink and clay" palette and a customer-facing tagline -- currency/timezone, feature flags on)                                                  |
 | 2    | `accounting.ts`        | Full chart of accounts (`GLAccount`), `AccountGroup` per department, **every** `SystemGLMapping` row the journal generator can look up, a single home-state `TaxDistrict`/`TaxGroup`/`TaxRule`/`TaxExemptReason` |
 | 3    | `locations.ts`         | 2 `StoreLocation`s + 1 warehouse, their `StockLocation`s (incl. one `holdsCommittedStock` staging bay, deliberately not named "Customer…"), 2 `Register`s per store                             |
 | 4    | `staff.ts`             | `StaffMember` + linked `User` across all 6 real roles, with working local-login passwords                                                                                                       |
-| 5    | `catalog.ts`           | `Department` → `Category` → `Type` taxonomy, invented `Vendor`s, `Product`s with cost AND retail                                                                                                |
+| 5    | `catalog.ts`           | `Department` → `Category` → `Type` taxonomy, invented `Vendor`s with a standard lead time each (one deliberately unset), `Product`s with cost AND retail                                        |
 | 6    | `customers.ts`         | `Customer` + `CustomerAddress`, a trade/tax-exempt slice                                                                                                                                        |
 | 7    | `commissionPlan.ts`    | `CommissionPlan` + `CommissionPlanTier` (two plans — see "Commission model" below)                                                                                                              |
 | 8    | `salesOrders.ts`       | `SalesOrder` + `OrderLineItem` + `Invoice` + `Payment` + `Till`/`TillCount`, ~18 months                                                                                                         |
-| 9    | `purchasing.ts`        | `PurchaseOrder` + `PurchaseOrderItem` + `ReceivingRecord`                                                                                                                                       |
+| 9    | `purchasing.ts`        | `PurchaseOrder` + `PurchaseOrderItem` + `ReceivingRecord`, every date derived from vendor lead time (see "Purchase orders")                                                                     |
 | 10   | `consignment.ts`       | A GENERIC consignment `Vendor` + `ConsignmentReceipt`/`ConsignmentItem`/`ConsignmentPaymentBatch`                                                                                               |
 | 11   | `inventory.ts`         | `InventoryPosition` across floor / back stock / warehouse bulk / committed staging                                                                                                              |
 | 12   | `service.ts`           | `ServiceCase` + `ServiceCaseNote` and the three operator-editable lookup tables                                                                                                                 |
 | 13   | `operations.ts`        | `Ticket` + `TicketMessage` (Helpdesk), `TimeEntry` + `StaffShift` (Time)                                                                                                                        |
-| 14   | `commissionPayouts.ts` | Real `CommissionPayout` rows via `lib/runCommissionPayouts.ts`'s `commitPayoutsForPeriod`                                                                                                       |
+| 14   | `commissionPayouts.ts` | Real `CommissionPayout` rows via `lib/runCommissionPayouts.ts`'s `commitPayoutsForPeriod`, locked and PAID month by month                                                                      |
 | 15   | `journal.ts`           | Real `JournalEntry`/`JournalEntryLine` rows via `lib/journalEntry.ts`'s `generateSalesJournal`                                                                                                  |
 
 Everything is realistic-but-clearly-fake: invented names, `@example.com` emails, made-up
@@ -219,16 +219,80 @@ Measured at ci scale: 85.3% / 3.6% / 2.5% / 2.5% / 6.25% (N=448 payment rows). M
 at demo scale (N=6,384 rows): 85.0% / 4.2% / 2.9% / 2.0% / 6.0% — very close to target at
 the larger N, as expected.
 
-### Invoiced vs. deposit-only orders
+### Floor sales, delivery orders, and when a delivery order is delivered
 
-~70% of orders get an `Invoice` row at time of sale (immediate/floor purchases), so
-`generateSalesJournal` recognizes real Sales/COGS/Inventory/Tax that day. The other ~30%
-stay un-invoiced (special orders awaiting delivery) and book purely as "Pmt On Acct" —
-matching `docs/domains/accounting.md`'s own worked sample, where deposits dwarf same-day
-revenue on a typical day. `InvoiceLineItem` rows are deliberately NOT created:
-`generateSalesJournal` only checks `invoices.length > 0`, never their contents, and
-skipping them lets `OrderLineItem` rows batch through `createMany` instead of one round
-trip per line (meaningful at demo scale — 6,000 orders × ~2.5 lines each).
+~70% of orders are floor sales: taken home the day they are rung, so they are
+delivered and invoiced at the sale and `generateSalesJournal` recognizes real
+Sales/COGS/Inventory/Tax that day. The other ~30% are delivery orders: the deposit
+books to "Pmt On Acct" on the order day, and the order waits for its goods.
+
+When it is delivered follows from the catalog, not a draw (`orderPlan.ts`
+`planDelivery`): the goods arrive after the SLOWEST vendor's standard lead time on the
+order (`catalog.ts` `VENDOR_LEAD_TIME_DAYS`), one order in seven late by up to a month;
+the customer is booked a few days later, for a delivery day (Tuesday to Saturday) a
+week or two out. A delivery
+day before today means delivered: `deliveredAt`, `FULFILLED`, and an `Invoice` dated
+that day, which is what moves the deposit out of the liability and recognizes the sale
+(`lib/journalEntry.ts`). What is still open is therefore recent: waiting on the vendor
+(`PO_PLACED`), in the warehouse waiting to be booked (`RECEIVED_IN_WAREHOUSE`), booked
+for delivery (`SCHEDULED_DELIVERY`) or waiting for the customer (`READY_FOR_PICKUP`). Until
+2026-10-17 the state was drawn at random whatever the order's age, so orders from
+eighteen months ago were still waiting on the vendor.
+
+`InvoiceLineItem` rows are deliberately NOT created: `generateSalesJournal` only checks
+`invoices.length > 0`, never their contents, and skipping them lets `OrderLineItem` rows
+batch through `createMany` instead of one round trip per line (meaningful at demo scale
+— 6,000 orders × ~2.5 lines each).
+
+Every order carries its store's NAME (`storeLocation`) as well as its id, the way the
+register writes it (`create-from-cart.ts`). With only the id, every report that groups
+by the name, the dashboard's store cards among them, put the whole history under
+"Unknown" and showed each store $0.
+
+### Today, and the same date last year
+
+Sales are rung in showroom hours in the business timezone (`config.ts`
+`SEED_TIME_ZONE`, `STORE_OPEN_HOUR`..`STORE_LAST_SALE_HOUR`), placed with
+`businessDayStart` -- they were 10:00-18:59 UTC, 6am to 3pm in New York. The dashboard
+compares today with the same date last year, so both days get at least eight orders
+whatever the volume preset (`DASHBOARD_DAY_MIN_ORDERS`); the ci preset otherwise has
+under one order a day. Today's orders span the whole business day, so a seed run in the
+morning carries sales timed later that day.
+
+### Purchase orders
+
+Every PO date is order date + the vendor's standard lead time
+(`lib/vendorLeadTime.ts` `expectedArrival`, the function the register uses), and its
+state is read against now (`purchasing.ts`). Stock buys that should have arrived have:
+received in full, a few short-closed or cancelled, and a recent arrival sometimes
+partial. What is open is inside its lead time, plus the ones a late vendor has made
+overdue by days or weeks. Special-order POs are one per vendor on each order still
+waiting on goods, as the register raises them; on a multi-vendor order the faster
+vendors' goods are already received. The vendor with no lead time gives its POs no
+date ("No ESD").
+
+Exactly ONE stale PO is kept on purpose: a stock buy from over a year ago that the
+vendor never shipped and nobody closed. Until 2026-10-17 statuses were drawn at random
+whatever a PO's age, and the PO list showed dozens over a year overdue.
+
+### The up board and today's shifts
+
+Each showroom's board (`setupData.ts`) holds that store's own active designers and
+non-designer floor sellers, one of them off today, each with an open `StaffShift` at
+that store from this morning -- clocking in is what puts someone on a board
+(`pages/api/upboard/clock-in.ts`). States differ per store. Until 2026-10-17 both
+boards had the same five designers in the same five states. `lib/upboard.ts` closes a
+shift older than nine hours on every board read, so a demo looked at the next day shows
+an empty floor until someone signs in. Past shifts (`operations.ts`) are at each
+cashier's own store.
+
+### Commission payouts
+
+Each month is locked three days after it closes and paid on the 15th of the next, so
+Commission -> Locked Payouts shows paid dates; a month whose payday is still ahead is
+locked and unpaid. Designers who have left get payouts for the months they sold: the
+run makes them active for exactly those periods, since `commitPayoutsForPeriod` pays
+only active staff, and archives them again.
 
 ### Helpdesk tickets and time
 
@@ -417,27 +481,26 @@ byte-identical data: one fixed root RNG seed (`config.ts`'s `ROOT_SEED_STRING =
 `subRng`) so adding a new random draw in one module doesn't reshuffle another module's
 sequence.
 
-**The date window is anchored to a fixed constant, not `new Date()`.** True determinism
-("two runs produce identical data") is impossible if any input is the live clock — the
-window would silently drift a day at a time and break reproducibility for anyone
-re-running the seed later. `config.ts`'s `seedWindow()` defaults to `2026-08-01` (today,
-as of when this seed was authored) and spans 18 months back from there.
-`HOLT_SEED_AS_OF=YYYY-MM-DD` (or `--as-of=`) overrides the anchor for a freshly-dated
-dataset later — the default is what keeps a run today and a run five years from now
-producing the same rows.
+**The date window ends today unless pinned.** It was anchored to a fixed date for
+determinism, which meant a demo went stale a day at a time: three weeks after seeding,
+the first screen a viewer saw read $0. `HOLT_SEED_AS_OF=YYYY-MM-DD` (or `--as-of=`) pins
+it, and with it the one `now` every date-relative module reads (`config.ts`
+`SeedWindow.now`: 4pm store time on the pinned date) -- open POs, delivery runs, shifts.
+Unpinned, `now` is the wall clock. `operations.ts` tickets and past shifts still read the
+wall clock either way.
 
-Verified directly: two consecutive `npm run seed:demo -- --reset` runs at ci scale
+Verified directly (before the window moved to today): two consecutive `npm run seed:demo -- --reset` runs at ci scale
 produced identical output — same 420 orders, 448 payments (28 refunds), 362 closed tills
 and 1 open, identical journal totals to the penny for all 6 sampled days.
 
 ## Timezone
 
 `generateSalesJournal(date, ...)` computes its day window from `businessDayRange()`
-against `AppSettings.timezone` — the deployment's **business** day. Every payment
-timestamp this seed writes is constructed with `Date.UTC(...)`, so a seeded payment near
-either end of a UTC day can land in the adjacent journal whenever the configured
-timezone is not UTC. `DEFAULT_APP_SETTINGS.timezone` is `America/New_York`, so that is
-the default case, not the exotic one.
+against `AppSettings.timezone` — the deployment's **business** day, as do the dashboard
+and the reports. The seed therefore places sales in business-day local time
+(`orderPlan.ts` `localTime`, from `businessDayStart`) and groups tills by business day,
+so a sale, its till and its journal are on the same day. Before 2026-10-17 sales were
+stamped 10:00-18:59 UTC, which is the right day in New York but 6am to 3pm.
 
 `npm run seed:demo` sets `TZ=UTC` at the process-env level in the script itself, and
 `index.ts` also sets `process.env.TZ = "UTC"` as its first statement. Note what that
@@ -453,13 +516,13 @@ journal silently followed whatever timezone the host happened to have.
 |                                          | `ci` (default)                      | `demo`                                  |
 | ---------------------------------------- | ----------------------------------- | --------------------------------------- |
 | Flag / env                               | `--scale=ci` / `HOLT_SEED_SCALE=ci` | `--scale=demo` / `HOLT_SEED_SCALE=demo` |
-| Orders                                   | 420                                 | 6,000                                   |
+| Orders                                   | 420 (+ up to 16 for the dashboard days) | 6,000                               |
 | Customers                                | 180                                 | 1,400                                   |
 | Products                                 | 160                                 | 500                                     |
 | Designers                                | 6                                   | 10                                      |
 | Purchase orders                          | 40                                  | 260                                     |
 | Consignment items                        | 30                                  | 140                                     |
-| Measured runtime (local Docker Postgres) | ~4s                                 | ~40s                                    |
+| Measured runtime (local Docker Postgres) | ~9s `seed:all` (2026-10-17)         | ~52s `seed:all` (2026-10-17)            |
 
 `ci` is sized for fast, disposable runs in CI or local iteration. `demo` is sized so
 dashboards, reports, and the commission tier ladder all have enough volume to look real,

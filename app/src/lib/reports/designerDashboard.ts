@@ -19,6 +19,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { buildLineItemWhere } from "@/lib/salesBySalesperson";
 import { getDateRanges, type PeriodRange } from "@/lib/reports/dateRanges";
+import { getBusinessTimeZone } from "@/lib/appSettings";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 import {
   groupForDepartment,
@@ -326,7 +327,8 @@ export async function getDesignerDashboard(
   params: DesignerDashboardParams,
 ): Promise<DesignerDashboardResponse> {
   const salesperson = params.salesperson;
-  const ranges = getDateRanges(params.asOf);
+  // MTD/YTD boundaries at the business's midnight, not UTC's.
+  const ranges = getDateRanges(params.asOf, await getBusinessTimeZone());
 
   // Which departments this deployment reports on, and how they roll up. Loaded
   // once and passed down: the accumulators run per line item, and a lookup per

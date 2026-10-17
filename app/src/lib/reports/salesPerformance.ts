@@ -8,8 +8,9 @@
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { SalesOrderStatus } from "@prisma/client";
-import { format, subDays } from "date-fns";
 import { getDateRanges } from "@/lib/reports/dateRanges";
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayKey, businessDayRange, businessDayStart } from "@/lib/reports/businessDay";
 
 export interface SalesPerformanceResponse {
   dateRange: { start: string; end: string };
@@ -54,22 +55,23 @@ export async function getSalesPerformance(
   prisma: PrismaClient,
   params: SalesPerformanceParams = {},
 ): Promise<SalesPerformanceResponse> {
-  const rangeStart = params.startDate
-    ? new Date(`${params.startDate}T00:00:00.000Z`)
-    : (() => {
-        const d = subDays(new Date(), 30);
-        return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-      })();
-  const rangeEnd = params.endDate ? new Date(`${params.endDate}T23:59:59.999Z`) : new Date();
+  // Days, months and years are the business's (lib/reports/businessDay.ts). In
+  // UTC, a sale at 9pm New York on the last day of the range fell outside it,
+  // and the daily trend put it on the next day.
+  const timeZone = await getBusinessTimeZone();
+  const todayKey = businessDayKey(new Date(), timeZone);
+  const startLabel =
+    params.startDate ??
+    new Date(Date.parse(`${todayKey}T00:00:00Z`) - 30 * 86_400_000).toISOString().slice(0, 10);
+  const endLabel = params.endDate ?? todayKey;
+  const rangeStart = businessDayStart(startLabel, timeZone);
+  const rangeEnd = params.endDate ? businessDayRange(params.endDate, timeZone).lt : new Date();
 
-  const startLabel = format(rangeStart, "yyyy-MM-dd");
-  const endLabel = format(rangeEnd, "yyyy-MM-dd");
-
-  const ranges = getDateRanges();
+  const ranges = getDateRanges(undefined, timeZone);
 
   const orderWhere: Prisma.SalesOrderWhereInput = {
     status: { in: QUALIFYING_STATUSES },
-    orderDate: { gte: rangeStart, lte: rangeEnd },
+    orderDate: { gte: rangeStart, lt: rangeEnd },
   };
 
   const orders = await prisma.salesOrder.findMany({
@@ -98,7 +100,7 @@ export async function getSalesPerformance(
     const orderTotal = order.lineItems.reduce((sum, li) => sum + Number(li.netPrice || 0), 0);
     totalSales += orderTotal;
 
-    const dayKey = format(new Date(order.orderDate), "yyyy-MM-dd");
+    const dayKey = businessDayKey(new Date(order.orderDate), timeZone);
     const dayEntry = dailyMap.get(dayKey) ?? { totalSales: 0, orderCount: 0 };
     dayEntry.totalSales += orderTotal;
     dayEntry.orderCount += 1;

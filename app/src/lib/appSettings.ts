@@ -58,6 +58,8 @@ export interface ResolvedAppSettings {
   appName: string;
   companyName: string | null;
   tagline: string | null;
+  /** The store's returns/warranty note for receipts and invoices; null prints nothing. */
+  receiptFooter: string | null;
   logoUrl: string | null;
   loginLogoUrl: string | null;
   faviconUrl: string | null;
@@ -115,6 +117,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   appName: "Holt",
   companyName: null,
   tagline: null,
+  receiptFooter: null,
   logoUrl: null,
   loginLogoUrl: null,
   faviconUrl: null,
@@ -144,6 +147,7 @@ interface AppSettingsRow {
   appName: string | null;
   companyName: string | null;
   tagline: string | null;
+  receiptFooter: string | null;
   logoUrl: string | null;
   loginLogoUrl: string | null;
   faviconUrl: string | null;
@@ -208,6 +212,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     appName: row.appName?.trim() || DEFAULT_APP_SETTINGS.appName,
     companyName: row.companyName ?? null,
     tagline: row.tagline ?? null,
+    receiptFooter: row.receiptFooter ?? null,
     logoUrl: row.logoUrl ?? null,
     loginLogoUrl: row.loginLogoUrl ?? null,
     faviconUrl: row.faviconUrl ?? null,
@@ -321,6 +326,7 @@ export async function getPublicBranding(orgId: number = DEFAULT_ORG_ID): Promise
     appName: s.appName,
     companyName: s.companyName,
     tagline: s.tagline,
+    receiptFooter: s.receiptFooter,
     logoUrl: s.logoUrl,
     loginLogoUrl: s.loginLogoUrl,
     faviconUrl: s.faviconUrl,
@@ -365,7 +371,11 @@ export function themeToCssVars(theme: Theme): string {
     if (!channels) continue;
     for (const cssVar of THEME_CSS_VARS[key]) declarations.push(`${cssVar}:${channels}`);
   }
-  return declarations.length ? `:root{${declarations.join(";")}}` : "";
+  // `html:root`, not `:root`: it must outrank globals.css's default `:root`
+  // block whatever order the two reach the page in. The Pages Router puts this
+  // <style> BEFORE the stylesheet, so a plain `:root` lost on order and the
+  // sign-in page always showed the built-in navy, whatever the theme.
+  return declarations.length ? `html:root{${declarations.join(";")}}` : "";
 }
 
 /**

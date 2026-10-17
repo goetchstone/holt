@@ -2,9 +2,12 @@
 //
 // Shared MTD/YTD period math for sales reports. Extracted so multiple report
 // libs (sales-performance, designer-dashboard, monthly-performance) compute the
-// same ranges from one source of truth. All ranges use UTC and exclusive upper
-// bounds (start of next day) so filters are >= start AND < end with no
-// millisecond gaps.
+// same ranges from one source of truth. Exclusive upper bounds (start of next
+// day) so filters are >= start AND < end with no millisecond gaps. Boundaries
+// are local midnight in the business timezone the caller passes
+// (getBusinessTimeZone); UTC when it passes none.
+
+import { businessDayKey, businessDayStart } from "@/lib/reports/businessDay";
 
 export interface PeriodRange {
   start: Date;
@@ -20,36 +23,27 @@ export interface DateRanges {
   prevYtd: PeriodRange;
 }
 
-export function getDateRanges(asOfDate?: string): DateRanges {
-  // When asOfDate is an ISO date string like "2026-03-24", new Date() parses it
-  // as midnight UTC, so getUTC* methods return the expected values. With no
-  // asOfDate we use the current instant and extract its UTC components.
-  const now = asOfDate ? new Date(asOfDate) : new Date();
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
-  const day = now.getUTCDate();
+export function getDateRanges(asOfDate?: string, timeZone = "UTC"): DateRanges {
+  // "Today" is the business day: the as-of date as given, or the current
+  // instant's date in `timeZone`. Every boundary is that zone's local midnight
+  // (businessDayStart), so an evening sale counts in its own month and year.
+  // UTC, the default, keeps the arithmetic callers and tests have always had.
+  const todayKey = asOfDate ? asOfDate.slice(0, 10) : businessDayKey(new Date(), timeZone);
+  const [year, month, day] = todayKey.split("-").map(Number);
   const prevYear = year - 1;
-
-  const mtdStart = new Date(Date.UTC(year, month, 1));
-  const mtdEnd = new Date(Date.UTC(year, month, day + 1));
-
-  const ytdStart = new Date(Date.UTC(year, 0, 1));
-  const ytdEnd = new Date(Date.UTC(year, month, day + 1));
-
-  const prevMtdStart = new Date(Date.UTC(prevYear, month, 1));
-  const prevMtdEnd = new Date(Date.UTC(prevYear, month, day + 1));
-
-  const prevYtdStart = new Date(Date.UTC(prevYear, 0, 1));
+  const at = (y: number, m: number, d: number) => {
+    // Date.UTC normalises an overflowing day (the 32nd) into the next month.
+    const key = new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10);
+    return businessDayStart(key, timeZone);
+  };
   // Prior-year YTD covers Jan 1 of last year through the same calendar day as
   // today, NOT through Dec 31.
-  const prevYtdEnd = new Date(Date.UTC(prevYear, month, day + 1));
-
   return {
     currentYear: year,
     prevYear,
-    mtd: { start: mtdStart, end: mtdEnd },
-    ytd: { start: ytdStart, end: ytdEnd },
-    prevMtd: { start: prevMtdStart, end: prevMtdEnd },
-    prevYtd: { start: prevYtdStart, end: prevYtdEnd },
+    mtd: { start: at(year, month, 1), end: at(year, month, day + 1) },
+    ytd: { start: at(year, 1, 1), end: at(year, month, day + 1) },
+    prevMtd: { start: at(prevYear, month, 1), end: at(prevYear, month, day + 1) },
+    prevYtd: { start: at(prevYear, 1, 1), end: at(prevYear, month, day + 1) },
   };
 }

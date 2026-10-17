@@ -61,6 +61,9 @@ function optionalText(
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+/** A few lines on an 80mm receipt, not a terms-and-conditions page. */
+const RECEIPT_FOOTER_MAX = 240;
+
 type SettingsData = Prisma.AppSettingsUncheckedUpdateInput;
 type Body = Record<string, unknown>;
 // null = ok; an object = the 400 to return.
@@ -76,10 +79,13 @@ function parseAppName(body: Body, data: SettingsData): ParseError {
 }
 
 function parseTextFields(body: Body, data: SettingsData): ParseError {
-  for (const field of ["companyName", "tagline", "supportEmail"] as const) {
+  for (const field of ["companyName", "tagline", "supportEmail", "receiptFooter"] as const) {
     const parsed = optionalText(body[field], field);
     if (!parsed.ok) return { error: parsed.error };
     if (parsed.value !== undefined) data[field] = parsed.value;
+  }
+  if (typeof data.receiptFooter === "string" && data.receiptFooter.length > RECEIPT_FOOTER_MAX) {
+    return { error: `receiptFooter must be at most ${RECEIPT_FOOTER_MAX} characters` };
   }
   if (
     typeof data.supportEmail === "string" &&

@@ -19,8 +19,16 @@ import {
   subRng,
   weightedPick,
 } from "./rng";
-import { MONTHLY_SEASONALITY, PAYMENT_METHOD_MIX, SEED_TAX_RATE } from "./config";
-import type { CatalogProduct } from "./catalog";
+import { businessDayKey, businessDayStart, sameDateLastYear } from "@/lib/reports/businessDay";
+import {
+  MONTHLY_SEASONALITY,
+  PAYMENT_METHOD_MIX,
+  SEED_TAX_RATE,
+  SEED_TIME_ZONE,
+  STORE_LAST_SALE_HOUR,
+  STORE_OPEN_HOUR,
+} from "./config";
+import { UNKNOWN_VENDOR_ACTUAL_LEAD_DAYS, type CatalogProduct } from "./catalog";
 import type { SeededCustomer } from "./customers";
 import type { SeededStaffMember, StaffSetup } from "./staff";
 
@@ -34,11 +42,27 @@ export interface OrderLinePlan {
   vatAmount: number;
 }
 
+/**
+ * Where a DELIVERY order stands on the as-of day.
+ *
+ * Taken (floor) sales leave with the customer and are FULFILLED on the day.
+ * A delivery order waits for its goods -- the slowest vendor's lead time on the
+ * order -- then to be booked, then for a delivery day. Everything that should
+ * have arrived and gone out by now has; what is still open is recent, so an open
+ * order from last spring cannot exist the way it did when the state was drawn
+ * at random.
+ */
+export type DispatchPlan =
+  "FULFILLED" | "PO_PLACED" | "RECEIVED_IN_WAREHOUSE" | "SCHEDULED_DELIVERY" | "READY_FOR_PICKUP";
+
 export interface OrderPlan {
   index: number;
   orderno: string;
   date: Date;
+  /** The business day `date` falls on, in the demo's timezone. */
+  dayKey: string;
   storeId: number;
+  storeName: string;
   registerId: number;
   designer: SeededStaffMember;
   customerId: number | null;
@@ -48,11 +72,53 @@ export interface OrderPlan {
   method: PaymentMethodTender;
   hasRefund: boolean;
   refundLineIndex: number;
+  /** When the order was handed over: the sale itself for a floor sale, the
+   *  delivery day for a delivery order that has gone out, else null. */
+  deliveredAt: Date | null;
+  dispatch: DispatchPlan;
 }
 
 export interface StoreForPlan {
   id: number;
+  name: string;
   registerIds: number[];
+}
+
+/**
+ * Orders guaranteed on the as-of day and on the same date last year. The
+ * dashboard's store cards compare exactly those two days, and at the small
+ * "ci" volume (well under one order a day) either could otherwise be empty.
+ */
+const DASHBOARD_DAY_MIN_ORDERS = 8;
+
+/** A vendor that runs late: how often, and by how much. */
+const VENDOR_LATE_SHARE = 0.15;
+const VENDOR_LATE_DAYS: [number, number] = [5, 30];
+
+/** Delivery goes out Tuesday to Saturday (UTC getUTCDay of a local noon). */
+const DELIVERY_WEEKDAYS = new Set([2, 3, 4, 5, 6]);
+
+/** `hour:minute` local time on business day `dayKey`, as an instant. */
+function localTime(dayKey: string, hour: number, minute: number): Date {
+  return new Date(
+    businessDayStart(dayKey, SEED_TIME_ZONE).getTime() + (hour * 60 + minute) * 60_000,
+  );
+}
+
+function addDaysKey(dayKey: string, days: number): string {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** The first delivery day on or after `dayKey`. */
+function nextDeliveryDay(dayKey: string): string {
+  let key = dayKey;
+  for (let i = 0; i < 7; i++) {
+    const weekday = new Date(`${key}T12:00:00Z`).getUTCDay();
+    if (DELIVERY_WEEKDAYS.has(weekday)) return key;
+    key = addDaysKey(key, 1);
+  }
+  return key;
 }
 
 /** Fraction of orders that get same-day revenue recognition (an Invoice
@@ -133,12 +199,32 @@ export function buildOrderPlans(
     const maxDay = i === months.length - 1 ? window.end.getUTCDate() : daysInMonth;
     for (let k = 0; k < count; k++) {
       const day = randInt(dateRng, minDay, Math.max(minDay, maxDay));
-      const hour = randInt(dateRng, 10, 18);
+      const hour = randInt(dateRng, STORE_OPEN_HOUR, STORE_LAST_SALE_HOUR);
       const minute = randInt(dateRng, 0, 59);
-      dates.push(new Date(Date.UTC(m.year, m.month, day, hour, minute)));
+      const dayKey = `${m.year}-${String(m.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      // Showroom hours in the business's own timezone. These were 10:00-18:59
+      // UTC, which is 6am-3pm in New York: a dashboard reading "today" in the
+      // business timezone saw a day of sales that ended mid-afternoon.
+      dates.push(localTime(dayKey, hour, minute));
+    }
+  }
+
+  // The dashboard compares today with the same date last year. Make sure both
+  // days have a believable handful of sales, whatever the volume preset.
+  const asOfKey = window.end.toISOString().slice(0, 10);
+  const startKey = window.start.toISOString().slice(0, 10);
+  for (const key of [asOfKey, sameDateLastYear(asOfKey)]) {
+    if (key < startKey) continue;
+    const have = dates.filter((d) => businessDayKey(d, SEED_TIME_ZONE) === key).length;
+    for (let k = have; k < DASHBOARD_DAY_MIN_ORDERS; k++) {
+      const hour = randInt(dateRng, STORE_OPEN_HOUR, STORE_LAST_SALE_HOUR);
+      dates.push(localTime(key, hour, randInt(dateRng, 0, 59)));
     }
   }
   dates.sort((a, b) => a.getTime() - b.getTime());
+
+  const productById = new Map(products.map((p) => [p.id, p]));
+  const fulfilRng = subRng(rng, "order-fulfilment");
 
   const plans: OrderPlan[] = [];
   for (let i = 0; i < dates.length; i++) {
@@ -213,11 +299,18 @@ export function buildOrderPlans(
       return { productId: product.id, quantity: 1, netPrice: share, cost, vatAmount };
     });
 
+    const dayKey = businessDayKey(date, SEED_TIME_ZONE);
+    const fulfilment = isInvoiced
+      ? { deliveredAt: date, dispatch: "FULFILLED" as const }
+      : planDelivery(fulfilRng, date, dayKey, lines, productById, asOfKey);
+
     plans.push({
       index: i,
       orderno: `SO-${orderNumberStart + i}`,
       date,
+      dayKey,
       storeId: store.id,
+      storeName: store.name,
       registerId,
       designer,
       customerId: customer?.id ?? null,
@@ -227,11 +320,62 @@ export function buildOrderPlans(
       method,
       hasRefund,
       refundLineIndex: randInt(detailRng, 0, lines.length - 1),
+      deliveredAt: fulfilment.deliveredAt,
+      dispatch: fulfilment.dispatch,
     });
   }
 
   return plans;
 }
+
+/**
+ * When a delivery order's goods arrive and it goes out, against the as-of day.
+ *
+ * Goods arrive after the slowest vendor's standard lead time on the order; one
+ * order in seven is late by up to a month, the way some vendors are. The
+ * customer is booked a few days after the goods land, for a delivery day a week
+ * or two out. Anything whose delivery day is before today was delivered;
+ * anything still open is recent by construction.
+ */
+function planDelivery(
+  rng: Rng,
+  date: Date,
+  dayKey: string,
+  lines: readonly OrderLinePlan[],
+  productById: ReadonlyMap<number, CatalogProduct>,
+  asOfKey: string,
+): { deliveredAt: Date | null; dispatch: DispatchPlan } {
+  const leadDays = Math.max(
+    ...lines.map(
+      (l) => productById.get(l.productId)?.vendorLeadTimeDays ?? UNKNOWN_VENDOR_ACTUAL_LEAD_DAYS,
+    ),
+  );
+  const slipDays = chance(rng, VENDOR_LATE_SHARE)
+    ? randInt(rng, VENDOR_LATE_DAYS[0], VENDOR_LATE_DAYS[1])
+    : randInt(rng, -4, 2);
+  const arrivalKey = addDaysKey(dayKey, leadDays + slipDays);
+  // Arrived goods wait a few days for the customer to be called and a date
+  // agreed; the delivery itself is booked a week or two out, on a delivery day.
+  const bookedKey = addDaysKey(arrivalKey, randInt(rng, 1, 5));
+  const deliveryKey = nextDeliveryDay(addDaysKey(bookedKey, randInt(rng, 3, 10)));
+
+  if (deliveryKey < asOfKey) {
+    const hour = randInt(rng, 9, 16);
+    return {
+      deliveredAt: localTime(deliveryKey, hour, randInt(rng, 0, 59)),
+      dispatch: "FULFILLED",
+    };
+  }
+  if (arrivalKey > asOfKey) return { deliveredAt: null, dispatch: "PO_PLACED" };
+  // In the warehouse: not yet booked (the queue the Ready to Deliver board
+  // schedules from), booked onto a run, or waiting for the customer to collect.
+  if (bookedKey > asOfKey) return { deliveredAt: null, dispatch: "RECEIVED_IN_WAREHOUSE" };
+  if (chance(rng, 0.12)) return { deliveredAt: null, dispatch: "READY_FOR_PICKUP" };
+  return { deliveredAt: null, dispatch: "SCHEDULED_DELIVERY" };
+}
+
+/** Shared with the other seed modules that put things on a business day. */
+export { addDaysKey, localTime };
 
 function enumerateMonths(start: Date, end: Date): { year: number; month: number }[] {
   const months: { year: number; month: number }[] = [];

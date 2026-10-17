@@ -257,7 +257,7 @@ by the owner:
 `StaffMember.isDesigner` (Boolean, default false; the migration history has since been squashed, so the column and its default now live in `0_init`) is **separate from the auth `role`**. It controls who appears on **designer-based sales + commission reports**, so a selling MANAGER can be included and a former designer excluded without changing their login role. It grants no permissions — it's a reporting dimension only.
 
 - Toggle: `/app/admin/staff` edit form ("Show on designer-based sales & commission reports"); persisted via `PATCH /api/staff/[id]`, which is gated on `staff.manage`.
-- Filter: `GET /api/staff?isDesigner=true` (designer pickers), `listPeriodConfirmationStatus` (pay-period grid), and the Team Commission view (`designersOnly`).
+- Filter: `GET /api/staff?isDesigner=true` (designer pickers), `listPeriodConfirmationStatus` (pay-period grid), and the Commission Locked Payouts list (`designersOnly` where it asks).
 - See `docs/domains/commission.md` "The `isDesigner` staff flag" for the full surface list.
 
 ## SUPER_ADMIN — owner-only tier (added 2026-05-19)
@@ -323,6 +323,25 @@ The `NavPermission` table is gone — dropped by migration `20260807120000_drop_
 Every App Router page calls `await requirePage()` (`lib/auth/requirePage.ts`) in its server component. The role list is POSITIONAL, not an option: `requirePage(["MANAGER", "ADMIN"])`; sensitive pages pass `["ADMIN"]`. Four pages instead gate on a capability via `requirePage(undefined, { permission })` — Purchasing, Warehouse, Helpdesk and Time, the pages whose nav entry is derived from that same key, so the link and the page cannot disagree. `requirePage` resolves through the same `decideRoleAccess`/`resolvePermissionAccess` helpers as the API guards. The bootstrap safeguard skips role enforcement until at least one active signed-in privileged user (SUPER_ADMIN/ADMIN/MANAGER) exists.
 
 The only Pages Router `.tsx` files left are `_app`, `_document` and the three `/auth/*` screens.
+
+## A session whose user is gone (2026-10-17)
+
+A session is a signed JWT carrying a user id, and it outlives the `User` row it
+was minted for. A demo re-seed truncates `User`; an operator can delete one.
+Until 2026-10-17 such a session still verified, every guard answered 403, and
+every page rendered its shell: no menu, an empty dashboard, nothing saying why.
+
+Now every gate treats it as no session (`lib/auth/sessionEnded.ts`
+`sessionAccountEnded`): `requirePage` redirects to `/auth/login`;
+`requirePermission` and `requireAuthWithRole` answer **401** "Your session has
+ended. Sign in again."; `permissionProcedure` and `roleProcedure` throw
+`UNAUTHORIZED`. The API and tRPC gates only look when the resolver has already
+refused for `noActiveStaff`, so an admitted request pays nothing.
+
+Deliberately still 403, not signed out: a user row with no staff record (the
+bootstrap safeguard's first operator) and a deactivated staff member -- treating
+deactivation as signed out would loop in the bootstrap window, where the API
+still admits them. Tested in `__tests__/integration/sessionEnded.integration.test.ts`.
 
 ## Card Filtering
 

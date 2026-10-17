@@ -4,6 +4,7 @@
 // synthetic demo dataset. See docs/domains/seed-data.md for the full
 // writeup of every distribution choice below.
 
+import { businessDayStart } from "@/lib/reports/businessDay";
 import { hashSeedString } from "./rng";
 
 /**
@@ -105,6 +106,18 @@ export const MONTHLY_SEASONALITY: Record<number, number> = {
   11: 2.45, // Dec
 };
 
+/**
+ * The demo business's timezone -- AppSettings.timezone (org.ts) reads it, and so
+ * does every module that puts a sale on a day. Reports and the dashboard bucket
+ * days in this zone (lib/reports/businessDay.ts), so a sale seeded at "18:00
+ * UTC" would land on a different business day than the one the seed meant.
+ */
+export const SEED_TIME_ZONE = "America/New_York";
+
+/** Showroom hours, local time: the first and last hour a sale is rung. */
+export const STORE_OPEN_HOUR = 10;
+export const STORE_LAST_SALE_HOUR = 19;
+
 /** The one sales-tax rate the seed's single tax district charges. The order
  * plan's line tax, each seeded line's vatRate and the district's TaxRule all
  * read it, so they cannot disagree. */
@@ -152,14 +165,32 @@ function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function seedWindow(argv: readonly string[] = []): { start: Date; end: Date } {
+export interface SeedWindow {
+  start: Date;
+  /** Midnight UTC of the as-of date: the last day that has sales. */
+  end: Date;
+  /**
+   * The moment the dataset describes -- what "now" means to every module that
+   * dates something relative to today (open POs, delivery runs, who is on the
+   * floor). The real clock when unpinned; 4pm on the as-of date, store time,
+   * when --as-of pins it, so a pinned run never mixes a fixed sales history
+   * with today's wall clock.
+   */
+  now: Date;
+}
+
+export function seedWindow(argv: readonly string[] = []): SeedWindow {
   const flag = argv.find((a) => a.startsWith("--as-of="));
-  const raw = flag?.split("=")[1] || process.env.HOLT_SEED_AS_OF || todayUtc();
+  const pinned = flag?.split("=")[1] || process.env.HOLT_SEED_AS_OF;
+  const raw = pinned || todayUtc();
   const end = new Date(`${raw}T00:00:00.000Z`);
   if (Number.isNaN(end.getTime())) {
     throw new Error(`Invalid --as-of/HOLT_SEED_AS_OF date "${raw}" -- expected YYYY-MM-DD.`);
   }
   const start = new Date(end);
   start.setUTCMonth(start.getUTCMonth() - 18);
-  return { start, end };
+  const now = pinned
+    ? new Date(businessDayStart(raw, SEED_TIME_ZONE).getTime() + 16 * 3_600_000)
+    : new Date();
+  return { start, end, now };
 }

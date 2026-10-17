@@ -53,6 +53,7 @@ type StringSettingKey =
   | "appName"
   | "companyName"
   | "tagline"
+  | "receiptFooter"
   | "supportEmail"
   | "logoUrl"
   | "loginLogoUrl"
@@ -70,6 +71,11 @@ const TEXT_FIELDS: {
   { key: "appName", label: "Application name", placeholder: "Holt" },
   { key: "companyName", label: "Company name", placeholder: "Your company" },
   { key: "tagline", label: "Tagline" },
+  {
+    key: "receiptFooter",
+    label: "Receipt footer (returns policy)",
+    placeholder: "Returns within 30 days with receipt. Custom orders are final sale.",
+  },
   { key: "supportEmail", label: "Support email", placeholder: "support@example.com" },
   { key: "logoUrl", label: "Logo URL", placeholder: "https://… or /logo.png", image: true },
   { key: "loginLogoUrl", label: "Login logo URL", image: true },
@@ -479,6 +485,7 @@ export function SettingsOverviewView() {
           appName: settings.appName,
           companyName: settings.companyName,
           tagline: settings.tagline,
+          receiptFooter: settings.receiptFooter,
           supportEmail: settings.supportEmail,
           logoUrl: settings.logoUrl,
           loginLogoUrl: settings.loginLogoUrl,

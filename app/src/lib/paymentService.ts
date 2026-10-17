@@ -14,6 +14,7 @@ import { isCountedLine } from "@/lib/salesOrderRevenue";
 import { issueStoreCredit, spendStoreCredit } from "@/lib/customerCredit";
 import { refundCounts } from "@/lib/returns/returnMoney";
 import type { Payment, Prisma } from "@prisma/client";
+import { expectedArrival } from "@/lib/vendorLeadTime";
 
 type Tx = Prisma.TransactionClient;
 
@@ -995,6 +996,16 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
     if (existingPOs.length === 0) {
       const now = new Date();
       const stamp = businessDayStamp(now, await getBusinessTimeZone());
+      // Each vendor's standard lead time dates its PO; a vendor without one
+      // gets no date rather than a guessed one (lib/vendorLeadTime.ts).
+      const leadTimes = new Map(
+        (
+          await prisma.vendor.findMany({
+            where: { id: { in: [...vendorItems.keys()] } },
+            select: { id: true, leadTimeDays: true },
+          })
+        ).map((v) => [v.id, v.leadTimeDays]),
+      );
 
       for (const [vendorId, items] of vendorItems) {
         // Generate PO number
@@ -1018,6 +1029,7 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
             salesOrderId: orderId,
             status: "DRAFT",
             orderDate: now,
+            expectedDelivery: expectedArrival(now, leadTimes.get(vendorId)),
             createdBy: order.salesperson || null,
             lineItems: {
               create: items.map((item) => ({

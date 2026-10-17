@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/toastError";
+import { VENDOR_DETAIL_FIELDS } from "@/lib/vendorPatch";
+import { MAX_LEAD_TIME_DAYS } from "@/lib/vendorLeadTime";
 
 export default function VendorDetailModal({
   vendor,
@@ -43,16 +45,21 @@ export default function VendorDetailModal({
   };
 
   const handleSave = async () => {
+    // Only what this form edits. Sending the whole vendor back also re-sent its
+    // pricing defaults, which this form neither shows nor owns.
+    const body: Record<string, unknown> = { leadTimeDays: form.leadTimeDays ?? null };
+    for (const field of VENDOR_DETAIL_FIELDS) body[field] = form[field] ?? null;
     const res = await fetch(`/api/vendors/${vendor.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify(body),
     });
     if (res.ok) {
       setEditing(false);
       onRefresh();
     } else {
-      alert("Failed to update vendor");
+      const err = await res.json().catch(() => null);
+      toast.error(err?.error || `Failed to update vendor (${res.status})`);
     }
   };
 
@@ -106,7 +113,7 @@ export default function VendorDetailModal({
   }, [vendor.id]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full font-serif">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-brand-blue">Vendor: {vendor.name}</h2>
@@ -116,18 +123,45 @@ export default function VendorDetailModal({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {["name", "address", "city", "state", "zip", "phone", "email"].map((field) => (
+          {VENDOR_DETAIL_FIELDS.map((field) => (
             <input
               key={field}
               type="text"
               disabled={!editing}
               placeholder={field.toUpperCase()}
+              aria-label={field}
               value={form[field] || ""}
               onChange={(e) => setForm({ ...form, [field]: e.target.value })}
               className="w-full border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
             />
           ))}
+          <label className="flex items-center gap-3 text-sm text-brand-gray">
+            <span className="whitespace-nowrap">Standard lead time</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={MAX_LEAD_TIME_DAYS}
+              step={1}
+              disabled={!editing}
+              placeholder="Not set"
+              value={form.leadTimeDays ?? ""}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  leadTimeDays: e.target.value === "" ? null : Number(e.target.value),
+                })
+              }
+              className="w-24 border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
+            />
+            <span>days</span>
+          </label>
         </div>
+        <p className="mt-2 text-xs text-brand-gray">
+          A special order raised at the register is expected this many days after it is placed.
+          Leave it empty if you don&apos;t know it: the PO then shows no date until the vendor
+          confirms one.
+        </p>
 
         {editing ? (
           <div className="mt-4 flex justify-end">

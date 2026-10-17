@@ -376,11 +376,18 @@ export function InvoicePrintView({ id }: { id: string }) {
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer -- the store's own returns/warranty note when it has written
+          one (AppSettings.receiptFooter), as on the receipt. */}
       <div className="footer">
         {storeName}
         <br />
         Thank you for your business.
+        {branding.receiptFooter && (
+          <>
+            <br />
+            <span style={{ whiteSpace: "pre-line" }}>{branding.receiptFooter}</span>
+          </>
+        )}
       </div>
     </>
   );

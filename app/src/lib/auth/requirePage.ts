@@ -16,6 +16,7 @@ import {
 } from "@/lib/auth/permissionResolver";
 import { isModuleEnabled } from "@/lib/modules/requireModule";
 import { assertKnownKeys } from "@/lib/auth/gateOptions";
+import { sessionAccountEnded } from "@/lib/auth/sessionEnded";
 
 export interface RequirePageOptions {
   /** Feature-module key (lib/featureCatalog.ts) that must be enabled in
@@ -73,6 +74,11 @@ export async function requirePage(
 
   const userId = (token?.id as string | undefined) ?? null;
   if (!userId) {
+    redirect("/auth/login");
+  }
+  // The token outlives its account: a re-seeded or deleted user is signed out
+  // rather than shown an empty shell (lib/auth/sessionEnded.ts).
+  if (await sessionAccountEnded(userId)) {
     redirect("/auth/login");
   }
 

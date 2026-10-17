@@ -64,7 +64,7 @@ export default function ProductEditModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full font-serif">
         <h2 className="text-xl font-semibold text-brand-blue mb-4">Edit Product</h2>
 

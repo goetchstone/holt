@@ -25,6 +25,7 @@ import {
   type PermissionRequirement,
 } from "@/lib/auth/permissionResolver";
 import { assertKnownKeys, type GateOptions } from "@/lib/auth/gateOptions";
+import { SESSION_ENDED_MESSAGE, sessionAccountEnded } from "@/lib/auth/sessionEnded";
 import type { TrpcContext } from "./context";
 
 const t = initTRPC.context<TrpcContext>().create({ transformer: superjson });
@@ -61,6 +62,11 @@ export function roleProcedure(allowedRoles: string[], options?: GateOptions) {
     logRoleListOutcome(userId, allowedRoles, result);
 
     if (!result.allowed) {
+      // Signed out, not forbidden, when the session's account is gone
+      // (lib/auth/sessionEnded.ts) -- the same call the Pages Router gates make.
+      if (result.noActiveStaff && (await sessionAccountEnded(userId))) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: SESSION_ENDED_MESSAGE });
+      }
       throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient role." });
     }
     return next({ ctx: { ...ctx, role: result.effectiveUserRole, holds: result.holds } });
@@ -90,6 +96,9 @@ export function permissionProcedure(permission: PermissionRequirement, options?:
     });
 
     if (!result.allowed) {
+      if (result.noActiveStaff && (await sessionAccountEnded(userId))) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: SESSION_ENDED_MESSAGE });
+      }
       logPermissionDenial(userId, permission, result);
       throw new TRPCError({ code: "FORBIDDEN", message: "Insufficient permission." });
     }
