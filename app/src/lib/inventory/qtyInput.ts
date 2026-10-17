@@ -15,3 +15,14 @@ export function parseQty(input: unknown): number | null {
   const rounded = Math.round(n * 10 ** DP) / 10 ** DP;
   return rounded > 0 ? rounded : null;
 }
+
+/**
+ * A counted quantity to three places, or null when the input is not one. Unlike
+ * parseQty, zero is a count: "we looked and there are none" is the finding.
+ */
+export function parseCount(input: unknown): number | null {
+  if (input === null || input === undefined || String(input).trim() === "") return null;
+  const n = typeof input === "number" ? input : Number(String(input).trim());
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 10 ** DP) / 10 ** DP;
+}

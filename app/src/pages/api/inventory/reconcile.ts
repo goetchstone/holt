@@ -5,8 +5,10 @@ import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { parseCount } from "@/lib/inventory/qtyInput";
+import { countVariance, reconciliationForClient } from "@/lib/inventory/storeCount";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -43,13 +45,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       case "confirm": // Overage is confirmed to be correct
         // finalCount and finalVariance remain as they were
         break;
-      case "correct": // Manual count correction
-        if (typeof correctedCount !== "number") {
-          return res.status(400).json({ error: "Corrected count must be a number." });
+      case "correct": {
+        // Manual count correction
+        const corrected = parseCount(correctedCount);
+        if (corrected === null) {
+          return res.status(400).json({ error: "Corrected count must be a number, zero or more." });
         }
-        finalCount = correctedCount;
-        finalVariance = correctedCount - item.expected;
+        finalCount = corrected;
+        finalVariance = countVariance(corrected, item.expected);
         break;
+      }
       default:
         return res.status(400).json({ error: "Invalid action." });
     }
@@ -84,7 +89,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       },
     });
 
-    res.status(200).json({ success: true, reconciliation });
+    res
+      .status(200)
+      .json({ success: true, reconciliation: reconciliationForClient(reconciliation) });
   } catch (error) {
     logError("Reconciliation failed", error);
     res.status(500).json({ error: "Failed to save reconciliation." });

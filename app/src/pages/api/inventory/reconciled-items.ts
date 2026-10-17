@@ -4,10 +4,11 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { reconciliationForClient } from "@/lib/inventory/storeCount";
 
 const APPAREL_DEPARTMENTS = ["Accessories", "Mens Apparel", "Womens Apparel"];
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+export async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).end();
 
   const { location, reportType } = req.query;
@@ -44,7 +45,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Add the barcode to the response object
     const itemsWithBarcode = items.map((item) => ({
-      ...item,
+      ...reconciliationForClient(item),
       barcode: item.product.upcs[0]?.upc || "N/A",
     }));
 

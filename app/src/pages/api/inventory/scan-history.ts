@@ -5,8 +5,9 @@ import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { countForClient } from "@/lib/inventory/storeCount";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -38,7 +39,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
     const nextCursor = counts.length === limit ? counts[limit - 1].id : null;
 
-    res.status(200).json({ counts, nextCursor });
+    res.status(200).json({ counts: counts.map(countForClient), nextCursor });
   } catch (error) {
     logError("Failed to fetch scan history", error);
     res.status(500).json({ error: "Failed to fetch scan history." });

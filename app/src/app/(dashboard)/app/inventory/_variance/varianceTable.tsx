@@ -16,6 +16,7 @@ import { Barcode, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Column } from "@/components/table/PaginatedTable";
 import { getErrorMessage } from "@/lib/toastError";
+import { parseCount } from "@/lib/inventory/qtyInput";
 
 export interface VarianceRecord {
   productId: number;
@@ -66,11 +67,13 @@ export async function reconcileVariance(args: {
       item.counted.toString(),
     );
     if (newCountStr === null) return;
-    correctedCount = Number.parseInt(newCountStr, 10);
-    if (Number.isNaN(correctedCount)) {
-      toast.error("Invalid number entered.");
+    // A part roll is counted in yards: never parseInt (12.5 would become 12).
+    const parsed = parseCount(newCountStr);
+    if (parsed === null) {
+      toast.error("Enter a count of zero or more.");
       return;
     }
+    correctedCount = parsed;
   }
 
   try {
