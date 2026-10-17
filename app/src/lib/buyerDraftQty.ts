@@ -3,8 +3,8 @@
 // A draft item's qty on its way out of the database. The column is
 // Decimal(12,3) because fabric is drafted by the yard -- until 2026-10-17 it
 // was Int, and a typed 12.5 yards was stored as 1. JSON sends a Decimal as
-// text, so every route that sends or prices a draft item converts here (the
-// #29 bug shape: "12.5" + 1 is "12.51" on a screen).
+// text, so a route that sends or prices a draft item converts it first, with
+// these or with toQty (the #29 bug shape: "12.5" + 1 is "12.51" on a screen).
 
 import type { Prisma } from "@prisma/client";
 import { toQty } from "./inventory/quantity";
