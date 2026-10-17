@@ -1,18 +1,14 @@
 // /app/src/pages/api/dispatch/runs/[id]/status.ts
+//
+// PUT { status } -- moves a run along. What is allowed, and that a run is
+// completed only once every stop is, is lib/fulfilment/runs.ts setRunStatus.
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import { DeliveryRunStatus } from "@prisma/client";
 import { logError } from "@/lib/logger";
-
-const VALID_TRANSITIONS: Record<DeliveryRunStatus, DeliveryRunStatus[]> = {
-  PLANNING: ["LOADED"],
-  LOADED: ["IN_PROGRESS"],
-  IN_PROGRESS: ["COMPLETED"],
-  COMPLETED: [],
-};
+import { isRunStatus, RunError, setRunStatus } from "@/lib/fulfilment/runs";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") {
@@ -25,40 +21,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
   const { status } = req.body;
   if (!status) return res.status(400).json({ error: "status is required" });
+  if (!isRunStatus(status)) return res.status(400).json({ error: `Unknown run status ${status}` });
 
   try {
-    const run = await prisma.deliveryRun.findUnique({ where: { id } });
-    if (!run) return res.status(404).json({ error: "Delivery run not found" });
-
-    const allowed = VALID_TRANSITIONS[run.status];
-    if (!allowed || !allowed.includes(status)) {
-      return res.status(400).json({
-        error: `Cannot transition from ${run.status} to ${status}`,
-      });
-    }
-
-    const data: any = {
-      status,
-      updatedBy: session.user?.email || null,
-    };
-
-    if (status === "IN_PROGRESS") {
-      data.departedAt = new Date();
-    } else if (status === "COMPLETED") {
-      data.completedAt = new Date();
-    }
-
-    const updated = await prisma.deliveryRun.update({
-      where: { id },
-      data,
-      include: { vehicle: true, driver: true },
-    });
-
+    const updated = await prisma.$transaction((tx) =>
+      setRunStatus(tx, id, status, session.user?.email || null),
+    );
     return res.status(200).json(updated);
   } catch (error) {
+    if (error instanceof RunError) {
+      return res.status(error.httpStatus).json({ error: error.message });
+    }
     logError("Error updating run status", error);
     return res.status(500).json({ error: "Failed to update run status" });
   }
 }
 
-export default requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler);
+export default requirePermission("warehouse.operate", handler);

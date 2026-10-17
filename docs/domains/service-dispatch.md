@@ -108,6 +108,23 @@ floor", DECISIONS #23). `PUT /api/dispatch/stops/[id]` decides nothing itself:
 - The driver screen's message comes from what the server did (`completion` in
   the response), never from the counts it sent.
 
+**Completing a run.** `PUT /api/dispatch/runs/[id]/status` moves a run
+PLANNING → LOADED → IN_PROGRESS → COMPLETED, through
+`lib/fulfilment/runs.ts` `setRunStatus`. COMPLETED is refused while any stop on
+the run is not COMPLETED, and the message names how many are open. A stop that
+could not be done comes off the run, so nothing legitimate is left open. The
+driver screen hides "Complete Run" until every stop is done. Before 2026-10-16
+that was the only check, so the desk or any other caller could close a run with
+deliveries unaccounted for. The route, like the stop route, takes
+`warehouse.operate`, as the run and stop-list routes beside it do. Installers
+deliver and hold it; the old role list (MANAGER, ADMIN, WAREHOUSE) refused them
+on the driver screen they could open.
+
+The route's transitions are stricter than `deliveryService.ts`
+`VALID_RUN_TRANSITIONS`, which also allows PLANNING → COMPLETED. Whether a run
+can be closed without being loaded is an open owner decision, so the route
+keeps refusing it until that is made, and the two tables merge then.
+
 **Return pickups on a run.** On the pickup schedule (`/app/warehouse/pickups`),
 "Add to run" posts `{ returnId }` to `/api/dispatch/runs/[id]/stops`
 (`warehouse.operate`). `scheduleReturnPickup` creates the RETURN_PICKUP
@@ -124,6 +141,7 @@ A pickup stop's order is kept off the run's pull list and pick list
 ## Key Files
 
 - `lib/fulfilment/stops.ts` -- what a stop's outcome does: `completeStop`, `failStop`
+- `lib/fulfilment/runs.ts` -- `setRunStatus`: a run's transitions, and no COMPLETED while a stop is open
 - `lib/fulfilment/handover.ts` -- `markHandedOver` (the handover) and `recordDelivery` (a part delivery)
 - `lib/fulfilment/returnPickup.ts` -- `scheduleReturnPickup`, `completeReturnPickup`
 - `lib/fulfilment/deliveredLines.ts` -- the driver screen's delivered counts (pure)
@@ -155,7 +173,7 @@ Covered: `fractionalStock.integration.test.ts` (a run's and an order's pick list
 
 Covered: `pullList.integration.test.ts` (the one builder both pick lists use).
 
-Covered: `stockDelivery.integration.test.ts` (part delivery, the handover after it, a stop completed once, over-delivery refused, a failed stop back in the pool); `returnPickupStop.integration.test.ts` (scheduling once, kept off the pull list and picks, completion is not a handover, a failed pickup scheduled again); `deliveredLines.test.ts`.
+Covered: `stockDelivery.integration.test.ts` (part delivery, the handover after it, a stop completed once, over-delivery refused, a failed stop back in the pool); `returnPickupStop.integration.test.ts` (scheduling once, kept off the pull list and picks, completion is not a handover, a failed pickup scheduled again); `deliveredLines.test.ts`; `deliveryRunStatus.integration.test.ts` (an open stop holds the run open, a failed stop does not, a planning run cannot be completed).
 
 Gaps: the rest of `deliveryService.ts` (zones, assignOrderToRun, findOrCreatePlanningRun) has no tests. Pencil-in endpoint has no tests.
 
