@@ -1,18 +1,20 @@
 // /app/src/pages/api/dispatch/runs/[id]/stops.ts
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { scheduleReturnPickup, ReturnPickupError } from "@/lib/fulfilment/returnPickup";
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const runId = Number.parseInt(req.query.id as string);
   if (Number.isNaN(runId)) return res.status(400).json({ error: "Invalid run ID" });
 
   if (req.method === "GET") {
     return handleGet(runId, res);
   } else if (req.method === "POST") {
-    return handlePost(runId, req, res);
+    return handlePost(runId, req, res, session.user?.email || null);
   } else if (req.method === "PUT") {
     return handleReorder(runId, req, res);
   } else if (req.method === "DELETE") {
@@ -36,6 +38,9 @@ async function handleGet(runId: number, res: NextApiResponse) {
             salesOrder: {
               include: { lineItems: { omit: { cost: true } } },
             },
+            return: {
+              select: { returnNumber: true, productName: true, quantity: true, status: true },
+            },
           },
         },
       },
@@ -48,11 +53,34 @@ async function handleGet(runId: number, res: NextApiResponse) {
   }
 }
 
-async function handlePost(runId: number, req: NextApiRequest, res: NextApiResponse) {
-  const { serviceAppointmentId } = req.body;
+async function handlePost(
+  runId: number,
+  req: NextApiRequest,
+  res: NextApiResponse,
+  actor: string | null,
+) {
+  const { serviceAppointmentId, returnId } = req.body;
+
+  // A return's pickup: its own appointment, made here (lib/fulfilment/returnPickup.ts).
+  if (returnId !== undefined) {
+    const id = Number(returnId);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "returnId must be a number" });
+    try {
+      const made = await prisma.$transaction((tx) =>
+        scheduleReturnPickup(tx, { returnId: id, deliveryRunId: runId, actor }),
+      );
+      return res.status(201).json(made);
+    } catch (error) {
+      if (error instanceof ReturnPickupError) {
+        return res.status(error.status).json({ error: error.message });
+      }
+      logError("Error adding a return pickup", error);
+      return res.status(500).json({ error: "Failed to add the pickup" });
+    }
+  }
 
   if (!serviceAppointmentId) {
-    return res.status(400).json({ error: "serviceAppointmentId is required" });
+    return res.status(400).json({ error: "serviceAppointmentId or returnId is required" });
   }
 
   try {

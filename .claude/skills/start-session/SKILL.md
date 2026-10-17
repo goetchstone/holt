@@ -56,7 +56,7 @@ the planned tasks.
 | Stack | Next.js 16 (App Router), Prisma, PostgreSQL 17, tRPC |
 | Validate command | `cd app && npm run validate` |
 | Test command | `cd app && npm test` (unit) / `npm run test:coverage` (combined gate) |
-| Local Sonar/Semgrep/OSV | `cd app && npm run check:local` |
+| Local gate (lint, tests, Semgrep, OSV) | `cd app && npm run check:local` |
 | Test DB | `fbc_test_db` only (rule 59) — never a restored or curated database |
 | Structured logging | `logger.info/warn/error` — never `console.*` in `src/` |
 | Cancelled line rule | Every aggregation: `lineItemStatus: { not: "CANCELLED" }` (rule 33) |

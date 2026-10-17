@@ -165,7 +165,8 @@ describe("the pull list (real DB)", () => {
     expect(rows.map((r) => r.quantity)).toEqual([1]);
   });
 
-  it("flags units committed at another store: they need a transfer first", async () => {
+  // The store fulfils from the warehouse, and the unit is committed there.
+  async function atTheWarehouse(deliveryMethod: "DELIVERY" | "PICKUP") {
     const w = await world();
     await prisma.storeLocation.update({
       where: { id: w.store.id },
@@ -177,12 +178,22 @@ describe("the pull list (real DB)", () => {
       stockLocationId: w.bay.id,
       quantity: 1,
     });
-    const order = await orderWith(w, [{ productId: w.sofa.id, quantity: 1 }]);
+    const order = await orderWith(w, [{ productId: w.sofa.id, quantity: 1 }], deliveryMethod);
     await commit(order.id, w.sofa.id, w.store.id, 1);
+    return { w, rows: (await buildPullList(prisma, { salesOrderId: order.id })).rows };
+  }
 
-    const { rows } = await buildPullList(prisma, { salesOrderId: order.id });
+  it("flags a pickup's units at another store: they need a transfer first", async () => {
+    const { w, rows } = await atTheWarehouse("PICKUP");
     expect(rows).toEqual([
       expect.objectContaining({ fromStoreLocationId: w.warehouse.id, crossSite: true }),
+    ]);
+  });
+
+  it("does not flag a delivery's units at the store that fulfils for it", async () => {
+    const { w, rows } = await atTheWarehouse("DELIVERY");
+    expect(rows).toEqual([
+      expect.objectContaining({ fromStoreLocationId: w.warehouse.id, crossSite: false }),
     ]);
   });
 

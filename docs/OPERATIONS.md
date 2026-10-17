@@ -310,53 +310,16 @@ When you add a new cron-driven script, do all of the following in the same PR so
 4. **Add a row to the at-a-glance table** so a quick scan reveals everything the host needs to be running.
 5. **Wire it into the host's task scheduler** as part of the deploy — the script existing in the repo doesn't make it run.
 
-## Code Quality — SonarQube (local)
+## Code Quality
 
-SonarQube Community Edition runs locally in Docker for code-quality
-analysis (bugs, code smells, security hotspots, coverage, duplication).
-Kept separate from the production stack — runs against whatever is on
-your working copy.
-
-### First-time setup
-
-```bash
-# From repo root — start Sonar + its own Postgres
-docker compose -f docker-compose.sonar.yml up -d
-
-# Wait ~2 min for bootstrap, then open
-open http://localhost:9000
-# Log in as admin / admin, change password when prompted.
-# My Account → Security → Generate Token (keep the value).
-```
-
-### Run a scan
-
-```bash
-export SONAR_TOKEN=<token from UI>
-cd app && npm run sonar:scan
-```
-
-The scanner reads `sonar-project.properties` at the repo root and uploads
-findings to <http://localhost:9000>. Second + subsequent runs are
-incremental against the same project key.
-
-### With coverage
-
-```bash
-cd app && npm run test:coverage   # writes app/coverage/lcov.info
-export SONAR_TOKEN=<token>
-cd app && npm run sonar:scan      # reads lcov, shows uncovered lines
-```
-
-### Stop / clean up
-
-```bash
-docker compose -f docker-compose.sonar.yml down          # keeps data
-docker compose -f docker-compose.sonar.yml down -v       # wipes history
-```
-
-Data persists in `sonar-data` and `sonar-db-data` volumes between
-restarts, so the project history + triage notes survive reboots.
+Lint carries the code-quality rules (`app/eslint.config.mjs`, including a
+subset of SonarSource's through `eslint-plugin-sonarjs`), and CodeQL in CI
+carries the security analysis. A local SonarQube server
+(`docker-compose.sonar.yml`) did both until 2026-10-16, when it was removed
+at the owner's direction: it was not being run, and CodeQL covers the
+analysis. Its `sonar-data` and
+`sonar-db-data` Docker volumes can be deleted on any machine that still has
+them.
 
 ## One-Time Scripts
 

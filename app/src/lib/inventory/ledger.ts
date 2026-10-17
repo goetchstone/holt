@@ -97,7 +97,7 @@ export type MovementReason = keyof typeof MOVEMENT_REASONS;
 
 /** The document a movement belongs to, recorded on the journal row. */
 export interface MovementSource {
-  type: "SalesOrder" | "PurchaseOrder" | "Return" | "InventoryTransfer";
+  type: "SalesOrder" | "PurchaseOrder" | "Return" | "InventoryTransfer" | "StockCount";
   id: number;
 }
 
@@ -115,6 +115,8 @@ export interface Movement {
   actor?: string | null;
   /** Stamped on the destination row when given, and kept on the journal row. */
   note?: string | null;
+  /** The handheld action this belongs to (lib/inventory/withAction.ts). */
+  actionKey?: string | null;
 }
 
 /** The source place holds less than the movement asked to take from it. */
@@ -364,6 +366,7 @@ export async function postMovement(db: PrismaTx, movement: Movement): Promise<vo
         sourceId: movement.source?.id ?? null,
         actor,
         note: movement.note ?? null,
+        actionKey: movement.actionKey ?? null,
       },
     });
   });

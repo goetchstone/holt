@@ -31,13 +31,13 @@ N/A
 ## Config-effect verification (Rule 44)
 
 <!--
-Required if this PR adds or changes a Sonar property, env var, threshold,
+Required if this PR adds or changes a lint or scanner rule, env var, threshold,
 feature flag, or rule-tuning knob. Show before/after of the observable.
 Otherwise N/A.
 
 Example:
-  Before: 234 S3776 findings
-  After:  88 S3776 findings (re-scan attached)
+  Before: 234 sonarjs/cognitive-complexity warnings
+  After:  88 (npm run lint output attached)
 -->
 
 N/A
@@ -68,7 +68,7 @@ N/A
 - [ ] If touched: `spawn(absolute path)` not bare binary name (Rule 44 / S4036)
 - [ ] If touched: `crypto.randomBytes` not `Math.random` for any value used as a path/token/secret (Rule 44 / S2245)
 
-## Sonar / scans (Rule 48)
+## Scans: lint, Semgrep, OSV, CodeQL (Rule 48)
 
 - [ ] No new findings introduced (or new findings explicitly fixed/tripwired/won't-fixed in this PR)
 - [ ] If a regression caused this PR: failure log entry added to `.claude/skills/post-failure/SKILL.md`

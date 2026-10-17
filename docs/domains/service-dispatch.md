@@ -1,6 +1,6 @@
 # Service Dispatch
 
-Scheduling and tracking of service appointments: measure, install, delivery, house calls. Installer roster and delivery zone management.
+Scheduling and tracking of service appointments: measure, install, delivery, house calls, and return pickups on a delivery run. Installer roster and delivery zone management.
 
 ## Appointment Status Transitions
 
@@ -74,7 +74,59 @@ In-stock filter (default: on) requires ALL of a customer's orders to have all PO
 
 **API**: `GET /api/dispatch/orders-by-zone` (unassigned orders by zone), plus run/stop/vehicle CRUD endpoints under `api/dispatch/`.
 
+## Run stop outcomes
+
+Since PR 4 of the ledger plan (`docs/domains/inventory.md` → "The handheld
+floor", DECISIONS #23). `PUT /api/dispatch/stops/[id]` decides nothing itself:
+`lib/fulfilment/stops.ts` does.
+
+- **Arrived.** A stop goes PENDING → ARRIVED directly: nothing sets EN_ROUTE,
+  so with only PENDING → EN_ROUTE allowed, "Mark Arrived" was refused and no
+  stop could be completed (fixed 2026-10-16; `deliveryService.ts`).
+- **Completed.** `completeStop` claims the stop first (it sets COMPLETED only
+  where the stop was not already COMPLETED), so a driver's retry or two racing
+  taps hand nothing over twice. Then:
+  - **A delivery** carries `delivered: [{ orderLineItemId, quantity }]` from
+    the driver screen. All of it is the handover (`markHandedOver`).
+  - **Less than all of it** is a part delivery (`recordDelivery`): the units
+    that went leave stock and `fulfilledQty` goes up, and the order stays open.
+    Nothing at all is refused: that stop could not be done.
+    A new PENDING DELIVERY appointment for the rest goes into the unassigned
+    pool (`/api/dispatch/unassigned`), copying the customer, address, zone and
+    access notes. The order's change log gets PARTLY_DELIVERED.
+  - **A return pickup** (`RETURN_PICKUP`) sets the return to PICKUP_COMPLETED
+    and the appointment to COMPLETED. It is never a handover.
+- **Could not be done** (`{ failReason }`, "Couldn't deliver" / "Couldn't
+  collect" on the driver screen). `failStop` removes the stop from the run,
+  adds the reason to the appointment's notes, and writes DELIVERY_FAILED or
+  RETURN_PICKUP_FAILED on the order. A delivery's appointment is back in the
+  unassigned pool (`UNASSIGNED_DELIVERY_WHERE`: any open status, IN_PROGRESS
+  included, with no stop). A return keeps its appointment and its PICKUP_SCHEDULED
+  status, with the reason added to its pickup notes, and goes on a run again
+  from the pickup schedule. Nothing was handed over, so nothing is reversed:
+  the stock stays committed to the order.
+- The driver screen's message comes from what the server did (`completion` in
+  the response), never from the counts it sent.
+
+**Return pickups on a run.** On the pickup schedule (`/app/warehouse/pickups`),
+"Add to run" posts `{ returnId }` to `/api/dispatch/runs/[id]/stops`
+(`warehouse.operate`). `scheduleReturnPickup` creates the RETURN_PICKUP
+appointment (linked by `ServiceAppointment.returnId`, one per return) and its
+stop as the run's last, and moves the return to PICKUP_SCHEDULED. It refuses:
+
+- a return that needs no pickup;
+- a return already on a run;
+- a completed run.
+
+A pickup stop's order is kept off the run's pull list and pick list
+(`pullList.ts`, `pick.ts`): the stop brings goods back, it takes none out.
+
 ## Key Files
+
+- `lib/fulfilment/stops.ts` -- what a stop's outcome does: `completeStop`, `failStop`
+- `lib/fulfilment/handover.ts` -- `markHandedOver` (the handover) and `recordDelivery` (a part delivery)
+- `lib/fulfilment/returnPickup.ts` -- `scheduleReturnPickup`, `completeReturnPickup`
+- `lib/fulfilment/deliveredLines.ts` -- the driver screen's delivered counts (pure)
 
 - `lib/serviceDispatchService.ts` -- transitions, number generation, auto-sync
 - `lib/deliveryService.ts` -- delivery zone resolution, assignOrderToRun(), findOrCreatePlanningRun(), `generatePickList()` (a run's or an order's pick list, written from the pull list in `lib/fulfilment/pullList.ts`: active lines only, the order's own committed stock at the place it sits, what is already staged or at the pickup place left off, units at another store flagged), `pickListForClient()` (every pick-list response goes through it: a line's quantity is Decimal, a part roll, and is sent as a number)
@@ -102,6 +154,8 @@ Covered: `serviceDispatch.test.ts` (transitions, number generation)
 Covered: `fractionalStock.integration.test.ts` (a run's and an order's pick list carry the line's quantity -- the run builder wrote 1 on every line until 2026-10-15 -- and the pick-list API answers it as a number); `costUnreadPayloads.integration.test.ts` (pick-list create/read payloads carry no cost).
 
 Covered: `pullList.integration.test.ts` (the one builder both pick lists use).
+
+Covered: `stockDelivery.integration.test.ts` (part delivery, the handover after it, a stop completed once, over-delivery refused, a failed stop back in the pool); `returnPickupStop.integration.test.ts` (scheduling once, kept off the pull list and picks, completion is not a handover, a failed pickup scheduled again); `deliveredLines.test.ts`.
 
 Gaps: the rest of `deliveryService.ts` (zones, assignOrderToRun, findOrCreatePlanningRun) has no tests. Pencil-in endpoint has no tests.
 
@@ -153,4 +207,4 @@ Cutover bridge for the team's Excel-based customer-service workflow. Until the G
 
 ---
 
-Last verified: 2026-10-15
+Last verified: 2026-10-16

@@ -110,6 +110,12 @@ export interface OversoldRow {
     since: Date;
   }[];
   fix: SuggestedFix;
+  /**
+   * The product's last posted count that found a difference (lib/inventory/
+   * count.ts): a shortfall right after a count that came up short may be a
+   * miscount, not an oversale. Null when its last count matched, or none.
+   */
+  lastCountVariance: { countedAt: Date; place: string; difference: number } | null;
 }
 
 /** Open exceptions grouped by product, each with its suggested fix. */
@@ -167,6 +173,15 @@ export async function getOversoldReport(
         })
       ).map((s) => [s.id, s.name]),
     );
+    const lastLine = await db.stockCountLine.findFirst({
+      where: { productId, count: { status: "POSTED" } },
+      orderBy: { count: { postedAt: "desc" } },
+      select: {
+        difference: true,
+        count: { select: { countedAt: true, stockLocation: { select: { name: true } } } },
+      },
+    });
+    const lastDifference = toQty(lastLine?.difference);
     rows.push({
       productId,
       productName: list[0].product.name,
@@ -195,6 +210,14 @@ export async function getOversoldReport(
           due: l.purchaseOrder.expectedDelivery,
         })),
       }),
+      lastCountVariance:
+        lastLine && lastDifference !== 0
+          ? {
+              countedAt: lastLine.count.countedAt,
+              place: lastLine.count.stockLocation.name,
+              difference: lastDifference,
+            }
+          : null,
     });
   }
   return rows.sort((a, b) => b.shortfall - a.shortfall);
@@ -216,7 +239,16 @@ export function oversoldCsv(rows: OversoldRow[]): string {
     return "Nothing on order: start a draft PO";
   };
   const lines = [
-    ["Product", "Part No", "Order", "Store", "Short", "Since", "Suggested fix"].join(","),
+    [
+      "Product",
+      "Part No",
+      "Order",
+      "Store",
+      "Short",
+      "Since",
+      "Suggested fix",
+      "Last count off by",
+    ].join(","),
   ];
   for (const r of rows) {
     for (const o of r.orders) {
@@ -229,6 +261,7 @@ export function oversoldCsv(rows: OversoldRow[]): string {
           cell(o.shortfall),
           cell(o.since.toISOString().slice(0, 10)),
           cell(fixText(r.fix)),
+          cell(r.lastCountVariance?.difference ?? null),
         ].join(","),
       );
     }

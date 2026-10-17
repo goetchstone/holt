@@ -3,8 +3,9 @@
 #
 # PreToolUse hook: fires before `Bash(gh pr create*)` invocations.
 #
-# Per CLAUDE.md rule 48, every PR runs through the local Sonar/Semgrep/OSV
-# gate before push -- including docs-only PRs. Per rule 19/36, substantial
+# Per CLAUDE.md rule 48, every PR runs through the local gate
+# (npm run check:local: lint, tests, Semgrep, OSV) before push -- including
+# docs-only PRs. CodeQL runs in CI. Per rule 19/36, substantial
 # code changes update the matching domain runbook in the same PR.
 #
 # Hook surfaces the pre-pr checklist AND blocks if:
@@ -13,20 +14,20 @@
 #     code change), scoped to diffs that actually touch instrumented code
 #   - substantial code changed under app/src/{app,pages,lib,components}
 #     but no docs/runbook/CLAUDE.md/ROADMAP.md was touched
-#   - the local Sonar gate is RED with no documented bypass
 #
-# Degrades gracefully: every external dependency (python3, docker/curl
-# reaching the local Sonar container, git having an origin/main to diff
-# against) is optional. Missing tooling produces a WARNING and lets the
-# command through -- a fresh clone with no Sonar container running must
-# never be hard-blocked from opening a PR.
+# (A third block, the local SonarQube quality gate, was removed 2026-10-16
+# with SonarQube itself: CodeQL in CI covers the analysis.)
+#
+# Degrades gracefully: every external dependency (python3, git having an
+# origin/main to diff against) is optional. Missing tooling produces a
+# WARNING and lets the command through -- a fresh clone must never be
+# hard-blocked from opening a PR.
 
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SKILL_PATH="$REPO_ROOT/.claude/skills/pre-pr/SKILL.md"
 COVERAGE_PATH="$REPO_ROOT/app/coverage/lcov.info"
-SONAR_PROJECT_KEY="holt"
 
 HAVE_PY=0
 command -v python3 >/dev/null 2>&1 && HAVE_PY=1
@@ -194,96 +195,5 @@ EOF
   fi
 fi
 
-# ---------------------------------------------------------------------
-# HARD BLOCK 3: Sonar Quality Gate must be GREEN (or RED with explicit
-# bypass marker). Degrades to a WARNING if the local Sonar server can't
-# be reached -- we cannot make every PR contingent on a container that
-# may not be running on this machine (or a fresh clone that never set
-# one up).
-# ---------------------------------------------------------------------
-SONAR_TOKEN=""
-SONAR_HOST_URL="http://localhost:9000"
-if [ -f "$REPO_ROOT/app/.env.local" ]; then
-  SONAR_TOKEN=$(grep '^SONAR_TOKEN=' "$REPO_ROOT/app/.env.local" 2>/dev/null | cut -d= -f2- | tr -d '\n\r' || echo "")
-  CFG_HOST=$(grep '^SONAR_HOST_URL=' "$REPO_ROOT/app/.env.local" 2>/dev/null | cut -d= -f2- | sed 's:/$::' | tr -d '\n\r' || echo "")
-  [ -n "$CFG_HOST" ] && SONAR_HOST_URL="$CFG_HOST"
-fi
-
-GATE_JSON=""
-if [ -n "$SONAR_TOKEN" ] && command -v curl >/dev/null 2>&1; then
-  GATE_JSON=$(curl -s --max-time 2 -u "${SONAR_TOKEN}:" \
-    "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}" 2>/dev/null || echo "")
-fi
-
-if [ -z "$GATE_JSON" ] || ! echo "$GATE_JSON" | grep -q '"projectStatus"'; then
-  cat <<EOF >&2
-  NOTE: Sonar gate could not be queried (host: $SONAR_HOST_URL, token
-  configured: $([ -n "$SONAR_TOKEN" ] && echo yes || echo no)). This is
-  expected on a fresh clone or a machine without the local Sonar
-  container running -- proceeding without a gate-state check. Verify
-  manually if you have a Sonar server available:
-
-      curl -s -u "\${SONAR_TOKEN}:" "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}"
-EOF
-  exit 0
-fi
-
-if [ "$HAVE_PY" -eq 0 ]; then
-  echo "  NOTE: python3 unavailable -- cannot parse Sonar gate JSON. Proceeding." >&2
-  exit 0
-fi
-
-GATE_STATUS=$(echo "$GATE_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['projectStatus']['status'])" 2>/dev/null || echo "UNKNOWN")
-
-if [ "$GATE_STATUS" = "OK" ]; then
-  echo "Pre-PR checks passed: coverage fresh, Sonar gate GREEN." >&2
-  exit 0
-fi
-
-# Gate is RED (or unknown). Look for explicit bypass marker.
-BYPASS_FOUND=0
-if printf '%s' "$BRANCH_COMMITS" | grep -q 'sonar-gate-justified:'; then
-  BYPASS_FOUND=1
-fi
-
-if [ "$BYPASS_FOUND" -eq 1 ]; then
-  cat <<EOF >&2
-  NOTE: Sonar gate is RED but a commit on this branch carries the
-        \`sonar-gate-justified:\` marker. Bypass logged -- verify the PR
-        body documents the failing condition + rationale before merging.
-EOF
-  echo "$GATE_JSON" | python3 -m json.tool >&2 2>/dev/null
-  exit 0
-fi
-
-cat <<EOF >&2
-======================================================================
-  BLOCKED: Sonar Quality Gate is RED (or unknown: $GATE_STATUS).
-
-  CLAUDE.md rule 48 expects a GREEN gate before push, or an explicit
-  documented bypass. Failing conditions:
-
-EOF
-echo "$GATE_JSON" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-for c in d.get('projectStatus', {}).get('conditions', []):
-    if c.get('status') == 'ERROR':
-        op = '<' if c.get('comparator') == 'LT' else '>'
-        print(f\"      - {c.get('metricKey')}: actual {c.get('actualValue')} {op} threshold {c.get('errorThreshold')}\")
-" >&2 2>/dev/null
-
-cat <<EOF >&2
-
-  To proceed, either:
-
-  (a) Fix the violations: cd app && npm run test:coverage \\
-      && cd $REPO_ROOT && npm run sonar:scan
-      ...then re-run this command.
-
-  (b) Document the trade-off: add a commit whose message body contains
-      \`sonar-gate-justified: <rationale>\`. The PR body must also
-      document the failing condition.
-======================================================================
-EOF
-exit 2
+echo "Pre-PR checks passed." >&2
+exit 0
