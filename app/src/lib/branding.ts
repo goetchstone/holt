@@ -9,6 +9,8 @@ export interface Branding {
   appName: string;
   companyName: string | null;
   tagline: string | null;
+  /** Printed at the foot of receipts and invoices; null prints nothing. */
+  receiptFooter: string | null;
   logoUrl: string | null;
   loginLogoUrl: string | null;
   faviconUrl: string | null;
@@ -25,6 +27,7 @@ export const DEFAULT_BRANDING: Branding = {
   appName: "Holt",
   companyName: null,
   tagline: null,
+  receiptFooter: null,
   logoUrl: null,
   loginLogoUrl: null,
   faviconUrl: null,

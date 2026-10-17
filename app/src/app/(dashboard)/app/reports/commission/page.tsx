@@ -1,12 +1,15 @@
 // /app/src/app/(dashboard)/app/reports/commission/page.tsx
 //
-// Team Commission — App Router + tRPC port. SUPER_ADMIN-only (tabled per owner
-// direction 2026-05-29 until a deployment adopts it). View-only locked payouts.
+// The old Team Commission report, folded into Commission on 2026-10-17.
+//
+// It was a read-only, owner-only copy of Commission -> Locked: designers only,
+// no date range, no drafts, no paid-date editing. Everything it showed, the
+// Locked tab shows with more. The URL is kept so a bookmark lands there.
 
+import { redirect } from "next/navigation";
 import { requirePage } from "@/lib/auth/requirePage";
-import { CommissionView } from "./CommissionView";
 
 export default async function CommissionPage() {
-  await requirePage(undefined, { permission: "reporting.read" });
-  return <CommissionView />;
+  await requirePage(undefined, { permission: "admin.settings" });
+  redirect("/app/admin/reports/commission-tiers?tab=locked");
 }

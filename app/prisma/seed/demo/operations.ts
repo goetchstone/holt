@@ -22,9 +22,8 @@
 // which is the Akritos deployment's case rather than the furniture one. A mix
 // of billed and unbilled is what makes the "what can I invoice" view non-empty.
 //
-// SHIFTS include exactly one open shift — `clockOut: null` means still on
-// shift, and a board where nobody is clocked in cannot show its own primary
-// state.
+// SHIFTS here are past ones. The open shifts -- `clockOut: null`, still on
+// shift -- are today's floor staff, seeded with the up board in setupData.ts.
 
 import type { PrismaClient, TicketPriority, TicketStatus } from "@prisma/client";
 import type { Rng } from "./rng";
@@ -60,7 +59,6 @@ export interface OperationsResult {
   timeEntries: number;
   unbilledMinutes: number;
   shiftsCreated: number;
-  openShifts: number;
 }
 
 export async function seedOperations(
@@ -81,7 +79,6 @@ export async function seedOperations(
     timeEntries: 0,
     unbilledMinutes: 0,
     shiftsCreated: 0,
-    openShifts: 0,
   };
 
   const STATUSES: TicketStatus[] = [
@@ -176,16 +173,20 @@ export async function seedOperations(
     if (isBillable && !billed) result.unbilledMinutes += minutes;
   }
 
-  // Shifts, including exactly one still open. A board where nobody is clocked
-  // in cannot show its own primary state.
+  // Past shifts, each at the person's own store: a cashier clocks in where they
+  // work. (These used to land on a random store, so the time clock had the same
+  // person working both showrooms.) Today's shifts -- the ones still open --
+  // are the floor staff on the up board, seeded with it in setupData.ts, since
+  // clocking in is what puts someone on the board.
   const shiftStaff = staff.registerStaff.length > 0 ? staff.registerStaff : staff.all;
   for (let i = 0; i < shiftStaff.length * 3; i++) {
     const member = shiftStaff[i % shiftStaff.length];
-    const store = pick(opsRng, stores);
+    const store = stores.find((st) => st.id === member.homeStoreId) ?? pick(opsRng, stores);
     const daysAgo = randInt(opsRng, 1, 30);
+    // 9:30am in New York (13:30 UTC in summer time, 14:30 in winter -- close
+    // enough for a past shift; the open ones are dated exactly).
     const clockIn = new Date(Date.now() - daysAgo * 86_400_000);
-    clockIn.setHours(9, 0, 0, 0);
-    const stillOn = i === 0;
+    clockIn.setUTCHours(13, 30, 0, 0);
 
     await prisma.staffShift.create({
       data: {
@@ -193,11 +194,10 @@ export async function seedOperations(
         storeLocation: store.name,
         storeLocationId: store.id,
         clockIn,
-        clockOut: stillOn ? null : new Date(clockIn.getTime() + randInt(opsRng, 6, 9) * 3_600_000),
+        clockOut: new Date(clockIn.getTime() + randInt(opsRng, 6, 9) * 3_600_000),
       },
     });
     result.shiftsCreated++;
-    if (stillOn) result.openShifts++;
   }
 
   return result;

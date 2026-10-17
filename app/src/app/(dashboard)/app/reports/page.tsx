@@ -26,10 +26,10 @@ const ITEMS: CardGridItem[] = [
     roles: ["SUPER_ADMIN"],
   },
   {
-    title: "Team Commission",
+    title: "Commission",
     description:
-      "Locked commission payouts by designer and pay period. View only — the commission plan and payout locking stay on the admin commission surface.",
-    href: "/app/reports/commission",
+      "Commission payouts by pay period: locked payouts with their paid dates, drafts to review and lock, and the tier calculator.",
+    href: "/app/admin/reports/commission-tiers?tab=locked",
     roles: ["SUPER_ADMIN"],
   },
   {

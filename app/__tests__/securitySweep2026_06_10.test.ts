@@ -26,7 +26,12 @@ describe("security sweep 2026-06-10 tripwires", () => {
   it("vendors/[id] never spreads req.body into the update (field whitelist)", () => {
     const code = src("pages/api/vendors/[id].ts");
     expect(code).not.toMatch(/data:\s*req\.body/);
-    expect(code).toMatch(/Prisma\.VendorUpdateInput/);
+    // The whitelist moved to lib/vendorPatch.ts (2026-10-17), where its
+    // behaviour is tested directly -- unknown fields and the name are dropped
+    // (__tests__/vendorLeadTime.test.ts). The route must still go through it.
+    expect(code).toMatch(/parseVendorPatch\(/);
+    expect(code).toMatch(/data:\s*parsed\.data/);
+    expect(src("lib/vendorPatch.ts")).toMatch(/Prisma\.VendorUpdateInput/);
   });
 
   it("invoice print view rounds the derived unit price", () => {

@@ -575,6 +575,27 @@ last piece arrives, not piece by piece.
 
 ---
 
+## 24. A vendor's lead time dates a PO; an unknown one dates nothing
+
+**Rejected:** a default lead time (a "typical" six weeks, say) for a vendor
+nobody has set one for, so that every PO carries an expected date.
+
+**Why:** an expected date is a promise a buyer plans against and a customer is
+quoted from. A default would put a confident, invented date on every PO raised
+against a vendor nobody has set up, and those POs would read as on time until
+the day they read as late. With no lead time on file the PO has no date, which
+the Delivery Planner shows as "No ESD" -- exactly the row a buyer has to chase.
+
+**Cost accepted:** a deployment that never fills in lead times sees no expected
+dates on special-order POs until vendors confirm them.
+
+**Enforced by:** `__tests__/vendorLeadTime.test.ts`,
+`__tests__/integration/specialOrderLeadTime.integration.test.ts`.
+
+**Source:** [`app/src/lib/vendorLeadTime.ts`](../app/src/lib/vendorLeadTime.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

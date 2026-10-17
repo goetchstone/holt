@@ -55,7 +55,6 @@ import { getServiceReport } from "@/lib/reports/serviceReport";
 import { getCustomersReport } from "@/lib/reports/customersReport";
 import { getTrafficReport, TrafficReportInputError } from "@/lib/reports/trafficReport";
 import { getWealthInsights } from "@/lib/reports/wealthInsights";
-import { getCommissionPayouts } from "@/lib/reports/commissionPayouts";
 import {
   getPayPeriodSales,
   getPayPeriodConfirmations,
@@ -731,9 +730,6 @@ export const reportsRouter = router({
         .nullish(),
     )
     .query(({ input }) => getWealthInsights(prisma, input ?? {})),
-  commissionPayouts: roleProcedure(SUPER_ADMIN_ONLY)
-    .input(z.object({ staffMemberId: z.number().optional() }).nullish())
-    .query(({ input }) => getCommissionPayouts({ staffMemberId: input?.staffMemberId })),
   // Per-designer pay-period sales statement. Tabled to SUPER_ADMIN — the picker
   // is the only path, so the designer is resolved from the client's
   // staffMemberId. Confirm / report-issue stay REST mutations.

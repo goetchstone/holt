@@ -242,7 +242,16 @@ export function HomeView({ sections }: HomeViewProps) {
           <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-brand-gray mb-4">
             {storeCards.title}
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {showSales && allStores.length > 1 && (
+            <AllStoresSummary
+              stores={allStores.map((name) => salesByStore[name])}
+              formatCurrency={formatCurrency}
+            />
+          )}
+          {/* auto-fit: the cards share the full width whatever the store count,
+              so two showrooms fill an iPad rather than half of a four-column
+              grid, and they wrap to one column on a phone. */}
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-4">
             {allStores.map((storeName) => (
               <StoreCard
                 key={storeName}
@@ -266,7 +275,7 @@ export function HomeView({ sections }: HomeViewProps) {
           <h2 className="font-sans text-xs uppercase tracking-[0.2em] text-brand-gray mb-4">
             Designer Rotation
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-4">
             {upBoardStores.map(({ store, label }) => (
               <UpBoard key={store} store={store} storeLabel={label} />
             ))}
@@ -314,7 +323,7 @@ function StoreCard({
   const salesPct = lyNet > 0 ? ((netSales - lyNet) / lyNet) * 100 : null;
 
   return (
-    <div className="bg-white border border-gray-200 p-5 text-center">
+    <div className="rounded-lg border border-brand-accent-gray/60 bg-white p-5 text-center">
       <div className="font-serif-display text-brand-blue text-base tracking-wide mb-2">
         {displayName}
       </div>
@@ -337,8 +346,8 @@ function StoreCard({
 
       {/* Sales data */}
       {showSales && (
-        <div className={showTraffic ? "mt-4 border-t border-gray-100 pt-3" : ""}>
-          <div className="text-lg font-serif text-brand-blue font-light">
+        <div className={showTraffic ? "mt-4 border-t border-brand-stripe pt-3" : ""}>
+          <div className="text-2xl font-serif text-brand-blue font-light">
             {formatCurrency(netSales)}
           </div>
           <div className="text-xs font-sans uppercase tracking-wider text-brand-gray mt-0.5">
@@ -350,6 +359,37 @@ function StoreCard({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// One line for the whole business: today's net sales across every showroom
+// against the same date last year. The first thing an owner looks for, and with
+// several stores it otherwise has to be added up from the cards.
+function AllStoresSummary({
+  stores,
+  formatCurrency,
+}: {
+  stores: (StoreSales | undefined)[];
+  formatCurrency: (value: number) => string;
+}) {
+  const net = stores.reduce((sum, s) => sum + (s?.netSales ?? 0), 0);
+  const items = stores.reduce((sum, s) => sum + (s?.items ?? 0), 0);
+  const lyNet = stores.reduce((sum, s) => sum + (s?.lyNetSales ?? 0), 0);
+  const salesPct = lyNet > 0 ? ((net - lyNet) / lyNet) * 100 : null;
+  return (
+    <div className="mb-4 flex flex-wrap items-baseline gap-x-6 gap-y-1 rounded-lg border border-brand-accent-gray/60 bg-white px-5 py-4">
+      <span className="text-xs font-sans uppercase tracking-wider text-brand-gray">
+        All showrooms today
+      </span>
+      <span className="text-3xl font-serif font-light text-brand-blue">{formatCurrency(net)}</span>
+      <span className="text-sm font-sans text-brand-gray">
+        {items} {items === 1 ? "item" : "items"}
+      </span>
+      <span className="flex items-center gap-3 text-sm font-sans">
+        <span className="text-brand-gray">LY {formatCurrency(lyNet)}</span>
+        <SalesTrend salesPct={salesPct} />
+      </span>
     </div>
   );
 }

@@ -25,6 +25,7 @@ import {
   type PermissionRequirement,
 } from "@/lib/auth/permissionResolver";
 import { assertKnownKeys, type CallerAccess, type GateOptions } from "@/lib/auth/gateOptions";
+import { SESSION_ENDED_MESSAGE, sessionAccountEnded } from "@/lib/auth/sessionEnded";
 
 type AuthenticatedHandler = (
   req: NextApiRequest,
@@ -100,6 +101,10 @@ export function requireAuthWithRole(roles: string[], handler: GatedHandler, opti
     });
     logRoleListOutcome(userId, roles, result);
     if (!result.allowed) {
+      // A session whose account is gone is signed out, not forbidden.
+      if (result.noActiveStaff && (await sessionAccountEnded(userId))) {
+        return res.status(401).json({ error: SESSION_ENDED_MESSAGE });
+      }
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -154,6 +159,10 @@ export function requirePermission(
     });
 
     if (!result.allowed) {
+      // A session whose account is gone is signed out, not forbidden.
+      if (result.noActiveStaff && (await sessionAccountEnded(userId))) {
+        return res.status(401).json({ error: SESSION_ENDED_MESSAGE });
+      }
       logPermissionDenial(userId, permission, result);
       return res.status(403).json({ error: "Forbidden" });
     }

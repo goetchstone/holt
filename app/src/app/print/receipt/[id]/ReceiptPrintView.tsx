@@ -13,6 +13,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import axios from "axios";
 import { parseLocalDate } from "@/lib/dateUtils";
 import { useBranding } from "@/components/branding/BrandingProvider";
+import { RECEIPT_WIDTH_PX, receiptPageRule, wrapText } from "@/lib/receiptPage";
 
 interface StoreAddress {
   name: string;
@@ -46,15 +47,16 @@ interface OrderData {
 }
 
 // 80mm at 203 DPI = 641 pixels
-const W = 640;
+const W = RECEIPT_WIDTH_PX;
 const PAD = 24;
 const CONTENT_W = W - PAD * 2;
 
 const fmt = (v: number) => v.toFixed(2);
 
+// The @page rule is not here: its height is the receipt's own length, so it is
+// built per receipt by receiptPageRule (lib/receiptPage.ts).
 const PRINT_STYLES = `
   @media print {
-    @page { margin: 0; size: 80mm auto; }
     body { margin: 0; padding: 0; }
     canvas { display: none !important; width: 0; height: 0; overflow: hidden; }
     p { display: none !important; }
@@ -107,7 +109,11 @@ function computeReceiptTotals(order: OrderData): ReceiptTotals {
  * Extracted from renderReceipt so the draw function stays under cog complexity
  * threshold (S3776).
  */
-function computeReceiptHeight(order: OrderData, totals: ReceiptTotals): number {
+function computeReceiptHeight(
+  order: OrderData,
+  totals: ReceiptTotals,
+  footerLines: number,
+): number {
   let y = PAD;
   // Header (3 lines of small text + divider)
   y += HEADER_HEIGHT;
@@ -137,9 +143,9 @@ function computeReceiptHeight(order: OrderData, totals: ReceiptTotals): number {
     y += DIVIDER_HEIGHT;
     y += SMALL_LINE_HEIGHT * 2;
   }
-  // Footer (2 lines + divider)
+  // Footer: divider, the thank-you line, then the store's own footer lines
   y += DIVIDER_HEIGHT;
-  y += SMALL_LINE_HEIGHT * 2;
+  y += SMALL_LINE_HEIGHT * (1 + footerLines);
   y += PAD;
   return y;
 }
@@ -200,6 +206,7 @@ export function ReceiptPrintView({ id }: { id: string }) {
   const storeName = branding.companyName ?? branding.appName;
   const [order, setOrder] = useState<OrderData | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [heightPx, setHeightPx] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -232,7 +239,16 @@ export function ReceiptPrintView({ id }: { id: string }) {
 
     // Set canvas size from pre-flight height
     canvas.width = W;
-    canvas.height = computeReceiptHeight(order, totals);
+    // The store's footer (AppSettings.receiptFooter) is free text: wrap it in
+    // the footer's font before sizing the canvas, since setting the height
+    // resets the context. Unset prints nothing -- the receipt used to print a
+    // hardcoded "Returns within 7 days with receipt." for every store.
+    ctx.font = FONT_SMALL;
+    const footerLines = branding.receiptFooter
+      ? wrapText((t) => ctx.measureText(t).width, branding.receiptFooter, CONTENT_W)
+      : [];
+    canvas.height = computeReceiptHeight(order, totals, footerLines.length);
+    setHeightPx(canvas.height);
     const lineHeight = LINE_HEIGHT;
     const smallLineHeight = SMALL_LINE_HEIGHT;
     const headerHeight = HEADER_HEIGHT;
@@ -365,12 +381,14 @@ export function ReceiptPrintView({ id }: { id: string }) {
     ctx.font = FONT_SMALL;
     ctx.textAlign = "center";
     ctx.fillText(`Thank you for shopping at ${storeName}!`, W / 2, cy);
-    cy += smallLineHeight;
-    ctx.fillText("Returns within 7 days with receipt.", W / 2, cy);
+    for (const line of footerLines) {
+      cy += smallLineHeight;
+      ctx.fillText(line, W / 2, cy);
+    }
 
     // Convert to image URL
     setImageUrl(canvas.toDataURL("image/png"));
-  }, [order, storeName, branding.tagline]);
+  }, [order, storeName, branding.tagline, branding.receiptFooter]);
 
   useEffect(() => {
     renderReceipt();
@@ -392,6 +410,11 @@ export function ReceiptPrintView({ id }: { id: string }) {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: PRINT_STYLES }} />
+      {heightPx !== null && (
+        <style
+          dangerouslySetInnerHTML={{ __html: `@media print { ${receiptPageRule(heightPx)} }` }}
+        />
+      )}
       <canvas ref={canvasRef} />
       {imageUrl && <img src={imageUrl} alt="Receipt" />}
       {!imageUrl && !order && <p>Loading...</p>}

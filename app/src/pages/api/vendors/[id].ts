@@ -1,15 +1,17 @@
 // /app/src/pages/api/vendors/[id].ts
 //
-// PATCH — update a vendor's pricing-behavior fields. MANAGER/ADMIN (was
-// session-only with a raw req.body spread until the 2026-06-10 security
-// sweep). Updatable fields are whitelisted so a request can never touch
-// columns the UI doesn't expose (name, isActive, audit fields, ...).
+// PATCH — update a vendor's pricing-behavior fields, contact details and lead
+// time. MANAGER/ADMIN (was session-only with a raw req.body spread until the
+// 2026-06-10 security sweep). Updatable fields are whitelisted in
+// lib/vendorPatch.ts so a request can never touch columns the UI doesn't
+// expose (name, isActive, audit fields, ...).
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import type { Prisma } from "@prisma/client";
 import { logError } from "@/lib/logger";
+import { getErrorCode } from "@/lib/errorCode";
+import { parseVendorPatch } from "@/lib/vendorPatch";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const vendorId = Number.parseInt(req.query.id as string);
@@ -18,27 +20,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === "PATCH") {
+    const parsed = parseVendorPatch((req.body ?? {}) as Record<string, unknown>);
+    if (!parsed.ok) return res.status(400).json({ error: parsed.error });
     try {
-      const { defaultMarkup, defaultDiscount, mapEnforced, allowTradeDiscount } = req.body as {
-        defaultMarkup?: number | null;
-        defaultDiscount?: number | null;
-        mapEnforced?: boolean;
-        allowTradeDiscount?: boolean;
-      };
-      const data: Prisma.VendorUpdateInput = {};
-      if (defaultMarkup !== undefined) data.defaultMarkup = defaultMarkup;
-      if (defaultDiscount !== undefined) data.defaultDiscount = defaultDiscount;
-      if (typeof mapEnforced === "boolean") data.mapEnforced = mapEnforced;
-      if (typeof allowTradeDiscount === "boolean") data.allowTradeDiscount = allowTradeDiscount;
-      if (Object.keys(data).length === 0) {
-        return res.status(400).json({ error: "No updatable fields in request" });
-      }
       const updated = await prisma.vendor.update({
         where: { id: vendorId },
-        data,
+        data: parsed.data,
       });
       return res.status(200).json(updated);
     } catch (err) {
+      const code = getErrorCode(err);
+      if (code === "P2025") return res.status(404).json({ error: "Vendor not found" });
       logError("Failed to update vendor", err);
       return res.status(500).json({ error: "Failed to update vendor" });
     }

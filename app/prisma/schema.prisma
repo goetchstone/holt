@@ -89,6 +89,12 @@ model Vendor {
   accountNumber   String?
   paymentTerms    String? // e.g., "Net 30"
   freightTerms    String? // e.g., "FOB Factory"
+  /// The vendor's standard lead time: days from placing an order to the goods
+  /// arriving. Set on the vendor screen. A native special-order PO takes its
+  /// expected date from it (lib/vendorLeadTime.ts); an imported PO keeps the
+  /// date the vendor's file gave. Null means not known, and then no date is
+  /// invented -- the PO shows "No ESD" until the vendor confirms one.
+  leadTimeDays    Int?
   minimumOrder    Decimal?
   address         String?
   city            String?
@@ -5218,13 +5224,17 @@ model AppSettings {
   organizationId Int          @unique
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  appName      String  @default("Holt")
-  companyName  String?
-  tagline      String?
-  logoUrl      String?
-  loginLogoUrl String?
-  faviconUrl   String?
-  supportEmail String?
+  appName       String  @default("Holt")
+  companyName   String?
+  tagline       String?
+  /// Printed at the foot of every receipt and invoice: the store's returns or
+  /// warranty note, in its own words. Null prints nothing -- there is no
+  /// universal returns policy to fall back on (CLAUDE.md rule 63).
+  receiptFooter String?
+  logoUrl       String?
+  loginLogoUrl  String?
+  faviconUrl    String?
+  supportEmail  String?
 
   theme Json? // { navy, linen, gold, gray, black, stripe, brandGray, brandBlue }
 

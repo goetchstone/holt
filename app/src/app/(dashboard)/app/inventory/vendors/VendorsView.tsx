@@ -100,6 +100,18 @@ export function VendorsView() {
     { key: "phone", label: "Phone", accessor: "phone", width: "150px" },
     { key: "city", label: "City", accessor: "city", width: "150px" },
     {
+      key: "leadTimeDays",
+      label: "Lead time",
+      accessor: "leadTimeDays",
+      width: "110px",
+      render: (row: Vendor) =>
+        row.leadTimeDays == null ? (
+          <span className="text-brand-gray">Not set</span>
+        ) : (
+          `${row.leadTimeDays} days`
+        ),
+    },
+    {
       key: "actions",
       label: "Actions",
       accessor: "id",

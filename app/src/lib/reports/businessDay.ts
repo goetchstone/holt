@@ -116,6 +116,35 @@ export function businessDayRange(dateStr: string, timeZone: string): { gte: Date
 }
 
 /**
+ * Half-open range covering calendar month `month` (1-12) of `year` in business
+ * days: from the first of the month to the first of the next, each at local
+ * midnight. A report that cuts months at UTC midnight puts an Eastern evening
+ * sale on the last of the month into the next month, and a New Year's Eve one
+ * into the next year.
+ */
+export function businessMonthRange(
+  year: number,
+  month: number,
+  timeZone: string,
+): { gte: Date; lt: Date } {
+  const first = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}-01`;
+  const next = month === 12 ? first(year + 1, 1) : first(year, month + 1);
+  return {
+    gte: businessDayStart(first(year, month), timeZone),
+    lt: businessDayStart(next, timeZone),
+  };
+}
+
+/** The same calendar date a year earlier, as YYYY-MM-DD. 29 February has no
+ *  twin, so it compares with the 28th rather than rolling into March. */
+export function sameDateLastYear(dateKey: string): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y - 1, m, 0)).getUTCDate();
+  const day = Math.min(d, lastDay);
+  return `${y - 1}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
  * Which business day an instant belongs to, as YYYY-MM-DD.
  *
  * This is the replacement for `instant.toISOString().slice(0, 10)` anywhere a

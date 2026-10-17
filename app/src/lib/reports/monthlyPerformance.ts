@@ -16,6 +16,8 @@ import {
   resolveMonthlyWeights,
 } from "@/lib/goalsConfig";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayKey, businessMonthRange } from "@/lib/reports/businessDay";
 
 export interface MonthRow {
   month: number;
@@ -66,9 +68,12 @@ export async function getMonthlyPerformance(
   params: MonthlyPerformanceParams,
 ): Promise<MonthlyPerformanceResponse> {
   const salesperson = params.salesperson;
-  const year = params.year ?? new Date().getUTCFullYear();
-  const startDate = new Date(Date.UTC(year, 0, 1));
-  const endDate = new Date(Date.UTC(year + 1, 0, 1));
+  // Years and months are the business's, not UTC's: a sale at 9pm on 31 March
+  // in New York is a March sale (lib/reports/businessDay.ts).
+  const timeZone = await getBusinessTimeZone();
+  const year = params.year ?? Number(businessDayKey(new Date(), timeZone).slice(0, 4));
+  const startDate = businessMonthRange(year, 1, timeZone).gte;
+  const endDate = businessMonthRange(year, 12, timeZone).lt;
 
   const staffRecord = await prisma.staffMember.findFirst({
     where: { displayName: { equals: salesperson, mode: "insensitive" } },
@@ -117,8 +122,9 @@ export async function getMonthlyPerformance(
   const months: MonthRow[] = [];
 
   for (let m = 0; m < 12; m++) {
-    const monthStartTs = new Date(Date.UTC(year, m, 1)).getTime();
-    const monthEndTs = new Date(Date.UTC(year, m + 1, 1)).getTime();
+    const monthRange = businessMonthRange(year, m + 1, timeZone);
+    const monthStartTs = monthRange.gte.getTime();
+    const monthEndTs = monthRange.lt.getTime();
 
     const monthOrders = allOrders.filter((o) => {
       if (!o.orderDate) return false;

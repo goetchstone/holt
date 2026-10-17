@@ -15,6 +15,7 @@ function row(overrides: Record<string, unknown> = {}) {
     appName: "Acme Retail",
     companyName: "Acme Inc",
     tagline: null,
+    receiptFooter: null,
     logoUrl: null,
     loginLogoUrl: null,
     faviconUrl: null,
@@ -38,6 +39,16 @@ describe("resolveAppSettings", () => {
     expect(r.currency).toBe("USD");
     expect(r.bookingConfig).toEqual(BOOKING_DEFAULTS);
     expect(r.themeMode).toBe("light");
+  });
+
+  it("prints no receipt footer until the store writes one", () => {
+    // There is no universal returns policy: unset must stay unset, not become
+    // someone else's "7 days with receipt" (CLAUDE.md rule 63).
+    expect(resolveAppSettings(null).receiptFooter).toBeNull();
+    expect(resolveAppSettings(row()).receiptFooter).toBeNull();
+    expect(
+      resolveAppSettings(row({ receiptFooter: "Returns within 30 days." })).receiptFooter,
+    ).toBe("Returns within 30 days.");
   });
 
   it("resolves themeMode from theme.mode, defaulting light on anything else", () => {
@@ -95,7 +106,8 @@ describe("resolveAppSettings", () => {
 describe("themeToCssVars", () => {
   it("emits RGB channel custom properties for every key", () => {
     const css = themeToCssVars(DEFAULT_THEME);
-    expect(css.startsWith(":root{")).toBe(true);
+    // Out-specifies globals.css's `:root` defaults in either source order.
+    expect(css.startsWith("html:root{")).toBe(true);
     expect(css).toContain("--brand-navy:0 38 62");
     expect(css).toContain("--brand-linen:247 245 241");
     expect(css).toContain("--brand-accent-blue:105 130 158");

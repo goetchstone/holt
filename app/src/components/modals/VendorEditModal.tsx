@@ -81,7 +81,7 @@ export default function VendorEditModal({ vendor, onClose, onSave }: VendorEditM
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-3xl shadow-xl font-serif">
         <h2 className="text-xl font-semibold text-brand-blue mb-4">Edit Vendor</h2>
 

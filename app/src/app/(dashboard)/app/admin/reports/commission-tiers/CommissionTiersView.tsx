@@ -18,10 +18,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PayoutsTab } from "@/components/commission/PayoutsTab";
+import type { CommissionTab } from "./tabs";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
 
-type Tab = "drafts" | "locked" | "calculator";
+type Tab = CommissionTab;
 
 interface Breakdown {
   tierLabel: string;
@@ -103,7 +104,7 @@ function yearStartIso(): string {
   return `${new Date().getUTCFullYear()}-01-01`;
 }
 
-export function CommissionTiersView() {
+export function CommissionTiersView({ initialTab = "drafts" }: { initialTab?: Tab } = {}) {
   const [data, setData] = useState<ReportData | null>(null);
   const [startDate, setStartDate] = useState<string>(yearStartIso());
   const [endDate, setEndDate] = useState<string>(todayIso());
@@ -112,7 +113,8 @@ export function CommissionTiersView() {
   // Default to the Drafts workspace (generate a past period → review →
   // confirm/lock). Locked Payouts is the frozen archive; Live Calculator is the
   // secondary "what-if any date range" tool.
-  const [activeTab, setActiveTab] = useState<Tab>("drafts");
+  // Reports -> Commission opens on Locked (?tab=locked), the paid history.
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -131,7 +133,7 @@ export function CommissionTiersView() {
     <div>
       <div className="mb-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <strong>Owner-confidential.</strong> SUPER_ADMIN only. Tier rates are not for distribution
-        to staff. Direct-URL access only -- not linked from any hub page.
+        to staff. Linked from Reports for the owner alone.
       </div>
 
       {/* Tabs — Drafts is the work surface (default); Locked Payouts is the

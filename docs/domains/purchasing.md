@@ -34,6 +34,27 @@ Daily imports:
 
 **Native receiving into stock** (since 2026-10-17, `lib/inventory/receiving.ts`): Damaged and Wrong Item go to the store's quarantine place (`lib/purchasing/receiptConditions.ts`, the list the Receive PO screen offers); a line raised for an open order -- its own line, or a PO raised for the whole order -- arrives committed to the order up to what it still needs, the rest free; quantities parse as fractions. See `docs/domains/inventory.md` "Document flows".
 
+## Vendor lead time (since 2026-10-17)
+
+`Vendor.leadTimeDays` is the vendor's standard lead time, in days from order to
+arrival. Set it on Inventory -> Vendors (the Edit modal; the list shows it as a
+column), which saves through `PATCH /api/vendors/[id]` (`catalog.pricing`, held
+by Buyer). The PATCH whitelist lives in `lib/vendorPatch.ts`: pricing defaults,
+contact details and lead time. The vendor NAME stays out -- importers find a
+vendor by name, so a rename would make the next import create a second one.
+
+- A **native special-order PO** (raised as a DRAFT on the order's first payment,
+  `lib/paymentService.ts` `onPaymentReceived`) takes `expectedDelivery = order
+  date + lead time` (`lib/vendorLeadTime.ts` `expectedArrival`).
+- **Unknown stays unknown.** A vendor with no lead time gives its PO no date --
+  the Delivery Planner's "No ESD" row, the one a buyer chases. No default lead
+  time is ever assumed (DECISIONS 24).
+- **Imported POs keep the date the vendor's file gave**; lead time is not
+  applied to them.
+
+Tested by `__tests__/vendorLeadTime.test.ts` and
+`__tests__/integration/specialOrderLeadTime.integration.test.ts`.
+
 ## Consignment PO Integration
 
 When a consignment vendor's PO (`Vendor.isConsignment`) transitions to RECEIVED_FULL, the import runner auto-creates a `ConsignmentPaymentBatch` and marks matching ConsignmentItems as PAID. See `docs/domains/consignment.md` for matching rules.

@@ -73,23 +73,27 @@
 
   /* shadcn/ui base tokens, mapped to the Holt brand so primitives inherit
      the look (background=linen, foreground/primary=navy, etc). Plain rgb()
-     here (no <alpha-value>) — shadcn components apply their own opacity. */
+     here (no <alpha-value>) — shadcn components apply their own opacity.
+     Every value must be a whole colour. Six of these were bare channels
+     ("255 255 255"), which is not a colour outside rgb(): bg-card rendered
+     transparent, a destructive button had no background, and primary-button
+     text fell back to whatever it inherited. */
   --color-background: rgb(var(--brand-linen));
   --color-foreground: rgb(var(--brand-black));
-  --color-card: 255 255 255;
+  --color-card: rgb(255 255 255);
   --color-card-foreground: rgb(var(--brand-black));
-  --color-popover: 255 255 255;
+  --color-popover: rgb(255 255 255);
   --color-popover-foreground: rgb(var(--brand-black));
   --color-primary: rgb(var(--brand-navy));
-  --color-primary-foreground: 255 255 255;
+  --color-primary-foreground: rgb(255 255 255);
   --color-secondary: rgb(var(--brand-stripe));
   --color-secondary-foreground: rgb(var(--brand-navy));
   --color-muted: rgb(var(--brand-stripe));
   --color-muted-foreground: rgb(var(--brand-gray));
   --color-accent: rgb(var(--brand-gold));
-  --color-accent-foreground: 255 255 255;
-  --color-destructive: 220 38 38;
-  --color-destructive-foreground: 255 255 255;
+  --color-accent-foreground: rgb(255 255 255);
+  --color-destructive: rgb(220 38 38);
+  --color-destructive-foreground: rgb(255 255 255);
   --color-border: rgb(var(--brand-accent-gray));
   --color-input: rgb(var(--brand-accent-gray));
   --color-ring: rgb(var(--brand-navy));

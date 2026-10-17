@@ -11,6 +11,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { buildLineItemWhere } from "@/lib/salesBySalesperson";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { getBusinessTimeZone } from "@/lib/appSettings";
+import { businessDayKey, businessMonthRange } from "@/lib/reports/businessDay";
 
 export interface LineItemDetail {
   partNo: string;
@@ -114,9 +116,11 @@ export async function getSalespersonDetail(
   params: SalespersonDetailParams,
 ): Promise<SalespersonDetailResponse> {
   const salesperson = params.salesperson;
-  const year = params.year ?? new Date().getUTCFullYear();
-  const startDate = new Date(Date.UTC(year, 0, 1));
-  const endDate = new Date(Date.UTC(year + 1, 0, 1));
+  // The business's year and months, not UTC's (lib/reports/businessDay.ts).
+  const timeZone = await getBusinessTimeZone();
+  const year = params.year ?? Number(businessDayKey(new Date(), timeZone).slice(0, 4));
+  const startDate = businessMonthRange(year, 1, timeZone).gte;
+  const endDate = businessMonthRange(year, 12, timeZone).lt;
 
   // Resolve staff (incl. aliases) for split attribution + name OR-match.
   // Aliases let a designer's row (`displayName='Pat'`, alias='Patricia Doe')
@@ -170,8 +174,8 @@ export async function getSalespersonDetail(
   for (const order of orders) {
     if (!order.orderDate) continue;
 
-    const d = new Date(order.orderDate);
-    const monthKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const dayKey = businessDayKey(new Date(order.orderDate), timeZone);
+    const monthKey = dayKey.slice(0, 7);
 
     const customerName = resolveCustomerName(order.customer);
     const customerId = order.customer?.id ?? null;
@@ -191,7 +195,7 @@ export async function getSalespersonDetail(
     if (isSplit) row.isSplit = true;
     row.orders.push({
       orderno: order.orderno,
-      orderDate: d.toISOString().slice(0, 10),
+      orderDate: dayKey,
       netSales: orderNet,
       isSplit,
       lineItems: order.lineItems.map((li) => ({

@@ -73,11 +73,45 @@ function vendorCode(name: string, taken: Set<string>): string {
   return code;
 }
 
+/**
+ * Each vendor's standard lead time in days (Vendor.leadTimeDays), by what it
+ * makes: custom upholstery and leather run ten to twelve weeks, case goods six
+ * to nine, lighting, rugs and textiles three to four, mattresses two.
+ *
+ * One vendor is null on purpose -- a vendor recently set up, whose lead time
+ * nobody has entered. Its POs carry no expected date ("No ESD" on the Delivery
+ * Planner), the row a buyer has to chase. Every PO date in the seed is derived
+ * from these (purchasing.ts, orderPlan.ts), never drawn at random.
+ */
+export const VENDOR_LEAD_TIME_DAYS: Record<(typeof VENDOR_NAMES)[number], number | null> = {
+  "Northshore Casegoods Co.": 56,
+  "Amberlin Upholstery Works": 77,
+  "Foundry Row Furniture": 49,
+  "Wickfield Home Collections": 28,
+  "Cobblestone Leather Guild": 84,
+  "Harborview Case & Frame": 63,
+  "Millpond Textile Mills": 28,
+  "Cedar Hollow Woodworks": 56,
+  "Larkspur Lighting Studio": 21,
+  "Bramblewood Outdoor Living": 35,
+  "Saltmarsh Metalcraft": 28,
+  "Quarry Hill Casegoods": 42,
+  "Fieldstone Mattress Co.": 14,
+  "Anchor & Ash Furniture": null,
+  "Coppermine Rug Traders": 21,
+};
+
+/** How long goods really take when the vendor's lead time is not on file --
+ *  the seed has to deliver those orders on SOME date. Never written anywhere. */
+export const UNKNOWN_VENDOR_ACTUAL_LEAD_DAYS = 45;
+
 export interface CatalogProduct {
   id: number;
   productNumber: string;
   name: string;
   vendorId: number;
+  /** The vendor's standard lead time as recorded; null when not on file. */
+  vendorLeadTimeDays: number | null;
   departmentId: number;
   categoryId: number;
   typeId: number;
@@ -89,6 +123,8 @@ export interface CatalogProduct {
 export interface CatalogSetup {
   departmentIdByName: Map<string, number>;
   vendorIds: number[];
+  /** Vendor id -> standard lead time in days, null when not on file. */
+  leadTimeByVendorId: Map<number, number | null>;
   products: CatalogProduct[];
 }
 
@@ -149,6 +185,7 @@ export async function seedCatalog(
   // --- Vendors -----------------------------------------------------------
   const takenCodes = new Set<string>();
   const vendorIds: number[] = [];
+  const leadTimeByVendorId = new Map<number, number | null>();
   for (const name of VENDOR_NAMES) {
     const code = vendorCode(name, takenCodes);
     const town = pick(rng, [
@@ -172,10 +209,12 @@ export async function seedCatalog(
         state: town.state,
         phone: `(${randInt(rng, 200, 989)}) 555-${String(randInt(rng, 0, 9999)).padStart(4, "0")}`,
         email: `orders@${code.toLowerCase()}.example.com`,
+        leadTimeDays: VENDOR_LEAD_TIME_DAYS[name],
         createdBy: SEED_ACTOR,
       },
     });
     vendorIds.push(vendor.id);
+    leadTimeByVendorId.set(vendor.id, VENDOR_LEAD_TIME_DAYS[name]);
   }
 
   // --- Products ------------------------------------------------------
@@ -228,6 +267,7 @@ export async function seedCatalog(
       productNumber: product.productNumber,
       name: product.name,
       vendorId,
+      vendorLeadTimeDays: leadTimeByVendorId.get(vendorId) ?? null,
       departmentId: departmentIdByName.get(combo.deptName)!,
       categoryId: categoryIdByKey.get(`${combo.deptName}::${combo.catName}`)!,
       typeId: typeIdByKey.get(`${combo.deptName}::${combo.catName}::${combo.typeName}`)!,
@@ -237,5 +277,5 @@ export async function seedCatalog(
     });
   }
 
-  return { departmentIdByName, vendorIds, products };
+  return { departmentIdByName, vendorIds, leadTimeByVendorId, products };
 }

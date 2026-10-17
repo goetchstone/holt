@@ -128,7 +128,7 @@ Stripe is no longer the only processor: checkout creation and webhook verificati
 
 ## Receipt print
 
-`app/print/receipt/[id]/ReceiptPrintView.tsx` — 80mm thermal, 203 DPI. The receipt is drawn onto a canvas at 640px wide (80mm at 203 DPI) and printed as a bitmap, not as HTML text. The browser handles the print dialog. Order data comes from `pages/api/print/order/[id].ts`, which is session-checked but NOT rate-limited — the 30/min limiter is on `pages/api/print-label.ts`, a different surface.
+`app/print/receipt/[id]/ReceiptPrintView.tsx` — 80mm thermal, 203 DPI. The receipt is drawn onto a canvas at 640px wide (80mm at 203 DPI) and printed as a bitmap, not as HTML text. The browser handles the print dialog. The printed page is 80mm wide and exactly as long as the drawn receipt (`lib/receiptPage.ts` `receiptPageRule`, two lengths). It asked for `size: 80mm auto` until 2026-10-17 -- invalid CSS, so the browser dropped it, the global landscape-Letter `@page` in `globals.css` won, and "Save as PDF" gave an 11x8.5in page with a strip of receipt on it (measured with headless Chrome; `__tests__/receiptPage.test.ts`). The store tagline (`AppSettings.tagline`) prints under the name and the store's returns note (`AppSettings.receiptFooter`, Admin -> Settings) at the foot, so both must be written for customers; an unset footer prints nothing. Order data comes from `pages/api/print/order/[id].ts`, which is session-checked but NOT rate-limited — the 30/min limiter is on `pages/api/print-label.ts`, a different surface.
 
 No auto-print on order confirmation yet (master plan G3 / Phase 1).
 

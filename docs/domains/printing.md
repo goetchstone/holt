@@ -6,7 +6,7 @@ Receipt + invoice rendering and ZPL label printing to network thermal printers. 
 
 | Path | Use case | Driver |
 |---|---|---|
-| **HTML print page** | Receipts (80mm thermal), invoices (letter), proposals | Browser print dialog — `pages/print/receipt/[id].tsx`, `pages/print/invoice/[id].tsx` |
+| **HTML print page** | Receipts (80mm thermal), invoices (letter), proposals | Browser print dialog — `app/print/receipt/[id]/`, `app/print/invoice/[id]/` |
 | **Direct ZPL** | Product labels, shelf tags, pick tickets | TCP socket to printer IP:9100 — `lib/labelPrinter.ts` |
 
 The browser-driven path is operator-controlled (they hit Cmd-P, choose printer). The ZPL path is server-side fire-and-forget — operator clicks a button, label spits out.
@@ -60,16 +60,26 @@ The batch endpoint caps at 50 items and 10 copies per item (max 500 labels per c
 
 ## HTML print pages
 
-`pages/print/receipt/[id].tsx` (80mm thermal, 203 DPI):
+`app/print/receipt/[id]/ReceiptPrintView.tsx` (80mm thermal, 203 DPI; pinned against source 2026-10-17):
 
-- Renders the order at a fixed 280px wide layout (203 DPI × 1.6")
-- CSS `@media print` strips chrome and shrinks font for the thermal head
-- Total cross-checked against sum-of-lines + tax + payments to catch any silent inflation (CLAUDE.md gotcha enforcement)
+- Draws the whole receipt on a canvas 640px wide (80mm at 203 DPI) and prints it as an image, so a
+  thermal head gets crisp pixels rather than antialiased text.
+- The printed page is 80mm wide and exactly as long as the receipt: `lib/receiptPage.ts`
+  `receiptPageRule` builds `@page { size: 80mm <length>mm }` from the canvas height. Until 2026-10-17
+  it asked for `size: 80mm auto`, which is invalid (`size` takes one or two lengths, never a length
+  and `auto`), so the browser dropped it and the unscoped landscape-Letter `@page` in
+  `styles/globals.css` won: "Save as PDF" produced an 11x8.5in page.
+- Header: store name, address, and `AppSettings.tagline`; footer: a thank-you line, then the store's own
+  `AppSettings.receiptFooter` (its returns or warranty note, set in Admin -> Settings, word-wrapped to the
+  paper by `lib/receiptPage.ts` `wrapText`). Unset prints nothing; it was a hardcoded "Returns within 7 days
+  with receipt." for every deployment until 2026-10-17. The invoice prints the same note in its footer.
+- Total cross-checked against sum-of-lines + tax + payments [NEEDS VERIFICATION].
 
-`pages/print/invoice/[id].tsx` (letter):
+`app/print/invoice/[id]/InvoicePrintView.tsx` (letter, `@page { size: letter; margin: 0.75in }`):
 
 - Full-page layout with header (the company brand), line table, totals, payment summary
-- Email-friendly: also rendered to PDF via the proposal-PDF infrastructure when sent rather than printed
+- Email-friendly: also rendered to PDF via the proposal-PDF infrastructure when sent rather than
+  printed [NEEDS VERIFICATION]
 
 ## Printer admin
 

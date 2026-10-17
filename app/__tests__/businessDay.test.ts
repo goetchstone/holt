@@ -7,7 +7,14 @@
 // Pure functions only — the timezone is a parameter, so none of this needs a
 // database. getBusinessTimeZone (the one async part) is covered in CI.
 
-import { businessDayKey, businessDayRange, businessDayStart } from "@/lib/reports/businessDay";
+import {
+  businessDayKey,
+  businessDayRange,
+  businessDayStart,
+  businessMonthRange,
+  sameDateLastYear,
+} from "@/lib/reports/businessDay";
+import { getDateRanges } from "@/lib/reports/dateRanges";
 
 const ET = "America/New_York";
 const PT = "America/Los_Angeles";
@@ -79,5 +86,62 @@ describe("businessDayStart / businessDayRange", () => {
       expect(businessDayKey(gte, ET)).toBe(day);
       expect(businessDayKey(new Date(lt.getTime() - 1), ET)).toBe(day);
     }
+  });
+});
+
+describe("sameDateLastYear — the dashboard's LY comparison", () => {
+  it("is the same calendar date a year earlier", () => {
+    expect(sameDateLastYear("2026-10-17")).toBe("2025-10-17");
+    expect(sameDateLastYear("2026-01-01")).toBe("2025-01-01");
+    expect(sameDateLastYear("2026-12-31")).toBe("2025-12-31");
+  });
+
+  it("compares 29 February with the 28th, not 1 March", () => {
+    expect(sameDateLastYear("2028-02-29")).toBe("2027-02-28");
+  });
+
+  it("keeps the 29th when last year had one", () => {
+    expect(sameDateLastYear("2029-02-28")).toBe("2028-02-28");
+    expect(sameDateLastYear("2029-03-01")).toBe("2028-03-01");
+  });
+});
+
+describe("businessMonthRange — a month is the business's month", () => {
+  const NY = "America/New_York";
+
+  it("runs from local midnight on the 1st to local midnight on the next 1st", () => {
+    const jan = businessMonthRange(2026, 1, NY);
+    expect(jan.gte.toISOString()).toBe("2026-01-01T05:00:00.000Z");
+    expect(jan.lt.toISOString()).toBe("2026-02-01T05:00:00.000Z");
+  });
+
+  it("keeps a 9pm sale on the 31st in its own month", () => {
+    const sale = new Date("2026-02-01T02:00:00.000Z"); // 9pm 31 Jan in New York
+    const jan = businessMonthRange(2026, 1, NY);
+    expect(sale >= jan.gte && sale < jan.lt).toBe(true);
+  });
+
+  it("rolls December into January of the next year", () => {
+    expect(businessMonthRange(2025, 12, NY).lt.toISOString()).toBe("2026-01-01T05:00:00.000Z");
+  });
+
+  it("follows daylight time: a summer month starts at 04:00 UTC", () => {
+    expect(businessMonthRange(2026, 7, NY).gte.toISOString()).toBe("2026-07-01T04:00:00.000Z");
+  });
+});
+
+describe("getDateRanges in a business timezone", () => {
+  it("puts every MTD/YTD boundary at the zone's midnight", () => {
+    const r = getDateRanges("2026-03-24", "America/New_York");
+    expect(r.ytd.start.toISOString()).toBe("2026-01-01T05:00:00.000Z");
+    // 8 March is the DST change: 25 March starts at 04:00 UTC.
+    expect(r.mtd.end.toISOString()).toBe("2026-03-25T04:00:00.000Z");
+    expect(r.prevYtd.end.toISOString()).toBe("2025-03-25T04:00:00.000Z");
+  });
+
+  it("is unchanged in UTC, its default", () => {
+    const r = getDateRanges("2026-03-24");
+    expect(r.ytd.start.toISOString()).toBe("2026-01-01T00:00:00.000Z");
+    expect(r.mtd.end.toISOString()).toBe("2026-03-25T00:00:00.000Z");
   });
 });

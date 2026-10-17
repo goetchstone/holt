@@ -48,7 +48,7 @@ const STATUS_CONFIG: Record<
     label: "With Client",
   },
   ON_BREAK: {
-    bg: "bg-gray-50",
+    bg: "bg-brand-stripe",
     border: "border-brand-gray/40",
     text: "text-brand-gray",
     badge: "bg-brand-gray/10 text-brand-gray",
@@ -56,9 +56,9 @@ const STATUS_CONFIG: Record<
   },
   AVAILABLE: {
     bg: "bg-white",
-    border: "border-gray-200",
+    border: "border-brand-accent-gray",
     text: "text-brand-black",
-    badge: "bg-gray-100 text-brand-gray",
+    badge: "bg-brand-stripe text-brand-gray",
     label: "Available",
   },
 };
@@ -147,7 +147,7 @@ export default function UpBoard({ store, storeLabel }: UpBoardProps) {
 
   if (loading) {
     return (
-      <div className="bg-white border border-gray-200 rounded-sm p-6">
+      <div className="bg-white border border-brand-accent-gray/60 rounded-lg p-6">
         <h3 className="font-serif-display text-brand-blue text-lg tracking-wide mb-3">
           {storeLabel}
         </h3>
@@ -157,16 +157,16 @@ export default function UpBoard({ store, storeLabel }: UpBoardProps) {
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-sm p-5">
+    <div className="bg-white border border-brand-accent-gray/60 rounded-lg p-5">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+      <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-brand-stripe">
         <h3 className="font-serif-display text-brand-blue text-lg tracking-wide">{storeLabel}</h3>
         <button
           onClick={() => {
             fetchStaff();
             setShowClockIn(!showClockIn);
           }}
-          className="text-sm font-serif-condensed font-semibold tracking-wide px-4 py-2 rounded-lg border border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white transition shadow-sm"
+          className="min-h-11 shrink-0 text-sm font-serif-condensed font-semibold tracking-wide px-4 rounded-lg border border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white transition shadow-sm"
         >
           Sign In
         </button>
@@ -174,7 +174,7 @@ export default function UpBoard({ store, storeLabel }: UpBoardProps) {
 
       {/* Clock-in panel */}
       {showClockIn && (
-        <div className="mb-4 border border-gray-100 bg-brand-linen p-3 max-h-52 overflow-y-auto">
+        <div className="mb-4 border border-brand-stripe bg-brand-linen p-3 max-h-64 overflow-y-auto rounded-md">
           {clockInNotice ? (
             <div className="text-xs text-brand-gray italic py-2 text-center">{clockInNotice}</div>
           ) : (
@@ -183,7 +183,7 @@ export default function UpBoard({ store, storeLabel }: UpBoardProps) {
                 <button
                   key={s.id}
                   onClick={() => clockIn(s.id)}
-                  className="block w-full text-left px-3 py-2 text-sm font-serif text-brand-blue hover:bg-white transition-colors rounded-sm"
+                  className="block w-full min-h-11 text-left px-3 py-2.5 text-sm font-serif text-brand-blue hover:bg-white transition-colors rounded-md"
                 >
                   {s.displayName}
                   <span className="text-xs text-brand-gray ml-2 font-sans uppercase tracking-wider">
@@ -232,12 +232,12 @@ function EntryRow({
 
   return (
     <div
-      className={`px-4 py-2.5 border ${cfg.border} ${cfg.bg} ${
+      className={`px-4 py-3 rounded-md border ${cfg.border} ${cfg.bg} ${
         isUp ? "border-l-4 shadow-sm" : "border-l-2"
       } transition-all`}
     >
       {/* Top row: name + badge */}
-      <div className="flex items-center gap-2 mb-1.5">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
         <span className={`font-serif text-sm ${cfg.text}`}>{entry.staffMember.displayName}</span>
         <span
           className={`text-[10px] font-sans uppercase tracking-widest px-2 py-0.5 rounded-sm ${cfg.badge}`}
@@ -250,7 +250,7 @@ function EntryRow({
       </div>
 
       {/* Bottom row: action buttons */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-2">
         {entry.status === "UP" && (
           <ActionBtn
             label="Take Client"
@@ -286,6 +286,9 @@ function EntryRow({
   );
 }
 
+// 44px tall: these are tapped on an iPad on the showroom floor, often while
+// talking to a customer, and Apple's minimum touch target is 44pt. They were
+// 26px, with 11px labels.
 function ActionBtn({
   label,
   onClick,
@@ -303,7 +306,7 @@ function ActionBtn({
   return (
     <button
       onClick={onClick}
-      className={`text-[11px] font-serif-condensed font-semibold tracking-wide px-3 py-1.5 rounded-lg transition shadow-sm ${styles[variant]}`}
+      className={`min-h-11 text-sm font-serif-condensed font-semibold tracking-wide px-4 rounded-lg transition shadow-sm ${styles[variant]}`}
     >
       {label}
     </button>

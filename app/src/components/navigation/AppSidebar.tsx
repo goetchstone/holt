@@ -85,19 +85,36 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
+        {/* The name is written out beside the mark, so the mark must never be
+            the name too. BrandLogo's no-logo fallback is a full-size wordmark,
+            and here it rendered navy on the navy sidebar: invisible, but still
+            taking most of the 240px and leaving the visible name to truncate
+            to "Holt H...". Without a logo the mark is the name's initial. */}
         <Link
           href="/app"
           onClick={onClose}
+          title={branding.appName}
           className="flex h-16 items-center gap-3 px-5 border-b border-white/10"
         >
-          <BrandLogo
-            appName={branding.appName}
-            logoUrl={branding.logoUrl}
-            width={32}
-            height={32}
-            className="rounded object-contain"
-          />
-          <span className="truncate font-serif text-lg">{branding.appName}</span>
+          {branding.logoUrl ? (
+            <BrandLogo
+              appName={branding.appName}
+              logoUrl={branding.logoUrl}
+              width={32}
+              height={32}
+              className="h-8 w-8 shrink-0 rounded object-contain"
+            />
+          ) : (
+            <span
+              aria-hidden="true"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/15 font-serif text-base font-semibold"
+            >
+              {branding.appName.trim().charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className="line-clamp-2 min-w-0 font-serif text-base leading-tight">
+            {branding.appName}
+          </span>
         </Link>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">

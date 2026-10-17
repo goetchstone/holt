@@ -13,9 +13,9 @@
 // missed -- nothing generates them, somebody types them in -- and exactly why
 // a demo has to ship them, because a viewer will not type them in either.
 
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, UpBoardStatus } from "@prisma/client";
 import type { Rng } from "./rng";
-import { randInt, subRng } from "./rng";
+import { pick, randInt, shuffle, subRng } from "./rng";
 import type { StaffSetup } from "./staff";
 import type { StoreSetup } from "./locations";
 
@@ -124,6 +124,8 @@ export interface SetupDataResult {
   labelTemplates: number;
   salesGoals: number;
   upBoardEntries: number;
+  /** Today's open shifts: the people on the up boards. */
+  openShifts: number;
   trafficDays: number;
 }
 
@@ -142,6 +144,7 @@ export async function seedSetupData(
     labelTemplates: 0,
     salesGoals: 0,
     upBoardEntries: 0,
+    openShifts: 0,
     trafficDays: 0,
   };
 
@@ -186,28 +189,77 @@ export async function seedSetupData(
   }
 
   // ---- the up board -----------------------------------------------------
-  // "Designer Rotation" on the dashboard read "No one signed in" for every
-  // store. That board is UpBoardEntry, which is a different thing from
-  // CustomerInteraction: an interaction is a conversation that happened, an
-  // up-board entry is who is on the floor right now and whose turn it is.
+  // "Designer Rotation" on the dashboard: who is on the floor right now and
+  // whose turn it is, per showroom. That board is UpBoardEntry, which is a
+  // different thing from CustomerInteraction: an interaction is a conversation
+  // that happened, an up-board entry is who is on the floor right now.
   //
-  // Each store gets a rotation with one designer actually next up, one with a
-  // customer, and one on a break -- because a board where everyone is simply
-  // AVAILABLE cannot show that it is a rotation.
-  const boardStatuses = ["UP", "WITH_CUSTOMER", "AVAILABLE", "ON_BREAK", "AVAILABLE"] as const;
-  for (const store of stores) {
-    const onFloor = staff.designers.filter((d) => d.isActive).slice(0, boardStatuses.length);
-    for (const [i, designer] of onFloor.entries()) {
-      const status = boardStatuses[i];
-      await prisma.upBoardEntry.create({
+  // Each seller is on the board at their OWN showroom, the way the floor works:
+  // clocking in (pages/api/upboard/clock-in.ts) opens a shift at one store and
+  // puts them on that store's board, and nowhere else. Until 2026-10-17 every
+  // store got the same five designers in the same five states -- the same
+  // people signed in at both showrooms, doing the same thing at each.
+  //
+  // So: a store's designers and non-designer floor sellers, one of them off
+  // today, each with an open shift from this morning, in a mix of states that
+  // differs per store. A board where everyone is simply AVAILABLE cannot show
+  // that it is a rotation.
+  //
+  // The board reads as "now" for nine hours: lib/upboard.ts closes any shift
+  // older than that on every read, and takes its holder off the board. A demo
+  // looked at the next day shows an empty floor until someone clocks in.
+  const STATE_MIXES: UpBoardStatus[][] = [
+    ["UP", "AVAILABLE", "WITH_CUSTOMER", "WITH_CUSTOMER", "ON_BREAK", "AVAILABLE"],
+    ["UP", "WITH_CUSTOMER", "AVAILABLE", "ON_BREAK", "AVAILABLE"],
+  ];
+  // Rotation order: whoever is up, then those waiting, then whoever is on a
+  // break, then those with a customer -- taking a customer sends you to the back.
+  const ROTATION_RANK: Record<UpBoardStatus, number> = {
+    UP: 0,
+    AVAILABLE: 1,
+    ON_BREAK: 2,
+    WITH_CUSTOMER: 3,
+  };
+  const CUSTOMER_NOTES = [
+    "Walk-in, looking at sectionals",
+    "Returning client, dining table for eight",
+    "Couple measuring for a bedroom set",
+    "Designer referral, rug for a living room",
+  ];
+  for (const [storeIndex, store] of stores.entries()) {
+    const sellers = shuffle(
+      sRng,
+      [...staff.designers, ...staff.floorSellers].filter(
+        (m) => m.isActive && m.homeStoreId === store.id,
+      ),
+    );
+    const onShift = sellers.length > 2 ? sellers.slice(1) : sellers;
+    const mix = STATE_MIXES[storeIndex % STATE_MIXES.length];
+    const board = onShift
+      .map((member, i) => ({ member, status: mix[i % mix.length] }))
+      .sort((x, y) => ROTATION_RANK[x.status] - ROTATION_RANK[y.status]);
+
+    for (const [position, { member, status }] of board.entries()) {
+      const clockIn = new Date(today.getTime() - randInt(sRng, 90, 300) * 60_000);
+      await prisma.staffShift.create({
         data: {
-          staffMemberId: designer.id,
+          staffMemberId: member.id,
           storeLocation: store.name,
           storeLocationId: store.id,
-          position: i + 1,
+          clockIn,
+        },
+      });
+      result.openShifts += 1;
+      const sinceMinutes = randInt(sRng, 3, status === "ON_BREAK" ? 25 : 70);
+      await prisma.upBoardEntry.create({
+        data: {
+          staffMemberId: member.id,
+          storeLocation: store.name,
+          storeLocationId: store.id,
+          position: position + 1,
           status,
-          statusSince: new Date(today.getTime() - randInt(sRng, 5, 180) * 60_000),
-          customerNote: status === "WITH_CUSTOMER" ? "Walk-in, looking at sectionals" : null,
+          statusSince: new Date(today.getTime() - sinceMinutes * 60_000),
+          customerNote: status === "WITH_CUSTOMER" ? pick(sRng, CUSTOMER_NOTES) : null,
         },
       });
       result.upBoardEntries += 1;
