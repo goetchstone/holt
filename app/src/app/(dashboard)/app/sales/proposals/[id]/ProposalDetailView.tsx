@@ -17,6 +17,7 @@ import { toast } from "react-toastify";
 import { Save, FileDown, ShoppingCart, Plus, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { parseQty } from "@/lib/inventory/qtyInput";
 
 // --- Types ---
 
@@ -176,7 +177,7 @@ export function ProposalDetailView({ id }: { id: string }) {
         itemDescription: newItem.itemDescription || null,
         cost: Number(newItem.cost),
         retailPrice: Number(newItem.retailPrice),
-        quantity: Number(newItem.quantity) || 1,
+        quantity: parseQty(newItem.quantity) ?? 1,
       });
       setNewItem({
         itemName: "",
@@ -495,9 +496,15 @@ export function ProposalDetailView({ id }: { id: string }) {
                   <input
                     id={`li-qty-${li.id}`}
                     type="number"
-                    min="1"
+                    min="0"
+                    step="any"
                     value={li.quantity}
-                    onChange={(e) => handleUpdateItem(li.id, "quantity", Number(e.target.value))}
+                    onChange={(e) => {
+                      // Fractional (fabric is quoted by the yard). A box
+                      // mid-edit ("" or "0") is not a quantity yet: wait.
+                      const quantity = parseQty(e.target.value);
+                      if (quantity != null) handleUpdateItem(li.id, "quantity", quantity);
+                    }}
                     className="block w-16 border border-brand-gray/30 rounded px-2 py-1 text-sm min-h-[44px]"
                     disabled={!isEditable}
                   />
@@ -629,7 +636,8 @@ export function ProposalDetailView({ id }: { id: string }) {
                 />
                 <input
                   type="number"
-                  min="1"
+                  min="0"
+                  step="any"
                   value={newItem.quantity}
                   onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
                   placeholder="Qty"

@@ -19,6 +19,7 @@
 // transactional write of the draft graph.
 
 import type { BuyerDraftSource } from "@prisma/client";
+import { parseQty } from "./inventory/qtyInput";
 
 /** Subset of PurchaseOrder we read for the import. */
 export interface PurchaseOrderForImport {
@@ -66,7 +67,7 @@ export interface DraftPoCreateShape {
 
 /** Create-shape for one `BuyerDraftItem` row. All field types match the
  *  Prisma create-input shape — strings for the Decimal fields (Prisma
- *  accepts string for Decimal inputs), Int for `qty`. */
+ *  accepts string for Decimal inputs), a number for `qty`. */
 export interface DraftItemCreateShape {
   vendorId: number;
   vendorName: string;
@@ -124,9 +125,10 @@ export interface BuildImportResult {
  *                 display fallback will surface the catalog value if the
  *                 buyer's draft is blank — but Decimal columns aren't
  *                 nullable on items so we must seed SOMETHING)
- *      * qty = orderedQuantity, coerced to int (Decimal → number → trunc).
- *              Real POs occasionally carry fractional qty (e.g. fabric
- *              yardage) but the draft model uses Int. Truncate. Lines
+ *      * qty = orderedQuantity to the stock precision. A real PO for
+ *              fabric orders yards, and the draft keeps them: 12.5 yards
+ *              drafts as 12.5 (until 2026-10-17 it was truncated to 12,
+ *              when the draft column was Int). Lines
  *              with qty <= 0 are SKIPPED + logged in `skipped` per
  *              CLAUDE.md rule 31 (zero-quantity the POS rows are
  *              cancelled lines — see partial-receive workflow note in
@@ -175,8 +177,8 @@ export function buildImportFromPurchaseOrder(po: PurchaseOrderForImport): BuildI
     // on the original PO (qty=0) and a NEW PO is created for the missing
     // items. Without this skip, the cancelled remainders would clutter
     // every historical-import as ghost qty=1 lines.
-    const rawQty = Number(li.orderedQuantity.toString());
-    if (!Number.isFinite(rawQty) || rawQty <= 0) {
+    const qty = parseQty(li.orderedQuantity.toString());
+    if (qty === null) {
       skipped.push({
         purchaseOrderItemId: li.id,
         reason: "zero-quantity",
@@ -186,7 +188,6 @@ export function buildImportFromPurchaseOrder(po: PurchaseOrderForImport): BuildI
     }
     const costStr = li.unitCost.toString();
     const retailStr = li.product.baseRetail ? li.product.baseRetail.toString() : costStr;
-    const qtyInt = Math.max(1, Math.trunc(rawQty));
     draftItems.push({
       vendorId: po.vendorId,
       vendorName: po.vendor.name,
@@ -194,7 +195,7 @@ export function buildImportFromPurchaseOrder(po: PurchaseOrderForImport): BuildI
       productName: li.productName ?? li.product.name,
       cost: costStr,
       retail: retailStr,
-      qty: qtyInt,
+      qty,
       fulfilledProductId: li.product.id,
       fulfilledAt: po.orderDate,
       status: "FULFILLED",

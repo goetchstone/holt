@@ -2282,7 +2282,8 @@ model BuyerDraftItem {
   // ── PO grouping ──────────────────────────────────────────────────────
   draftPoId Int?
   draftPo   BuyerDraftPurchaseOrder? @relation(fields: [draftPoId], references: [id])
-  qty       Int                      @default(1)
+  /// Fractional like the stock it buys: fabric is ordered by the yard.
+  qty       Decimal                  @default(1) @db.Decimal(12, 3)
 
   // ── Where it lands ───────────────────────────────────────────────────
   stockLocationId Int?
@@ -4954,7 +4955,8 @@ model ProposalLineItem {
 
   cost        Decimal
   retailPrice Decimal
-  quantity    Int     @default(1)
+  /// Fractional like the order line it becomes: fabric is quoted by the yard.
+  quantity    Decimal @default(1) @db.Decimal(12, 3)
 
   selectedGrade   String?
   selectedFinish  String?

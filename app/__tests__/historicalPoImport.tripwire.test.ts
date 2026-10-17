@@ -150,7 +150,7 @@ describe("historicalPoImport handlers — source-text tripwires", () => {
     // import them as qty=1 phantoms — that would inflate the buy
     // performance report's "qty ordered" totals.
     expect(HELPER_SRC).toMatch(/zero-quantity/);
-    expect(HELPER_SRC).toMatch(/rawQty\s*<=\s*0/);
+    expect(HELPER_SRC).toMatch(/parseQty\(li\.orderedQuantity\.toString\(\)\)/);
   });
 
   // Slice 6.13.2 (2026-07-24) — forward-flow double-count guard.

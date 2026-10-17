@@ -10,6 +10,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { buildPoUpdateData } from "@/lib/buyerDraftRequestBody";
+import { draftItemForClient } from "@/lib/buyerDraftQty";
 
 export default requirePermission(
   "admin.settings",
@@ -44,7 +45,7 @@ async function getOne(id: number, res: NextApiResponse) {
       },
     });
     if (!po) return res.status(404).json({ error: "Not found" });
-    return res.status(200).json({ po });
+    return res.status(200).json({ po: { ...po, items: po.items.map(draftItemForClient) } });
   } catch (err) {
     logError("buyer-drafts/pos get failed", err);
     return res.status(500).json({ error: "Failed to fetch draft PO" });

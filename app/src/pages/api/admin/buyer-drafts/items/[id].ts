@@ -11,6 +11,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { buildItemUpdateData } from "@/lib/buyerDraftRequestBody";
+import { draftItemForClient } from "@/lib/buyerDraftQty";
 import { isCompatiblePoForItem } from "@/lib/buyerDraftValidation";
 
 export default requirePermission(
@@ -42,7 +43,7 @@ async function getOne(id: number, res: NextApiResponse) {
       },
     });
     if (!item) return res.status(404).json({ error: "Not found" });
-    return res.status(200).json({ item });
+    return res.status(200).json({ item: draftItemForClient(item) });
   } catch (err) {
     logError("buyer-drafts get failed", err);
     return res.status(500).json({ error: "Failed to fetch draft item" });
@@ -67,7 +68,7 @@ async function update(id: number, req: NextApiRequest, res: NextApiResponse) {
 
   try {
     const updated = await prisma.buyerDraftItem.update({ where: { id }, data });
-    return res.status(200).json({ item: updated });
+    return res.status(200).json({ item: draftItemForClient(updated) });
   } catch (err) {
     if (err instanceof Error && err.message.includes("Record to update not found")) {
       return res.status(404).json({ error: "Not found" });

@@ -154,6 +154,13 @@ This is CLAUDE.md rule 33. Do not maintain the enforcing-file list by hand -- th
 
 `Proposal`, `ProposalLineItem`, `ProposalItemImage` models. List at `/app/sales/proposals`, builder at `/app/sales/proposals/[id]` (MANAGER/ADMIN only). User-entered cost + retail pricing. Image upload per line item. PDF generation via jsPDF. Convert to SalesOrder via `/api/proposals/[id]/convert-to-order`. Proposal number format: `BP-YYMMDD-NNN`.
 
+**Line quantity is fractional** (migration `20261022120000_draft_and_proposal_qty_decimal`, 2026-10-17). Fabric is quoted by the yard, so `ProposalLineItem.quantity` is `Decimal(12,3)`, like the `OrderLineItem.orderedQuantity` it becomes. While it was `Int`, a line of 12.5 yards was stored and ordered as 12, and a quantity that was not a number answered 500 (`draftAndProposalQtyFractional.integration.test.ts`). Now:
+
+- **Writing.** The add and edit routes read a quantity with `parseQty` (`lib/inventory/qtyInput.ts`). A quantity that is not a number greater than zero is a 400. An add with no quantity is 1.
+- **Reading.** `GET /api/proposals/[id]` and the add and edit routes send each line through `proposalLineForClient` (`lib/proposalQty.ts`), because JSON sends a Decimal as text.
+- **Converting.** Convert-to-order orders the fractional quantity and prices the whole line from it.
+- **PDF.** An item page shows "each × quantity = line" for every quantity but 1 (`itemPriceText` in `lib/proposalPdf.ts`). The test used to be `> 1`, so half a yard showed a whole yard's price as the line.
+
 ## Pipeline Page
 
 Quote cards show:

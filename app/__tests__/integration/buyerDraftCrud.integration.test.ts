@@ -32,7 +32,7 @@ describe("BuyerDraftItem CRUD against real DB", () => {
     expect(item.id).toBeGreaterThan(0);
     expect(item.status).toBe("DRAFT"); // default
     expect(item.source).toBe("MANUAL"); // default
-    expect(item.qty).toBe(1); // default
+    expect(item.qty.toNumber()).toBe(1); // default
     expect(item.stockProgram).toBe(false); // default
   });
 

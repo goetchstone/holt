@@ -18,6 +18,7 @@ import {
   BuyerDraftItemType,
   BuyerDraftBuyStatus,
 } from "@prisma/client";
+import { parseQty } from "./inventory/qtyInput";
 
 // ─── Whitelisted enum values ──────────────────────────────────────────
 
@@ -202,12 +203,21 @@ export function connectOrDisconnect(
   return { connect: { id: n } };
 }
 
-/** Validate qty: must be a non-negative integer, throws TypeError otherwise. */
+/**
+ * A typed qty to the stock precision, or null when it is not one. Fractional,
+ * because fabric is drafted by the yard: an integer check here stored a typed
+ * 12.5 yards as 1 and refused 12.5 on edit. Zero stays a qty -- a line the
+ * buyer holds at none, as a backordered row imports.
+ */
+function parseDraftQty(value: unknown): number | null {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  return Number(value) === 0 ? 0 : parseQty(value);
+}
+
+/** Validate qty: a number, zero or more, to three places; throws TypeError otherwise. */
 export function validatedQty(value: unknown): number {
-  const q = Number(value);
-  if (!Number.isInteger(q) || q < 0) {
-    throw new TypeError("qty must be a non-negative integer");
-  }
+  const q = parseDraftQty(value);
+  if (q === null) throw new TypeError("qty must be a non-negative number");
   return q;
 }
 
@@ -485,7 +495,7 @@ export function buildItemCreateData(
     stockProgram: Boolean(body.stockProgram),
     stockFamily: optionalString(body.stockFamily),
     draftPoId: optionalInt(body.draftPoId),
-    qty: optionalInt(body.qty) ?? 1,
+    qty: parseDraftQty(body.qty) ?? 1,
     stockLocationId: optionalInt(body.stockLocationId),
     barcode: optionalString(body.barcode),
     source: pickEnum(body.source, VALID_SOURCES, "MANUAL"),

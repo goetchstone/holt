@@ -21,6 +21,7 @@ import {
   type DraftPoForExport,
 } from "@/lib/buyerDraftExport";
 import { buildPosWhere } from "@/lib/buyerDraftExportFilters";
+import { toQty } from "@/lib/inventory/quantity";
 import { Prisma } from "@prisma/client";
 import crypto from "node:crypto";
 
@@ -80,7 +81,7 @@ export default requirePermission(
           categoryName: r.category?.name ?? null,
           stockFamily: r.stockFamily,
           supplierName: r.vendor?.name ?? r.vendorName,
-          qty: r.qty,
+          qty: toQty(r.qty),
           draftPoId: r.draftPoId,
           stockLocationCode: r.stockLocation?.code ?? null,
           barcode: r.barcode,

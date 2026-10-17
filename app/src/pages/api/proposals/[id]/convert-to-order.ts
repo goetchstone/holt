@@ -11,6 +11,7 @@ import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate"
 import { getAppSettings } from "@/lib/appSettings";
 import { nextOrderNumber } from "@/lib/orderNumber";
 import { effectivePrefix } from "@/lib/numberingPrefix";
+import { toQty } from "@/lib/inventory/quantity";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -89,7 +90,8 @@ export default requireAuthWithRole(
         // Create line items from proposal
         for (let i = 0; i < proposal.lineItems.length; i++) {
           const item = proposal.lineItems[i];
-          const lineTotal = round2(Number(item.retailPrice) * item.quantity);
+          const quantity = toQty(item.quantity);
+          const lineTotal = round2(Number(item.retailPrice) * quantity);
           // Banded against this line's own amount: a TaxRule may gate on
           // triggerPrice/startPrice, so the rate is per line, not per order.
           const lineRate = isTaxExempt ? 0 : rateForLineAmount(taxDistrict.rules, lineTotal).rate;
@@ -101,7 +103,7 @@ export default requireAuthWithRole(
               vendorStyleId: item.vendorStyleId,
               productName: item.itemName,
               partNo: item.partNumber,
-              orderedQuantity: item.quantity,
+              orderedQuantity: quantity,
               // LINE totals, not unit prices. ProposalLineItem.retailPrice and
               // .cost are per-unit ("$X each x N" in the proposal PDF), while
               // OrderLineItem.netPrice/cost are line totals summed directly by
@@ -111,7 +113,7 @@ export default requireAuthWithRole(
               // multi-quantity line, while tax was computed on the full line --
               // so the two disagreed on the same row.
               netPrice: lineTotal,
-              cost: round2(Number(item.cost ?? 0) * item.quantity),
+              cost: round2(Number(item.cost ?? 0) * quantity),
               vatRate: lineRate,
               vatAmount: round2(lineTotal * lineRate),
               selectedGrade: item.selectedGrade,

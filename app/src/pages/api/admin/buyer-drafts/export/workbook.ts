@@ -26,6 +26,7 @@ import { Prisma } from "@prisma/client";
 import { buildBuyerWorkbook, type WorkbookItem, type WorkbookBuy } from "@/lib/buyerDraftWorkbook";
 import { buildWorkbookItemsWhere } from "@/lib/buyerDraftExportFilters";
 import { getAppSettings } from "@/lib/appSettings";
+import { toQty } from "@/lib/inventory/quantity";
 import * as XLSX from "xlsx";
 
 export default requirePermission(
@@ -89,7 +90,7 @@ export default requirePermission(
         // the workbook reflects what the buyer sees on the card.
         description: r.description ?? r.fulfilledProduct?.description ?? null,
         barcode: r.barcode ?? null,
-        qty: r.qty,
+        qty: toQty(r.qty),
         cost: toNumber(r.cost),
         retail: toNumber(r.retail),
         msrp: r.msrp ? toNumber(r.msrp) : null,

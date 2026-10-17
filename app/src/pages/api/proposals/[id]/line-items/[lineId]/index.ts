@@ -7,6 +7,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { parseQty } from "@/lib/inventory/qtyInput";
+import { proposalLineForClient } from "@/lib/proposalQty";
 
 export default requireAuthWithRole(
   ["MANAGER", "ADMIN"],
@@ -45,7 +47,14 @@ async function handlePut(lineId: number, req: NextApiRequest, res: NextApiRespon
     if (partNumber !== undefined) data.partNumber = partNumber;
     if (cost !== undefined) data.cost = Number(cost);
     if (retailPrice !== undefined) data.retailPrice = Number(retailPrice);
-    if (quantity !== undefined) data.quantity = Number(quantity);
+    if (quantity !== undefined) {
+      // Fractional: fabric is quoted by the yard.
+      const qty = parseQty(quantity);
+      if (qty === null) {
+        return res.status(400).json({ error: "quantity must be a number greater than zero" });
+      }
+      data.quantity = qty;
+    }
     if (selectedGrade !== undefined) data.selectedGrade = selectedGrade;
     if (selectedFinish !== undefined) data.selectedFinish = selectedFinish;
     if (selectedOptions !== undefined) data.selectedOptions = selectedOptions;
@@ -58,7 +67,7 @@ async function handlePut(lineId: number, req: NextApiRequest, res: NextApiRespon
       include: { images: true },
     });
 
-    return res.status(200).json(lineItem);
+    return res.status(200).json(proposalLineForClient(lineItem));
   } catch (err: unknown) {
     logError("Failed to update proposal line item", err);
     return res.status(500).json({ error: "Failed to update line item" });

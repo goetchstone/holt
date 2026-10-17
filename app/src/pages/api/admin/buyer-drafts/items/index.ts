@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { Prisma, BuyerDraftItemStatus } from "@prisma/client";
 import { buildItemCreateData, VALID_ITEM_STATUSES } from "@/lib/buyerDraftRequestBody";
+import { draftItemForClient } from "@/lib/buyerDraftQty";
 
 export default requirePermission(
   "admin.settings",
@@ -74,7 +75,7 @@ async function list(req: NextApiRequest, res: NextApiResponse) {
       orderBy: [{ vendorName: "asc" }, { partNumber: "asc" }, { id: "asc" }],
       take: 1000, // cap so a forgotten filter doesn't dump 50K rows on the iPad
     });
-    return res.status(200).json({ items });
+    return res.status(200).json({ items: items.map(draftItemForClient) });
   } catch (err) {
     logError("buyer-drafts list failed", err);
     return res.status(500).json({ error: "Failed to list draft items" });
@@ -94,7 +95,7 @@ async function create(req: NextApiRequest, res: NextApiResponse) {
 
   try {
     const created = await prisma.buyerDraftItem.create({ data });
-    return res.status(201).json({ item: created });
+    return res.status(201).json({ item: draftItemForClient(created) });
   } catch (err) {
     logError("buyer-drafts create failed", err);
     return res.status(500).json({ error: "Failed to create draft item" });

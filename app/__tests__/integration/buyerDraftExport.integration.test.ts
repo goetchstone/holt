@@ -24,6 +24,7 @@ import {
   type DraftPoForExport,
 } from "@/lib/buyerDraftExport";
 import { Prisma } from "@prisma/client";
+import { toQty } from "@/lib/inventory/quantity";
 
 // Helper: convert a Prisma BuyerDraftItem (with its FK includes) to the
 // DraftItemForExport shape the CSV builders expect. Mirrors what the API
@@ -44,7 +45,7 @@ function toExportShape(row: {
   department: { name: string } | null;
   category: { name: string } | null;
   stockLocation: { code: string } | null;
-  qty: number;
+  qty: Prisma.Decimal;
   draftPoId: number | null;
   barcode: string | null;
 }): DraftItemForExport {
@@ -62,7 +63,7 @@ function toExportShape(row: {
     categoryName: row.category?.name ?? null,
     stockFamily: row.stockFamily,
     supplierName: row.vendor?.name ?? row.vendorName,
-    qty: row.qty,
+    qty: toQty(row.qty),
     draftPoId: row.draftPoId,
     stockLocationCode: row.stockLocation?.code ?? null,
     barcode: row.barcode,

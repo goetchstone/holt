@@ -801,7 +801,8 @@ function IdentityStep({
         <input
           id="wizard-qty"
           type="number"
-          min={1}
+          min={0}
+          step="any"
           value={form.qty}
           onChange={(e) => setField("qty", e.target.value)}
           className="w-32 px-3 py-2 border border-brand-stripe rounded text-base text-right"
