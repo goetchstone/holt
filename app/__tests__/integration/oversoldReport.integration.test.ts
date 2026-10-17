@@ -189,7 +189,9 @@ describe("the Oversold report (real DB)", () => {
     const w = await world();
     await resync(w.order.id, w.store.name);
     const csv = oversoldCsv(await getOversoldReport(prisma));
-    expect(csv.split("\n")[0]).toBe("Product,Part No,Order,Store,Short,Since,Suggested fix");
+    expect(csv.split("\n")[0]).toBe(
+      "Product,Part No,Order,Store,Short,Since,Suggested fix,Last count off by",
+    );
     expect(csv).toContain("Harbour Sofa,SOFA-1,SO-OVER,Showroom,2,");
     expect(csv).toContain("Nothing on order: start a draft PO");
   });

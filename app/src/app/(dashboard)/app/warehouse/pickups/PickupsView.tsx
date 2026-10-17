@@ -6,12 +6,17 @@
 // Router port of the legacy pages/warehouse/pickups.tsx body (minus MainLayout
 // chrome, which comes from the (dashboard) layout). Reads the shared
 // /api/warehouse/returns/pickups + /api/returns/[id]/status REST endpoints.
+//
+// A pickup can go on a delivery run as a stop (POST /api/dispatch/runs/[id]/
+// stops with a returnId): the driver collects it, and completing the stop
+// marks it picked up (lib/fulfilment/returnPickup.ts).
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { format } from "date-fns";
+import { getErrorMessage } from "@/lib/toastError";
 
 interface PickupAddress {
   address1: string | null;
@@ -34,6 +39,13 @@ interface Pickup {
   pickupTimeSlot: string | null;
   pickupNotes: string | null;
   address: PickupAddress | null;
+  onRun: string | null;
+}
+
+interface OpenRun {
+  id: number;
+  runNumber: string;
+  runDate: string;
 }
 
 interface DateGroup {
@@ -97,6 +109,7 @@ export function PickupsView() {
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState<number | null>(null);
+  const [runs, setRuns] = useState<OpenRun[]>([]);
 
   const loadData = async () => {
     setLoading(true);
@@ -107,6 +120,29 @@ export function PickupsView() {
       setPickups([]);
     } finally {
       setLoading(false);
+    }
+    // Runs a pickup can join. Someone who cannot see runs just does not get
+    // the choice.
+    try {
+      const lists = await Promise.all(
+        ["PLANNING", "LOADED"].map((s) => axios.get(`/api/dispatch/runs?status=${s}`)),
+      );
+      setRuns(lists.flatMap((r) => (r.data.runs ?? []) as OpenRun[]));
+    } catch {
+      setRuns([]);
+    }
+  };
+
+  const handleAddToRun = async (id: number, runId: number) => {
+    setCompleting(id);
+    try {
+      await axios.post(`/api/dispatch/runs/${runId}/stops`, { returnId: id });
+      toast.success("Added to the run");
+      await loadData();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to add the pickup to the run"));
+    } finally {
+      setCompleting(null);
     }
   };
 
@@ -161,6 +197,8 @@ export function PickupsView() {
                   pickup={p}
                   completing={completing === p.id}
                   onComplete={() => handleComplete(p.id)}
+                  runs={runs}
+                  onAddToRun={(runId) => handleAddToRun(p.id, runId)}
                 />
               ))}
             </div>
@@ -175,12 +213,17 @@ function PickupCard({
   pickup,
   completing,
   onComplete,
+  runs,
+  onAddToRun,
 }: {
   pickup: Pickup;
   completing: boolean;
   onComplete: () => void;
+  runs: OpenRun[];
+  onAddToRun: (runId: number) => void;
 }) {
   const addressLines = formatAddress(pickup.address);
+  const [runId, setRunId] = useState<number | "">("");
 
   return (
     <div className="bg-white rounded-lg border border-brand-gray/20 shadow-md p-5">
@@ -226,13 +269,45 @@ function PickupCard({
           </div>
         </div>
 
-        <Button
-          className="min-h-[44px] min-w-[120px] text-base"
-          disabled={completing}
-          onClick={onComplete}
-        >
-          {completing ? "Updating..." : "Mark Complete"}
-        </Button>
+        <div className="flex flex-col items-end gap-2">
+          <Button
+            className="min-h-[44px] min-w-[120px] text-base"
+            disabled={completing}
+            onClick={onComplete}
+          >
+            {completing ? "Updating..." : "Mark Complete"}
+          </Button>
+          {pickup.onRun && (
+            <span className="text-xs px-2 py-0.5 rounded bg-brand-blue/10 text-brand-blue">
+              On run {pickup.onRun}
+            </span>
+          )}
+          {!pickup.onRun && runs.length > 0 && (
+            <div className="flex items-center gap-2">
+              <select
+                aria-label={`Run for ${pickup.returnNumber}`}
+                value={runId}
+                onChange={(e) => setRunId(e.target.value ? Number(e.target.value) : "")}
+                className="min-h-[44px] rounded border border-brand-gray/30 px-2 text-sm"
+              >
+                <option value="">Choose a run</option>
+                {runs.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.runNumber} ({format(new Date(r.runDate), "MMM d")})
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="outline"
+                className="min-h-[44px]"
+                disabled={completing || runId === ""}
+                onClick={() => runId !== "" && onAddToRun(runId)}
+              >
+                Add to run
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

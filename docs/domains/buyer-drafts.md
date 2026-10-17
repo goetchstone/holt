@@ -565,7 +565,7 @@ The API endpoint is responsible for hydrating raw data — including loading buy
 | `BuyerDraftsPage` (page-level) | (none) | UI integration test infrastructure doesn't exist yet. Phase 0.6 testing roadmap covers this. |
 | `DraftItemWizard` / `DraftPoModal` / `DraftBuyModal` | (none) | Same as above. |
 
-The page-level test gap is what causes the local Sonar gate's `new_coverage` to land in the 50-60% range whenever this domain ships work — the React component lines never get instrumented. Acknowledged trade-off; covered under Phase 0.6 in `~/.claude/plans/check-the-repo-familiarize-lovely-leaf.md`.
+The page-level test gap is what kept new-code coverage in the 50-60% range (on the local SonarQube gate, removed 2026-10-16) whenever this domain shipped work — the React component lines never get instrumented. Acknowledged trade-off; covered under Phase 0.6 in `~/.claude/plans/check-the-repo-familiarize-lovely-leaf.md`.
 
 ## Roadmap (active slices, oldest first)
 
@@ -608,7 +608,7 @@ The page-level test gap is what causes the local Sonar gate's `new_coverage` to 
 - [ ] If a new field on Item/PO/Buy: extend the matching `BuilderBody` interface + `build*Data` helper + tests in `buyerDraftRequestBody.test.ts`
 - [ ] If a new modal field: confirm both create + edit paths handle it (sparse-patch contract on PATCH)
 - [ ] Description format unchanged unless explicit user request — don't re-add the `Upholstery` / `Case Goods` headers
-- [ ] Sonar gate result documented in PR body (rule 48). `new_coverage` RED is acceptable if it's the page-level gap; if it's RED for a different reason (a NEW pure helper without tests), fix before shipping
+- [ ] Local gate result documented in PR body (rule 48). A NEW pure helper ships with tests; the page-level coverage gap is the accepted exception
 - [ ] PR body cites the user's verbatim request that motivated the change
 
 ## Common gotchas

@@ -83,7 +83,7 @@ Rules recovered from the sibling constitution, evidenced in this repo:
 | 40 | `sales-orders.md`, `import-pipeline.md` |
 | 41 | `homeAccessoryOrders.ts` (explicit same-number acknowledgment), `BuyersReportView.tsx` |
 | 45 | `.github/pull_request_template.md` ("## Trace (Rule 45)") |
-| 48 | `.github/pull_request_template.md` ("## Sonar / scans (Rule 48)") |
+| 48 | `.github/pull_request_template.md` ("## Scans: lint, Semgrep, OSV, CodeQL (Rule 48)") |
 | 49 | `.markdownlint.json` header, verbatim |
 | 50 | `balanceAging.integration.test.ts` |
 | 51 | `imports-overview.md` quotes it verbatim; `balanceAging.ts` |

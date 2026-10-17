@@ -26,7 +26,7 @@ cd app && npm run security:deps
 New advisories publish continuously — sweep BEFORE opening the PR, not
 after CI turns red for a reason unrelated to this diff.
 
-## 3. Local Sonar / Semgrep / OSV gate evaluated AND documented (rule 48)
+## 3. Local gate (lint, tests, Semgrep, OSV) evaluated AND documented (rule 48)
 
 ```bash
 cd app && npm run check:local
@@ -34,7 +34,8 @@ cd app && npm run check:local
 
 The result belongs in the PR body, not just "I ran it." Every finding is
 one of: fixed in this PR, tripwire-tested, or explicitly won't-fix with
-rationale (never silent-ignore).
+rationale (never silent-ignore). CodeQL runs in CI; its findings on the PR
+follow the same rule. (SonarQube was removed 2026-10-16.)
 
 ## 4. Trace-before-refactor evidence if touching shared infra (rule 45)
 

@@ -51,6 +51,11 @@ export async function resolveOrderStoreLocationId(
  * replacement line that superseded it), and has a productId (a line with no
  * linked product has no InventoryPosition to draw from or commit to).
  *
+ * `quantity` is what is still to fulfil: ordered less `fulfilledQty`. Units a
+ * part delivery already handed over (lib/fulfilment/handover.ts) are gone, so
+ * a resync must not commit stock for them again, and the final handover
+ * consumes only the rest.
+ *
  * Shape doubles as both AllocationLine (add a storeLocationId) and
  * ConsumptionLine (used as-is) -- see allocation.ts's interfaces.
  */
@@ -63,15 +68,20 @@ export async function getActiveOrderLines(
     select: {
       productId: true,
       orderedQuantity: true,
+      fulfilledQty: true,
       fulfillment: true,
       salesOrder: { select: { deliveryMethod: true } },
     },
   });
-  return lines.map((l) => ({
-    productId: l.productId as number,
-    quantity: Number(l.orderedQuantity),
-    takeWith: l.fulfillment === "TAKE" || l.salesOrder.deliveryMethod === "TAKEN",
-  }));
+  return lines.map((l) => {
+    const ordered = toQty(l.orderedQuantity);
+    return {
+      productId: l.productId as number,
+      // A return line (negative) has nothing to fulfil; it passes through.
+      quantity: ordered > 0 ? roundQty(Math.max(0, ordered - toQty(l.fulfilledQty))) : ordered,
+      takeWith: l.fulfillment === "TAKE" || l.salesOrder.deliveryMethod === "TAKEN",
+    };
+  });
 }
 
 /**

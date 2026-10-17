@@ -66,6 +66,7 @@ fields the same way.
 
 - `lib/importHelpers.ts` -- `derivePOStatus()`, `findProduct()`
 - `lib/importRunners.ts` -- 4 PO-related runners
+- `lib/purchasing/receivePurchaseOrder.ts` -- goods in against a PO, one function for the Receive PO screen (`orders/[id]/receive.ts`) and the handheld (`pages/api/scan/receive.ts`, rule 42): the receiving records, the stock (`lib/inventory/receiving.ts`), and the PO status recalc (rule 39). A multi-box unit that arrives short of boxes is received as one unit into quarantine with a box note naming what is missing (`docs/domains/inventory.md` → "The handheld floor"). `ReceiveError` carries its status (404 for a PO that does not exist).
 - `pages/api/purchasing/` -- PO CRUD, receiving endpoints. Native receiving (`orders/[id]/receive.ts`) adds stock through `lib/inventory/ledger.ts`, the single writer of `InventoryPosition` (see `docs/domains/inventory.md`). Until 2026-10-14 it wrote the user's email into `ReceivingRecord.receiverUserId`, a foreign key to `User.id`, so every native receipt failed; it now uses the session's user id.
 - `pages/api/purchasing/orders/index.ts` -- the PO list, gated on `purchasing.read` ("View purchasing"); its totals go only to holders of "View cost" (`catalog.cost`). A service case does not use it: it finds a PO to link through `pages/api/service/purchase-order-lookup.ts`, which returns number and vendor only
 - `pages/purchasing/` -- PO list, detail, receiving UI
@@ -83,6 +84,8 @@ fields the same way.
 ## Test Coverage
 
 Covered: `derivePOStatus`, `classifyPOReceiptStatus` in `importHelpers.test.ts`
+
+Covered: `handheldReceive.integration.test.ts` (the handheld receive through `receivePurchaseOrder`: whole units, box scans assembled, an incomplete set held in quarantine and completed later, a resend done once); `stockReceive.integration.test.ts` (where receipts land).
 
 Gaps: `findProduct()`, received items runner, inbound items runner (all need Prisma for integration tests)
 

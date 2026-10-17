@@ -26,6 +26,7 @@ interface Row {
     since: string;
   }[];
   fix: Fix;
+  lastCountVariance: { countedAt: string; place: string; difference: number } | null;
 }
 
 function fixText(fix: Fix): string {
@@ -103,6 +104,13 @@ export function OversoldView({ rows }: { rows: Row[] }) {
                   <td className="py-2 pr-3">
                     {r.productName}
                     <div className="text-xs text-brand-gray">{r.partNo}</div>
+                    {r.lastCountVariance && (
+                      <div className="text-xs text-amber-800">
+                        Last count off by {r.lastCountVariance.difference} at{" "}
+                        {r.lastCountVariance.place} on {r.lastCountVariance.countedAt.slice(0, 10)}:
+                        check before ordering
+                      </div>
+                    )}
                   </td>
                   <td className="py-2 pr-3">{r.orders.reduce((s, o) => s + o.shortfall, 0)}</td>
                   <td className="py-2 pr-3">

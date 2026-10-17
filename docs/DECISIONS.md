@@ -503,6 +503,78 @@ order and line edit route.
 
 ---
 
+## 21. Holt counts by place; the store-grain count stays for the cutover
+
+**Rejected:** replacing the store-grain count (`PhysicalInventoryCount`,
+`Reconciliation`) with the place count, and counting natively at store grain.
+
+**Why:** every unit has a place, so a count has to say which place it speaks
+for. Without that, posting it cannot know which place's stock is wrong. A count
+of one place says either "this is everything here" (PLACE: not counted means
+not there) or "these products, nothing else" (PRODUCTS). Counting needs
+`inventory.count`. Posting changes the books, so it needs `inventory.adjust`,
+and moves the difference as ADJUST movements. The store-grain flow compares
+Holt with the POS (snapshot, scan, variance, reconcile) while a store is cut
+over. Retiring it now would remove that check before the cutover is done.
+
+**Cost accepted:** two count flows. The old one keeps whole-number columns, so
+it truncates a part roll (tracked in `ROADMAP.md` → "Handheld floor").
+
+**Enforced by:** `__tests__/countDifference.test.ts`,
+`__tests__/integration/stockCount.integration.test.ts`.
+
+**Source:** [`docs/domains/inventory.md`](domains/inventory.md) → "The handheld floor"
+
+---
+
+## 22. Boxes are evidence, never a quantity
+
+**Rejected:** stock per box, and receiving a manufacturer's box UPC as a unit.
+
+**Why:** owner design goal: item quantity is the only quantity. A sofa that
+ships in three boxes is one unit, and `Product.boxesPerUnit` is the only box
+fact stored. A box label's scan proves part of a unit is here. Whatever does
+not make a whole unit is an incomplete set: one unit, owned, held in quarantine
+with a note naming the missing boxes. A manufacturer's UPC repeats on every
+box, so a multi-box product is counted only through Holt's own box labels.
+
+**Cost accepted:** a unit missing a box counts as one unit owned (in
+quarantine). On-hand reads one where the floor has part of a sofa; the box note
+is where that shows.
+
+**Enforced by:** `__tests__/boxes.test.ts`,
+`__tests__/integration/handheldReceive.integration.test.ts`, and
+`stockPick.integration.test.ts` (an incomplete set is never loaded).
+
+**Source:** [`app/src/lib/inventory/boxes.ts`](../app/src/lib/inventory/boxes.ts)
+
+---
+
+## 23. A part delivery is not the handover
+
+**Rejected:** recording the order as delivered (`deliveredAt`, FULFILLED) at the
+first stop that delivered anything; and a FAILED stop status (removed
+2026-08-25).
+
+**Why:** `deliveredAt` is the handover fact (`lib/fulfilment/handover.ts`). A
+commission plan that counts on delivery windows on it (`lib/commissionSales.ts`),
+and the order turns FULFILLED with it. Recording it while a sofa is still in the
+warehouse pays commission and closes the order early. So a part delivery moves only the units
+that went and raises `fulfilledQty`, and the last units are the handover. A
+stop that could not be done is an attempt, not an outcome. It comes off the
+run, its appointment goes back in the dispatch pool, and the reason goes on the
+order.
+
+**Cost accepted:** an order delivered in parts counts as delivered when its
+last piece arrives, not piece by piece.
+
+**Enforced by:** `__tests__/integration/stockDelivery.integration.test.ts`,
+`__tests__/integration/handover.integration.test.ts`.
+
+**Source:** [`app/src/lib/fulfilment/stops.ts`](../app/src/lib/fulfilment/stops.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

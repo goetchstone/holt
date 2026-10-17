@@ -19,17 +19,15 @@ import sonarjs from "eslint-plugin-sonarjs";
 //
 // Severity policy: warn-only. Existing-code debt should not block CI;
 // `npm run validate` already enforces "0 errors" so warns surface
-// signal without breaking the build. New code that introduces a warn-
-// level violation still has to be fixed before the local Sonar gate
-// (rule 48) lets the PR through. The point is to surface the issue
-// locally during the diff, not double-block.
+// signal without breaking the build. New code should not add a warn-level
+// violation; the point is to surface the issue locally during the diff.
 //
-// Rules with NO open-source port (still Sonar-only): S6759 (readonly
-// props), S6772 (ambiguous JSX spacing), S6819/S6848 (interactive
-// a11y), S6853 (form labels), S7735 (negated conditions), S7741
-// (typeof undefined), S7760 (default param). Those still need a
-// human-eye pass before commit. CLAUDE.md "Code Quality" section
-// names the gap.
+// These rules are what remains of the SonarQube scan, removed 2026-10-16
+// (CodeQL in CI covers the security analysis). SonarQube rules with no
+// open-source port -- S6759 (readonly props), S6772 (ambiguous JSX
+// spacing), S6819/S6848 (interactive a11y), S6853 (form labels), S7735
+// (negated conditions), S7741 (typeof undefined), S7760 (default param) --
+// are no longer checked by anything and need a human-eye pass.
 
 export default defineConfig([
   ...nextConfig,

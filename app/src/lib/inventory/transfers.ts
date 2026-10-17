@@ -275,6 +275,7 @@ export async function quickMove(
     to: Place;
     actor: string | null;
     source?: { type: "InventoryTransfer"; id: number };
+    actionKey?: string | null;
   },
 ) {
   if (
@@ -290,6 +291,7 @@ export async function quickMove(
     reason: "TRANSFER",
     source: args.source ?? null,
     actor: args.actor,
+    actionKey: args.actionKey,
   });
 }
 

@@ -23,6 +23,7 @@ export default function ProductEditModal({
     length: product.length ?? "",
     depth: product.depth ?? "",
     height: product.height ?? "",
+    boxesPerUnit: product.boxesPerUnit ?? "",
     serviceType: product.serviceType || "",
   });
 
@@ -137,6 +138,16 @@ export default function ProductEditModal({
             name="height"
             value={form.height}
             onChange={(v) => handleChange("height", v)}
+          />
+        </div>
+
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          <FormInput
+            label="Boxes per unit"
+            name="boxesPerUnit"
+            type="number"
+            value={form.boxesPerUnit}
+            onChange={(v) => handleChange("boxesPerUnit", v)}
           />
         </div>
 

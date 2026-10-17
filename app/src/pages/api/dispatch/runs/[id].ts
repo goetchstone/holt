@@ -37,6 +37,9 @@ async function handleGet(id: number, res: NextApiResponse) {
                 salesOrder: {
                   include: { lineItems: { omit: { cost: true } } },
                 },
+                return: {
+                  select: { returnNumber: true, productName: true, quantity: true, status: true },
+                },
               },
             },
           },
