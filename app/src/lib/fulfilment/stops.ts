@@ -9,8 +9,9 @@
 //   - Could not deliver: nothing happened, so nothing is reversed. The stop
 //     comes off the run and its appointment goes back in the dispatch pool;
 //     the reason is written on the order. The units stay committed to the
-//     order where they are (the loading bay) until a handheld move puts them
-//     back, or the next run takes them.
+//     order where they are -- on the run's truck, if it was loaded -- and the
+//     run cannot be completed until the truck is unloaded to a loading bay
+//     (truck.ts unloadRun), where they wait for the order's next run.
 //
 // Completing is done once: the stop is claimed (status set to COMPLETED where
 // it was not) before anything follows from it, so a driver's retry, or two
@@ -50,6 +51,7 @@ export async function completeStop(
   const stop = await tx.deliveryStop.findUniqueOrThrow({
     where: { id: stopId },
     select: {
+      deliveryRunId: true,
       serviceAppointment: {
         select: { id: true, type: true, salesOrderId: true, returnId: true },
       },
@@ -72,6 +74,7 @@ export async function completeStop(
     at: args.at,
     method: "DELIVERY" as const,
     actor: args.actor ?? "dispatch",
+    deliveryRunId: stop.deliveryRunId,
   };
   if (args.delivered) {
     const delivery = await recordDelivery(tx, {

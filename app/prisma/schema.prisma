@@ -1631,6 +1631,12 @@ model StockLocation {
   // How stock moves in or out of this place (MOVE_MODES); null = its store's.
   moveMode String?
 
+  /// Set on a run's truck (lib/fulfilment/truck.ts, DECISIONS #25): Holt makes
+  /// the place when the run loads here and retires it when the run completes.
+  /// Null on every place a person sets up.
+  deliveryRunId Int?
+  deliveryRun   DeliveryRun? @relation("RunTruck", fields: [deliveryRunId], references: [id], onDelete: Restrict)
+
   /// Stock physically sitting here is already committed to a customer: it is
   /// ON HAND but NOT available to sell. The free-stock predicate
   /// (lib/inventory/allocation.ts) and the Buyers Report's floor-vs-customer
@@ -1665,6 +1671,7 @@ model StockLocation {
   stockCounts StockCount[]
 
   @@unique([storeLocationId, code])
+  @@index([deliveryRunId])
 }
 
 model InventoryPosition {
@@ -1738,7 +1745,7 @@ model StockMovement {
   // Why it moved, from MOVEMENT_REASONS in lib/inventory/ledger.ts.
   reason     String
   // The document that moved it, when there is one: "SalesOrder",
-  // "PurchaseOrder", "Return", "InventoryTransfer".
+  // "PurchaseOrder", "Return", "InventoryTransfer", "StockCount", "DeliveryRun".
   sourceType String?
   sourceId   Int?
 
@@ -4220,8 +4227,10 @@ model DeliveryRun {
   completedAt DateTime?
   notes       String?
 
-  stops     DeliveryStop[]
-  pickLists PickList[]
+  stops       DeliveryStop[]
+  pickLists   PickList[]
+  // The run's truck, as a place at each store it loads at (lib/fulfilment/truck.ts).
+  truckPlaces StockLocation[] @relation("RunTruck")
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt

@@ -11,8 +11,8 @@
 //     without its third box.
 //   - Boxes that were sitting apart (STRAY notes) and are picked with their
 //     unit are reunited: the note clears.
-//   - Loading the run checks that nothing is left to pull, then marks it
-//     LOADED.
+//   - Loading the run checks that nothing is left to pull, marks it LOADED
+//     and moves what is at the loading bay onto the run's truck (truck.ts).
 
 import type { Prisma } from "@prisma/client";
 import { lockProducts, type Place } from "@/lib/inventory/ledger";
@@ -21,19 +21,12 @@ import { assembleUnits } from "@/lib/inventory/boxes";
 import { clearBoxNote } from "@/lib/inventory/boxNotes";
 import { roundQty, toQty } from "@/lib/inventory/quantity";
 import { isValidRunTransition } from "@/lib/deliveryService";
-import { buildPullList } from "./pullList";
+import { buildPullList, runOrderIds } from "./pullList";
+import { boardRun } from "./truck";
 
 type Tx = Prisma.TransactionClient;
 
 export class PickError extends Error {}
-
-async function runOrders(tx: Tx, deliveryRunId: number): Promise<number[]> {
-  const stops = await tx.deliveryStop.findMany({
-    where: { deliveryRunId, serviceAppointment: { type: { not: "RETURN_PICKUP" } } },
-    select: { serviceAppointment: { select: { salesOrderId: true } } },
-  });
-  return stops.map((s) => s.serviceAppointment.salesOrderId);
-}
 
 export async function pickUnits(
   tx: Tx,
@@ -50,7 +43,7 @@ export async function pickUnits(
   },
 ): Promise<{ picked: number; reunitedBoxes: number }> {
   if (!(args.units > 0)) throw new PickError("Pick at least one unit.");
-  if (!(await runOrders(tx, args.deliveryRunId)).includes(args.salesOrderId)) {
+  if (!(await runOrderIds(tx, args.deliveryRunId)).includes(args.salesOrderId)) {
     throw new PickError("That order is not on this run.");
   }
   const [staging, product] = await Promise.all([
@@ -157,17 +150,25 @@ export async function pickUnits(
   return { picked: args.units, reunitedBoxes };
 }
 
-/** Mark the run LOADED once nothing on it is left to pull. */
+/**
+ * Mark the run LOADED once nothing on it is left to pull, and put what is at
+ * the loading bay on its truck. On a run already loaded, it puts aboard only
+ * what was picked since.
+ */
 export async function loadRun(
   tx: Tx,
   deliveryRunId: number,
   actor: string | null,
-): Promise<{ loaded: true }> {
+  actionKey?: string | null,
+): Promise<{ loaded: true; boarded: number }> {
   const run = await tx.deliveryRun.findUniqueOrThrow({
     where: { id: deliveryRunId },
     select: { status: true, runNumber: true },
   });
-  if (run.status === "LOADED") return { loaded: true };
+  if (run.status === "LOADED") {
+    const { units } = await boardRun(tx, deliveryRunId, { actor, actionKey });
+    return { loaded: true, boarded: units };
+  }
   if (!isValidRunTransition(run.status, "LOADED")) {
     throw new PickError(
       `Run ${run.runNumber} is ${run.status.toLowerCase()} and cannot be loaded.`,
@@ -190,5 +191,6 @@ export async function loadRun(
     where: { id: deliveryRunId },
     data: { status: "LOADED", updatedBy: actor },
   });
-  return { loaded: true };
+  const { units } = await boardRun(tx, deliveryRunId, { actor, actionKey });
+  return { loaded: true, boarded: units };
 }

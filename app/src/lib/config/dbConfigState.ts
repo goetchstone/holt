@@ -61,6 +61,7 @@ import {
   TRAFFIC_STORE_MAPPING_PRESET_NAME,
 } from "@/lib/config/presetApiTypes";
 import type { StoreLocationSummary } from "@/lib/config/presetApiTypes";
+import { NOT_A_RUN_TRUCK } from "@/lib/fulfilment/truck";
 
 export interface DbConfigState {
   bundle: PresetBundle;
@@ -244,7 +245,8 @@ function toStockLocationEntry(p: {
  */
 async function loadStockLocationPresets(db: PrismaClient): Promise<StockLocationsPreset[]> {
   const places = await db.stockLocation.findMany({
-    where: { isActive: true },
+    // A run's truck is made and retired with its run, never set up by a preset.
+    where: { isActive: true, ...NOT_A_RUN_TRUCK },
     orderBy: [{ storeLocation: { name: "asc" } }, { code: "asc" }],
     select: {
       code: true,

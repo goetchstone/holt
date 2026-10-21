@@ -8,6 +8,12 @@
 // for. The driver screen hides "Complete Run" until every stop is done; this
 // is the check, so the desk and any other caller get it too.
 //
+// The run's truck is a place (truck.ts). Moving the run to LOADED here puts
+// what is at the loading bay aboard, as loading it on a handheld does. A run
+// is not COMPLETED while anything is still on its truck -- a stop that could
+// not be done leaves its units aboard -- and completing it retires the truck
+// places.
+//
 // The transitions are this route's own and stricter than deliveryService.ts
 // VALID_RUN_TRANSITIONS, which also allows PLANNING -> COMPLETED. Whether a run
 // can be closed without being loaded is an open owner decision (ROADMAP,
@@ -15,6 +21,7 @@
 // it, and the two tables merge once it is.
 
 import type { DeliveryRunStatus, Prisma } from "@prisma/client";
+import { aboard, boardRun, describeAboard, retireTruckPlaces } from "./truck";
 
 type Tx = Prisma.TransactionClient;
 
@@ -66,6 +73,13 @@ export async function setRunStatus(
           `Complete each one, or mark it couldn't deliver, before completing the run.`,
       );
     }
+    const onTruck = await aboard(tx, runId);
+    if (onTruck.length > 0) {
+      throw new RunError(
+        `Run ${run.runNumber} still has ${describeAboard(onTruck)} on the truck. ` +
+          `Unload it at a loading bay (Scan > Pick and load) before completing the run.`,
+      );
+    }
   }
 
   // Claimed from the status just read, so two callers racing cannot both move
@@ -83,6 +97,8 @@ export async function setRunStatus(
   if (claimed.count === 0) {
     throw new RunError(`Run ${run.runNumber} changed while saving. Reload and try again.`);
   }
+  if (status === "LOADED") await boardRun(tx, runId, { actor });
+  if (status === "COMPLETED") await retireTruckPlaces(tx, runId);
 
   return tx.deliveryRun.findUniqueOrThrow({
     where: { id: runId },

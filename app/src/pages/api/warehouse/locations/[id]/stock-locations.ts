@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { isStockLocationType, STOCK_LOCATION_TYPES } from "@/lib/inventory/locationTypes";
 import { isMoveMode, MOVE_MODES } from "@/lib/inventory/moveModes";
 import { placeParentProblem } from "@/lib/inventory/placeTree";
+import { NOT_A_RUN_TRUCK } from "@/lib/fulfilment/truck";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
@@ -28,7 +29,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   if (req.method === "GET") {
     try {
       const stockLocations = await prisma.stockLocation.findMany({
-        where: { storeLocationId },
+        where: { storeLocationId, ...NOT_A_RUN_TRUCK },
         orderBy: { sortOrder: "asc" },
       });
       return res.status(200).json({ stockLocations });

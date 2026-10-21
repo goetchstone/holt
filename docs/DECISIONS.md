@@ -596,6 +596,37 @@ dates on special-order POs until vendors confirm them.
 
 ---
 
+## 25. A run's truck is a place of the run's own, not the vehicle's
+
+**Rejected:** one place per vehicle, persistent, labelled like any other place;
+and leaving loaded units at the loading bay on the books until they are
+delivered.
+
+**Why:** a loaded unit is on the truck, and a stop that could not be done
+brings it back on the truck. At the bay on the books, it read as there while
+it was on the road. A vehicle is the obvious owner of that place, but a place
+belongs to one store and a vehicle moves between sites, and a vehicle's runs
+overlap on the books: tomorrow's run can be loaded before today's is closed.
+A place per vehicle would mix their loads. Then "is this run's truck empty?"
+or "what does this run unload?" would have to be worked out from the journal,
+since a failed stop leaves the run. With a place per run (one per store it
+loads at), each of those questions is just the stock at the run's own places.
+So loading moves the bay's units aboard, a delivery draws from the truck
+first, a failed stop's units stay aboard, and the run is not completed until
+they are unloaded to a bay.
+
+**Cost accepted:** a truck place is made for every run that loads, and retired
+(inactive) when the run completes, so the table grows by about one row per
+run. People never see them in Warehouse > Locations. A failed delivery left
+aboard overnight for the next day's run on the same vehicle is unloaded and
+loaded again on the books.
+
+**Enforced by:** `__tests__/integration/stockTruck.integration.test.ts`.
+
+**Source:** [`app/src/lib/fulfilment/truck.ts`](../app/src/lib/fulfilment/truck.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was
