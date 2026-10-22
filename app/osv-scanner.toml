@@ -25,16 +25,26 @@
 # a push): re-confirmed package.json line 81 and the lockfile both still
 # resolve xlsx to https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz, so
 # the CDN-tarball rationale still holds. Extended to 2026-10-24.
+#
+# 2026-10-22 re-review, ahead of that expiry: package.json:86 and the
+# lockfile's node_modules/xlsx entry still resolve to the CDN tarball above
+# (0.20.3). SheetJS's own advisories bound both CVEs: CVE-2023-30533 affects
+# "SheetJS CE through 0.19.2" (fixed in 0.19.3) and CVE-2024-22363 "through
+# 0.20.1" (fixed in 0.20.2), per cdn.sheetjs.com/advisories/<CVE>. OSV's npm
+# entries list `introduced: 0` with no fix because the npm registry copy
+# stopped at 0.18.5, so any version string matches. The CDN's latest is still
+# 0.20.3 (cdn.sheetjs.com/xlsx-latest/package/package.json), so there is
+# nothing newer to move to. Extended to 2027-01-22.
 
 [[IgnoredVulns]]
 id = "GHSA-4r6h-8v6p-xvw6"
-ignoreUntil = 2026-10-24
-reason = "Prototype pollution in SheetJS xlsx. We install from SheetJS CDN tarball which has the patch despite sharing the 0.20.3 version string. See package.json line for xlsx."
+ignoreUntil = 2027-01-22
+reason = "Prototype pollution in SheetJS xlsx (CVE-2023-30533), fixed upstream in 0.19.3 per cdn.sheetjs.com/advisories/CVE-2023-30533. package.json:86 and the lockfile install xlsx 0.20.3 from the SheetJS CDN tarball; OSV matches the frozen npm registry package, which has no fixed version. Re-verified 2026-10-22."
 
 [[IgnoredVulns]]
 id = "GHSA-5pgg-2g8v-p4x9"
-ignoreUntil = 2026-10-24
-reason = "ReDoS in SheetJS xlsx. Same mitigation as GHSA-4r6h-8v6p-xvw6 — installed from SheetJS patched CDN tarball."
+ignoreUntil = 2027-01-22
+reason = "ReDoS in SheetJS xlsx (CVE-2024-22363), fixed upstream in 0.20.2 per cdn.sheetjs.com/advisories/CVE-2024-22363. Installed as 0.20.3 from the SheetJS CDN tarball (package.json:86, lockfile resolved URL), as GHSA-4r6h-8v6p-xvw6. Re-verified 2026-10-22."
 
 
 [[IgnoredVulns]]
