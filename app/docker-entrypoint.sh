@@ -32,9 +32,12 @@ chmod -R 755 /app/data
 # itself, and src/instrumentation.ts reconciles them against
 # lib/auth/permissionCatalog.ts when the server boots -- that is the `exec`
 # below, strictly after this migrate step. → docs/domains/staff-auth.md
+#
+# The Prisma CLI is the one the app installed, called by path: the runner stage
+# deletes npm and npx (see the Dockerfile), so `npx prisma` would not be found.
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
   echo "entrypoint: applying migrations..."
-  if ! su-exec node npx prisma migrate deploy; then
+  if ! su-exec node node_modules/.bin/prisma migrate deploy; then
     echo "entrypoint: migrations FAILED -- refusing to start against an unmigrated database" >&2
     exit 1
   fi

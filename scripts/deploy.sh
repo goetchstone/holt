@@ -39,8 +39,9 @@ echo "=== [4/5] Applying migrations with the NEW image, before the swap ==="
 # the live DB while the current app container still answers traffic. If this
 # fails the script aborts (set -e) BEFORE the new code goes live — the old
 # container is untouched, so you're still up. Roll forward by fixing the
-# migration and re-running; the backup from step 1 is the floor.
-docker compose run --rm --no-deps app npx prisma migrate deploy
+# migration and re-running; the backup from step 1 is the floor. The image has
+# no npm or npx, so the Prisma CLI is called by path.
+docker compose run --rm --no-deps app node_modules/.bin/prisma migrate deploy
 
 echo "=== [5/5] Switching app + proxy to the new image ==="
 docker compose up -d

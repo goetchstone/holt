@@ -72,6 +72,13 @@ ENV NODE_ENV=production
 # re-running apk on every build fails.
 RUN apk add --no-cache poppler-utils su-exec postgresql-client
 
+# The base image ships the npm CLI, and its own bundled packages carry CVEs that
+# Trivy reports against this image. Nothing here needs it once the build is
+# done: the entrypoint and scripts/deploy.sh call node_modules/.bin/prisma, and
+# CMD calls node_modules/.bin/next. Its own layer, so the apk layer above stays
+# cached.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 # Copy the static public/ directory (served at the web root: brand assets,
 # robots.txt, etc.). The directory must exist for Next.js production startup to
 # scan it.
