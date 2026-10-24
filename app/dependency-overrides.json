@@ -20,8 +20,8 @@
   ],
   "exactPins": {
     "sanitize-html": {
-      "pinnedTo": "2.17.6",
-      "reason": "Coupled to the htmlparser2 CJS hold. sanitize-html >= 2.17.6 delegates to htmlparser2, and the 10.x line is ESM-only; Jest cannot parse it ('Cannot use import statement outside a module') and the whole cmsSanitize suite dies. The `htmlparser2: ^9.1.0` override keeps the CJS 9.x line, and these two must move together. Lifting this means adding a Babel transform to the test toolchain, which is a deliberate piece of work, not a dependency chore. See PR #60.",
+      "pinnedTo": "2.18.1",
+      "reason": "Coupled to the htmlparser2 CJS hold. sanitize-html >= 2.17.6 delegates to htmlparser2, and the 10.x line is ESM-only; Jest cannot parse it ('Cannot use import statement outside a module') and the whole cmsSanitize suite dies. The `htmlparser2: ^9.1.0` override keeps the CJS 9.x line, and these two must move together. Lifting this means adding a Babel transform to the test toolchain, which is a deliberate piece of work, not a dependency chore. See PR #60 (holt-archive). Moved to 2.18.1 on 2026-10-22 for GHSA-cv27-6wvh-8x7j, GHSA-x3q4-9hxx-gx8m, GHSA-374f-7chj-9948 and GHSA-c9rx-x947-fp3h: 2.18.x declares htmlparser2 ^12 and runs on the overridden 9.1.0 (cmsSanitize.test.ts and cmsSanitize.fuzz.test.ts pass after a clean npm ci). Move the pin with each patch release that fixes an advisory; it does not move on its own.",
       "review": "2026-11-01"
     }
   },
