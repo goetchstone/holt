@@ -11,6 +11,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { NOT_A_RUN_TRUCK } from "@/lib/fulfilment/truck";
 
 export default requirePermission(
   "admin.settings",
@@ -23,7 +24,7 @@ export default requirePermission(
             orderBy: { name: "asc" },
           }),
           prisma.stockLocation.findMany({
-            where: { isActive: true },
+            where: { isActive: true, ...NOT_A_RUN_TRUCK },
             select: { id: true, code: true, name: true, storeLocationId: true },
             orderBy: [{ storeLocationId: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
           }),

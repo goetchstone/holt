@@ -160,7 +160,13 @@ export async function landingPlaceProblem(
   if (ids.length === 0) return null;
   const places = await db.stockLocation.findMany({
     where: { id: { in: ids } },
-    select: { id: true, storeLocationId: true, locationType: true, name: true },
+    select: {
+      id: true,
+      storeLocationId: true,
+      locationType: true,
+      name: true,
+      deliveryRunId: true,
+    },
   });
   const byId = new Map(places.map((p) => [p.id, p]));
   for (const [kind, id] of Object.entries(patch) as [LandingPlace, number | null][]) {
@@ -170,6 +176,9 @@ export async function landingPlaceProblem(
     if (!place) return `${info.setting}: stock location ${id} does not exist.`;
     if (place.storeLocationId !== storeLocationId) {
       return `${info.setting}: "${place.name}" is at a different store.`;
+    }
+    if (place.deliveryRunId != null) {
+      return `${info.setting}: "${place.name}" is a delivery run's truck.`;
     }
     if (!landingAllows(info, place.locationType)) {
       return `${info.setting}: "${place.name}" is a ${place.locationType} place; it must be ${landingTypesText(info)}.`;

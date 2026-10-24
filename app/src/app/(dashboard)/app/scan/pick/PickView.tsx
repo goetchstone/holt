@@ -5,7 +5,9 @@
 // Choose the run, scan the loading bay, then pick what the pull list asks for:
 // a one-box product per scan, a multi-box one by every box of the unit (an
 // incomplete set is refused). Each pick moves the unit to the bay, still the
-// customer's, and the list shrinks. Load the truck when nothing is left.
+// customer's, and the list shrinks. Load the truck when nothing is left: the
+// bay's units go onto the run's truck. When the truck comes back with what
+// could not be delivered, scan the bay and unload it there.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
@@ -50,6 +52,13 @@ interface Stray {
   placePath: string;
 }
 
+interface Aboard {
+  storeLocationId: number;
+  orderno: string;
+  productName: string;
+  quantity: number;
+}
+
 const newKey = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -60,6 +69,7 @@ export function PickView() {
   const [run, setRun] = useState<Run | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [strays, setStrays] = useState<Stray[]>([]);
+  const [aboard, setAboard] = useState<Aboard[]>([]);
   const [notes, setNotes] = useState<string[]>([]);
   const [bay, setBay] = useState<ScannedPlace | null>(null);
   const [boxes, setBoxes] = useState<Record<number, number[]>>({});
@@ -76,14 +86,18 @@ export function PickView() {
   }, []);
 
   const loadRun = useCallback(async (runId: number) => {
-    const r = await axios.get<{ run: Run; rows: Row[]; strays: Stray[]; notes: string[] }>(
-      "/api/scan/pick",
-      { params: { runId } },
-    );
+    const r = await axios.get<{
+      run: Run;
+      rows: Row[];
+      strays: Stray[];
+      notes: string[];
+      aboard: Aboard[];
+    }>("/api/scan/pick", { params: { runId } });
     setRun(r.data.run);
     setRows(r.data.rows);
     setStrays(r.data.strays);
     setNotes(r.data.notes);
+    setAboard(r.data.aboard);
   }, []);
 
   const pick = async (row: Row, units: number, pickedBoxes?: number[]) => {
@@ -183,6 +197,24 @@ export function PickView() {
     }
   };
 
+  const unloadTruck = async () => {
+    if (!run || !bay) return;
+    try {
+      const res = await axios.post("/api/scan/pick", {
+        actionKey: newKey(),
+        deliveryRunId: run.id,
+        unload: true,
+        toStockLocationId: bay.id,
+      });
+      setMessage({ tone: "ok", text: `${res.data.units} unloaded to ${bay.name}` });
+      await loadRun(run.id);
+    } catch (err) {
+      setMessage({ tone: "error", text: getErrorMessage(err, "Not unloaded.") });
+    }
+  };
+
+  const unloadHere = bay ? aboard.filter((a) => a.storeLocationId === bay.storeLocationId) : [];
+
   return (
     <ScanFrame
       title="Pick and load"
@@ -237,15 +269,43 @@ export function PickView() {
               </li>
             ))}
           </ul>
-          {rows.length === 0 && <p className="text-green-800">Everything is at the loading bay.</p>}
-          <Button
-            onClick={loadTruck}
-            fullWidth
-            className="h-12 text-lg"
-            disabled={run.status === "LOADED"}
-          >
-            {run.status === "LOADED" ? "Loaded" : "Load the truck"}
-          </Button>
+          {rows.length === 0 && aboard.length === 0 && (
+            <p className="text-green-800">Everything is at the loading bay.</p>
+          )}
+          {aboard.length > 0 && (
+            <div className="space-y-1">
+              <p className="font-medium">On the truck</p>
+              <ul className="space-y-1">
+                {aboard.map((a, i) => (
+                  <li key={i} className="border-b border-brand-gray/10 py-1">
+                    {a.quantity} × {a.productName}{" "}
+                    <span className="text-brand-gray">for {a.orderno}</span>
+                  </li>
+                ))}
+              </ul>
+              {/* Back from the run, unloading is the job; before it leaves, it
+                  is for taking off what should not go. */}
+              <Button
+                onClick={unloadTruck}
+                fullWidth
+                variant={run.status === "IN_PROGRESS" ? "primary" : "outline"}
+                className="h-12 text-lg"
+                disabled={unloadHere.length === 0}
+              >
+                {bay ? `Unload to ${bay.name}` : "Scan the loading bay to unload"}
+              </Button>
+            </div>
+          )}
+          {run.status !== "IN_PROGRESS" && (
+            <Button
+              onClick={loadTruck}
+              fullWidth
+              className="h-12 text-lg"
+              disabled={run.status === "LOADED"}
+            >
+              {run.status === "LOADED" ? "Loaded" : "Load the truck"}
+            </Button>
+          )}
         </div>
       )}
     </ScanFrame>

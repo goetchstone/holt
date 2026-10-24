@@ -15,7 +15,10 @@
 //     customer's sofa;
 //   - units already where the order leaves from count as pulled: for a pickup,
 //     the pickup store's pickup place; for a delivery, any STAGING place (the
-//     loading bay) until runs carry a truck place of their own;
+//     loading bay) or the truck of the run being pulled (truck.ts). On the
+//     order's own pull list, any run's truck counts. A unit still on another
+//     run's truck -- a stop that could not be done, not yet unloaded -- is not
+//     on this run's truck, so this run's pull list sends someone for it;
 //   - what the order needs but holds nothing of is a row with no place, so the
 //     shortfall shows instead of vanishing;
 //   - a unit committed at a store the order does not leave from is flagged:
@@ -50,21 +53,23 @@ export interface PullListResult {
 
 type Db = PrismaTx | Prisma.TransactionClient;
 
+/** The orders a run takes goods to, in stop order. */
+export async function runOrderIds(db: Db, deliveryRunId: number): Promise<number[]> {
+  // A return pickup is a stop that brings goods back, not one that takes them.
+  const stops = await db.deliveryStop.findMany({
+    where: { deliveryRunId, serviceAppointment: { type: { not: "RETURN_PICKUP" } } },
+    orderBy: { stopOrder: "asc" },
+    select: { serviceAppointment: { select: { salesOrderId: true } } },
+  });
+  return Array.from(new Set(stops.map((s) => s.serviceAppointment.salesOrderId)));
+}
+
 async function ordersOf(
   db: Db,
   scope: { deliveryRunId: number } | { salesOrderId: number },
 ): Promise<number[]> {
   if ("salesOrderId" in scope) return [scope.salesOrderId];
-  // A return pickup is a stop that brings goods back, not one that takes them.
-  const stops = await db.deliveryStop.findMany({
-    where: {
-      deliveryRunId: scope.deliveryRunId,
-      serviceAppointment: { type: { not: "RETURN_PICKUP" } },
-    },
-    orderBy: { stopOrder: "asc" },
-    select: { serviceAppointment: { select: { salesOrderId: true } } },
-  });
-  return Array.from(new Set(stops.map((s) => s.serviceAppointment.salesOrderId)));
+  return runOrderIds(db, scope.deliveryRunId);
 }
 
 export async function buildPullList(
@@ -114,7 +119,7 @@ export async function buildPullList(
 
     const held = await db.inventoryPosition.findMany({
       where: { salesOrderId },
-      include: { stockLocation: { select: { locationType: true } } },
+      include: { stockLocation: { select: { locationType: true, deliveryRunId: true } } },
       orderBy: { id: "asc" },
     });
     // Per product: the order's committed stock still to pull, place by place,
@@ -126,9 +131,13 @@ export async function buildPullList(
     >();
     const alreadyPulled = new Map<number, number>();
     for (const row of held) {
+      const truckRun = row.stockLocation.deliveryRunId;
+      const onTruck =
+        truckRun != null && ("deliveryRunId" in scope ? truckRun === scope.deliveryRunId : true);
       const pulled =
         row.stockLocationId === pickupPlace ||
-        (order.deliveryMethod !== "PICKUP" && row.stockLocation.locationType === "STAGING");
+        (order.deliveryMethod !== "PICKUP" &&
+          (row.stockLocation.locationType === "STAGING" || onTruck));
       if (pulled) {
         alreadyPulled.set(
           row.productId,
