@@ -8,8 +8,8 @@ Every PR runs through this gate:
 
 | Check | Where it runs | When | Required to merge? |
 |---|---|---|---|
-| Lint / Typecheck / Format / Test (unit + integration, coverage gate) | GitHub Actions (`ci.yml`) | Every PR | **Yes** |
-| Setup, build, boot, smoke | GitHub Actions (`ci.yml`) | Every PR | **Yes** |
+| Lint / Typecheck / Format / Test (unit + integration, coverage gate) | GitHub Actions (`ci.yml`) | Every PR + every push to `main` | **Yes** |
+| Setup, build, boot, smoke | GitHub Actions (`ci.yml`) | Every PR + every push to `main` | **Yes** |
 | Semgrep static analysis | GitHub Actions (`security.yml`) | Every PR | **Yes** |
 | npm advisory audit | GitHub Actions (`security.yml`) | Every PR | **Yes** |
 | Dependency CVE scan (OSV) | GitHub Actions (`security.yml`) | Every PR + weekly (it scans the whole lockfile every time; nothing skips it on a PR) | **Yes** |
@@ -66,7 +66,11 @@ README badge reads the latest run on `main`, and without a push trigger that was
 only ever the weekly sweep. The 2026-10-12 sweep failed on two advisories, the
 fixes merged on 2026-10-15, and the badge still said "failing" until a run was
 dispatched by hand. The repository is public, so the extra run costs nothing.
-`ci.yml` and `markdownlint.yml` still have no push trigger.
+
+**Exception, 2026-10-17: `ci.yml` runs on push to `main` again**, for the same
+reason. Its README badge (`badge.svg?branch=main`) had no run on `main` at all,
+since every CI run was on a PR branch, so it read "no status". `markdownlint.yml`
+still has no push trigger; it has no badge.
 
 ### CodeQL — the remaining big-ticket item
 
@@ -234,5 +238,6 @@ Track significant CI changes here as they're made. Initial entries to record whe
 |---|---|
 | 2026-10-07 | Fresh repository. `main protection` ruleset `24667944` created by `scripts/apply-github-ruleset.sh`: six required checks, strict, CodeQL high-alert rule, push protection, Dependabot security updates, private vulnerability reporting, CodeQL default setup |
 | 2026-10-15 | OpenSSF Scorecard added (`scorecard.yml`, README badge). Every action pinned to a commit SHA and the Dockerfile base image to a digest. `osv-scanner.toml` moved beside the lockfile (`app/`), where Scorecard reads it. `security.yml` runs on push to `main` again so its badge tracks `main` |
+| 2026-10-17 | `ci.yml` runs on push to `main` again, so its README badge reads `main` instead of "no status" |
 | — | Local Sonar gate required before push. **Removed 2026-10-16:** SonarQube, its compose file, gate script and hook block are gone; CodeQL (default setup, required) covers the analysis |
 | — | CI trim: dropped manual CodeQL job, moved Trivy to weekly-only, path-filtered OSV/markdownlint, dropped `Dependency CVE scan` from required-status-checks. Reduced per-PR minutes from ~20 to ~7. **Superseded:** none of the workflows carries a path filter now, and `Dependency CVE scan` is a required check again (2026-10-07 row above), so the ~7 minutes describes a shape that no longer exists. |

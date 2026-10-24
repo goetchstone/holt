@@ -1,5 +1,6 @@
 # ci.yml -- Runs lint, typecheck, format check, tests, and the build-boot-smoke
-# check on PRs to main.
+# check on PRs to main, and on every push to main so the README badge
+# describes main.
 #
 # No path filter: both jobs run on every PR, docs-only ones included, because
 # both are REQUIRED status checks (see the `on:` block below). A path filter
@@ -7,10 +8,12 @@
 # merge. An earlier version of this file (2026-05-09) skipped docs-only PRs
 # with `paths-ignore`; that is gone.
 #
-# 2026-05-13: dropped `push: branches: [main]` trigger. The PR run
-# already validated the same code; re-running on the squash commit is
-# paranoia tax. Manual `workflow_dispatch` retained so an admin can
-# trigger a main re-run from the GitHub UI if needed.
+# 2026-05-13: dropped `push: branches: [main]` trigger to save Actions
+# minutes while the repo was private. Restored 2026-10-17, as security.yml's
+# was on 2026-10-15: the README's CI badge reads the latest run on main, and
+# with no push trigger main never had one, so the badge read "no status". The
+# repo is public, so standard runners are free. Manual `workflow_dispatch`
+# retained so an admin can re-run main from the GitHub UI.
 #
 # To skip work on some PRs, gate the JOB with `if:` (a skipped job reports
 # "skipped", which passes); do not put `paths:` / `paths-ignore:` on the
@@ -23,6 +26,10 @@ on:
   # skipped by a filter never reports and blocks the merge forever. Actions are
   # free on this public repo, so always-run is the right trade.
   pull_request:
+    branches: [main]
+  # Every merge re-checks main, so the README badge describes main as it is
+  # now.
+  push:
     branches: [main]
   workflow_dispatch:
 
