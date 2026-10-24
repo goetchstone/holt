@@ -171,6 +171,8 @@ Two different concepts; both come back from `lookups.ts`:
 
 **Don't conflate these.** The lookups endpoint returns both as separate fields. The page state has both; the PO modal uses `storeLocations`, the wizard uses `stockLocations`.
 
+`stockLocations` is every active place except a delivery run's truck (`NOT_A_RUN_TRUCK`, `lib/fulfilment/truck.ts`): a truck place exists only while its run is loaded, so it is never where a draft's goods will live.
+
 The unmatched-Stock-by-Item catch-all (`StockLocation` with `code: 'UNMATCHED'`) is irrelevant for buyer drafts — drafts haven't hit Stock-by-Item yet.
 
 ## Workflow lifecycle

@@ -369,6 +369,11 @@ the second time (rule 63). For each store the preset lists:
   import matches aliases on inactive places too;
 - a place this preset never listed (made at Warehouse › Locations) is left alone.
 
+A delivery run's truck (`StockLocation.deliveryRunId` set, DECISIONS #25) is
+never exported: Holt makes it when the run loads and retires it when the run
+completes, so it is not part of a layout (`NOT_A_RUN_TRUCK`,
+`lib/fulfilment/truck.ts`).
+
 **Fails closed** (nothing written) when a store does not exist (the preset never
 creates stores, for the reason given under `traffic-store-mapping`), when a
 store's layout is owned by a differently-named `stock-locations` preset, or when

@@ -408,6 +408,7 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 - `snapshotImport.test.ts` — unit tests for `resolveSnapshotImportRow` (the POS cutover importer's per-row resolution)
 - `inventorySnapshotGenerate.integration.test.ts` — real-DB coverage for `POST /api/inventory/snapshot/generate`, including a product with no `externalId` and same-day re-run idempotency
 - The handheld floor, phases 15–20: `scanCodes.test.ts`, `labelRender.test.ts`, `boxes.test.ts`, `countDifference.test.ts`, `deliveredLines.test.ts`; real-DB `resolveScan`, `withAction`, `handheldReceive`, `stockCount`, `stockMove`, `stockPick`, `stockDelivery` and `returnPickupStop` (`*.integration.test.ts`)
+- The run's truck: `stockTruck.integration.test.ts` (loading boards the bay, a delivery draws from the truck first, a failed stop's units stay aboard until unloaded, completion refused while anything is aboard, another run's truck still to pull)
 
 ## Document flows (since 2026-10-17)
 
@@ -495,7 +496,7 @@ HTTPS staging is **unverified** until someone runs it on one (rule 58).
 | `/app/scan/receive` | `purchasing.receive` | goods in against a PO |
 | `/app/scan/count` | `inventory.count` | count a place; posting needs `inventory.adjust` too |
 | `/app/scan/move` | `inventory.transfer` | put away and move |
-| `/app/scan/pick` | `warehouse.operate` | pick a run to the loading bay, then load it |
+| `/app/scan/pick` | `warehouse.operate` | pick a run to the loading bay, load it onto the run's truck, and unload what came back |
 
 **What a scan is** (`lib/scan/resolveScan.ts`, one resolver for every page
 and `GET /api/scan/resolve`). Holt's own labels come first: `L-<placeId>` for
@@ -556,24 +557,48 @@ takes the nearest one above it in the place tree, then its store's
   printed pick list.
 - A multi-box unit is picked only whole.
 - A stray box picked with its unit is reunited (its note clears).
-- `loadRun` refuses while anything is left to pull.
+- `loadRun` refuses while anything is left to pull. Loading moves the units at
+  the loading bay onto the run's truck (below).
 - "Transfer it first" on a pull row: a pickup's units must be at its pickup
   store; a delivery's at its order's store or the store that fulfils for it
   (`fulfilmentStoreLocationId`). Once the loading bay is scanned, the pick page
   compares with the bay's store instead.
 
+**The truck** (`lib/fulfilment/truck.ts`, DECISIONS #25). A run's truck is a
+place: a TRANSIT place (owned, not for sale) whose `deliveryRunId` names the
+run, one per store the run loads at. Holt makes it on the run's first load at
+that store, coded `TRUCK-<run number>` and named after the vehicle.
+
+- Loading (`loadRun` on the handheld, or the desk moving the run to LOADED)
+  moves every unit the run's orders hold at a STAGING place onto the truck,
+  still each order's. A second load moves only what was picked since.
+- On the run's pull list its own truck counts as pulled; on an order's pull
+  list any truck does. A unit on another run's truck (a stop that could not be
+  done, not yet unloaded) is still to pull for this run.
+- Back at the site, Pick and load shows what is on the truck. Scan a loading
+  bay and unload: everything aboard that was loaded at the bay's store moves
+  there, still each order's (`unloadRun`).
+- A run is not completed while anything is aboard, and completing it retires
+  its truck places (inactive; their journal stays). Warehouse > Locations, the
+  landing places, the buyer-draft place list and the stock-locations preset
+  export leave run trucks out (`NOT_A_RUN_TRUCK`).
+
 **Delivery** (`lib/fulfilment/stops.ts`, DECISIONS #23).
 
 - The driver says how many of each line went (`lib/fulfilment/deliveredLines.ts`).
-- **A part delivery:** what went leaves stock from the loading bay first, and
-  `OrderLineItem.fulfilledQty` goes up. The rest stays committed, and a
-  DELIVERY appointment for it goes back in the dispatch pool.
+- **A part delivery:** what went leaves stock from the run's truck first, then
+  a loading bay, then wherever else the order holds it (`consume`'s
+  `takeFirst`), and `OrderLineItem.fulfilledQty` goes up. The rest stays
+  committed, and a DELIVERY appointment for it goes back in the dispatch pool.
 - **The last units are the handover** (`markHandedOver`). It consumes only
   what was still to fulfil: `getActiveOrderLines` returns ordered less
-  fulfilled, so a resync never commits stock again for units already gone.
+  fulfilled, so a resync never commits stock again for units already gone. A
+  delivery's handover draws from the truck first too, so none are left
+  reading as aboard.
 - **A stop that could not be done** comes off the run. The reason goes on the
-  order, and the stock stays committed at the loading bay until a handheld
-  move puts it back or the next run takes it.
+  order, and the stock stays committed to it where it is: on the run's truck,
+  until the truck is unloaded to a loading bay, where it waits for the order's
+  next run.
 - **A return pickup** is a stop of its own: see `docs/domains/service-dispatch.md`.
 
 ## Roadmap: stock as a ledger of movements
@@ -634,7 +659,7 @@ Detail under "The handheld floor" below.
 19. ✅ Pick to the loading bay, tick the run's pick list, load the run. Test: `stockPick.integration.test.ts`.
 20. ✅ Part and failed deliveries, and return pickups as run stops (DECISIONS #23). Tests: `deliveredLines.test.ts`, `stockDelivery.integration.test.ts`, `returnPickupStop.integration.test.ts`.
 
-Not built in PR 4, tracked in `ROADMAP.md` → "Handheld floor" (rule 50): an offline outbox, the SCANNED move mode and a truck place per run. The store-grain count's whole-number columns were made fractional in #35.
+Not built in PR 4, tracked in `ROADMAP.md` → "Handheld floor" (rule 50): an offline outbox and the SCANNED move mode. The store-grain count's whole-number columns were made fractional in #35. The truck place per run was built after it (DECISIONS #25; `stockTruck.integration.test.ts`).
 
 **Found while building phases 1 and 2, scheduled rather than fixed in them** (rule 48):
 
@@ -657,4 +682,4 @@ Not built in PR 4, tracked in `ROADMAP.md` → "Handheld floor" (rule 50): an of
 | ✅ The Buyers report would have counted a committed receipt twice (ledger and PO chain). Per order and product, the PO-chain half now counts only what the ledger does not already hold as committed | `lib/reports/buyersReport.ts` (query 2) | fixed (PR 2) |
 
 ---
-Last verified: 2026-10-16
+Last verified: 2026-10-21

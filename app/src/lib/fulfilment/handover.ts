@@ -35,7 +35,7 @@
 import type { Prisma } from "@prisma/client";
 import { consume } from "@/lib/inventory/allocation";
 import { getActiveOrderLines } from "@/lib/inventory/orderInventorySync";
-import { drawLegs, lockProducts, postMovement } from "@/lib/inventory/ledger";
+import { lockProducts } from "@/lib/inventory/ledger";
 import { roundQty, toQty } from "@/lib/inventory/quantity";
 import { generateAppointmentNumber } from "@/lib/serviceDispatchService";
 
@@ -52,6 +52,21 @@ export interface HandoverInput {
   method: HandoverMethod;
   /** For the audit row. */
   actor?: string | null;
+  /** The run whose stop this is: its truck is where the goods were. */
+  deliveryRunId?: number | null;
+}
+
+/**
+ * Where a delivered unit most likely was, in order: on the run's truck (a
+ * place of the run's own, truck.ts), then at a loading bay. Drawn from before
+ * anywhere else the order holds the product, so the units that leave the books
+ * are the ones that went, and none are left reading as on the truck.
+ */
+function deliveredFrom(deliveryRunId?: number | null): Prisma.InventoryPositionWhereInput[] {
+  return [
+    ...(deliveryRunId != null ? [{ stockLocation: { deliveryRunId } }] : []),
+    { stockLocation: { locationType: "STAGING" } },
+  ];
 }
 
 export interface HandoverResult {
@@ -116,7 +131,12 @@ export async function markHandedOver(tx: Tx, input: HandoverInput): Promise<Hand
   // called it, so physically delivered stock stayed committed on the books.
   // Only what is still to fulfil: a part delivery already took the rest.
   const lines = await getActiveOrderLines(input.salesOrderId, tx);
-  await consume(input.salesOrderId, lines, tx);
+  await consume(
+    input.salesOrderId,
+    lines,
+    tx,
+    input.method === "DELIVERY" ? deliveredFrom(input.deliveryRunId) : [],
+  );
   const open = await tx.orderLineItem.findMany({
     where: {
       salesOrderId: input.salesOrderId,
@@ -238,7 +258,12 @@ export async function recordDelivery(
   );
   for (const [lineId, quantity] of going) {
     const line = open.get(lineId)!;
-    await consumeDelivered(tx, input.salesOrderId, line.productId!, quantity);
+    await consume(
+      input.salesOrderId,
+      [{ productId: line.productId!, quantity }],
+      tx,
+      deliveredFrom(input.deliveryRunId),
+    );
     await tx.orderLineItem.update({
       where: { id: lineId },
       data: { fulfilledQty: { increment: quantity } },
@@ -255,36 +280,6 @@ export async function recordDelivery(
     },
   });
   return { changed: true, complete: false, restAppointmentId: rest };
-}
-
-/**
- * Units handed over, out of stock: from the loading bay first (that is where
- * a loaded unit sits), then wherever else the order holds it.
- */
-async function consumeDelivered(
-  tx: Tx,
-  salesOrderId: number,
-  productId: number,
-  quantity: number,
-): Promise<void> {
-  let left = quantity;
-  for (const where of [
-    { salesOrderId, stockLocation: { locationType: "STAGING" as const } },
-    { salesOrderId },
-  ]) {
-    if (!(left > 0)) break;
-    const { legs, shortfall } = await drawLegs(tx, { productId, where, quantity: left });
-    for (const leg of legs) {
-      await postMovement(tx, {
-        productId,
-        quantity: leg.take,
-        from: leg.place,
-        reason: "DELIVER",
-        source: { type: "SalesOrder", id: salesOrderId },
-      });
-    }
-    left = shortfall;
-  }
 }
 
 /** A DELIVERY appointment for what is left, in the dispatch pool (no stop). */

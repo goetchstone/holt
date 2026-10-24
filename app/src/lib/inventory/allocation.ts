@@ -424,16 +424,26 @@ export async function releaseUnits(
  * If fewer units are committed than requested (allocate() could only partially
  * cover the sale), consumes what exists and stops -- there is nothing left to
  * remove, and that is not an error either.
+ *
+ * `takeFirst` names where the units that left most likely were, in order --
+ * a delivery's run truck, then a loading bay -- and they are drawn from there
+ * before anywhere else the order holds them.
  */
 export async function consume(
   orderId: number,
   lines: ConsumptionLine[],
   db: PrismaTx,
+  takeFirst: Prisma.InventoryPositionWhereInput[] = [],
 ): Promise<void> {
-  return withStockTx(db, (tx) => consumeIn(orderId, lines, tx));
+  return withStockTx(db, (tx) => consumeIn(orderId, lines, tx, takeFirst));
 }
 
-async function consumeIn(orderId: number, lines: ConsumptionLine[], tx: PrismaTx): Promise<void> {
+async function consumeIn(
+  orderId: number,
+  lines: ConsumptionLine[],
+  tx: PrismaTx,
+  takeFirst: Prisma.InventoryPositionWhereInput[],
+): Promise<void> {
   const active = lines.filter((line) => line.quantity > 0);
   await lockProducts(
     tx,
@@ -441,19 +451,24 @@ async function consumeIn(orderId: number, lines: ConsumptionLine[], tx: PrismaTx
   );
 
   for (const line of active) {
-    const { legs } = await drawLegs(tx, {
-      productId: line.productId,
-      where: { salesOrderId: orderId },
-      quantity: line.quantity,
-    });
-    for (const leg of legs) {
-      await postMovement(tx, {
+    let left = line.quantity;
+    for (const where of [...takeFirst, {}]) {
+      if (!(left > 0)) break;
+      const { legs, shortfall } = await drawLegs(tx, {
         productId: line.productId,
-        quantity: leg.take,
-        from: leg.place,
-        reason: "DELIVER",
-        source: { type: "SalesOrder", id: orderId },
+        where: { AND: [where, { salesOrderId: orderId }] },
+        quantity: left,
       });
+      for (const leg of legs) {
+        await postMovement(tx, {
+          productId: line.productId,
+          quantity: leg.take,
+          from: leg.place,
+          reason: "DELIVER",
+          source: { type: "SalesOrder", id: orderId },
+        });
+      }
+      left = shortfall;
     }
   }
 }

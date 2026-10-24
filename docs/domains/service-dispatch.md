@@ -104,7 +104,8 @@ floor", DECISIONS #23). `PUT /api/dispatch/stops/[id]` decides nothing itself:
   included, with no stop). A return keeps its appointment and its PICKUP_SCHEDULED
   status, with the reason added to its pickup notes, and goes on a run again
   from the pickup schedule. Nothing was handed over, so nothing is reversed:
-  the stock stays committed to the order.
+  the stock stays committed to the order. A delivery's units stay on the
+  run's truck (`lib/fulfilment/truck.ts`, DECISIONS #25) until it is unloaded.
 - The driver screen's message comes from what the server did (`completion` in
   the response), never from the counts it sent.
 
@@ -112,7 +113,13 @@ floor", DECISIONS #23). `PUT /api/dispatch/stops/[id]` decides nothing itself:
 PLANNING → LOADED → IN_PROGRESS → COMPLETED, through
 `lib/fulfilment/runs.ts` `setRunStatus`. COMPLETED is refused while any stop on
 the run is not COMPLETED, and the message names how many are open. A stop that
-could not be done comes off the run, so nothing legitimate is left open. The
+could not be done comes off the run, so nothing legitimate is left open.
+
+The run's truck is a place, one per store it loads at (DECISIONS #25). LOADED,
+from the desk here or from Pick and load on a handheld, moves what is at the
+loading bay onto it. COMPLETED is also refused while anything is still aboard;
+the message lists what, and the fix is to unload it to a loading bay on Pick
+and load. A completed run's truck places are retired. The
 driver screen hides "Complete Run" until every stop is done. Before 2026-10-16
 that was the only check, so the desk or any other caller could close a run with
 deliveries unaccounted for. The route, like the stop route, takes
@@ -141,7 +148,8 @@ A pickup stop's order is kept off the run's pull list and pick list
 ## Key Files
 
 - `lib/fulfilment/stops.ts` -- what a stop's outcome does: `completeStop`, `failStop`
-- `lib/fulfilment/runs.ts` -- `setRunStatus`: a run's transitions, and no COMPLETED while a stop is open
+- `lib/fulfilment/runs.ts` -- `setRunStatus`: a run's transitions, and no COMPLETED while a stop is open or anything is on the truck
+- `lib/fulfilment/truck.ts` -- the run's truck as a place: `boardRun` (loading), `unloadRun`, `aboard`, `retireTruckPlaces`
 - `lib/fulfilment/handover.ts` -- `markHandedOver` (the handover) and `recordDelivery` (a part delivery)
 - `lib/fulfilment/returnPickup.ts` -- `scheduleReturnPickup`, `completeReturnPickup`
 - `lib/fulfilment/deliveredLines.ts` -- the driver screen's delivered counts (pure)
@@ -173,7 +181,7 @@ Covered: `fractionalStock.integration.test.ts` (a run's and an order's pick list
 
 Covered: `pullList.integration.test.ts` (the one builder both pick lists use).
 
-Covered: `stockDelivery.integration.test.ts` (part delivery, the handover after it, a stop completed once, over-delivery refused, a failed stop back in the pool); `returnPickupStop.integration.test.ts` (scheduling once, kept off the pull list and picks, completion is not a handover, a failed pickup scheduled again); `deliveredLines.test.ts`; `deliveryRunStatus.integration.test.ts` (an open stop holds the run open, a failed stop does not, a planning run cannot be completed).
+Covered: `stockDelivery.integration.test.ts` (part delivery, the handover after it, a stop completed once, over-delivery refused, a failed stop back in the pool); `returnPickupStop.integration.test.ts` (scheduling once, kept off the pull list and picks, completion is not a handover, a failed pickup scheduled again); `deliveredLines.test.ts`; `deliveryRunStatus.integration.test.ts` (an open stop holds the run open, a failed stop does not, a planning run cannot be completed); `stockTruck.integration.test.ts` (the run's truck: loaded from the bay, delivered from first, a failed stop's units aboard until unloaded, no completion with anything aboard).
 
 Gaps: the rest of `deliveryService.ts` (zones, assignOrderToRun, findOrCreatePlanningRun) has no tests. Pencil-in endpoint has no tests.
 
@@ -225,4 +233,4 @@ Cutover bridge for the team's Excel-based customer-service workflow. Until the G
 
 ---
 
-Last verified: 2026-10-16
+Last verified: 2026-10-21
