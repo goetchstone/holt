@@ -344,6 +344,8 @@ npx prisma db push           # Push schema changes without migration
 
 The runtime PrismaClient uses the `PrismaPg` driver adapter configured in `lib/prisma.ts`, not the CLI config.
 
+The production image has no npm or npx: its runner stage deletes them. Inside the app container, call the CLI by path, for example `docker compose exec app node_modules/.bin/prisma migrate status`.
+
 ## Common Troubleshooting
 
 ### Import Times Out
