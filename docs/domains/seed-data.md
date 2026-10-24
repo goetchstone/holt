@@ -78,9 +78,12 @@ A **tranche is the unit of delegation**: one self-contained piece of work, and
 
 **Which seeder owns it.** `coverage.ts` records a `seeder` per model, and the
 checker takes `--without <seeder>` to exempt the ones that did not run. Three
-exist: `demo` (the default), `cms`, and `roles` — the last because
-`npm run seed:roles` is run by `docker-entrypoint.sh` on every deploy, not by
-the demo seed. Getting this wrong does not fail quietly: a model attributed to
+exist: `demo` (the default), `cms`, and `roles` — the last because the
+built-in roles are not the demo seed's. The migration that creates
+`Role`/`RolePermission` inserts them, `src/instrumentation.ts` reconciles them
+against `lib/auth/permissionCatalog.ts` every time the server starts, and
+`npm run seed:roles` does the same by hand. `docker-entrypoint.sh` runs no
+seeder: the image has no npm, and stage 3 ships no `scripts/`. Getting this wrong does not fail quietly: a model attributed to
 `demo` but populated by another seeder reports as a REGRESSION on any run that
 did not include it.
 

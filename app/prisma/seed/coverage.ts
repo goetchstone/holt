@@ -213,9 +213,11 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   Reconciliation: { status: "todo", tranche: "money-detail" },
   Register: { status: "seeded" },
   Return: { status: "seeded" },
-  // Owned by `npm run seed:roles`, not the demo seed: docker-entrypoint.sh runs
-  // it on EVERY deploy, because a database with the tables and no roles is one
-  // where nobody can do anything. Marked so `--without roles` exempts them
+  // Owned by the built-in role reconcile, not the demo seed: the migration that
+  // creates these tables inserts the eight roles, src/instrumentation.ts
+  // reconciles them at every server start, and `npm run seed:roles` does the
+  // same by hand, because a database with the tables and no roles is one where
+  // nobody can do anything. Marked so `--without roles` exempts them
   // instead of reporting a regression that is really just a seeder that was
   // never asked to run.
   Role: { status: "seeded", seeder: "roles" },

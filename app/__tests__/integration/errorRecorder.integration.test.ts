@@ -39,6 +39,13 @@ const { recordError } = require("@/lib/errorRecorder") as typeof import("@/lib/e
 // `Expected: 5 Received: 3`.
 const POLL_TIMEOUT_MS = 10_000;
 
+// Jest's default per-test timeout is 5 s, shorter than one poll's budget, so
+// the patience above never applied: on a loaded runner Jest killed the looped
+// tests (5 and 12 settles in a row) with a bare "Exceeded timeout of 5000 ms"
+// before any poll had given up (CI, 2026-10-17: 7.7 s and 5.6 s). Room for
+// the polls, so a slow write is waited for and a missing one is named.
+jest.setTimeout(60_000);
+
 async function waitFor<T>(what: string, check: () => Promise<T | null>): Promise<T> {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   for (;;) {
