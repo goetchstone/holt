@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { aboard, aboardLines } from "@/lib/fulfilment/truck";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
@@ -20,7 +21,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-async function handleGet(id: number, res: NextApiResponse) {
+export async function handleGet(id: number, res: NextApiResponse) {
   try {
     const run = await prisma.deliveryRun.findUnique({
       where: { id },
@@ -49,7 +50,8 @@ async function handleGet(id: number, res: NextApiResponse) {
 
     if (!run) return res.status(404).json({ error: "Delivery run not found" });
 
-    return res.status(200).json(run);
+    // What is on the run's truck now: the desk sees what Pick and load shows.
+    return res.status(200).json({ ...run, aboard: aboardLines(await aboard(prisma, id)) });
   } catch (error) {
     logError("Error fetching delivery run", error);
     return res.status(500).json({ error: "Failed to fetch delivery run" });

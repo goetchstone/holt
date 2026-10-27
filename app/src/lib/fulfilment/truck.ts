@@ -169,6 +169,26 @@ export async function aboard(db: PrismaTx, deliveryRunId: number): Promise<Aboar
   }));
 }
 
+/**
+ * What a screen shows of the truck: the handheld's Pick and load and the desk's
+ * run page. One shape for both routes, imported by both screens.
+ */
+export interface AboardLine {
+  storeLocationId: number;
+  orderno: string;
+  productName: string;
+  quantity: number;
+}
+
+export function aboardLines(rows: AboardRow[]): AboardLine[] {
+  return rows.map((a) => ({
+    storeLocationId: a.storeLocationId,
+    orderno: a.orderno ?? "",
+    productName: a.productName,
+    quantity: a.quantity,
+  }));
+}
+
 /** "2 × Lamp for SO-1, 1 × Sofa for SO-2", the first few, for a message. */
 export function describeAboard(rows: AboardRow[], max = 4): string {
   const shown = rows

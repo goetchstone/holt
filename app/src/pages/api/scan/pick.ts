@@ -20,7 +20,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { buildPullList } from "@/lib/fulfilment/pullList";
 import { loadRun, pickUnits, PickError } from "@/lib/fulfilment/pick";
-import { aboard, TruckError, unloadRun } from "@/lib/fulfilment/truck";
+import { aboard, aboardLines, TruckError, unloadRun } from "@/lib/fulfilment/truck";
 import { placePath } from "@/lib/inventory/placeTree";
 import { BoxError } from "@/lib/inventory/boxes";
 import { MoveModeError } from "@/lib/inventory/transfers";
@@ -126,12 +126,7 @@ async function runPull(res: NextApiResponse, runId: number) {
       boxes: s.boxes,
       placePath: placePath(tree, s.stockLocationId),
     })),
-    aboard: onTruck.map((a) => ({
-      storeLocationId: a.storeLocationId,
-      orderno: a.orderno ?? "",
-      productName: a.productName,
-      quantity: a.quantity,
-    })),
+    aboard: aboardLines(onTruck),
   });
 }
 

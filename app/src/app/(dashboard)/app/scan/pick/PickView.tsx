@@ -16,6 +16,7 @@ import { ScanFrame, type ScanMessage } from "@/components/scan/ScanFrame";
 import { getErrorMessage } from "@/lib/toastError";
 import { assembleUnits, BoxError } from "@/lib/inventory/boxes";
 import type { ScanResult, ScannedPlace } from "@/lib/scan/resolveScan";
+import type { AboardLine } from "@/lib/fulfilment/truck";
 
 interface Run {
   id: number;
@@ -52,13 +53,6 @@ interface Stray {
   placePath: string;
 }
 
-interface Aboard {
-  storeLocationId: number;
-  orderno: string;
-  productName: string;
-  quantity: number;
-}
-
 const newKey = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -69,7 +63,7 @@ export function PickView() {
   const [run, setRun] = useState<Run | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [strays, setStrays] = useState<Stray[]>([]);
-  const [aboard, setAboard] = useState<Aboard[]>([]);
+  const [aboard, setAboard] = useState<AboardLine[]>([]);
   const [notes, setNotes] = useState<string[]>([]);
   const [bay, setBay] = useState<ScannedPlace | null>(null);
   const [boxes, setBoxes] = useState<Record<number, number[]>>({});
@@ -91,7 +85,7 @@ export function PickView() {
       rows: Row[];
       strays: Stray[];
       notes: string[];
-      aboard: Aboard[];
+      aboard: AboardLine[];
     }>("/api/scan/pick", { params: { runId } });
     setRun(r.data.run);
     setRows(r.data.rows);

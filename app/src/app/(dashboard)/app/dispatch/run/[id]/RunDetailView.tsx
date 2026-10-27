@@ -3,10 +3,11 @@
 // /app/src/app/(dashboard)/app/dispatch/run/[id]/RunDetailView.tsx
 //
 // Delivery run detail: stops list with reorder/remove, driver assignment, status
-// progression, pick-list generation, and an add-stop modal. App Router port of
-// the legacy pages/dispatch/run/[id].tsx body (minus MainLayout chrome, which
-// comes from the (dashboard) layout). The dynamic id arrives as a prop from the
-// server page. Reads the shared /api/dispatch/* + /api/staff REST endpoints.
+// progression, what is on the run's truck, pick-list generation, and an add-stop
+// modal. App Router port of the legacy pages/dispatch/run/[id].tsx body (minus
+// MainLayout chrome, which comes from the (dashboard) layout). The dynamic id
+// arrives as a prop from the server page. Reads the shared /api/dispatch/* +
+// /api/staff REST endpoints.
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { getErrorMessage } from "@/lib/toastError";
 import { format } from "date-fns";
 import Link from "next/link";
 import { ArrowUp, ArrowDown, Trash2, Plus, FileText, Phone } from "lucide-react";
+import type { AboardLine } from "@/lib/fulfilment/truck";
 
 type LineItem = {
   id: number;
@@ -73,6 +75,7 @@ type DeliveryRun = {
   driver: StaffMember | null;
   stops: Stop[];
   pickLists?: { id: number; pickListNumber: string }[];
+  aboard: AboardLine[];
 };
 
 type UnassignedDelivery = {
@@ -319,6 +322,29 @@ export function RunDetailView({ id }: { id: string }) {
           )}
         </div>
       </div>
+
+      {/* On the truck: what loading moved aboard and no delivery or unload has
+          taken off. Only a handheld unloads, at a scanned loading bay. */}
+      {run.aboard.length > 0 && (
+        <div className="bg-white border border-brand-gray/10 rounded-lg p-4 mb-6">
+          <h2 className="font-serif text-lg text-brand-navy mb-2">On the truck</h2>
+          <ul className="text-sm space-y-1 mb-3">
+            {run.aboard.map((a, i) => (
+              <li key={i} className="border-b border-brand-gray/10 py-1">
+                {a.quantity} × {a.productName}{" "}
+                <span className="text-brand-gray">for {a.orderno}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-brand-gray">
+            The run cannot be completed while anything is aboard. To unload, scan a loading bay on{" "}
+            <Link href="/app/scan/pick" className="text-brand-blue hover:underline">
+              Pick and load
+            </Link>
+            .
+          </p>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex flex-wrap gap-3 mb-6">
