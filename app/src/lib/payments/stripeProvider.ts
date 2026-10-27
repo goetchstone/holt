@@ -176,4 +176,15 @@ export const stripeProvider: PaymentProvider = {
       return { ok: false, message: err instanceof Error ? err.message : "Stripe test failed" };
     }
   },
+
+  // getStripe throws exactly when no secret key resolves; building the client
+  // makes no request.
+  async isConfigured(): Promise<boolean> {
+    try {
+      await getStripe();
+      return true;
+    } catch {
+      return false;
+    }
+  },
 };

@@ -5,7 +5,8 @@
 // App Router left sidebar. Reuses the SAME getVisibleNavItems permission +
 // feature logic as the old top-nav, rendered as a vertical, icon-led list.
 // Persistent on lg+, a slide-in drawer on smaller screens (iPad portrait /
-// phone).
+// phone). The Admin entry carries a count of getting-started items still to do
+// (lib/gettingStarted.ts) for viewers who can act on them.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -29,6 +30,7 @@ import { BrandLogo } from "@/components/branding/BrandLogo";
 import { getVisibleNavItems, resolveViewerPermissions } from "@/lib/auth/navPermissions";
 import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
 import { useFeatures } from "@/lib/hooks/useFeatures";
+import { useGettingStartedRemaining } from "@/lib/hooks/useGettingStartedRemaining";
 import { useBranding } from "@/components/branding/BrandingProvider";
 
 // Label -> icon. Unknown labels fall back to a generic icon.
@@ -54,14 +56,19 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
   const pathname = usePathname() ?? "/";
   const { features } = useFeatures();
 
-  const navItems = useMemo(() => {
+  const permissions = useMemo(() => {
     if (!session) return [];
-    const permissions = resolveViewerPermissions(
-      session,
-      isImpersonating ? impersonatedRole : null,
-    );
-    return getVisibleNavItems(permissions, features ?? undefined);
-  }, [session, isImpersonating, impersonatedRole, features]);
+    return resolveViewerPermissions(session, isImpersonating ? impersonatedRole : null);
+  }, [session, isImpersonating, impersonatedRole]);
+  const navItems = useMemo(
+    () => (session ? getVisibleNavItems(permissions, features ?? undefined) : []),
+    [session, permissions, features],
+  );
+  // The checklist's own key: the hub card and its API are both on admin.settings.
+  const setupRemaining = useGettingStartedRemaining(
+    permissions.includes("admin.settings"),
+    pathname,
+  );
 
   const isActive = useCallback(
     (href: string) => pathname === href || pathname.startsWith(href + "/"),
@@ -135,6 +142,15 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
                   >
                     <Icon className="h-[18px] w-[18px] shrink-0" />
                     <span className="truncate">{item.label}</span>
+                    {item.href === "/app/admin" && setupRemaining > 0 ? (
+                      <span
+                        title={`${setupRemaining} getting-started ${setupRemaining === 1 ? "step" : "steps"} left`}
+                        className="ml-auto rounded-full bg-amber-400 px-1.5 text-[11px] font-semibold leading-5 text-brand-black"
+                      >
+                        {setupRemaining}
+                        <span className="sr-only"> getting-started steps left</span>
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               );

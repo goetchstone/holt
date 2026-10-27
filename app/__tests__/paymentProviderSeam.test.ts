@@ -57,6 +57,9 @@ describe("assertCapability", () => {
     async testConnection() {
       return { ok: true, message: "fake" };
     },
+    async isConfigured() {
+      return true;
+    },
   };
 
   it("throws a readable message for an unsupported capability", () => {

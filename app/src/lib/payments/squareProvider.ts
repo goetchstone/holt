@@ -273,4 +273,15 @@ export const squareProvider: PaymentProvider = {
       return { ok: false, message: err instanceof Error ? err.message : "Square test failed" };
     }
   },
+
+  // getSquareCredentials throws exactly when the access token or the location
+  // id does not resolve; it makes no request.
+  async isConfigured(): Promise<boolean> {
+    try {
+      await getSquareCredentials();
+      return true;
+    } catch {
+      return false;
+    }
+  },
 };
