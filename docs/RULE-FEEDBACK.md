@@ -137,3 +137,109 @@ is a change to *where* it is enforced, not to *what* it says
 - **Would a rule have caught it?** Only if enforced differently: rule 12 asks
   for actual behaviour, but nothing says that for a server component the
   behaviour is the element it returns.
+
+### 2026-10-22 — the CVE gate went red twice between a sweep and its merge train
+
+- **Signal:** tripwire fired (Dependency CVE scan, npm advisory audit)
+- **What happened:** #45 swept the advisories that had turned the scan red on
+  main. Hours after it opened, two critical unauthenticated RCEs in Next
+  16.0.0–16.4.0 were published; on 2026-10-23, advisories against zod,
+  nodemailer and fast-uri followed, each after the branch's last push. The
+  sweep was re-run when the train started (2026-10-24) and caught the second
+  batch on #45 itself, so none of the PRs queued behind it went red for a reason
+  unrelated to it.
+- **Principle:** 10 (own the version state you depend on).
+- **Would a rule have caught it?** Yes: rule 55, and it did. Recorded because a
+  guard that fired is the evidence a retirement argument will ask for. What it
+  adds: the sweep that counts is the one run when the train starts, not when the
+  sweep PR opens.
+
+### 2026-10-22 — a clean `npm ci` leaves typecheck red until the Prisma client is generated
+
+- **Signal:** near miss
+- **What happened:** verifying #45 with the dependency-sweep skill's Step 5
+  (`rm -rf node_modules && npm ci && npm test`), `npm run validate` afterwards
+  failed typecheck. `npm ci` does not run `prisma generate`, and
+  `app/package.json` has no `postinstall` that would; `npx prisma generate`
+  fixed it. Step 5 stops at `npm test` and never runs typecheck.
+- **Principle:** 4 (an instrument that can disagree): the step the skill names
+  as the clean-install check does not exercise the gate that broke.
+- **Would a rule have caught it?** Only if enforced differently: rule 52 is
+  right, but the skill's command should be `npm ci && npx prisma generate &&
+  npm run validate && npm test`.
+
+### 2026-10-22 — two docs said the entrypoint seeds the roles; the source said a migration does
+
+- **Signal:** near miss (found while changing the entrypoint for #46)
+- **What happened:** `docs/domains/seed-data.md` and a comment in
+  `prisma/seed/coverage.ts` said the container entrypoint seeds the system
+  roles. The entrypoint runs `migrate deploy` and then `next start`; the roles
+  are inserted by migration `20260806160000_role_and_role_permission` and
+  reconciled at boot by `src/instrumentation.ts`. #46 corrected both.
+- **Principle:** 5 (a claim is exactly as strong as its evidence), rule 56.
+- **Would a rule have caught it?** Rules 19 and 56 did, once the entrypoint was
+  opened. Nothing re-checks a runbook's claim when the file it describes
+  changes.
+
+### 2026-10-24 — a search across env files printed a database URL into the transcript
+
+- **Signal:** near miss
+- **What happened:** a `grep` for where a connection setting is read matched a
+  local env file and printed the start of its `DATABASE_URL`, part of the
+  password included, into the session transcript. Local Docker database only,
+  no deployment's credential; disclosed to the owner at the time.
+- **Principle:** `NEW`: no principle covers what tool output exposes.
+- **Would a rule have caught it?** No. The habit that prevents it is
+  `grep -l` (file names only) or printing only the key (`cut -d= -f1`) when the
+  search can reach an env file.
+
+### 2026-10-27 — the rules improver's trigger cannot fire in this repository
+
+- **Signal:** near miss (own audit, asked to run the learning routines)
+- **What happened:** `.claude/hooks/rules-improver-check.sh` counts commits whose
+  subject starts with `fix` or `revert`, plus ledger entries dated after
+  `.claude/.rules-last-run` (2026-10-02). Since the fresh repository
+  (2026-10-07) every commit on main is a squash merge titled in prose ("The CVE
+  gate is green again: …"). Of the 31 commits since the stamp none starts with
+  either word, though several are fixes (#38, #45, #46), and the ledger's last
+  entry before today was 2026-10-01. So at every session start for three weeks
+  the hook counted 0 against a threshold of 8 and, below threshold, printed
+  nothing. Silence read as "nothing to learn".
+- **Principle:** 4 (an instrument that can disagree), and rule 65's "prove the
+  tripwire in both directions": the count was right for the old history's
+  `fix:` subjects and was never re-proven when the commit style changed.
+- **Would a rule have caught it?** Only if enforced differently: the signal has
+  to come from something this repository still writes (merged PRs whose head
+  branch starts `fix/`, `sec/` or `revert/`, or the ledger alone), and a count
+  of zero on both inputs should be reported rather than read as quiet.
+
+### 2026-10-27 — eight PRs took eight serial CI cycles over three days to land
+
+- **Signal:** process observation
+- **What happened:** main requires branches to be up to date and has no merge
+  queue, so each merge put every other PR behind, and each needed an update and
+  a full CI run in turn (#45, #40, #41, #39, #46, #44, #49, #50). Each merge
+  needed a human nudge, because the app's CI monitor wakes a session on a
+  failure but not on a merge. Meanwhile Dependabot closed and reopened its
+  grouped bump twice (#42, then #48, then #50) as the train landed some of its
+  packages.
+- **Principle:** not a rules problem.
+- **Would a rule have caught it?** No. Recorded so the next train knows the
+  cost. A merge queue would remove it; that is a ruleset decision for the owner.
+
+### 2026-10-27 — Dependabot's update job failed 15 times on main and nobody saw
+
+- **Signal:** near miss (found by the 2026-10-27 improver pass reading CI failures)
+- **What happened:** since 2026-10-07, 15 of 42 "Dependabot Updates" runs on
+  main failed. The latest says `npm error Override for postcss@8.5.31 conflicts
+  with direct dependency` (EOVERRIDE): `app/package.json` declares `postcss`
+  both as a devDependency and as an override, so a bump of the direct one
+  breaks the override and the update is dropped. No PR, check or session start
+  surfaces a failed Dependabot job, so it failed into a log.
+- **Principle:** 4 (an instrument that can disagree) and rule 65's third part:
+  the job runs unattended, but its failure reaches no one. It is the fourth
+  instance found 2026-10-27, with the improver trigger, the warn-only weekly
+  Trivy job and `ci.yml`'s missing push trigger (#39).
+- **Would a rule have caught it?** Only if enforced differently: rule 65 asks
+  for a gate that runs unattended, not for its failure to reach someone.
+  Proposed for the next pass (`ROADMAP.md`, "Learning loop", item 5).
