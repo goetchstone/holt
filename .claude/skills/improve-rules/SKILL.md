@@ -28,22 +28,28 @@ not exist in this repo** — 20 merged PRs carry 0 reviews and 1 comment between
 them, because `docs/FRAMEWORK.md` describes a solo project with no second pair
 of eyes. Do not go looking for it and conclude there is nothing to learn.
 
-The equivalent signal here is **the commit that had to clean up after the last
-one**. A `fix:` or `revert:` commit is literally "what the agent proposed versus
-what reality required", with a diff attached and no friction to capture. Roughly
-one commit in four is one.
+The equivalent signal here is **the change that had to clean up after the last
+one**. A merged fix or revert is literally "what the agent proposed versus what
+reality required", with a diff attached and no friction to capture. Merges are
+squashed and titled in prose, so the subject no longer says which were fixes;
+the head branch does (`fix/`, `security/`, `sec/`, `revert/`). From 2026-10-02 to
+2026-10-27, 8 of 31 merged PRs were. `.claude/hooks/rules-improver-check.sh`
+counts the same set, so the trigger and this list agree.
 
 Read all four sources:
 
-1. **Fix and revert commits since the last run.**
+1. **Fix and revert PRs merged since the last run.**
 
    ```bash
-   git log --oneline --since="$(cat .claude/.rules-last-run 2>/dev/null || echo '6 weeks ago')" \
-     --format='%h %s' | grep -iE '^[a-f0-9]+ (fix|revert)'
+   gh pr list --state merged --limit 200 --json number,title,headRefName \
+     --search "merged:>=$(cat .claude/.rules-last-run 2>/dev/null || date -v-6w +%Y-%m-%d)" \
+     --jq '.[] | select(.headRefName | test("^(fix|security|sec|revert)/")) | "#\(.number) \(.title)"'
    ```
 
-   For each, read the diff. The question is never "was this a bug" — it is
-   **"which principle was in force, and why didn't it hold?"**
+   For each, read the diff (`gh pr diff N`). The question is never "was this a
+   bug" — it is **"which principle was in force, and why didn't it hold?"** A fix
+   also rides inside feature PRs ("while in the pick-list builder…", #28), so
+   skim the titles of the rest of the merged list too.
 
 2. **The ledger** — `docs/RULE-FEEDBACK.md`, entries since the last run. Pay
    particular attention to entries answering *"only if enforced differently"*:
