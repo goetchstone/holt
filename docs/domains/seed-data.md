@@ -377,11 +377,25 @@ non-empty would invent a data-quality problem the demo does not have.
 
 ### Refunds — sales-in-reverse, not a hand-waved Payment row
 
-Refunds are modeled on invoiced orders only, as a same-day mirrored NEGATIVE
-`OrderLineItem` (the exact "sales-in-reverse" shape `lib/journalEntry.ts`'s
-`resolveReturnBookingPath` books) plus a second `Payment` row (`isRefund: true`, positive
-`paymentAmount` — `processRefund`'s real sign convention) **and a native `Return`
-record**.
+Refunds are modeled on invoiced orders only, in the shape a native return books
+(`lib/returns/bookReturn.ts`): a native `Return` record; its own `RETURNED` order
+(`RET-<orderno>`, `Return.returnOrderId`) carrying the negative `OrderLineItem` and an
+invoice dated the return day; and the refund `Payment` on that return order (`isRefund:
+true`, positive `paymentAmount` — `processRefund`'s real sign convention,
+`originalPaymentId` the sale payment). The original order is never rewritten and stays
+paid in full. The seed writes these rows itself rather than calling `bookReturn`,
+because `bookReturn` also appends to the customer's AR ledger and this seed writes no
+ledger for any sale or payment yet (`CustomerLedgerEntry` is `todo` in `coverage.ts`).
+
+**Until 2026-10-27 the negative line and the refund sat on the ORIGINAL order**, a
+shape production never writes. The journal skips a refund of a settled sale unless it
+is on a return order (`journalEntry.ts`, the `reversesPaymentId` guard; a return order
+is one a `Return` points at), so every sampled day holding a refund took an Over/Short
+plug of exactly the refund ($49.61 and $13.04 at ci scale). Nothing noticed: the seed
+printed `balanced=` from the totals AFTER the plug, which can never be false.
+`seedJournalEntries` now fails the seed when any sampled journal needed a plug
+(`generateSalesJournal` returns `overShort`), and CI's setup job runs this seed, so
+that is a gate.
 
 That last part changed. This seed originally created no `Return` row, deliberately,
 "matching how every imported historical return looks". That contradicted the seed's own
@@ -398,21 +412,19 @@ mix is the point: `RESTOCKED` and `WRITTEN_OFF` are decided facts that book diff
 uninspected return falls through to the default-restock ASSUMPTION. Seeding only
 classified returns would leave that default path untested.
 
-Verified on a seeded database: 28 returns (12 restocked, 8 written off, 8 uninspected),
-journal entries still balanced, and one journal line landing on a shrinkage account —
-the B3 write-off path, previously unreachable from seeded data.
+Verified on a seeded database: 28 returns (12 restocked, 8 written off, 8 uninspected)
+and one journal line landing on a shrinkage account — the B3 write-off path, previously
+unreachable from seeded data. (That run also reported the journals "balanced"; they were
+plugged, see above.)
 
-**What this does NOT light up**, stated because it is the obvious assumption: the
-Unclassified Returns report (`lib/reports/unclassifiedReturns.ts`) queries orders with
-`status = "RETURNED"` and finds their negative lines. This seed models a refund as a
-negative line on the ORIGINAL order, so it produces zero `RETURNED` orders and that
-report stays empty — before and after this change. A native uninspected `Return` is
-unclassified in every sense that matters, and that report cannot see it; whether the
-report should is a question about the report, not the seed. Restricting refunds to invoiced orders is deliberate: an un-invoiced order's
-line items never reach `buildJournalLines` (they take the deposit-only branch), so a
-mirrored negative line there would be inert. This is what keeps the generated journal
-genuinely balanced on refund days *without* leaning on the Over/Short line to paper over
-an un-reversed sale — which is the exact failure mode this seed exists to avoid (see
+Since the returns book as `RETURNED` orders, the Unclassified Returns report
+(`lib/reports/unclassifiedReturns.ts`, which queries orders with `status = "RETURNED"`)
+has seeded rows to show; before 2026-10-27 it was always empty on a fresh seed.
+Restricting refunds to invoiced orders is deliberate: an un-invoiced order's lines never
+reach `buildJournalLines` (they take the deposit-only branch), so there is no sale to
+reverse. A sale and its same-day refund offset to zero in every account, so
+`generateSalesJournal` posts no entry for such a day (`daysOffset`); any other refund day
+balances without the Over/Short line — the failure mode this seed exists to avoid (see
 "Target: no unmapped payment types" below).
 
 ### Till sessions and variance discipline

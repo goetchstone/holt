@@ -320,7 +320,7 @@ async function main(): Promise<void> {
   );
   for (const e of journalResult.entries) {
     console.log(
-      `  ${e.journalNumber} (${e.date}): debits=${e.totalDebits.toFixed(2)} credits=${e.totalCredits.toFixed(2)} balanced=${e.totalDebits === e.totalCredits}`,
+      `  ${e.journalNumber} (${e.date}): debits=${e.totalDebits.toFixed(2)} credits=${e.totalCredits.toFixed(2)} over/short=${e.overShort.toFixed(2)}`,
     );
   }
   if (journalResult.warnings.length > 0) {

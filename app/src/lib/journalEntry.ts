@@ -52,6 +52,11 @@ interface GenerateResult {
   warnings: string[];
   /** Set if and only if `journalEntry` is null. */
   skipped?: JournalSkipReason;
+  /** The imbalance the Over/Short plug absorbed (BuildResult.overShort); 0
+   *  when the day balanced on its own. The posted entry balances either way,
+   *  so a caller that must know whether the day did (the demo seed's check)
+   *  reads this rather than the totals or the wording of a warning. */
+  overShort: number;
 }
 
 export interface SalesPayment {
@@ -1292,6 +1297,7 @@ export async function generateSalesJournal(
     }
     return {
       journalEntry: null,
+      overShort: 0,
       warnings: [
         ...warnings,
         `${journalNumber}: no entry posted — the day's activity offsets to zero in every ` +
@@ -1364,6 +1370,7 @@ export async function generateSalesJournal(
       })),
     },
     warnings,
+    overShort: result.overShort,
   };
 }
 
