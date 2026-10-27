@@ -366,6 +366,8 @@ export const APPAREL_VENDOR_FORMATS: readonly ApparelVendorFormat[] = [ { id: "r
 
 **Fix:** Add `Vendor.partNumberPrefix String?` and resolve `catalogVendorName` from the selected Vendor record. The shipped registry then keeps only (formatId, label, accepts, parserKey) plus genuine format quirks; the vendor-specific facts come from the Vendor row the buyer picks. `newItemsUseColorCode` becomes `Vendor.colorKeyedByCode Boolean`; keep `normalizeStyleNumber` in code keyed by parser, since it is logic, not data.
 
+Same file, same kind of fact (found 2026-10-27 by `__tests__/noInventedMarkup.test.ts`): `frankEileenRetail` prefills retail at cost × 2.3 rounded to a price ending in 8. It is an editable prefill in the import preview, not a sale price, so it is accepted by that ratchet rather than removed; it moves to the Vendor row with the rest.
+
 ### `app/src/lib/apparelOrderVendors.ts:168`
 
 **Status: OPEN** (verified 2026-09-17 against main @ 8298bae)
