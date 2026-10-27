@@ -25,7 +25,9 @@ REGISTER role exists specifically for counter staff; its POS-relevant permission
 
 ## Payment recording — `lib/paymentService.ts`
 
-Source of truth for the ERP-native `Payment` writes — POS tender, refund processing, store-credit usage, gift-card redemption, and the PENDING→COMPLETED processor lifecycle. It is not the only writer: imported Ordorite payments bypass this and go through `runPaymentsImport` (`lib/adapters/ordorite/runners.ts`), and `pages/api/portal/pay.ts`, `pages/api/stripe/send-payment-link.ts` and `lib/billing/invoice*.ts` create `Payment` rows with `prisma.payment.create` directly.
+Source of truth for the ERP-native `Payment` writes — POS tender, refund processing, store-credit usage, gift-card redemption, and the PENDING→COMPLETED processor lifecycle. It is not the only writer: imported Ordorite payments bypass this and go through `runPaymentsImport` (`lib/adapters/ordorite/runners.ts`), and `lib/billing/invoice*.ts` create invoice `Payment` rows with `prisma.payment.create` directly (labelled from `METHOD_DISPLAY` / `INVOICE_PAYMENT_LABELS`).
+
+**A payment's label is its method, never its purpose.** `Payment.paymentType` is what the sales journal maps to a GL account (`POS_PAYMENTS`), so a card payment must read "Card". Until 2026-10-27 `pages/api/portal/pay.ts` and `pages/api/stripe/send-payment-link.ts` wrote their own PENDING rows and labelled a partial payment "Deposit", the journal's deposit OFFSET label: the card money posted to the wrong account and the daily reconciliation left it out of tender. All three hosted-checkout routes now write through `recordPendingPayment`, which labels by method and fills the customer. Whether a payment is a deposit is the journal's call, from the invoice date (`settlesOf`). Migration `20261027120000_card_payments_not_deposit` relabelled the existing rows; `hostedCheckoutLabels.integration.test.ts` pins both routes.
 
 Key invariants enforced by `recordPayment()`:
 
