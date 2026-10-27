@@ -60,3 +60,18 @@ reason = "ReDoS in SheetJS xlsx (CVE-2024-22363), fixed upstream in 0.20.2 per c
 #   GHSA-238p-pmpm-9mq7 (katex) -- micromark-extension-math now gets katex
 #     0.18.x. markdownlint imports only its `math` tokenizer, never the KaTeX
 #     renderer; lint:md output is identical before and after.
+
+# Added 2026-10-27: GHSA-gcqx-w48m-w2h4, prototype poisoning in deepmerge's
+# mergeObject() "through 4.3.1" (OSV: introduced 4.2.0, last_affected 4.3.1,
+# no fixed version; npm's latest deepmerge is 4.3.1, so nothing to move to).
+# It reaches the DEV tree only: jest -> @jest/core -> jest-config, which
+# merges Jest's own defaults with this repo's jest.config.ts
+# (node_modules/jest-config/build/index.js:943) and a preset's globals
+# (:1442). Both inputs are developer-authored config files, never request or
+# upload data, and nothing in src/ imports deepmerge. Re-check when jest is
+# bumped or deepmerge publishes a fix.
+
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+ignoreUntil = 2027-01-27
+reason = "Prototype poisoning in deepmerge mergeObject() through 4.3.1; no fixed version exists (npm latest is 4.3.1). Dev-only: jest -> @jest/core -> jest-config, which merges Jest's defaults with jest.config.ts (jest-config/build/index.js:943) and preset globals (:1442), developer-authored config only; src/ never imports deepmerge. Verified 2026-10-27."
