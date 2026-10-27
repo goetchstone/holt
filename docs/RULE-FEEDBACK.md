@@ -226,3 +226,20 @@ is a change to *where* it is enforced, not to *what* it says
 - **Principle:** not a rules problem.
 - **Would a rule have caught it?** No. Recorded so the next train knows the
   cost. A merge queue would remove it; that is a ruleset decision for the owner.
+
+### 2026-10-27 — Dependabot's update job failed 15 times on main and nobody saw
+
+- **Signal:** near miss (found by the 2026-10-27 improver pass reading CI failures)
+- **What happened:** since 2026-10-07, 15 of 42 "Dependabot Updates" runs on
+  main failed. The latest says `npm error Override for postcss@8.5.31 conflicts
+  with direct dependency` (EOVERRIDE): `app/package.json` declares `postcss`
+  both as a devDependency and as an override, so a bump of the direct one
+  breaks the override and the update is dropped. No PR, check or session start
+  surfaces a failed Dependabot job, so it failed into a log.
+- **Principle:** 4 (an instrument that can disagree) and rule 65's third part:
+  the job runs unattended, but its failure reaches no one. It is the fourth
+  instance found 2026-10-27, with the improver trigger, the warn-only weekly
+  Trivy job and `ci.yml`'s missing push trigger (#39).
+- **Would a rule have caught it?** Only if enforced differently: rule 65 asks
+  for a gate that runs unattended, not for its failure to reach someone.
+  Proposed for the next pass (`ROADMAP.md`, "Learning loop", item 5).
