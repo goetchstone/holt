@@ -575,9 +575,11 @@ that store, coded `TRUCK-<run number>` and named after the vehicle.
 - On the run's pull list its own truck counts as pulled; on an order's pull
   list any truck does. A unit on another run's truck (a stop that could not be
   done, not yet unloaded) is still to pull for this run.
-- Back at the site, Pick and load shows what is on the truck. Scan a loading
-  bay and unload: everything aboard that was loaded at the bay's store moves
-  there, still each order's (`unloadRun`).
+- Back at the site, Pick and load shows what is on the truck, and so does the
+  desk's run page (`/app/dispatch/run/[id]`, from the same `aboardLines`). Only
+  the handheld unloads: scan a loading bay and unload, and everything aboard
+  that was loaded at the bay's store moves there, still each order's
+  (`unloadRun`).
 - A run is not completed while anything is aboard, and completing it retires
   its truck places (inactive; their journal stays). Warehouse > Locations, the
   landing places, the buyer-draft place list and the stock-locations preset

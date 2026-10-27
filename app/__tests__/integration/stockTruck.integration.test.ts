@@ -7,6 +7,7 @@
 // unit on another run's truck is still to pull. The drift check after every
 // test (jest.integration.afterEach.ts) holds the journal to the balance.
 
+import type { NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
 import { buildPullList } from "@/lib/fulfilment/pullList";
@@ -14,6 +15,7 @@ import { loadRun, pickUnits } from "@/lib/fulfilment/pick";
 import { setRunStatus } from "@/lib/fulfilment/runs";
 import { completeStop, failStop } from "@/lib/fulfilment/stops";
 import { aboard, unloadRun } from "@/lib/fulfilment/truck";
+import { handleGet as runGet } from "@/pages/api/dispatch/runs/[id]";
 import { stockAt } from "../helpers/stock";
 
 async function world() {
@@ -144,6 +146,22 @@ async function held(w: World, stockLocationId: number) {
 const truckOf = (runId: number) =>
   prisma.stockLocation.findMany({ where: { deliveryRunId: runId } });
 
+/** The desk's run page payload, as the client receives it. */
+async function runPage(runId: number) {
+  let payload: unknown;
+  const res = {
+    status() {
+      return this;
+    },
+    json(p: unknown) {
+      payload = p;
+      return this;
+    },
+  } as unknown as NextApiResponse;
+  await runGet(runId, res);
+  return JSON.parse(JSON.stringify(payload)) as { aboard: unknown[] };
+}
+
 describe("a delivery run's truck is a place (real DB)", () => {
   beforeEach(async () => {
     await resetTestDb();
@@ -255,6 +273,11 @@ describe("a delivery run's truck is a place (real DB)", () => {
       { productId: w.lamp.id, salesOrderId: w.order.id, quantity: 2 },
       { productId: w.sofa.id, salesOrderId: w.order.id, quantity: 1 },
     ]);
+    // The desk's run page shows what Pick and load shows.
+    expect((await runPage(w.run.id)).aboard).toEqual([
+      { storeLocationId: w.store.id, orderno: "SO-1", productName: "LAMP", quantity: 2 },
+      { storeLocationId: w.store.id, orderno: "SO-1", productName: "SOFA", quantity: 1 },
+    ]);
     // The stop is off the run, so nothing is open -- but the truck is not empty.
     await expect(status(w, "COMPLETED")).rejects.toThrow(
       "still has 2 × LAMP for SO-1, 1 × SOFA for SO-1 on the truck",
@@ -278,6 +301,7 @@ describe("a delivery run's truck is a place (real DB)", () => {
     ]);
     // Back at the bay, still the order's and already pulled for its next run.
     expect((await buildPullList(prisma, { salesOrderId: w.order.id })).rows).toEqual([]);
+    expect((await runPage(w.run.id)).aboard).toEqual([]);
 
     await status(w, "COMPLETED");
     expect((await prisma.stockLocation.findUniqueOrThrow({ where: { id: truck.id } })).isActive).toBe(
