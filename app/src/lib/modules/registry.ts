@@ -179,10 +179,11 @@ export const MODULES: ModuleDef[] = [
     description:
       "Public DMARC / SPF / DKIM domain checker + aggregate-report analyzer. Lead-gen consult tooling; off by default.",
     defaultEnabled: false,
-    // Niche, single-tenant (Akritos-only) lead-gen tooling. Hidden from the
+    // Niche, single-tenant lead-gen tooling. Hidden from the
     // Modules toggle grid for every deployment that doesn't already have it
     // on -- a furniture retailer should never see this as an option.
-    // Provisioned via scripts/seed-akritos.mjs, not the Settings UI.
+    // A deployment that wants it turns it on in its own seed or preset,
+    // not the Settings UI.
     category: "addon",
     // No configurable settings today -- this is the "nav but no fields"
     // case. /admin/settings/dmarcTools still renders (module found + module

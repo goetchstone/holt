@@ -10,13 +10,13 @@ import {
 describe("email templates", () => {
   it("booking confirmation includes service, customer, and app name", () => {
     const { subject, html } = bookingConfirmationEmail({
-      appName: "Akritos",
+      appName: "Example Co",
       customerName: "Dana",
       serviceName: "Consult",
       startsAt: new Date("2026-06-10T15:00:00Z"),
       timezone: "UTC",
     });
-    expect(subject).toContain("Akritos");
+    expect(subject).toContain("Example Co");
     expect(subject).toContain("Consult");
     expect(html).toContain("Dana");
     expect(html).toContain("Consult");
@@ -24,19 +24,19 @@ describe("email templates", () => {
 
   it("ticket received includes the number + status link", () => {
     const { subject, html } = ticketReceivedEmail({
-      appName: "Akritos",
+      appName: "Example Co",
       submitterName: "Dana",
       ticketNumber: "TKT-260604-001",
       subject: "Help me",
-      statusUrl: "https://akritos.com/support/abc",
+      statusUrl: "https://www.example.com/support/abc",
     });
     expect(subject).toContain("TKT-260604-001");
-    expect(html).toContain("https://akritos.com/support/abc");
+    expect(html).toContain("https://www.example.com/support/abc");
   });
 
   it("escapes HTML in interpolated values so content can't inject markup", () => {
     const { html } = ticketReplyEmail({
-      appName: "Akritos",
+      appName: "Example Co",
       submitterName: "Dana",
       ticketNumber: "TKT-1",
       subject: "x",

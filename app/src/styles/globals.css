@@ -56,8 +56,8 @@
   --color-brand-accent-gray: rgb(var(--brand-accent-gray));
   --color-brand-accent-blue: rgb(var(--brand-accent-blue));
 
-  /* Akritos tool palette — the dark theme for the (Akritos-gated) public DMARC
-     tools ported from akritos.com. Scoped to those pages; not part of the
+  /* DMARC tool palette — the dark theme for the (dmarcTools-gated) public DMARC
+     tools. Scoped to those pages; not part of the
      white-label brand tokens above. */
   --color-midnight: #1c1f2e;
   --color-conviction: #c8a96e;

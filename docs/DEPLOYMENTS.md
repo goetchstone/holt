@@ -1,7 +1,7 @@
 # Deployments (white-label model)
 
-How one product codebase serves many branded instances — and specifically how
-**Akritos** runs on Holt without forking the code.
+How one product codebase serves many branded instances without forking the
+code.
 
 ## The model
 
@@ -44,15 +44,13 @@ core repo stays a single product so improvements flow to every deployment.
 
 - **Core** — this repo as shipped. Generic seeds, default theme, all optional
   modules off unless the catalog defaults them on.
-- **Akritos** (consultancy edition) — the maker's own deployment. Defined
-  entirely by the gitignored `app/scripts/seed-akritos.mjs` +
-  `app/scripts/akritos-content/`: consultancy feature preset (booking, helpdesk,
-  time tracking, CMS+blog, `dmarcTools`), dark `theme.mode`, the akritos.com
-  palette, and the full page/post content. **SEO guarantee:** `akritos-content/`
-  is the canonical source of the akritos.com pages and posts — slugs are
-  preserved from the live site so indexing carries over — and it must ride every
-  environment move (it is data, not code; verified intact after the 2026-06-10
-  environment rename).
+- **Consultancy** (services edition) — booking, helpdesk, time tracking,
+  CMS+blog and the `dmarcTools` addon, usually with the dark `theme.mode`. Its
+  brand and site content come from the deployment's own kit (below), which
+  never lives in this repo. **SEO guarantee:** when a deployment moves an
+  existing site onto Holt, its kit is the canonical source of the pages and
+  posts, at the live site's slugs so indexing carries over, and it must ride
+  every environment move (it is data, not code).
 - **Riverbend** (retail edition) — a retail feature preset (POS, inventory,
   warehousing, dispatch, purchasing, commissions) plus the **Ordorite adapter**:
   a self-contained import package (report runners, status derivation, rewrite /
@@ -87,67 +85,74 @@ core repo stays a single product so improvements flow to every deployment.
 Adding a future client = a new seed + feature preset, and an adapter only if
 they migrate from a system with quirky exports.
 
-## The Akritos port
+## A deployment's own kit
 
-Akritos runs its own site + back-office on Holt. Its deployment layer is the
-**akritos kit** (kept out of the white-box, gitignored under
-`app/scripts/akritos-content/` + `app/scripts/seed-akritos.mjs` +
-`public/akritos-logo.svg`):
+A deployment's identity has two halves, and neither is product code:
 
-- **Brand:** logo `/akritos-logo.svg`; theme = midnight `#1C1F2E`, conviction
-  `#C8A96E`, parchment `#F5F4F0`, slate `#4A5068`, bone `#E8E4DC`.
-- **Site:** all 27 akritos.com URLs (15 pages + 10 posts + `/blog` + `/book`)
-  recreated as CMS content at the same slugs, captured faithfully from the
-  source.
-- **Apply it:** with `DATABASE_URL` loaded, `node scripts/seed-akritos.mjs`
-  (idempotent — sets branding + theme + menus + pages + posts).
-
-The kit is the BRAND AND CONTENT half and stays gitignored on purpose
-(`docs/TENANCY.md`: tenant data out of the white box). The CONFIGURATION half no
-longer lives in it — `config/local/akritos.json` is in the repo and carries
-Akritos's import definitions and feature configuration through the preset
-system, applied with the same idempotent `apply` CLI every other deployment
-uses. It is deliberately JSON where `config/local/riverbend.yaml` is YAML: the two
-formats are interchangeable and keeping one of each in regular use is what keeps
-that claim honest.
-
-So a reader without the kit can reproduce Akritos's _configuration_ today, but
-not its content or brand. Closing that — tenant identity as presets plus a
-compose profile with its own port and database — is Phase 5 in `ROADMAP.md`, and
-until it lands the deployment steps below assume you hold the kit.
+- **Brand and content:** its logo, palette, menus, pages and posts. They live in
+  the deployment's own seed script and captured content, kept outside the
+  product repo (in `config/local/`, or in `.git/info/exclude` on the machine
+  that holds them; `docs/TENANCY.md`). Apply it with `DATABASE_URL` loaded; it
+  should be idempotent, like `scripts/seed-cms.mjs`.
+- **Configuration:** import definitions and feature configuration as a preset in
+  `config/local/<deployment>.json` or `.yaml` (the two formats are
+  interchangeable), applied with the same idempotent `apply` CLI every
+  deployment uses (`docs/domains/config-presets.md`).
 
 To revert any instance to the generic white-box demo: `npm run seed:cms`.
 
-## Rebasing the `simplerms` repo onto Holt (owner-driven cutover)
+## Moving a deployment onto Holt from another system
 
-Goal: `simplerms` becomes "Holt for Akritos" — Holt's code + the akritos
-kit — while this repo stays the separate white-box product. This touches git and
-live data, so the owner drives it.
+A deployment that runs on another system first brings its history in through an
+importer for that system, then cuts over. Two exist today, each named for the
+system it reads, never for a deployment:
 
-1. **Point simplerms at Holt's code.** Add Holt as an upstream remote and
-   replace simplerms's app with Holt's tree (or make simplerms a fresh repo
-   seeded from Holt's code). Keep the akritos kit (above) in simplerms as its
-   deployment layer. Future updates = pull from Holt upstream.
-2. **Migrate data.** simplerms's current Prisma schema differs from Holt's.
-   Export the akritos business data (clients, invoices, inventory, tickets,
-   appointments) and import it through Holt's import paths / a one-time
-   migration. The marketing site is already covered by the akritos kit.
-3. **Stand it up.** Set env (`NEXTAUTH_URL=https://akritos.com`,
-   `BOOKING_FEED_TOKEN`, secrets), run migrations, `create-admin`, then
-   `seed-akritos.mjs`.
-4. **Cut over.** Verify the 27 URLs + booking against the live site, then point
-   akritos.com DNS at the new deployment and submit the sitemap. Same URLs +
-   content ⇒ SEO authority carries over.
+- **Ordorite** (retail): the adapter in `app/src/lib/adapters/ordorite/`, above.
+- **simplerms** (services): `app/scripts/migrate-simplerms.mjs`, a one-time
+  migration. Dry-run it into a scratch database first:
+
+  ```
+  SOURCE_DATABASE_URL=postgres://.../simplerms_copy \
+  DATABASE_URL=postgres://.../holt_staging \
+  node scripts/migrate-simplerms.mjs --dry-run
+  ```
+
+  Review the per-entity counts and `scripts/migration-exceptions.json`
+  (everything with no Holt home is listed, nothing silently disappears). Re-run
+  without `--dry-run`; it is idempotent on natural keys (invoice number, ticket
+  number, service slug, customer email) and backfills the AR subledger so the
+  drift check ties out from day one.
+
+The cutover, for any deployment:
+
+1. **Verify SEO parity** of the staging instance (the deployment's kit plus the
+   migrated data) against the live site:
+   `node scripts/sitemap-diff.mjs https://<live-site> http://localhost:3000`.
+   Exit 0 = every live URL exists and resolves on Holt. Anything missing blocks
+   the cutover.
+2. **Stand up the host.** Docker and the production compose (`app` + `db` +
+   nginx profile). Env per `env.example`: `NEXTAUTH_URL` = the deployment's
+   domain, a fresh `NEXTAUTH_SECRET`, `APP_ENCRYPTION_KEY` (sacred: keep it in
+   the secret manager), `AUTH_LOCAL_ENABLED=1` until OAuth is configured. Apply
+   migrations, `npm run create-admin`, apply the deployment's kit, then the data
+   migration against a dump taken in the cutover window. Production secrets go
+   in Settings → Integrations after first boot, never in files.
+3. **Cut over.** Freeze writes on the old system, take the final dump, re-run the
+   (idempotent) migration, point DNS at the new host, submit the sitemap in
+   Search Console. Roll back = point DNS back; the old system was never
+   modified.
+4. **Decommission later, not same-day.** Keep the old system read-only for two
+   weeks as the reference for any data question, then archive it.
 
 ## Keeping in sync
 
-Holt is the single source of truth for code. The Akritos deployment carries
-only its data layer. When Holt ships a feature or fix, the Akritos deployment
-gets it by pulling Holt — nothing to re-implement, nothing to merge back.
+Holt is the single source of truth for code. A deployment carries only its data
+layer. When Holt ships a feature or fix, every deployment gets it by pulling
+Holt: nothing to re-implement, nothing to merge back.
 
 ## Local demo container rebuild (gotcha)
 
-The local Akritos demo runs the prod image (`holt-app-1`) against the
+The local demo runs the prod image (`holt-app-1`) against the
 host's dev DB (`holt-dev-db`, port 5435).
 
 **Always bring it up with `scripts/dev-app-up.sh`** (`--build` to rebuild the
@@ -174,53 +179,3 @@ The script encapsulates the two things that bite a naive `docker compose up`:
 The script also prunes build cache (a full cache once filled Docker's disk and
 crashed the dev DB) and polls `/` for a 200 before returning, so a failed
 bring-up surfaces immediately instead of as a silent 500.
-
-## VPS deploy kit (the Akritos cutover, step by step)
-
-Everything below is local-preparable; only the final DNS step touches the
-live site. Prereqs from the owner: SSH access to the akritos.com VPS, a
-fresh dump of the production simplerms database, and the production
-secrets (entered in Settings → Integrations after first boot, never in
-files).
-
-1. **Dry-run the data migration locally.** Restore the simplerms dump into
-   a scratch DB, then:
-
-   ```
-   SOURCE_DATABASE_URL=postgres://.../simplerms_copy \
-   DATABASE_URL=postgres://.../holt_staging \
-   node scripts/migrate-simplerms.mjs --dry-run
-   ```
-
-   Review the per-entity counts + `scripts/migration-exceptions.json`
-   (Client.company, notes, files — everything with no Holt home is listed,
-   nothing silently disappears). Re-run without `--dry-run`; the script is
-   idempotent (natural keys: invoice number, ticket number, service slug,
-   customer email), and it backfills the AR subledger so the drift check
-   ties out from day one. Then run the drift check to prove it.
-
-2. **Verify SEO parity** against the staging instance with the akritos seed
-   - migrated data loaded:
-
-   ```
-   node scripts/sitemap-diff.mjs https://akritos.com http://localhost:3000
-   ```
-
-   Exit 0 = every live URL exists and resolves on Holt. Anything missing
-   blocks the cutover.
-
-3. **Stand up the VPS.** Docker + the production compose (`docker-compose.yml`
-   `app` + `db` + nginx profile). Env per `env.example`:
-   `NEXTAUTH_URL=https://akritos.com`, fresh `NEXTAUTH_SECRET`,
-   `APP_ENCRYPTION_KEY` (sacred — store it in the secret manager),
-   `AUTH_LOCAL_ENABLED=1` until OAuth is configured. Apply migrations,
-   `npm run create-admin`, run `seed-akritos.mjs`, then the data migration
-   from step 1 against the real dump taken during the cutover window.
-
-4. **Cut over.** Freeze writes on the old simplerms instance, take the
-   final dump, re-run the (idempotent) migration, point DNS at the VPS,
-   submit the sitemap in Search Console. Roll back = point DNS back; the
-   old instance was never modified.
-
-5. **Decommission later, not same-day.** Keep simplerms read-only for two
-   weeks as the reference for any data question, then archive its volume.

@@ -14,7 +14,7 @@ reference point, not a target.
 
 | Dimension | predecessor (baseline) | Holt | Note |
 |---|---|---|---|
-| **Business value** | 7 | **7** | Same DNA, productized: open-core, white-label, storefront+CMS, 2nd real deployment (Akritos), AGPL. Higher ceiling, earlier maturity. |
+| **Business value** | 7 | **7** | Same DNA, productized: open-core, white-label, storefront+CMS, 2nd real deployment (the vendor's own services company), AGPL. Higher ceiling, earlier maturity. |
 | Architecture | 6 | **6.5** | tRPC slice + capability system + config presets + source-adapter seam; docked for 3 coexisting API styles and unfinished money-path plumbing. |
 | Testing | 7 | **7** | 304 test files / 64 integration / ~3,300 unit + a CI boot-smoke that caught real bugs; docked for 48% branch floor + a ratcheted-down functions floor. |
 | Security | 5 | **6.5** | Fixed the baseline's #1 finding; semgrep+osv+sonar in CI; documented periodic security sweep w/ disposition log; encrypted creds. Docked for the tenancy marketing gap. |
@@ -61,7 +61,7 @@ routers. 73 docs. 136 commits, 127 by one author.
 
 - Genuine productization over the baseline: white-label at runtime (branding/creds/imports in DB),
   feature-flag modules per org, storefront + in-app block CMS (no rebuilds), demo seed (~6k orders),
-  a second real deployment (Akritos) exercising the de-tenant seam.
+  a second real deployment (the vendor's own services company) exercising the de-tenant seam.
 - Real market wedge: furniture-retail ERP + storefront vs weak incumbents (Ordorite, FileMaker).
 - Tempered by maturity: ROADMAP (self-audited against code) says money path only "partially" —
   inventory allocation **not wired (zero call sites)**, `release()` compound-key bug open, split

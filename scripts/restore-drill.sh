@@ -137,7 +137,7 @@ case "$DRILL_DB_NAME" in
     exit 1
     ;;
 esac
-for forbidden in fbc_dev_db fbc_test_db akritos postgres template0 template1; do
+for forbidden in fbc_dev_db fbc_test_db postgres template0 template1; do
   drill_lc=$(printf '%s' "$DRILL_DB_NAME" | tr '[:upper:]' '[:lower:]')
   if [ "$drill_lc" = "$forbidden" ]; then
     echo "ERROR: refusing to target '$DRILL_DB_NAME' -- it matches a real or" >&2

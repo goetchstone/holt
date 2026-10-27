@@ -1,11 +1,11 @@
 // app/scripts/sitemap-diff.mjs
 //
-// SEO-preservation check for the Akritos cutover: every URL on the LIVE
+// SEO-preservation check for a site cutover: every URL on the LIVE
 // site's sitemap must resolve on the Holt deployment at the same path —
 // same slugs in, same slugs out, or indexed authority is lost.
 //
 // Usage:
-//   node scripts/sitemap-diff.mjs https://akritos.com http://localhost:3000
+//   node scripts/sitemap-diff.mjs https://www.example.com http://localhost:3000
 //
 // Compares the two /sitemap.xml path sets, then HEAD-checks every live path
 // against the candidate base so a slug that exists in the sitemap but 404s

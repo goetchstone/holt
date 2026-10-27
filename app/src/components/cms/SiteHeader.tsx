@@ -5,7 +5,7 @@
 //
 // Two variants, driven by AppSettings themeMode: "light" (white bar, filled
 // sign-in button) and "dark" (navy bar that blends into a dark site, logo +
-// wordmark, outline "Staff login" button — the akritos.com chrome). Colors come
+// wordmark, outline "Staff login" button — the dark marketing-site chrome). Colors come
 // from the brand tokens, so each tenant's palette applies in either mode.
 
 import Link from "next/link";
