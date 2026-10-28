@@ -25,9 +25,27 @@ REGISTER role exists specifically for counter staff; its POS-relevant permission
 
 ## Payment recording — `lib/paymentService.ts`
 
-Source of truth for the ERP-native `Payment` writes — POS tender, refund processing, store-credit usage, gift-card redemption, and the PENDING→COMPLETED processor lifecycle. It is not the only writer: imported Ordorite payments bypass this and go through `runPaymentsImport` (`lib/adapters/ordorite/runners.ts`), and `lib/billing/invoice*.ts` create invoice `Payment` rows with `prisma.payment.create` directly (labelled from `METHOD_DISPLAY` / `INVOICE_PAYMENT_LABELS`).
+Source of truth for the ERP-native `Payment` writes — POS tender, refund processing, store-credit usage, gift-card redemption, and the PENDING→COMPLETED processor lifecycle. It is not the only writer: imported Ordorite payments bypass this and go through `runPaymentsImport` (`lib/adapters/ordorite/runners.ts`), and `lib/billing/invoiceService.ts` creates manually recorded invoice `Payment` rows with `tx.payment.create` directly (labelled from `INVOICE_PAYMENT_LABELS`). An invoice's card payment link is not one of them: it goes through `startHostedCheckout` like the order routes.
 
-**A payment's label is its method, never its purpose.** `Payment.paymentType` is what the sales journal maps to a GL account (`POS_PAYMENTS`), so a card payment must read "Card". Until 2026-10-27 `pages/api/portal/pay.ts` and `pages/api/stripe/send-payment-link.ts` wrote their own PENDING rows and labelled a partial payment "Deposit", the journal's deposit OFFSET label: the card money posted to the wrong account and the daily reconciliation left it out of tender. All three hosted-checkout routes now write through `recordPendingPayment`, which labels by method and fills the customer. Whether a payment is a deposit is the journal's call, from the invoice date (`settlesOf`). Migration `20261027120000_card_payments_not_deposit` relabelled the existing rows; `hostedCheckoutLabels.integration.test.ts` pins both routes.
+**A payment's label is its method, never its purpose.** `Payment.paymentType` is what the sales journal maps to a GL account (`POS_PAYMENTS`), so a card payment must read "Card". Until 2026-10-27 `pages/api/portal/pay.ts` and `pages/api/stripe/send-payment-link.ts` wrote their own PENDING rows and labelled a partial payment "Deposit", the journal's deposit OFFSET label: the card money posted to the wrong account and the daily reconciliation left it out of tender. Every hosted checkout now writes through `recordPendingPayment`, which labels by method and fills the customer. Whether a payment is a deposit is the journal's call, from the invoice date (`settlesOf`). Migration `20261027120000_card_payments_not_deposit` relabelled the existing rows.
+
+**One way to start an online card payment: `startHostedCheckout`.** Four sites used to paste the same sequence (block a second open session, open the provider's checkout, write the PENDING row): `pages/api/stripe/create-checkout.ts`, `pages/api/stripe/send-payment-link.ts`, `pages/api/portal/pay.ts`, and `lib/billing/invoiceStripe.ts` `createInvoicePaymentLink`. They now call `startHostedCheckout({ target: { orderId } | { invoiceId }, amount, actor, force, description, customerEmail, metadata, urls })` in `lib/paymentService.ts`, and keep only their own auth, balance rule, response shape and wording. It:
+
+- refuses while `findActivePendingPayment(target)` finds a PENDING, non-refund row on the same order or invoice younger than `PENDING_SESSION_LIFETIME_MS` (24h), by throwing `CheckoutAlreadyOpenError` carrying that row's id, amount and age; with `force` it voids that row (`voidPendingPayment`, `updatedBy` = the actor) and carries on;
+- opens the session on `getActiveProvider()` in `AppSettings.currency` (the three order routes used to send a `"USD"` literal);
+- writes the row through `recordPendingPayment(target, …)`: method `CARD`, label `METHOD_DISPLAY.CARD`, `customerId` from the order or invoice, `processorType` from the provider (rule 60), and `salesOrderId` or `invoiceId`, the structural binding the webhook routes on.
+
+The invoice path had no guard before this: every call opened a fresh checkout for the full open balance, so the email, the client portal and the staff "Copy payment link" could all leave parallel sessions on one invoice. How each caller answers an open checkout:
+
+| Caller | Answer |
+|---|---|
+| `stripe/create-checkout`, `stripe/send-payment-link` (staff, order) | 409 `{ error, existingPayment }`; `force: true` replaces it |
+| `portal/pay` (customer, order) | 409 in customer wording; `force: true` replaces it (the token scopes it to their own order) |
+| `client-portal/pay` (customer, invoice) | same as `portal/pay`, for their own invoice |
+| tRPC `billing.paymentLink` (staff, invoice) | `CONFLICT` with the staff wording; input takes `force` |
+| `sendInvoiceEmail` | sends the email without the pay button and logs a warning naming the open checkout |
+
+Neither staff screen offers `force`. The order detail page can void a PENDING row (`payment.void`); the invoice detail page has no such control yet, so until the open checkout is paid or expires (24h) "Copy payment link" on that invoice shows the conflict. A 500 from the three order routes now says only what failed; the cause goes to `logError` (rule 11). `hostedCheckoutLabels.integration.test.ts` pins the row each site writes and the invoice guard.
 
 Key invariants enforced by `recordPayment()`:
 
@@ -86,7 +104,7 @@ Phase 1 G8 in the master plan adds a `CashMovement` model for intra-day non-sale
 Stripe is no longer the only processor: checkout creation and webhook verification sit behind a provider seam (`lib/payments/`, with `stripeProvider.ts` and `squareProvider.ts`), and the routes resolve a provider rather than calling Stripe directly.
 
 - `lib/stripe.ts` — Stripe client resolution only (secret key DB-first from Settings, `STRIPE_SECRET_KEY` env fallback) plus the `STRIPE_TEST_EMAIL_OVERRIDE` escape hatch. Checkout-session creation and signature verification live in `lib/payments/stripeProvider.ts`.
-- `pages/api/stripe/create-checkout.ts` — creates a checkout session for an order's balance on whichever provider is active, returns the redirect URL, and writes the `PENDING` `Payment` row via `recordPendingPayment` (no ledger entry yet).
+- `pages/api/stripe/create-checkout.ts` — creates a checkout session for an order's balance through `startHostedCheckout` (whichever provider is active), returns the redirect URL; the `PENDING` `Payment` row is written via `recordPendingPayment` (no ledger entry yet).
 - `pages/api/stripe/webhook.ts` — Stripe's delivery endpoint. Signature verification is mandatory: with no webhook secret configured the route rejects outright. On a completion event it finds the `PENDING` `Payment` by `processorTxnId`, calls `completePayment` (status + ledger entry in one transaction) and then `onPaymentReceived`. It also handles `checkout.session.expired`, ending the `PENDING` row as `FAILED`.
 - **Idempotency**: `processorTxnId` is **not** unique on `Payment` — there is no unique index on it and no INSERT-on-conflict anywhere. Retried deliveries are safe because the webhook's lookup filters on `status: "PENDING"` and `completePayment` returns early on an already-`COMPLETED` row, so the ledger entry is never double-posted. Stripe retries are normal and frequent.
 - Customer portal exposes a payment link per-order at `/portal/order?token=…`, which posts to `pages/api/portal/pay.ts` (JWT token auth, no login, rate-limited at 5/min per IP).

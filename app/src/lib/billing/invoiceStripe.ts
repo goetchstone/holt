@@ -1,17 +1,19 @@
 // /app/src/lib/billing/invoiceStripe.ts
 //
-// Stripe checkout for authored invoices. Mirrors the order payment-link flow
-// (pages/api/stripe/send-payment-link.ts): create a checkout session for the
-// open balance, store a PENDING customer-linked Payment keyed by session id.
+// Hosted card checkout for authored invoices. The invoice's own rules live
+// here (imported invoices and closed ones take no link, the customer needs an
+// email, the open balance is total less applications); the checkout itself is
+// paymentService.startHostedCheckout, the same one the order routes use. It
+// refuses while a checkout on this invoice may still be open, opens the
+// session, and stores a PENDING customer-linked Payment bound to the invoice.
 // The webhook completes it (completePayment -> ledger) and then
 // applyInvoiceStripePayment adds the application + AR_PAYMENT journal.
 // Server-only (imports the Stripe client).
 
 import { prisma } from "@/lib/prisma";
 import { resolveCheckoutEmail } from "@/lib/stripe";
-import { assertCapability, getActiveProvider } from "@/lib/payments";
 import { getAppSettings } from "@/lib/appSettings";
-import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
+import { startHostedCheckout } from "@/lib/paymentService";
 import { InvoiceValidationError, invoiceActionError } from "@/lib/billing/invoiceAuthoring";
 
 function round2(n: number): number {
@@ -23,9 +25,16 @@ export interface InvoicePaymentLink {
   amount: number;
 }
 
+/**
+ * Throws `CheckoutAlreadyOpenError` (from paymentService) while a checkout on
+ * this invoice may still be open, unless `force` voids that one first. Each
+ * caller decides what that means for it: a 409, a CONFLICT, or an email sent
+ * without the pay button.
+ */
 export async function createInvoicePaymentLink(
   invoiceId: number,
   requestedBy?: string | null,
+  opts: { force?: boolean } = {},
 ): Promise<InvoicePaymentLink> {
   const invoice = await prisma.invoice.findUniqueOrThrow({
     where: { id: invoiceId },
@@ -33,9 +42,8 @@ export async function createInvoicePaymentLink(
       invoiceNo: true,
       status: true,
       total: true,
-      customerId: true,
       organizationId: true,
-      customer: { select: { email: true, firstName: true, lastName: true } },
+      customer: { select: { email: true } },
       applications: { select: { amountApplied: true } },
     },
   });
@@ -57,43 +65,22 @@ export async function createInvoicePaymentLink(
   const settings = await getAppSettings();
   const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
-  // Whichever processor the deployment has made active takes new payments.
-  const provider = getActiveProvider();
-  assertCapability(provider, "hostedCheckout");
-
-  let checkout;
-  try {
-    checkout = await provider.createCheckout!({
-      amount: open,
-      currency: settings.currency || "USD",
-      description: `Invoice ${invoice.invoiceNo} — ${settings.companyName || settings.appName}`,
-      customerEmail: resolveCheckoutEmail(invoice.customer.email),
-      metadata: {
-        invoiceId: String(invoiceId),
-        invoiceNo: invoice.invoiceNo,
-        requestedBy: requestedBy ?? "",
-      },
+  const checkout = await startHostedCheckout({
+    // Structural binding: the webhook routes on Payment.invoiceId, never on metadata.
+    target: { invoiceId },
+    amount: open,
+    actor: requestedBy,
+    force: opts.force,
+    description: `Invoice ${invoice.invoiceNo} — ${settings.companyName || settings.appName}`,
+    customerEmail: resolveCheckoutEmail(invoice.customer.email),
+    metadata: {
+      invoiceId: String(invoiceId),
+      invoiceNo: invoice.invoiceNo,
+      requestedBy: requestedBy ?? "",
+    },
+    urls: {
       successUrl: `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${baseUrl}/app/payment/cancel?invoice_id=${invoiceId}`,
-    });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Checkout could not be created";
-    throw new InvoiceValidationError(msg);
-  }
-
-  await prisma.payment.create({
-    data: {
-      paymentDate: new Date(),
-      paymentType: METHOD_DISPLAY.CARD,
-      paymentAmount: open,
-      status: "PENDING",
-      method: "CARD",
-      customerId: invoice.customerId,
-      // Structural binding — the webhook routes on this, never on metadata.
-      invoiceId,
-      processorType: provider.id.toUpperCase(),
-      processorTxnId: checkout.providerTxnId,
-      createdBy: requestedBy ?? null,
     },
   });
 

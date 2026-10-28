@@ -21,11 +21,15 @@ by expiry; a fresh link supersedes nothing and invalidates nothing.
   (indistinguishable from a wrong URL). The only client-side interaction is
   the invoice Pay button.
 - **Pay endpoint** `POST /api/client-portal/pay` — public, rate-limited
-  (10/min), body `{ token, invoiceId }`: re-verifies the token, refuses
-  unless the invoice belongs to the token's customer, then reuses
-  `createInvoicePaymentLink` from the billing module (PENDING payment bound
-  via `Payment.invoiceId`; the Stripe webhook completes + applies it like
-  any invoice payment).
+  (10/min), body `{ token, invoiceId, force? }`: re-verifies the token,
+  refuses unless the invoice belongs to the token's customer, then reuses
+  `createInvoicePaymentLink` from the billing module, which starts the
+  checkout through `paymentService.startHostedCheckout` (PENDING payment
+  bound via `Payment.invoiceId`; the Stripe webhook completes + applies it
+  like any invoice payment). While a checkout on that invoice is still open
+  (PENDING, under 24h) it answers 409 with the amount and age, as
+  `portal/pay` does for orders; `force: true` voids the open one and starts
+  a new one. The portal page shows the message and does not offer `force`.
 - **Staff link generation** — tRPC `clientPortal.generateLink`
   (MANAGER/ADMIN, feature-gated): returns
   `{NEXTAUTH_URL}/portal/client/<token>`. Surfaced as "Copy Portal Link" on

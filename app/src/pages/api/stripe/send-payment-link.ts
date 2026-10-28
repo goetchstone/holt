@@ -5,13 +5,12 @@ import type { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { resolveCheckoutEmail } from "@/lib/stripe";
-import { assertCapability, getActiveProvider } from "@/lib/payments";
 import {
   calculateOrderBalance,
-  findActivePendingPayment,
-  recordPendingPayment,
-  voidPendingPayment,
+  CheckoutAlreadyOpenError,
+  startHostedCheckout,
 } from "@/lib/paymentService";
+import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
@@ -58,27 +57,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       return res.status(400).json({ error: "No balance due on this order" });
     }
 
-    // A PENDING row from a link the customer may still be sitting on —
-    // sending a second one risks both landing (double-charge). Refuse with
-    // enough detail that the operator can tell "still open" from "actually
-    // failed," unless they've explicitly confirmed a replacement.
-    const existingPending = await findActivePendingPayment(orderId);
-    if (existingPending) {
-      if (!force) {
-        return res.status(409).json({
-          error:
-            `A payment link for $${existingPending.amount.toFixed(2)} is already open on ` +
-            `this order (started ${existingPending.ageMinutes} min ago). If the customer says ` +
-            `it never arrived, retry with force:true to void it and send a new one.`,
-          existingPayment: existingPending,
-        });
-      }
-      await voidPendingPayment(existingPending.id, {
-        voidedBy: session.user?.email,
-        reason: "Replaced by a new payment link (force)",
-      });
-    }
-
     // Use requested amount if provided, otherwise full balance
     const paymentAmount = requestedAmount
       ? Math.min(requestedAmount, balance.balanceDue)
@@ -101,13 +79,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       .map((li) => li.productName || li.partNo || "Item")
       .join(", ");
 
-    // Whichever processor the deployment has made active takes new payments.
-    const provider = getActiveProvider();
-    assertCapability(provider, "hostedCheckout");
-
-    const checkout = await provider.createCheckout!({
+    // A link the customer may still be sitting on refuses with a 409: sending
+    // a second risks both landing (a double charge), unless the operator
+    // confirmed a replacement with force.
+    const checkout = await startHostedCheckout({
+      target: { orderId },
       amount: paymentAmount,
-      currency: "USD",
+      actor: session.user?.email,
+      force,
       // The seam models one line-item label (stripeProvider.createCheckout uses
       // it as product_data.name); fold the item-list detail Stripe used to show
       // as a separate `description` into the same string rather than dropping it.
@@ -120,18 +99,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         isDeposit: isDeposit.toString(),
         requestedBy: session.user?.email || "",
       },
-      successUrl: `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${baseUrl}/app/payment/cancel?order_id=${orderId}`,
-    });
-
-    // Through the one PENDING writer, labelled "Card" by its method, never
-    // "Deposit": see portal/pay.ts, which had the same copy of this block.
-    await recordPendingPayment(orderId, {
-      method: "CARD",
-      amount: paymentAmount,
-      processorType: provider.id.toUpperCase(),
-      processorTxnId: checkout.providerTxnId,
-      createdBy: session.user?.email || undefined,
+      urls: {
+        successUrl: `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${baseUrl}/app/payment/cancel?order_id=${orderId}`,
+      },
     });
 
     return res.status(200).json({
@@ -142,8 +113,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       customerEmail: resolveCheckoutEmail(order.customer.email),
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to create payment link";
-    return res.status(500).json({ error: message });
+    if (error instanceof CheckoutAlreadyOpenError) {
+      return res.status(409).json({ error: error.message, existingPayment: error.existing });
+    }
+    logError("Payment link creation failed", error, { orderId });
+    return res.status(500).json({ error: "Failed to create payment link" });
   }
 }
 

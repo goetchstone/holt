@@ -25,6 +25,7 @@ import { createInvoicePaymentLink } from "@/lib/billing/invoiceStripe";
 import { sendInvoiceEmail } from "@/lib/billing/invoiceEmail";
 import { InvoiceValidationError } from "@/lib/billing/invoiceAuthoring";
 import { INVOICE_PAYMENT_METHODS } from "@/lib/billing/invoiceShared";
+import { CheckoutAlreadyOpenError } from "@/lib/paymentService";
 import { parseLocalDate } from "@/lib/dateUtils";
 
 const BILLING_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
@@ -49,13 +50,17 @@ async function requireBillingEnabled(): Promise<void> {
   }
 }
 
-/** Map service validation errors to BAD_REQUEST so the client toast shows the reason. */
+/** Map service validation errors to BAD_REQUEST, and a checkout already open
+ *  on the invoice to CONFLICT, so the client toast shows the reason. */
 async function translate<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
     if (err instanceof InvoiceValidationError) {
       throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+    }
+    if (err instanceof CheckoutAlreadyOpenError) {
+      throw new TRPCError({ code: "CONFLICT", message: err.message });
     }
     throw err;
   }
@@ -167,10 +172,19 @@ export const billingRouter = router({
     }),
 
   paymentLink: roleProcedure(BILLING_ROLES)
-    .input(z.object({ id: z.number().int().positive() }))
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        /** Void the checkout already open on this invoice and start a new one,
+         *  as the staff order routes allow. */
+        force: z.boolean().optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       await requireBillingEnabled();
-      return translate(() => createInvoicePaymentLink(input.id, ctx.userEmail ?? null));
+      return translate(() =>
+        createInvoicePaymentLink(input.id, ctx.userEmail ?? null, { force: input.force }),
+      );
     }),
 
   sendEmail: roleProcedure(BILLING_ROLES)
