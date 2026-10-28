@@ -1,9 +1,8 @@
-# DMARC Tools (Akritos-gated)
+# DMARC Tools (addon)
 
-Two public, lead-gen email-authentication tools ported from akritos.com. Gated
-behind the `dmarcTools` module (default **off**, `category: "addon"`); only
-the Akritos tenant enables it (`scripts/seed-akritos.mjs`). Other tenants get
-a 404, and never see it as an option in Settings → Modules either (addon
+Two public, lead-gen email-authentication tools. Gated behind the `dmarcTools`
+module (default **off**, `category: "addon"`); a deployment that wants them
+turns the module on in its own seed or preset. Other tenants get a 404, and never see it as an option in Settings → Modules either (addon
 modules are hidden from that toggle grid unless already on — see
 `docs/domains/modules.md`).
 
@@ -21,7 +20,7 @@ living only in prose here. It has no configurable settings, so it's the
 | Records checker | `/tools/dmarc-check` | Server-side DNS lookups (SPF / DKIM / DMARC / MX) → parsed records, plain-English issues, 0-100 score. |
 | Report analyzer | `/tools/dmarc-report` | Upload DMARC aggregate (RUA) XML/.gz/.zip → plain-English summary. |
 
-Both live in the public `(site)` group (dark "akritos tool" palette: `midnight` /
+Both live in the public `(site)` group (dark tool palette: `midnight` /
 `bone` / `conviction` / `slate-brand` tokens in `globals.css @theme`). The
 `(site)` layout supplies header/footer chrome. Pages 404 via
 `requireModule("dmarcTools")` (`src/lib/modules/requireModule.ts`), the

@@ -132,7 +132,7 @@ export const statsBlockSchema = z.object({
   type: z.literal("stats"),
   items: z.array(statItemSchema).default([]),
   // "stats" = big serif numbers grid; "checklist" = single inline row of
-  // check-marked claims (the akritos.com trust strip).
+  // check-marked claims (a trust strip).
   variant: z.enum(["stats", "checklist"]).default("stats"),
   // Default "dark" preserves the prior navy stat band.
   background: z.enum(SECTION_BACKGROUNDS).default("dark"),

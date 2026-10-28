@@ -19,6 +19,8 @@ import { NoTaxDistrictBanner } from "@/components/sales/NoTaxDistrictBanner";
 import { useCustomerSearch, type CustomerSearchResult } from "@/hooks/useCustomerSearch";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { RetailPriceTag } from "@/components/sales/RetailPriceTag";
+import { catalogRetailPrice, noRetailPriceMessage } from "@/lib/pos/cartPricing";
 
 type ItemSource = "FLOOR" | "ORDER";
 type FulfillmentMethod = "TAKE" | "PICKUP" | "DELIVERY";
@@ -202,7 +204,11 @@ export function NewQuoteView() {
     baseCost?: number | null;
     vendorName?: string;
   }) => {
-    const price = p.baseRetail ? Number(p.baseRetail) : p.baseCost ? Number(p.baseCost) * 2.5 : 0;
+    const price = catalogRetailPrice(p);
+    if (price === null) {
+      toast.error(noRetailPriceMessage(p));
+      return;
+    }
 
     setLines([
       ...lines,
@@ -443,11 +449,7 @@ export function NewQuoteView() {
                         {p.vendorName && <span> -- {p.vendorName}</span>}
                       </p>
                     </div>
-                    {p.baseRetail && (
-                      <span className="text-sm text-brand-black ml-3">
-                        {fmt(Number(p.baseRetail))}
-                      </span>
-                    )}
+                    <RetailPriceTag price={catalogRetailPrice(p)} fmt={fmt} />
                   </div>
                 </button>
               ))}

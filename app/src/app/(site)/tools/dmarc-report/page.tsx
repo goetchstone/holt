@@ -1,9 +1,9 @@
 // /app/src/app/(site)/tools/dmarc-report/page.tsx
 //
-// Public "DMARC aggregate-report analyzer" landing page. Akritos-only: gated
+// Public "DMARC aggregate-report analyzer" landing page. An addon: gated
 // behind the dmarcTools feature flag (404 otherwise). The DmarcReportForm does
 // all the work client-side — decompress + parse happen in the browser, nothing
-// is uploaded. Ported from akritos.com (dark tool palette).
+// is uploaded. Uses the dark tool palette.
 
 export const dynamic = "force-dynamic";
 

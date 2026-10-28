@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveCheckoutEmail } from "@/lib/stripe";
 import { assertCapability, getActiveProvider } from "@/lib/payments";
 import { getAppSettings } from "@/lib/appSettings";
+import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { InvoiceValidationError, invoiceActionError } from "@/lib/billing/invoiceAuthoring";
 
 function round2(n: number): number {
@@ -83,7 +84,7 @@ export async function createInvoicePaymentLink(
   await prisma.payment.create({
     data: {
       paymentDate: new Date(),
-      paymentType: "Card",
+      paymentType: METHOD_DISPLAY.CARD,
       paymentAmount: open,
       status: "PENDING",
       method: "CARD",

@@ -64,7 +64,7 @@ ignore the GUI; a shop with no engineers can ignore the files.
 | Directory          | Committed           | Purpose                                                                           |
 | ------------------ | ------------------- | --------------------------------------------------------------------------------- |
 | `config/presets/`  | **yes**             | White-box defaults, tuned to the demo seed so a fresh clone works out of the box. |
-| `config/local/`    | **no** (gitignored) | One deployment's real mappings — `riverbend.yaml`, `akritos.json`.                 |
+| `config/local/`    | **no** (gitignored) | One deployment's real mappings — `riverbend.yaml`, `acme.json`.                 |
 | `$HOLT_CONFIG_DIR` | n/a                 | Override for config kept in a private repo or a mounted volume.                   |
 
 `config/local/` is gitignored because a tenant's store names and vendor payment

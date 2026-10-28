@@ -127,8 +127,8 @@ it keeps its own `getAppSettings(orgId)` call.
 - **`addon`** — niche / single-tenant. Hidden from the toggle grid **unless
   already enabled**, so a deployment that was never meant to have it can't
   discover and flip it on from the UI. `dmarcTools` is the one addon today:
-  Akritos-only lead-gen tooling, provisioned via `scripts/seed-akritos.mjs`,
-  not the Settings UI. A furniture retailer's toggle grid never shows it.
+  single-tenant lead-gen tooling, turned on by a deployment's own seed or
+  preset, not the Settings UI. A furniture retailer's toggle grid never shows it.
 
 `getToggleableModules(features)` (`lib/modules/index.ts`) implements the
 rule: `category === "core" || isModuleOn(features, key)`.

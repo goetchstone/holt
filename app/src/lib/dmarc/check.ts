@@ -116,7 +116,7 @@ export const DKIM_SELECTORS = [
   // Microsoft 365 / Outlook
   "selector1",
   "selector2",
-  // DreamHost (confirmed: dreamhost._domainkey.akritos.com)
+  // DreamHost (confirmed against a live DreamHost-hosted domain: dreamhost._domainkey)
   "dreamhost",
   // Mailchimp (k1/k2/k3 seen in reports) + Mandrill transactional (mte1/mte2)
   "k1",
