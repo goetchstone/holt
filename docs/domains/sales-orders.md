@@ -142,6 +142,14 @@ There's no automated detection for this pattern on our side — the import has n
 
 This is CLAUDE.md rule 33. Do not maintain the enforcing-file list by hand -- the report logic now lives in `src/lib/reports/*` and `__tests__/reports.cancelledLineFilter.test.ts` auto-discovers each file there whose source mentions both `salesOrder` and `lineItems` (`reports.cancelledLineFilter.test.ts:153`), accepting a Prisma clause, a raw-SQL `<>`/`!=` guard, or the shared `buildLineItemWhere` helper. That predicate leaves a hole: a raw-SQL report that never spells `lineItems` -- e.g. `lib/reports/buyersReport.ts`, whose own `lineItemStatus != 'CANCELLED'` guards sit at `buyersReport.ts:325`, `:329` and `:441` -- is never discovered, so nothing fails if its guards are deleted. The same test separately pins `pages/api/reports/factsalesday.ts`, `lib/salesBySalesperson.ts`, `lib/reports/factSalesDay.ts` and `lib/journalEntry.ts`; `__tests__/integration/cancelledLineFilter.integration.test.ts` proves the exclusion against real Postgres.
 
+## New Quote: no tax district
+
+New Quote (`app/(dashboard)/app/sales/quotes/new/NewQuoteView.tsx`) shows the same
+amber banner as the POS when the active store resolves no tax district, so a quote
+priced at 0% tax says so before it is saved (USE-08, 2026-10-27). The quote is never
+blocked; see `docs/domains/pos.md` "Order creation from cart" for where the fact
+comes from.
+
 ## Key Files
 
 - `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`

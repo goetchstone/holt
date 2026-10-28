@@ -326,6 +326,43 @@ function parsePrefixes(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// The deployment's last-resort tax district (resolveTaxRate.ts step 4): a
+// district id, or null to clear it. Same shape as the unmatched-stock store
+// above -- whether the id exists is the foreign key's job, answered as a 400.
+function parseDefaultTaxDistrict(body: Body, data: SettingsData): ParseError {
+  const raw = body.defaultTaxDistrictId;
+  if (raw === undefined) return null;
+  if (raw === null || raw === "") {
+    data.defaultTaxDistrictId = null;
+    return null;
+  }
+  const id = Number(raw);
+  if (!Number.isInteger(id) || id <= 0) {
+    return { error: "defaultTaxDistrictId must be a tax district id, or empty for none." };
+  }
+  data.defaultTaxDistrictId = id;
+  return null;
+}
+
+// The owner's two getting-started acknowledgements (lib/gettingStarted.ts):
+// true stamps the time now, false clears it. The server writes the time, never
+// the client -- the record is of when it was said, not of what a browser
+// claimed.
+const ACKNOWLEDGEMENTS = [
+  ["setupConfirmed", "setupConfirmedAt"],
+  ["cashOnlyAcknowledged", "cashOnlyAcknowledgedAt"],
+] as const;
+
+function parseAcknowledgements(body: Body, data: SettingsData): ParseError {
+  for (const [field, column] of ACKNOWLEDGEMENTS) {
+    const raw = body[field];
+    if (raw === undefined) continue;
+    if (typeof raw !== "boolean") return { error: `${field} must be true or false` };
+    data[column] = raw ? new Date() : null;
+  }
+  return null;
+}
+
 const SETTINGS_PARSERS = [
   parseAppName,
   parseTextFields,
@@ -339,7 +376,22 @@ const SETTINGS_PARSERS = [
   parseGoogle,
   parsePortalTokenTtl,
   parsePrefixes,
+  parseDefaultTaxDistrict,
+  parseAcknowledgements,
 ];
+
+// The settings that reference another row, and how a 400 names a missing one.
+const REFERENCES = [
+  ["unmatchedStockStoreLocationId", "unmatched-stock store"],
+  ["defaultTaxDistrictId", "default tax district"],
+] as const;
+
+/** A foreign-key failure can only come from a reference this request set. */
+function missingReferenceMessage(data: SettingsData): string {
+  const sent = REFERENCES.filter(([column]) => data[column] != null).map(([, label]) => label);
+  const named = sent.length > 0 ? sent.join(" or the ") : "referenced record";
+  return `The ${named} does not exist.`;
+}
 
 async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const body = (req.body ?? {}) as Body;
@@ -365,7 +417,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
     });
   } catch (err) {
     if (getErrorCode(err) === "P2003") {
-      return res.status(400).json({ error: "The unmatched-stock store does not exist." });
+      return res.status(400).json({ error: missingReferenceMessage(data) });
     }
     logError("Failed to update app settings", err);
     return res.status(500).json({ error: "Failed to save settings" });

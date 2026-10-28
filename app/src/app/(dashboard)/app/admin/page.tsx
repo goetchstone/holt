@@ -4,9 +4,16 @@
 // (mirrors the legacy withAuth roles). Cards self-filter by role via CardGrid;
 // hrefs are unchanged so existing links keep working. Chrome from the
 // (dashboard) layout. This is the main Admin hub linking every admin surface.
+//
+// The getting-started checklist (lib/gettingStarted.ts) sits above the cards
+// until every item is done.
 
 import { requirePage } from "@/lib/auth/requirePage";
 import CardGrid, { type CardGridItem } from "@/components/layout/CardGrid";
+import { GettingStartedCard } from "@/components/admin/GettingStartedCard";
+import { loadGettingStarted } from "@/lib/gettingStartedServer";
+import type { GettingStartedItem } from "@/lib/gettingStarted";
+import { logError } from "@/lib/logger";
 
 const ITEMS: CardGridItem[] = [
   {
@@ -134,5 +141,24 @@ const ITEMS: CardGridItem[] = [
 
 export default async function AdminLandingPage() {
   await requirePage(undefined, { permission: "admin.settings" });
-  return <CardGrid title="Admin Tools" items={ITEMS} />;
+  // A failed read must not take the hub down -- it is how an admin reaches the
+  // settings that would fix things -- and must not read as "all done" either.
+  let checklist: GettingStartedItem[] | null = null;
+  try {
+    checklist = await loadGettingStarted();
+  } catch (err) {
+    logError("Admin hub: getting-started checklist failed to load", err);
+  }
+  return (
+    <div className="space-y-6">
+      {checklist ? (
+        <GettingStartedCard items={checklist} />
+      ) : (
+        <p className="text-sm text-brand-gray">
+          The getting-started checklist could not be loaded; see the server log.
+        </p>
+      )}
+      <CardGrid title="Admin Tools" items={ITEMS} />
+    </div>
+  );
 }

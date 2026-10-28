@@ -123,6 +123,10 @@ purchasing list. Store data is split three ways (SEC-15):
   that choose a stock location.
 - `/api/warehouse/locations` is setup detail, for Admin → Stores and Warehouse →
   Locations only.
+- `/api/staff/active-store` (`staff.self`) is the viewer's own active store. It
+  also answers `taxDistrictConfigured` -- does a sale there resolve a tax
+  district -- so POS and New Quote can warn of 0% tax on the key they already
+  use, without a wider one (USE-08).
 
 A route that needs different keys per method dispatches on `req.method` to
 separate `requirePermission(...)` calls, as `inventory/freeze/index.ts` does.
@@ -315,6 +319,12 @@ SUPER_ADMIN and ADMIN users can temporarily view the app as any other role via t
 ## Navigation
 
 The menu is derived from permissions. Each entry in `NAV_ITEMS` (`lib/auth/navPermissions.ts`) names the permission keys that make that destination worth opening, and `getVisibleNavItems()` filters on the keys the viewer holds. Feature modules apply on top: a module switched off in `AppSettings.features` hides its item regardless of permission. Nothing bypasses the derivation, including ADMIN — SUPER_ADMIN sees every item because it holds every permission, not because of a special case.
+
+The Admin entry carries a count of getting-started items still to do
+(`lib/gettingStarted.ts`). The sidebar asks `/api/admin/getting-started`
+(`admin.settings`, like its sibling `/api/admin/settings`) only when the viewer
+holds `admin.settings`, and again on each navigation so the count drops as items
+are finished; the Admin hub shows the full list.
 
 The `NavPermission` table is gone — dropped by migration `20260807120000_drop_nav_permission`, along with the `/admin/setup/permissions` page and its `pages/api/admin/permissions` route. Nav is presentation, not enforcement: the viewer's permission keys ride on the NextAuth session as a display convenience, and the grant table read per request by `permissionResolver.ts` is what actually admits a request.
 

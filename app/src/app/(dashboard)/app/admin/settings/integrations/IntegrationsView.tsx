@@ -134,6 +134,81 @@ function IntegrationCard({
   );
 }
 
+// "We take cash and checks only" (AppSettings.cashOnlyAcknowledgedAt). The
+// getting-started checklist on the Admin hub asks for a configured card
+// processor OR this; a store that takes no cards should not be nagged for
+// keys it will never have. Saved through the general settings API, which
+// stamps the time server-side. Nothing else reads it: card payments set up
+// below keep working either way.
+function CashOnlyCard() {
+  const [acknowledgedAt, setAcknowledgedAt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/settings");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(serverError(data, "Failed to load payment settings"));
+        setAcknowledgedAt(data.settings?.cashOnlyAcknowledgedAt ?? null);
+      } catch (err: unknown) {
+        toast.error(getErrorMessage(err, "Failed to load payment settings"));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const save = async (cashOnly: boolean) => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cashOnlyAcknowledged: cashOnly }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(serverError(data, "Failed to save the cash-only setting"));
+      setAcknowledgedAt(data.settings?.cashOnlyAcknowledgedAt ?? null);
+      toast.success("Saved");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to save the cash-only setting"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return null;
+
+  return (
+    <div className="rounded-md border border-brand-accent-gray p-4">
+      <h3 className="text-sm font-semibold text-brand-black">Card payments</h3>
+      <p className="mb-3 text-xs text-brand-gray">
+        Set up Stripe or Square below to take cards. If this store takes no card payments at all,
+        say so here and the getting-started checklist stops asking for a card processor.
+      </p>
+      <label htmlFor="cash-only" className="flex cursor-pointer items-center gap-2 text-sm">
+        <input
+          id="cash-only"
+          type="checkbox"
+          checked={acknowledgedAt !== null}
+          disabled={saving}
+          onChange={(e) => save(e.target.checked)}
+          className="h-4 w-4"
+        />
+        We take cash and checks only
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+      </label>
+      {acknowledgedAt ? (
+        <p className="mt-1 text-xs text-brand-gray">
+          Said on {new Date(acknowledgedAt).toLocaleDateString()}.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 // Google Drive/Slides project-creation config. Non-secret identifiers, so they
 // are shown in plaintext (unlike the encrypted credentials above) and stored in
 // AppSettings via the general settings API. Until the folder and template are
@@ -351,6 +426,7 @@ export function IntegrationsView() {
           Keys are encrypted at rest and never shown again. Enter a new value to replace one.
         </p>
       </div>
+      <CashOnlyCard />
       {INTEGRATION_PROVIDERS.map((p) => (
         <IntegrationCard
           key={p.id}
