@@ -91,6 +91,22 @@ Stripe is no longer the only processor: checkout creation and webhook verificati
 - **Idempotency**: `processorTxnId` is **not** unique on `Payment` — there is no unique index on it and no INSERT-on-conflict anywhere. Retried deliveries are safe because the webhook's lookup filters on `status: "PENDING"` and `completePayment` returns early on an already-`COMPLETED` row, so the ledger entry is never double-posted. Stripe retries are normal and frequent.
 - Customer portal exposes a payment link per-order at `/portal/order?token=…`, which posts to `pages/api/portal/pay.ts` (JWT token auth, no login, rate-limited at 5/min per IP).
 
+## A product's line price
+
+A scanned or searched product goes onto the cart at its retail price, from
+`lib/pos/cartPricing.ts:catalogRetailPrice`. New Quote uses the same helper. A
+product with no retail price is refused with a message naming where to set it
+(`noRetailPriceMessage`), and the search results label it "No price"
+(`components/sales/RetailPriceTag.tsx`). Zero counts as no price, because an
+import or `products/quick-create.ts` writes 0 where there was none.
+
+Until 2026-10-27 both screens priced such a product at two and a half times
+its cost, one business's markup (USE-04b). The server could not have caught
+it, since `create-from-cart` takes the client's unit price (step 1 below), so
+the refusal lives in the screens. `__tests__/noInventedMarkup.test.ts` fails on
+any new cost times a constant in `src`, and on either screen pricing without
+the helper. A cashier can still change a line's price once it is on the cart.
+
 ## Order creation from cart
 
 `POST /api/sales/orders/create-from-cart` (`pages/api/sales/orders/create-from-cart.ts`):

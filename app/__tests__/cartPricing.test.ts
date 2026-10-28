@@ -7,9 +7,45 @@
 // The headline case is `charges and records the same number`, which is the
 // property that was violated in production.
 
-import { computeOrderDiscount, discountedUnitPrice, priceCart } from "@/lib/pos/cartPricing";
+import {
+  catalogRetailPrice,
+  computeOrderDiscount,
+  discountedUnitPrice,
+  noRetailPriceMessage,
+  priceCart,
+} from "@/lib/pos/cartPricing";
 
 const TAX_RATE = 0.065;
+
+describe("a catalog product's line price (USE-04b)", () => {
+  it("is the retail price, as a number or as a serialized Decimal", () => {
+    expect(catalogRetailPrice({ baseRetail: 1299 })).toBe(1299);
+    expect(catalogRetailPrice({ baseRetail: "849.5" })).toBe(849.5);
+  });
+
+  it("is null when there is no retail price, however the cost is set", () => {
+    // Each of these used to price at two and a half times cost.
+    for (const baseRetail of [null, undefined, "", 0, "0", "0.00"]) {
+      const product = { baseRetail, baseCost: 400 };
+      expect(catalogRetailPrice(product)).toBeNull();
+    }
+  });
+
+  it("is null for a price that is not a positive number", () => {
+    for (const baseRetail of [-10, "-10", "abc", Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(catalogRetailPrice({ baseRetail })).toBeNull();
+    }
+  });
+
+  it("names the product and where to set its price", () => {
+    expect(noRetailPriceMessage({ name: "Linen Sofa", productNumber: "SOF-1" })).toBe(
+      "Linen Sofa has no retail price. Set one in Inventory → Products before selling it.",
+    );
+    expect(noRetailPriceMessage({ name: null, productNumber: "SOF-1" })).toMatch(
+      /^SOF-1 has no retail price/,
+    );
+  });
+});
 
 describe("item discounts", () => {
   it("applies percent and amount discounts to the unit price", () => {

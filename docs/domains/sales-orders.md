@@ -149,6 +149,7 @@ This is CLAUDE.md rule 33. Do not maintain the enforcing-file list by hand -- th
 - `lib/importHelpers.ts` -- source-agnostic helpers only (`safeString`/`safeFloat`/`safeDate`, `splitCustomerName`, `findOrCreateCustomer`). The sales-order logic above is no longer here
 - `lib/paymentService.ts` -- `computeBalance()`, `recordPayment()`, `processRefund()` (there is no `postPayment()`)
 - `pages/api/sales/` -- 19 API endpoints
+- `lib/pos/cartPricing.ts` -- `catalogRetailPrice()`: the price a catalog product goes onto a New Quote (or POS) line at. No retail price means the line is refused, never priced from cost (see `docs/domains/pos.md`, "A product's line price")
 
 ## B2B Proposals
 
