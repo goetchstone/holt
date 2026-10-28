@@ -34,6 +34,7 @@ import {
 } from "@/lib/billing/invoiceAuthoring";
 import type { JournalLine } from "@/lib/journalEntry";
 import { INVOICE_PAYMENT_LABELS, type InvoicePaymentMethod } from "@/lib/billing/invoiceShared";
+import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 
 type Tx = Prisma.TransactionClient;
 
@@ -649,13 +650,15 @@ export async function applyInvoiceStripePayment(
       });
     }
     const gl = await resolveArGlMappings(tx);
+    // A hosted checkout is a card payment, labelled METHOD_DISPLAY.CARD when
+    // startHostedCheckout wrote it; the cash side is that label's mapping.
     const cardMapping = await tx.systemGLMapping.findUnique({
-      where: { section_label: { section: "POS_PAYMENTS", label: "Card" } },
+      where: { section_label: { section: "POS_PAYMENTS", label: METHOD_DISPLAY.CARD } },
       select: { glAccountId: true },
     });
     if (!cardMapping?.glAccountId) {
       throw new InvoiceValidationError(
-        'No GL mapping for payment type "Card". Map it under POS Payments in Admin -> Setup -> Accounting.',
+        `No GL mapping for payment type "${METHOD_DISPLAY.CARD}". Map it under POS Payments in Admin -> Setup -> Accounting.`,
       );
     }
     // Full payment amount — must mirror the ledger entry completePayment

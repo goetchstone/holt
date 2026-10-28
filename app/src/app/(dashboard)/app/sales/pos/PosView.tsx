@@ -30,6 +30,7 @@ import {
   type DiscountType,
 } from "@/lib/pos/cartPricing";
 import { onHandByStore } from "@/lib/inventory/onHandSummary";
+import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 
 const REGISTER_STORAGE_KEY = "pos-register-id";
 
@@ -107,14 +108,6 @@ type DeliveryMethod = "TAKEN" | "PICKUP" | "DELIVERY";
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 const PAYMENT_METHODS: PaymentMethodType[] = ["CASH", "CHECK", "CARD", "GIFT_CARD"];
-
-const PAYMENT_METHOD_LABELS: Record<PaymentMethodType, string> = {
-  CASH: "Cash",
-  CHECK: "Check",
-  CARD: "Card",
-  GIFT_CARD: "Gift Card",
-  STORE_CREDIT: "Store Credit",
-};
 
 const DELIVERY_METHODS: DeliveryMethod[] = ["TAKEN", "PICKUP", "DELIVERY"];
 
@@ -658,7 +651,7 @@ export function PosView() {
 
       setPaymentComplete(true);
       setPaymentSummary({
-        method: PAYMENT_METHOD_LABELS[paymentMethod],
+        method: METHOD_DISPLAY[paymentMethod],
         amount,
         change,
         orderno: createdOrder.orderno,
@@ -1361,7 +1354,7 @@ function TakePaymentPanel({
               onClick={() => setPaymentMethod(method)}
               className="h-[60px] bg-white border border-brand-gray/20 rounded-lg shadow-sm text-brand-black font-semibold text-lg hover:border-brand-blue hover:shadow-md transition"
             >
-              {PAYMENT_METHOD_LABELS[method]}
+              {METHOD_DISPLAY[method]}
             </button>
           ))}
         </div>
@@ -1369,7 +1362,7 @@ function TakePaymentPanel({
         <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-semibold text-brand-black">
-              {PAYMENT_METHOD_LABELS[paymentMethod]} Payment
+              {METHOD_DISPLAY[paymentMethod]} Payment
             </h3>
             <button
               onClick={onResetFlow}
@@ -1505,7 +1498,7 @@ function TakePaymentPanel({
           >
             {paymentProcessing
               ? "Processing..."
-              : `Record ${PAYMENT_METHOD_LABELS[paymentMethod]} Payment -- ${fmt(payingNow)}`}
+              : `Record ${METHOD_DISPLAY[paymentMethod]} Payment -- ${fmt(payingNow)}`}
           </Button>
         </div>
       )}
