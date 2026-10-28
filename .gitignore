@@ -61,12 +61,10 @@ app/.nyc_output/
 
 # Per-deployment (tenant) content + migration seeds. The white-box product ships
 # generic example content (scripts/seed-cms.mjs); a specific deployment's real
-# site content lives in its database, not in the product repo. The akritos.com
-# migration seed + captured content are deployment data, kept out of the
-# white-box so improvements stay code-only and flow to every tenant.
-app/scripts/seed-akritos.mjs
-app/scripts/akritos-content/
-app/public/akritos-logo.svg
+# site content lives in its database, not in the product repo. A deployment's
+# own seed, captured content and brand files are deployment data: keep them in
+# config/local/, or list them in .git/info/exclude on the machine that holds
+# them, so the product repo never names a deployment (docs/TENANCY.md).
 
 # Internal strategy / planning / posture docs — private, NOT in the public
 # white-box repo (business strategy, client names, candid assessments).

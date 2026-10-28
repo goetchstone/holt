@@ -1,7 +1,7 @@
 // app/scripts/migrate-simplerms.mjs
 //
 // One-time data migration: a simplerms database -> this Holt deployment.
-// Built for the Akritos cutover (docs/DEPLOYMENTS.md "Rebasing simplerms
+// Built for one deployment's cutover from simplerms ("Rebasing simplerms
 // onto Holt"); dry-run it against a copy of the production dump BEFORE the
 // real run. Idempotent: every entity matches on a natural key (invoice
 // number, ticket number, service slug, customer email) and updates instead
@@ -34,7 +34,7 @@
 //                            NO_SHOW/COMPLETED -> CONFIRMED past events)
 //   TimeEntry             -> TimeEntry (staff resolved by user email)
 //   Lead                  -> Lead (source WEBSITE, sourceDetail preserved)
-//   CmsPage/CmsPost       -> SKIPPED (the akritos seed is canonical for CMS)
+//   CmsPage/CmsPost       -> SKIPPED (the deployment's own CMS seed is canonical)
 //   File                  -> SKIPPED v1 (storage paths differ; listed in
 //                            exceptions so nothing silently disappears)
 
@@ -520,7 +520,7 @@ async function main() {
     'SELECT (SELECT count(*)::int FROM "CmsPage") AS pages, (SELECT count(*)::int FROM "CmsPost") AS posts',
   );
   console.log(
-    `CMS skipped by design (akritos seed is canonical): ${cms.rows[0].pages} pages, ${cms.rows[0].posts} posts in source.`,
+    `CMS skipped by design (the deployment's own CMS seed is canonical): ${cms.rows[0].pages} pages, ${cms.rows[0].posts} posts in source.`,
   );
 
   console.log("\nPer-entity counts:");

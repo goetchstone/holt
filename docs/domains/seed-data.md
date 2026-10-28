@@ -313,7 +313,7 @@ filters internal notes out, and a ticket with only public messages cannot
 demonstrate that it does.
 
 **Time entries** are billable-consultancy shaped (`isBillable`, `billedAt`) —
-the Akritos deployment's case rather than the furniture one. A mix of billed and
+a services deployment's case rather than the furniture one. A mix of billed and
 unbilled is what makes a "what can I invoice" view non-empty.
 
 **Shifts** include exactly one still open (`clockOut: null`). A board where

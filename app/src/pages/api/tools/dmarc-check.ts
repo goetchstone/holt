@@ -74,7 +74,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Akritos-only tool: gated behind the dmarcTools module. Other tenants get
+  // An addon: gated behind the dmarcTools module. A deployment without it gets
   // a 404 so the endpoint is indistinguishable from a non-existent route.
   if (!(await isModuleEnabled("dmarcTools"))) {
     return res.status(404).json({ error: "Not found" });

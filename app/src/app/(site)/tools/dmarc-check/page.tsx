@@ -1,9 +1,9 @@
 // /app/src/app/(site)/tools/dmarc-check/page.tsx
 //
-// Public "DMARC / SPF / DKIM checker" landing page. Akritos-only: gated behind
-// the dmarcTools feature flag, so other tenants get a 404. Server component:
+// Public "DMARC / SPF / DKIM checker" landing page. An addon: gated behind
+// the dmarcTools feature flag, so a deployment without it gets a 404. Server component:
 // resolves branding + the gate, then renders the client DmarcCheckForm, which
-// posts to /api/tools/dmarc-check. Ported from akritos.com (dark tool palette).
+// posts to /api/tools/dmarc-check. Uses the dark tool palette.
 
 export const dynamic = "force-dynamic";
 

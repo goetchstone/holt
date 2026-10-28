@@ -6,7 +6,7 @@ and the standing answer to "why doesn't every model carry organizationId?"
 ## The model today: one deployment = one tenant = one database
 
 Holt deployments are **single-organization by design** (docs/DEPLOYMENTS.md:
-"product = code, deployment = data"). Every instance — Akritos on its VPS,
+"product = code, deployment = data"). Every instance — a services company on its VPS,
 a retail client on their NAS — runs its own database. `DEFAULT_ORG_ID = 1`
 identifies the deployment's org row, which exists to anchor settings,
 credentials, CMS content, and the white-label modules.
@@ -32,14 +32,16 @@ Tenant configuration is not product code, and does not travel with the repo:
 
 - `config/local/` is gitignored. A deployment's real store names, traffic
   counter labels and vendor payment codes live there (`riverbend.yaml`,
-  `akritos.json`). `config/presets/` — the committed set — holds only defaults
+  `acme.json`). `config/presets/` — the committed set — holds only defaults
   tuned to the demo seed, so a fresh clone works without carrying anyone's
   data. `config/example.yaml` is committed as a template — at config root,
   not inside `config/local/`, because the loader would otherwise treat it as
   live configuration. See `domains/config-presets.md`.
-- The same reasoning already applies to `app/scripts/seed-akritos.mjs` and
-  `app/scripts/akritos-content/` (see `.gitignore`): improvements stay
-  code-only, so they flow to every tenant.
+- The same reasoning applies to a deployment's own seed, captured site
+  content and brand files: they stay outside the product repo (in
+  `config/local/`, or in `.git/info/exclude` on the machine that holds them;
+  see `.gitignore`), so improvements stay code-only and flow to every tenant,
+  and the public repo never names a deployment.
 
 The test for whether something belongs in the white box: would a second
 deployment want it verbatim? Defaults yes, facts no.

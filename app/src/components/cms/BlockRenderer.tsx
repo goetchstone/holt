@@ -2,7 +2,7 @@
 //
 // Renders CMS content blocks (see lib/cms/blocks.ts) to React for the public
 // site. Server component -- no client state. Author HTML (richText/embed) is
-// sanitized (lib/cms/sanitize.ts). Visual treatment tuned to akritos-grade
+// sanitized (lib/cms/sanitize.ts). Visual treatment tuned to marketing-site-grade
 // design (full-height hero, py-24 section rhythm, 1200px containers, 2px buttons,
 // 56px/28px type scale) -- generic so every tenant benefits; brand colors come
 // from the brand-* theme tokens. Section blocks support a `background` variant
@@ -22,7 +22,7 @@ const ALIGN_CLASS = {
   right: "text-right items-end",
 } as const;
 
-// Shared section container: akritos uses a 1200px hard limit + 24px gutters.
+// Shared section container: a 1200px hard limit + 24px gutters.
 const CONTAINER = "mx-auto w-full max-w-[1200px] px-6";
 const SECTION_PAD = "py-24";
 
