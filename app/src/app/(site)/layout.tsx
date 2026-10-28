@@ -24,7 +24,7 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
   ]);
 
   // themeMode drives the public-site chrome only: "dark" puts the body, header,
-  // and footer on the navy/stripe brand tokens (full-dark sites like akritos.com);
+  // and footer on the navy/stripe brand tokens (full-dark sites);
   // "light" is the white/linen default. The back-office is unaffected either way.
   const dark = settings.themeMode === "dark";
 

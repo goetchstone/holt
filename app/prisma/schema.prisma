@@ -5310,6 +5310,16 @@ model AppSettings {
   unmatchedStockStoreLocationId Int?
   unmatchedStockStoreLocation   StoreLocation? @relation("UnmatchedStockStore", fields: [unmatchedStockStoreLocationId], references: [id])
 
+  /// When the owner confirmed currency, locale and timezone (Admin -> Settings
+  /// -> Localization). Those three have column defaults, so an untouched row
+  /// reads exactly like a chosen one; this is how the getting-started
+  /// checklist (lib/gettingStarted.ts) tells them apart. Null = never confirmed.
+  setupConfirmedAt       DateTime?
+  /// When the owner said the store takes cash and checks only (Admin ->
+  /// Settings -> Integrations). Stands in for a configured card processor on
+  /// the checklist's payments item. Null = not acknowledged.
+  cashOnlyAcknowledgedAt DateTime?
+
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
   createdBy String?

@@ -1,7 +1,7 @@
 # Production go-live checklist
 
-The single source of truth for taking a Holt deployment live (Akritos on a
-VPS, a retail deployment on a NAS, or any client). Grouped by what the CODE now
+The single source of truth for taking a Holt deployment live (a services
+deployment on a VPS, a retail deployment on a NAS, or any client). Grouped by what the CODE now
 handles automatically vs what YOU do at deploy time. Derived from the
 2026-06-10 production-readiness audit.
 
@@ -141,11 +141,16 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
 
 - ☐ Apply migrations (`scripts/deploy.sh` does this).
 - ☐ `npm run create-admin <email> <password>` for the first SUPER_ADMIN.
-- ☐ Akritos: `node scripts/seed-akritos.mjs` (brand + 27 CMS URLs). Retail edition:
-  restore the prod backup + run the Ordorite import.
+- ☐ The deployment's own content: run its seed (brand + CMS pages), kept outside
+  the repo (`docs/DEPLOYMENTS.md`, "A deployment's own kit"), or build the pages
+  in Admin → CMS. Retail edition migrating from Ordorite: restore the prod
+  backup + run the Ordorite import.
 - ☐ In Settings: set name/logo/theme, currency/locale/timezone, and toggle
   the feature modules this tenant uses (billing, clientPortal, legacyArchive,
   helpdesk, booking, cms, ...). All default OFF.
+- ☐ Work through the **Getting started** card at the top of Admin (stores, sales
+  tax, currency and timezone, markup, staff, card payments or cash only) until
+  it disappears; with no tax district, every sale is charged 0% tax.
 - ☐ `/api/health?ready=1` returns 200.
 
 ## Quick "is it safe to take money?" gate

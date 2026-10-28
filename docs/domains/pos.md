@@ -111,6 +111,7 @@ Stripe is no longer the only processor: checkout creation and webhook verificati
 - `pages/api/stripe/webhook.ts` — Stripe's delivery endpoint. Signature verification is mandatory: with no webhook secret configured the route rejects outright. On a completion event it finds the `PENDING` `Payment` by `processorTxnId`, calls `completePayment` (status + ledger entry in one transaction) and then `onPaymentReceived`. With no `PENDING` row it calls `reportUntrackedCheckoutPaid` (above). It also handles `checkout.session.expired`, ending the `PENDING` row as `FAILED`.
 - **Idempotency**: `processorTxnId` is **not** unique on `Payment` — there is no unique index on it and no INSERT-on-conflict anywhere. Retried deliveries are safe because the webhook's lookup filters on `status: "PENDING"` and `completePayment` returns early on an already-`COMPLETED` row, so the ledger entry is never double-posted. Stripe retries are normal and frequent.
 - Customer portal exposes a payment link per-order at `/portal/order?token=…`, which posts to `pages/api/portal/pay.ts` (JWT token auth, no login, rate-limited at 5/min per IP).
+- `PaymentProvider.isConfigured()` answers whether the processor's credentials resolve, with no network call: Stripe needs its secret key, Square its access token and location id, each through the same `getStripe()` / `getSquareCredentials()` a payment uses. The Admin hub's getting-started checklist asks it of the active provider; "We take cash and checks only" (Settings → Integrations, `AppSettings.cashOnlyAcknowledgedAt`) satisfies that item instead. Tested in `__tests__/paymentProviderConfigured.test.ts`.
 
 ## A product's line price
 
@@ -149,6 +150,12 @@ the helper. A cashier can still change a line's price once it is on the cart.
    not a single flat percentage for the whole order. See that file's header
    for the full order and what it deliberately does not evaluate yet
    (chained rules, tax-included pricing, per-product tax groups).
+   When the active store resolves no district (none of its own, no default),
+   the sale still goes through at 0% tax, and the POS shows an amber banner
+   saying so (`components/sales/NoTaxDistrictBanner.tsx`, USE-08). The fact
+   comes from `taxDistrictConfigured` on `GET`/`PUT /api/staff/active-store`
+   through `useActiveStore`; the rule is `taxDistrictConfigured()` in
+   `lib/gettingStarted.ts`, unit-tested in `__tests__/gettingStarted.test.ts`.
 3. Generate orderno via `lib/orderNumber.ts` `nextOrderNumber()`:
    `<prefix>-YYMMDD-NNN`, the prefix from `AppSettings.orderNumberPrefix`, else
    the business's initials (`lib/numberingPrefix.ts` `effectivePrefix`, #192).

@@ -3,7 +3,7 @@
 // /app/src/app/(dashboard)/app/admin/settings/SettingsOverviewView.tsx
 //
 // Settings overview: the core, always-present sections (Branding, Theme,
-// Localization, Booking) plus the Modules on/off grid, plus an index of
+// Localization, Sales tax, Numbering, Booking) plus the Modules on/off grid, plus an index of
 // enabled modules that have their own settings page (lib/modules -- the
 // module manifest, docs/domains/modules.md). Integrations and Configuration
 // (the config-preset GUI, docs/domains/config-presets.md) each moved to
@@ -185,15 +185,23 @@ function ThemeSection({
   );
 }
 
+// Currency, locale and timezone all have defaults, so an untouched deployment
+// looks configured. "Confirm" saves the three values on screen and records
+// that the owner chose them (AppSettings.setupConfirmedAt), which is what the
+// getting-started checklist on the Admin hub waits for.
 function LocalizationSection({
   settings,
   onChange,
+  onConfirm,
+  confirming,
 }: Readonly<{
   settings: ResolvedAppSettings;
   onChange: (key: StringSettingKey, value: string) => void;
+  onConfirm: () => void;
+  confirming: boolean;
 }>) {
   return (
-    <section className="space-y-4">
+    <section id="localization" className="scroll-mt-6 space-y-4">
       <h2 className="font-serif text-lg text-brand-blue">Localization</h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {(["currency", "locale"] as const).map((key) => (
@@ -237,6 +245,76 @@ function LocalizationSection({
             The business day every report, journal and reconciliation is measured against.
           </p>
         </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="secondary" size="sm" onClick={onConfirm} disabled={confirming}>
+          {confirming ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Confirm currency and timezone
+        </Button>
+        <span className="text-xs text-brand-gray">
+          {settings.setupConfirmedAt
+            ? `Confirmed ${new Date(settings.setupConfirmedAt).toLocaleDateString(settings.locale)}.`
+            : "Not confirmed yet: these may still be the defaults."}
+        </span>
+      </div>
+    </section>
+  );
+}
+
+interface TaxDistrictOption {
+  id: number;
+  shortName: string;
+  name: string;
+  isActive: boolean;
+}
+
+// The deployment-wide fallback district (AppSettings.defaultTaxDistrictId):
+// resolveTaxRate.ts uses it when a sale's store has no district of its own.
+// With neither, the sale is charged 0% tax and POS / New Quote say so.
+function SalesTaxSection({
+  value,
+  districts,
+  onChange,
+}: Readonly<{
+  value: number | null;
+  districts: TaxDistrictOption[] | null;
+  onChange: (id: number | null) => void;
+}>) {
+  // Inactive districts stay out of the list, except the one already chosen --
+  // hiding it would make the select read as "None" while the setting is not.
+  const options = (districts ?? []).filter((d) => d.isActive || d.id === value);
+  return (
+    <section id="sales-tax" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Sales tax</h2>
+      <p className="text-xs text-brand-gray">
+        The tax district a sale falls back to when its store has none of its own. With neither, the
+        sale is charged 0% tax. Districts and their rates are set up in{" "}
+        <Link href="/app/admin/setup/tax" className="text-brand-blue underline">
+          Admin → Setup → Tax
+        </Link>
+        .
+      </p>
+      <div className="max-w-md">
+        <label htmlFor="default-tax-district" className="mb-1 block text-sm text-brand-gray">
+          Default tax district
+        </label>
+        <select
+          id="default-tax-district"
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
+        >
+          <option value="">None (sales at a store with no district are charged 0% tax)</option>
+          {options.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.shortName} — {d.name}
+              {d.isActive ? "" : " (inactive)"}
+            </option>
+          ))}
+        </select>
+        {districts?.length === 0 ? (
+          <p className="mt-1 text-xs text-brand-gray">No tax districts exist yet.</p>
+        ) : null}
       </div>
     </section>
   );
@@ -435,8 +513,12 @@ function ModuleSettingsIndex({
 export function SettingsOverviewView() {
   const [settings, setSettings] = useState<ResolvedAppSettings | null>(null);
   const [features, setFeatures] = useState<Record<string, boolean>>({});
+  // null until loaded: an empty list must not read as "no districts exist" when
+  // it only means the request failed.
+  const [taxDistricts, setTaxDistricts] = useState<TaxDistrictOption[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -456,9 +538,23 @@ export function SettingsOverviewView() {
     }
   }, []);
 
+  // The default-district picker's options. Loaded on their own so a failure
+  // here costs the picker its list, not the whole Settings page.
+  const loadTaxDistricts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tax/districts");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(serverError(data, "Failed to load tax districts"));
+      setTaxDistricts(Array.isArray(data) ? data : []);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to load tax districts"));
+    }
+  }, []);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadTaxDistricts();
+  }, [load, loadTaxDistricts]);
 
   const setText = (key: StringSettingKey, value: string) =>
     setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -498,6 +594,7 @@ export function SettingsOverviewView() {
           bookingConfig: settings.bookingConfig,
           orderNumberPrefix: settings.orderNumberPrefix,
           barcodePrefix: settings.barcodePrefix,
+          defaultTaxDistrictId: settings.defaultTaxDistrictId,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -508,6 +605,44 @@ export function SettingsOverviewView() {
       toast.error(getErrorMessage(err, "Failed to save settings"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Saves only the three localization values with the confirmation, so other
+  // unsaved edits on the page stay as they are -- on screen and unsaved.
+  const confirmRegion = async () => {
+    if (!settings) return;
+    setConfirming(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currency: settings.currency,
+          locale: settings.locale,
+          timezone: settings.timezone,
+          setupConfirmed: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(serverError(data, "Failed to confirm currency and timezone"));
+      const saved: ResolvedAppSettings = data.settings;
+      setSettings((prev) =>
+        prev
+          ? {
+              ...prev,
+              currency: saved.currency,
+              locale: saved.locale,
+              timezone: saved.timezone,
+              setupConfirmedAt: saved.setupConfirmedAt,
+            }
+          : prev,
+      );
+      toast.success("Currency and timezone confirmed.");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to confirm currency and timezone"));
+    } finally {
+      setConfirming(false);
     }
   };
 
@@ -553,7 +688,19 @@ export function SettingsOverviewView() {
         onChange={setThemeColor}
         onModeChange={(mode) => setSettings((prev) => (prev ? { ...prev, themeMode: mode } : prev))}
       />
-      <LocalizationSection settings={settings} onChange={setText} />
+      <LocalizationSection
+        settings={settings}
+        onChange={setText}
+        onConfirm={confirmRegion}
+        confirming={confirming}
+      />
+      <SalesTaxSection
+        value={settings.defaultTaxDistrictId}
+        districts={taxDistricts}
+        onChange={(id) =>
+          setSettings((prev) => (prev ? { ...prev, defaultTaxDistrictId: id } : prev))
+        }
+      />
       <NumberingSection settings={settings} onChange={setPrefix} />
       <BookingSection config={settings.bookingConfig} onChange={setBookingConfig} />
       <ModulesSection

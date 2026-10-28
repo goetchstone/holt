@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import { useActiveStore } from "@/hooks/useActiveStore";
+import { NoTaxDistrictBanner } from "@/components/sales/NoTaxDistrictBanner";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
@@ -150,7 +151,7 @@ export function PosView() {
   const [scanInput, setScanInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [returnMode, setReturnMode] = useState(false);
-  const { activeStore, allStores, setActiveStore } = useActiveStore();
+  const { activeStore, allStores, setActiveStore, taxDistrictConfigured } = useActiveStore();
 
   // Register selection
   const [selectedRegister, setSelectedRegister] = useState<Register | null>(null);
@@ -818,6 +819,12 @@ export function PosView() {
           </button>
         </div>
       </div>
+
+      <NoTaxDistrictBanner
+        storeName={activeStore?.name}
+        configured={taxDistrictConfigured}
+        className="mb-4"
+      />
 
       {/* Customer */}
       <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-4 mb-4">
