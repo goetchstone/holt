@@ -16,6 +16,7 @@ import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 
 interface TillPayment {
   id: number;
@@ -56,15 +57,6 @@ const STATUS_STYLES: Record<string, string> = {
   OPEN: "bg-green-50 text-green-700",
   CLOSED: "bg-yellow-50 text-yellow-700",
   RECONCILED: "bg-blue-50 text-blue-700",
-};
-
-const METHOD_LABELS: Record<string, string> = {
-  CASH: "Cash",
-  CARD: "Card",
-  CHECK: "Check",
-  GIFT_CARD: "Gift Card",
-  STORE_CREDIT: "Store Credit",
-  OTHER: "Other",
 };
 
 // Variance is green at exactly zero, red otherwise, gray when not yet known.
@@ -144,7 +136,7 @@ function PaymentsTable({ payments, fmt }: Readonly<{ payments: TillPayment[]; fm
               </td>
               <td className="py-2 pr-4 text-brand-black">{p.salesOrder?.orderno || "--"}</td>
               <td className="py-2 pr-4">
-                <span className="text-brand-black">{METHOD_LABELS[p.method] || p.method}</span>
+                <span className="text-brand-black">{METHOD_DISPLAY[p.method] || p.method}</span>
                 {p.isRefund && (
                   <span className="ml-1 text-xs px-1 py-0.5 rounded bg-red-50 text-red-600">
                     Refund

@@ -23,6 +23,7 @@ import DenominationCountTable, {
   calcTotal,
   toCountEntries,
 } from "@/components/sales/DenominationCountTable";
+import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 
 interface Register {
   id: number;
@@ -119,12 +120,12 @@ function OpenTillCard({
 }>) {
   const methods = summary
     ? [
-        { label: "Cash", value: summary.cash },
-        { label: "Card", value: summary.card },
-        { label: "Check", value: summary.check },
-        { label: "Gift Card", value: summary.giftCard },
-        { label: "Store Credit", value: summary.storeCredit },
-        { label: "Other", value: summary.other },
+        { label: METHOD_DISPLAY.CASH, value: summary.cash },
+        { label: METHOD_DISPLAY.CARD, value: summary.card },
+        { label: METHOD_DISPLAY.CHECK, value: summary.check },
+        { label: METHOD_DISPLAY.GIFT_CARD, value: summary.giftCard },
+        { label: METHOD_DISPLAY.STORE_CREDIT, value: summary.storeCredit },
+        { label: METHOD_DISPLAY.OTHER, value: summary.other },
       ]
     : [];
 
