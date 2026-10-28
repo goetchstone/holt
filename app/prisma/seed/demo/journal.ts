@@ -32,7 +32,14 @@ export interface JournalResult {
   totalDebits: number;
   totalCredits: number;
   warnings: string[];
-  entries: { journalNumber: string; date: string; totalDebits: number; totalCredits: number }[];
+  entries: {
+    journalNumber: string;
+    date: string;
+    totalDebits: number;
+    totalCredits: number;
+    /** What the Over/Short plug absorbed; 0 when the day balanced on its own. */
+    overShort: number;
+  }[];
 }
 
 /** Distinct calendar days (UTC) that have at least one Payment, evenly
@@ -75,7 +82,7 @@ export async function seedJournalEntries(
   };
 
   for (const day of days) {
-    const { journalEntry, warnings } = await generateSalesJournal(day, SEED_ACTOR);
+    const { journalEntry, warnings, overShort } = await generateSalesJournal(day, SEED_ACTOR);
     const dayKey = day.toISOString().slice(0, 10);
 
     // pickRepresentativeDays deliberately includes the first refund day, and in
@@ -99,7 +106,21 @@ export async function seedJournalEntries(
       date: dayKey,
       totalDebits: journalEntry.totalDebits,
       totalCredits: journalEntry.totalCredits,
+      overShort,
     });
+  }
+
+  // Every seeded day must balance on its own. A plug means a payment or a line
+  // is missing from the day, in the seed or in the journal, and the entry hides
+  // it: once the plug is in, its totals agree. Refunds seeded on the original
+  // order instead of a return order did exactly that on every sampled refund
+  // day until 2026-10-27. CI's setup job runs this seed, so this is a gate.
+  const plugged = result.entries.filter((e) => e.overShort !== 0);
+  if (plugged.length > 0) {
+    throw new Error(
+      "Seeded sales journals needed an Over/Short plug: " +
+        plugged.map((e) => `${e.journalNumber} ${e.overShort.toFixed(2)}`).join(", "),
+    );
   }
 
   return result;
