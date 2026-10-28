@@ -9,6 +9,7 @@ import { assertCapability, getActiveProvider } from "@/lib/payments";
 import {
   calculateOrderBalance,
   findActivePendingPayment,
+  recordPendingPayment,
   voidPendingPayment,
 } from "@/lib/paymentService";
 
@@ -123,19 +124,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       cancelUrl: `${baseUrl}/app/payment/cancel?order_id=${orderId}`,
     });
 
-    // Create a PENDING payment record for tracking
-    await prisma.payment.create({
-      data: {
-        salesOrderId: orderId,
-        paymentDate: new Date(),
-        paymentType: isDeposit ? "Deposit" : "Card",
-        paymentAmount: paymentAmount,
-        status: "PENDING",
-        method: "CARD",
-        processorType: provider.id.toUpperCase(),
-        processorTxnId: checkout.providerTxnId,
-        createdBy: session.user?.email || undefined,
-      },
+    // Through the one PENDING writer, labelled "Card" by its method, never
+    // "Deposit": see portal/pay.ts, which had the same copy of this block.
+    await recordPendingPayment(orderId, {
+      method: "CARD",
+      amount: paymentAmount,
+      processorType: provider.id.toUpperCase(),
+      processorTxnId: checkout.providerTxnId,
+      createdBy: session.user?.email || undefined,
     });
 
     return res.status(200).json({
