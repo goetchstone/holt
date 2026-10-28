@@ -11,6 +11,7 @@ import { verifyPortalToken } from "@/lib/portalToken";
 import {
   calculateOrderBalance,
   findActivePendingPayment,
+  recordPendingPayment,
   voidPendingPayment,
 } from "@/lib/paymentService";
 import { rateLimit } from "@/lib/rateLimit";
@@ -132,19 +133,17 @@ export default limiter(async function handler(req: NextApiRequest, res: NextApiR
       cancelUrl: `${baseUrl}/portal/order?token=${token}`,
     });
 
-    // Create a PENDING payment record
-    await prisma.payment.create({
-      data: {
-        salesOrderId: payload.orderId,
-        paymentDate: new Date(),
-        paymentType: isDeposit ? "Deposit" : "Card",
-        paymentAmount: paymentAmount,
-        status: "PENDING",
-        method: "CARD",
-        processorType: provider.id.toUpperCase(),
-        processorTxnId: checkout.providerTxnId,
-        createdBy: "customer-portal",
-      },
+    // The PENDING row goes through the one writer stripe/create-checkout uses,
+    // so it is labelled by its method ("Card"). A partial payment is still card
+    // money received: labelling it "Deposit" sent it to the journal's deposit
+    // OFFSET account and out of the day's tender, so reconciliation drifted.
+    // Whether it is a deposit is the journal's call, from the invoice date.
+    await recordPendingPayment(payload.orderId, {
+      method: "CARD",
+      amount: paymentAmount,
+      processorType: provider.id.toUpperCase(),
+      processorTxnId: checkout.providerTxnId,
+      createdBy: "customer-portal",
     });
 
     return res.status(200).json({
