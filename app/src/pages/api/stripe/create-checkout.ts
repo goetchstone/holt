@@ -4,13 +4,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import { assertCapability, getActiveProvider } from "@/lib/payments";
 import {
   calculateOrderBalance,
-  findActivePendingPayment,
-  recordPendingPayment,
-  voidPendingPayment,
+  CheckoutAlreadyOpenError,
+  startHostedCheckout,
 } from "@/lib/paymentService";
+import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
@@ -46,56 +45,26 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       return res.status(400).json({ error: "No balance due on this order" });
     }
 
-    // A PENDING row from a checkout the customer may still be sitting on —
-    // starting a second one risks both landing (double-charge). Refuse with
-    // enough detail that the operator can tell "still open" from "actually
-    // failed," unless they've explicitly confirmed a replacement.
-    const existingPending = await findActivePendingPayment(orderId);
-    if (existingPending) {
-      if (!force) {
-        return res.status(409).json({
-          error:
-            `A payment link for $${existingPending.amount.toFixed(2)} is already open on ` +
-            `this order (started ${existingPending.ageMinutes} min ago). If the customer says ` +
-            `it never arrived, retry with force:true to void it and send a new one.`,
-          existingPayment: existingPending,
-        });
-      }
-      await voidPendingPayment(existingPending.id, {
-        voidedBy: session.user?.email,
-        reason: "Replaced by a new checkout (force)",
-      });
-    }
-
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const description = `Order ${order.orderno}`;
 
-    // Whichever processor the deployment has made active takes new payments.
-    const provider = getActiveProvider();
-    assertCapability(provider, "hostedCheckout");
-
-    const checkout = await provider.createCheckout!({
+    // Refuses with a 409 while a checkout on this order may still be open
+    // (both could land: a double charge), unless the operator confirmed a
+    // replacement with force.
+    const checkout = await startHostedCheckout({
+      target: { orderId },
       amount: balance.balanceDue,
-      currency: "USD",
-      description,
+      actor: session.user?.email,
+      force,
+      description: `Order ${order.orderno}`,
       customerEmail: order.customer?.email || undefined,
       metadata: {
         orderId: order.id.toString(),
         orderno: order.orderno,
       },
-      successUrl: successUrl || `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: cancelUrl || `${baseUrl}/app/payment/cancel?order_id=${orderId}`,
-    });
-
-    // PENDING + no ledger entry yet. The AR-ledger entry is posted only when the
-    // webhook confirms the charge (completePayment), so an abandoned checkout
-    // leaves nothing in the books. (#137)
-    await recordPendingPayment(orderId, {
-      method: "CARD",
-      amount: balance.balanceDue,
-      processorType: provider.id.toUpperCase(),
-      processorTxnId: checkout.providerTxnId,
-      createdBy: session.user?.email || undefined,
+      urls: {
+        successUrl: successUrl || `${baseUrl}/app/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: cancelUrl || `${baseUrl}/app/payment/cancel?order_id=${orderId}`,
+      },
     });
 
     return res.status(200).json({
@@ -103,8 +72,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       sessionId: checkout.providerTxnId,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to create checkout session";
-    return res.status(500).json({ error: message });
+    if (error instanceof CheckoutAlreadyOpenError) {
+      return res.status(409).json({ error: error.message, existingPayment: error.existing });
+    }
+    logError("Checkout session creation failed", error, { orderId });
+    return res.status(500).json({ error: "Failed to create checkout session" });
   }
 }
 

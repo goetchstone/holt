@@ -5,7 +5,12 @@ import { getPaymentProvider } from "@/lib/payments";
 import type { PaymentExpiration } from "@/lib/payments/types";
 import { resolveCredential } from "@/lib/integrationCredentials";
 import { prisma } from "@/lib/prisma";
-import { completePayment, expirePendingPayment, onPaymentReceived } from "@/lib/paymentService";
+import {
+  completePayment,
+  expirePendingPayment,
+  onPaymentReceived,
+  reportUntrackedCheckoutPaid,
+} from "@/lib/paymentService";
 import { applyInvoiceStripePayment } from "@/lib/billing/invoiceService";
 import { logError } from "@/lib/logger";
 import { reportOpsAlert } from "@/lib/opsAlert";
@@ -164,6 +169,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         return res.status(500).json({ error: "Failed to post payment to the ledger" });
       }
+    } else {
+      // No PENDING row: a retry of a completed one (silent), or a session Holt
+      // stopped tracking that the customer paid anyway (alert).
+      await reportUntrackedCheckoutPaid(completion.providerTxnId, provider.displayName);
     }
   }
 

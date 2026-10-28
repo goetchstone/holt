@@ -86,14 +86,14 @@ describe("pending payment lifecycle (real DB)", () => {
   describe("findActivePendingPayment", () => {
     it("returns null when the order has no PENDING payment", async () => {
       const order = await seedOrder("PEND-NONE-01");
-      expect(await findActivePendingPayment(order.id)).toBeNull();
+      expect(await findActivePendingPayment({ orderId: order.id })).toBeNull();
     });
 
     it("finds a fresh PENDING payment and reports its amount and age", async () => {
       const order = await seedOrder("PEND-FRESH-01");
       const payment = await seedPayment(order.id, { amount: 400, status: "PENDING" });
 
-      const found = await findActivePendingPayment(order.id);
+      const found = await findActivePendingPayment({ orderId: order.id });
       expect(found).not.toBeNull();
       expect(found!.id).toBe(payment.id);
       expect(found!.amount).toBe(400);
@@ -108,7 +108,7 @@ describe("pending payment lifecycle (real DB)", () => {
         ageMs: PENDING_SESSION_LIFETIME_MS + 60_000, // 24h + 1 minute
       });
 
-      expect(await findActivePendingPayment(order.id)).toBeNull();
+      expect(await findActivePendingPayment({ orderId: order.id })).toBeNull();
     });
 
     it("ignores COMPLETED, VOIDED, and FAILED rows", async () => {
@@ -117,7 +117,7 @@ describe("pending payment lifecycle (real DB)", () => {
       await seedPayment(order.id, { amount: 100, status: "VOIDED" });
       await seedPayment(order.id, { amount: 50, status: "FAILED" });
 
-      expect(await findActivePendingPayment(order.id)).toBeNull();
+      expect(await findActivePendingPayment({ orderId: order.id })).toBeNull();
     });
 
     it("scopes to the order — a PENDING row on a different order never blocks this one", async () => {
@@ -125,7 +125,7 @@ describe("pending payment lifecycle (real DB)", () => {
       const orderB = await seedOrder("PEND-SCOPE-B-01");
       await seedPayment(orderB.id, { amount: 400, status: "PENDING" });
 
-      expect(await findActivePendingPayment(orderA.id)).toBeNull();
+      expect(await findActivePendingPayment({ orderId: orderA.id })).toBeNull();
     });
   });
 
@@ -150,7 +150,7 @@ describe("pending payment lifecycle (real DB)", () => {
       // A voided row no longer blocks a new checkout — proves the `force`
       // replace-and-retry path in the payment-creation routes actually works
       // end to end at the service layer.
-      expect(await findActivePendingPayment(order.id)).toBeNull();
+      expect(await findActivePendingPayment({ orderId: order.id })).toBeNull();
     });
 
     it("refuses to void a COMPLETED payment — that path is processRefund, not this", async () => {

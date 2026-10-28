@@ -159,7 +159,11 @@ Lifecycle (all in `lib/billing/invoiceService.ts`, pure math in
   `POS_PAYMENTS` mapping for the method, credit AR control) + `PAYMENT`
   ledger entry. PAID flips when the open balance reaches zero (half-cent
   tolerance). Stripe path: `createInvoicePaymentLink` makes a checkout
-  session + PENDING payment; the webhook runs `completePayment` (ledger)
+  session + PENDING payment through `paymentService.startHostedCheckout`,
+  which refuses while a checkout on the invoice is still open (see
+  `docs/domains/pos.md`; staff replace it from "Copy Payment Link" after a
+  confirm, and a replaced session paid anyway raises an ops alert, never a
+  posting); the webhook runs `completePayment` (ledger)
   then `applyInvoiceStripePayment` (application + journal + PAID) —
   idempotent via the unique journal number + existing-application check.
 - **Void**: only with zero applications. ISSUED voids post the reversing

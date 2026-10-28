@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import type { ClientPortalData } from "@/lib/clientPortal";
+import { customerRetryPrompt, openCheckoutFrom } from "@/lib/openCheckoutPrompt";
 
 const INVOICE_BADGE: Record<string, string> = {
   ISSUED: "bg-amber-100 text-amber-800",
@@ -40,16 +41,25 @@ export function ClientPortalView({
   const [payingId, setPayingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const pay = async (invoiceId: number) => {
+  const pay = async (invoiceId: number, force = false): Promise<void> => {
     setPayingId(invoiceId);
     setError(null);
     try {
       const res = await fetch("/api/client-portal/pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, invoiceId }),
+        body: JSON.stringify({ token, invoiceId, ...(force ? { force: true } : {}) }),
       });
       const body = (await res.json()) as { url?: string; error?: string };
+      // A checkout they started earlier is still open: ask before replacing
+      // it. Declining is not an error, so nothing is shown.
+      const open = res.status === 409 && !force ? openCheckoutFrom(body) : null;
+      if (open) {
+        if (window.confirm(customerRetryPrompt(open, (n) => money.format(n)))) {
+          await pay(invoiceId, true);
+        }
+        return;
+      }
       if (!res.ok || !body.url) {
         setError(body.error ?? "Could not start the payment");
         return;

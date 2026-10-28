@@ -23,6 +23,7 @@ import Modal from "@/components/ui/Modal";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
 import { computeTotalPaid } from "@/lib/paymentBalance";
+import { openCheckoutFrom } from "@/lib/openCheckoutPrompt";
 import { ApplyStoreCredit } from "./ApplyStoreCredit";
 
 interface LineItem {
@@ -512,12 +513,33 @@ export function OrderDetailView({ id }: { id: string }) {
     if (!orderDetails) return;
     setPaymentLinkLoading(true);
     setPaymentLinkUrl(null);
-    try {
-      const amount = getPaymentAmount();
-      const res = await axios.post("/api/stripe/send-payment-link", {
+    const amount = getPaymentAmount();
+    const sendLink = (force: boolean) =>
+      axios.post("/api/stripe/send-payment-link", {
         orderId: orderDetails.id,
         amount,
+        ...(force ? { force: true } : {}),
       });
+    try {
+      let res;
+      try {
+        res = await sendLink(false);
+      } catch (err) {
+        // A link is already open on this order. Replacing it voids the first,
+        // so ask, and only on the customer's word that it never came.
+        const open =
+          axios.isAxiosError(err) && err.response?.status === 409
+            ? openCheckoutFrom(err.response.data)
+            : null;
+        if (!open) throw err;
+        const replace = confirm(
+          `A payment link for ${formatCurrency(open.amount)} is already open on this order ` +
+            `(started ${open.ageMinutes} min ago). Void it and send a new one? ` +
+            `Only if the customer says the first never arrived.`,
+        );
+        if (!replace) return;
+        res = await sendLink(true);
+      }
       const data = res.data as PaymentLinkResponse;
       const label = data.isDeposit
         ? `Deposit link created for ${formatCurrency(data.amount)}`

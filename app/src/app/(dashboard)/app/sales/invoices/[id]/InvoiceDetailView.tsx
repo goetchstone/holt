@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
+import { TRPCClientError } from "@trpc/client";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { api } from "@/lib/trpc/client";
 import { INVOICE_PAYMENT_METHODS, type InvoicePaymentMethod } from "@/lib/billing/invoiceShared";
@@ -123,7 +124,20 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
 
   const onPaymentLink = async () => {
     try {
-      const result = await paymentLink.mutateAsync({ id: invoiceId });
+      let result;
+      try {
+        result = await paymentLink.mutateAsync({ id: invoiceId });
+      } catch (err) {
+        // A link is already open on this invoice. Replacing it voids the
+        // first, so ask, and only on the customer's word that it never came.
+        if (!(err instanceof TRPCClientError) || err.data?.code !== "CONFLICT") throw err;
+        const replace = window.confirm(
+          `${err.message} Void it and create a new one? ` +
+            `Only if the customer says the first never arrived.`,
+        );
+        if (!replace) return;
+        result = await paymentLink.mutateAsync({ id: invoiceId, force: true });
+      }
       await navigator.clipboard.writeText(result.url);
       toast.success(`Payment link for ${money(result.amount)} copied to clipboard`);
     } catch (err) {

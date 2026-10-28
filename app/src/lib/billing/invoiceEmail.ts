@@ -11,7 +11,8 @@ import { getInvoiceDetail } from "@/lib/billing/invoiceService";
 import { createInvoicePaymentLink } from "@/lib/billing/invoiceStripe";
 import { InvoiceValidationError, invoiceActionError } from "@/lib/billing/invoiceAuthoring";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
-import { logError } from "@/lib/logger";
+import { CheckoutAlreadyOpenError } from "@/lib/paymentService";
+import { logError, logger } from "@/lib/logger";
 
 export interface SendInvoiceEmailInput {
   includePaymentLink?: boolean;
@@ -41,9 +42,23 @@ export async function sendInvoiceEmail(
       const link = await createInvoicePaymentLink(invoiceId, input.requestedBy);
       paymentUrl = link.url;
     } catch (linkErr) {
-      // Stripe unconfigured shouldn't block the invoice email itself — send
-      // without the pay button and surface the reason in the response.
-      logError("Invoice payment link creation failed; sending email without it", linkErr);
+      // Neither an open checkout nor Stripe unconfigured should block the
+      // invoice email itself: send without the pay button (paymentUrl null).
+      // An open checkout is the double-charge guard working, not a fault, so
+      // it is a warning that names it rather than a recorded error.
+      if (linkErr instanceof CheckoutAlreadyOpenError) {
+        logger.warn(
+          "Invoice emailed without a pay button: a checkout is already open on this invoice",
+          {
+            invoiceId,
+            openPaymentId: linkErr.existing.id,
+            openAmount: linkErr.existing.amount,
+            openAgeMinutes: linkErr.existing.ageMinutes,
+          },
+        );
+      } else {
+        logError("Invoice payment link creation failed; sending email without it", linkErr);
+      }
     }
   }
 

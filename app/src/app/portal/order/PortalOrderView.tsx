@@ -14,6 +14,7 @@ import axios from "axios";
 import { format } from "date-fns";
 import { useBranding, useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import { customerRetryPrompt, openCheckoutFrom } from "@/lib/openCheckoutPrompt";
 
 interface PortalOrder {
   id: number;
@@ -88,11 +89,23 @@ export function PortalOrderView() {
     }
     setPaymentLoading(true);
     setError(null);
+    const startCheckout = (force: boolean) =>
+      axios.post("/api/portal/pay", { token, amount: amt, ...(force ? { force: true } : {}) });
     try {
-      const res = await axios.post("/api/portal/pay", {
-        token,
-        amount: amt,
-      });
+      let res;
+      try {
+        res = await startCheckout(false);
+      } catch (err) {
+        // A checkout they started earlier is still open: ask before replacing
+        // it. Declining is not an error, so nothing is shown.
+        const open =
+          axios.isAxiosError(err) && err.response?.status === 409
+            ? openCheckoutFrom(err.response.data)
+            : null;
+        if (!open) throw err;
+        if (!window.confirm(customerRetryPrompt(open, (n) => fmt(n)))) return;
+        res = await startCheckout(true);
+      }
       if (res.data.url) {
         globalThis.location.href = res.data.url;
       } else {
@@ -105,7 +118,7 @@ export function PortalOrderView() {
     } finally {
       setPaymentLoading(false);
     }
-  }, [order, token, payFull, paymentAmount]);
+  }, [order, token, payFull, paymentAmount, fmt]);
 
   return (
     <div className="min-h-screen bg-brand-linen">

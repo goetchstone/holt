@@ -40,11 +40,11 @@ Every portal endpoint MUST:
 
 `POST /api/portal/pay`:
 
-1. Verify token → resolve `orderId` + `customerId`
-2. Compute current balance via `paymentService.computeBalance(orderId)` (per `docs/domains/pos.md`)
-3. Reject if balance ≤ 0 (nothing to pay)
-4. Create a Stripe Checkout Session via `lib/stripe.ts` with `success_url` + `cancel_url` pointing back at `/portal/order?token=...`
-5. Return the session URL to the client; client redirects to Stripe
+1. Verify token → resolve `orderId`
+2. Compute current balance via `paymentService.calculateOrderBalance(orderId)` (per `docs/domains/pos.md`)
+3. Reject if balance ≤ 0 (nothing to pay); the payment is the requested `amount` capped at the balance, or the whole balance
+4. Start the checkout through `paymentService.startHostedCheckout` (on the active provider) with `success_url` + `cancel_url` pointing back at `/portal/order?token=...`. While a checkout on the order is still open (PENDING, under 24h) it answers 409 with the amount and age; `force: true` voids that one and starts a new one, which is safe because the token scopes it to the customer's own order. `PortalOrderView` turns that 409 into a confirm in plain words (`lib/openCheckoutPrompt.ts`) and re-posts with `force` on yes; on no it shows nothing. The PENDING row is labelled "Card" whether or not the payment is partial
+5. Return the session URL to the client; client redirects to the processor
 
 **Webhook idempotency** (verified against `pages/api/stripe/webhook.ts` on 2026-05-20):
 

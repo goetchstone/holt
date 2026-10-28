@@ -21,11 +21,20 @@ by expiry; a fresh link supersedes nothing and invalidates nothing.
   (indistinguishable from a wrong URL). The only client-side interaction is
   the invoice Pay button.
 - **Pay endpoint** `POST /api/client-portal/pay` — public, rate-limited
-  (10/min), body `{ token, invoiceId }`: re-verifies the token, refuses
-  unless the invoice belongs to the token's customer, then reuses
-  `createInvoicePaymentLink` from the billing module (PENDING payment bound
-  via `Payment.invoiceId`; the Stripe webhook completes + applies it like
-  any invoice payment).
+  (10/min), body `{ token, invoiceId, force? }`: re-verifies the token,
+  refuses unless the invoice belongs to the token's customer, then reuses
+  `createInvoicePaymentLink` from the billing module, which starts the
+  checkout through `paymentService.startHostedCheckout` (PENDING payment
+  bound via `Payment.invoiceId`; the Stripe webhook completes + applies it
+  like any invoice payment). While a checkout on that invoice is still open
+  (PENDING, under 24h) it answers 409 with the amount and age, as
+  `portal/pay` does for orders; `force: true` voids the open one and starts
+  a new one. The portal page (`ClientPortalView`) turns that 409 into a
+  confirm in plain words ("You started a payment of $X N minutes ago. If you
+  didn't finish it, start a new one?", `lib/openCheckoutPrompt.ts`) and
+  re-posts with `force` on yes; on no it shows nothing. The voided session
+  stays payable at the processor; if it is paid anyway the webhook raises an
+  ops alert (`reportUntrackedCheckoutPaid`, see `docs/domains/pos.md`).
 - **Staff link generation** — tRPC `clientPortal.generateLink`
   (MANAGER/ADMIN, feature-gated): returns
   `{NEXTAUTH_URL}/portal/client/<token>`. Surfaced as "Copy Portal Link" on

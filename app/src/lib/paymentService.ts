@@ -1,13 +1,19 @@
 // /app/src/lib/paymentService.ts
-import { getBusinessTimeZone } from "@/lib/appSettings";
+import { getAppSettings, getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayStamp } from "@/lib/reports/businessDay";
 import { prisma } from "@/lib/prisma";
 import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
 import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering";
-import { assertCapability, getProviderForPayment } from "@/lib/payments";
+import {
+  assertCapability,
+  getActiveProvider,
+  getProviderForPayment,
+  type CheckoutResult,
+} from "@/lib/payments";
 import { syncServiceAppointments } from "@/lib/serviceDispatchService";
 import { appendEntry, signForType } from "@/lib/customerLedger";
 import { logError } from "@/lib/logger";
+import { reportOpsAlert } from "@/lib/opsAlert";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { countedPaymentWhere, isPaymentExcludedFromBalance } from "@/lib/paymentBalance";
 import { isCountedLine } from "@/lib/salesOrderRevenue";
@@ -63,8 +69,8 @@ const MICRO_BALANCE_THRESHOLD = 1.0;
 // no sweeper). The result was a balance permanently reading $0 with no path
 // in the product to fix it -- direct SQL was the only way to clear the row.
 // The double-charge protection this used to serve now lives in
-// `findActivePendingPayment`, an explicit pre-checkout check in the payment-
-// creation routes, and PENDING rows get a real terminal state via the
+// `findActivePendingPayment`, an explicit pre-checkout check in
+// `startHostedCheckout`, and PENDING rows get a real terminal state via the
 // webhook's expiration handling plus `sweepStalePendingPayments`. See
 // isPaymentExcludedFromBalance in @/lib/paymentBalance, which every other
 // balance computation in the app shares with this function so they can't
@@ -383,6 +389,15 @@ async function appendPaymentLedger(
   }
 }
 
+/** What a hosted checkout pays: a sales order's balance, or an authored
+ *  invoice's. The PENDING row is bound to it structurally (salesOrderId or
+ *  invoiceId), and the webhook routes on that binding, never on metadata. */
+export type CheckoutTarget = { orderId: number } | { invoiceId: number };
+
+function targetWhere(target: CheckoutTarget): { salesOrderId: number } | { invoiceId: number } {
+  return "orderId" in target ? { salesOrderId: target.orderId } : { invoiceId: target.invoiceId };
+}
+
 /**
  * Create a PENDING payment with NO ledger entry. For processor flows (Stripe
  * checkout) where the money isn't confirmed until a webhook fires — the AR-ledger
@@ -390,7 +405,7 @@ async function appendPaymentLedger(
  * leaves a phantom payment in the books. (#137)
  */
 export async function recordPendingPayment(
-  orderId: number,
+  target: CheckoutTarget,
   input: {
     method: string;
     amount: number;
@@ -404,13 +419,19 @@ export async function recordPendingPayment(
   if (rounded <= 0) {
     throw new Error("Payment amount must be positive");
   }
-  const order = await prisma.salesOrder.findUniqueOrThrow({
-    where: { id: orderId },
-    select: { customerId: true },
-  });
+  const owner =
+    "orderId" in target
+      ? await prisma.salesOrder.findUniqueOrThrow({
+          where: { id: target.orderId },
+          select: { customerId: true },
+        })
+      : await prisma.invoice.findUniqueOrThrow({
+          where: { id: target.invoiceId },
+          select: { customerId: true },
+        });
   return prisma.payment.create({
     data: {
-      salesOrderId: orderId,
+      ...targetWhere(target),
       paymentDate: new Date(),
       paymentType: (METHOD_DISPLAY as Record<string, string>)[input.method] ?? input.method,
       paymentAmount: rounded,
@@ -418,7 +439,7 @@ export async function recordPendingPayment(
       method: input.method as any,
       processorType: input.processorType,
       processorTxnId: input.processorTxnId,
-      customerId: input.customerId ?? order.customerId,
+      customerId: input.customerId ?? owner.customerId,
       createdBy: input.createdBy ?? undefined,
     },
   });
@@ -446,8 +467,8 @@ export interface ActivePendingPayment {
 }
 
 /**
- * Look for a PENDING payment on this order that's still within the session
- * lifetime — i.e. a checkout that may genuinely still be open. This is the
+ * Look for a PENDING payment on this order or invoice that's still within the
+ * session lifetime — i.e. a checkout that may genuinely still be open. This is the
  * double-charge protection that used to live inside computeBalance (treating
  * PENDING as paid, so a second payment link would show a $0 balance and
  * refuse). Moved here so the check can be evaluated explicitly, once, at the
@@ -460,13 +481,13 @@ export interface ActivePendingPayment {
  * specifically, not just that something went wrong.
  */
 export async function findActivePendingPayment(
-  orderId: number,
+  target: CheckoutTarget,
 ): Promise<ActivePendingPayment | null> {
   const cutoff = new Date(Date.now() - PENDING_SESSION_LIFETIME_MS);
   const pending = await prisma.payment.findFirst({
     // A PENDING refund is not an open checkout.
     where: {
-      salesOrderId: orderId,
+      ...targetWhere(target),
       status: "PENDING",
       isRefund: false,
       paymentDate: { gte: cutoff },
@@ -486,13 +507,12 @@ export async function findActivePendingPayment(
  * Void a PENDING payment deliberately — either an operator clearing a stuck
  * row from the product (see /api/sales/orders/[id]/payments/[paymentId]/void,
  * MANAGER/ADMIN-gated because voiding a payment row is money-adjacent), or
- * a payment-creation route replacing an open checkout the customer says
- * never arrived (the `force` path in create-checkout/send-payment-link/
- * portal-pay). Only PENDING rows are eligible: a COMPLETED payment must go
- * through `processRefund` instead, which reverses real money and posts the
- * ledger entry this function deliberately does NOT — a PENDING row was never
- * posted to the ledger (see recordPendingPayment), so there's nothing to
- * reverse.
+ * a new checkout replacing an open one the customer says never arrived (the
+ * `force` path in startHostedCheckout). Only PENDING rows are eligible: a
+ * COMPLETED payment must go through `processRefund` instead, which reverses
+ * real money and posts the ledger entry this function deliberately does NOT —
+ * a PENDING row was never posted to the ledger (see recordPendingPayment), so
+ * there's nothing to reverse.
  */
 export async function voidPendingPayment(
   paymentId: number,
@@ -514,6 +534,98 @@ export async function voidPendingPayment(
       },
     });
   });
+}
+
+/**
+ * A checkout is already open on this order or invoice. Carries the open one
+ * so the caller can name it (amount, age) instead of refusing bare. The
+ * message is the staff wording; a customer-facing route words its own from
+ * `existing`.
+ */
+export class CheckoutAlreadyOpenError extends Error {
+  constructor(
+    readonly existing: ActivePendingPayment,
+    target: CheckoutTarget,
+  ) {
+    super(
+      `A payment link for $${existing.amount.toFixed(2)} is already open on this ` +
+        `${"orderId" in target ? "order" : "invoice"} (started ${existing.ageMinutes} min ` +
+        `ago). If the customer says it never arrived, retry with force:true to void it and ` +
+        `send a new one.`,
+    );
+    this.name = "CheckoutAlreadyOpenError";
+  }
+}
+
+export interface StartHostedCheckoutInput {
+  target: CheckoutTarget;
+  /** Major units. The caller's own balance rule decides it. */
+  amount: number;
+  /** Who started it: a staff email, or "customer-portal" / "client-portal".
+   *  Recorded as createdBy on the new row, and updatedBy on one it replaces. */
+  actor?: string | null;
+  /** Void the checkout already open on this target and start a new one, for
+   *  when the customer says the earlier link never arrived. */
+  force?: boolean;
+  /** The one line-item label the payer sees. */
+  description: string;
+  customerEmail?: string;
+  /** Echoed back on the webhook as a cross-check; never the routing key. */
+  metadata: Record<string, string>;
+  urls: { successUrl: string; cancelUrl: string };
+}
+
+/**
+ * The one way to start an online card payment, for an order or an invoice.
+ * Refuses while a checkout on the same target may still be open (both could
+ * land: a double charge), unless `force` voids that one first. Then opens the
+ * session on the active provider and writes the PENDING row through
+ * recordPendingPayment: method CARD, so labelled "Card"; customer filled in;
+ * processorType recorded, so refunds and webhooks route by the processor that
+ * took it, never the one active later.
+ *
+ * Each caller keeps its own auth, balance rule, response shape and wording;
+ * this is only the sequence they used to paste.
+ */
+export async function startHostedCheckout(
+  input: StartHostedCheckoutInput,
+): Promise<CheckoutResult> {
+  const existing = await findActivePendingPayment(input.target);
+  if (existing) {
+    if (!input.force) throw new CheckoutAlreadyOpenError(existing, input.target);
+    await voidPendingPayment(existing.id, {
+      voidedBy: input.actor,
+      reason: "Replaced by a new checkout (force)",
+    });
+  }
+
+  // Whichever processor the deployment has made active takes new payments.
+  const provider = getActiveProvider();
+  assertCapability(provider, "hostedCheckout");
+  const settings = await getAppSettings();
+
+  const checkout = await provider.createCheckout!({
+    amount: input.amount,
+    currency: settings.currency || "USD",
+    description: input.description,
+    customerEmail: input.customerEmail,
+    metadata: input.metadata,
+    successUrl: input.urls.successUrl,
+    cancelUrl: input.urls.cancelUrl,
+  });
+
+  // PENDING + no ledger entry yet. The AR-ledger entry is posted only when the
+  // webhook confirms the charge (completePayment), so an abandoned checkout
+  // leaves nothing in the books. (#137)
+  await recordPendingPayment(input.target, {
+    method: "CARD",
+    amount: input.amount,
+    processorType: provider.id.toUpperCase(),
+    processorTxnId: checkout.providerTxnId,
+    createdBy: input.actor,
+  });
+
+  return checkout;
 }
 
 /**
@@ -582,6 +694,56 @@ export async function sweepStalePendingPayments(): Promise<StalePendingSweepResu
     totalAmount: round2(swept.reduce((sum, p) => sum + p.amount, 0)),
     payments: swept,
   };
+}
+
+/**
+ * A processor webhook says a checkout was paid and there is no PENDING row
+ * for it. Usually that is a retry of one already COMPLETED, and stays silent.
+ * But ending a PENDING row's life in Holt does not close the session at the
+ * processor: a `force` replacement or an operator's void (VOIDED), or the
+ * stale sweep (FAILED, where Square has no expiry event), leaves it payable.
+ * If the customer pays it anyway the money is at the processor and nothing is
+ * in the books, so raise an ops alert naming the row. Never records the
+ * payment itself: whether it is the only charge or a second one is a
+ * person's call, to record or to refund. Both webhooks call this; returns
+ * whether it alerted.
+ */
+export async function reportUntrackedCheckoutPaid(
+  providerTxnId: string,
+  processorName: string,
+): Promise<boolean> {
+  const dropped = await prisma.payment.findFirst({
+    where: {
+      processorTxnId: providerTxnId,
+      isRefund: false,
+      status: { in: ["VOIDED", "FAILED"] },
+    },
+    orderBy: { paymentDate: "desc" },
+    select: { id: true, status: true, paymentAmount: true, salesOrderId: true, invoiceId: true },
+  });
+  if (!dropped) return false;
+
+  const amount = round2(Number(dropped.paymentAmount));
+  const target = dropped.invoiceId
+    ? `invoice ${dropped.invoiceId}`
+    : `order ${dropped.salesOrderId ?? "(none)"}`;
+  await reportOpsAlert({
+    title: `${processorName} took a payment Holt had stopped tracking`,
+    detail:
+      `${processorName} reports a paid checkout of $${amount.toFixed(2)} for ${target}, ` +
+      `but Holt had marked payment ${dropped.id} ${dropped.status}. The money was taken ` +
+      `and never posted to the books. Record it against the ${target}, or refund it at ` +
+      `${processorName}.`,
+    context: {
+      paymentId: dropped.id,
+      status: dropped.status,
+      amount,
+      salesOrderId: dropped.salesOrderId,
+      invoiceId: dropped.invoiceId,
+      providerTxnId,
+    },
+  });
+  return true;
 }
 
 /**
