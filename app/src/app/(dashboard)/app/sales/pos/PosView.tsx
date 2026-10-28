@@ -19,8 +19,15 @@ import { useActiveStore } from "@/hooks/useActiveStore";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { RetailPriceTag } from "@/components/sales/RetailPriceTag";
 import { getErrorMessage } from "@/lib/toastError";
-import { priceCart, type CartDiscount, type DiscountType } from "@/lib/pos/cartPricing";
+import {
+  catalogRetailPrice,
+  noRetailPriceMessage,
+  priceCart,
+  type CartDiscount,
+  type DiscountType,
+} from "@/lib/pos/cartPricing";
 import { onHandByStore } from "@/lib/inventory/onHandSummary";
 
 const REGISTER_STORAGE_KEY = "pos-register-id";
@@ -115,13 +122,6 @@ const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = {
   PICKUP: "Pickup",
   DELIVERY: "Delivery",
 };
-
-// Resolve a product's sell price: explicit retail, else 2.5x cost, else 0.
-function resolvePrice(product: { baseRetail?: number | null; baseCost?: number | null }): number {
-  if (product.baseRetail) return Number(product.baseRetail);
-  if (product.baseCost) return Number(product.baseCost) * 2.5;
-  return 0;
-}
 
 /** Why store credit cannot pay `amount`, or null when it can. */
 function storeCreditProblem(
@@ -307,8 +307,7 @@ export function PosView() {
   );
 
   const addProductToCart = useCallback(
-    (product: FoundProduct, inventorySummary: InventorySummary[]) => {
-      const price = resolvePrice(product);
+    (product: FoundProduct, price: number, inventorySummary: InventorySummary[]) => {
       setCart((prev) => {
         const existingIdx = prev.findIndex(
           (item) => item.productId === product.id && item.isReturn === returnMode,
@@ -361,8 +360,13 @@ export function PosView() {
           params: { identifier: trimmed },
         });
         const product = res.data as FoundProduct;
+        const price = catalogRetailPrice(product);
+        if (price === null) {
+          toast.error(noRetailPriceMessage(product));
+          return;
+        }
         const inventorySummary = await fetchInventorySummary(product.id);
-        addProductToCart(product, inventorySummary);
+        addProductToCart(product, price, inventorySummary);
         toast.success(
           `${returnMode ? "Return" : "Added"}: ${product.name || product.productNumber}`,
         );
@@ -427,8 +431,13 @@ export function PosView() {
   };
 
   const addProductFromSearch = async (product: FoundProduct) => {
+    const price = catalogRetailPrice(product);
+    if (price === null) {
+      toast.error(noRetailPriceMessage(product));
+      return;
+    }
     const inventorySummary = await fetchInventorySummary(product.id);
-    addProductToCart(product, inventorySummary);
+    addProductToCart(product, price, inventorySummary);
     clearProductSearch();
     scanRef.current?.focus();
     toast.success(`Added: ${product.name || product.productNumber}`);
@@ -919,11 +928,7 @@ export function PosView() {
                       {p.categoryName && <span> -- {p.categoryName}</span>}
                     </p>
                   </div>
-                  {p.baseRetail && (
-                    <span className="text-sm text-brand-black ml-3 whitespace-nowrap">
-                      {fmt(Number(p.baseRetail))}
-                    </span>
-                  )}
+                  <RetailPriceTag price={catalogRetailPrice(p)} fmt={fmt} />
                 </div>
               </button>
             ))}
