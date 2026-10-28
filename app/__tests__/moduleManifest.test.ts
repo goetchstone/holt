@@ -139,7 +139,7 @@ describe("getToggleableModules -- the Settings > Modules grid", () => {
     expect(keysExplicitOff).not.toContain("dmarcTools");
   });
 
-  it("surfaces an addon module once it's enabled (the Akritos case)", () => {
+  it("surfaces an addon module once a deployment enables it", () => {
     const keys = getToggleableModules({ dmarcTools: true }).map((m) => m.key);
     expect(keys).toContain("dmarcTools");
   });
@@ -152,7 +152,7 @@ describe("getModulesForSettingsIndex -- the Settings sub-nav", () => {
     expect(keys).not.toContain("dmarcTools");
   });
 
-  it("an enabled module with nav appears in the index (dmarcTools, the Akritos case)", () => {
+  it("an enabled module with nav appears in the index (dmarcTools)", () => {
     const keys = getModulesForSettingsIndex({ dmarcTools: true }).map((m) => m.key);
     expect(keys).toContain("dmarcTools");
   });

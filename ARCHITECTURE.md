@@ -6,7 +6,7 @@ Holt is open-core: the same codebase serves a self-hosted single-business deploy
 
 ## Application Structure
 
-The app is a Next.js 16 application on the **App Router + tRPC** (the modern-stack target borrowed from the akritos reference build). The Pages-Router → App-Router migration is **complete**: all ~200 feature pages are App Router; the Pages Router is retained only for the `auth/login` entry and the `src/pages/api/**` REST routes.
+The app is a Next.js 16 application on the **App Router + tRPC** (the modern-stack target borrowed from an earlier reference build). The Pages-Router → App-Router migration is **complete**: all ~200 feature pages are App Router; the Pages Router is retained only for the `auth/login` entry and the `src/pages/api/**` REST routes.
 
 - **App Router** (`src/app/`) — every feature page. Server components under route groups (`(dashboard)` supplies the shared nav chrome; `app/portal/*` is the public, no-auth customer surface; `app/print/*` are minimal-chrome render targets) gate via `requirePage()` and render `"use client"` views. Typed data flows through **tRPC** (`src/server/trpc/`), with query logic in framework-agnostic libs (`src/lib/reports/*` etc.).
 - **REST API** (`src/pages/api/`) — retained by design for exports, mutations, cross-domain shared endpoints (`/api/staff`, `/api/departments`, `/api/dashboard/weekly`, `/api/mailchimp/*`), Stripe/webhook handlers, and file uploads. App Router views call these directly where tRPC isn't the right fit (downloads, multipart, third-party callbacks).

@@ -82,7 +82,7 @@ The public-site chrome (layout body, `SiteHeader`, `SiteFooter`) follows
 `settings.themeMode`: `light` (default — white header bar, filled "Sign in"
 button, linen footer) or `dark` (navy chrome on the brand tokens: logo +
 letterspaced wordmark, outline "Staff login" button, navy footer — the full-dark
-akritos.com look). Stored as `mode` inside the `AppSettings.theme` JSON (no
+marketing-site look). Stored as `mode` inside the `AppSettings.theme` JSON (no
 migration); `resolveAppSettings` surfaces it as `themeMode`, and the settings
 API's `parseTheme` carries it through explicitly (that function rebuilds the
 theme object from a whitelist, so an unhandled key would be dropped on every
@@ -134,7 +134,7 @@ fresh deployment to get a real starting site.
 
 ## Blog comments (moderated)
 
-Gated by the **`blogComments`** feature flag (off by default; akritos enables it).
+Gated by the **`blogComments`** feature flag (off by default; a deployment enables it).
 
 - **Model** `BlogComment` + `CommentStatus` (PENDING/APPROVED/REJECTED/SPAM),
   org-scoped, FK to `Post`. Captures `ipAddress` + `userAgent` for spam triage.

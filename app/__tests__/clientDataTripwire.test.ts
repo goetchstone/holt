@@ -46,7 +46,15 @@ const REPO_ROOT = join(__dirname, "..", "..");
  * appears in one deployment's data does not belong -- it would fire on ordinary
  * code and train people to add exemptions rather than fix leaks.
  */
-type Forbidden = { p: string; what: string };
+type Forbidden = {
+  p: string;
+  what: string;
+  /** Paths allowed to contain THIS pattern only, each with its reason. For a
+   *  name that must appear in one place by law or by contract (the vendor's
+   *  own name in NOTICE) and nowhere else. Kept with the pattern, out of the
+   *  repo, so the exemption does not spell the name either. */
+  allow?: Record<string, string>;
+};
 
 const PATTERN_FILE = join(REPO_ROOT, "config", "local", "client-data-patterns.json");
 
@@ -60,6 +68,15 @@ function loadForbidden(): Forbidden[] | null {
   const list = JSON.parse(raw) as Forbidden[];
   if (!Array.isArray(list) || list.length === 0 || list.some((f) => !f.p || !f.what)) {
     throw new Error("client-data patterns must be a non-empty [{ p, what }] list");
+  }
+  // An exemption without a reason is indistinguishable from a forgotten one.
+  const unexplained = list.flatMap((f) =>
+    Object.entries(f.allow ?? {})
+      .filter(([, why]) => typeof why !== "string" || !why.trim())
+      .map(([path]) => `${f.what}: ${path}`),
+  );
+  if (unexplained.length > 0) {
+    throw new Error(`client-data exemptions need a reason: ${unexplained.join(", ")}`);
   }
   return list;
 }
@@ -147,11 +164,11 @@ describeWithPatterns("no real client or personal data in the repository", () => 
     expect(pathHits("clientDataTripwire").length).toBeGreaterThan(0);
   });
 
-  for (const { p, what } of FORBIDDEN ?? []) {
+  for (const { p, what, allow = {} } of FORBIDDEN ?? []) {
     it(`does not contain ${what}`, () => {
       const pattern = decode(p);
       const unexplained = [...trackedHits(pattern), ...pathHits(pattern)].filter(
-        (h) => !(h.file in ALLOWED),
+        (h) => !(h.file in ALLOWED) && !(h.file in allow),
       );
       expect(unexplained.map((h) => h.line)).toEqual([]);
     });
@@ -166,5 +183,15 @@ describeWithPatterns("no real client or personal data in the repository", () => 
       (FORBIDDEN ?? []).flatMap(({ p }) => trackedHits(decode(p))).map((h) => h.file),
     );
     expect(Object.keys(ALLOWED).filter((f) => !allHits.has(f))).toEqual([]);
+  });
+
+  it("has no stale per-pattern exemptions -- each still has a hit of its own pattern", () => {
+    const stale = (FORBIDDEN ?? []).flatMap(({ p, what, allow = {} }) => {
+      const hits = new Set(trackedHits(decode(p)).map((h) => h.file));
+      return Object.keys(allow)
+        .filter((f) => !hits.has(f))
+        .map((f) => `${what}: ${f}`);
+    });
+    expect(stale).toEqual([]);
   });
 });

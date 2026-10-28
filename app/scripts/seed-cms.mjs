@@ -157,7 +157,7 @@ async function main() {
         id: "about-quote",
         type: "quote",
         quote: "Build technology small businesses own. No rent-seeking, no lock-in, no black boxes.",
-        attribution: "The Akritos principle",
+        attribution: "Our founding principle",
       },
       {
         id: "about-principles",

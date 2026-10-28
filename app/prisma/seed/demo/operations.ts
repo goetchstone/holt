@@ -19,7 +19,7 @@
 // messages cannot demonstrate that it does.
 //
 // TIME entries are billable-consultancy shaped (`isBillable`, `billedAt`),
-// which is the Akritos deployment's case rather than the furniture one. A mix
+// which is a services deployment's case rather than the furniture one. A mix
 // of billed and unbilled is what makes the "what can I invoice" view non-empty.
 //
 // SHIFTS here are past ones. The open shifts -- `clockOut: null`, still on

@@ -38,7 +38,7 @@ export const DEFAULT_BRANDING: Branding = {
 
 // Product / maker mark. The maker attribution is DEPLOYMENT config, not a fixed
 // string: it defaults to empty so a white-label install shows NO
-// product attribution anywhere. The product's own deployment (Akritos) opts in
+// product attribution anywhere. The product's own deployment opts in
 // by setting the NEXT_PUBLIC_MAKER_* env vars at build time. Render sites must
 // treat an empty `attribution` as "show nothing". (Can graduate to an
 // AppSettings field later if runtime-editable attribution is ever wanted.)
