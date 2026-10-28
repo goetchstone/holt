@@ -420,7 +420,7 @@ describe("one open checkout per order or invoice (real DB)", () => {
     );
   });
 
-  it("staff tRPC paymentLink: CONFLICT with the amount, and force replaces it", async () => {
+  it("staff tRPC paymentLink: CONFLICT in plain words, and force replaces it", async () => {
     await seedSettings({ billing: true });
     const user = await prisma.user.create({
       data: { id: "test-user-billing", email: "billing@test.holt" },
@@ -444,9 +444,13 @@ describe("one open checkout per order or invoice (real DB)", () => {
     const invoice = await seedInvoice("INV-TRPC-1");
     await caller.billing.paymentLink({ id: invoice.id });
 
+    // The screen asks before replacing, so the message only says what is
+    // open; the HTTP routes' "retry with force:true" never reaches staff.
     await expect(caller.billing.paymentLink({ id: invoice.id })).rejects.toMatchObject({
       code: "CONFLICT",
-      message: expect.stringMatching(/\$500\.00 is already open on this invoice/),
+      message: expect.stringMatching(
+        /^A payment link for \$500\.00 is already open on this invoice \(started \d+ min ago\)\.$/,
+      ),
     });
 
     const forced = await caller.billing.paymentLink({ id: invoice.id, force: true });

@@ -29,7 +29,12 @@ by expiry; a fresh link supersedes nothing and invalidates nothing.
   like any invoice payment). While a checkout on that invoice is still open
   (PENDING, under 24h) it answers 409 with the amount and age, as
   `portal/pay` does for orders; `force: true` voids the open one and starts
-  a new one. The portal page shows the message and does not offer `force`.
+  a new one. The portal page (`ClientPortalView`) turns that 409 into a
+  confirm in plain words ("You started a payment of $X N minutes ago. If you
+  didn't finish it, start a new one?", `lib/openCheckoutPrompt.ts`) and
+  re-posts with `force` on yes; on no it shows nothing. The voided session
+  stays payable at the processor; if it is paid anyway the webhook raises an
+  ops alert (`reportUntrackedCheckoutPaid`, see `docs/domains/pos.md`).
 - **Staff link generation** — tRPC `clientPortal.generateLink`
   (MANAGER/ADMIN, feature-gated): returns
   `{NEXTAUTH_URL}/portal/client/<token>`. Surfaced as "Copy Portal Link" on

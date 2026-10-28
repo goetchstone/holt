@@ -50,8 +50,9 @@ async function requireBillingEnabled(): Promise<void> {
   }
 }
 
-/** Map service validation errors to BAD_REQUEST, and a checkout already open
- *  on the invoice to CONFLICT, so the client toast shows the reason. */
+/** Map service validation errors to BAD_REQUEST so the client toast shows the
+ *  reason, and a checkout already open on the invoice to CONFLICT, in plain
+ *  staff words (the screen offers the replacement itself). */
 async function translate<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
@@ -60,7 +61,13 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
       throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
     }
     if (err instanceof CheckoutAlreadyOpenError) {
-      throw new TRPCError({ code: "CONFLICT", message: err.message });
+      const open = err.existing;
+      throw new TRPCError({
+        code: "CONFLICT",
+        message:
+          `A payment link for $${open.amount.toFixed(2)} is already open on this invoice ` +
+          `(started ${open.ageMinutes} min ago).`,
+      });
     }
     throw err;
   }

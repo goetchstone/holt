@@ -37,15 +37,18 @@ Source of truth for the ERP-native `Payment` writes — POS tender, refund proce
 
 The invoice path had no guard before this: every call opened a fresh checkout for the full open balance, so the email, the client portal and the staff "Copy payment link" could all leave parallel sessions on one invoice. How each caller answers an open checkout:
 
-| Caller | Answer |
-|---|---|
-| `stripe/create-checkout`, `stripe/send-payment-link` (staff, order) | 409 `{ error, existingPayment }`; `force: true` replaces it |
-| `portal/pay` (customer, order) | 409 in customer wording; `force: true` replaces it (the token scopes it to their own order) |
-| `client-portal/pay` (customer, invoice) | same as `portal/pay`, for their own invoice |
-| tRPC `billing.paymentLink` (staff, invoice) | `CONFLICT` with the staff wording; input takes `force` |
-| `sendInvoiceEmail` | sends the email without the pay button and logs a warning naming the open checkout |
+| Caller | Answer | Screen |
+|---|---|---|
+| `stripe/create-checkout` (staff, order) | 409 `{ error, existingPayment }`; `force: true` replaces it | none calls it |
+| `stripe/send-payment-link` (staff, order) | same | order detail "Send Payment Link": confirm in staff words, then re-sends with `force` |
+| `portal/pay` (customer, order) | 409 in customer wording; `force: true` replaces it (the token scopes it to their own order) | `PortalOrderView`: confirm in customer words, then re-posts with `force` |
+| `client-portal/pay` (customer, invoice) | same as `portal/pay`, for their own invoice | `ClientPortalView`: same confirm |
+| tRPC `billing.paymentLink` (staff, invoice) | `CONFLICT`, message "A payment link for $X is already open on this invoice (started N min ago)."; input takes `force` | invoice detail "Copy Payment Link": confirm, then calls again with `force` |
+| `sendInvoiceEmail` | sends the email without the pay button and logs a warning naming the open checkout | — |
 
-Neither staff screen offers `force`. The order detail page can void a PENDING row (`payment.void`); the invoice detail page has no such control yet, so until the open checkout is paid or expires (24h) "Copy payment link" on that invoice shows the conflict. A 500 from the three order routes now says only what failed; the cause goes to `logError` (rule 11). `hostedCheckoutLabels.integration.test.ts` pins the row each site writes and the invoice guard.
+The HTTP 409 bodies still say "retry with force:true" (a contract for API callers); no screen shows it. The customer screens word their confirm with `lib/openCheckoutPrompt.ts` from `existingPayment`; declining shows nothing. The order detail page also keeps its manager "Void" on a PENDING row (`payment.void`). A 500 from the three order routes now says only what failed; the cause goes to `logError` (rule 11). `hostedCheckoutLabels.integration.test.ts` pins the row each site writes and the invoice guard.
+
+**A voided or failed checkout can still be paid.** Ending a PENDING row in Holt (a `force` replacement, the manager's void, the stale sweep) does not close the session at the processor. If the customer pays it anyway, the webhook finds no PENDING row. Both `pages/api/stripe/webhook.ts` and `pages/api/square/webhook.ts` then call `reportUntrackedCheckoutPaid(providerTxnId, provider.displayName)` (`lib/paymentService.ts`): when a VOIDED or FAILED non-refund row has that `processorTxnId`, it raises `reportOpsAlert` naming the payment id, status, amount and order or invoice, saying the money was taken and never posted, so someone must record or refund it. It never records the payment. A COMPLETED row (a retried webhook) or no row at all stays silent. `untrackedCheckoutPaid.integration.test.ts` drives both webhooks.
 
 Key invariants enforced by `recordPayment()`:
 
@@ -105,7 +108,7 @@ Stripe is no longer the only processor: checkout creation and webhook verificati
 
 - `lib/stripe.ts` — Stripe client resolution only (secret key DB-first from Settings, `STRIPE_SECRET_KEY` env fallback) plus the `STRIPE_TEST_EMAIL_OVERRIDE` escape hatch. Checkout-session creation and signature verification live in `lib/payments/stripeProvider.ts`.
 - `pages/api/stripe/create-checkout.ts` — creates a checkout session for an order's balance through `startHostedCheckout` (whichever provider is active), returns the redirect URL; the `PENDING` `Payment` row is written via `recordPendingPayment` (no ledger entry yet).
-- `pages/api/stripe/webhook.ts` — Stripe's delivery endpoint. Signature verification is mandatory: with no webhook secret configured the route rejects outright. On a completion event it finds the `PENDING` `Payment` by `processorTxnId`, calls `completePayment` (status + ledger entry in one transaction) and then `onPaymentReceived`. It also handles `checkout.session.expired`, ending the `PENDING` row as `FAILED`.
+- `pages/api/stripe/webhook.ts` — Stripe's delivery endpoint. Signature verification is mandatory: with no webhook secret configured the route rejects outright. On a completion event it finds the `PENDING` `Payment` by `processorTxnId`, calls `completePayment` (status + ledger entry in one transaction) and then `onPaymentReceived`. With no `PENDING` row it calls `reportUntrackedCheckoutPaid` (above). It also handles `checkout.session.expired`, ending the `PENDING` row as `FAILED`.
 - **Idempotency**: `processorTxnId` is **not** unique on `Payment` — there is no unique index on it and no INSERT-on-conflict anywhere. Retried deliveries are safe because the webhook's lookup filters on `status: "PENDING"` and `completePayment` returns early on an already-`COMPLETED` row, so the ledger entry is never double-posted. Stripe retries are normal and frequent.
 - Customer portal exposes a payment link per-order at `/portal/order?token=…`, which posts to `pages/api/portal/pay.ts` (JWT token auth, no login, rate-limited at 5/min per IP).
 

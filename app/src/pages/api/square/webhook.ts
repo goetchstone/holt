@@ -13,7 +13,11 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getPaymentProvider } from "@/lib/payments";
 import { resolveCredential } from "@/lib/integrationCredentials";
 import { prisma } from "@/lib/prisma";
-import { completePayment, onPaymentReceived } from "@/lib/paymentService";
+import {
+  completePayment,
+  onPaymentReceived,
+  reportUntrackedCheckoutPaid,
+} from "@/lib/paymentService";
 import { applyInvoiceStripePayment } from "@/lib/billing/invoiceService";
 import { logError } from "@/lib/logger";
 import { reportOpsAlert } from "@/lib/opsAlert";
@@ -148,6 +152,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         return res.status(500).json({ error: "Failed to post payment to the ledger" });
       }
+    } else {
+      // No PENDING row: a retry of a completed one (silent), or a link Holt
+      // stopped tracking that the customer paid anyway (alert). Square links
+      // have no expiry event, so the stale sweep's FAILED rows land here too.
+      await reportUntrackedCheckoutPaid(completion.providerTxnId, provider.displayName);
     }
   }
 

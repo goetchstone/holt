@@ -13,6 +13,7 @@ import {
 import { syncServiceAppointments } from "@/lib/serviceDispatchService";
 import { appendEntry, signForType } from "@/lib/customerLedger";
 import { logError } from "@/lib/logger";
+import { reportOpsAlert } from "@/lib/opsAlert";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { countedPaymentWhere, isPaymentExcludedFromBalance } from "@/lib/paymentBalance";
 import { isCountedLine } from "@/lib/salesOrderRevenue";
@@ -693,6 +694,56 @@ export async function sweepStalePendingPayments(): Promise<StalePendingSweepResu
     totalAmount: round2(swept.reduce((sum, p) => sum + p.amount, 0)),
     payments: swept,
   };
+}
+
+/**
+ * A processor webhook says a checkout was paid and there is no PENDING row
+ * for it. Usually that is a retry of one already COMPLETED, and stays silent.
+ * But ending a PENDING row's life in Holt does not close the session at the
+ * processor: a `force` replacement or an operator's void (VOIDED), or the
+ * stale sweep (FAILED, where Square has no expiry event), leaves it payable.
+ * If the customer pays it anyway the money is at the processor and nothing is
+ * in the books, so raise an ops alert naming the row. Never records the
+ * payment itself: whether it is the only charge or a second one is a
+ * person's call, to record or to refund. Both webhooks call this; returns
+ * whether it alerted.
+ */
+export async function reportUntrackedCheckoutPaid(
+  providerTxnId: string,
+  processorName: string,
+): Promise<boolean> {
+  const dropped = await prisma.payment.findFirst({
+    where: {
+      processorTxnId: providerTxnId,
+      isRefund: false,
+      status: { in: ["VOIDED", "FAILED"] },
+    },
+    orderBy: { paymentDate: "desc" },
+    select: { id: true, status: true, paymentAmount: true, salesOrderId: true, invoiceId: true },
+  });
+  if (!dropped) return false;
+
+  const amount = round2(Number(dropped.paymentAmount));
+  const target = dropped.invoiceId
+    ? `invoice ${dropped.invoiceId}`
+    : `order ${dropped.salesOrderId ?? "(none)"}`;
+  await reportOpsAlert({
+    title: `${processorName} took a payment Holt had stopped tracking`,
+    detail:
+      `${processorName} reports a paid checkout of $${amount.toFixed(2)} for ${target}, ` +
+      `but Holt had marked payment ${dropped.id} ${dropped.status}. The money was taken ` +
+      `and never posted to the books. Record it against the ${target}, or refund it at ` +
+      `${processorName}.`,
+    context: {
+      paymentId: dropped.id,
+      status: dropped.status,
+      amount,
+      salesOrderId: dropped.salesOrderId,
+      invoiceId: dropped.invoiceId,
+      providerTxnId,
+    },
+  });
+  return true;
 }
 
 /**
