@@ -162,9 +162,21 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         });
         const nextLineNumber = (maxLine?.lineNumber || 0) + 1;
 
-        const replNetPrice =
-          Number(replacement.quantity || lineItem.orderedQuantity) *
-          Number(replacement.unitPrice || lineItem.netPrice);
+        // netPrice is the LINE total, so the original's unit price is
+        // netPrice / orderedQuantity. The order screen's Replace dialog sends
+        // neither quantity nor price, so the new line carries the original's
+        // unit price at the original quantity. `??`, not `||`: a zero unit
+        // price is a price.
+        const replQuantity = Number(replacement.quantity ?? lineItem.orderedQuantity);
+        if (!Number.isFinite(replQuantity) || replQuantity <= 0) {
+          return res.status(400).json({ error: "Quantity must be positive." });
+        }
+        const originalUnitPrice = Number(lineItem.netPrice) / Number(lineItem.orderedQuantity || 1);
+        const replUnitPrice = Number(replacement.unitPrice ?? originalUnitPrice);
+        if (!Number.isFinite(replUnitPrice) || replUnitPrice < 0) {
+          return res.status(400).json({ error: "Unit price must be zero or more." });
+        }
+        const replNetPrice = Math.round(replQuantity * replUnitPrice * 100) / 100;
         const replTaxRate = Number(lineItem.vatRate || 0);
         const replVatAmount = Math.round(replNetPrice * replTaxRate * 100) / 100;
 
@@ -176,7 +188,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
               lineNumber: nextLineNumber,
               productName: replacement.productName,
               partNo: replacement.partNo || lineItem.partNo,
-              orderedQuantity: replacement.quantity || lineItem.orderedQuantity,
+              orderedQuantity: replQuantity,
               netPrice: replNetPrice,
               cost: 0,
               barcode: "",
