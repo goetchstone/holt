@@ -148,6 +148,9 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
 - ☐ In Settings: set name/logo/theme, currency/locale/timezone, and toggle
   the feature modules this tenant uses (billing, clientPortal, legacyArchive,
   helpdesk, booking, cms, ...). All default OFF.
+- ☐ Work through the **Getting started** card at the top of Admin (stores, sales
+  tax, currency and timezone, markup, staff, card payments or cash only) until
+  it disappears; with no tax district, every sale is charged 0% tax.
 - ☐ `/api/health?ready=1` returns 200.
 
 ## Quick "is it safe to take money?" gate

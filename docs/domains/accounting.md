@@ -102,6 +102,12 @@ their own account when added.
 `defaultTaxDistrictId`, then the selling store's `taxDistrictId`, then
 `AppSettings.defaultTaxDistrictId`, and finally rate 0 **with a warning naming the
 store**, because silently charging no tax is how the original bug survived so long.
+That last step still never blocks a sale, but it is no longer only a log line
+(USE-08, 2026-10-27): the POS and New Quote screens show an amber "No tax district
+is configured for <store>" banner when the active store has no district and there
+is no default, and the Admin hub's getting-started checklist (`lib/gettingStarted.ts`)
+keeps its tax item open. The default is set at Admin → Settings → Sales tax. There is
+no screen for a store's own `taxDistrictId` yet; only the seed and SQL set it.
 
 `rateForLineAmount()` then bands per LINE against that line's own amount, evaluating
 `TaxRule`'s `triggerPrice`/`triggerStop` gates and `startPrice`/`stopPrice` band. A

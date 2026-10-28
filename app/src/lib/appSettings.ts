@@ -94,6 +94,15 @@ export interface ResolvedAppSettings {
   orderNumberPrefix: string | null;
   /** The prefix set for generated barcodes, or null. As above. */
   barcodePrefix: string | null;
+  /** resolveTaxRate.ts's last-resort tax district; null = unset, and a sale
+   *  whose store has no district of its own is then charged 0% tax. */
+  defaultTaxDistrictId: number | null;
+  /** When the owner confirmed currency, locale and timezone, as ISO 8601;
+   *  null = never. A string, not a Date, because this object is sent to the
+   *  Settings page as JSON and a Date type would lie there. */
+  setupConfirmedAt: string | null;
+  /** When the owner said the store takes cash and checks only, ISO 8601; null = not said. */
+  cashOnlyAcknowledgedAt: string | null;
 }
 
 /** Upper bound on an order-portal link's lifetime: those links are not
@@ -139,6 +148,9 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   portalTokenTtlHours: null,
   orderNumberPrefix: null,
   barcodePrefix: null,
+  defaultTaxDistrictId: null,
+  setupConfirmedAt: null,
+  cashOnlyAcknowledgedAt: null,
 };
 
 // Loosely typed view of the DB row -- the Json columns arrive as unknown.
@@ -164,6 +176,9 @@ interface AppSettingsRow {
   portalTokenTtlHours?: number | null;
   orderNumberPrefix?: string | null;
   barcodePrefix?: string | null;
+  defaultTaxDistrictId?: number | null;
+  setupConfirmedAt?: Date | null;
+  cashOnlyAcknowledgedAt?: Date | null;
   // Optional because this is a LOOSE view of the row: a partial select, or a
   // row read before the column existed, simply doesn't carry it. Absent
   // resolves to the default exactly as an empty string does.
@@ -235,7 +250,15 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     // A stored prefix that is not 1-6 letters or digits resolves to unset.
     orderNumberPrefix: parsePrefix(row.orderNumberPrefix),
     barcodePrefix: parsePrefix(row.barcodePrefix),
+    defaultTaxDistrictId: row.defaultTaxDistrictId ?? null,
+    setupConfirmedAt: isoOrNull(row.setupConfirmedAt),
+    cashOnlyAcknowledgedAt: isoOrNull(row.cashOnlyAcknowledgedAt),
   };
+}
+
+/** A real timestamp as ISO 8601; anything else (absent, null, invalid) as null. */
+function isoOrNull(value: Date | null | undefined): string | null {
+  return value instanceof Date && !Number.isNaN(value.getTime()) ? value.toISOString() : null;
 }
 
 // A store-wide markup fallback is honoured only when it is an explicit, positive,

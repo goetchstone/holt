@@ -216,4 +216,11 @@ export interface PaymentProvider {
   cancelTerminalCheckout?(providerTxnId: string): Promise<void>;
 
   testConnection(): Promise<ConnectionTestResult>;
+  /**
+   * Do the credentials this processor's client needs resolve (Settings first,
+   * then env)? No network call -- it asks the same resolver that taking a
+   * payment does, so "configured" here and "not configured" at the register
+   * cannot disagree. testConnection is the network check.
+   */
+  isConfigured(): Promise<boolean>;
 }

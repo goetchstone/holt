@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useActiveStore } from "@/hooks/useActiveStore";
+import { NoTaxDistrictBanner } from "@/components/sales/NoTaxDistrictBanner";
 import { useCustomerSearch, type CustomerSearchResult } from "@/hooks/useCustomerSearch";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
@@ -70,7 +71,7 @@ export function NewQuoteView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fmt = useMoneyFormatter();
-  const { activeStore } = useActiveStore();
+  const { activeStore, taxDistrictConfigured } = useActiveStore();
   const [lines, setLines] = useState<QuoteLineItem[]>([]);
 
   // Customer
@@ -329,6 +330,12 @@ export function NewQuoteView() {
           Cancel
         </Button>
       </div>
+
+      <NoTaxDistrictBanner
+        storeName={activeStore?.name}
+        configured={taxDistrictConfigured}
+        className="mb-4"
+      />
 
       {/* Customer */}
       <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-4 mb-4">
