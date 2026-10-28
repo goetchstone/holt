@@ -71,6 +71,38 @@ export interface PricedCart {
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
+ * The unit price a catalog product goes onto a new POS or quote line at: its
+ * retail price, or null when it has none.
+ *
+ * Never a price made up from cost. Both screens used to fall back to two and
+ * a half times cost, one business's markup, so a store that had not priced a
+ * product sold it at holt's number (CLAUDE.md rule 63: unconfigured fails
+ * closed; `__tests__/noInventedMarkup.test.ts` keeps it out). The caller refuses the line with `noRetailPriceMessage`, as USE-04
+ * already does for an unset vendor markup.
+ *
+ * Zero counts as no price: an import writes 0 where the source had none, and
+ * a line the store meant to give away can still be discounted to zero.
+ * Accepts the string a Prisma Decimal serializes to as well as a number.
+ */
+export function catalogRetailPrice(product: {
+  baseRetail?: number | string | null;
+}): number | null {
+  const { baseRetail } = product;
+  if (baseRetail == null || baseRetail === "") return null;
+  const price = Number(baseRetail);
+  return Number.isFinite(price) && price > 0 ? price : null;
+}
+
+/** Why a product with no retail price cannot go onto a line, and what to set. */
+export function noRetailPriceMessage(product: {
+  name?: string | null;
+  productNumber: string;
+}): string {
+  const label = product.name || product.productNumber;
+  return `${label} has no retail price. Set one in Inventory → Products before selling it.`;
+}
+
+/**
  * Apply item-level discounts to a unit price, in order.
  *
  * Sequential rather than summed: two 10% discounts are 19%, not 20%. That is
