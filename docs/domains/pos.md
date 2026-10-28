@@ -25,7 +25,9 @@ REGISTER role exists specifically for counter staff; its POS-relevant permission
 
 ## Payment recording — `lib/paymentService.ts`
 
-Source of truth for the ERP-native `Payment` writes — POS tender, refund processing, store-credit usage, gift-card redemption, and the PENDING→COMPLETED processor lifecycle. It is not the only writer: imported Ordorite payments bypass this and go through `runPaymentsImport` (`lib/adapters/ordorite/runners.ts`), and `pages/api/portal/pay.ts`, `pages/api/stripe/send-payment-link.ts` and `lib/billing/invoice*.ts` create `Payment` rows with `prisma.payment.create` directly.
+Source of truth for the ERP-native `Payment` writes — POS tender, refund processing, store-credit usage, gift-card redemption, and the PENDING→COMPLETED processor lifecycle. It is not the only writer: imported Ordorite payments bypass this and go through `runPaymentsImport` (`lib/adapters/ordorite/runners.ts`), and `lib/billing/invoice*.ts` create invoice `Payment` rows with `prisma.payment.create` directly (labelled from `METHOD_DISPLAY` / `INVOICE_PAYMENT_LABELS`).
+
+**A payment's label is its method, never its purpose.** `Payment.paymentType` is what the sales journal maps to a GL account (`POS_PAYMENTS`), so a card payment must read "Card". Until 2026-10-27 `pages/api/portal/pay.ts` and `pages/api/stripe/send-payment-link.ts` wrote their own PENDING rows and labelled a partial payment "Deposit", the journal's deposit OFFSET label: the card money posted to the wrong account and the daily reconciliation left it out of tender. All three hosted-checkout routes now write through `recordPendingPayment`, which labels by method and fills the customer. Whether a payment is a deposit is the journal's call, from the invoice date (`settlesOf`). Migration `20261027120000_card_payments_not_deposit` relabelled the existing rows; `hostedCheckoutLabels.integration.test.ts` pins both routes.
 
 Key invariants enforced by `recordPayment()`:
 
@@ -88,6 +90,22 @@ Stripe is no longer the only processor: checkout creation and webhook verificati
 - `pages/api/stripe/webhook.ts` — Stripe's delivery endpoint. Signature verification is mandatory: with no webhook secret configured the route rejects outright. On a completion event it finds the `PENDING` `Payment` by `processorTxnId`, calls `completePayment` (status + ledger entry in one transaction) and then `onPaymentReceived`. It also handles `checkout.session.expired`, ending the `PENDING` row as `FAILED`.
 - **Idempotency**: `processorTxnId` is **not** unique on `Payment` — there is no unique index on it and no INSERT-on-conflict anywhere. Retried deliveries are safe because the webhook's lookup filters on `status: "PENDING"` and `completePayment` returns early on an already-`COMPLETED` row, so the ledger entry is never double-posted. Stripe retries are normal and frequent.
 - Customer portal exposes a payment link per-order at `/portal/order?token=…`, which posts to `pages/api/portal/pay.ts` (JWT token auth, no login, rate-limited at 5/min per IP).
+
+## A product's line price
+
+A scanned or searched product goes onto the cart at its retail price, from
+`lib/pos/cartPricing.ts:catalogRetailPrice`. New Quote uses the same helper. A
+product with no retail price is refused with a message naming where to set it
+(`noRetailPriceMessage`), and the search results label it "No price"
+(`components/sales/RetailPriceTag.tsx`). Zero counts as no price, because an
+import or `products/quick-create.ts` writes 0 where there was none.
+
+Until 2026-10-27 both screens priced such a product at two and a half times
+its cost, one business's markup (USE-04b). The server could not have caught
+it, since `create-from-cart` takes the client's unit price (step 1 below), so
+the refusal lives in the screens. `__tests__/noInventedMarkup.test.ts` fails on
+any new cost times a constant in `src`, and on either screen pricing without
+the helper. A cashier can still change a line's price once it is on the cart.
 
 ## Order creation from cart
 
