@@ -399,11 +399,47 @@ export async function seedSalesOrdersAndTills(
         const refundLine = order.lines[order.refundLineIndex];
         const refundAmount = round2(refundLine.netPrice + refundLine.vatAmount);
         const refundTime = sameDayLaterTime(cashFlowRng, order.date, order.dayKey);
+        const returnNumber = `RET-${salesOrder.orderno}`;
+
+        // The return books as its OWN RETURNED order, the shape production
+        // writes (lib/returns/bookReturn.ts): the original order is never
+        // rewritten, the return order's negative line and its invoice reverse
+        // the sale on the return day, and the refund goes on the return order.
+        //
+        // The seed used to mirror the negative line onto the ORIGINAL order and
+        // hang the refund there, a shape production never writes. The journal
+        // skips a refund of a settled sale unless it is on a return order
+        // (journalEntry.ts, the reversesPaymentId guard), so every sampled day
+        // with a refund took an Over/Short plug of exactly the refund.
+        //
+        // Not bookReturn itself: it also appends to the customer's AR ledger,
+        // and this seed writes no ledger for any sale or payment yet
+        // (coverage.ts: CustomerLedgerEntry is "todo"), so returns alone would
+        // leave those customers looking owed money.
+        const returnOrder = await prisma.salesOrder.create({
+          data: {
+            orderno: returnNumber,
+            orderDate: refundTime,
+            status: "RETURNED",
+            customerId: order.customerId,
+            salesperson: order.designer.displayName,
+            salesPersonId: order.designer.id,
+            storeLocation: order.storeName,
+            storeLocationId: storeId,
+            taxDistrictId,
+            totalTax: -refundLine.vatAmount,
+            // Owed -refundAmount, refunded in full below.
+            totalPaid: -refundAmount,
+            orderNotes: `Return ${returnNumber} of order ${salesOrder.orderno}`,
+            createdBy: SEED_ACTOR,
+          },
+        });
+        result.ordersCreated += 1;
 
         await prisma.orderLineItem.create({
           data: {
-            salesOrderId: salesOrder.id,
-            lineNumber: order.lines.length + 1,
+            salesOrderId: returnOrder.id,
+            lineNumber: 1,
             partNo: productById.get(refundLine.productId)!.productNumber,
             productName: productById.get(refundLine.productId)!.name,
             orderedQuantity: refundLine.quantity,
@@ -417,6 +453,20 @@ export async function seedSalesOrdersAndTills(
             fulfillment: "TAKE",
           },
         });
+        // Reversed the way it was recognised: the original was invoiced.
+        await prisma.invoice.create({
+          data: {
+            invoiceNo: returnNumber,
+            invoiceDate: refundTime,
+            taxAmount: -refundLine.vatAmount,
+            salesOrderId: returnOrder.id,
+            customerId: order.customerId,
+            status: "ISSUED",
+            issuedAt: refundTime,
+            organizationId: 1,
+          },
+        });
+        result.invoicesCreated += 1;
 
         if (order.method === "GIFT_CARD" && giftCardId) {
           const gc = await prisma.giftCard.findUniqueOrThrow({ where: { id: giftCardId } });
@@ -462,7 +512,8 @@ export async function seedSalesOrdersAndTills(
 
         const refundPayment = await prisma.payment.create({
           data: {
-            salesOrderId: salesOrder.id,
+            // On the return order, as refundReturn writes it.
+            salesOrderId: returnOrder.id,
             paymentDate: refundTime,
             paymentType,
             paymentAmount: refundAmount,
@@ -534,6 +585,9 @@ export async function seedSalesOrdersAndTills(
                 : "MAJOR_DAMAGE"
               : null,
             restockedAt: returnStatus === "RESTOCKED" ? refundTime : null,
+            // What makes the journal treat the return order as one
+            // (journalEntry.ts: isReturnOrder is `returnFor != null`).
+            returnOrderId: returnOrder.id,
             // The refund row is the return's payout (Payment.returnId).
             refunds: { connect: { id: refundPayment.id } },
             createdBy: SEED_ACTOR,
@@ -550,11 +604,8 @@ export async function seedSalesOrdersAndTills(
           time: refundTime,
         });
         if (refundTime > latestTime) latestTime = refundTime;
-
-        await prisma.salesOrder.update({
-          where: { id: salesOrder.id },
-          data: { totalPaid: round2(totalDue - refundAmount) },
-        });
+        // The original order stays paid in full: the refund is on the return
+        // order, which it brings to zero.
       }
     }
 
