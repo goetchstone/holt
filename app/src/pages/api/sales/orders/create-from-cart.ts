@@ -22,6 +22,10 @@ import {
 import { getAppSettings } from "@/lib/appSettings";
 import { nextOrderNumber } from "@/lib/orderNumber";
 import { effectivePrefix } from "@/lib/numberingPrefix";
+import { DeliveryFeeError, setDeliveryFee } from "@/lib/delivery/deliveryFee";
+import { deliveryFeeProblem } from "@/lib/delivery/deliveryFeeShared";
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 interface CartItem {
   type?: "PRODUCT" | "CONFIGURED" | "CUSTOM";
@@ -51,18 +55,35 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 
-  const { customerId, items, storeLocation, orderNotes, deliveryMethod, orderDiscount } =
-    req.body as {
-      customerId?: number | null;
-      items: CartItem[];
-      storeLocation?: string;
-      orderNotes?: string;
-      deliveryMethod?: "TAKEN" | "PICKUP" | "DELIVERY";
-      orderDiscount?: CartDiscount | null;
-    };
+  const {
+    customerId,
+    items,
+    storeLocation,
+    orderNotes,
+    deliveryMethod,
+    orderDiscount,
+    deliveryFee,
+  } = req.body as {
+    customerId?: number | null;
+    items: CartItem[];
+    storeLocation?: string;
+    orderNotes?: string;
+    deliveryMethod?: "TAKEN" | "PICKUP" | "DELIVERY";
+    orderDiscount?: CartDiscount | null;
+    /** The delivery fee to charge: the zone's, or what staff set (GAP-09). */
+    deliveryFee?: number | null;
+  };
 
   if (!items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "Cart must contain at least one item" });
+  }
+  const chargesDelivery = deliveryFee != null && deliveryFee !== 0;
+  if (chargesDelivery) {
+    if (deliveryMethod !== "DELIVERY") {
+      return res.status(400).json({ error: "A delivery fee needs Delivery as the conveyance." });
+    }
+    const feeProblem = deliveryFeeProblem(deliveryFee);
+    if (feeProblem) return res.status(400).json({ error: feeProblem });
   }
 
   try {
@@ -269,6 +290,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           taxExemptReasonId: taxDistrict.taxExemptReasonId,
           salesperson: staff?.displayName || session.user?.email || null,
           storeLocation: storeLocation || null,
+          // The store by id, as resolved above. Everything that taxes this
+          // order later -- an added line, a re-rated quote, its delivery fee
+          // -- resolves the district from storeLocationId; without it they
+          // fell back to the deployment default, or charged 0% with none set.
+          storeLocationId,
           orderNotes: orderNotes || null,
           deliveryMethod: deliveryMethod || null,
           createdBy: session.user?.email || null,
@@ -329,17 +355,34 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         });
       }
 
+      // The delivery fee is a line of its own, written the one way every
+      // writer writes it (lib/delivery/deliveryFee.ts). It is not goods, so
+      // it was never in the cart priced above or the stock allocated.
+      const delivery = chargesDelivery
+        ? await setDeliveryFee(tx, {
+            orderId: created.id,
+            amount: deliveryFee,
+            actor: session.user?.email || null,
+          })
+        : null;
+      const feeAmount = delivery?.amount ?? 0;
+      const feeTax = delivery?.taxAmount ?? 0;
+
       return {
         ...created,
         subtotal: priced.subtotal,
         orderDiscountAmount: priced.orderDiscountAmount,
-        taxAmount: priced.taxAmount,
-        total: priced.total,
+        deliveryFee: feeAmount,
+        taxAmount: round2(priced.taxAmount + feeTax),
+        total: round2(priced.total + feeAmount + feeTax),
       };
     });
 
     return res.status(201).json(order);
   } catch (error) {
+    if (error instanceof DeliveryFeeError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     logError("Create order from cart error", error);
     return res.status(500).json({ error: "Failed to create order" });
   }

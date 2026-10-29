@@ -10,7 +10,8 @@
 // re-rates every live line exactly as the register prices a new sale
 // (create-from-cart: rateForLineAmount on the line's netPrice under its
 // product's tax group, vatAmount = round2(netPrice x rate), totalTax = the
-// rounded sum).
+// rounded sum). Its delivery fee line has no product and sells under the
+// delivery tax group, as setDeliveryFee taxed it (lib/delivery/deliveryFee.ts).
 //
 // Only for an order no money has touched: the caller checks. Tax on a paid
 // order is what the customer was charged, a recorded fact that a later change
@@ -18,6 +19,7 @@
 // it copies its sale's rates (lib/returns/bookReturn.ts).
 
 import type { PrismaTx } from "@/lib/inventory/allocation";
+import { deliveryFeeTaxGroup } from "@/lib/delivery/deliveryFee";
 import {
   LINE_TAX_GROUP_SELECT,
   lineTaxGroupOf,
@@ -34,6 +36,7 @@ export async function rerateQuoteTax(tx: PrismaTx, orderId: number): Promise<voi
       orderno: true,
       customerId: true,
       storeLocationId: true,
+      deliveryFeeLineItemId: true,
       // Cancelled lines are out of every sum (CLAUDE.md rule 33) and keep the
       // rate they had.
       lineItems: {
@@ -49,10 +52,13 @@ export async function rerateQuoteTax(tx: PrismaTx, orderId: number): Promise<voi
     contextLabel: `order ${order.orderno ?? orderId}`,
   });
 
+  const deliveryGroup = await deliveryFeeTaxGroup(tx);
   let totalTax = 0;
   for (const line of order.lineItems) {
     const netPrice = Number(line.netPrice);
-    const rate = rateForLineAmount(taxDistrict.rules, netPrice, lineTaxGroupOf(line.product)).rate;
+    const group =
+      line.id === order.deliveryFeeLineItemId ? deliveryGroup : lineTaxGroupOf(line.product);
+    const rate = rateForLineAmount(taxDistrict.rules, netPrice, group).rate;
     const vatAmount = round2(netPrice * rate);
     totalTax += vatAmount;
     await tx.orderLineItem.update({

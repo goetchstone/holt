@@ -172,6 +172,46 @@ Cancelled lines keep their rate and stay out of the sum (rule 33). An order mone
 touched keeps the tax it was charged, and its customer still changes: tax on a paid
 sale is a recorded fact.
 
+## Delivery fee
+
+**An order going out by delivery charges its zone's fee (GAP-09, 2026-10-29).**
+The fee is an `OrderLineItem` with no product. `SalesOrder.deliveryFeeLineItemId`
+says which line it is, the same way `Return.restockingFeeLineItemId` names a
+return's fee. Nothing recognises the line by its name.
+`setDeliveryFee()` in `lib/delivery/deliveryFee.ts` is the one writer. Two routes call it:
+the register's sale (`create-from-cart`, body `deliveryFee`) and the order screen
+(`GET`/`PUT /api/sales/orders/[id]/delivery-fee`). The line, and the rules each consumer applies to it:
+
+- **What it charges.** Staff can change the zone's fee or remove it; the server
+  charges what it is sent. `GET /api/sales/delivery-fee-quote` tells the register
+  what the zone charges before a sale exists. The fee changes only while the order
+  is a QUOTE or ORDER and not a native return's own order.
+- **Tax.** The line is taxed the way an added line is: the order's customer and store
+  decide the district. The rate comes from the group in
+  `AppSettings.deliveryFeeTaxGroupId` (Admin › Settings › Sales tax), because
+  whether delivery is taxed is state law. Null taxes it by the district's rules. A
+  store where delivery isn't taxed picks a "Not taxed" group. A quote re-rated on a
+  change of customer re-rates the fee under the same group (`rerateQuoteTax.ts`).
+  Deleting that group is refused while delivery uses it.
+- **Books.** The journal books the line to POS Transactions/"Delivery Fee"
+  (accounting.md). A fee is refused while that mapping has no account, rather than
+  booked to no account.
+- **Sales credit.** Commission, Sales by Salesperson and the designer dashboard
+  leave it out (`buildLineItemWhere`, `lib/salesBySalesperson.ts`), unless the report
+  is asked to include delivery and freight.
+- **Not goods.** The line takes no stock and isn't picked or handed over. The generic
+  line routes (`line-items/[lineItemId].ts`, `delete-line-item.ts`) and a new return
+  (`POST /api/returns`) refuse it through `deliveryFeeLineEditProblem()`. Refunding a
+  delivery fee after the order is handed over is not built (ROADMAP GAP-09).
+
+**A register order records its store's id (2026-10-29).** `create-from-cart`
+resolved the store to tax the sale but wrote only its name on the order. So
+everything that taxed the order later ignored the store's district: an added line, a
+re-rated quote, the delivery fee. They fell back to `AppSettings.defaultTaxDistrictId`,
+or charged 0% with none set. It now writes `storeLocationId`, and an exchange order
+copies its sale's (`returns/[id]/exchange.ts`). Register orders written before this
+carry no `storeLocationId`. Holt has no live deployment, so none were backfilled.
+
 ## Key Files
 
 - `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`

@@ -8,6 +8,7 @@ import { toQty } from "@/lib/inventory/quantity";
 import { parseQty } from "@/lib/inventory/qtyInput";
 import { generateReturnNumber } from "@/lib/returnService";
 import { logError } from "@/lib/logger";
+import { deliveryFeeLineEditProblem } from "@/lib/delivery/deliveryFee";
 
 export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
@@ -129,6 +130,18 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, changedBy: 
     const lineItem = lineItemId
       ? order.lineItems.find((li) => li.id === Number.parseInt(lineItemId))
       : null;
+    // A delivery fee is not goods to send back. Refunding one after the
+    // order is handed over is not built yet (ROADMAP GAP-09), and returning
+    // it here would book its reversal to no account.
+    if (lineItem) {
+      const feeLine = await deliveryFeeLineEditProblem(prisma, lineItem.id);
+      if (feeLine) {
+        return res.status(409).json({
+          error:
+            "A delivery fee isn't goods to return. Until the order is handed over, change or remove it under Delivery fee on the order.",
+        });
+      }
+    }
 
     const returnNumber = await generateReturnNumber();
 

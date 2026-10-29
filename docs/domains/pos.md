@@ -185,8 +185,15 @@ the helper. A cashier can still change a line's price once it is on the cart.
    `POST /api/sales/orders/[id]/payments`, which calls `recordPayment` and then
    `onPaymentReceived` — that is what promotes QUOTE → ORDER and creates the
    draft POs.
-6. Return the order id plus the server-priced subtotal / order discount / tax /
-   total. The POS then shows its own take-payment panel; it does not navigate to
+6. With `deliveryMethod: "DELIVERY"` and a `deliveryFee`, write the fee through
+   `setDeliveryFee()` in the same transaction (sales-orders.md, "Delivery fee").
+   A fee on a sale that isn't a delivery is a 400, and so is one while
+   POS Transactions/"Delivery Fee" is unmapped; either way no order is written.
+   The register's fee field (`sales/pos/DeliveryFeeField.tsx`) fills in the zone's
+   fee from `GET /api/sales/delivery-fee-quote` and follows the zone until staff
+   type their own. The order also records `storeLocationId`, which it didn't before.
+7. Return the order id plus the server-priced subtotal / order discount / delivery
+   fee / tax / total. The POS then shows its own take-payment panel; it does not navigate to
    the receipt-print page (see the auto-print gap below).
 
 ## Receipt print

@@ -54,6 +54,13 @@ export const OVER_SHORT_MAPPING_LABEL = "Over/Short";
 export const RESTOCKING_FEE_MAPPING_LABEL = "Restocking Fee";
 
 /**
+ * Income from an order's delivery fee (lib/delivery/deliveryFee.ts). Seeded
+ * unmapped by migration 20261029180000_delivery_fee; a fee is refused until an
+ * admin maps it, as the restocking fee is.
+ */
+export const DELIVERY_FEE_MAPPING_LABEL = "Delivery Fee";
+
+/**
  * Dollar magnitude above which an Over/Short plug stops being rounding noise
  * and starts being a missing payment or a missing line item.
  *

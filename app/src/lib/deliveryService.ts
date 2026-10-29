@@ -5,6 +5,7 @@ import { businessDayStamp } from "@/lib/reports/businessDay";
 import { prisma } from "@/lib/prisma";
 import { toQty } from "@/lib/inventory/quantity";
 import { buildPullList } from "@/lib/fulfilment/pullList";
+import { orderDeliveryZip, zoneForZip } from "@/lib/delivery/deliveryFee";
 import type { DeliveryRunStatus, DeliveryStopStatus, Prisma } from "@prisma/client";
 
 const VALID_RUN_TRANSITIONS: Record<DeliveryRunStatus, DeliveryRunStatus[]> = {
@@ -102,18 +103,6 @@ export async function generatePickListNumber(): Promise<string> {
   }
 
   return `${prefix}${seq.toString().padStart(3, "0")}`;
-}
-
-// Look up a ZIP code to find its delivery zone
-export async function resolveDeliveryZone(zipCode: string, tx?: any) {
-  const db = tx || prisma;
-
-  const match = await db.deliveryZoneZip.findFirst({
-    where: { zipCode },
-    include: { deliveryZone: true },
-  });
-
-  return match?.deliveryZone ?? null;
 }
 
 /**
@@ -216,9 +205,6 @@ export async function assignOrderToRun(
       orderno: true,
       customerId: true,
       deliveryAddressId: true,
-      customer: {
-        select: { addresses: { select: { zip: true }, take: 1 } },
-      },
     },
   });
   if (!order) throw new Error("Order not found");
@@ -234,29 +220,10 @@ export async function assignOrderToRun(
   });
   if (existing) throw new Error("Order is already assigned to a run");
 
-  // Resolve delivery zone from address (with customer fallback)
-  let deliveryZoneId: number | null = null;
-  let zip: string | null = null;
-
-  if (order.deliveryAddressId) {
-    const addr = await tx.customerAddress.findUnique({
-      where: { id: order.deliveryAddressId },
-      select: { zip: true },
-    });
-    zip = addr?.zip ?? null;
-  }
-  if (!zip) {
-    zip = order.customer?.addresses?.[0]?.zip ?? null;
-  }
-
-  if (zip) {
-    const zip5 = zip.substring(0, 5);
-    const zoneZip = await tx.deliveryZoneZip.findFirst({
-      where: { zipCode: zip5 },
-      select: { deliveryZoneId: true },
-    });
-    if (zoneZip) deliveryZoneId = zoneZip.deliveryZoneId;
-  }
+  // The zone that delivers to the order's address, else its customer's: the
+  // same lookup that prices its delivery fee (lib/delivery/deliveryFee.ts).
+  const zone = await zoneForZip(tx, await orderDeliveryZip(tx, order));
+  const deliveryZoneId = zone?.id ?? null;
 
   // Generate appointment number
   const dateStr = opts.runDate.toISOString().slice(0, 10).replace(/-/g, "");

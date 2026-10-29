@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
+import { deliveryFeeLineEditProblem } from "@/lib/delivery/deliveryFee";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
@@ -25,6 +26,10 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   if (!Number.isNaN(orderId)) {
     const locked = await returnOrderEditProblem(prisma, orderId);
     if (locked) return res.status(409).json({ error: locked });
+  }
+  if (!Number.isNaN(itemId)) {
+    const feeLine = await deliveryFeeLineEditProblem(prisma, itemId);
+    if (feeLine) return res.status(409).json({ error: feeLine });
   }
 
   // PUT: Update line item (cancel, replace, relink, or modify)

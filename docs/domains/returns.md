@@ -32,7 +32,7 @@ Fields driving the workflow:
 | Surface           | Endpoint                                                                                                                                                                                   |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Returns list      | `/app/sales/returns` (`app/(dashboard)/app/sales/returns/page.tsx`) → `GET /api/returns`                                                                                                   |
-| New return        | `/app/sales/returns/new` → `POST /api/returns`                                                                                                                                             |
+| New return        | `/app/sales/returns/new` → `POST /api/returns`. A delivery fee line is refused (409): it isn't goods, and its reversal would book to no account (sales-orders.md, "Delivery fee") |
 | Return detail     | `/app/sales/returns/[id]` → `GET /api/returns/[id]`; `PUT /api/returns/[id]` edits pickup fields + `reasonNotes` only                                                                      |
 | Returns queue     | `/app/warehouse/returns` → `GET /api/warehouse/returns/queue` (pickup / inspection / decision tabs)                                                                                        |
 | State transitions | `PUT /api/returns/[id]/status` with the target status in the body — rejected unless `isValidTransition` allows the edge                                                                    |
@@ -115,7 +115,7 @@ When the POS same-day-rewrites an order, dropped lines get left ACTIVE on the ba
 
 ## Exchange orders
 
-`POST /api/returns/[id]/exchange` creates a new `SalesOrder` with prefix `EX-YYMMDD-NNN`, status `QUOTE`, linked to the return via `exchangeOrderId`. Inherits the original's customer + storeLocation + salesperson. The call is refused if `exchangeOrderId` is already set, and it does not touch the return's own status — there is no `EXCHANGED` status.
+`POST /api/returns/[id]/exchange` creates a new `SalesOrder` with prefix `EX-YYMMDD-NNN`, status `QUOTE`, linked to the return via `exchangeOrderId`. Inherits the original's customer, store (its name and, since 2026-10-29, its `storeLocationId`, so a line added to the exchange is taxed by the store's district) and salesperson. The call is refused if `exchangeOrderId` is already set, and it does not touch the return's own status — there is no `EXCHANGED` status.
 
 The exchange order is a regular sales order from that point — runs through the normal sales flow.
 

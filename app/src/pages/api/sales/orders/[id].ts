@@ -189,8 +189,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       return res.status(404).json({ error: "Order not found." });
     }
 
-    const totalTax = order.lineItems.reduce((sum, item) => sum + Number(item.vatAmount || 0), 0);
-    const totalSales = order.lineItems.reduce((sum, item) => sum + Number(item.netPrice), 0);
+    // Cancelled lines are out of every sum (CLAUDE.md rule 33); they are still
+    // listed below, struck through on the order screen.
+    const counted = order.lineItems.filter((item) => item.lineItemStatus !== "CANCELLED");
+    const totalTax = counted.reduce((sum, item) => sum + Number(item.vatAmount || 0), 0);
+    const totalSales = counted.reduce((sum, item) => sum + Number(item.netPrice), 0);
     const totalAmount = totalSales + totalTax;
 
     // Convert Prisma Decimal fields to Number for JSON safety
@@ -207,6 +210,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       storeLocation: order.storeLocation,
       orderNotes: order.orderNotes,
       deliveryMethod: order.deliveryMethod,
+      // Which line is the delivery fee: it changes only through
+      // orders/[id]/delivery-fee.ts, so the screen leaves it out of line edits.
+      deliveryFeeLineItemId: order.deliveryFeeLineItemId,
       totalTax,
       totalPaid: Number(order.totalPaid || 0),
       totalAmount,

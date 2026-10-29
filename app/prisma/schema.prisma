@@ -2669,9 +2669,11 @@ model TaxGroup {
   // falls back to that district's rules (lib/tax/resolveTaxRate.ts).
   exempt         Boolean @default(false)
 
-  rules      TaxRule[]
-  categories Category[]
-  products   Product[]
+  rules               TaxRule[]
+  categories          Category[]
+  products            Product[]
+  // AppSettings.deliveryFeeTaxGroupId: the group delivery fees sell under.
+  deliveryFeeSettings AppSettings[] @relation("DeliveryFeeTaxGroup")
 
   created DateTime  @default(now())
   updated DateTime? @updatedAt
@@ -2814,6 +2816,12 @@ model SalesOrder {
    */
   deliveredAt           DateTime?
   deliveryNotes         String?
+  /// The line that charges this order's delivery (lib/delivery/deliveryFee.ts),
+  /// priced from its zone. A line with no product, so it is not goods: it is
+  /// taxed under AppSettings.deliveryFeeTaxGroupId, booked to POS
+  /// Transactions/"Delivery Fee", and left out of sales credit.
+  deliveryFeeLineItemId Int?             @unique
+  deliveryFeeLine       OrderLineItem?   @relation("DeliveryFeeLine", fields: [deliveryFeeLineItemId], references: [id], onDelete: SetNull)
 
   lineItems           OrderLineItem[]
   invoices            Invoice[]
@@ -2905,6 +2913,8 @@ model OrderLineItem {
   returns             Return[]
   /// The restocking fee line on a native return's own order.
   restockingFeeFor    Return?              @relation("ReturnFeeLine")
+  /// The delivery fee line of its own order (SalesOrder.deliveryFeeLineItemId).
+  deliveryFeeFor      SalesOrder?          @relation("DeliveryFeeLine")
   serviceAppointments ServiceAppointment[]
   pickListItems       PickListItem[]
 
@@ -5350,6 +5360,13 @@ model AppSettings {
   // guessing -- see resolveTaxRate.ts's file header.
   defaultTaxDistrictId Int?
   defaultTaxDistrict   TaxDistrict? @relation(fields: [defaultTaxDistrictId], references: [id])
+
+  // The tax group an order's delivery fee sells under (lib/delivery/
+  // deliveryFee.ts). Whether delivery is taxed is state law, so it is the
+  // store's to say: a "Not taxed" group where it isn't. Null taxes the fee by
+  // the district's rules, like any line with no group of its own.
+  deliveryFeeTaxGroupId Int?
+  deliveryFeeTaxGroup   TaxGroup? @relation("DeliveryFeeTaxGroup", fields: [deliveryFeeTaxGroupId], references: [id], onDelete: SetNull)
 
   /// Which SourceAdapter (lib/adapters/) pulls data from the system this
   /// deployment ran before holt. "none" is the shipped default and a real
