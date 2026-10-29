@@ -29,6 +29,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
     trackInventory: true,
     accountGroupId: "",
     labelTemplateId: "",
+    taxGroupId: "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -39,6 +40,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
     "/api/departments?all=true",
   );
   const [templates, loadingTemplates, errorTemplates] = useFetchOptions("/api/labels?all=true");
+  const [taxGroups] = useFetchOptions("/api/tax/groups");
 
   const fetchAccountGroups = useCallback(async () => {
     const res = await fetch("/api/accounting/account-groups");
@@ -57,6 +59,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
         trackInventory: category.trackInventory ?? true,
         accountGroupId: (category as any).accountGroupId?.toString() || "",
         labelTemplateId: category.labelTemplateId?.toString() || "",
+        taxGroupId: category.taxGroupId?.toString() || "",
       });
     } else {
       setForm({
@@ -65,6 +68,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
         trackInventory: true,
         accountGroupId: "",
         labelTemplateId: "",
+        taxGroupId: "",
       });
     }
   }, [category]);
@@ -94,6 +98,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
       departmentId: Number.parseInt(form.departmentId),
       accountGroupId: form.accountGroupId ? Number.parseInt(form.accountGroupId) : null,
       labelTemplateId: form.labelTemplateId ? Number.parseInt(form.labelTemplateId) : null,
+      taxGroupId: form.taxGroupId ? Number.parseInt(form.taxGroupId) : null,
     };
 
     // Basic validation
@@ -178,6 +183,17 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
         options={accountGroups.map((g) => ({ id: String(g.id), name: g.name }))}
         value={form.accountGroupId}
         onChange={(v) => handleChange("accountGroupId", v)}
+      />
+
+      <FormDropdown
+        label="Tax Group"
+        emptyLabel="Standard (the district's rules)"
+        options={taxGroups.map((g) => ({
+          id: String(g.id),
+          name: g.exempt ? `${g.name ?? ""} (not taxed)` : (g.name ?? ""),
+        }))}
+        value={form.taxGroupId}
+        onChange={(v) => handleChange("taxGroupId", v)}
       />
 
       <label className="block mb-2 text-sm text-brand-blue">Label Template</label>

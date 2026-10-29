@@ -110,6 +110,7 @@ function makeMockPrisma(opts: {
     taxDistrict: {
       findMany: jest.fn().mockResolvedValue(configured ? [{ glAccountId: ACCT.TAX }] : []),
     },
+    tender: { findMany: jest.fn().mockResolvedValue([]) },
     systemGLMapping: {
       findMany: jest.fn().mockResolvedValue(
         configured

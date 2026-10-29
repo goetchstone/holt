@@ -35,6 +35,7 @@ interface Group {
   taxBasis: string;
   freightTaxable: boolean;
   miscTaxable: boolean;
+  exempt: boolean;
   _count: { rules: number };
 }
 
@@ -192,6 +193,9 @@ export function TaxView() {
                 <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">
                   Misc Taxable
                 </th>
+                <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">
+                  Not Taxed
+                </th>
                 <th className="py-2 px-3 text-brand-gray text-sm font-medium text-center">Rules</th>
               </tr>
             </thead>
@@ -206,12 +210,13 @@ export function TaxView() {
                   <td className="py-2 px-3">{g.taxBasis}</td>
                   <td className="py-2 px-3 text-center">{g.freightTaxable ? "Yes" : "No"}</td>
                   <td className="py-2 px-3 text-center">{g.miscTaxable ? "Yes" : "No"}</td>
+                  <td className="py-2 px-3 text-center">{g.exempt ? "Yes" : "No"}</td>
                   <td className="py-2 px-3 text-center">{g._count.rules}</td>
                 </tr>
               ))}
               {groups.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-brand-gray">
+                  <td colSpan={6} className="py-8 text-center text-brand-gray">
                     No tax groups configured.
                   </td>
                 </tr>

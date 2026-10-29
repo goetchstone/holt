@@ -13,6 +13,7 @@ interface TaxGroup {
   taxBasis: string;
   freightTaxable: boolean;
   miscTaxable: boolean;
+  exempt: boolean;
 }
 
 type Props = {
@@ -32,6 +33,7 @@ export default function TaxGroupModal({ item, onClose, onRefresh }: Props) {
     taxBasis: "NET",
     freightTaxable: false,
     miscTaxable: false,
+    exempt: false,
   });
   const [saving, setSaving] = useState(false);
 
@@ -42,9 +44,16 @@ export default function TaxGroupModal({ item, onClose, onRefresh }: Props) {
         taxBasis: item.taxBasis || "NET",
         freightTaxable: item.freightTaxable,
         miscTaxable: item.miscTaxable,
+        exempt: item.exempt,
       });
     } else {
-      setForm({ name: "", taxBasis: "NET", freightTaxable: false, miscTaxable: false });
+      setForm({
+        name: "",
+        taxBasis: "NET",
+        freightTaxable: false,
+        miscTaxable: false,
+        exempt: false,
+      });
     }
   }, [item]);
 
@@ -131,6 +140,18 @@ export default function TaxGroupModal({ item, onClose, onRefresh }: Props) {
           setForm({ ...form, miscTaxable: e.target.checked })
         }
       />
+      <FormCheckbox
+        label="Not taxed (0% in every district)"
+        name="exempt"
+        checked={form.exempt}
+        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+          setForm({ ...form, exempt: e.target.checked })
+        }
+      />
+      <p className="text-brand-gray text-xs -mt-2 mb-2">
+        Products and categories set to this group are never charged sales tax. A taxed group with no
+        rule in a district falls back to that district&apos;s rules.
+      </p>
 
       {item && (
         <div className="flex justify-end mt-4">

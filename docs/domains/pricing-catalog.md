@@ -18,6 +18,15 @@ The `VendorPricingModel` enum determines which pricing path the configurator fol
 | `AREA_BASED`         | Price per sq ft / sq yard                                                   | Rug vendors (not currently active)    |
 | `SIZE_BASED`         | Size class drives price (sofa < loveseat < sectional)                       | Some Wesley Hall SE configurations    |
 
+## Tax group on categories and products
+
+`Category.taxGroupId` is the tax group a category's products sell under, and
+`Product.taxGroupId` overrides it for one product; null on both means the district's
+rules, as before. The category editor and the product edit form choose them. A group
+can be marked "Not taxed" in Admin → Tax (0% in every district). How the group picks
+a line's rate is in `docs/domains/accounting.md` under "A line sells under a tax group"
+(GAP-04b, 2026-10-29).
+
 ## VendorStyle vs Product
 
 Both are created during import. VendorStyles are catalog templates ("frames" from a vendor price list); Products are materialized physical items.

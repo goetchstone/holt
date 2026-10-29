@@ -16,7 +16,11 @@ import { Loader2 } from "lucide-react";
 import { TRPCClientError } from "@trpc/client";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { api } from "@/lib/trpc/client";
-import { INVOICE_PAYMENT_METHODS, type InvoicePaymentMethod } from "@/lib/billing/invoiceShared";
+import {
+  INVOICE_PAYMENT_LABELS,
+  INVOICE_PAYMENT_METHODS,
+  type InvoicePaymentMethod,
+} from "@/lib/billing/invoiceShared";
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-brand-stripe text-brand-gray",
@@ -41,13 +45,16 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
   const remove = api.billing.delete.useMutation();
   const voidMut = api.billing.void.useMutation();
   const recordPayment = api.billing.recordPayment.useMutation();
+  // The store's own payment types offered on invoices (Settings -> Payment Types).
+  const storeTenders = api.billing.tenders.useQuery();
   const sendEmail = api.billing.sendEmail.useMutation();
   const paymentLink = api.billing.paymentLink.useMutation();
   const portalLink = api.clientPortal.generateLink.useMutation();
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState<InvoicePaymentMethod>("CHECK");
+  // A built-in method, or "tender:<id>" for one of the store's own.
+  const [payMethod, setPayMethod] = useState<string>("CHECK");
   const [payReference, setPayReference] = useState("");
   const [includeLink, setIncludeLink] = useState(true);
 
@@ -88,12 +95,18 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
     }
   };
 
+  const chosenTender = payMethod.startsWith("tender:")
+    ? (storeTenders.data ?? []).find((t) => `tender:${t.id}` === payMethod)
+    : undefined;
+
   const onRecordPayment = async () => {
     try {
       const result = await recordPayment.mutateAsync({
         id: invoiceId,
         amount: Number(payAmount),
-        method: payMethod,
+        ...(chosenTender
+          ? { tenderId: chosenTender.id }
+          : { method: payMethod as InvoicePaymentMethod }),
         reference: payReference.trim() || null,
       });
       toast.success(
@@ -311,19 +324,26 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
             <select
               id="payMethod"
               value={payMethod}
-              onChange={(e) => setPayMethod(e.target.value as InvoicePaymentMethod)}
+              onChange={(e) => setPayMethod(e.target.value)}
               className="min-h-[44px] rounded border border-gray-300 px-3 text-sm"
             >
               {INVOICE_PAYMENT_METHODS.map((m) => (
                 <option key={m} value={m}>
-                  {m.charAt(0) + m.slice(1).toLowerCase()}
+                  {INVOICE_PAYMENT_LABELS[m]}
+                </option>
+              ))}
+              {(storeTenders.data ?? []).map((t) => (
+                <option key={`tender-${t.id}`} value={`tender:${t.id}`}>
+                  {t.name}
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label htmlFor="payRef" className="mb-1 block text-xs font-medium text-brand-gray">
-              Reference (check #)
+              {payMethod === "CHECK" && "Check #"}
+              {payMethod !== "CHECK" &&
+                (chosenTender?.referenceRequired ? "Reference (required)" : "Reference")}
             </label>
             <input
               id="payRef"

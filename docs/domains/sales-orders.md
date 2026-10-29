@@ -161,15 +161,23 @@ create and re-import). The value comes from `resolveTaxDistrict()`, read from
 it was sold under; clearing the customer's later does not re-tax it. A native
 return copies it from its sale (`lib/returns/bookReturn.ts`).
 `__tests__/taxResolutionSingleSource.test.ts` fails on a route that writes the
-district without it. Changing an existing order's customer
-(`PUT /api/sales/orders/[id]`) does not re-rate anything yet: ROADMAP GAP-04d.
+district without it.
+
+**Changing a quote's customer re-rates it (GAP-04d, 2026-10-29).**
+`PUT /api/sales/orders/[id]` with a new `customerId` calls `lib/tax/rerateQuoteTax.ts`
+when the order is a QUOTE with no payment row (a pending card checkout counts as
+money). The re-rate re-resolves the district and the exemption for the new customer,
+re-rates every live line under its product's tax group, and rewrites `totalTax`.
+Cancelled lines keep their rate and stay out of the sum (rule 33). An order money has
+touched keeps the tax it was charged, and its customer still changes: tax on a paid
+sale is a recorded fact.
 
 ## Key Files
 
 - `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`
 - `lib/adapters/ordorite/runners.ts` lines 134-723 -- `runSalesImport()`
 - `lib/importHelpers.ts` -- source-agnostic helpers only (`safeString`/`safeFloat`/`safeDate`, `splitCustomerName`, `findOrCreateCustomer`). The sales-order logic above is no longer here
-- `lib/paymentService.ts` -- `computeBalance()`, `recordPayment()`, `processRefund()` (there is no `postPayment()`), and `startHostedCheckout()`, the one way an order or invoice starts an online card payment (see `docs/domains/pos.md`)
+- `lib/paymentService.ts` -- `computeBalance()`, `recordPayment()`, `processRefund()` (there is no `postPayment()`), and `startHostedCheckout()`, the one way an order or invoice starts an online card payment (see `docs/domains/pos.md`). A payment taken with one of the store's own payment types (`tenderId`) is labelled by `lib/payments/tenders.ts`, and its refund goes back to the same tender (pos.md, "Payment types a store sets up")
 - `pages/api/sales/` -- 19 API endpoints
 - `lib/pos/cartPricing.ts` -- `catalogRetailPrice()`: the price a catalog product goes onto a New Quote (or POS) line at. No retail price means the line is refused, never priced from cost (see `docs/domains/pos.md`, "A product's line price")
 
@@ -229,6 +237,8 @@ Response includes `possibleDuplicateOf: { id, orderno }[]` per quote. UI shows a
 ## OrderLineItem.netPrice Invariant
 
 `OrderLineItem.netPrice` stores the **line total** (unit price × quantity), not the unit price. Both the POS imports and POS creation follow this model. `computeBalance()` in `lib/paymentService.ts` is the canonical total calculation — always prefer it over re-implementing the formula. If you need the unit price, divide: `netPrice / orderedQuantity`.
+
+**Replacing a line keeps its unit price** (fixed 2026-10-28). The order screen's Replace dialog sends only a name, part number and grade, so `PUT /api/sales/orders/[id]/line-items/[lineItemId]` with `action: "replace"` prices the new line at the original's `netPrice / orderedQuantity` times the original quantity, unless the request carries its own `quantity` (must be positive) or `unitPrice` (zero or more; `0` is honoured). Before this the route multiplied the quantity by `netPrice` itself, so replacing a 2-unit $500 line wrote a $1,000 line and doubled its tax. Pinned against real Postgres in `__tests__/integration/lineItemReplacePrice.integration.test.ts`. The replacement line is still written with `cost: 0` (not changed here): reports on the shared cost cascade (`resolveLineCost` + `imputeMissingCost`, `lib/marginMath.ts`) fall back to the product's `baseCost`, then half the retail price, while a report that reads raw `cost` sees $0.
 
 **Only lines still owed count** (since 2026-10-15). `computeBalance()` skips any line whose `lineItemStatus` is not in `COUNTED_LINE_STATUSES` (`lib/salesOrderRevenue.ts`: `ACTIVE`, `BACKORDERED`). Cancelling a line, or replacing it, changes its status and **keeps its `netPrice` on the row**, so a total that sums every row charges for cancelled lines and charges a replaced line twice (the original plus its `ACTIVE` replacement). Before this, that is exactly what Stripe checkout, emailed payment links and portal Pay did, since all three charge `calculateOrderBalance()`. `lineItemStatus` is a required field of the balance input, so a caller that forgets to select it is a compile error rather than a silent overcharge. **Known gap:** about 60 other inline line filters (sales journal, AR ledger, revenue reports, commission, lifetime spend) still exclude only `CANCELLED`, or nothing, so a replaced line is still counted twice there. Moving them onto `COUNTED_LINE_STATUSES` is the next step of this work.
 

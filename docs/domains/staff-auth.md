@@ -104,7 +104,10 @@ never a list of role names. A route that serves several screens takes **any of
 those screens' keys**:
 
 ```ts
-export default requirePermission({ anyOf: ["sales.read", "reporting.read"] }, handler);
+export default requirePermission(
+  { anyOf: ["sales.read", "reporting.read"] },
+  handler,
+);
 ```
 
 Granting a role any one of those screens then grants the data behind it, and no
@@ -223,7 +226,7 @@ module hides its item on top.
 | SUPER_ADMIN | Every item                                                                              | Owner-only tier above ADMIN. Sees `/app/admin/reports/commission-tiers` (rate schedule the owner pays per salesperson). Auto-promotes through any ADMIN gate. Holds every permission through the `"*"` wildcard. |
 | ADMIN       | Every item                                                                              | Granted every permission in the catalog EXCEPT `admin.impersonate` — an explicit grant list, not a bypass. Database backup, roles and query builder are ADMIN-gated.                                             |
 | MANAGER     | Sales, Service, Purchasing, Warehouse, Inventory, Reports, Helpdesk, Time, Admin, Tools | Hub page card filtering still applies, and many `/app/admin/*` sub-pages gate on `["ADMIN"]` alone (see Card Filtering below).                                                                                   |
-| DESIGNER    | Sales, Service, Purchasing, Inventory, Reports, Helpdesk, Time, Tools                   | Lands on `/app` like everyone else; the home page shows what its keys allow (see Home page below). On the Reports hub, sees only the 2 cards that carry no `roles` filter.                                                                                                   |
+| DESIGNER    | Sales, Service, Purchasing, Inventory, Reports, Helpdesk, Time, Tools                   | Lands on `/app` like everyone else; the home page shows what its keys allow (see Home page below). On the Reports hub, sees only the 2 cards that carry no `roles` filter.                                       |
 | REGISTER    | Sales, Inventory, Time, Tools                                                           | POS, till, gift cards, returns                                                                                                                                                                                   |
 | WAREHOUSE   | Sales, Service, Purchasing, Warehouse, Inventory, Helpdesk, Time, Tools                 | No Reports, no Admin. Service and Helpdesk are deliberate — WAREHOUSE holds `service.read`/`service.write`.                                                                                                      |
 | MARKETING   | Sales, Reports, Time, Tools                                                             | Holds `customer.read` and not `sales.read`; Sales is there because Customers lives under it.                                                                                                                     |
@@ -330,7 +333,7 @@ The `NavPermission` table is gone — dropped by migration `20260807120000_drop_
 
 ## Page-Level Auth
 
-Every App Router page calls `await requirePage()` (`lib/auth/requirePage.ts`) in its server component. The role list is POSITIONAL, not an option: `requirePage(["MANAGER", "ADMIN"])`; sensitive pages pass `["ADMIN"]`. Four pages instead gate on a capability via `requirePage(undefined, { permission })` — Purchasing, Warehouse, Helpdesk and Time, the pages whose nav entry is derived from that same key, so the link and the page cannot disagree. `requirePage` resolves through the same `decideRoleAccess`/`resolvePermissionAccess` helpers as the API guards. The bootstrap safeguard skips role enforcement until at least one active signed-in privileged user (SUPER_ADMIN/ADMIN/MANAGER) exists.
+Every App Router page calls `await requirePage()` (`lib/auth/requirePage.ts`) in its server component. Most gate on a capability via `requirePage(undefined, { permission })`: 176 page files did on 2026-10-29. The rest pass a POSITIONAL role list, `requirePage(["MANAGER", "ADMIN"])`. Which key each page answers to is the page access manifest `PAGE_ACCESS` in `lib/auth/pagePermissions.ts`, one entry per page; `__tests__/pagePermissions.test.ts` fails on a page with no entry, or one whose entry disagrees with the guard the page calls. (This paragraph said "four pages" until 2026-10-29, long after the manifest moved most of them.) Settings → Payment Types (`admin/setup/payment-types`) answers to `admin.settings`, the key its API `/api/tenders` writes with. `requirePage` resolves through the same `decideRoleAccess`/`resolvePermissionAccess` helpers as the API guards. The bootstrap safeguard skips role enforcement until at least one active signed-in privileged user (SUPER_ADMIN/ADMIN/MANAGER) exists.
 
 The only Pages Router `.tsx` files left are `_app`, `_document` and the three `/auth/*` screens.
 

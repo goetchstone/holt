@@ -22,6 +22,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
   if (req.method === "POST") {
     try {
+      // No processorType/processorTxnId from the browser: a refund is routed
+      // to the processor those name (paymentService.processRefund), so a
+      // payment posted here with another customer's charge id could be
+      // refunded onto that customer's card. Processor payments are written
+      // by the hosted-checkout flow (recordPendingPayment), never this route.
       const {
         method,
         amount,
@@ -29,12 +34,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         tillId,
         staffMemberId,
         customerId,
-        processorType,
-        processorTxnId,
         cardLast4,
         cardBrand,
         checkNumber,
         giftCardId,
+        tenderId,
+        reference,
       } = req.body;
 
       if (!method || !amount) {
@@ -48,12 +53,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         tillId: tillId ? Number.parseInt(tillId) : undefined,
         staffMemberId: staffMemberId ? Number.parseInt(staffMemberId) : undefined,
         customerId: customerId ? Number.parseInt(customerId) : undefined,
-        processorType,
-        processorTxnId,
         cardLast4,
         cardBrand,
         checkNumber,
         giftCardId: giftCardId ? Number.parseInt(giftCardId) : undefined,
+        tenderId: tenderId ? Number.parseInt(tenderId) : undefined,
+        reference: typeof reference === "string" ? reference : undefined,
         createdBy: session.user?.email || undefined,
       });
 

@@ -45,6 +45,8 @@ interface TillSummary {
   giftCard: number;
   storeCredit: number;
   other: number;
+  /** `other` split by payment type: the store's own tenders by name. */
+  otherByType?: { label: string; amount: number }[];
   total: number;
   expectedCash: number;
   openingCash: number;
@@ -125,7 +127,11 @@ function OpenTillCard({
         { label: METHOD_DISPLAY.CHECK, value: summary.check },
         { label: METHOD_DISPLAY.GIFT_CARD, value: summary.giftCard },
         { label: METHOD_DISPLAY.STORE_CREDIT, value: summary.storeCredit },
-        { label: METHOD_DISPLAY.OTHER, value: summary.other },
+        // Each store tender (a finance company, Zelle) as its own tile, so the
+        // close can be checked against that payer's approvals.
+        ...(summary.otherByType && summary.otherByType.length > 0
+          ? summary.otherByType.map((o) => ({ label: o.label, value: o.amount }))
+          : [{ label: METHOD_DISPLAY.OTHER, value: summary.other }]),
       ]
     : [];
 
