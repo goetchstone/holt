@@ -9,6 +9,7 @@ import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { release } from "@/lib/inventory/allocation";
 import { markHandedOver, handoverMethodFor } from "@/lib/fulfilment/handover";
+import { rerateQuoteTax } from "@/lib/tax/rerateQuoteTax";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -58,6 +59,19 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             updatedBy: changedBy,
           },
         });
+
+        // The customer decides the tax (their exemption, their district), so a
+        // quote that changes hands is re-rated as their sale. Only while no
+        // money has touched it -- a pending card checkout included: a paid
+        // order keeps the tax it was charged (lib/tax/rerateQuoteTax.ts).
+        if (
+          customerId !== undefined &&
+          result.customerId !== existing.customerId &&
+          result.status === "QUOTE" &&
+          (await tx.payment.count({ where: { salesOrderId: result.id } })) === 0
+        ) {
+          await rerateQuoteTax(tx, result.id);
+        }
 
         if (status && status !== existing.status) {
           await tx.orderChangeLog.create({

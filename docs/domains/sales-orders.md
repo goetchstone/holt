@@ -161,15 +161,23 @@ create and re-import). The value comes from `resolveTaxDistrict()`, read from
 it was sold under; clearing the customer's later does not re-tax it. A native
 return copies it from its sale (`lib/returns/bookReturn.ts`).
 `__tests__/taxResolutionSingleSource.test.ts` fails on a route that writes the
-district without it. Changing an existing order's customer
-(`PUT /api/sales/orders/[id]`) does not re-rate anything yet: ROADMAP GAP-04d.
+district without it.
+
+**Changing a quote's customer re-rates it (GAP-04d, 2026-10-29).**
+`PUT /api/sales/orders/[id]` with a new `customerId` calls `lib/tax/rerateQuoteTax.ts`
+when the order is a QUOTE with no payment row (a pending card checkout counts as
+money). The re-rate re-resolves the district and the exemption for the new customer,
+re-rates every live line under its product's tax group, and rewrites `totalTax`.
+Cancelled lines keep their rate and stay out of the sum (rule 33). An order money has
+touched keeps the tax it was charged, and its customer still changes: tax on a paid
+sale is a recorded fact.
 
 ## Key Files
 
 - `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`
 - `lib/adapters/ordorite/runners.ts` lines 134-723 -- `runSalesImport()`
 - `lib/importHelpers.ts` -- source-agnostic helpers only (`safeString`/`safeFloat`/`safeDate`, `splitCustomerName`, `findOrCreateCustomer`). The sales-order logic above is no longer here
-- `lib/paymentService.ts` -- `computeBalance()`, `recordPayment()`, `processRefund()` (there is no `postPayment()`), and `startHostedCheckout()`, the one way an order or invoice starts an online card payment (see `docs/domains/pos.md`)
+- `lib/paymentService.ts` -- `computeBalance()`, `recordPayment()`, `processRefund()` (there is no `postPayment()`), and `startHostedCheckout()`, the one way an order or invoice starts an online card payment (see `docs/domains/pos.md`). A payment taken with one of the store's own payment types (`tenderId`) is labelled by `lib/payments/tenders.ts`, and its refund goes back to the same tender (pos.md, "Payment types a store sets up")
 - `pages/api/sales/` -- 19 API endpoints
 - `lib/pos/cartPricing.ts` -- `catalogRetailPrice()`: the price a catalog product goes onto a New Quote (or POS) line at. No retail price means the line is refused, never priced from cost (see `docs/domains/pos.md`, "A product's line price")
 

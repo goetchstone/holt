@@ -77,6 +77,9 @@ export default requirePermission(
           where: { name_departmentId: { name: "Blinds & Shades", departmentId: dept.id } },
           update: {},
           create: { name: "Blinds & Shades", departmentId: dept.id, createdBy: userEmail },
+          // HD item lines carry no product; they sell under this category's
+          // tax group (resolveTaxRate.ts "PER-LINE TAX GROUP").
+          include: { taxGroup: { select: { id: true, exempt: true } } },
         });
 
         // Find or create LABOR-HD product
@@ -210,7 +213,7 @@ export default requirePermission(
           // Banded per line against its own selling price (resolveTaxRate.ts
           // rateForLineAmount) -- an HD proposal carries no item-level
           // discount, so sellingPrice IS the taxable line amount.
-          const lineRate = rateForLineAmount(taxDistrict.rules, sellingPrice).rate;
+          const lineRate = rateForLineAmount(taxDistrict.rules, sellingPrice, cat.taxGroup).rate;
           await tx.orderLineItem.create({
             data: {
               salesOrderId: orderId,

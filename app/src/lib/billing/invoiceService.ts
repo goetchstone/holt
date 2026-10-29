@@ -35,6 +35,7 @@ import {
 import type { JournalLine } from "@/lib/journalEntry";
 import { INVOICE_PAYMENT_LABELS, type InvoicePaymentMethod } from "@/lib/billing/invoiceShared";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
+import { resolveTenderPayment, TenderError } from "@/lib/payments/tenders";
 
 type Tx = Prisma.TransactionClient;
 
@@ -465,9 +466,37 @@ export async function voidInvoice(id: number, voidedBy?: string | null): Promise
 
 export interface RecordInvoicePaymentInput {
   amount: number;
-  method: InvoicePaymentMethod;
+  /** A built-in method, or */
+  method?: InvoicePaymentMethod | null;
+  /** a store tender (lib/payments/tenders.ts) -- exactly one of the two. */
+  tenderId?: number | null;
   reference?: string | null;
   createdBy?: string | null;
+}
+
+/**
+ * The method, label and reference an invoice payment is recorded under. A
+ * store tender is labelled by lib/payments/tenders.ts, as the register's are.
+ */
+async function labelInvoicePayment(tx: Prisma.TransactionClient, input: RecordInvoicePaymentInput) {
+  if ((input.method == null) === (input.tenderId == null)) {
+    throw new InvoiceValidationError("Choose one payment method.");
+  }
+  if (input.tenderId != null) {
+    try {
+      return await resolveTenderPayment(tx, input.tenderId, input.reference);
+    } catch (err) {
+      if (err instanceof TenderError) throw new InvoiceValidationError(err.message);
+      throw err;
+    }
+  }
+  const method = input.method as InvoicePaymentMethod;
+  return {
+    method,
+    paymentType: INVOICE_PAYMENT_LABELS[method] ?? method,
+    tenderId: null,
+    reference: input.reference?.trim() || null,
+  };
 }
 
 /**
@@ -505,7 +534,7 @@ export async function recordInvoicePayment(
       );
     }
 
-    const paymentType = INVOICE_PAYMENT_LABELS[input.method] ?? input.method;
+    const { method, paymentType, tenderId, reference } = await labelInvoicePayment(tx, input);
     const cashMapping = await tx.systemGLMapping.findUnique({
       where: { section_label: { section: "POS_PAYMENTS", label: paymentType } },
       select: { glAccountId: true },
@@ -523,10 +552,14 @@ export async function recordInvoicePayment(
         paymentType,
         paymentAmount: amount,
         status: "COMPLETED",
-        method: input.method,
+        method,
         customerId: invoice.customerId,
         invoiceId: id,
-        checkNumber: input.method === "CHECK" ? (input.reference ?? null) : null,
+        tenderId,
+        // A check's number is its reference; every other method's reference
+        // was dropped here until Payment.reference existed.
+        checkNumber: method === "CHECK" ? reference : null,
+        reference: method === "CHECK" ? null : reference,
         createdBy: input.createdBy ?? null,
       },
       select: { id: true },

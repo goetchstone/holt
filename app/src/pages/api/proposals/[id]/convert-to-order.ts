@@ -7,7 +7,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
-import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
+import {
+  resolveTaxDistrict,
+  rateForLineAmount,
+  lineTaxGroupOf,
+  LINE_TAX_GROUP_SELECT,
+} from "@/lib/tax/resolveTaxRate";
 import { getAppSettings } from "@/lib/appSettings";
 import { nextOrderNumber } from "@/lib/orderNumber";
 import { effectivePrefix } from "@/lib/numberingPrefix";
@@ -83,6 +88,20 @@ export default requireAuthWithRole(
           },
         });
 
+        // The tax group each line's product sells under (a free-text line has none).
+        const lineProducts = new Map(
+          (
+            await tx.product.findMany({
+              where: {
+                id: {
+                  in: proposal.lineItems.flatMap((li) => (li.productId ? [li.productId] : [])),
+                },
+              },
+              select: { id: true, ...LINE_TAX_GROUP_SELECT },
+            })
+          ).map((p) => [p.id, p]),
+        );
+
         // Create line items from proposal
         for (let i = 0; i < proposal.lineItems.length; i++) {
           const item = proposal.lineItems[i];
@@ -90,7 +109,10 @@ export default requireAuthWithRole(
           const lineTotal = round2(Number(item.retailPrice) * quantity);
           // Banded against this line's own amount: a TaxRule may gate on
           // triggerPrice/startPrice, so the rate is per line, not per order.
-          const lineRate = isTaxExempt ? 0 : rateForLineAmount(taxDistrict.rules, lineTotal).rate;
+          const taxGroup = lineTaxGroupOf(item.productId ? lineProducts.get(item.productId) : null);
+          const lineRate = isTaxExempt
+            ? 0
+            : rateForLineAmount(taxDistrict.rules, lineTotal, taxGroup).rate;
           await tx.orderLineItem.create({
             data: {
               salesOrderId: order.id,

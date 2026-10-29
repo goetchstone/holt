@@ -22,7 +22,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === "PUT") {
-    const { name, taxBasis, freightTaxable, miscTaxable } = req.body;
+    const { name, taxBasis, freightTaxable, miscTaxable, exempt } = req.body;
 
     if (!name?.trim()) {
       return res.status(400).json({ error: "Name is required" });
@@ -36,6 +36,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           taxBasis: taxBasis || "NET",
           freightTaxable: !!freightTaxable,
           miscTaxable: !!miscTaxable,
+          exempt: !!exempt,
         },
       });
       return res.status(200).json(updated);
@@ -57,6 +58,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       if (ruleCount > 0) {
         return res.status(409).json({
           error: `Cannot delete: ${ruleCount} tax rule${ruleCount !== 1 ? "s" : ""} reference this group.`,
+        });
+      }
+      // A category or product taxed under this group would silently fall back
+      // to its district's rules (the FK is SET NULL), so refuse instead.
+      const [categoryCount, productCount] = await Promise.all([
+        prisma.category.count({ where: { taxGroupId: id } }),
+        prisma.product.count({ where: { taxGroupId: id } }),
+      ]);
+      if (categoryCount + productCount > 0) {
+        return res.status(409).json({
+          error: `Cannot delete: ${categoryCount} categor${categoryCount !== 1 ? "ies" : "y"} and ${productCount} product${productCount !== 1 ? "s" : ""} sell under this group.`,
         });
       }
 

@@ -107,6 +107,8 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/admin/setup/email-templates": { permission: "admin.config" },
   "/app/admin/setup/gift-cards": { permission: "admin.config" },
   "/app/admin/setup/labels": { permission: "admin.config" },
+  // The key /api/tenders writes with, so whoever opens it can use it.
+  "/app/admin/setup/payment-types": { permission: "admin.settings" },
   "/app/admin/setup/printers": { permission: "admin.config" },
   "/app/admin/setup/product-pairings": { permission: "admin.config" },
   "/app/admin/setup/registers": { permission: "admin.config" },

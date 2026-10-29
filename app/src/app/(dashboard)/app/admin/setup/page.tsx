@@ -50,6 +50,12 @@ const ITEMS: CardGridItem[] = [
     href: "/app/admin/accounting/journal-entries",
   },
   {
+    title: "Payment Types",
+    description:
+      "Add the ways customers pay beyond the built-in ones: finance companies, Zelle, trade-ins.",
+    href: "/app/admin/setup/payment-types",
+  },
+  {
     title: "Gift Card Presets",
     description: "Configure quick codes for gift card sales (GC, GC25, GC50).",
     href: "/app/admin/setup/gift-cards",

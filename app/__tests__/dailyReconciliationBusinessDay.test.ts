@@ -41,6 +41,7 @@ function fakeClient(captured: Captured) {
     accountGroup: { findMany: async () => [] },
     taxDistrict: { findMany: async () => [] },
     systemGLMapping: { findMany: async () => [] },
+    tender: { findMany: async () => [] },
     orderLineItem: {
       findMany: async (args: { where: { salesOrder: { orderDate: { gte: Date; lt: Date } } } }) => {
         captured.orderDate = args.where.salesOrder.orderDate;

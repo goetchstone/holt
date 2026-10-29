@@ -29,7 +29,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === "POST") {
-    const { name, taxBasis, freightTaxable, miscTaxable } = req.body;
+    const { name, taxBasis, freightTaxable, miscTaxable, exempt } = req.body;
     if (!name?.trim()) return badRequest(res, "Name is required");
 
     try {
@@ -39,6 +39,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           taxBasis: taxBasis || "NET",
           freightTaxable: !!freightTaxable,
           miscTaxable: !!miscTaxable,
+          exempt: !!exempt,
         },
       });
       return created(res, group);
@@ -51,4 +52,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   return methodNotAllowed(res, ["GET", "POST"]);
 }
 
-export default requirePermission("admin.settings", handler);
+// The list serves Admin → Tax and the tax-group pickers on the category and
+// product editors, so a GET takes either screen's key; creating a group stays
+// an admin setting.
+export default async function route(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") {
+    return requirePermission({ anyOf: ["admin.settings", "catalog.write"] }, handler)(req, res);
+  }
+  return requirePermission("admin.settings", handler)(req, res);
+}

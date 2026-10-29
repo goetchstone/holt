@@ -7,7 +7,12 @@ import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
-import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
+import {
+  resolveTaxDistrict,
+  rateForLineAmount,
+  lineTaxGroupOf,
+  LINE_TAX_GROUP_SELECT,
+} from "@/lib/tax/resolveTaxRate";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -57,15 +62,16 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         return res.status(400).json({ error: `Cannot add items to a ${order.status} order.` });
       }
 
+      // The product's cost (when none was sent) and the tax group it sells under.
+      const product = productId
+        ? await prisma.product.findUnique({
+            where: { id: productId },
+            select: { baseCost: true, ...LINE_TAX_GROUP_SELECT },
+          })
+        : null;
       // Resolve wholesale cost: use explicit value, or look up product baseCost
       let itemCost = Number(explicitCost || 0);
-      if (itemCost === 0 && productId) {
-        const product = await prisma.product.findUnique({
-          where: { id: productId },
-          select: { baseCost: true },
-        });
-        if (product?.baseCost) itemCost = Number(product.baseCost);
-      }
+      if (itemCost === 0 && product?.baseCost) itemCost = Number(product.baseCost);
 
       const nextLineNumber = (order.lineItems[0]?.lineNumber || 0) + 1;
       const netPrice = Number(quantity) * Number(unitPrice);
@@ -87,7 +93,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           storeLocationId: order.storeLocationId,
           contextLabel: `order ${order.orderno ?? orderId}`,
         });
-        const lineRate = rateForLineAmount(taxDistrict.rules, netPrice).rate;
+        const lineRate = rateForLineAmount(
+          taxDistrict.rules,
+          netPrice,
+          lineTaxGroupOf(product),
+        ).rate;
         const vatAmount = Math.round(netPrice * lineRate * 100) / 100;
 
         const lineItem = await tx.orderLineItem.create({

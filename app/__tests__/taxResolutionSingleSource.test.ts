@@ -153,11 +153,13 @@ describe("tax rate is resolved, never hardcoded or client-supplied", () => {
       unrecorded("{ taxDistrictId: td.taxDistrictId, taxExemptReasonId: td.taxExemptReasonId }"),
     ).toEqual([]);
 
+    // Every caller but the resolver's own file, lib/tax/rerateQuoteTax.ts included.
     const callers = filesWriting("resolveTaxDistrict(").filter(
-      (f) => !f.startsWith("src/lib/tax/"),
+      (f) => f !== "src/lib/tax/resolveTaxRate.ts",
     );
     // The population is real: the register's own route is in it.
     expect(callers).toContain("src/pages/api/sales/orders/create-from-cart.ts");
+    expect(callers).toContain("src/lib/tax/rerateQuoteTax.ts");
     const offenders = callers.filter((f) => unrecorded(codeOf(f)).length > 0);
     expect(offenders).toEqual([]);
   });

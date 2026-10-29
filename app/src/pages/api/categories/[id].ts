@@ -5,6 +5,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
+import { readTaxGroupId } from "@/lib/tax/taxGroupInput";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const id = Number.parseInt(req.query.id as string);
@@ -37,6 +38,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!departmentId || Number.isNaN(Number.parseInt(departmentId))) {
       return res.status(400).json({ error: "Valid department ID is required" });
     }
+    const taxGroup = await readTaxGroupId(prisma, req.body.taxGroupId);
+    if ("error" in taxGroup) return res.status(400).json({ error: taxGroup.error });
 
     try {
       const updated = await prisma.category.update({
@@ -47,6 +50,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           trackInventory: trackInventory ?? true,
           accountGroupId: accountGroupId ? Number.parseInt(accountGroupId) : null,
           labelTemplateId: labelTemplateId ? Number.parseInt(labelTemplateId) : null,
+          // Only when sent: this PUT otherwise replaces the whole row.
+          ...(taxGroup.value !== undefined && { taxGroupId: taxGroup.value }),
         },
       });
       return res.status(200).json(updated);
