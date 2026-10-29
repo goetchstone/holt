@@ -314,6 +314,13 @@ export const IMPORT_ENTITIES: readonly ImportEntityDef[] = [
         type: "string",
         aliases: ["desc", "details", "notes"],
       },
+      {
+        key: "cartonQty",
+        label: "Case Pack",
+        type: "number",
+        aliases: ["casepack", "cartonqty", "carton", "pack", "innerpack", "packqty"],
+        help: "How many come in one case from the vendor. Left as it is when unmapped or blank.",
+      },
     ],
   },
 ];

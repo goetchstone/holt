@@ -30,7 +30,29 @@ export interface VendorConfig {
   nameMatch: string;
   displayName: string;
   importTypes: ImportTypeConfig[];
+  /**
+   * The store picks which of its vendors the book is for, instead of the
+   * config matching one by name: the standard layout reads any vendor's book.
+   */
+  pickVendor?: boolean;
 }
+
+export const STANDARD_LAYOUT_SLUG = "standard-layout";
+
+/**
+ * Any vendor's book in Holt's standard price-book layout
+ * (lib/pricing/standardPriceBook.ts), for a vendor with no parser of its own.
+ * A spreadsheet only; the store downloads the template and picks the vendor.
+ */
+const STANDARD_LAYOUT_CONFIG: VendorConfig = {
+  slug: STANDARD_LAYOUT_SLUG,
+  nameMatch: "",
+  pickVendor: true,
+  displayName: "Any vendor: standard price-book layout",
+  importTypes: [
+    { value: "standard", label: "Standard Price Book", defaultPriceListName: "Wholesale" },
+  ],
+};
 
 // Derived from every wholesale profile the build can read. A profile advertises
 // only its wholesale book here; richer import types stay a legacy concern.
@@ -198,8 +220,13 @@ const LEGACY_VENDOR_CONFIGS: VendorConfig[] = [
   },
 ];
 
-// Profile-backed vendors first, then the legacy configs. A slug appearing in
+// The standard layout first (any vendor), then profile-backed vendors, then the
+// legacy configs. A slug appearing in
 // both would be a bug (a legacy vendor that has since gained a profile should
 // lose its hardcoded entry) -- importVendorConfigs.test.ts fails on a duplicate
 // so that drift cannot ship silently.
-export const VENDOR_CONFIGS: VendorConfig[] = [...PROFILE_VENDOR_CONFIGS, ...LEGACY_VENDOR_CONFIGS];
+export const VENDOR_CONFIGS: VendorConfig[] = [
+  STANDARD_LAYOUT_CONFIG,
+  ...PROFILE_VENDOR_CONFIGS,
+  ...LEGACY_VENDOR_CONFIGS,
+];

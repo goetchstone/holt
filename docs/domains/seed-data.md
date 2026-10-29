@@ -13,11 +13,11 @@ silently: a module stops running, a model is added and never wired up, and
 nobody notices, because **an empty table looks exactly like a feature nobody
 clicked**. Declaring the intent is what makes the difference detectable.
 
-| Status | Meaning |
-| --- | --- |
-| `seeded` | The seed populates this. Coming back empty is a **regression** and fails the check. |
-| `skipped` | Deliberately never seeded, and `reason` says why — integration payloads, runtime logs, auth tokens, secrets, PII. |
-| `todo` | A known gap, assigned to a `tranche`. Coming back **populated** fails too: the work is done and the manifest is stale. |
+| Status    | Meaning                                                                                                                |
+| --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `seeded`  | The seed populates this. Coming back empty is a **regression** and fails the check.                                    |
+| `skipped` | Deliberately never seeded, and `reason` says why — integration payloads, runtime logs, auth tokens, secrets, PII.      |
+| `todo`    | A known gap, assigned to a `tranche`. Coming back **populated** fails too: the work is done and the manifest is stale. |
 
 Two gates enforce it, and both fail in **either** direction:
 
@@ -41,10 +41,10 @@ Table-level coverage cannot see this: `StaffMember` is populated whether or not
 the roster is realistic. What matters is the **state matrix**, and the seed
 covers all four corners because each one exercises different code:
 
-| | Active | Archived |
-| --- | --- | --- |
-| **Designer** | the common case | historical attribution and commission must survive |
-| **Non-designer** (floor sellers, e.g. accessories staff) | earns attribution without entering designer reporting | both at once |
+|                                                          | Active                                                | Archived                                           |
+| -------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------- |
+| **Designer**                                             | the common case                                       | historical attribution and commission must survive |
+| **Non-designer** (floor sellers, e.g. accessories staff) | earns attribution without entering designer reporting | both at once                                       |
 
 The seed asserts this rather than hoping. It fails if archived staff carry no
 orders, or if they sold within 60 days of active staff — someone who left does
@@ -94,7 +94,7 @@ real usage looks like. **Read them; never write them** (CLAUDE.md rule 59), and
 **never copy a row into the seed** — holt is a public repository, and the
 restored data is a real business's customers, prices and payroll.
 
-What travels is the *shape*, not the values: row counts and ratios, status
+What travels is the _shape_, not the values: row counts and ratios, status
 mixes, date spreads, price ranges, how many children a parent typically has.
 Generate synthetic records matching those distributions. A seed built this way
 is anonymous by construction rather than by scrubbing, which is the only version
@@ -134,27 +134,28 @@ npm run seed:demo -- --reset         # wipe an existing seeded DB and reseed
 
 ## What it generates, in dependency order
 
-| Step | Module                 | What lands in the DB                                                                                                                                                                            |
-| ---- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `org.ts`               | `Organization` + `AppSettings` (branding -- the "ink and clay" palette and a customer-facing tagline -- currency/timezone, feature flags on)                                                  |
-| 2    | `accounting.ts`        | Full chart of accounts (`GLAccount`), `AccountGroup` per department, **every** `SystemGLMapping` row the journal generator can look up, a single home-state `TaxDistrict`/`TaxGroup`/`TaxRule`/`TaxExemptReason` |
-| 3    | `locations.ts`         | 2 `StoreLocation`s + 1 warehouse, their `StockLocation`s (incl. one `holdsCommittedStock` staging bay, deliberately not named "Customer…"), 2 `Register`s per store                             |
-| 4    | `staff.ts`             | `StaffMember` + linked `User` across all 6 real roles, with working local-login passwords                                                                                                       |
-| 5    | `catalog.ts`           | `Department` → `Category` → `Type` taxonomy, invented `Vendor`s with a standard lead time each (one deliberately unset), `Product`s with cost AND retail                                        |
-| 6    | `customers.ts`         | `Customer` + `CustomerAddress`, a trade/tax-exempt slice                                                                                                                                        |
-| 7    | `commissionPlan.ts`    | `CommissionPlan` + `CommissionPlanTier` (two plans — see "Commission model" below)                                                                                                              |
-| 8    | `salesOrders.ts`       | `SalesOrder` + `OrderLineItem` + `Invoice` + `Payment` + `Till`/`TillCount`, ~18 months                                                                                                         |
-| 9    | `purchasing.ts`        | `PurchaseOrder` + `PurchaseOrderItem` + `ReceivingRecord`, every date derived from vendor lead time (see "Purchase orders")                                                                     |
-| 10   | `consignment.ts`       | A GENERIC consignment `Vendor` + `ConsignmentReceipt`/`ConsignmentItem`/`ConsignmentPaymentBatch`                                                                                               |
-| 11   | `inventory.ts`         | `InventoryPosition` across floor / back stock / warehouse bulk / committed staging                                                                                                              |
-| 12   | `service.ts`           | `ServiceCase` + `ServiceCaseNote` and the three operator-editable lookup tables                                                                                                                 |
-| 13   | `operations.ts`        | `Ticket` + `TicketMessage` (Helpdesk), `TimeEntry` + `StaffShift` (Time)                                                                                                                        |
-| 14   | `commissionPayouts.ts` | Real `CommissionPayout` rows via `lib/runCommissionPayouts.ts`'s `commitPayoutsForPeriod`, locked and PAID month by month                                                                      |
-| 15   | `journal.ts`           | Real `JournalEntry`/`JournalEntryLine` rows via `lib/journalEntry.ts`'s `generateSalesJournal`                                                                                                  |
+| Step | Module                 | What lands in the DB                                                                                                                                                                                                                                                                                                  |
+| ---- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `org.ts`               | `Organization` + `AppSettings` (branding -- the "ink and clay" palette and a customer-facing tagline -- currency/timezone, feature flags on)                                                                                                                                                                          |
+| 2    | `accounting.ts`        | Full chart of accounts (`GLAccount`), `AccountGroup` per department, **every** `SystemGLMapping` row the journal generator can look up, a single home-state `TaxDistrict`/`TaxGroup`/`TaxRule`/`TaxExemptReason`                                                                                                      |
+| 3    | `locations.ts`         | 2 `StoreLocation`s + 1 warehouse, their `StockLocation`s (incl. one `holdsCommittedStock` staging bay, deliberately not named "Customer…"), 2 `Register`s per store                                                                                                                                                   |
+| 4    | `staff.ts`             | `StaffMember` + linked `User` across all 6 real roles, with working local-login passwords                                                                                                                                                                                                                             |
+| 5    | `catalog.ts`           | `Department` → `Category` → `Type` taxonomy, invented `Vendor`s with a standard lead time each (one deliberately unset), `Product`s with cost AND retail                                                                                                                                                              |
+| 6    | `customers.ts`         | `Customer` + `CustomerAddress`, a trade/tax-exempt slice                                                                                                                                                                                                                                                              |
+| 7    | `commissionPlan.ts`    | `CommissionPlan` + `CommissionPlanTier` (two plans — see "Commission model" below)                                                                                                                                                                                                                                    |
+| 8    | `salesOrders.ts`       | `SalesOrder` + `OrderLineItem` + `Invoice` + `Payment` + `Till`/`TillCount`, ~18 months                                                                                                                                                                                                                               |
+| 9    | `purchasing.ts`        | `PurchaseOrder` + `PurchaseOrderItem` + `ReceivingRecord`, every date derived from vendor lead time (see "Purchase orders")                                                                                                                                                                                           |
+| 10   | `consignment.ts`       | A GENERIC consignment `Vendor` + `ConsignmentReceipt`/`ConsignmentItem`/`ConsignmentPaymentBatch`                                                                                                                                                                                                                     |
+| 11   | `inventory.ts`         | `InventoryPosition` across floor / back stock / warehouse bulk / committed staging                                                                                                                                                                                                                                    |
+| 12   | `service.ts`           | `ServiceCase` + `ServiceCaseNote` and the three operator-editable lookup tables                                                                                                                                                                                                                                       |
+| 13   | `operations.ts`        | `Ticket` + `TicketMessage` (Helpdesk), `TimeEntry` + `StaffShift` (Time)                                                                                                                                                                                                                                              |
+| 14   | `commissionPayouts.ts` | Real `CommissionPayout` rows via `lib/runCommissionPayouts.ts`'s `commitPayoutsForPeriod`, locked and PAID month by month                                                                                                                                                                                             |
+| 15   | `journal.ts`           | Real `JournalEntry`/`JournalEntryLine` rows via `lib/journalEntry.ts`'s `generateSalesJournal`                                                                                                                                                                                                                        |
+| 16   | `priceBooks.ts`        | Five invented vendors' price books through the real importers: three special-order lines (`VendorStyle`, `PriceList`, grade tiers and prices, per-style options) via `lib/pricing/importWholesaleBook.ts`, two flat lines (`Product`s, with case packs) via the generic product import; vendor and store-wide markups |
 
 Everything is realistic-but-clearly-fake: invented names, `@example.com` emails, made-up
 single-state addresses (synthetic towns in `prisma/seed/demo/names.ts`), invented furniture-trade vendor names. No real people, no real
-vendors, no data copied from any real dataset — only the *shape* of a real furniture
+vendors, no data copied from any real dataset — only the _shape_ of a real furniture
 retailer's numbers (see "Distribution choices" below).
 
 ## Commission model: tiers, not rules
@@ -215,7 +216,7 @@ February), applied per calendar month regardless of which year it falls in withi
 Target: 85% card, 4% cash, 3% gift card, 2% store credit, 6% refunds (of all Payment
 rows, not orders). Achieved by drawing the base tender independently per order from
 `{CARD:85, CASH:4, GIFT_CARD:3, STORE_CREDIT:2}` (sum 94), then flagging a refund on
-`INVOICED_SHARE × REFUND_PROBABILITY_GIVEN_INVOICED = 0.70 × 0.0911 ≈ 6.38%` of *orders*
+`INVOICED_SHARE × REFUND_PROBABILITY_GIVEN_INVOICED = 0.70 × 0.0911 ≈ 6.38%` of _orders_
 — which, once refund rows are added on top of one row per order, lands refund ROWS at
 `0.0638 / 1.0638 ≈ 6.0%` of all payment rows (see `orderPlan.ts` for the derivation).
 Measured at ci scale: 85.3% / 3.6% / 2.5% / 2.5% / 6.25% (N=448 payment rows). Measured
@@ -504,6 +505,16 @@ it, and with it the one `now` every date-relative module reads (`config.ts`
 Unpinned, `now` is the wall clock. `operations.ts` tickets and past shifts still read the
 wall clock either way.
 
+**`priceBooks.ts` draws nothing from the RNG and runs last** (2026-10-29). It
+can't use `subRng` either, because `subRng(root, …)` takes one draw from the root
+(`rng.ts`) and would reshuffle every module after it. The books are files and the
+vendors are literals. Verified by seeding `main` and this module's branch into two
+scratch databases with the same `HOLT_SEED_AS_OF`, then comparing an md5 of the
+business columns. The tables compared were SalesOrder, OrderLineItem, Payment,
+PurchaseOrder, InventoryPosition, JournalEntryLine and Customer, plus the Product,
+Vendor and Category rows that aren't the new vendors'. All were identical; the
+module only adds rows.
+
 Verified directly (before the window moved to today): two consecutive `npm run seed:demo -- --reset` runs at ci scale
 produced identical output — same 420 orders, 448 payments (28 refunds), 362 closed tills
 and 1 open, identical journal totals to the penny for all 6 sampled days.
@@ -528,16 +539,16 @@ journal silently followed whatever timezone the host happened to have.
 
 ## Volume knob
 
-|                                          | `ci` (default)                      | `demo`                                  |
-| ---------------------------------------- | ----------------------------------- | --------------------------------------- |
-| Flag / env                               | `--scale=ci` / `HOLT_SEED_SCALE=ci` | `--scale=demo` / `HOLT_SEED_SCALE=demo` |
-| Orders                                   | 420 (+ up to 16 for the dashboard days) | 6,000                               |
-| Customers                                | 180                                 | 1,400                                   |
-| Products                                 | 160                                 | 500                                     |
-| Designers                                | 6                                   | 10                                      |
-| Purchase orders                          | 40                                  | 260                                     |
-| Consignment items                        | 30                                  | 140                                     |
-| Measured runtime (local Docker Postgres) | ~9s `seed:all` (2026-10-17)         | ~52s `seed:all` (2026-10-17)            |
+|                                          | `ci` (default)                          | `demo`                                  |
+| ---------------------------------------- | --------------------------------------- | --------------------------------------- |
+| Flag / env                               | `--scale=ci` / `HOLT_SEED_SCALE=ci`     | `--scale=demo` / `HOLT_SEED_SCALE=demo` |
+| Orders                                   | 420 (+ up to 16 for the dashboard days) | 6,000                                   |
+| Customers                                | 180                                     | 1,400                                   |
+| Products                                 | 160                                     | 500                                     |
+| Designers                                | 6                                       | 10                                      |
+| Purchase orders                          | 40                                      | 260                                     |
+| Consignment items                        | 30                                      | 140                                     |
+| Measured runtime (local Docker Postgres) | ~9s `seed:all` (2026-10-17)             | ~52s `seed:all` (2026-10-17)            |
 
 `ci` is sized for fast, disposable runs in CI or local iteration. `demo` is sized so
 dashboards, reports, and the commission tier ladder all have enough volume to look real,
@@ -593,7 +604,7 @@ keep around.
   `createMany`. See "Invoiced vs. deposit-only orders" above.
 - **`Return` records.** Every refund in this seed takes the
   `UNCLASSIFIED_DEFAULT_RESTOCK` booking path (no `Return` row), matching how every
-  *imported* historical return looks today — see `docs/domains/returns.md`. Generating
+  _imported_ historical return looks today — see `docs/domains/returns.md`. Generating
   classified `RESTOCKED`/`WRITTEN_OFF` `Return` rows to exercise the B3 write-off branch
   would be a reasonable follow-up but wasn't in scope here.
 - **`prisma/seed/tax.ts` was not reused directly.** Its `new PrismaClient()` (no driver

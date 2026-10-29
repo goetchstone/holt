@@ -66,6 +66,7 @@ async function main(): Promise<void> {
   const { seedSetupData } = await import("./setupData");
   const { seedCommissionPayouts } = await import("./commissionPayouts");
   const { seedJournalEntries } = await import("./journal");
+  const { seedPriceBooks } = await import("./priceBooks");
   const { ORG_SLUG } = await import("./org");
 
   const scale = resolveScale(argv);
@@ -266,6 +267,15 @@ async function main(): Promise<void> {
 
   const journalResult = await seedJournalEntries(prisma);
 
+  // Last, and drawing no RNG: the mock vendors' price books through the real
+  // importers. Running after everything else keeps every earlier row -- and
+  // its id -- exactly as it was.
+  const priceBookResult = await seedPriceBooks(prisma, {
+    organizationId: org.organizationId,
+    asOf: window.now,
+    accountGroupIdByDepartment: accounting.accountGroupIdByDepartment,
+  });
+
   console.log(
     `Inventory: ${inventoryResult.positionsCreated} positions, ${inventoryResult.unitsOnHand} units on hand ` +
       `(${inventoryResult.committedPositions} committed to orders, ` +
@@ -294,6 +304,9 @@ async function main(): Promise<void> {
     `Staff: ${staff.all.length} (${staff.designers.length} designers, ${staff.registerStaff.length} register, ${staff.warehouseStaff.length} warehouse)`,
   );
   console.log(`Products: ${catalog.products.length}, Customers: ${customers.length}`);
+  console.log(
+    `Price books: ${priceBookResult.vendors} vendors, ${priceBookResult.styles} special-order styles, ${priceBookResult.products} catalog products`,
+  );
   console.log(`Orders: ${salesResult.ordersCreated}, Invoices: ${salesResult.invoicesCreated}`);
   console.log(
     `Payments: ${salesResult.paymentsCreated} (refunds: ${salesResult.refundPaymentsCreated}, returns: ${salesResult.returnsCreated}), method mix:`,

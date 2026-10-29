@@ -1,0 +1,13 @@
+Style #,Style Name,Description,Leather C,Leather D,Leather E,Leather F,Leather G,Leather H,Width,Depth,Height,Option: Base / Classic,Option: Base / Signature Swivel,Option: Base / Power Recline,Option: Base / Office Swivel
+VR-110-S,Harbor,"Recliner with ottoman, small",1180.00,1290.00,1400.00,1510.00,1620.00,1730.00,31,30,39,Std,185,420,N/A
+VR-110-M,Harbor,"Recliner with ottoman, medium",1260.00,1370.00,1480.00,1590.00,1700.00,1810.00,33,31,41,Std,185,420,N/A
+VR-110-L,Harbor,"Recliner with ottoman, large",1340.00,1450.00,1560.00,1670.00,1780.00,1890.00,35,32,43,Std,185,420,N/A
+VR-120-S,Summit,"Recliner with ottoman, small",1220.00,1330.00,1440.00,1550.00,1660.00,1770.00,31,30,39,Std,185,420,N/A
+VR-120-M,Summit,"Recliner with ottoman, medium",1300.00,1410.00,1520.00,1630.00,1740.00,1850.00,33,31,41,Std,185,420,N/A
+VR-120-L,Summit,"Recliner with ottoman, large",1380.00,1490.00,1600.00,1710.00,1820.00,1930.00,35,32,43,Std,185,420,N/A
+VR-130-S,Meadow,"Recliner with ottoman, small",1260.00,1370.00,1480.00,1590.00,1700.00,1810.00,31,30,39,Std,185,420,N/A
+VR-130-M,Meadow,"Recliner with ottoman, medium",1340.00,1450.00,1560.00,1670.00,1780.00,1890.00,33,31,41,Std,185,420,N/A
+VR-130-L,Meadow,"Recliner with ottoman, large",1420.00,1530.00,1640.00,1750.00,1860.00,1970.00,35,32,43,Std,185,420,N/A
+VR-210-S,Harbor,"Reclining sofa, three seats",3150.00,3410.00,3670.00,3930.00,4190.00,4450.00,86,37,39,Std,N/A,780,N/A
+VR-210-L,Harbor,Reclining loveseat,2450.00,2650.00,2850.00,3050.00,3250.00,3450.00,62,37,39,Std,N/A,560,N/A
+VR-310-O,Summit,Office chair with lumbar support,1420.00,1540.00,1660.00,1780.00,1900.00,2020.00,27,27,44,N/A,N/A,N/A,Std

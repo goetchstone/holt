@@ -7,7 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
-import { foundationsImportSchema } from "@/lib/validation/schemas";
+import { foundationsImportSchema, type FoundationsImportInput } from "@/lib/validation/schemas";
 import { validateBody } from "@/lib/validation/validate";
 import { ValidationError } from "@/lib/apiHandler";
 import { auditLog } from "@/lib/audit";
@@ -19,39 +19,17 @@ export const config = {
   api: { bodyParser: { sizeLimit: "20mb" } },
 };
 
-interface FoundationsProductInput {
-  styleNumber: string;
-  description: string;
-  styleName: string;
-  foundationsCost: number;
-  standardSeat: string | null;
-  standardBack: string | null;
-  springDownSeatSurcharge: number | null;
-  springDownSeatIsStandard?: boolean;
-  cdcSeatBdbBackSurcharge: number | null;
-  cdcSeatBdbBackIsStandard?: boolean;
-  decorativeFinishSurcharge: number | null;
-  decorativeFinishIsStandard?: boolean;
-  ringBaseSwivel: number | null;
-  nailheadTrim: string | null;
-  nailheadSurcharge?: number | null;
-  nailheadIsStandard?: boolean;
-}
-
 export default requirePermission(
   "catalog.pricing",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
-    let validated: {
-      vendorId: number;
-      priceListName: string;
-      effectiveDate: string;
-      products: any[];
-    };
+    // Typed from the schema (rule 7): a read of a field it does not declare
+    // -- and so strips -- fails to compile instead of being undefined.
+    let validated: FoundationsImportInput;
     try {
-      validated = validateBody(foundationsImportSchema, req.body) as typeof validated;
+      validated = validateBody(foundationsImportSchema, req.body);
     } catch (err: unknown) {
       if (err instanceof ValidationError) {
         return res.status(400).json({ error: err.message, details: err.details });

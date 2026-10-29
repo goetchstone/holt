@@ -54,25 +54,25 @@ Never import `pdf-parse` directly. Its bundled pdf.js 1.10 misreads a Node
 A profile is **code, not config** — it is compiled, typed and reviewed. That is
 deliberate: a config format expressive enough to describe a PDF layout is a
 programming language with a worse type checker, which is the road rule 62
-exists to close. What a *deployment* configures is which vendors it carries and
-what markup it applies. What a *vendor* fixes is its grade ladder and its label
+exists to close. What a _deployment_ configures is which vendors it carries and
+what markup it applies. What a _vendor_ fixes is its grade ladder and its label
 spellings, and those are identical for every dealer who opens the same book.
 
 ### What a profile declares
 
-| Field | Why it varies |
-|---|---|
-| `grades` | The ladder, in book order, each rung declaring `fabric` or `leather` |
-| `gridHeader` | The row that starts a style grid (`STYLE NUMBER:` / `ITEM NUMBER:`) |
-| `gradeOfRow` | How a price row names its grade — spellings differ per book |
-| `rows` | Which labelled rows fill which product field. A row is labelled (values after the first tab), `deep` (a label nested in the row: values after the second tab), or `inline` (the label is inside every cell, `W  30 1/2"`, and is stripped from each) |
-| `emptyCells` | This book's "no price" token — `--` on one, `N/A` on another |
-| `comGrade` | The rung that is also COM, where the book prints "Grade: E and COM" |
-| `pageRequires` | Patterns a page must carry to be a price grid, not a schematic |
-| `leatherPlacement` | Whether leather is a tier of the same frame or its own style |
-| `expandSkus` | For books where one price column covers several SKUs |
-| `layoutText` | For books whose names or descriptions wrap in ways the tab text cannot place: a map from SKU to name and description, read from positioned text (`readPdfTextItems`). When set it is their only source (see "Words read by position") |
-| `expect` | What this vendor's book looks like — style count, grade coverage, page range, cover markers — so the wrong edition is refused, not parsed to nothing (see "Edition assertion") |
+| Field              | Why it varies                                                                                                                                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grades`           | The ladder, in book order, each rung declaring `fabric` or `leather`                                                                                                                                                                                 |
+| `gridHeader`       | The row that starts a style grid (`STYLE NUMBER:` / `ITEM NUMBER:`)                                                                                                                                                                                  |
+| `gradeOfRow`       | How a price row names its grade — spellings differ per book                                                                                                                                                                                          |
+| `rows`             | Which labelled rows fill which product field. A row is labelled (values after the first tab), `deep` (a label nested in the row: values after the second tab), or `inline` (the label is inside every cell, `W  30 1/2"`, and is stripped from each) |
+| `emptyCells`       | This book's "no price" token — `--` on one, `N/A` on another                                                                                                                                                                                         |
+| `comGrade`         | The rung that is also COM, where the book prints "Grade: E and COM"                                                                                                                                                                                  |
+| `pageRequires`     | Patterns a page must carry to be a price grid, not a schematic                                                                                                                                                                                       |
+| `leatherPlacement` | Whether leather is a tier of the same frame or its own style                                                                                                                                                                                         |
+| `expandSkus`       | For books where one price column covers several SKUs                                                                                                                                                                                                 |
+| `layoutText`       | For books whose names or descriptions wrap in ways the tab text cannot place: a map from SKU to name and description, read from positioned text (`readPdfTextItems`). When set it is their only source (see "Words read by position")                |
+| `expect`           | What this vendor's book looks like — style count, grade coverage, page range, cover markers — so the wrong edition is refused, not parsed to nothing (see "Edition assertion")                                                                       |
 
 ## Rows the engine will not guess
 
@@ -132,6 +132,58 @@ declaration verbatim, and there is nothing left to patch. Vendors with no
 profile still fall through to the shape rules, which are kept and labelled as a
 guess.
 
+### A book can declare its grades too: the standard layout
+
+A vendor with no profile used to have only the guess. The **standard price-book
+layout** (`lib/pricing/standardPriceBook.ts`, 2026-10-29) lets the book declare
+each grade's material itself, in the column header: `COM`, `COL`,
+`Fabric <code>`, `Leather <code>`.
+
+- **How the import uses it.** Each `gradePrices` entry carries `material`, and
+  `partitionGradesFor()` takes the book's declaration over the profile and over
+  the guess.
+- **One code, one material.** The tiers are keyed by code alone, so a code
+  declared as both fabric and leather is refused twice: by the parser, and by
+  the import schema's `superRefine`.
+- **What else the layout reads:**
+  - `COM Yardage`, `Grade Riser`, and dimensions in inches;
+  - one `Option: <Group> / <Name>` column per option. A cell holds Std, N/C, a
+    price, N/A (not offered on that frame), or is blank (not mentioned).
+- **Columns it doesn't recognise are reported and ignored, never dropped
+  silently.**
+- **Where it's offered.** The import screen lists it first, as "Any vendor:
+  standard price-book layout" (`importVendorConfigs.ts`, `pickVendor`). The
+  store picks which of its vendors the book belongs to, and can download a
+  template. It takes CSV or XLSX only; a PDF is refused.
+
+### One import function, and the options it used to drop
+
+The route (`pages/api/pricing/import/wholesale-prices.ts`) now does only three
+things: validates the body, calls `importWholesaleBook()`
+(`lib/pricing/importWholesaleBook.ts`), and maps the outcome to a status. The
+outcomes are `ok` (200), `vendor-not-found` (404), `shrink-refused` (409) and
+`nothing-imported` (422); a throw is a 500 with no internals. The demo seed calls
+the same function. `__tests__/wholesalePricesRoute.test.ts` pins each status and
+body.
+
+**Until 2026-10-29 no book's options ever reached the database.** zod's
+`z.object()` strips keys it doesn't declare, and `wholesaleProductSchema` didn't
+declare `styleOptions` or eighteen of the option fields the import reads (castors,
+CDC seat, Harmony, contrast welt, fiber/comfort/legacy down back, extra-full back).
+Every parser produced them and the screen posted them, but the route never saw
+them, so a configured special order was priced without them.
+
+- **The fix.** The schema now declares every one of those fields, and the import's
+  `ProductInput` is `z.infer` of it, so a read of an undeclared field fails to
+  compile.
+- **The other routes.** The fabrics and foundations routes had the same opening
+  (an `any` cast plus a hand-copied interface) and are typed from their schemas
+  too. A sweep of every `validateBody` call found no other field read but
+  undeclared.
+- **Tests:** `wholesaleImportOptions.integration.test.ts`.
+- **Effect on existing books:** re-importing a Wesley Hall, C R Laine or
+  registry-vendor book now writes the option overrides it used to drop.
+
 ## Lookup fails closed
 
 `wholesaleProfileFor()` returns `undefined` for an unknown vendor, and
@@ -172,14 +224,14 @@ reprint. `expect` on the profile declares what the book should look like, and
 `assertEdition()` (run by `extractWholesaleGrid`, exported for tests and the
 coverage script) turns each violation into an `error` diagnostic:
 
-| field | fires when |
-|---|---|
-| `minStyles` | fewer styles parsed than the book has ever had |
-| `grades: "all"` / `"some"` | a declared grade code priced nothing / none did |
-| `pageCountRange` | the PDF's page count (from pdf-parse) is outside the range |
-| `bookMarkers` | a regex — cover title, program name — appears nowhere in the rendered text |
+| field                      | fires when                                                                 |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `minStyles`                | fewer styles parsed than the book has ever had                             |
+| `grades: "all"` / `"some"` | a declared grade code priced nothing / none did                            |
+| `pageCountRange`           | the PDF's page count (from pdf-parse) is outside the range                 |
+| `bookMarkers`              | a regex — cover title, program name — appears nowhere in the rendered text |
 
-None of them throws; the products that *were* read stay on the result as
+None of them throws; the products that _were_ read stay on the result as
 evidence. Set `minStyles` and `grades` on every profile; add `pageCountRange`
 once the coverage script has measured the book; reach for `bookMarkers` when a
 vendor prints two books that counts alone cannot tell apart. Record the edition
