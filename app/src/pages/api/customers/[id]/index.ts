@@ -38,6 +38,7 @@ export default requirePermission(
             addresses: true,
             externalIds: true,
             tradeTier: true,
+            taxExemptReason: { select: { id: true, name: true } },
             windfallEnrichment: canSeeWealth,
             salesOrders: {
               include: {

@@ -72,6 +72,11 @@ interface TradeTier {
   isActive: boolean;
 }
 
+interface TaxExemptReason {
+  id: number;
+  name: string;
+}
+
 interface WindfallData {
   wealthTier: string | null;
   netWorth: number | null;
@@ -113,6 +118,8 @@ interface CustomerWithRelations {
   tradeTierId: number | null;
   tradeCompanyName: string | null;
   taxExemptNumber: string | null;
+  taxExemptReasonId: number | null;
+  taxExemptReason: TaxExemptReason | null;
   addresses: CustomerAddressRecord[];
   externalIds: { id: number; externalId: string }[];
   salesOrders: SalesOrderWithCalculatedFields[];
@@ -494,11 +501,13 @@ export function CustomerDetailView({ id }: { id: string }) {
 
   // Trade program state
   const [tradeTiers, setTradeTiers] = useState<TradeTier[]>([]);
+  const [exemptReasons, setExemptReasons] = useState<TaxExemptReason[]>([]);
   const [tradeEditing, setTradeEditing] = useState(false);
   const [tradeForm, setTradeForm] = useState({
     isTradeAccount: false,
     tradeTierId: "",
     tradeCompanyName: "",
+    taxExemptReasonId: "",
     taxExemptNumber: "",
   });
   const [tradeSaving, setTradeSaving] = useState(false);
@@ -548,6 +557,19 @@ export function CustomerDetailView({ id }: { id: string }) {
     }
   }, []);
 
+  const fetchExemptReasons = useCallback(async () => {
+    try {
+      const { data } = await axios.get("/api/tax/exempt-reasons");
+      setExemptReasons(
+        ((data || []) as TaxExemptReason[]).map((r) => ({ id: r.id, name: r.name })),
+      );
+    } catch (err: unknown) {
+      // Without the list the picker cannot offer a reason, so say why rather
+      // than show an exemption dropdown with nothing in it.
+      toast.error(getErrorMessage(err, "Could not load the tax exemption reasons."));
+    }
+  }, []);
+
   useEffect(() => {
     fetchCustomer();
   }, [fetchCustomer]);
@@ -556,27 +578,25 @@ export function CustomerDetailView({ id }: { id: string }) {
     fetchTradeTiers();
   }, [fetchTradeTiers]);
 
-  // Sync trade form when customer data loads
   useEffect(() => {
-    if (customer) {
-      setTradeForm({
-        isTradeAccount: customer.isTradeAccount,
-        tradeTierId: customer.tradeTierId ? String(customer.tradeTierId) : "",
-        tradeCompanyName: customer.tradeCompanyName || "",
-        taxExemptNumber: customer.taxExemptNumber || "",
-      });
-    }
-  }, [customer]);
+    fetchExemptReasons();
+  }, [fetchExemptReasons]);
 
+  // Sync trade form when customer data loads, and on Cancel
   const resetTradeForm = useCallback(() => {
     if (!customer) return;
     setTradeForm({
       isTradeAccount: customer.isTradeAccount,
       tradeTierId: customer.tradeTierId ? String(customer.tradeTierId) : "",
       tradeCompanyName: customer.tradeCompanyName || "",
+      taxExemptReasonId: customer.taxExemptReasonId ? String(customer.taxExemptReasonId) : "",
       taxExemptNumber: customer.taxExemptNumber || "",
     });
   }, [customer]);
+
+  useEffect(() => {
+    resetTradeForm();
+  }, [resetTradeForm]);
 
   const saveTradeSettings = async () => {
     setTradeSaving(true);
@@ -585,6 +605,7 @@ export function CustomerDetailView({ id }: { id: string }) {
         isTradeAccount: tradeForm.isTradeAccount,
         tradeTierId: tradeForm.tradeTierId ? Number(tradeForm.tradeTierId) : null,
         tradeCompanyName: tradeForm.tradeCompanyName || null,
+        taxExemptReasonId: tradeForm.taxExemptReasonId ? Number(tradeForm.taxExemptReasonId) : null,
         taxExemptNumber: tradeForm.taxExemptNumber || null,
       });
       toast.success("Trade settings updated");
@@ -782,7 +803,7 @@ export function CustomerDetailView({ id }: { id: string }) {
       <Tabs defaultValue="contact">
         <TabsList>
           <TabsTrigger value="contact">Contact Info</TabsTrigger>
-          <TabsTrigger value="trade">Trade</TabsTrigger>
+          <TabsTrigger value="trade">Trade & Tax</TabsTrigger>
           <TabsTrigger value="addresses">Addresses</TabsTrigger>
           <TabsTrigger value="orders">Orders</TabsTrigger>
           <TabsTrigger value="email">Email Activity</TabsTrigger>
@@ -804,7 +825,7 @@ export function CustomerDetailView({ id }: { id: string }) {
         <TabsContent tabValue="trade">
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Trade Program</h2>
+              <h2 className="text-xl font-semibold">Trade & Tax</h2>
               {!tradeEditing && (
                 <Button size="sm" variant="outline" onClick={() => setTradeEditing(true)}>
                   Edit
@@ -838,6 +859,19 @@ export function CustomerDetailView({ id }: { id: string }) {
                   onChange={(v) => setTradeForm((prev) => ({ ...prev, tradeCompanyName: v }))}
                   placeholder="Business name"
                 />
+                <div>
+                  <FormDropdown
+                    label="Tax Exemption"
+                    emptyLabel="Not exempt (charge tax)"
+                    options={exemptReasons.map((r) => ({ id: String(r.id), name: r.name }))}
+                    value={tradeForm.taxExemptReasonId}
+                    onChange={(v) => setTradeForm((prev) => ({ ...prev, taxExemptReasonId: v }))}
+                  />
+                  <p className="text-brand-gray text-xs -mt-2">
+                    Applies to sales from now on. Orders already written keep the tax they were sold
+                    with. Reasons are set up in Admin → Tax.
+                  </p>
+                </div>
                 <FormInput
                   label="Tax Exempt Number"
                   name="taxExemptNumber"
@@ -886,6 +920,14 @@ export function CustomerDetailView({ id }: { id: string }) {
                   <div>
                     <p className="text-brand-gray text-xs mb-1">Company</p>
                     <p className="font-medium">{customer.tradeCompanyName || "Not set"}</p>
+                  </div>
+                  <div>
+                    <p className="text-brand-gray text-xs mb-1">Tax Exemption</p>
+                    <p className="font-medium">
+                      {customer.taxExemptReason
+                        ? `Exempt: ${customer.taxExemptReason.name}`
+                        : "Not exempt"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-brand-gray text-xs mb-1">Tax Exempt Number</p>

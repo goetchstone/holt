@@ -136,6 +136,7 @@ export async function seedPipeline(
         status: "QUOTE",
         orderDate: quoteDate,
         customerId: customer.id,
+        taxExemptReasonId: customer.taxExemptReasonId,
         salesperson: seller.displayName,
         salesPersonId: seller.id,
         storeLocation: store.name,

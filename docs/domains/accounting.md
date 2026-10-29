@@ -128,12 +128,25 @@ The guard distinguishes **configuring** a rate from **applying** one: `pages/api
 legitimately takes `taxRate` from the body, because that is an operator editing a
 `TaxRule`, which is the entire point of the config system.
 
-**Two exemption columns exist.** `Customer.taxExempt` (boolean) and
-`Customer.taxExemptReasonId` answer the same question, and they can disagree. The resolver
-reads the reason id; the proposal path historically read the boolean, and now honours
-either, so neither reading can silently tax a customer the other considers exempt. They do
-not diverge in any current dataset — this is a latent second source of truth, not a live
-bug, and collapsing them is worth doing before it becomes one.
+**One exemption column (2026-10-29, GAP-04a).** `Customer.taxExemptReasonId` is the
+customer's exemption: set means exempt for that reason, null means taxed. The old
+`Customer.taxExempt` boolean answered the same question for the proposal path only and
+was dropped. Migration `20261029120000_customer_tax_exemption_one_column` refuses to drop
+it while any customer has the flag but no reason, so nobody's tax changes silently. A
+manager or admin sets the reason on the customer screen (Trade & Tax tab →
+`PUT /api/customers/[id]/trade`). The picker reads `GET /api/tax/exempt-reasons`, which
+takes `customer.read` as well as `admin.settings`; adding a reason stays `admin.settings`.
+
+**Every order records the exemption it was sold under.** `resolveTaxDistrict()` returns
+`taxExemptReasonId` beside `isExempt`, and each route that writes an order from it (the
+register's `create-from-cart`, B2B `convert-to-order`, the HD proposal import, and the
+import's re-import update) writes it to `SalesOrder.taxExemptReasonId`.
+`__tests__/taxResolutionSingleSource.test.ts` fails on a route that writes the resolved
+district without the reason. Clearing a customer's exemption leaves their earlier orders
+exempt: tax on a sold order is a recorded fact. Tax Summary files an order with a reason
+under "Exempt - <reason>" before it looks at the district, because an exempt order still
+records the district it would have been taxed in. Until 2026-10-29 the district check
+came first, so every exempt sale was filed as a $0 taxable one.
 
 ### `JournalEntry` + `JournalEntryLine`
 
