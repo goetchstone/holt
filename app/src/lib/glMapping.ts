@@ -28,6 +28,15 @@ export const POS_TRANSACTIONS_SECTION = "POS_TRANSACTIONS";
 export const CASH_MAPPING_LABEL = "Cash";
 
 /**
+ * Labels of the OFFSET leg in `POS_PAYMENTS`: the customer-deposit account
+ * `generateSalesJournal` credits for money taken before its invoice, tried in
+ * this order. They share the section with the tenders but are not tender, so
+ * the reconciliation leaves them out and no store tender may take either name
+ * (lib/payments/tenderShared.ts) -- its payments would book as the deposit.
+ */
+export const DEPOSIT_OFFSET_LABELS = ["On Account", "Deposit"] as const;
+
+/**
  * Fallback sales-tax GL, used when an order's `TaxDistrict.glAccountId` is
  * unset. Districts are the primary source -- see `taxAccountIds` in
  * `lib/dailyReconciliation.ts`.

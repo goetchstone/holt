@@ -13,7 +13,12 @@ import { logError, logger } from "@/lib/logger";
 import { priceCart, type CartDiscount } from "@/lib/pos/cartPricing";
 import { allocate, type AllocationLine } from "@/lib/inventory/allocation";
 import { resolveOrderStoreLocationId, recordShortfalls } from "@/lib/inventory/orderInventorySync";
-import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
+import {
+  resolveTaxDistrict,
+  rateForLineAmount,
+  lineTaxGroupOf,
+  LINE_TAX_GROUP_SELECT,
+} from "@/lib/tax/resolveTaxRate";
 import { getAppSettings } from "@/lib/appSettings";
 import { nextOrderNumber } from "@/lib/orderNumber";
 import { effectivePrefix } from "@/lib/numberingPrefix";
@@ -84,6 +89,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           categoryId: true,
           typeId: true,
           baseCost: true,
+          ...LINE_TAX_GROUP_SELECT,
         },
       });
       const productMap = new Map(existingProducts.map((p) => [p.id, p]));
@@ -143,10 +149,13 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         discounts: item.discounts,
         isReturn: item.isReturn,
       }));
+      // Each line sells under its product's tax group (a CUSTOM or CONFIGURED
+      // line: its source product's, which the minted product inherits below).
       const untaxed = priceCart(cartItems, { orderDiscount });
-      const lineRates = untaxed.items.map(
-        (line) => rateForLineAmount(taxDistrict.rules, line.netPrice).rate,
-      );
+      const lineRates = untaxed.items.map((line, i) => {
+        const product = items[i].productId ? productMap.get(items[i].productId!) : null;
+        return rateForLineAmount(taxDistrict.rules, line.netPrice, lineTaxGroupOf(product)).rate;
+      });
       const priced = priceCart(cartItems, { taxRate: lineRates, orderDiscount });
 
       // Build line items, creating products as needed
@@ -201,6 +210,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
               vendorId: finalVendorId || (await getOrCreateDefaultVendor(tx)),
               departmentId: deptId,
               categoryId: catId,
+              // The source's own tax-group override; the category's group
+              // follows from categoryId. This line was taxed under it above.
+              taxGroupId: sourceProduct?.taxGroup?.id ?? null,
               typeId: sourceProduct?.typeId || null,
               baseCost: item.cost ?? 0,
               baseRetail: item.unitPrice,

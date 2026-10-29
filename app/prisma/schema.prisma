@@ -299,6 +299,10 @@ model Product {
   department    Department  @relation(fields: [departmentId], references: [id])
   categoryId    Int
   category      Category    @relation(fields: [categoryId], references: [id])
+  // Overrides the category's tax group for this product; null follows it
+  // (lib/tax/resolveTaxRate.ts lineTaxGroupOf).
+  taxGroupId    Int?
+  taxGroup      TaxGroup?   @relation(fields: [taxGroupId], references: [id])
   typeId        Int?
   type          Type?       @relation(fields: [typeId], references: [id])
   collectionId  Int?
@@ -918,6 +922,10 @@ model Category {
   labelTemplateId     Int?
   labelTemplate       LabelTemplate?       @relation(fields: [labelTemplateId], references: [id])
   trackInventory      Boolean              @default(true)
+  // The tax group its products sell under unless a product sets its own; null
+  // taxes them by the district's rules as before.
+  taxGroupId          Int?
+  taxGroup            TaxGroup?            @relation(fields: [taxGroupId], references: [id])
   accountGroupId      Int?
   accountGroup        AccountGroup?        @relation(fields: [accountGroupId], references: [id])
   products            Product[]
@@ -2656,8 +2664,14 @@ model TaxGroup {
   taxBasis       String  @default("NET") // NET or GROSS
   freightTaxable Boolean @default(false)
   miscTaxable    Boolean @default(false)
+  // Not taxed anywhere: its lines carry 0% in every district, whatever the
+  // district's rules say. A group that is taxed but has no rule in a district
+  // falls back to that district's rules (lib/tax/resolveTaxRate.ts).
+  exempt         Boolean @default(false)
 
-  rules TaxRule[]
+  rules      TaxRule[]
+  categories Category[]
+  products   Product[]
 
   created DateTime  @default(now())
   updated DateTime? @updatedAt
@@ -3054,6 +3068,15 @@ model Payment {
   // Check details
   checkNumber String?
 
+  /// The store-configured tender this was paid with (a finance company, Zelle,
+  /// a trade-in): its name is `paymentType` and its kind is `method`. Null for
+  /// the built-in tenders. See lib/payments/tenders.ts.
+  tenderId  Int?
+  tender    Tender? @relation(fields: [tenderId], references: [id])
+  /// What the payer quotes to identify it: a finance approval or contract
+  /// number, a wire or ACH reference. A check's number stays in checkNumber.
+  reference String?
+
   // Authored-invoice link (invoice authoring, 2026-06-10). Structural binding
   // for invoice payments — the Stripe webhook routes on THIS, never on
   // session metadata alone. Mirrors salesOrderId for order payments.
@@ -3088,6 +3111,34 @@ model Payment {
   @@index([tillId])
   @@index([invoiceId])
   @@index([returnId])
+  @@index([tenderId])
+}
+
+/// A payment type the store sets up for itself beyond the built-in ones: each
+/// finance company, Zelle, a trade-in. `kind` is the built-in method it behaves
+/// and reports as (rule 62: config selects behaviour, never supplies it), and is
+/// limited to the kinds with no machinery of their own (TENDER_KINDS). A payment
+/// copies `name` into its `paymentType`, which is the label the sales journal
+/// maps to a GL account, so creating a tender also creates its POS_PAYMENTS
+/// mapping. Name and kind are fixed once a payment uses the tender.
+model Tender {
+  id                Int           @id @default(autoincrement())
+  name              String        @unique
+  kind              PaymentMethod
+  isActive          Boolean       @default(true)
+  /// Offered on the register's tender buttons.
+  atRegister        Boolean       @default(true)
+  /// Offered when recording a payment on an invoice.
+  onInvoices        Boolean       @default(true)
+  /// A payment must carry a reference (an approval or contract number).
+  referenceRequired Boolean       @default(false)
+  sortOrder         Int           @default(0)
+  payments          Payment[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
 }
 
 // ---------------------------------------------------------------------------

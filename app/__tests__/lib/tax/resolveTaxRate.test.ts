@@ -7,12 +7,16 @@
 // __tests__/integration/resolveTaxRate.integration.test.ts instead, since
 // that logic IS the database query, not arithmetic on values already loaded.
 
-import { rateForLineAmount, type TaxDistrictRule } from "@/lib/tax/resolveTaxRate";
+import { lineTaxGroupOf, rateForLineAmount, type TaxDistrictRule } from "@/lib/tax/resolveTaxRate";
+
+const STANDARD = 1;
+const CLOTHING = 2;
 
 function rule(
   overrides: Partial<TaxDistrictRule> & { id: number; taxRate: number },
 ): TaxDistrictRule {
   return {
+    groupId: STANDARD,
     triggerPrice: null,
     triggerStop: null,
     startPrice: null,
@@ -80,5 +84,52 @@ describe("rateForLineAmount", () => {
   it("a zero-amount line can still be gated out by a positive triggerPrice", () => {
     const rules = [rule({ id: 1, taxRate: 0.05, triggerPrice: 0.01 })];
     expect(rateForLineAmount(rules, 0)).toEqual({ rate: 0, ruleId: null });
+  });
+});
+
+describe("rateForLineAmount with a line's tax group (GAP-04b)", () => {
+  // A district taxing ordinary goods at 6% and clothing at 0% under $175,
+  // 6% above -- clothing's rules sort after the standard one, so the old
+  // group-blind walk would always have charged clothing 6%.
+  const district = [
+    rule({ id: 1, groupId: STANDARD, taxRate: 0.06, sortOrder: 0 }),
+    rule({ id: 2, groupId: CLOTHING, taxRate: 0, stopPrice: 175, sortOrder: 1 }),
+    rule({ id: 3, groupId: CLOTHING, taxRate: 0.06, startPrice: 175.01, sortOrder: 2 }),
+  ];
+
+  it("a group marked not taxed is 0% whatever the district's rules say", () => {
+    expect(rateForLineAmount(district, 500, { id: 9, exempt: true })).toEqual({
+      rate: 0,
+      ruleId: null,
+    });
+  });
+
+  it("a group with its own rules uses only those, bands included", () => {
+    const clothing = { id: CLOTHING, exempt: false };
+    expect(rateForLineAmount(district, 120, clothing)).toEqual({ rate: 0, ruleId: 2 });
+    expect(rateForLineAmount(district, 300, clothing)).toEqual({ rate: 0.06, ruleId: 3 });
+  });
+
+  it("no group, or a taxed group the district has no rule for, reads every rule as before", () => {
+    expect(rateForLineAmount(district, 120)).toEqual({ rate: 0.06, ruleId: 1 });
+    expect(rateForLineAmount(district, 120, { id: 77, exempt: false })).toEqual({
+      rate: 0.06,
+      ruleId: 1,
+    });
+  });
+});
+
+describe("lineTaxGroupOf", () => {
+  const standard = { id: STANDARD, exempt: false };
+  const notTaxed = { id: 9, exempt: true };
+
+  it("the product's own group wins over its category's", () => {
+    expect(lineTaxGroupOf({ taxGroup: notTaxed, category: { taxGroup: standard } })).toBe(notTaxed);
+  });
+
+  it("falls back to the category's group, then to none", () => {
+    expect(lineTaxGroupOf({ taxGroup: null, category: { taxGroup: notTaxed } })).toBe(notTaxed);
+    expect(lineTaxGroupOf({ taxGroup: null, category: { taxGroup: null } })).toBeNull();
+    expect(lineTaxGroupOf(null)).toBeNull();
   });
 });

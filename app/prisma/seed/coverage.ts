@@ -260,6 +260,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   TaxExemptReason: { status: "seeded" },
   TaxGroup: { status: "seeded" },
   TaxRule: { status: "seeded" },
+  Tender: { status: "seeded", seeder: "demo" },
   Ticket: { status: "seeded" },
   TicketAttachment: { status: "todo", tranche: "content-comms" },
   TicketMessage: { status: "seeded" },

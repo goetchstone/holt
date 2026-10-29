@@ -276,15 +276,20 @@ function describeMappingGaps(sets: Omit<ReconciliationAccounts, "warnings">): st
  *
  * Every tender lands somewhere, and all of it is "cash in" as far as the
  * source side of the reconciliation is concerned -- `source.cash` sums every
- * COMPLETED payment regardless of method. METHOD_DISPLAY is the single source
- * of truth for which POS_PAYMENTS labels name a tender; labels outside it
- * (notably "On Account"/"Deposit", which the JE generator uses as the OFFSET
- * leg rather than a receipt) are not tender and must not be counted.
+ * COMPLETED payment regardless of method. The POS_PAYMENTS labels that name a
+ * tender are the built-ins' (METHOD_DISPLAY) and the store's own tenders'
+ * (`Tender.name`, lib/payments/tenders.ts); labels outside both (notably the
+ * DEPOSIT_OFFSET_LABELS, which the JE generator uses as the OFFSET leg rather
+ * than a receipt) are not tender and must not be counted. Leaving the store's
+ * tenders out read every sale paid with one as a cash drift.
  */
 function resolveTenderAccounts(
   mappings: { section: string; label: string; glAccountId: number | null }[],
+  storeTenderNames: string[],
 ): Set<number> {
-  const tenderLabels = new Set(Object.values(METHOD_DISPLAY).map((v) => v.toLowerCase()));
+  const tenderLabels = new Set(
+    [...Object.values(METHOD_DISPLAY), ...storeTenderNames].map((v) => v.trim().toLowerCase()),
+  );
   const accounts = new Set<number>();
   for (const m of mappings) {
     if (m.section !== POS_PAYMENTS_SECTION) continue;
@@ -299,7 +304,7 @@ export async function resolveReconciliationAccounts(
 ): Promise<ReconciliationAccounts> {
   const warnings: string[] = [];
 
-  const [groups, districts, mappings] = await Promise.all([
+  const [groups, districts, mappings, storeTenders] = await Promise.all([
     client.accountGroup.findMany({
       select: { salesAccountId: true, cogsAccountId: true },
     }),
@@ -320,6 +325,8 @@ export async function resolveReconciliationAccounts(
       },
       select: { section: true, label: true, glAccountId: true },
     }),
+    // Switched-off tenders too: their past payments are still tender.
+    client.tender.findMany({ select: { name: true } }),
   ]);
 
   const mappingId = (section: string, label: string): number | null =>
@@ -343,7 +350,10 @@ export async function resolveReconciliationAccounts(
   const taxFallbackId = mappingId(POS_TRANSACTIONS_SECTION, SALES_TAX_MAPPING_LABEL);
   if (taxFallbackId != null) tax.add(taxFallbackId);
 
-  const cash = resolveTenderAccounts(mappings);
+  const cash = resolveTenderAccounts(
+    mappings,
+    storeTenders.map((t) => t.name),
+  );
 
   const overShort = new Set<number>();
   const overShortId = mappingId(POS_TRANSACTIONS_SECTION, OVER_SHORT_MAPPING_LABEL);

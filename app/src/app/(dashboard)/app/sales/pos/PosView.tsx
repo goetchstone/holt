@@ -31,6 +31,7 @@ import {
 } from "@/lib/pos/cartPricing";
 import { onHandByStore } from "@/lib/inventory/onHandSummary";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
+import { REFERENCE_MAX, type OfferedTender } from "@/lib/payments/tenderShared";
 
 const REGISTER_STORAGE_KEY = "pos-register-id";
 
@@ -102,12 +103,14 @@ interface PaymentSummary {
   orderno: string;
 }
 
-type PaymentMethodType = "CASH" | "CHECK" | "CARD" | "GIFT_CARD" | "STORE_CREDIT";
+// "TENDER" is one of the store's own payment types (Settings -> Payment
+// Types), held in `tender`; the server records it under the tender's kind.
+type PaymentMethodType = "CASH" | "CHECK" | "CARD" | "GIFT_CARD" | "STORE_CREDIT" | "TENDER";
 type DeliveryMethod = "TAKEN" | "PICKUP" | "DELIVERY";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-const PAYMENT_METHODS: PaymentMethodType[] = ["CASH", "CHECK", "CARD", "GIFT_CARD"];
+const PAYMENT_METHODS = ["CASH", "CHECK", "CARD", "GIFT_CARD"] as const;
 
 const DELIVERY_METHODS: DeliveryMethod[] = ["TAKEN", "PICKUP", "DELIVERY"];
 
@@ -116,6 +119,30 @@ const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = {
   PICKUP: "Pickup",
   DELIVERY: "Delivery",
 };
+
+/** The method and the fields only that tender posts: a check's number, a gift
+ *  card's id, a store tender's id and reference (the server records a store
+ *  tender under its own kind). */
+function tenderFields(
+  method: PaymentMethodType,
+  chosen: {
+    checkNumber: string;
+    giftCardInfo: GiftCardInfo | null;
+    tender: OfferedTender | null;
+    reference: string;
+  },
+): Record<string, unknown> {
+  if (method === "TENDER") {
+    return {
+      method: chosen.tender?.kind,
+      tenderId: chosen.tender?.id,
+      reference: chosen.reference.trim() || undefined,
+    };
+  }
+  if (method === "CHECK") return { method, checkNumber: chosen.checkNumber.trim() };
+  if (method === "GIFT_CARD") return { method, giftCardId: chosen.giftCardInfo?.id };
+  return { method };
+}
 
 /** Why store credit cannot pay `amount`, or null when it can. */
 function storeCreditProblem(
@@ -179,6 +206,11 @@ export function PosView() {
   // no customer, or not loaded.
   const [storeCredit, setStoreCredit] = useState<number | null>(null);
   const [giftCardError, setGiftCardError] = useState("");
+  // The store's own payment types offered here, and the one chosen with the
+  // reference its payer quotes (an approval or contract number).
+  const [storeTenders, setStoreTenders] = useState<OfferedTender[]>([]);
+  const [tender, setTender] = useState<OfferedTender | null>(null);
+  const [reference, setReference] = useState("");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
   // Deposits and split tender. The register used to send createdOrder.total on
@@ -563,6 +595,13 @@ export function PosView() {
     void loadStoreCredit(creditCustomerId);
   }, [creditCustomerId, loadStoreCredit]);
 
+  useEffect(() => {
+    axios
+      .get<OfferedTender[]>("/api/tenders", { params: { for: "register" } })
+      .then((res) => setStoreTenders(res.data))
+      .catch((err: unknown) => toast.error(getErrorMessage(err, "Failed to load payment types")));
+  }, []);
+
   // Validate the method-specific fields before recording. Returns an error
   // message to toast, or null when the tender is acceptable.
   const validatePayment = (method: PaymentMethodType, amount: number): string | null => {
@@ -571,6 +610,9 @@ export function PosView() {
     }
     if (method === "CHECK" && !checkNumber.trim()) {
       return "Enter a check number";
+    }
+    if (method === "TENDER" && tender?.referenceRequired && !reference.trim()) {
+      return `Enter the ${tender.name} reference (the approval or contract number)`;
     }
     if (method === "GIFT_CARD" && !giftCardInfo) {
       return "Look up a gift card first";
@@ -613,19 +655,12 @@ export function PosView() {
       const tillId = await findOpenTill();
 
       const payload: Record<string, unknown> = {
-        method: paymentMethod,
         amount,
         registerId: selectedRegister?.id,
         tillId,
         customerId: selectedCustomer?.id,
+        ...tenderFields(paymentMethod, { checkNumber, giftCardInfo, tender, reference }),
       };
-
-      if (paymentMethod === "CHECK") {
-        payload.checkNumber = checkNumber.trim();
-      }
-      if (paymentMethod === "GIFT_CARD" && giftCardInfo) {
-        payload.giftCardId = giftCardInfo.id;
-      }
 
       await axios.post(`/api/sales/orders/${createdOrder.id}/payments`, payload);
       void loadStoreCredit(selectedCustomer?.id);
@@ -651,7 +686,7 @@ export function PosView() {
 
       setPaymentComplete(true);
       setPaymentSummary({
-        method: METHOD_DISPLAY[paymentMethod],
+        method: paymentMethod === "TENDER" ? (tender?.name ?? "") : METHOD_DISPLAY[paymentMethod],
         amount,
         change,
         orderno: createdOrder.orderno,
@@ -665,6 +700,8 @@ export function PosView() {
 
   const resetPaymentFlow = () => {
     setPaymentMethod(null);
+    setTender(null);
+    setReference("");
     setTenderedAmount("");
     setCheckNumber("");
     setGiftCardBarcode("");
@@ -736,6 +773,14 @@ export function PosView() {
         giftCardError={giftCardError}
         setGiftCardError={setGiftCardError}
         storeCredit={storeCredit}
+        storeTenders={storeTenders}
+        tender={tender}
+        onChooseTender={(t) => {
+          setTender(t);
+          setPaymentMethod("TENDER");
+        }}
+        reference={reference}
+        setReference={setReference}
         paymentProcessing={paymentProcessing}
         onLookupGiftCard={handleGiftCardLookup}
         onRecordPayment={handleRecordPayment}
@@ -1234,6 +1279,11 @@ function TakePaymentPanel({
   giftCardError,
   setGiftCardError,
   storeCredit,
+  storeTenders,
+  tender,
+  onChooseTender,
+  reference,
+  setReference,
   paymentProcessing,
   onLookupGiftCard,
   onRecordPayment,
@@ -1260,6 +1310,12 @@ function TakePaymentPanel({
   setGiftCardError: Dispatch<SetStateAction<string>>;
   /** The customer's store credit; null when the order has no customer. */
   storeCredit: number | null;
+  /** The store's own payment types offered at the register. */
+  storeTenders: OfferedTender[];
+  tender: OfferedTender | null;
+  onChooseTender: (tender: OfferedTender) => void;
+  reference: string;
+  setReference: Dispatch<SetStateAction<string>>;
   paymentProcessing: boolean;
   onLookupGiftCard: () => void;
   onRecordPayment: () => void;
@@ -1273,6 +1329,10 @@ function TakePaymentPanel({
     tenderedAmount && Number.parseFloat(tenderedAmount) >= payingNow
       ? Math.round((Number.parseFloat(tenderedAmount) - payingNow) * 100) / 100
       : null;
+  const choiceLabel =
+    paymentMethod === "TENDER"
+      ? (tender?.name ?? "")
+      : paymentMethod && METHOD_DISPLAY[paymentMethod];
 
   return (
     <div className="max-w-lg mx-auto py-8 font-serif">
@@ -1357,13 +1417,20 @@ function TakePaymentPanel({
               {METHOD_DISPLAY[method]}
             </button>
           ))}
+          {storeTenders.map((t) => (
+            <button
+              key={`tender-${t.id}`}
+              onClick={() => onChooseTender(t)}
+              className="h-[60px] bg-white border border-brand-gray/20 rounded-lg shadow-sm text-brand-black font-semibold text-lg hover:border-brand-blue hover:shadow-md transition"
+            >
+              {t.name}
+            </button>
+          ))}
         </div>
       ) : (
         <div className="bg-white border border-brand-gray/20 rounded-lg shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-semibold text-brand-black">
-              {METHOD_DISPLAY[paymentMethod]} Payment
-            </h3>
+            <h3 className="text-lg font-semibold text-brand-black">{choiceLabel} Payment</h3>
             <button
               onClick={onResetFlow}
               className="text-sm text-brand-gray underline min-h-[44px] px-2"
@@ -1477,6 +1544,27 @@ function TakePaymentPanel({
             </div>
           )}
 
+          {paymentMethod === "TENDER" && tender && (
+            <div>
+              <label htmlFor="pos-reference" className="block text-xs text-brand-gray mb-1">
+                Reference{tender.referenceRequired ? "" : " (optional)"}
+              </label>
+              <input
+                id="pos-reference"
+                type="text"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="Approval or contract number"
+                maxLength={REFERENCE_MAX}
+                className="w-full border border-brand-gray/30 rounded px-3 py-3 text-lg focus:outline-none focus:border-brand-blue"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onRecordPayment();
+                }}
+              />
+            </div>
+          )}
+
           {paymentMethod === "STORE_CREDIT" && (
             <div className="bg-brand-linen rounded-lg p-3">
               <p className="text-sm font-medium text-brand-black">
@@ -1498,7 +1586,7 @@ function TakePaymentPanel({
           >
             {paymentProcessing
               ? "Processing..."
-              : `Record ${METHOD_DISPLAY[paymentMethod]} Payment -- ${fmt(payingNow)}`}
+              : `Record ${choiceLabel} Payment -- ${fmt(payingNow)}`}
           </Button>
         </div>
       )}

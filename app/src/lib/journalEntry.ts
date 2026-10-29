@@ -10,6 +10,7 @@ import {
   OVER_SHORT_MAPPING_LABEL,
   OVER_SHORT_ALERT_THRESHOLD,
   RESTOCKING_FEE_MAPPING_LABEL,
+  DEPOSIT_OFFSET_LABELS,
 } from "@/lib/glMapping";
 import { countedPaymentWhere } from "@/lib/paymentBalance";
 import { businessDayRange } from "@/lib/reports/businessDay";
@@ -1086,7 +1087,9 @@ export async function generateSalesJournal(
   const restockingFeeGlId = feeMapping?.glAccountId ?? null;
 
   // Resolve deposit GL for offset on cash payments without invoices
-  const depositMapping = paymentGlMap.get("on account") || paymentGlMap.get("deposit") || null;
+  const depositMapping =
+    DEPOSIT_OFFSET_LABELS.map((label) => paymentGlMap.get(label.toLowerCase())).find(Boolean) ??
+    null;
   const depositGlId = depositMapping?.glAccountId || null;
 
   // The AR control account. Same row invoiceService.ts resolves for authored
