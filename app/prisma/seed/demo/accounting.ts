@@ -146,8 +146,8 @@ export async function seedAccounting(prisma: PrismaClient): Promise<AccountingSe
   // account so it isn't misreported as a cash receipt.
   await upsertMapping("POS_PAYMENTS", "Gift Card", "2-2127");
   await upsertMapping("POS_PAYMENTS", "Store Credit", "2-2128");
-  // Deposit resolution (lib/journalEntry.ts: `paymentGlMap.get("on account")
-  // || paymentGlMap.get("deposit")`) also reads from the POS_PAYMENTS
+  // Deposit resolution (lib/journalEntry.ts, DEPOSIT_OFFSET_LABELS in
+  // lib/glMapping.ts) also reads from the POS_PAYMENTS
   // section -- this is what makes an un-invoiced order's payment book as
   // "Pmt On Acct" instead of falling through unmapped.
   await upsertMapping("POS_PAYMENTS", "On Account", "1-1200");

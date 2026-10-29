@@ -48,6 +48,7 @@ async function main(): Promise<void> {
   const { ROOT_SEED, resolveVolume, resolveScale, seedWindow } = await import("./config");
   const { seedOrg } = await import("./org");
   const { seedAccounting } = await import("./accounting");
+  const { seedTenders } = await import("./tenders");
   const { seedLocations } = await import("./locations");
   const { seedStaff } = await import("./staff");
   const { seedCatalog } = await import("./catalog");
@@ -98,6 +99,7 @@ async function main(): Promise<void> {
 
   const org = await seedOrg(prisma);
   const accounting = await seedAccounting(prisma);
+  await seedTenders(prisma);
 
   // AppSettings.defaultTaxDistrictId is resolveTaxRate.ts's last-resort
   // fallback (CLAUDE.md rule 61 -- this used to be a hardcoded single-state

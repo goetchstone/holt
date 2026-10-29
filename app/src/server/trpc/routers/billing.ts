@@ -25,6 +25,9 @@ import { createInvoicePaymentLink } from "@/lib/billing/invoiceStripe";
 import { sendInvoiceEmail } from "@/lib/billing/invoiceEmail";
 import { InvoiceValidationError } from "@/lib/billing/invoiceAuthoring";
 import { INVOICE_PAYMENT_METHODS } from "@/lib/billing/invoiceShared";
+import { prisma } from "@/lib/prisma";
+import { listTenders } from "@/lib/payments/tenders";
+import { REFERENCE_MAX, type TenderKind } from "@/lib/payments/tenderShared";
 import { CheckoutAlreadyOpenError } from "@/lib/paymentService";
 import { parseLocalDate } from "@/lib/dateUtils";
 
@@ -162,8 +165,11 @@ export const billingRouter = router({
       z.object({
         id: z.number().int().positive(),
         amount: z.number().positive(),
-        method: z.enum(INVOICE_PAYMENT_METHODS),
-        reference: z.string().max(100).nullish(),
+        // A built-in method or a store tender; recordInvoicePayment refuses
+        // anything but exactly one.
+        method: z.enum(INVOICE_PAYMENT_METHODS).nullish(),
+        tenderId: z.number().int().positive().nullish(),
+        reference: z.string().max(REFERENCE_MAX).nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -171,12 +177,25 @@ export const billingRouter = router({
       return translate(() =>
         recordInvoicePayment(input.id, {
           amount: input.amount,
-          method: input.method,
+          method: input.method ?? null,
+          tenderId: input.tenderId ?? null,
           reference: input.reference ?? null,
           createdBy: ctx.userEmail ?? null,
         }),
       );
     }),
+
+  /** The store's own payment types offered on invoices (Settings -> Payment Types). */
+  tenders: roleProcedure(BILLING_ROLES).query(async () => {
+    await requireBillingEnabled();
+    const tenders = await listTenders(prisma, "invoices");
+    return tenders.map(({ id, name, kind, referenceRequired }) => ({
+      id,
+      name,
+      kind: kind as TenderKind,
+      referenceRequired,
+    }));
+  }),
 
   paymentLink: roleProcedure(BILLING_ROLES)
     .input(

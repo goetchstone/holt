@@ -177,7 +177,7 @@ sale is a recorded fact.
 - `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`
 - `lib/adapters/ordorite/runners.ts` lines 134-723 -- `runSalesImport()`
 - `lib/importHelpers.ts` -- source-agnostic helpers only (`safeString`/`safeFloat`/`safeDate`, `splitCustomerName`, `findOrCreateCustomer`). The sales-order logic above is no longer here
-- `lib/paymentService.ts` -- `computeBalance()`, `recordPayment()`, `processRefund()` (there is no `postPayment()`), and `startHostedCheckout()`, the one way an order or invoice starts an online card payment (see `docs/domains/pos.md`)
+- `lib/paymentService.ts` -- `computeBalance()`, `recordPayment()`, `processRefund()` (there is no `postPayment()`), and `startHostedCheckout()`, the one way an order or invoice starts an online card payment (see `docs/domains/pos.md`). A payment taken with one of the store's own payment types (`tenderId`) is labelled by `lib/payments/tenders.ts`, and its refund goes back to the same tender (pos.md, "Payment types a store sets up")
 - `pages/api/sales/` -- 19 API endpoints
 - `lib/pos/cartPricing.ts` -- `catalogRetailPrice()`: the price a catalog product goes onto a New Quote (or POS) line at. No retail price means the line is refused, never priced from cost (see `docs/domains/pos.md`, "A product's line price")
 

@@ -212,6 +212,7 @@ const ALL_TABLES = [
   "TaxExemptReason",
   "TaxGroup",
   "TaxRule",
+  "Tender",
   "Ticket",
   "TicketAttachment",
   "TicketMessage",

@@ -3068,6 +3068,15 @@ model Payment {
   // Check details
   checkNumber String?
 
+  /// The store-configured tender this was paid with (a finance company, Zelle,
+  /// a trade-in): its name is `paymentType` and its kind is `method`. Null for
+  /// the built-in tenders. See lib/payments/tenders.ts.
+  tenderId  Int?
+  tender    Tender? @relation(fields: [tenderId], references: [id])
+  /// What the payer quotes to identify it: a finance approval or contract
+  /// number, a wire or ACH reference. A check's number stays in checkNumber.
+  reference String?
+
   // Authored-invoice link (invoice authoring, 2026-06-10). Structural binding
   // for invoice payments — the Stripe webhook routes on THIS, never on
   // session metadata alone. Mirrors salesOrderId for order payments.
@@ -3102,6 +3111,34 @@ model Payment {
   @@index([tillId])
   @@index([invoiceId])
   @@index([returnId])
+  @@index([tenderId])
+}
+
+/// A payment type the store sets up for itself beyond the built-in ones: each
+/// finance company, Zelle, a trade-in. `kind` is the built-in method it behaves
+/// and reports as (rule 62: config selects behaviour, never supplies it), and is
+/// limited to the kinds with no machinery of their own (TENDER_KINDS). A payment
+/// copies `name` into its `paymentType`, which is the label the sales journal
+/// maps to a GL account, so creating a tender also creates its POS_PAYMENTS
+/// mapping. Name and kind are fixed once a payment uses the tender.
+model Tender {
+  id                Int           @id @default(autoincrement())
+  name              String        @unique
+  kind              PaymentMethod
+  isActive          Boolean       @default(true)
+  /// Offered on the register's tender buttons.
+  atRegister        Boolean       @default(true)
+  /// Offered when recording a payment on an invoice.
+  onInvoices        Boolean       @default(true)
+  /// A payment must carry a reference (an approval or contract number).
+  referenceRequired Boolean       @default(false)
+  sortOrder         Int           @default(0)
+  payments          Payment[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
 }
 
 // ---------------------------------------------------------------------------

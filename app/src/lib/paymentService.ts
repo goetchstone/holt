@@ -21,6 +21,7 @@ import { issueStoreCredit, spendStoreCredit } from "@/lib/customerCredit";
 import { refundCounts } from "@/lib/returns/returnMoney";
 import type { Payment, Prisma } from "@prisma/client";
 import { expectedArrival } from "@/lib/vendorLeadTime";
+import { resolveTenderPayment } from "@/lib/payments/tenders";
 
 type Tx = Prisma.TransactionClient;
 
@@ -134,6 +135,10 @@ interface RecordPaymentInput {
   cardBrand?: string;
   checkNumber?: string;
   giftCardId?: number;
+  /** A store tender (lib/payments/tenders.ts): it decides the method and label. */
+  tenderId?: number;
+  /** What the payer quotes: a finance approval number, a wire reference. */
+  reference?: string;
   createdBy?: string;
 }
 
@@ -221,6 +226,23 @@ export async function calculateOrderBalance(orderId: number): Promise<OrderBalan
   };
 }
 
+/**
+ * The method and label a payment is recorded under. A store tender decides
+ * both (lib/payments/tenders.ts), whatever method the caller sent; a built-in
+ * method is labelled from METHOD_DISPLAY.
+ */
+async function labelPayment(tx: Tx, input: RecordPaymentInput) {
+  if (input.tenderId != null) {
+    return resolveTenderPayment(tx, input.tenderId, input.reference);
+  }
+  return {
+    method: input.method,
+    paymentType: METHOD_DISPLAY[input.method] ?? input.method,
+    tenderId: null,
+    reference: input.reference?.trim() || null,
+  };
+}
+
 export async function recordPayment(orderId: number, input: RecordPaymentInput): Promise<Payment> {
   return prisma.$transaction((tx) => recordPaymentTx(tx, orderId, input));
 }
@@ -250,9 +272,9 @@ export async function recordPaymentTx(
     }
   }
 
-  const paymentType = METHOD_DISPLAY[input.method] ?? input.method;
+  const { method, paymentType, tenderId, reference } = await labelPayment(tx, input);
 
-  if (input.method === "GIFT_CARD") {
+  if (method === "GIFT_CARD") {
     if (!input.giftCardId) {
       throw new Error("giftCardId is required for gift card payments");
     }
@@ -287,8 +309,8 @@ export async function recordPaymentTx(
   // Store credit is the order's own customer's (spendStoreCredit refuses
   // anyone else's), so the customer defaults to the order's.
   const creditCustomerId =
-    input.method === "STORE_CREDIT" ? (input.customerId ?? order.customerId ?? null) : null;
-  if (input.method === "STORE_CREDIT" && creditCustomerId == null) {
+    method === "STORE_CREDIT" ? (input.customerId ?? order.customerId ?? null) : null;
+  if (method === "STORE_CREDIT" && creditCustomerId == null) {
     throw new Error(
       "Store credit can only be spent on an order with a customer: add the customer to the order first.",
     );
@@ -301,7 +323,7 @@ export async function recordPaymentTx(
       paymentType,
       paymentAmount: rounded,
       status: "COMPLETED",
-      method: input.method as any,
+      method: method as any,
       registerId: input.registerId,
       tillId: input.tillId,
       staffMemberId: input.staffMemberId,
@@ -313,6 +335,8 @@ export async function recordPaymentTx(
       cardBrand: input.cardBrand,
       checkNumber: input.checkNumber,
       giftCardId: input.giftCardId,
+      tenderId,
+      reference,
       createdBy: input.createdBy,
     },
   });
@@ -871,6 +895,8 @@ export async function processRefund(paymentId: number, input: RefundInput): Prom
         paymentAmount: rounded,
         status: viaProcessor ? "PENDING" : "COMPLETED",
         method: original.method ?? undefined,
+        // Back to the same store tender, so its total nets the refund.
+        tenderId: original.tenderId,
         isRefund: true,
         originalPaymentId: paymentId,
         returnId: input.returnId,
@@ -1318,6 +1344,9 @@ export async function calculateTillExpected(tillId: number): Promise<{
   giftCard: number;
   storeCredit: number;
   other: number;
+  /** `other` by payment type, so a store tender (each finance company, Zelle)
+   *  shows under its own name. */
+  otherByType: { label: string; amount: number }[];
   total: number;
   expectedCash: number;
 }> {
@@ -1330,7 +1359,7 @@ export async function calculateTillExpected(tillId: number): Promise<{
   // left the drawer or the card yet). NULL-safe, rule 51.
   const payments = await prisma.payment.findMany({
     where: { tillId, ...countedPaymentWhere() },
-    select: { method: true, paymentAmount: true, isRefund: true },
+    select: { method: true, paymentType: true, paymentAmount: true, isRefund: true },
   });
 
   const buckets: Record<string, number> = {
@@ -1339,16 +1368,20 @@ export async function calculateTillExpected(tillId: number): Promise<{
     CHECK: 0,
     GIFT_CARD: 0,
     STORE_CREDIT: 0,
+    OTHER: 0,
   };
+  const otherByType = new Map<string, number>();
 
   for (const p of payments) {
     const key = p.method ?? "OTHER";
     const amt = Number(p.paymentAmount);
     const signed = p.isRefund ? -Math.abs(amt) : amt;
-    if (key in buckets) {
+    if (key !== "OTHER" && key in buckets) {
       buckets[key] = round2(buckets[key] + signed);
     } else {
       buckets["OTHER"] = round2((buckets["OTHER"] ?? 0) + signed);
+      const label = p.paymentType || METHOD_DISPLAY.OTHER;
+      otherByType.set(label, round2((otherByType.get(label) ?? 0) + signed));
     }
   }
 
@@ -1362,6 +1395,9 @@ export async function calculateTillExpected(tillId: number): Promise<{
     giftCard: buckets["GIFT_CARD"],
     storeCredit: buckets["STORE_CREDIT"],
     other: buckets["OTHER"] ?? 0,
+    otherByType: [...otherByType]
+      .map(([label, amount]) => ({ label, amount }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
     total: round2(
       cashNet +
         buckets["CARD"] +
