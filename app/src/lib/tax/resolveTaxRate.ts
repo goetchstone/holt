@@ -83,14 +83,19 @@
 //     them, `resolveTaxDistrict` logs a warning once per order naming the
 //     district and the rule ids, so the gap is visible instead of silently
 //     wrong.
-//   - Per-product `TaxGroup` selection: TaxRule.groupId is required, but no
-//     model links a Product (or OrderLineItem) to a TaxGroup -- that FK
-//     does not exist in the schema. Every rule for the resolved district is
-//     evaluated regardless of group, in sortOrder, which reproduces the old
-//     `take: 1` behaviour exactly for a single-group district (every seed
-//     today) and is the least-surprising choice without a real per-product
-//     signal to key off of. Wiring an actual per-product tax group is a
-//     schema change (Product.taxGroupId or similar) left for a follow-up.
+//
+// PER-LINE TAX GROUP (GAP-04b, 2026-10-29) -- rateForLineAmount's third
+// argument, from lineTaxGroupOf(product):
+//
+//   A line sells under its product's TaxGroup, else its category's, else none.
+//   - A group marked `exempt` ("not taxed") is 0%, in every district.
+//   - A group with its own active rules in the district uses only those, so
+//     its bands still apply ("clothing under $175" is a group's rule).
+//   - Anything else -- no group, or a taxed group the district has no rule
+//     for -- evaluates every rule in the district regardless of group, which
+//     is exactly the behaviour before groups were wired. An unassigned or
+//     half-configured group therefore never quietly drops a line to 0%, and
+//     a deployment that assigns no groups computes byte-identical tax.
 
 import type { PrismaTx } from "@/lib/inventory/allocation";
 import { logger } from "@/lib/logger";
@@ -98,6 +103,7 @@ import { logger } from "@/lib/logger";
 /** A TaxRule, decimals already converted to number for arithmetic. */
 export interface TaxDistrictRule {
   id: number;
+  groupId: number;
   taxRate: number;
   triggerPrice: number | null;
   triggerStop: number | null;
@@ -144,6 +150,7 @@ async function loadActiveRules(tx: PrismaTx, taxDistrictId: number): Promise<Tax
   });
   return rows.map((r) => ({
     id: r.id,
+    groupId: r.groupId,
     taxRate: Number(r.taxRate),
     triggerPrice: r.triggerPrice != null ? Number(r.triggerPrice) : null,
     triggerStop: r.triggerStop != null ? Number(r.triggerStop) : null,
@@ -240,6 +247,34 @@ export interface LineRateResult {
   ruleId: number | null;
 }
 
+/** The TaxGroup a line sells under, as much of it as the rate needs. */
+export interface LineTaxGroup {
+  id: number;
+  exempt: boolean;
+}
+
+/**
+ * Prisma `select` for a Product that lineTaxGroupOf can read. Spread it into a
+ * product query: `select: { id: true, ...LINE_TAX_GROUP_SELECT }`.
+ */
+export const LINE_TAX_GROUP_SELECT = {
+  taxGroup: { select: { id: true, exempt: true } },
+  category: { select: { taxGroup: { select: { id: true, exempt: true } } } },
+} as const;
+
+/** The product's own tax group, else its category's, else null (none). */
+export function lineTaxGroupOf(
+  product:
+    | {
+        taxGroup: LineTaxGroup | null;
+        category: { taxGroup: LineTaxGroup | null } | null;
+      }
+    | null
+    | undefined,
+): LineTaxGroup | null {
+  return product?.taxGroup ?? product?.category?.taxGroup ?? null;
+}
+
 /**
  * Pure: pick the first active rule (in sortOrder) whose trigger/price bands
  * admit `lineAmount`, and return its flat rate. No DB access -- call this
@@ -250,14 +285,26 @@ export interface LineRateResult {
  * seed uses today). No admitting rule -> rate 0, which is a legitimate
  * outcome for a genuinely banded schedule (an under-threshold exemption),
  * not logged as an error.
+ *
+ * `taxGroup` is the line's group (lineTaxGroupOf); see "PER-LINE TAX GROUP"
+ * in the header for how it narrows the rules.
  */
-export function rateForLineAmount(rules: TaxDistrictRule[], lineAmount: number): LineRateResult {
-  for (const rule of rules) {
-    if (rule.triggerPrice != null && lineAmount < rule.triggerPrice) continue;
-    if (rule.triggerStop != null && lineAmount > rule.triggerStop) continue;
-    if (rule.startPrice != null && lineAmount < rule.startPrice) continue;
-    if (rule.stopPrice != null && lineAmount > rule.stopPrice) continue;
-    return { rate: rule.taxRate, ruleId: rule.id };
-  }
-  return { rate: 0, ruleId: null };
+export function rateForLineAmount(
+  rules: TaxDistrictRule[],
+  lineAmount: number,
+  taxGroup: LineTaxGroup | null = null,
+): LineRateResult {
+  if (taxGroup?.exempt) return { rate: 0, ruleId: null };
+  const groupRules = taxGroup ? rules.filter((r) => r.groupId === taxGroup.id) : [];
+  const rule = (groupRules.length > 0 ? groupRules : rules).find((r) => admits(r, lineAmount));
+  return rule ? { rate: rule.taxRate, ruleId: rule.id } : { rate: 0, ruleId: null };
+}
+
+/** Whether every band the rule sets (null = unbounded) admits the amount. */
+function admits(rule: TaxDistrictRule, lineAmount: number): boolean {
+  if (rule.triggerPrice != null && lineAmount < rule.triggerPrice) return false;
+  if (rule.triggerStop != null && lineAmount > rule.triggerStop) return false;
+  if (rule.startPrice != null && lineAmount < rule.startPrice) return false;
+  if (rule.stopPrice != null && lineAmount > rule.stopPrice) return false;
+  return true;
 }

@@ -161,8 +161,16 @@ create and re-import). The value comes from `resolveTaxDistrict()`, read from
 it was sold under; clearing the customer's later does not re-tax it. A native
 return copies it from its sale (`lib/returns/bookReturn.ts`).
 `__tests__/taxResolutionSingleSource.test.ts` fails on a route that writes the
-district without it. Changing an existing order's customer
-(`PUT /api/sales/orders/[id]`) does not re-rate anything yet: ROADMAP GAP-04d.
+district without it.
+
+**Changing a quote's customer re-rates it (GAP-04d, 2026-10-29).**
+`PUT /api/sales/orders/[id]` with a new `customerId` calls `lib/tax/rerateQuoteTax.ts`
+when the order is a QUOTE with no payment row (a pending card checkout counts as
+money). The re-rate re-resolves the district and the exemption for the new customer,
+re-rates every live line under its product's tax group, and rewrites `totalTax`.
+Cancelled lines keep their rate and stay out of the sum (rule 33). An order money has
+touched keeps the tax it was charged, and its customer still changes: tax on a paid
+sale is a recorded fact.
 
 ## Key Files
 

@@ -114,6 +114,26 @@ no screen for a store's own `taxDistrictId` yet; only the seed and SQL set it.
 $9,000 line and a $90 line on one order can legitimately carry different rates, so the
 rate is resolved per line rather than per order.
 
+**A line sells under a tax group (2026-10-29, GAP-04b).** Every `TaxRule` belongs to a
+`TaxGroup`. A line's group is its product's `Product.taxGroupId`, else its category's
+`Category.taxGroupId`, else none (`lineTaxGroupOf`). `rateForLineAmount(rules, amount,
+group)` then works like this:
+
+- A group marked `TaxGroup.exempt` ("Not taxed" in Admin → Tax) is 0% in every district.
+- A group with its own active rules in the district uses only those, bands included.
+- No group, or a taxed group the district has no rule for, reads every rule in the
+  district exactly as before. An unassigned or half-configured group never quietly
+  drops a line to 0%, and a deployment that assigns no groups computes identical tax.
+
+Groups are chosen on the category editor and on a product's edit form; the product's
+choice overrides its category's. Both pickers read `GET /api/tax/groups`, which takes
+`catalog.write` as well as `admin.settings`. A group still chosen by a category or
+product cannot be deleted. Every pricing path passes the line's group:
+`create-from-cart` (a custom or configured line's minted product inherits its source's
+group), adding a line, B2B `convert-to-order`, the HD import (its item lines carry no
+product and sell under the Blinds & Shades category's group), and the quote re-rate
+below.
+
 Every write path that sets `OrderLineItem.vatRate` goes through those two functions, and
 `__tests__/taxResolutionSingleSource.test.ts` enforces it. Two bypasses it was written
 after finding:

@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { readTaxGroupId } from "@/lib/tax/taxGroupInput";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -59,6 +60,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     if (req.method === "POST") {
       const { name, departmentId, trackInventory, accountGroupId, labelTemplateId } = req.body;
+      const taxGroup = await readTaxGroupId(prisma, req.body.taxGroupId);
+      if ("error" in taxGroup) return res.status(400).json({ error: taxGroup.error });
 
       const created = await prisma.category.create({
         data: {
@@ -67,6 +70,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           trackInventory,
           accountGroupId: accountGroupId ? Number.parseInt(accountGroupId) : null,
           labelTemplateId: labelTemplateId || null,
+          taxGroupId: taxGroup.value ?? null,
         },
       });
 

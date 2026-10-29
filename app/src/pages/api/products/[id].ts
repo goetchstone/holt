@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { readTaxGroupId } from "@/lib/tax/taxGroupInput";
 import { logError } from "@/lib/logger";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -17,7 +18,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         include: {
           vendor: { select: { id: true, name: true } },
           department: { select: { id: true, name: true } },
-          category: { select: { id: true, name: true } },
+          category: {
+            select: { id: true, name: true, taxGroup: { select: { id: true, name: true } } },
+          },
+          taxGroup: { select: { id: true, name: true } },
           type: { select: { id: true, name: true } },
           collection: { select: { id: true, name: true } },
           upcs: { orderBy: { sortOrder: "asc" } },
@@ -55,6 +59,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         shipsVia: product.shipsVia,
         cartonQty: product.cartonQty,
         boxesPerUnit: product.boxesPerUnit,
+        // Its own tax group, or null to sell under its category's.
+        taxGroupId: product.taxGroupId,
+        taxGroup: product.taxGroup,
         vendor: product.vendor,
         department: product.department,
         category: product.category,
@@ -119,6 +126,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         boxes = n;
       }
 
+      const taxGroup = await readTaxGroupId(prisma, (body as Record<string, unknown>).taxGroupId);
+      if ("error" in taxGroup) return res.status(400).json({ error: taxGroup.error });
+
       const updatedProduct = await prisma.product.update({
         where: { id: productId },
         data: {
@@ -131,6 +141,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           depth: parseOptionalFloat(depth),
           height: parseOptionalFloat(height),
           boxesPerUnit: boxes,
+          taxGroupId: taxGroup.value,
           serviceType: resolvedServiceType,
         },
       });
