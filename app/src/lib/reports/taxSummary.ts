@@ -110,15 +110,18 @@ export async function getTaxSummary(
     const exemptReason = inv.salesOrder.taxExemptReason;
     let jurisdictionKey: string;
     let taxRate: number | null = null;
-    if (district) {
+    // Exempt first. An exempt order still records the district it would have
+    // been taxed in (lib/tax/resolveTaxRate.ts), so checking the district first
+    // filed every exempt sale under that district as a $0 taxable one.
+    if (exemptReason) {
+      jurisdictionKey = `Exempt - ${exemptReason.name}`;
+    } else if (district) {
       const rate = district.rules[0]?.taxRate;
       taxRate = rate != null ? Number(rate) : null;
       jurisdictionKey =
         taxRate != null
           ? `${district.shortName} ${(taxRate * 100).toFixed(2)}%`
           : district.shortName;
-    } else if (exemptReason) {
-      jurisdictionKey = `Exempt - ${exemptReason.name}`;
     } else {
       jurisdictionKey = "Unknown";
     }

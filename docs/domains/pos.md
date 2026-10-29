@@ -144,7 +144,9 @@ the helper. A cashier can still change a line's price once it is on the cart.
    its line. The old "last line takes the remainder" split gave four $0.01
    lines with $0.02 off the shares [.01, .01, .01, -.01]. This is fuzzed in
    `__tests__/fuzz/cartPricing.fuzz.test.ts`.
-2. Compute tax via `src/lib/tax/resolveTaxRate.ts`: customer exemption, then
+2. Compute tax via `src/lib/tax/resolveTaxRate.ts`: customer exemption
+   (`Customer.taxExemptReasonId`, copied onto the order as
+   `SalesOrder.taxExemptReasonId` so Tax Summary files the sale as exempt), then
    the customer's own district override, then the selling store's district
    (`StoreLocation.taxDistrictId`), then `AppSettings.defaultTaxDistrictId` —
    never a hardcoded district. Rate is then banded per line against each

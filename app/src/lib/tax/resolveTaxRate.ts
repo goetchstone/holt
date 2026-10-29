@@ -115,9 +115,13 @@ export interface ResolvedTaxDistrict {
   taxDistrictId: number | null;
   /** True when Customer.taxExemptReasonId is set. Callers must force every
    *  line's rate to 0 when this is true -- `rules` is already empty so
-   *  `rateForLineAmount` does this for free, but SalesOrder.taxExemptReasonId
-   *  is a separate write callers still need to make themselves. */
+   *  `rateForLineAmount` does this for free. */
   isExempt: boolean;
+  /** The customer's exemption reason, or null. A caller that creates an order
+   *  writes it to SalesOrder.taxExemptReasonId: the Tax Summary report files an
+   *  exempt sale under its reason, and an order without one lands in its
+   *  district as if tax had been due (__tests__/taxResolutionSingleSource). */
+  taxExemptReasonId: number | null;
   source: TaxDistrictSource;
   /** Active rules for `taxDistrictId`, sorted by sortOrder. Empty when
    *  exempt or unresolved. */
@@ -161,7 +165,7 @@ export async function resolveTaxDistrict(
 ): Promise<ResolvedTaxDistrict> {
   const { customerId, storeLocationId, contextLabel } = input;
 
-  let isExempt = false;
+  let taxExemptReasonId: number | null = null;
   let customerDistrictId: number | null = null;
 
   if (customerId) {
@@ -169,11 +173,12 @@ export async function resolveTaxDistrict(
       where: { id: customerId },
       select: { taxExemptReasonId: true, defaultTaxDistrictId: true },
     });
-    // Preserved exactly from the old code: truthiness of taxExemptReasonId,
-    // not the separate Customer.taxExempt boolean.
-    if (customer?.taxExemptReasonId) isExempt = true;
+    // The reason id is the customer's one exemption column (the separate
+    // boolean was dropped, migration 20261029120000).
+    taxExemptReasonId = customer?.taxExemptReasonId ?? null;
     customerDistrictId = customer?.defaultTaxDistrictId ?? null;
   }
+  const isExempt = taxExemptReasonId != null;
 
   let taxDistrictId: number | null = null;
   let source: TaxDistrictSource = "unresolved";
@@ -210,7 +215,7 @@ export async function resolveTaxDistrict(
         "Set StoreLocation.taxDistrictId for this store or AppSettings.defaultTaxDistrictId.",
       { store: contextLabel },
     );
-    return { taxDistrictId: null, isExempt, source: "unresolved", rules: [] };
+    return { taxDistrictId: null, isExempt, taxExemptReasonId, source: "unresolved", rules: [] };
   }
 
   const rules = isExempt ? [] : await loadActiveRules(tx, taxDistrictId);
@@ -227,7 +232,7 @@ export async function resolveTaxDistrict(
     );
   }
 
-  return { taxDistrictId, isExempt, source, rules };
+  return { taxDistrictId, isExempt, taxExemptReasonId, source, rules };
 }
 
 export interface LineRateResult {

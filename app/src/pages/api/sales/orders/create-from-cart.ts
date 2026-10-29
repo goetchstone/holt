@@ -254,6 +254,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           status: "QUOTE",
           customerId: customerId || null,
           taxDistrictId: taxDistrict.taxDistrictId,
+          taxExemptReasonId: taxDistrict.taxExemptReasonId,
           salesperson: staff?.displayName || session.user?.email || null,
           storeLocation: storeLocation || null,
           orderNotes: orderNotes || null,

@@ -37,6 +37,12 @@
       "advisory": "GHSA-r4xh-jqrq-34v2",
       "reason": "Quadratic-time parse() on ordinary TOML with many keys; fixed in 1.9.0. It reaches the DEV tree only, via markdownlint-cli2 0.23.3, which pins smol-toml at exactly 1.8.0 \u2014 so no markdownlint-cli2 release can deliver the fix yet and an override is the only lever. Same major line (1.8 -> 1.9), and verified rather than assumed: with 1.9.1 resolved, `npm run lint:md` lints the same 94 files with 0 issues. Exploitability is nil here: markdownlint-cli2 parses TOML only for a config file passed explicitly with `--config x.toml`, which lint:md never does. Drop the override once markdownlint-cli2 depends on smol-toml >= 1.9.0.",
       "review": "2027-01-14"
+    },
+    "re2js": {
+      "range": "~2.8.7",
+      "advisory": "GHSA-gg6h-894w-4m9c",
+      "reason": "Quadratic-time matching in Machine.match when the opt-in LOOKBEHINDS flag is set (find() restarts the scan at offset 0); fixed in 2.8.7. It reaches the DEV tree only, via markdownlint-cli2 0.24.0 -> markdownlint 0.42.0, which pins re2js at exactly 2.8.6, and 0.42.0 is still markdownlint's latest (checked 2026-10-29), so an override is the only lever. Tilde, not caret: a caret resolved 2.9.1, a new minor published 2026-10-28; ~2.8.7 keeps the 2.8 line markdownlint was built against and takes only patches (2.8.8, 2026-10-17). Verified after a clean `npm ci`: re2js 2.8.8 resolves under markdownlint, `npm run lint:md` lints the tracked Markdown with 0 issues, and validate plus the unit suite pass. Exploitability is nil here: markdownlint compiles its rules with re2js's `re` template tag and never sets LOOKBEHINDS (no match for it anywhere in node_modules/markdownlint/lib), and it only ever reads this repo's own Markdown. Drop the override once markdownlint depends on re2js >= 2.8.7.",
+      "review": "2027-01-29"
     }
   }
 }

@@ -14,7 +14,8 @@ const SEED_ACTOR = "seed:demo";
 export interface SeededCustomer {
   id: number;
   isTradeAccount: boolean;
-  taxExempt: boolean;
+  /** Null when the customer is taxed. Each of their orders records it. */
+  taxExemptReasonId: number | null;
 }
 
 export async function seedCustomers(
@@ -31,6 +32,7 @@ export async function seedCustomers(
     const email = emailFor(rng, firstName, lastName);
     const isTradeAccount = chance(rng, 0.06);
     const taxExempt = isTradeAccount && chance(rng, 0.7);
+    const taxExemptReasonId = taxExempt ? resaleTaxExemptReasonId : null;
 
     const customer = await prisma.customer.create({
       data: {
@@ -41,8 +43,7 @@ export async function seedCustomers(
         defaultTaxDistrictId: taxDistrictId,
         isTradeAccount,
         tradeCompanyName: isTradeAccount ? `${lastName} Design Group` : null,
-        taxExempt,
-        taxExemptReasonId: taxExempt ? resaleTaxExemptReasonId : null,
+        taxExemptReasonId,
         taxExemptNumber: taxExempt ? `EX-${randInt(rng, 100000, 999999)}` : null,
         createdBy: SEED_ACTOR,
       },
@@ -65,7 +66,7 @@ export async function seedCustomers(
       });
     }
 
-    customers.push({ id: customer.id, isTradeAccount, taxExempt });
+    customers.push({ id: customer.id, isTradeAccount, taxExemptReasonId });
   }
 
   return customers;

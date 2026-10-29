@@ -1073,7 +1073,10 @@ model Customer {
   email     String? @unique
   phone     String?
 
-  taxExempt            Boolean          @default(false)
+  // The customer's sales-tax exemption, and the only column for it: set means
+  // exempt for this reason, null means taxed. Set on the customer screen
+  // (api/customers/[id]/trade.ts); every sale copies it onto
+  // SalesOrder.taxExemptReasonId through lib/tax/resolveTaxRate.ts.
   taxExemptReasonId    Int?
   taxExemptReason      TaxExemptReason? @relation(fields: [taxExemptReasonId], references: [id])
   defaultTaxDistrictId Int?
