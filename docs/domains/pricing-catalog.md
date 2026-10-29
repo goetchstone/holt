@@ -8,15 +8,15 @@ Vendor price list import from PDF/CSV/XLSX. Multi-dimensional pricing engine. Pr
 
 The `VendorPricingModel` enum determines which pricing path the configurator follows. **Adding a new vendor requires choosing the correct model** — picking the wrong one cascades into broken price math the configurator can't recover from without re-import.
 
-| Model | When to use | Example |
-|---|---|---|
-| `FLAT` | Single price per product, no axes | Most accessory vendors |
-| `GRADE_BASED` | Fabric/leather grade matrix (e.g. grades 14–60 for fabric, C–Z for leather) | Wesley Hall, CR Laine |
-| `FRAME_PLUS_CUSHION` | Frame + separately-priced cushion fill | Kingsley Bate |
-| `SPECIES_MATRIX` | Wood species drives base price | Gat Creek |
-| `MULTI_AXIS` | 2–3 pricing dimensions combine (frame × grade × finish) | American Leather (frame + dual grade) |
-| `AREA_BASED` | Price per sq ft / sq yard | Rug vendors (not currently active) |
-| `SIZE_BASED` | Size class drives price (sofa < loveseat < sectional) | Some Wesley Hall SE configurations |
+| Model                | When to use                                                                 | Example                               |
+| -------------------- | --------------------------------------------------------------------------- | ------------------------------------- |
+| `FLAT`               | Single price per product, no axes                                           | Most accessory vendors                |
+| `GRADE_BASED`        | Fabric/leather grade matrix (e.g. grades 14–60 for fabric, C–Z for leather) | Wesley Hall, CR Laine                 |
+| `FRAME_PLUS_CUSHION` | Frame + separately-priced cushion fill                                      | Kingsley Bate                         |
+| `SPECIES_MATRIX`     | Wood species drives base price                                              | Gat Creek                             |
+| `MULTI_AXIS`         | 2–3 pricing dimensions combine (frame × grade × finish)                     | American Leather (frame + dual grade) |
+| `AREA_BASED`         | Price per sq ft / sq yard                                                   | Rug vendors (not currently active)    |
+| `SIZE_BASED`         | Size class drives price (sofa < loveseat < sectional)                       | Some Wesley Hall SE configurations    |
 
 ## Tax group on categories and products
 
@@ -86,20 +86,50 @@ Behavior:
 
 Import page at `/sales/import-hd`, nav card on the Sales hub.
 
+## Any vendor's book, and the demo's mock vendors
+
+**A vendor with no parser of its own** imports through the standard price-book
+layout. The format is described in vendors-wholesale.md, "A book can declare its
+grades too".
+
+**A flat catalog** goes through Data Import's product entity (`lib/genericImport.ts`):
+
+- SKU, name, vendor, department, category, cost, retail and description;
+- since 2026-10-29, `Case Pack` (`Product.cartonQty`), which is written only when
+  the cell holds a whole count of 1 or more.
+
+**The demo carries five invented vendors** (`prisma/seed/demo/priceBooks.ts`, books
+in `prisma/seed/demo/pricebooks/`). Every name, style and price is made up, and a
+client's real price book is never committed.
+
+- **Three special-order lines in the standard layout:**
+  - a recliner maker, priced by leather grade × base option;
+  - a leather upholsterer, by leather grade, with a sleeper option;
+  - a custom upholstery house: COM plus fabric grades, yardage, a grade riser,
+    and nailhead / skirt / finish options.
+- **Two flat lines:** lighting with finish variants, and mirrors and decor with
+  case packs.
+
+**Markup.** Retail on the special-order lines comes from each vendor's
+`defaultMarkup` (2.0 / 2.2 / 2.4), and the store-wide
+`AppSettings.pricing.defaultMarkup` is 2.2. These are demo assumptions, not
+facts. Any vendor a visitor imports through the standard layout prices straight
+away from the store-wide default.
+
 ## Vendor Runbooks
 
-| Vendor | Pricing Model | Runbook | Parser |
-|--------|--------------|---------|--------|
-| Wesley Hall | Grade-based + SE | [wesley-hall.md](vendors/wesley-hall.md) | `wesleyHallParser.ts`, `seParser.ts` |
-| CR Laine | Grade-based | [cr-laine.md](vendors/cr-laine.md) | `crLaineExtractor.ts` |
-| American Leather | Dual grade | [american-leather.md](vendors/american-leather.md) | `americanLeatherExtractor.ts` |
-| Ekornes | MRP-based | [ekornes.md](vendors/ekornes.md) | `ekornesParser.ts` |
-| Kingsley Bate | Frame + Cushion | [kingsley-bate.md](vendors/kingsley-bate.md) | `kingsleyBateParser.ts` |
-| Brown Jordan | Retail grade | [brown-jordan.md](vendors/brown-jordan.md) | `brownJordanParser.ts` |
-| Gat Creek | Species matrix | [gat-creek.md](vendors/gat-creek.md) | `gatCreekExtractor.ts` |
-| Jensen Leisure | Retail grade | [jensen-leisure.md](vendors/jensen-leisure.md) | `jensenLeisureParser.ts` |
-| Summer Classics | Wholesale grade | [summer-classics.md](vendors/summer-classics.md) | `summerClassicsParser.ts` |
-| Hunter Douglas | Line-item (proposals) | [hunter-douglas.md](vendors/hunter-douglas.md) | `hdProposalParser.ts` |
+| Vendor           | Pricing Model         | Runbook                                            | Parser                               |
+| ---------------- | --------------------- | -------------------------------------------------- | ------------------------------------ |
+| Wesley Hall      | Grade-based + SE      | [wesley-hall.md](vendors/wesley-hall.md)           | `wesleyHallParser.ts`, `seParser.ts` |
+| CR Laine         | Grade-based           | [cr-laine.md](vendors/cr-laine.md)                 | `crLaineExtractor.ts`                |
+| American Leather | Dual grade            | [american-leather.md](vendors/american-leather.md) | `americanLeatherExtractor.ts`        |
+| Ekornes          | MRP-based             | [ekornes.md](vendors/ekornes.md)                   | `ekornesParser.ts`                   |
+| Kingsley Bate    | Frame + Cushion       | [kingsley-bate.md](vendors/kingsley-bate.md)       | `kingsleyBateParser.ts`              |
+| Brown Jordan     | Retail grade          | [brown-jordan.md](vendors/brown-jordan.md)         | `brownJordanParser.ts`               |
+| Gat Creek        | Species matrix        | [gat-creek.md](vendors/gat-creek.md)               | `gatCreekExtractor.ts`               |
+| Jensen Leisure   | Retail grade          | [jensen-leisure.md](vendors/jensen-leisure.md)     | `jensenLeisureParser.ts`             |
+| Summer Classics  | Wholesale grade       | [summer-classics.md](vendors/summer-classics.md)   | `summerClassicsParser.ts`            |
+| Hunter Douglas   | Line-item (proposals) | [hunter-douglas.md](vendors/hunter-douglas.md)     | `hdProposalParser.ts`                |
 
 ## Adding a New Vendor
 
@@ -137,4 +167,5 @@ Well covered: `wesleyHallParser.test.ts` (389 lines), `priceCalculator.test.ts`,
 Gap: no source-text tripwire ensuring that any new `pdf-parse`-using file isn't imported from a page. The constraint is enforced today only by failed Next.js builds when violated.
 
 ---
+
 Last verified: 2026-05-20

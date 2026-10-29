@@ -97,7 +97,12 @@ describe("suggestMapping — products", () => {
       baseCost: "Cost",
       baseRetail: "Retail Price",
       description: "Description",
+      cartonQty: null,
     });
+  });
+
+  test("maps a vendor's Case Pack column to the product's case pack", () => {
+    expect(suggestMapping(["SKU", "Name", "Case Pack"], entity).cartonQty).toBe("Case Pack");
   });
 
   test("required fields are null when no column matches", () => {

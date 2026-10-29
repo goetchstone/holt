@@ -16,9 +16,39 @@ const optionalBoolean = z.boolean().optional();
 const gradePriceInputSchema = z.object({
   grade: z.string().min(1),
   cost: z.number().positive(),
+  /**
+   * The material the book declares for this grade (the standard layout's
+   * "Fabric 14" / "Leather D" headers, lib/pricing/standardPriceBook.ts).
+   * When present it wins over the vendor profile and the shape guess; a
+   * vendor's own grades are declared, never inferred.
+   */
+  material: z.enum(["FABRIC", "LEATHER"]).optional(),
 });
 
-const wholesaleProductSchema = z.object({
+/**
+ * An option the book priced for one style (`StyleOption`,
+ * lib/pricing/wholesale/profile.ts): the wholesale engine reads it off the
+ * style's own page and the import writes it as a StyleOptionOverride.
+ */
+const styleOptionSchema = z.object({
+  groupName: z.string().min(1),
+  optionName: z.string().min(1),
+  surcharge: z.number(),
+  surchargeType: z.enum(["FLAT", "PERCENTAGE", "PER_UNIT"]),
+  isStandard: z.boolean(),
+  isAvailable: z.boolean(),
+  requiresTextInput: z.boolean(),
+  textInputLabel: z.string().nullable(),
+  sortOrder: z.number().int(),
+});
+
+// Every field the import reads must be declared here. z.object() STRIPS
+// undeclared keys, so an option the parsers produced but this schema did not
+// name never reached the route: until 2026-10-29 that was `styleOptions` and
+// the castor, CDC seat, Harmony, contrast welt, fiber/comfort/legacy down
+// back and extra-full back surcharges, and no book's per-style options were
+// ever written. The route's input type is z.infer of this schema (rule 7).
+export const wholesaleProductSchema = z.object({
   styleNumber: z.string().min(1),
   description: z.string(),
   styleName: z.string(),
@@ -43,6 +73,25 @@ const wholesaleProductSchema = z.object({
   armGuardIsStandard: optionalBoolean,
   ringBaseSwivelSurcharge: optionalNumber,
   ringBaseSwivelIsStandard: optionalBoolean,
+  castorSurcharge: optionalNumber,
+  castorIsStandard: optionalBoolean,
+  cdcSeatBdbBackSurcharge: optionalNumber,
+  cdcSeatBdbBackIsStandard: optionalBoolean,
+  harmonySurcharge: optionalNumber,
+  harmonyIsStandard: optionalBoolean,
+  contrastWeltSurcharge: optionalNumber,
+  contrastWeltIsStandard: optionalBoolean,
+  contrastBiasWeltSurcharge: optionalNumber,
+  contrastBiasWeltIsStandard: optionalBoolean,
+  fiberBackSurcharge: optionalNumber,
+  fiberBackIsStandard: optionalBoolean,
+  comfortDownBackSurcharge: optionalNumber,
+  comfortDownBackIsStandard: optionalBoolean,
+  legacyDownBackSurcharge: optionalNumber,
+  legacyDownBackIsStandard: optionalBoolean,
+  extraFullBackSurcharge: optionalNumber,
+  extraFullBackIsStandard: optionalBoolean,
+  styleOptions: z.array(styleOptionSchema).optional(),
   gradePrices: z.array(gradePriceInputSchema).min(1),
   overallWidth: optionalNumber,
   overallDepth: optionalNumber,
@@ -53,26 +102,47 @@ const wholesaleProductSchema = z.object({
   imageUrl: optionalString,
 });
 
-export const wholesaleImportSchema = z.object({
-  vendorId: z.number().int().positive(),
-  priceListName: z.string().min(1),
-  effectiveDate: z.string().optional(),
-  products: z.array(wholesaleProductSchema).min(1),
-  // "update" is additive; "renew" retires this book's styles the new PDF no
-  // longer carries. Defaults to renew -- the historical behaviour -- but now
-  // scoped to `sourceBook`, never the whole vendor.
-  mode: z.enum(["update", "renew"]).default("renew"),
-  // The book this import owns: "wholesale", "signature-elements", "casegoods",
-  // "promo", ... A slug, because it is written to every style and compared on
-  // every renew.
-  sourceBook: z
-    .string()
-    .regex(/^[a-z0-9-]{1,64}$/, "sourceBook must be a lowercase slug")
-    .default("wholesale"),
-  // A renew that would retire more than half of the book is refused with 409
-  // unless the caller says it really means it.
-  confirmShrink: z.boolean().optional(),
-});
+export const wholesaleImportSchema = z
+  .object({
+    vendorId: z.number().int().positive(),
+    priceListName: z.string().min(1),
+    effectiveDate: z.string().optional(),
+    products: z.array(wholesaleProductSchema).min(1),
+    // "update" is additive; "renew" retires this book's styles the new PDF no
+    // longer carries. Defaults to renew -- the historical behaviour -- but now
+    // scoped to `sourceBook`, never the whole vendor.
+    mode: z.enum(["update", "renew"]).default("renew"),
+    // The book this import owns: "wholesale", "signature-elements", "casegoods",
+    // "promo", ... A slug, because it is written to every style and compared on
+    // every renew.
+    sourceBook: z
+      .string()
+      .regex(/^[a-z0-9-]{1,64}$/, "sourceBook must be a lowercase slug")
+      .default("wholesale"),
+    // A renew that would retire more than half of the book is refused with 409
+    // unless the caller says it really means it.
+    confirmShrink: z.boolean().optional(),
+  })
+  .superRefine((book, ctx) => {
+    // The import keys its grade tiers by code alone, so one code cannot be a
+    // fabric grade on one style and a leather grade on another.
+    const declared = new Map<string, string>();
+    for (const p of book.products) {
+      for (const gp of p.gradePrices) {
+        if (!gp.material) continue;
+        const seen = declared.get(gp.grade);
+        if (seen && seen !== gp.material) {
+          ctx.addIssue({
+            code: "custom",
+            message: `Grade "${gp.grade}" is declared as both fabric and leather; give one of them another code.`,
+            path: ["products"],
+          });
+          return;
+        }
+        declared.set(gp.grade, gp.material);
+      }
+    }
+  });
 
 export type WholesaleImportInput = z.infer<typeof wholesaleImportSchema>;
 
