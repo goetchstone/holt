@@ -67,6 +67,8 @@ export interface OrderPlan {
   designer: SeededStaffMember;
   customerId: number | null;
   isTaxExempt: boolean;
+  /** Written on the order, as the register does, so Tax Summary files it. */
+  taxExemptReasonId: number | null;
   isInvoiced: boolean;
   lines: OrderLinePlan[];
   method: PaymentMethodTender;
@@ -275,7 +277,8 @@ export function buildOrderPlans(
 
     const hasCustomer = chance(detailRng, CUSTOMER_ASSIGNMENT_PROBABILITY);
     const customer = hasCustomer ? pick(detailRng, customers) : null;
-    const isTaxExempt = customer?.taxExempt ?? false;
+    const taxExemptReasonId = customer?.taxExemptReasonId ?? null;
+    const isTaxExempt = taxExemptReasonId != null;
 
     const isInvoiced = chance(detailRng, INVOICED_SHARE);
 
@@ -315,6 +318,7 @@ export function buildOrderPlans(
       designer,
       customerId: customer?.id ?? null,
       isTaxExempt,
+      taxExemptReasonId,
       isInvoiced,
       lines,
       method,

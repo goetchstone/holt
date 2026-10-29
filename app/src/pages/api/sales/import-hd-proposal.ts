@@ -176,7 +176,10 @@ export default requirePermission(
             data: {
               customerId: customer.id,
               salesperson: proposal.salesperson || undefined,
+              // Re-resolved with the lines below, so the order's exemption
+              // follows the customer exactly as its rates do.
               taxDistrictId: taxDistrict.taxDistrictId,
+              taxExemptReasonId: taxDistrict.taxExemptReasonId,
               orderNotes,
               updatedBy: userEmail,
             },
@@ -192,6 +195,7 @@ export default requirePermission(
               customerId: customer.id,
               salesperson: proposal.salesperson || undefined,
               taxDistrictId: taxDistrict.taxDistrictId,
+              taxExemptReasonId: taxDistrict.taxExemptReasonId,
               orderNotes,
               createdBy: userEmail,
             },

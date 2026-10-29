@@ -150,6 +150,20 @@ priced at 0% tax says so before it is saved (USE-08, 2026-10-27). The quote is n
 blocked; see `docs/domains/pos.md` "Order creation from cart" for where the fact
 comes from.
 
+## Tax exemption on the order
+
+Every route that creates an order from a resolved tax district writes the
+customer's exemption onto it as `SalesOrder.taxExemptReasonId`, beside
+`taxDistrictId`. The routes are the register's `create-from-cart`, B2B
+`convert-to-order`, and the HD proposal import (`import-hd-proposal`, on both
+create and re-import). The value comes from `resolveTaxDistrict()`, read from
+`Customer.taxExemptReasonId` (2026-10-29, GAP-04a). The order keeps the exemption
+it was sold under; clearing the customer's later does not re-tax it. A native
+return copies it from its sale (`lib/returns/bookReturn.ts`).
+`__tests__/taxResolutionSingleSource.test.ts` fails on a route that writes the
+district without it. Changing an existing order's customer
+(`PUT /api/sales/orders/[id]`) does not re-rate anything yet: ROADMAP GAP-04d.
+
 ## Key Files
 
 - `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`

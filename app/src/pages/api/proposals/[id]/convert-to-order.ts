@@ -36,7 +36,6 @@ export default requireAuthWithRole(
               orderBy: { sortOrder: "asc" },
               where: { showInOutput: true },
             },
-            customer: { select: { id: true, taxExempt: true } },
           },
         });
 
@@ -64,12 +63,8 @@ export default requireAuthWithRole(
           storeLocationId: null,
           contextLabel: `B2B proposal ${proposal.proposalNumber}`,
         });
-        // Customer.taxExempt (boolean) and Customer.taxExemptReasonId are two
-        // separate columns for the same question. resolveTaxDistrict reads the
-        // reason id; this path historically read the boolean. Honouring EITHER
-        // keeps both readings exempt rather than letting one silently tax a
-        // customer the other considers exempt.
-        const isTaxExempt = (proposal.customer?.taxExempt ?? false) || taxDistrict.isExempt;
+        // The customer's exemption, from its one column (the resolver reads it).
+        const isTaxExempt = taxDistrict.isExempt;
 
         const order = await tx.salesOrder.create({
           data: {
@@ -77,6 +72,7 @@ export default requireAuthWithRole(
             status: "ORDER",
             orderDate: now,
             taxDistrictId: taxDistrict.taxDistrictId,
+            taxExemptReasonId: taxDistrict.taxExemptReasonId,
             customerId: proposal.customerId,
             salesPersonId: proposal.salesPersonId,
             storeLocation: "B2B",

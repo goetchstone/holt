@@ -30,13 +30,28 @@ async function handlePut(
     return res.status(404).json({ error: "Customer not found" });
   }
 
-  const { tradeTierId, isTradeAccount, tradeCompanyName, taxExemptNumber } = req.body;
+  const { tradeTierId, isTradeAccount, tradeCompanyName, taxExemptNumber, taxExemptReasonId } =
+    req.body;
 
   // Validate tier exists if provided
   if (tradeTierId != null) {
     const tier = await prisma.tradeTier.findUnique({ where: { id: Number(tradeTierId) } });
     if (!tier) {
       return res.status(400).json({ error: "Trade tier not found" });
+    }
+  }
+
+  // The customer's tax exemption: a reason makes every later sale exempt
+  // (lib/tax/resolveTaxRate.ts), null taxes them again. Orders already written
+  // keep the exemption they were sold under.
+  if (taxExemptReasonId != null) {
+    const reasonId = Number(taxExemptReasonId);
+    if (!Number.isInteger(reasonId)) {
+      return res.status(400).json({ error: "Tax exempt reason must be a reason id" });
+    }
+    const reason = await prisma.taxExemptReason.findUnique({ where: { id: reasonId } });
+    if (!reason) {
+      return res.status(400).json({ error: "Tax exempt reason not found" });
     }
   }
 
@@ -47,10 +62,14 @@ async function handlePut(
       ...(tradeTierId !== undefined && { tradeTierId: tradeTierId ? Number(tradeTierId) : null }),
       ...(tradeCompanyName !== undefined && { tradeCompanyName: tradeCompanyName || null }),
       ...(taxExemptNumber !== undefined && { taxExemptNumber: taxExemptNumber || null }),
+      ...(taxExemptReasonId !== undefined && {
+        taxExemptReasonId: taxExemptReasonId == null ? null : Number(taxExemptReasonId),
+      }),
       updatedBy: session.user?.email || undefined,
     },
     include: {
       tradeTier: true,
+      taxExemptReason: true,
     },
   });
 

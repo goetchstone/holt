@@ -126,4 +126,39 @@ describe("tax rate is resolved, never hardcoded or client-supplied", () => {
     const present = new Set(filesWriting("vatRate:"));
     for (const f of Object.keys(COPIES_AN_EXISTING_RATE)) expect(present.has(f)).toBe(true);
   });
+
+  it("every order written from a resolved district also records the customer's exemption", () => {
+    // Tax Summary files an exempt sale under its order's taxExemptReasonId. A
+    // route that writes `taxDistrictId: <resolved>.taxDistrictId` and not the
+    // reason beside it charges the exempt customer 0% and then reports the sale
+    // as a taxable one in that district. Before 2026-10-29 every native route
+    // did exactly that. Behaviour is pinned per route in
+    // integration/taxExemption.integration.test.ts; this catches the next one.
+    function unrecorded(code: string): string[] {
+      const missing: string[] = [];
+      const districtWrites = [...code.matchAll(/taxDistrictId:\s*(\w+)\.taxDistrictId\b/g)];
+      const byVar = new Map<string, number>();
+      for (const m of districtWrites) byVar.set(m[1], (byVar.get(m[1]) ?? 0) + 1);
+      for (const [v, n] of byVar) {
+        const reasons = code.match(
+          new RegExp(`taxExemptReasonId:\\s*${v}\\.taxExemptReasonId\\b`, "g"),
+        );
+        if ((reasons?.length ?? 0) < n) missing.push(v);
+      }
+      return missing;
+    }
+    // Able to disagree: a district write alone fails, the pair passes.
+    expect(unrecorded("data: { taxDistrictId: td.taxDistrictId, x: 1 }")).toEqual(["td"]);
+    expect(
+      unrecorded("{ taxDistrictId: td.taxDistrictId, taxExemptReasonId: td.taxExemptReasonId }"),
+    ).toEqual([]);
+
+    const callers = filesWriting("resolveTaxDistrict(").filter(
+      (f) => !f.startsWith("src/lib/tax/"),
+    );
+    // The population is real: the register's own route is in it.
+    expect(callers).toContain("src/pages/api/sales/orders/create-from-cart.ts");
+    const offenders = callers.filter((f) => unrecorded(codeOf(f)).length > 0);
+    expect(offenders).toEqual([]);
+  });
 });

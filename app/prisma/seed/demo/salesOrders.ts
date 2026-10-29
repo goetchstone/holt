@@ -251,6 +251,7 @@ export async function seedSalesOrdersAndTills(
           storeLocation: order.storeName,
           storeLocationId: storeId,
           taxDistrictId,
+          taxExemptReasonId: order.taxExemptReasonId,
           totalTax,
           totalPaid: totalDue,
           // Undelivered orders spread across the REAL dispatch pipeline rather
@@ -427,6 +428,8 @@ export async function seedSalesOrdersAndTills(
             storeLocation: order.storeName,
             storeLocationId: storeId,
             taxDistrictId,
+            // A return keeps its sale's exemption, as lib/returns/bookReturn.ts does.
+            taxExemptReasonId: order.taxExemptReasonId,
             totalTax: -refundLine.vatAmount,
             // Owed -refundAmount, refunded in full below.
             totalPaid: -refundAmount,

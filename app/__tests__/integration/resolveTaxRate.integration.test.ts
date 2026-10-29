@@ -45,6 +45,7 @@ describe("resolveTaxDistrict (real DB)", () => {
     expect(result).toEqual({
       taxDistrictId: null,
       isExempt: false,
+      taxExemptReasonId: null,
       source: "unresolved",
       rules: [],
     });
@@ -132,8 +133,31 @@ describe("resolveTaxDistrict (real DB)", () => {
     });
 
     expect(result.isExempt).toBe(true);
+    // The reason travels with the answer, so the caller can write it on the
+    // order for the Tax Summary report.
+    expect(result.taxExemptReasonId).toBe(reason.id);
     expect(result.taxDistrictId).toBe(ny.id);
     expect(result.rules).toEqual([]);
+  });
+
+  it("a customer with no exemption reason is taxed and carries no reason", async () => {
+    const ny = await makeDistrict("NY", 0.08);
+    const store = await prisma.storeLocation.create({
+      data: { name: "NY Store", code: "NYS4", type: "STORE", taxDistrictId: ny.id },
+    });
+    const customer = await prisma.customer.create({
+      data: { firstName: "Retail", lastName: "Buyer" },
+    });
+
+    const result = await resolveTaxDistrict(prisma, {
+      customerId: customer.id,
+      storeLocationId: store.id,
+      contextLabel: store.name,
+    });
+
+    expect(result.isExempt).toBe(false);
+    expect(result.taxExemptReasonId).toBeNull();
+    expect(result.rules.map((r) => r.taxRate)).toEqual([0.08]);
   });
 
   it("loads only isActive rules, sorted by sortOrder", async () => {
