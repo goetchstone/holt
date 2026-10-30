@@ -120,6 +120,18 @@ export interface Movement {
   actionKey?: string | null;
 }
 
+/**
+ * A place that can't hold stock: a stock location or store that doesn't exist,
+ * one at another store, or a grouping place. The caller named it, so a route
+ * answers 400 with this message.
+ */
+export class PlaceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PlaceError";
+  }
+}
+
 /** The source place holds less than the movement asked to take from it. */
 export class InsufficientStockError extends Error {
   constructor(
@@ -386,10 +398,10 @@ async function assertPlaceAtStore(tx: Tx, place: Place): Promise<void> {
     select: { storeLocationId: true, locationType: true, name: true },
   });
   if (!location) {
-    throw new Error(`Stock location ${place.stockLocationId} does not exist.`);
+    throw new PlaceError(`Stock location ${place.stockLocationId} does not exist.`);
   }
   if (location.storeLocationId !== place.storeLocationId) {
-    throw new Error(
+    throw new PlaceError(
       `Stock location ${place.stockLocationId} is not at store ${place.storeLocationId}.`,
     );
   }
@@ -397,7 +409,7 @@ async function assertPlaceAtStore(tx: Tx, place: Place): Promise<void> {
     isStockLocationType(location.locationType) &&
     !LOCATION_TYPE_INFO[location.locationType].holdsStock
   ) {
-    throw new Error(
+    throw new PlaceError(
       `"${location.name}" groups places and holds no stock itself; choose a place inside it.`,
     );
   }

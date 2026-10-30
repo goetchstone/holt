@@ -18,7 +18,7 @@
 // handheld move is quick only. Tracked in ROADMAP.md, "Handheld floor".
 
 import { ancestry } from "./placeTree";
-import type { PrismaTx } from "./ledger";
+import { PlaceError, type PrismaTx } from "./ledger";
 
 export const MOVE_MODES = ["QUICK", "TRACKED"] as const;
 export type MoveMode = (typeof MOVE_MODES)[number];
@@ -74,7 +74,9 @@ export async function requiredMoveMode(
   });
   const from = ends.find((p) => p.id === fromStockLocationId);
   const to = ends.find((p) => p.id === toStockLocationId);
-  if (!from || !to) throw new Error("Both ends of a move must be stock locations that exist.");
+  if (!from || !to) {
+    throw new PlaceError("Both ends of a move must be stock locations that exist.");
+  }
   const tree = await db.stockLocation.findMany({
     where: { storeLocationId: { in: [from.storeLocationId, to.storeLocationId] } },
     select: { id: true, parentId: true, moveMode: true },

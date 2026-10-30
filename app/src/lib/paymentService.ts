@@ -163,6 +163,9 @@ export interface RefundInput {
 /** A refund refused before any money moved: the caller said something wrong. */
 export class RefundError extends Error {}
 
+/** Only a PENDING payment can be voided; anything else answers 409 with this message. */
+export class VoidError extends Error {}
+
 /**
  * The processor did not confirm the refund. The refund row stays PENDING --
  * counted by the cap, out of balances and the journal -- because an error is
@@ -545,8 +548,8 @@ export async function voidPendingPayment(
   return prisma.$transaction(async (tx) => {
     const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
     if (payment.status !== "PENDING") {
-      throw new Error(
-        `Cannot void payment ${paymentId}: status is ${payment.status}, expected PENDING`,
+      throw new VoidError(
+        `Only a pending payment can be voided; payment ${paymentId} is ${(payment.status ?? "without a status").toLowerCase()}.`,
       );
     }
     return tx.payment.update({

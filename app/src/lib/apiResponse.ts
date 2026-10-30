@@ -75,13 +75,19 @@ export function methodNotAllowed(res: NextApiResponse, allowed: string[]): void 
 
 // Catches ApiError and unknown errors, sends standardized response.
 // Use as the catch block in API route handlers.
+//
+// An ApiError carries a message meant for the caller. Anything else is a fault:
+// its message can name Prisma models, columns and constraints, or a
+// processor's own error text, so it goes to logError and the caller is told
+// only that the server failed (CLAUDE.md rule 11). It used to send
+// err.message, so a route that wants a refusal on screen throws ApiError (or
+// catches its own typed error) before this point.
 export function handleError(res: NextApiResponse, err: unknown, context?: string): void {
   if (err instanceof ApiError) {
     error(res, err.statusCode, err.message, err.code);
     return;
   }
 
-  const message = err instanceof Error ? err.message : "Internal server error";
   logError(context ?? "Unhandled API error", err);
-  error(res, 500, message, "INTERNAL_ERROR");
+  error(res, 500, "Internal server error", "INTERNAL_ERROR");
 }

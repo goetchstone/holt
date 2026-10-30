@@ -109,6 +109,28 @@ Roles (`StaffRole`): SUPER_ADMIN, ADMIN, MANAGER, DESIGNER, REGISTER, WAREHOUSE,
 
 Bootstrap safeguard: if no privileged (ADMIN/SUPER_ADMIN) user with a linked userId exists, role enforcement fails open so the first user can sign in and promote themselves. A warning is logged when this triggers.
 
+## API errors
+
+REST routes answer errors through `lib/apiResponse.ts`: `{ error, code? }`.
+
+- **A refusal the caller can act on is a 4xx with a message for them.** The
+  route returns `badRequest` / `notFound` / `conflict` itself, or a library
+  throws `ApiError` (status and message), or a typed error that the route
+  catches and maps. Examples: `RefundError`, `VoidError`, `DeliveryFeeError`,
+  `MoveModeError`, `PlaceError`.
+- **Anything else is a fault.** `handleError(res, err, context)` logs it with
+  its context (`logError`) and answers `500 { error: "Internal server error",
+  code: "INTERNAL_ERROR" }`. The exception's text never reaches the response,
+  because it can name Prisma models, columns and constraints, or carry a
+  payment processor's own error (CLAUDE.md rule 11). Until 2026-10-30 the
+  helper sent `err.message`. Two routes relied on that to show a refusal and
+  now catch a typed error instead: voiding a payment that isn't pending, and
+  an admin position edit to a place that can't hold stock.
+- A route writing its own 500 follows the same rule.
+  `__tests__/api500Bodies.test.ts` refuses `.message`, `getErrorMessage(` and
+  `stack` inside a `.status(500).json(...)` body, and `apiResponse.test.ts`
+  holds `handleError` to it.
+
 ## Database Schema Domains
 
 | Domain | Key Models | Purpose |

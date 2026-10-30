@@ -439,6 +439,15 @@ now" on New Transfer and an admin position move are quick moves and are refused
 (409) where the mode is TRACKED. Transfers shipped before transit places existed
 are received and cancelled the old way.
 
+**A place that can't hold stock is a `PlaceError`** (`lib/inventory/ledger.ts`,
+since 2026-10-30). That covers a stock location or store that doesn't exist, a
+place at another store, and a GROUP place. The ledger, `places.ts` and
+`moveModes.ts` throw it, and an admin position edit
+(`PUT /api/warehouse/positions/[id]`) answers it with 400 and its message. Until
+then these were plain `Error`s, which reached the screen only because
+`handleError` put the exception text in a 500 (`docs/ARCHITECTURE.md`, "API
+errors"). Tested in `stockTransfer.integration.test.ts`.
+
 **Receiving** (`lib/inventory/receiving.ts`; `stockReceive.integration.test.ts`).
 Damaged and Wrong Item go to the store's quarantine place
 (`lib/purchasing/receiptConditions.ts`, the one list the screen also reads). A
