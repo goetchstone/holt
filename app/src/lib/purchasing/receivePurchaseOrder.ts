@@ -11,6 +11,10 @@
 // An incomplete set -- a multi-box unit some of whose boxes did not arrive --
 // is received as a unit into quarantine with a BoxNote naming the missing
 // boxes (lib/inventory/boxes.ts). It counts toward what the PO line received.
+//
+// Each receipt records the place its units landed and the landed unit cost they
+// brought into their product's average (GAP-02, lib/purchasing/landedCost.ts),
+// so it can be taken back exactly (lib/purchasing/unreceive.ts).
 
 import type { Prisma } from "@prisma/client";
 import { lockProducts } from "@/lib/inventory/ledger";
@@ -19,6 +23,7 @@ import { landingPlaceId } from "@/lib/inventory/places";
 import { parseQty } from "@/lib/inventory/qtyInput";
 import { nativeReceiptStatus } from "@/lib/purchasing/receiptStatus";
 import { INCOMPLETE_SET_CONDITION } from "@/lib/purchasing/receiptConditions";
+import { averageInReceipt, poLandedUnitCosts } from "@/lib/purchasing/landedCost";
 
 type Tx = Prisma.TransactionClient;
 
@@ -110,11 +115,40 @@ export async function receivePurchaseOrder(
   const receivingRecords: ReceiveResult["receivingRecords"] = [];
   const printItems: ReceiveResult["printItems"] = [];
   const incompleteNotes: number[] = [];
+  // Each line's landed unit cost, from the PO's charges as they stand now.
+  const landed = await poLandedUnitCosts(tx, args.poId);
+
+  /** Into the product's average, then into stock; the place it landed. */
+  const putAway = async (
+    poItem: (typeof po.lineItems)[number],
+    productId: number,
+    quantity: number,
+    item: { destinationStockLocationId?: number | null },
+    condition: string | null | undefined,
+  ): Promise<number> => {
+    const landedCost = landed.get(poItem.id);
+    if (landedCost !== undefined) {
+      await averageInReceipt(tx, { productId, quantity, unitCost: landedCost });
+    }
+    const put = await receiveIntoStock(tx, {
+      po,
+      poItem,
+      productId,
+      quantity,
+      storeLocationId: args.storeLocationId,
+      stockLocationId: item.destinationStockLocationId,
+      condition,
+      actor: args.actor,
+      actionKey: args.actionKey,
+    });
+    return put.stockLocationId;
+  };
 
   const record = async (
     item: ReceiveItem,
     quantity: number,
     condition: string | null,
+    landedAt: number | null,
   ): Promise<void> => {
     const r = await tx.receivingRecord.create({
       data: {
@@ -123,9 +157,10 @@ export async function receivePurchaseOrder(
         quantityReceived: quantity,
         receiverUserId: args.receiverUserId,
         destinationLocationId: args.storeLocationId,
-        destinationStockLocationId: item.destinationStockLocationId || null,
+        destinationStockLocationId: landedAt ?? (item.destinationStockLocationId || null),
         condition,
         tagsPrinted: item.printTag ?? false,
+        landedUnitCost: landed.get(item.purchaseOrderItemId) ?? null,
       },
     });
     receivingRecords.push({
@@ -142,7 +177,10 @@ export async function receivePurchaseOrder(
     if (!poItem) continue;
 
     if (item.quantityReceived > 0) {
-      await record(item, item.quantityReceived, item.condition || null);
+      const landedAt = poItem.product
+        ? await putAway(poItem, poItem.product.id, item.quantityReceived, item, item.condition)
+        : null;
+      await record(item, item.quantityReceived, item.condition || null, landedAt);
 
       // Update variant UPC if provided during receiving
       if (item.variantUpc && poItem.productVariant && !poItem.productVariant.upc) {
@@ -152,21 +190,8 @@ export async function receivePurchaseOrder(
         });
       }
 
-      if (poItem.product) {
-        await receiveIntoStock(tx, {
-          po,
-          poItem,
-          productId: poItem.product.id,
-          quantity: item.quantityReceived,
-          storeLocationId: args.storeLocationId,
-          stockLocationId: item.destinationStockLocationId,
-          condition: item.condition,
-          actor: args.actor,
-          actionKey: args.actionKey,
-        });
-        if (item.printTag) {
-          printItems.push({ productId: poItem.product.id, quantity: item.quantityReceived });
-        }
+      if (poItem.product && item.printTag) {
+        printItems.push({ productId: poItem.product.id, quantity: item.quantityReceived });
       }
     }
 
@@ -178,17 +203,8 @@ export async function receivePurchaseOrder(
           "An incomplete set is a unit with some of its boxes, not none and not all of them.",
         );
       }
-      await record(item, 1, INCOMPLETE_SET_CONDITION);
-      await receiveIntoStock(tx, {
-        po,
-        poItem,
-        productId: poItem.product.id,
-        quantity: 1,
-        storeLocationId: args.storeLocationId,
-        condition: INCOMPLETE_SET_CONDITION,
-        actor: args.actor,
-        actionKey: args.actionKey,
-      });
+      const landedAt = await putAway(poItem, poItem.product.id, 1, {}, INCOMPLETE_SET_CONDITION);
+      await record(item, 1, INCOMPLETE_SET_CONDITION, landedAt);
       const note = await tx.boxNote.create({
         data: {
           kind: "INCOMPLETE",

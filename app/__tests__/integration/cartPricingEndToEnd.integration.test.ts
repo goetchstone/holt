@@ -276,6 +276,33 @@ describe("cart pricing end to end (real DB)", () => {
 
   // USE-12: the number is the business's -- its prefix, its business day --
   // where it used to be a hardcoded prefix dated by the server's clock.
+  it("costs a catalog product at its landed cost, whatever the screen sent (GAP-02)", async () => {
+    const { store, product } = await seedCatalogAndTax();
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { baseCost: 800, landedCost: 950 },
+    });
+
+    const res = makeRes();
+    await handler(
+      makeReq({
+        storeLocation: store.name,
+        // The register used to send the catalog cost, and the server took it.
+        items: [{ productId: product.id, quantity: 2, unitPrice: 1000, cost: 1 }],
+      }),
+      res,
+      session,
+      CAN_DISCOUNT,
+    );
+
+    expect(res.statusCode).toBe(201);
+    const payload = res.body as { id: number };
+    const line = await prisma.orderLineItem.findFirstOrThrow({
+      where: { salesOrderId: payload.id },
+    });
+    expect(Number(line.cost)).toBe(1900);
+  });
+
   it("numbers orders with the business's prefix, in sequence for its day", async () => {
     const { store, product } = await seedCatalogAndTax();
     await prisma.organization.create({

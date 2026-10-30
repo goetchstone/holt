@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { logError } from "@/lib/logger";
 import { roundQty, toQty } from "@/lib/inventory/quantity";
+import { countUnitValue } from "@/lib/purchasing/landedCostShared";
 
 const APPAREL_DEPARTMENTS = ["Accessories", "Mens Apparel", "Womens Apparel"];
 
@@ -40,6 +41,7 @@ async function handler(
             id: true,
             externalId: true,
             baseCost: true,
+            landedCost: true,
             baseRetail: true,
             departmentId: true,
           },
@@ -54,6 +56,7 @@ async function handler(
       number,
       {
         baseCost: Prisma.Decimal | null;
+        landedCost: Prisma.Decimal | null;
         baseRetail: Prisma.Decimal | null;
         departmentName: string;
         externalId: number | null;
@@ -64,6 +67,7 @@ async function handler(
       if (deptName) {
         productInfoMap.set(p.id, {
           baseCost: p.baseCost,
+          landedCost: p.landedCost,
           baseRetail: p.baseRetail,
           departmentName: deptName,
           externalId: p.externalId,
@@ -110,10 +114,7 @@ async function handler(
         };
       }
 
-      const itemCost = Number(
-        productInfo?.baseCost ||
-          (productInfo?.baseRetail ? Number(productInfo.baseRetail) * 0.5 : 0),
-      );
+      const itemCost = productInfo ? countUnitValue(productInfo) : 0;
       locationTotals[locName].expectedQty += snapshot.quantity;
       locationTotals[locName].expectedCost += snapshot.quantity * itemCost;
     }
@@ -161,9 +162,7 @@ async function handler(
 
       const finalCount = reconciledData ? toQty(reconciledData.finalCount) : rawCount;
 
-      const itemCost = Number(
-        productInfo.baseCost || (productInfo.baseRetail ? Number(productInfo.baseRetail) * 0.5 : 0),
-      );
+      const itemCost = countUnitValue(productInfo);
       locationTotals[locName].countedQty += finalCount;
       locationTotals[locName].countedCost += finalCount * itemCost;
     }

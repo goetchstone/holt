@@ -214,8 +214,8 @@ journal row behind it like any other stock.
 Every movement `postMovement` makes is also a `StockMovement` row, written in
 the same transaction: product, quantity, the place it came from and the place it
 went to (a side with no store is outside the books), why (`MOVEMENT_REASONS` in
-`ledger.ts`: `OPENING`, `RECEIVE`, `ALLOCATE`, `RELEASE`, `DELIVER`, `RETURN`,
-`TRANSFER`, `ADJUST`, `IMPORT_SYNC`), the document that moved it
+`ledger.ts`: `OPENING`, `RECEIVE`, `UNRECEIVE`, `ALLOCATE`, `RELEASE`, `DELIVER`,
+`RETURN`, `WRITE_OFF`, `TRANSFER`, `ADJUST`, `IMPORT_SYNC`), the document that moved it
 (`sourceType` and `sourceId`), who, and when. Every caller must name a reason; the compiler
 enforces it.
 
@@ -456,6 +456,18 @@ arrives committed to the order up to what it still needs; the rest arrives
 free. PO status after a receipt is `nativeReceiptStatus`
 (`lib/purchasing/receiptStatus.ts`), which leaves zero-quantity lines out of
 both counts (rule 39).
+
+- **What a receipt records** (GAP-02): the place its units landed
+  (`receiveIntoStock` returns it) and the landed unit cost they brought into
+  their product's average.
+- **Taking it back.** A receipt can be taken back (`UNRECEIVE`, "Adjust
+  inventory") only from that place: free units first, then units committed
+  there to the line's order. Units that have moved or sold are not taken from
+  anywhere else.
+- **Stock value.** Stock is valued at `productCost`, the landed cost, else
+  `baseCost`. That covers inventory health and the count reports (on hand by
+  department and by location, and summary details).
+- See `docs/domains/purchasing.md`, "Landed cost and receiving corrections".
 
 **Returns** (`lib/inventory/returnStock.ts`; `stockReturns.integration.test.ts`;
 DECISIONS #19). RECEIVED puts the piece in the store's returns place and records

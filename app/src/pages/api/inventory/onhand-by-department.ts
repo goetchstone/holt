@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { logError } from "@/lib/logger";
 import { roundQty, toQty } from "@/lib/inventory/quantity";
+import { countUnitValue } from "@/lib/purchasing/landedCostShared";
 
 async function handler(
   req: NextApiRequest,
@@ -31,6 +32,7 @@ async function handler(
             id: true,
             externalId: true,
             baseCost: true,
+            landedCost: true,
             baseRetail: true,
             departmentId: true,
           },
@@ -46,6 +48,7 @@ async function handler(
       number,
       {
         baseCost: Prisma.Decimal | null;
+        landedCost: Prisma.Decimal | null;
         baseRetail: Prisma.Decimal | null;
         departmentName: string;
         externalId: number | null;
@@ -56,6 +59,7 @@ async function handler(
       if (deptName) {
         productInfoMap.set(p.id, {
           baseCost: p.baseCost,
+          landedCost: p.landedCost,
           baseRetail: p.baseRetail,
           departmentName: deptName,
           externalId: p.externalId,
@@ -97,10 +101,7 @@ async function handler(
         };
       }
 
-      const itemCost = Number(
-        productInfo?.baseCost ||
-          (productInfo?.baseRetail ? Number(productInfo.baseRetail) * 0.5 : 0),
-      );
+      const itemCost = productInfo ? countUnitValue(productInfo) : 0;
       departmentTotals[deptName].expectedQty += snapshot.quantity;
       departmentTotals[deptName].expectedCost += snapshot.quantity * itemCost;
     }
@@ -136,10 +137,7 @@ async function handler(
 
       const finalCount = reconciledData ? toQty(reconciledData.finalCount) : rawCount;
 
-      const itemCost = Number(
-        productInfo?.baseCost ||
-          (productInfo?.baseRetail ? Number(productInfo.baseRetail) * 0.5 : 0),
-      );
+      const itemCost = productInfo ? countUnitValue(productInfo) : 0;
       departmentTotals[deptName].countedQty += finalCount;
       departmentTotals[deptName].countedCost += finalCount * itemCost;
     }

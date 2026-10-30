@@ -27,6 +27,8 @@ interface ProductDetails {
   isActive: boolean;
   isDiscontinued: boolean;
   baseCost: number | null;
+  /** The average landed cost of its receipts (GAP-02); null until one. */
+  landedCost: number | null;
   baseRetail: number | null;
   mapPrice: number | null;
   length?: number;
@@ -161,6 +163,15 @@ export function ProductDetailView({ id }: { id: string }) {
             <p className="text-brand-gray text-xs uppercase tracking-wide">Cost</p>
             <p className="text-lg font-semibold">
               {product.baseCost != null ? fmt(product.baseCost) : "N/A"}
+            </p>
+          </div>
+          <div>
+            <p className="text-brand-gray text-xs uppercase tracking-wide">Landed cost</p>
+            <p className="text-lg font-semibold">
+              {product.landedCost != null ? fmt(product.landedCost) : "Not received yet"}
+            </p>
+            <p className="text-xs text-brand-gray">
+              Average of its receipts with freight; values stock and sets a sale&apos;s cost.
             </p>
           </div>
           <div>

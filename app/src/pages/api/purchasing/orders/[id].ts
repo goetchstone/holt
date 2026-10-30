@@ -13,6 +13,8 @@ import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
 import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
 import { logError } from "@/lib/logger";
 import { poEditProblem } from "@/lib/purchasing/purchaseOrderShared";
+import { poLandedUnitCosts } from "@/lib/purchasing/landedCost";
+import { getAppSettings } from "@/lib/appSettings";
 
 export async function handler(
   req: NextApiRequest,
@@ -99,6 +101,23 @@ async function handleGet(poId: number, res: NextApiResponse, showCost: boolean) 
     if (!po) {
       return res.status(404).json({ error: "Purchase order not found." });
     }
+    // Each line's landed unit cost from the PO's charges (GAP-02), for a
+    // holder of "View cost" only.
+    const landed = showCost ? await poLandedUnitCosts(prisma, poId) : null;
+    const charges = showCost
+      ? await prisma.purchaseOrderCharge.findMany({
+          where: { purchaseOrderId: poId },
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            description: true,
+            amount: true,
+            splitBy: true,
+            created: true,
+            createdBy: true,
+          },
+        })
+      : null;
 
     const receivedCount = po.lineItems.reduce((n, l) => n + l.receivingRecords.length, 0);
     return res.status(200).json({
@@ -130,6 +149,9 @@ async function handleGet(poId: number, res: NextApiResponse, showCost: boolean) 
       created: po.created,
       updated: po.updated,
       costVisible: showCost,
+      // The split a new landed charge starts at (Settings > Landed cost).
+      defaultSplit: (await getAppSettings()).landedCostSplit,
+      ...(charges ? { charges: charges.map((c) => ({ ...c, amount: Number(c.amount) })) } : {}),
       lineItems: po.lineItems.map((item) => {
         const totalReceived = item.receivingRecords.reduce(
           (sum, r) => sum + Number(r.quantityReceived),
@@ -145,6 +167,7 @@ async function handleGet(poId: number, res: NextApiResponse, showCost: boolean) 
             ? {
                 unitCost: Number(item.unitCost),
                 lineTotal: Number(item.orderedQuantity) * Number(item.unitCost),
+                landedUnitCost: landed?.get(item.id) ?? null,
               }
             : {}),
           totalReceived,
@@ -159,8 +182,15 @@ async function handleGet(poId: number, res: NextApiResponse, showCost: boolean) 
             receivedDate: r.receivedDate,
             destinationLocation: r.destinationLocation,
             invoiceNumber: r.invoiceNumber,
-            ...(showCost ? { lineCost: r.lineCost != null ? Number(r.lineCost) : null } : {}),
+            ...(showCost
+              ? {
+                  lineCost: r.lineCost != null ? Number(r.lineCost) : null,
+                  landedUnitCost: r.landedUnitCost != null ? Number(r.landedUnitCost) : null,
+                }
+              : {}),
             externalPorNo: r.externalPorNo,
+            // Written by the POS import: corrected by a count, not taken back here.
+            imported: r.externalGipNo != null || r.externalPorNo != null,
           })),
         };
       }),

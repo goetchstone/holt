@@ -25,6 +25,7 @@ import { isValidFeatureKey } from "@/lib/featureCatalog";
 import { parseBookingConfig } from "@/lib/booking/config";
 import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
 import { isValidTimeZone } from "@/lib/reports/businessDay";
+import { LANDED_COST_SPLIT_KEYS, isLandedCostSplit } from "@/lib/purchasing/landedCostShared";
 
 const THEME_KEYS = Object.keys(DEFAULT_THEME) as ThemeKey[];
 
@@ -376,6 +377,18 @@ function parseDiscountLimit(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// How a landed charge on a PO is spread unless the buyer picks another
+// (GAP-02): one of LANDED_COST_SPLITS (lib/purchasing/landedCostShared.ts).
+function parseLandedCostSplit(body: Body, data: SettingsData): ParseError {
+  const raw = body.landedCostSplit;
+  if (raw === undefined) return null;
+  if (!isLandedCostSplit(raw)) {
+    return { error: `landedCostSplit must be one of ${LANDED_COST_SPLIT_KEYS.join(", ")}.` };
+  }
+  data.landedCostSplit = raw;
+  return null;
+}
+
 // The owner's two getting-started acknowledgements (lib/gettingStarted.ts):
 // true stamps the time now, false clears it. The server writes the time, never
 // the client -- the record is of when it was said, not of what a browser
@@ -411,6 +424,7 @@ const SETTINGS_PARSERS = [
   parseDefaultTaxDistrict,
   parseDeliveryFeeTaxGroup,
   parseDiscountLimit,
+  parseLandedCostSplit,
   parseAcknowledgements,
 ];
 

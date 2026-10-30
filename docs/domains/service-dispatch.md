@@ -164,6 +164,7 @@ A pickup stop's order is kept off the run's pull list and pick list
 - `pages/api/dispatch/` -- dispatch API endpoints (orders-by-zone, ready-to-deliver, delivery-planner, pencil-in, runs, stops, vehicles, assign-order)
 - `pages/dispatch/` -- dispatch pages (board, ready-to-deliver, planner)
 - `pages/api/service/` -- service appointment API endpoints
+- `pages/api/service/house-calls/index.ts` -- books a house call and the order line that charges for it; the line's cost is the house-call product's cost through `productCost` (landed, else catalog: `docs/domains/sales-orders.md`, "A new line's cost")
 - `pages/api/service/purchase-order-lookup.ts` -- the "Link PO" search on a case task: PO number and vendor name only (no totals, cost or notes), gated on `service.write` like the task save it serves. The purchasing list (`purchasing.read`) stays with purchasing
 - `pages/service/` -- service pages (dispatch queue, house calls)
 - `components/dnd/` -- reusable drag-and-drop components (DndBoard, DroppableColumn, SortableList, SortableItem)

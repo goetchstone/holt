@@ -83,6 +83,7 @@ export interface Place {
 export const MOVEMENT_REASONS = {
   OPENING: "Already there when the journal started, or first recorded by hand",
   RECEIVE: "Received from a supplier",
+  UNRECEIVE: "Taken back off a receipt that was wrong",
   ALLOCATE: "Committed to a sales order",
   RELEASE: "Released from a sales order to free stock",
   DELIVER: "Left with the customer",

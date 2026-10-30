@@ -180,6 +180,25 @@ describe("inventory valued at cost follows View cost", () => {
   });
 
   it.each(ROUTES)(
+    "%s: values the count at landed cost once the product has one (GAP-02)",
+    async (_name, route, query) => {
+      await prisma.product.updateMany({
+        where: { productNumber: "QH-RUG-01" },
+        data: { landedCost: 250 },
+      });
+      try {
+        const { body } = await call(route, "mia", query);
+        expect(body.rows[0]).toMatchObject({ expectedQty: 3, expectedCost: 750 });
+      } finally {
+        await prisma.product.updateMany({
+          where: { productNumber: "QH-RUG-01" },
+          data: { landedCost: null },
+        });
+      }
+    },
+  );
+
+  it.each(ROUTES)(
     "%s: a role without View cost gets the same rows without cost, not a refusal",
     async (_name, route, query) => {
       const { status, body } = await call(route, "cal", query);

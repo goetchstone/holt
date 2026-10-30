@@ -39,6 +39,7 @@ import {
   logDiscountApproval,
 } from "@/lib/sales/discountApproval";
 import { type DiscountLine, largestDiscountPercent } from "@/lib/sales/discountPolicyShared";
+import { saleUnitCost } from "@/lib/purchasing/landedCostShared";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -164,6 +165,7 @@ export async function handler(
           categoryId: true,
           typeId: true,
           baseCost: true,
+          landedCost: true,
           ...LINE_TAX_GROUP_SELECT,
         },
       });
@@ -293,11 +295,13 @@ export async function handler(
           partNo = newProduct.productNumber;
         }
 
-        // Use explicitly passed cost (from configurator), or fall back to product baseCost
-        const resolvedProduct = productId ? productMap.get(productId) : null;
-        let itemCost = 0;
-        if (item.cost != null && item.cost > 0) itemCost = item.cost;
-        else if (resolvedProduct?.baseCost) itemCost = Number(resolvedProduct.baseCost);
+        // A catalog product sells at what it cost Holt -- its landed cost, else
+        // its catalog cost (productCost, GAP-02) -- whatever the screen sent. A
+        // configured or custom line carries the configurator's cost.
+        const itemCost = saleUnitCost(
+          itemType === "PRODUCT" && productId ? productMap.get(productId) : undefined,
+          item.cost,
+        );
 
         lineItemData.push({
           // Carried for the allocation filter below, not persisted -- a
@@ -314,7 +318,7 @@ export async function handler(
           netPrice: priced.items[idx].netPrice,
           // What it was listed at, so the saving can be shown (GAP-06).
           listPrice: listUnits[idx],
-          // itemCost is per-unit (configurator value or product baseCost);
+          // itemCost is per-unit (the product's cost, or the configurator's);
           // OrderLineItem.cost stores the LINE total, like netPrice.
           cost: itemCost * item.quantity,
           barcode: "",

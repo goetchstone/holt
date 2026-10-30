@@ -169,6 +169,7 @@ const ALL_TABLES = [
   "ProposalItemImage",
   "ProposalLineItem",
   "PurchaseOrder",
+  "PurchaseOrderCharge",
   "PurchaseOrderItem",
   "ReceivingRecord",
   "Reconciliation",

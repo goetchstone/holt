@@ -627,6 +627,46 @@ loaded again on the books.
 
 ---
 
+## 26. Stock is valued at an average landed cost; the split is the store's
+
+**Decided 2026-10-30 (owner, GAP-02).**
+
+- **One cost.** Each product keeps an average landed cost: the running average
+  of its receipts, each at its PO line's unit cost plus its share of the PO's
+  charges (freight, duty, crating).
+- **What reads it.** It values stock and is the cost a new sale takes. Catalog
+  cost (`baseCost`) stays the vendor's price, which retail is figured from and
+  a PO orders at.
+- **The split.** How a charge is split across lines (by value, by quantity, or
+  by cubic volume) is the store's choice in Settings, by value unless set
+  otherwise. The buyer can pick another split for one charge.
+
+**Rejected:**
+
+- **Charges on receipts only.** Margins would not include freight.
+- **Cost layers (FIFO).** A layer per receipt, consumed in order, is more exact
+  but far heavier than a store's books need.
+- **Overwriting `baseCost` with landed cost.** Retail is figured from
+  `baseCost`, so freight would leak into prices.
+- **A fixed split.** How freight is billed differs by vendor and store; the
+  owner wants it configurable (`docs/domains/purchasing.md`).
+
+**Cost accepted:**
+
+- A charge entered after the goods sold has no stock to land on. The amount is
+  reported back and does not restate those sales.
+- Taking a receipt back reverses its units out of the average at the cost they
+  came in at. When later moves make that arithmetic impossible, the average
+  stands.
+
+**Enforced by:** `__tests__/integration/landedCost.integration.test.ts`,
+`__tests__/lib/purchasing/landedCostShared.test.ts`.
+
+**Source:** [`app/src/lib/purchasing/landedCost.ts`](../app/src/lib/purchasing/landedCost.ts),
+[`app/src/lib/purchasing/landedCostShared.ts`](../app/src/lib/purchasing/landedCostShared.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was
