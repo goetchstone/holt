@@ -36,15 +36,32 @@ export interface SendResult {
   error?: string;
 }
 
+/** A file sent with the message, such as a purchase order's PDF. */
+export interface EmailAttachment {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+}
+
 export async function sendEmail(
-  msg: { to: string; subject: string; html: string },
+  msg: { to: string; subject: string; html: string; attachments?: readonly EmailAttachment[] },
   orgId: number = DEFAULT_ORG_ID,
 ): Promise<SendResult> {
   const cfg = await getSmtpConfig(orgId);
   if (!cfg) return { ok: false, skipped: true };
   try {
     const from = cfg.fromName ? `${cfg.fromName} <${cfg.fromAddress}>` : cfg.fromAddress;
-    await getTransport(cfg).sendMail({ from, to: msg.to, subject: msg.subject, html: msg.html });
+    await getTransport(cfg).sendMail({
+      from,
+      to: msg.to,
+      subject: msg.subject,
+      html: msg.html,
+      attachments: msg.attachments?.map((a) => ({
+        filename: a.filename,
+        contentType: a.contentType,
+        content: a.content,
+      })),
+    });
     return { ok: true };
   } catch (err: unknown) {
     logError("Email send failed", err, { to: msg.to });

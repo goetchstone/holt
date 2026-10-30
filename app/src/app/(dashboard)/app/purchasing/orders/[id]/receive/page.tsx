@@ -1,7 +1,8 @@
 // /app/src/app/(dashboard)/app/purchasing/orders/[id]/receive/page.tsx
 //
 // Receive Shipment (scanner-optimized receiving flow) -- App Router port.
-// MANAGER / ADMIN / WAREHOUSE (mirrors the legacy withAuth roles). Reads the
+// "Receive stock", the key its receive route is on (it was "Write purchase
+// orders", which kept out the warehouse, the role it was ported for). Reads the
 // shared /api/purchasing/orders/[id] (GET + receive POST) + /api/store-locations/stock-locations
 // + /api/print-label/batch REST endpoints, which stay REST. In Next 16 `params`
 // is a Promise, so it must be awaited before reading id.
@@ -11,6 +12,6 @@ import { ReceivePOView } from "./ReceivePOView";
 
 export default async function ReceivePOPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage(undefined, { permission: "purchasing.write" });
+  await requirePage(undefined, { permission: "purchasing.receive" });
   return <ReceivePOView id={id} />;
 }

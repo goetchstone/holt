@@ -1,6 +1,5 @@
 // /app/src/lib/paymentService.ts
-import { getAppSettings, getBusinessTimeZone } from "@/lib/appSettings";
-import { businessDayStamp } from "@/lib/reports/businessDay";
+import { getAppSettings } from "@/lib/appSettings";
 import { prisma } from "@/lib/prisma";
 import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
 import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering";
@@ -21,6 +20,7 @@ import { issueStoreCredit, spendStoreCredit } from "@/lib/customerCredit";
 import { refundCounts } from "@/lib/returns/returnMoney";
 import type { Payment, Prisma } from "@prisma/client";
 import { expectedArrival } from "@/lib/vendorLeadTime";
+import { createNumberedPurchaseOrder } from "@/lib/purchasing/poNumber";
 import { resolveTenderPayment } from "@/lib/payments/tenders";
 
 type Tx = Prisma.TransactionClient;
@@ -1186,7 +1186,6 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
 
     if (existingPOs.length === 0) {
       const now = new Date();
-      const stamp = businessDayStamp(now, await getBusinessTimeZone());
       // Each vendor's standard lead time dates its PO; a vendor without one
       // gets no date rather than a guessed one (lib/vendorLeadTime.ts).
       const leadTimes = new Map(
@@ -1199,23 +1198,9 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
       );
 
       for (const [vendorId, items] of vendorItems) {
-        // Generate PO number
-        const poPrefix = `PO-${stamp}-`;
-        const lastPO = await prisma.purchaseOrder.findFirst({
-          where: { poNumber: { startsWith: poPrefix } },
-          orderBy: { poNumber: "desc" },
-          select: { poNumber: true },
-        });
-        let poSeq = 1;
-        if (lastPO) {
-          const lastSeq = Number.parseInt(lastPO.poNumber.replace(poPrefix, ""), 10);
-          if (!Number.isNaN(lastSeq)) poSeq = lastSeq + 1;
-        }
-        const poNumber = `${poPrefix}${poSeq.toString().padStart(3, "0")}`;
-
-        await prisma.purchaseOrder.create({
-          data: {
-            poNumber,
+        await createNumberedPurchaseOrder(
+          prisma,
+          {
             vendorId,
             salesOrderId: orderId,
             status: "DRAFT",
@@ -1232,7 +1217,8 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
               })),
             },
           },
-        });
+          now,
+        );
       }
     }
   }

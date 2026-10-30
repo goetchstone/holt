@@ -5,6 +5,7 @@ import {
   ticketReceivedEmail,
   ticketReplyEmail,
   invoiceIssuedEmail,
+  purchaseOrderEmail,
 } from "@/lib/email/templates";
 
 describe("email templates", () => {
@@ -90,5 +91,38 @@ describe("invoiceIssuedEmail", () => {
     expect(html).not.toContain("<script>");
     expect(html).not.toContain("<img src=x>");
     expect(html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("purchaseOrderEmail", () => {
+  it("names the PO and the store, and carries the sender's note with its line breaks", () => {
+    const { subject, html } = purchaseOrderEmail({
+      companyName: "Linden Row Home",
+      vendorName: "Fernbrook Upholstery",
+      poNumber: "PO-261030-004",
+      message: "Please ship together.\nDock door 2.",
+    });
+    expect(subject).toBe("Purchase order PO-261030-004 from Linden Row Home");
+    expect(html).toContain("Hello Fernbrook Upholstery,");
+    expect(html).toContain("<strong>PO-261030-004</strong> is attached");
+    expect(html).toContain("Please ship together.<br>Dock door 2.");
+  });
+
+  it("escapes the vendor's name and the note, and leaves out an empty note", () => {
+    const { html } = purchaseOrderEmail({
+      companyName: "Linden Row Home",
+      vendorName: "<b>Fern</b>",
+      poNumber: "PO-1",
+      message: "<script>x</script>",
+    });
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;b&gt;Fern&lt;/b&gt;");
+    const plain = purchaseOrderEmail({
+      companyName: "S",
+      vendorName: "V",
+      poNumber: "PO-1",
+      message: "   ",
+    }).html;
+    expect(plain).not.toMatch(/<p>\s*<\/p>/);
   });
 });

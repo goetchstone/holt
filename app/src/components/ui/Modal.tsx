@@ -11,6 +11,8 @@ interface Props {
   onSave: () => void;
   saving?: boolean;
   saveLabel?: string;
+  /** Shown on the save button while saving; "Saving..." unless the act is another. */
+  savingLabel?: string;
 }
 
 export default function Modal({
@@ -20,6 +22,7 @@ export default function Modal({
   onSave,
   saving = false,
   saveLabel,
+  savingLabel = "Saving...",
 }: Props) {
   return (
     <Dialog open={true} onClose={onClose} className="relative z-50">
@@ -45,7 +48,7 @@ export default function Modal({
                 Cancel
               </Button>
               <Button variant="primary" onClick={onSave} disabled={saving}>
-                {saving ? "Saving..." : saveLabel || "Save"}
+                {saving ? savingLabel : saveLabel || "Save"}
               </Button>
             </div>
           </DialogPanel>
