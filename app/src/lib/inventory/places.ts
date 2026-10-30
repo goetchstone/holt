@@ -21,7 +21,7 @@
 // pull list says so rather than inventing a place (rule 63).
 
 import type { Prisma } from "@prisma/client";
-import { withStockTx, type Place, type PrismaTx } from "./ledger";
+import { PlaceError, withStockTx, type Place, type PrismaTx } from "./ledger";
 import {
   LANDING_PLACES,
   landingAllows,
@@ -113,7 +113,7 @@ async function readPointer(
     where: { id: storeLocationId },
     select: { [pointer]: true } as Record<StorePointer, true>,
   });
-  if (!store) throw new Error(`Store ${storeLocationId} does not exist.`);
+  if (!store) throw new PlaceError(`Store ${storeLocationId} does not exist.`);
   return (store as Record<StorePointer, number | null>)[pointer] ?? null;
 }
 

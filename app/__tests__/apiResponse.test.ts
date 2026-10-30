@@ -197,14 +197,19 @@ describe("handleError", () => {
     });
   });
 
-  it("handles standard Error as 500", () => {
+  it("answers any other Error with a plain 500, its text logged and never sent (rule 11)", () => {
     const res = mockRes();
-    handleError(res as any, new Error("Something broke"));
+    const err = new Error(
+      "Invalid `prisma.payment.update()` invocation: Unique constraint failed on the fields: (`externalId`)",
+    );
+    handleError(res as any, err, "POST /payments");
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({
-      error: "Something broke",
+      error: "Internal server error",
       code: "INTERNAL_ERROR",
     });
+    expect(JSON.stringify((res.json as jest.Mock).mock.calls)).not.toMatch(/prisma|externalId/);
+    expect(mockedLogError).toHaveBeenCalledWith("POST /payments", err);
   });
 
   it("handles non-Error objects as 500", () => {

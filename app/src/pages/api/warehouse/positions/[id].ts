@@ -12,7 +12,7 @@ import {
   postMovement,
   setPlaceQuantity,
 } from "@/lib/inventory/ledger";
-import type { Place } from "@/lib/inventory/ledger";
+import { PlaceError, type Place } from "@/lib/inventory/ledger";
 import { placeAt } from "@/lib/inventory/places";
 import { requiredMoveMode } from "@/lib/inventory/moveModes";
 import { MoveModeError } from "@/lib/inventory/transfers";
@@ -130,6 +130,10 @@ export const handler = async (req: NextApiRequest, res: NextApiResponse, session
       return success(res, { ...result, quantity: toQty(result.quantity) });
     } catch (err) {
       if (err instanceof MoveModeError) return res.status(409).json({ error: err.message });
+      // A place that can't hold stock -- one that doesn't exist, is at another
+      // store, or groups places -- is the editor's to fix. handleError would
+      // answer it as a plain 500.
+      if (err instanceof PlaceError) return badRequest(res, err.message);
       return handleError(res, err, "PUT /warehouse/positions/[id]");
     }
   }

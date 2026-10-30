@@ -18,10 +18,11 @@ import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import { voidPendingPayment, calculateOrderBalance } from "@/lib/paymentService";
-import { badRequest, methodNotAllowed, notFound, handleError } from "@/lib/apiResponse";
+import { voidPendingPayment, calculateOrderBalance, VoidError } from "@/lib/paymentService";
+import { badRequest, conflict, methodNotAllowed, notFound, handleError } from "@/lib/apiResponse";
 
-async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+/** Exported for integration tests. */
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
 
   const orderId = Number.parseInt(req.query.id as string, 10);
@@ -56,6 +57,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       balance,
     });
   } catch (err) {
+    // A payment that is no longer pending is the caller's to know about.
+    if (err instanceof VoidError) return conflict(res, err.message);
     return handleError(res, err, "POST /sales/orders/[id]/payments/[paymentId]/void");
   }
 }

@@ -23,12 +23,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
+import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
+import { handler as voidRoute } from "@/pages/api/sales/orders/[id]/payments/[paymentId]/void";
 import {
   PENDING_SESSION_LIFETIME_MS,
   findActivePendingPayment,
   voidPendingPayment,
   expirePendingPayment,
   sweepStalePendingPayments,
+  VoidError,
 } from "@/lib/paymentService";
 
 async function seedOrder(orderno: string): Promise<{ id: number }> {
@@ -157,7 +161,11 @@ describe("pending payment lifecycle (real DB)", () => {
       const order = await seedOrder("VOID-COMPLETED-01");
       const payment = await seedPayment(order.id, { amount: 400, status: "COMPLETED" });
 
-      await expect(voidPendingPayment(payment.id)).rejects.toThrow(/expected PENDING/);
+      const refusal = voidPendingPayment(payment.id);
+      await expect(refusal).rejects.toBeInstanceOf(VoidError);
+      await expect(refusal).rejects.toThrow(
+        `Only a pending payment can be voided; payment ${payment.id} is completed.`,
+      );
 
       const unchanged = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
       expect(unchanged.status).toBe("COMPLETED");
@@ -167,7 +175,43 @@ describe("pending payment lifecycle (real DB)", () => {
       const order = await seedOrder("VOID-TWICE-01");
       const payment = await seedPayment(order.id, { amount: 400, status: "VOIDED" });
 
-      await expect(voidPendingPayment(payment.id)).rejects.toThrow(/expected PENDING/);
+      await expect(voidPendingPayment(payment.id)).rejects.toBeInstanceOf(VoidError);
+    });
+
+    it("the void route answers a payment that isn't pending with a 409 that says so", async () => {
+      // This message used to reach the screen only because handleError put
+      // the exception text into a 500.
+      const order = await seedOrder("VOID-ROUTE-01");
+      const payment = await seedPayment(order.id, { amount: 400, status: "COMPLETED" });
+      let status = 0;
+      let body: unknown;
+      const res = {
+        status(code: number) {
+          status = code;
+          return this;
+        },
+        json(payload: unknown) {
+          body = payload;
+          return this;
+        },
+        setHeader() {
+          return this;
+        },
+      } as unknown as NextApiResponse;
+      await voidRoute(
+        {
+          method: "POST",
+          query: { id: String(order.id), paymentId: String(payment.id) },
+          body: {},
+        } as unknown as NextApiRequest,
+        res,
+        { user: { email: "mgr@example.test" } } as unknown as Session,
+      );
+      expect(status).toBe(409);
+      expect(body).toEqual({
+        error: `Only a pending payment can be voided; payment ${payment.id} is completed.`,
+        code: "CONFLICT",
+      });
     });
   });
 

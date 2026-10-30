@@ -342,6 +342,54 @@ describe("transfers through an in-transit place (real DB)", () => {
     expect(await held(w.product.id, w.backB.id)).toBe(0);
   });
 
+  it("a hand edit to a place that can't hold the stock is a 400 that says why, and nothing moves", async () => {
+    const w = await world();
+    await prisma.storeLocation.updateMany({ data: { moveMode: "QUICK" } });
+    const row = await stockAt({
+      productId: w.product.id,
+      storeLocationId: w.storeA.id,
+      stockLocationId: w.backA.id,
+      quantity: 2,
+    });
+    const group = await prisma.stockLocation.create({
+      data: {
+        storeLocationId: w.storeA.id,
+        code: "WING",
+        name: "East wing",
+        locationType: "GROUP",
+      },
+    });
+    const edit = async (body: Record<string, unknown>) => {
+      const res = makeRes();
+      await positionHandler(makeReq("PUT", { id: String(row.id) }, body), res, w.session);
+      return res;
+    };
+
+    // These used to reach the screen only because handleError leaked the
+    // exception text into a 500; they are the editor's to fix, so a 400.
+    expect(await edit({ storeLocationId: w.storeB.id, stockLocationId: w.backA.id })).toMatchObject(
+      {
+        statusCode: 400,
+        body: { error: `Stock location ${w.backA.id} is not at store ${w.storeB.id}.` },
+      },
+    );
+    expect(await edit({ stockLocationId: 999_999 })).toMatchObject({
+      statusCode: 400,
+      body: { error: "Both ends of a move must be stock locations that exist." },
+    });
+    expect(await edit({ storeLocationId: 999_999 })).toMatchObject({
+      statusCode: 400,
+      body: { error: "Store 999999 does not exist." },
+    });
+    expect(await edit({ stockLocationId: group.id })).toMatchObject({
+      statusCode: 400,
+      body: {
+        error: '"East wing" groups places and holds no stock itself; choose a place inside it.',
+      },
+    });
+    expect(await held(w.product.id, w.backA.id)).toBe(2);
+  });
+
   it("a store set to quick lets an admin move stock to it in one step", async () => {
     const w = await world();
     const row = await stockAt({
