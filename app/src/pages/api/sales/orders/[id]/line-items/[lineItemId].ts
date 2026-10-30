@@ -5,6 +5,16 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import { deliveryFeeLineEditProblem } from "@/lib/delivery/deliveryFee";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
+import {
+  DiscountApprovalError,
+  NO_EXTRA_ACCESS,
+  authorizeDiscount,
+  catalogListUnits,
+  existingListUnit,
+  logDiscountApproval,
+} from "@/lib/sales/discountApproval";
+import { lineDiscountPercent } from "@/lib/sales/discountPolicyShared";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
@@ -13,7 +23,12 @@ import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
  *  calls the real Prisma client with a fake req/res + session, bypassing
  *  requireAuthWithRole (which needs real cookies). Role enforcement is
  *  covered by the apiRouteAuthorization tripwire. */
-export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess = NO_EXTRA_ACCESS,
+) {
   const { id, lineItemId } = req.query;
   if (!id || typeof id !== "string" || !lineItemId || typeof lineItemId !== "string") {
     return res.status(400).json({ error: "Order ID and Line Item ID are required." });
@@ -184,6 +199,21 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         const replNetPrice = Math.round(replQuantity * replUnitPrice * 100) / 100;
         const replTaxRate = Number(lineItem.vatRate || 0);
         const replVatAmount = Math.round(replNetPrice * replTaxRate * 100) / 100;
+        // The replacement keeps the original's list price, or takes its own
+        // product's retail; selling it below that is a discount (GAP-06).
+        const [replListUnit] = await catalogListUnits(prisma, [
+          { productId: replacement.productId || null, unitPrice: existingListUnit(lineItem) },
+        ]);
+        const replPercent = lineDiscountPercent({
+          listUnit: replListUnit,
+          quantity: replQuantity,
+          netPrice: replNetPrice,
+        });
+        const replApprover = await authorizeDiscount(prisma, {
+          percent: replPercent,
+          access,
+          approval: req.body.discountApproval,
+        });
 
         const result = await prisma.$transaction(async (tx) => {
           // Create the replacement line item
@@ -195,6 +225,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
               partNo: replacement.partNo || lineItem.partNo,
               orderedQuantity: replQuantity,
               netPrice: replNetPrice,
+              listPrice: replListUnit,
               cost: 0,
               barcode: "",
               vatRate: lineItem.vatRate || 0,
@@ -227,6 +258,15 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
               changedBy,
             },
           });
+          if (replApprover) {
+            await logDiscountApproval(tx, {
+              orderId,
+              lineItemId: newItem.id,
+              approver: replApprover,
+              percent: replPercent,
+              changedBy,
+            });
+          }
 
           await tx.salesOrder.update({
             where: { id: orderId },
@@ -295,7 +335,32 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           return res.status(400).json({ error: "No changes specified." });
         }
 
+        // A price below the line's list price is a discount (GAP-06). Only a
+        // price change can make one: a quantity change keeps the unit price.
+        const pricePercent =
+          unitPrice === undefined
+            ? 0
+            : lineDiscountPercent({
+                listUnit: existingListUnit(lineItem),
+                quantity: Number(updates.orderedQuantity ?? lineItem.orderedQuantity),
+                netPrice: Number(updates.netPrice),
+              });
+        const priceApprover = await authorizeDiscount(prisma, {
+          percent: pricePercent,
+          access,
+          approval: req.body.discountApproval,
+        });
+
         const result = await prisma.$transaction(async (tx) => {
+          if (priceApprover) {
+            await logDiscountApproval(tx, {
+              orderId,
+              lineItemId: itemId,
+              approver: priceApprover,
+              percent: pricePercent,
+              changedBy,
+            });
+          }
           const updated = await tx.orderLineItem.update({
             where: { id: itemId },
             data: updates,
@@ -337,6 +402,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         .status(400)
         .json({ error: "Invalid action. Use 'cancel', 'replace', or 'update'." });
     } catch (error) {
+      if (error instanceof DiscountApprovalError) {
+        return res.status(error.status).json(error.body);
+      }
       logError("Error updating line item", error);
       return res.status(500).json({ error: "Failed to update line item." });
     }
@@ -393,4 +461,4 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requirePermission("sales.write", handler);
+export default requirePermission("sales.write", handler, { also: ["sales.discount"] });

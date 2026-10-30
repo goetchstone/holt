@@ -376,6 +376,42 @@ const PREFIX_FIELDS: { key: PrefixKey; label: string; format: string }[] = [
 
 // Blank means "use the company's initials" and is saved as blank, not as the
 // initials: pinning them here would freeze whatever name was on screen at load.
+// Who may discount without a manager (AppSettings.discountLimitPercent, GAP-06).
+// A role holding "Apply discounts" may give any discount; everyone else up to
+// this, and above it a manager approves with their PIN. 0 locks it down.
+function DiscountsSection({
+  value,
+  onChange,
+}: Readonly<{ value: number; onChange: (percent: number) => void }>) {
+  return (
+    <section id="discounts" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Discounts</h2>
+      <p className="text-xs text-brand-gray">
+        Staff whose role has &ldquo;Apply discounts&rdquo; (Admin → Setup → Roles) may give any
+        discount. Everyone else may take up to this much off a line&apos;s price on their own; above
+        it, a manager approves at the register with their PIN. At 0%, every discount needs a
+        manager. A price typed below retail, and a delivery fee below its zone&apos;s, count as
+        discounts.
+      </p>
+      <div className="max-w-xs">
+        <label htmlFor="discount-limit" className="mb-1 block text-sm text-brand-gray">
+          Discount staff may give without a manager (%)
+        </label>
+        <input
+          id="discount-limit"
+          type="number"
+          min={0}
+          max={100}
+          step={1}
+          value={value}
+          onChange={(e) => onChange(Math.round(Number(e.target.value) || 0))}
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
+        />
+      </div>
+    </section>
+  );
+}
+
 function NumberingSection({
   settings,
   onChange,
@@ -646,6 +682,7 @@ export function SettingsOverviewView() {
           barcodePrefix: settings.barcodePrefix,
           defaultTaxDistrictId: settings.defaultTaxDistrictId,
           deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
+          discountLimitPercent: settings.discountLimitPercent,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -755,6 +792,12 @@ export function SettingsOverviewView() {
         groups={taxGroups}
         onDeliveryGroupChange={(id) =>
           setSettings((prev) => (prev ? { ...prev, deliveryFeeTaxGroupId: id } : prev))
+        }
+      />
+      <DiscountsSection
+        value={settings.discountLimitPercent}
+        onChange={(percent) =>
+          setSettings((prev) => (prev ? { ...prev, discountLimitPercent: percent } : prev))
         }
       />
       <NumberingSection settings={settings} onChange={setPrefix} />

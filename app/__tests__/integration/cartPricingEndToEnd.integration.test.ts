@@ -52,6 +52,9 @@ function makeRes() {
 }
 
 const session = { user: { email: "register@example.com" } } as unknown as Session;
+/** These tests price discounted sales; who may give a discount is
+ *  discountPolicy.integration.test.ts (GAP-06). */
+const CAN_DISCOUNT = { holds: { "sales.discount": true } };
 
 const SEED_TAX_RATE = 0.06;
 
@@ -132,6 +135,7 @@ describe("cart pricing end to end (real DB)", () => {
       }),
       res,
       session,
+      CAN_DISCOUNT,
     );
 
     expect(res.statusCode).toBe(201);
@@ -163,6 +167,7 @@ describe("cart pricing end to end (real DB)", () => {
       }),
       res,
       session,
+      CAN_DISCOUNT,
     );
 
     expect(res.statusCode).toBe(201);
@@ -193,6 +198,7 @@ describe("cart pricing end to end (real DB)", () => {
       }),
       res,
       session,
+      CAN_DISCOUNT,
     );
 
     const payload = res.body as { id: number; total: number; taxAmount: number };
@@ -213,6 +219,7 @@ describe("cart pricing end to end (real DB)", () => {
       }),
       res,
       session,
+      CAN_DISCOUNT,
     );
 
     const payload = res.body as { id: number; taxAmount: number };
@@ -250,6 +257,7 @@ describe("cart pricing end to end (real DB)", () => {
       }),
       res,
       session,
+      CAN_DISCOUNT,
     );
 
     expect(res.statusCode).toBe(201);
@@ -287,6 +295,7 @@ describe("cart pricing end to end (real DB)", () => {
         }),
         res,
         session,
+        CAN_DISCOUNT,
       );
       expect(res.statusCode).toBe(201);
       return (res.body as { orderno: string }).orderno;

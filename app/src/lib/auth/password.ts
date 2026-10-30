@@ -13,6 +13,7 @@
 // inline; __tests__/password.test.ts pins it so the two can't drift.
 
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { pinProblem } from "@/lib/sales/discountPolicyShared";
 
 // scrypt cost parameter. 16384 (2^14) is Node's default and a sensible
 // interactive-login cost. Stored in the hash so a future raise stays
@@ -35,13 +36,29 @@ const MIN_PASSWORD_LENGTH = 12;
 const SALT_BYTES = 16;
 const KEY_BYTES = 64;
 
+function scryptHash(plain: string): string {
+  const salt = randomBytes(SALT_BYTES);
+  const key = scryptSync(plain, salt, KEY_BYTES, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P });
+  return `scrypt$${SCRYPT_N}$${salt.toString("base64")}$${key.toString("base64")}`;
+}
+
 export function hashPassword(plain: string): string {
   if (!plain || plain.length < MIN_PASSWORD_LENGTH) {
     throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
   }
-  const salt = randomBytes(SALT_BYTES);
-  const key = scryptSync(plain, salt, KEY_BYTES, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P });
-  return `scrypt$${SCRYPT_N}$${salt.toString("base64")}$${key.toString("base64")}`;
+  return scryptHash(plain);
+}
+
+/**
+ * A register PIN (StaffMember.pinHash, lib/sales/discountApproval.ts): stored in
+ * the same format and checked with verifyPassword. Four to eight digits is a
+ * small space, so a PIN's strength is the lockout after five wrong tries, not
+ * the hash.
+ */
+export function hashPin(pin: string): string {
+  const problem = pinProblem(pin);
+  if (problem) throw new Error(problem);
+  return scryptHash(pin);
 }
 
 export function verifyPassword(plain: string, stored: string | null | undefined): boolean {

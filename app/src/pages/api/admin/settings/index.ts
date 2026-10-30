@@ -363,6 +363,19 @@ function parseDeliveryFeeTaxGroup(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// The discount staff without "Apply discounts" may give alone, a whole percent
+// 0-100 (lib/sales/discountApproval.ts). How a store runs discounts is its own
+// call; 0, the default, means every such discount needs a manager's PIN.
+function parseDiscountLimit(body: Body, data: SettingsData): ParseError {
+  const raw = body.discountLimitPercent;
+  if (raw === undefined) return null;
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0 || raw > 100) {
+    return { error: "discountLimitPercent must be a whole percent from 0 to 100." };
+  }
+  data.discountLimitPercent = raw;
+  return null;
+}
+
 // The owner's two getting-started acknowledgements (lib/gettingStarted.ts):
 // true stamps the time now, false clears it. The server writes the time, never
 // the client -- the record is of when it was said, not of what a browser
@@ -397,6 +410,7 @@ const SETTINGS_PARSERS = [
   parsePrefixes,
   parseDefaultTaxDistrict,
   parseDeliveryFeeTaxGroup,
+  parseDiscountLimit,
   parseAcknowledgements,
 ];
 

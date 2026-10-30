@@ -192,8 +192,59 @@ the helper. A cashier can still change a line's price once it is on the cart.
    The register's fee field (`sales/pos/DeliveryFeeField.tsx`) fills in the zone's
    fee from `GET /api/sales/delivery-fee-quote` and follows the zone until staff
    type their own. The order also records `storeLocationId`, which it didn't before.
-7. Return the order id plus the server-priced subtotal / order discount / delivery
-   fee / tax / total. The POS then shows its own take-payment panel; it does not navigate to
+7. Before the transaction, judge the sale's discount (pos.md, "Discounts and
+   manager approval"). A discount past what the seller may give is a 403 with
+   `code: "DISCOUNT_APPROVAL_REQUIRED"`, and no order is written; resent with a
+   manager's `discountApproval`, it goes through and the approval is logged.
+   Each line records `listPrice`.
+8. Return the order id plus the server-priced subtotal / order discount / delivery
+   fee / tax / total.
+
+## Discounts and manager approval
+
+**A discount follows the store's policy (GAP-06, 2026-10-30).** How a store
+runs discounts is its own business (owner: "some businesses may let everyone
+apply a discount, some may have a limit, and other may always need a
+manager"). Holt ships the locked-down choice. `lib/sales/discountApproval.ts`:
+
+- **Who may discount alone.** A role holding "Apply discounts" (`sales.discount`,
+  read through the gate's `also` so impersonation is honoured) may give any
+  discount. Anyone else may take up to `AppSettings.discountLimitPercent` off a
+  line (Settings › Discounts). That defaults to 0, so every such discount needs a
+  manager until the store loosens it.
+- **What counts.** A line sold below its list price: a discount entered at the
+  register, a price typed below the product's retail (`catalogListUnits`), a
+  replacement or price edit below the line's recorded list, or a delivery fee
+  below its zone's (a waived fee is 100%). It is measured per line
+  (`largestDiscountPercent` in `lib/sales/discountPolicyShared.ts`), so a deep
+  cut on one small line can't hide in a large sale. Returns are not discounts.
+- **Approval.** The screen (`components/sales/useDiscountApproval.tsx`) shows the
+  managers who can approve: active staff holding the permission, with a PIN set
+  (`GET /api/sales/discount-approvers`). The chosen manager enters their PIN, and
+  the request is sent again with `discountApproval: { approverId, pin }`.
+  - The PIN is checked before the sale's transaction, so a wrong try counts even
+    though the sale is refused. Five wrong tries lock the PIN for fifteen minutes.
+  - An approval is an `OrderChangeLog` row, `DISCOUNT_APPROVED`, naming the
+    manager and the percent.
+- **Every route that can sell below list calls `authorizeDiscount()`**:
+  - `create-from-cart` (the register and New Quote);
+  - `orders/[id]/line-items` (add a line);
+  - `line-items/[lineItemId]` (`update` with a price, and `replace`);
+  - `orders/[id]/delivery-fee`.
+
+  A route called directly with no `access` (as the integration tests do) holds
+  nothing extra, the locked-down default.
+- **The saving.** `OrderLineItem.listPrice` is the unit price a line was listed
+  at; lines written before 2026-10-30 have none. The order screen shows "List …
+  · saved …" under a discounted line, and the receipt and the printed invoice
+  show "You saved".
+- **Not covered:**
+  - B2B proposals and the HD proposal import price their own lines and do not go
+    through this;
+  - a configured (made-to-order) line's list is the price the configurator
+    sent, so a configured price typed lower is not caught.
+
+  Both are in ROADMAP (GAP-06). The POS then shows its own take-payment panel; it does not navigate to
    the receipt-print page (see the auto-print gap below).
 
 ## Receipt print

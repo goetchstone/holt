@@ -26,6 +26,7 @@ import { computeTotalPaid } from "@/lib/paymentBalance";
 import { openCheckoutFrom } from "@/lib/openCheckoutPrompt";
 import { ApplyStoreCredit } from "./ApplyStoreCredit";
 import { DeliveryFeePanel } from "./DeliveryFeePanel";
+import { lineSaving } from "@/lib/sales/discountPolicyShared";
 
 interface LineItem {
   id: number;
@@ -35,6 +36,8 @@ interface LineItem {
   barcode?: string;
   orderedQuantity: number;
   netPrice: number;
+  /** The unit price it was listed at (GAP-06); null on older lines. */
+  listPrice?: number | null;
   vatRate?: number;
   vatAmount?: number;
   source?: string;
@@ -1031,6 +1034,7 @@ export function OrderDetailView({ id }: { id: string }) {
                       ) : (
                         formatCurrency(item.netPrice)
                       )}
+                      <LineSaving item={item} formatCurrency={formatCurrency} />
                     </td>
                     <td className="p-2 border-b text-right">
                       {item.vatAmount ? formatCurrency(item.vatAmount) : "—"}
@@ -1354,5 +1358,23 @@ export function OrderDetailView({ id }: { id: string }) {
         </Modal>
       )}
     </div>
+  );
+}
+
+/** A line sold below its list price: what it listed at and what was saved (GAP-06). */
+function LineSaving({
+  item,
+  formatCurrency,
+}: Readonly<{ item: LineItem; formatCurrency: (n: number) => string }>) {
+  const saved = lineSaving({
+    listUnit: item.listPrice ?? null,
+    quantity: item.orderedQuantity,
+    netPrice: item.netPrice,
+  });
+  if (!(saved > 0) || item.listPrice == null) return null;
+  return (
+    <p className="text-xs text-green-700">
+      List {formatCurrency(item.listPrice * item.orderedQuantity)} · saved {formatCurrency(saved)}
+    </p>
   );
 }

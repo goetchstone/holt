@@ -72,6 +72,9 @@ async function replace(orderId: number, lineItemId: number, replacement: Record<
     } as unknown as NextApiRequest,
     res,
     session,
+    // A replacement priced below the line's list is a discount; who may give
+    // one is discountPolicy.integration.test.ts (GAP-06).
+    { holds: { "sales.discount": true } },
   );
   expect(res.statusCode).toBe(200);
   const { replacementId } = res.body as { replacementId: number };

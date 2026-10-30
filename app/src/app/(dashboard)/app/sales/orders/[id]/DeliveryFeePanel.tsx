@@ -11,6 +11,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { getErrorMessage } from "@/lib/toastError";
 import type { OrderDeliveryFee } from "@/lib/delivery/deliveryFeeShared";
+import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
 
 interface Props {
   orderId: number;
@@ -33,6 +34,7 @@ export function DeliveryFeePanel({
   const [fee, setFee] = useState<OrderDeliveryFee | null>(null);
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
+  const { send: sendWithApproval, modal: approvalModal } = useDiscountApproval();
   const url = `/api/sales/orders/${encodeURIComponent(String(orderId))}/delivery-fee`;
 
   const show = useCallback((data: OrderDeliveryFee) => {
@@ -58,7 +60,12 @@ export function DeliveryFeePanel({
   const save = async (next: number | null) => {
     setSaving(true);
     try {
-      const res = await axios.put<OrderDeliveryFee>(url, { amount: next });
+      // A fee below the zone's on a delivery order is a discount: past what
+      // this person may give, it asks for a manager's PIN (GAP-06).
+      const res = await sendWithApproval((discountApproval) =>
+        axios.put<OrderDeliveryFee>(url, { amount: next, discountApproval }),
+      );
+      if (!res) return;
       show(res.data);
       toast.success(next ? "Delivery fee saved" : "Delivery fee removed");
       onChanged();
@@ -78,6 +85,7 @@ export function DeliveryFeePanel({
 
   return (
     <div className="mt-2 rounded border border-brand-gray/20 p-2">
+      {approvalModal}
       <p>
         <strong>Delivery fee:</strong>{" "}
         {current

@@ -73,12 +73,20 @@ function req(method: string, query: Record<string, string> = {}, body: unknown =
   return { method, query, body, cookies: {}, headers: {} } as any;
 }
 
-type Handler = (req: NextApiRequest, res: NextApiResponse, session: Session) => unknown;
+type Handler = (
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: { holds: Record<string, boolean> },
+) => unknown;
 type Route = (req: NextApiRequest, res: NextApiResponse) => unknown;
+
+/** The register here may discount: who may is discountPolicy.integration.test.ts. */
+const CAN_DISCOUNT = { holds: { "sales.discount": true } };
 
 async function asRegister(handler: Handler, method: string, query = {}, body: unknown = {}) {
   const res = makeRes();
-  await handler(req(method, query, body), res, register);
+  await handler(req(method, query, body), res, register, CAN_DISCOUNT);
   return res;
 }
 

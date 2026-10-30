@@ -7,6 +7,15 @@ import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
+import {
+  DiscountApprovalError,
+  NO_EXTRA_ACCESS,
+  authorizeDiscount,
+  catalogListUnits,
+  logDiscountApproval,
+} from "@/lib/sales/discountApproval";
+import { lineDiscountPercent } from "@/lib/sales/discountPolicyShared";
 import {
   resolveTaxDistrict,
   rateForLineAmount,
@@ -18,7 +27,12 @@ import {
  *  calls the real Prisma client with a fake req/res + session, bypassing
  *  requireAuthWithRole (which needs real cookies). Role enforcement is
  *  covered by the apiRouteAuthorization tripwire. */
-export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess = NO_EXTRA_ACCESS,
+) {
   const { id } = req.query;
   if (!id || typeof id !== "string") {
     return res.status(400).json({ error: "Order ID is required." });
@@ -76,6 +90,19 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       const nextLineNumber = (order.lineItems[0]?.lineNumber || 0) + 1;
       const netPrice = Number(quantity) * Number(unitPrice);
 
+      // A product added below its retail price is a discount, and follows the
+      // store's policy (lib/sales/discountApproval.ts). Checked before the
+      // transaction, so a wrong manager PIN still counts.
+      const [listUnit] = await catalogListUnits(prisma, [
+        { productId: productId || null, unitPrice: Number(unitPrice) },
+      ]);
+      const percent = lineDiscountPercent({ listUnit, quantity: Number(quantity), netPrice });
+      const approver = await authorizeDiscount(prisma, {
+        percent,
+        access,
+        approval: req.body.discountApproval,
+      });
+
       const result = await prisma.$transaction(async (tx) => {
         // Tax is resolved SERVER-SIDE from the order's customer and store.
         //
@@ -108,6 +135,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             partNo: partNo || null,
             orderedQuantity: quantity,
             netPrice,
+            listPrice: listUnit,
             // itemCost is per-unit (explicit value or product baseCost);
             // OrderLineItem.cost stores the LINE total, like netPrice.
             cost: itemCost * Number(quantity),
@@ -129,6 +157,15 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             changedBy,
           },
         });
+        if (approver) {
+          await logDiscountApproval(tx, {
+            orderId,
+            lineItemId: lineItem.id,
+            approver,
+            percent,
+            changedBy,
+          });
+        }
 
         await tx.salesOrder.update({
           where: { id: orderId },
@@ -155,6 +192,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         lineItemStatus: result.lineItemStatus,
       });
     } catch (error) {
+      if (error instanceof DiscountApprovalError) {
+        return res.status(error.status).json(error.body);
+      }
       logError("Error adding line item", error);
       return res.status(500).json({ error: "Failed to add line item." });
     }
@@ -164,4 +204,4 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requirePermission("sales.write", handler);
+export default requirePermission("sales.write", handler, { also: ["sales.discount"] });
