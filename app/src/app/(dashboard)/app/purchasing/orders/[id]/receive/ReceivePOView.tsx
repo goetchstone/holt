@@ -35,6 +35,8 @@ interface POData {
   id: number;
   poNumber: string;
   vendor: { id: number; name: string };
+  /** Where the PO said to deliver; the screen starts on that store. */
+  shipTo: { id: number; name: string } | null;
   status: string;
   lineItems: LineItem[];
 }
@@ -92,9 +94,9 @@ export function ReceivePOView({ id }: { id: string }) {
 
         const locs = locRes.data.locations as StoreLoc[];
         setStores(locs);
-        if (locs.length > 0) setSelectedStoreId(locs[0].id);
+        const defaultStore = locs.find((s) => s.id === poData.shipTo?.id) ?? locs[0];
+        if (defaultStore) setSelectedStoreId(defaultStore.id);
 
-        const defaultStore = locs[0];
         const defaultStockId = defaultStore?.defaultReceivingStockLocationId || null;
 
         setLineStates(

@@ -107,6 +107,7 @@ const ALL_TABLES = [
   "DeliveryZoneZip",
   "Department",
   "EmailQueue",
+  "EmailQueueAttachment",
   "EmailTemplate",
   "ErrorEvent",
   "FabricCatalog",

@@ -39,21 +39,31 @@ Configurable in **Settings → Integrations** (provider `smtp`, added to
 - `state.ts` — pure `nextEmailState(priorAttempts, ok, now, error)` retry machine;
   PENDING until `MAX_EMAIL_ATTEMPTS` (4), then FAILED. Tested.
 - `templates.ts` — pure `bookingConfirmationEmail` / `ticketReceivedEmail` /
-  `ticketReplyEmail` → `{ subject, html }`. Inline styles; **all interpolated
+  `ticketReplyEmail` / `invoiceIssuedEmail` / `passwordResetEmail` /
+  `purchaseOrderEmail` → `{ subject, html }`. Inline styles; **all interpolated
   values HTML-escaped** (no injection from customer/author text). Tested.
 - `config.ts` — `getSmtpConfig` / `isEmailConfigured` (above).
 - `sender.ts` — **server-only** nodemailer transport (cached per config) +
-  `sendEmail({to,subject,html})`; no-ops when unconfigured. Import only from API
-  routes / the queue.
-- `queue.ts` — `enqueueEmail` (PENDING row), `processEmailQueue` (send due rows,
-  advance state; stops the run if SMTP is unconfigured), and `enqueueAndSend`
-  (fire-and-forget enqueue + drain after a write, never blocks the response).
+  `sendEmail({to,subject,html,attachments?})`; no-ops when unconfigured. Import
+  only from API routes / the queue. Tested over a real SMTP conversation with a
+  sink on localhost (`__tests__/helpers/smtpSink.ts`), attachments included.
+- `queue.ts` — `enqueueEmail` (PENDING row, with any attachments), `processEmailQueue`
+  (send due rows, advance state; stops the run if SMTP is unconfigured),
+  `enqueueAndSend` (fire-and-forget enqueue + drain after a write, never blocks
+  the response), and `deliverQueuedEmail(id)` (try one row now and return its
+  status, for a screen that tells the sender whether it went). Both senders go
+  through one `deliverRow`, so a retry sends exactly what the first try did.
 
 ## Schema
 
 `EmailQueue` + `EmailStatus` (PENDING/SENT/FAILED), org-scoped — `toAddress`,
 `subject`, `html`, `templateKey`, `status`, `attempts`, `lastError`,
 `scheduledAt`, `sentAt`. Migration `20260604001731_add_email_queue`.
+
+`EmailQueueAttachment` (since 2026-10-30, migration
+`20261030140000_stock_purchase_orders`): `filename`, `contentType`, `content`
+(bytes), cascade-deleted with its row. The file is kept on the queue so a retry
+after an SMTP failure sends the same bytes.
 
 ## Touchpoints (wired)
 
@@ -64,6 +74,14 @@ Configurable in **Settings → Integrations** (provider `smtp`, added to
   `isInternal=false` + submitter has an email) → `ticket-reply`.
 
 All use `enqueueAndSend` (best-effort; the durable row survives an SMTP outage).
+
+- **Purchase order to its vendor** (`pages/api/purchasing/orders/[id]/email.ts`,
+  GAP-01) → `purchase-order`, the PO's PDF attached. It is the one touchpoint
+  where the sender waits: `enqueueEmail` then `deliverQueuedEmail`, because the
+  buyer needs to know the vendor got it, and a sent draft becomes Submitted.
+  It refuses (409) when SMTP isn't configured rather than queueing a PO nobody
+  sees waiting; a send that fails answers 502 and stays queued for the drain.
+  See `docs/domains/purchasing.md`.
 Status links use `NEXTAUTH_URL` as the base.
 
 ## Operate

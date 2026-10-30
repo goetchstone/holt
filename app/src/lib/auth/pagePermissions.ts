@@ -198,15 +198,11 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
     permission: "purchasing.read",
     widensFrom: "MANAGER,ADMIN,WAREHOUSE",
   },
-  "/app/purchasing/orders": {
-    permission: "purchasing.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/purchasing/orders/[id]": {
-    permission: "purchasing.read",
-    widensFrom: "MANAGER,ADMIN,WAREHOUSE",
-  },
-  "/app/purchasing/orders/[id]/receive": { permission: "purchasing.write" },
+  "/app/purchasing/orders": { permission: "purchasing.read" },
+  "/app/purchasing/orders/[id]": { permission: "purchasing.read" },
+  "/app/purchasing/orders/[id]/edit": { permission: "purchasing.write" },
+  "/app/purchasing/orders/[id]/receive": { permission: "purchasing.receive" },
+  "/app/purchasing/orders/new": { permission: "purchasing.write" },
   "/app/purchasing/receiving": {
     permission: "purchasing.read",
     widensFrom: "MANAGER,ADMIN,WAREHOUSE",

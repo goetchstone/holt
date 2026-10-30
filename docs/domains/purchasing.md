@@ -55,6 +55,98 @@ vendor by name, so a rename would make the next import create a second one.
 Tested by `__tests__/vendorLeadTime.test.ts` and
 `__tests__/integration/specialOrderLeadTime.integration.test.ts`.
 
+## Stock POs written by hand (GAP-01, since 2026-10-30)
+
+A buyer writes a purchase order for stock on Purchasing -> Purchase Orders ->
+New purchase order (`/app/purchasing/orders/new`): vendor, where it ships,
+expected date, notes, and lines picked from that vendor's products. It is
+created as a DRAFT. All of it lives in `lib/purchasing/stockPurchaseOrder.ts`,
+one function per act, each called by its route:
+
+| Act | Route | Key |
+|---|---|---|
+| Create | `POST /api/purchasing/orders` | `purchasing.write` |
+| Change | `PUT /api/purchasing/orders/[id]/edit` | `purchasing.write` |
+| Duplicate | `POST /api/purchasing/orders/[id]/duplicate` | `purchasing.write` |
+| Print | `GET /api/purchasing/orders/[id]/pdf` | `purchasing.read` |
+| Email to the vendor | `POST /api/purchasing/orders/[id]/email` | `purchasing.write` |
+| The editor's product picker | `GET /api/purchasing/vendor-products` | `purchasing.write` |
+
+- **Lines are the vendor's products.** A line names a catalog product whose
+  `vendorId` is the PO's vendor; anything else is refused with the product's
+  name. The picker offers only the vendor's active, non-discontinued products.
+  Part number and name are copied from the product onto the line.
+- **Ship to** is `PurchaseOrder.shipToLocationId`, an open store or warehouse
+  (migration `20261030140000_stock_purchase_orders`). It is printed on the PO,
+  and the Receive screen starts on that store. Special-order and imported POs
+  have none.
+- **Expected date** starts at today plus the vendor's lead time
+  (`lib/vendorLeadTime.ts`, the same rule special orders use) and the buyer may
+  change or clear it. Unknown stays unknown.
+- **A PO can be changed until anything is received against it**, in DRAFT,
+  SUBMITTED or CONFIRMED (`poEditProblem`, `lib/purchasing/purchaseOrderShared.ts`,
+  shared by the editor and the server). The change rechecks receipts inside its
+  transaction. The editor sends the PO's whole set of lines: a line left out is
+  removed. Only receiving records point at a PO line, and none exist by then.
+  A vendor return is not changed here. A line raised for a customer's order
+  (`orderLineItemId` set) keeps its product and quantity and can't be removed;
+  only its cost moves.
+- **Duplicate** makes a new draft with the vendor, ship-to, notes and lines at
+  the costs they had, and a fresh expected date from lead time. Zero-quantity
+  lines are cancelled lines and are left behind (rule 31). A line with no
+  catalog product, or whose product another vendor now supplies, is left
+  behind and named in the answer. A duplicate of a special-order PO is a stock
+  PO: no sales order, no linked lines.
+- **Cost follows "View cost"** (strip, never deny). A writer without
+  `catalog.cost` still writes POs. A new line takes the product's `baseCost`, a
+  line already on the PO keeps its own, and any cost sent is ignored. The PDF
+  that writer prints or emails carries quantities and no prices.
+- **Numbering.** `lib/purchasing/poNumber.ts` is the one numberer: `PO-YYMMDD-NNN`
+  by business day, used by the special-order draft (`lib/paymentService.ts`)
+  and stock POs alike, so the two share one daily sequence. Two POs raised at
+  once may read the same next number; the unique index refuses the second, and
+  it is renumbered (up to five tries) instead of failing.
+- **The PDF** (`lib/purchasing/purchaseOrderPdf.ts`, pure jsPDF, loaded by
+  `purchaseOrderDocument.ts`) carries:
+  - the store's name and theme colours (AppSettings), like the invoice PDF;
+  - the PO number, date and expected date;
+  - the vendor's address, phone and our account number with it;
+  - the Ship To store's address;
+  - payment and freight terms;
+  - the live lines (zero-quantity lines left off), the total and the notes.
+
+  The logo is not drawn.
+- **Email** attaches that same PDF. It goes to the address the buyer
+  confirms, prefilled with `Vendor.email`, else the primary contact's. It goes
+  through the email queue and is tried at once (`deliverQueuedEmail`,
+  `docs/domains/email.md`). Sent: a DRAFT becomes SUBMITTED, and a PO further
+  along keeps its status. Failed: 502, the email stays queued with its PDF, and
+  the status is unchanged. SMTP not configured: 409, and nothing is queued. A
+  cancelled PO is not sent.
+
+**Who opens what.**
+
+- The PO list and detail pages are on `purchasing.read`, the key their routes
+  were already on. They had been held to MANAGER/ADMIN/WAREHOUSE, which kept
+  Buyers out of their own POs.
+- The detail route's GET is `purchasing.read`. Its PUT (status,
+  acknowledgement, dates, notes) is `purchasing.receive` or `purchasing.write`.
+- The Receive page is `purchasing.receive`, the key its receive route is on.
+  It was `purchasing.write`, which kept out the warehouse.
+
+Tested by `__tests__/integration/stockPurchaseOrders.integration.test.ts`. It
+calls the real routes through their real gates, and email goes over a real
+SMTP conversation to a sink on localhost. Also tested by
+`__tests__/lib/purchasing/purchaseOrderShared.test.ts` and
+`__tests__/purchaseOrderPdf.test.ts`, both of which read the PDF back through a
+text extractor.
+
+**Not built (ROADMAP GAP-01):**
+
+- apparel size/colour variants on a hand-written line;
+- a logo on the PDF;
+- a vendor-facing confirmation link.
+
 ## Consignment PO Integration
 
 When a consignment vendor's PO (`Vendor.isConsignment`) transitions to RECEIVED_FULL, the import runner auto-creates a `ConsignmentPaymentBatch` and marks matching ConsignmentItems as PAID. See `docs/domains/consignment.md` for matching rules.
@@ -89,7 +181,9 @@ fields the same way.
 - `lib/importRunners.ts` -- 4 PO-related runners
 - `lib/purchasing/receivePurchaseOrder.ts` -- goods in against a PO, one function for the Receive PO screen (`orders/[id]/receive.ts`) and the handheld (`pages/api/scan/receive.ts`, rule 42): the receiving records, the stock (`lib/inventory/receiving.ts`), and the PO status recalc (rule 39). A multi-box unit that arrives short of boxes is received as one unit into quarantine with a box note naming what is missing (`docs/domains/inventory.md` → "The handheld floor"). `ReceiveError` carries its status (404 for a PO that does not exist).
 - `pages/api/purchasing/` -- PO CRUD, receiving endpoints. Native receiving (`orders/[id]/receive.ts`) adds stock through `lib/inventory/ledger.ts`, the single writer of `InventoryPosition` (see `docs/domains/inventory.md`). Until 2026-10-14 it wrote the user's email into `ReceivingRecord.receiverUserId`, a foreign key to `User.id`, so every native receipt failed; it now uses the session's user id.
-- `pages/api/purchasing/orders/index.ts` -- the PO list, gated on `purchasing.read` ("View purchasing"); its totals go only to holders of "View cost" (`catalog.cost`). A service case does not use it: it finds a PO to link through `pages/api/service/purchase-order-lookup.ts`, which returns number and vendor only
+- `pages/api/purchasing/orders/index.ts` -- the PO list, gated on `purchasing.read` ("View purchasing"); its totals go only to holders of "View cost" (`catalog.cost`). A service case does not use it: it finds a PO to link through `pages/api/service/purchase-order-lookup.ts`, which returns number and vendor only. Its POST creates a stock PO (`purchasing.write`, above)
+- `lib/purchasing/stockPurchaseOrder.ts`, `purchaseOrderShared.ts`, `poNumber.ts`, `purchaseOrderDocument.ts`, `purchaseOrderPdf.ts` -- stock POs written by hand: create, change, duplicate, number, print and email (section above)
+- `app/(dashboard)/app/purchasing/orders/PurchaseOrderEditor.tsx` -- the New and Edit PO screen
 - `pages/purchasing/` -- PO list, detail, receiving UI
 - `pages/inventory/warehouse/inbound.tsx` -- Warehouse inbound dashboard
 - `scripts/reimport-invoices-direct.js` -- One-time invoice reimport with rewrite matching
@@ -161,4 +255,4 @@ The the POS "Daily Quote Temp Purchase Orders" report (formerly named "Prior_Day
 The owner-facing decision for "is this temp PO actionable yet?" is the `status = CONFIRMED` filter that already applies to most operational surfaces. No code changes needed beyond the runner fix itself.
 
 ---
-Last verified: 2026-05-21
+Last verified: 2026-10-30 (stock POs by hand; sections before it 2026-05-21)

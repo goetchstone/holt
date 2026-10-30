@@ -151,3 +151,27 @@ export function passwordResetEmail(input: PasswordResetEmailInput): RenderedEmai
     <p>The link works once and expires in 1 hour. If you didn't ask for this, ignore this email — your password is unchanged.</p>`;
   return { subject, html: layout(input.appName, "Password reset", body) };
 }
+
+export interface PurchaseOrderEmailInput {
+  /** The store's name, as the PO's PDF prints it. */
+  companyName: string;
+  vendorName: string;
+  poNumber: string;
+  /** The sender's own note, if they wrote one. */
+  message?: string | null;
+}
+
+export function purchaseOrderEmail(input: PurchaseOrderEmailInput): RenderedEmail {
+  const subject = `Purchase order ${input.poNumber} from ${input.companyName}`;
+  const note = input.message?.trim()
+    ? `<p>${escapeHtml(input.message.trim()).replace(/\r?\n/g, "<br>")}</p>`
+    : "";
+  const body = `<p>Hello ${escapeHtml(input.vendorName)},</p>
+    <p>Our purchase order <strong>${escapeHtml(input.poNumber)}</strong> is attached.</p>
+    ${note}
+    <p>Please reply to confirm it and the date it will ship.</p>`;
+  return {
+    subject,
+    html: layout(input.companyName, `Purchase order ${input.poNumber}`, body),
+  };
+}

@@ -7,8 +7,7 @@
 // was written for the nodemailer 9 -> 10 major (2026-09-30, four advisories)
 // and keeps any later major honest the same way: no network, no mail service.
 
-import { createServer, type Server, type Socket } from "node:net";
-import type { AddressInfo } from "node:net";
+import { startSmtpSink } from "./helpers/smtpSink";
 
 jest.mock("@/lib/email/config", () => ({ getSmtpConfig: jest.fn() }));
 jest.mock("@/lib/appSettings", () => ({ DEFAULT_ORG_ID: 1 }));
@@ -18,59 +17,6 @@ import { getSmtpConfig } from "@/lib/email/config";
 import { sendEmail } from "@/lib/email/sender";
 
 const configMock = getSmtpConfig as jest.Mock;
-
-interface Received {
-  mailFrom: string[];
-  rcptTo: string[];
-  data: string[];
-}
-
-/** Just enough SMTP to accept one message per connection: no STARTTLS, no AUTH. */
-function startSmtpSink(): Promise<{ server: Server; port: number; received: Received }> {
-  const received: Received = { mailFrom: [], rcptTo: [], data: [] };
-  const server = createServer((socket: Socket) => {
-    let buffer = "";
-    let inData = false;
-    let body = "";
-    socket.write("220 sink.test ESMTP\r\n");
-    socket.on("data", (chunk) => {
-      buffer += chunk.toString("utf8");
-      if (inData) {
-        body += buffer;
-        buffer = "";
-        const end = body.indexOf("\r\n.\r\n");
-        if (end === -1) return;
-        received.data.push(body.slice(0, end));
-        buffer = body.slice(end + 5);
-        body = "";
-        inData = false;
-        socket.write("250 2.0.0 queued\r\n");
-      }
-      let newline: number;
-      while (!inData && (newline = buffer.indexOf("\r\n")) !== -1) {
-        const line = buffer.slice(0, newline);
-        buffer = buffer.slice(newline + 2);
-        const verb = line.slice(0, 4).toUpperCase();
-        if (verb === "EHLO" || verb === "HELO") socket.write("250-sink.test\r\n250 8BITMIME\r\n");
-        else if (verb === "MAIL") received.mailFrom.push(line) && socket.write("250 2.1.0 ok\r\n");
-        else if (verb === "RCPT") received.rcptTo.push(line) && socket.write("250 2.1.5 ok\r\n");
-        else if (verb === "DATA") {
-          inData = true;
-          socket.write("354 end with <CRLF>.<CRLF>\r\n");
-          body = buffer;
-          buffer = "";
-        } else if (verb === "QUIT") socket.end("221 2.0.0 bye\r\n");
-        else if (verb === "RSET" || verb === "NOOP") socket.write("250 2.0.0 ok\r\n");
-        else socket.write("502 5.5.2 not implemented\r\n");
-      }
-    });
-  });
-  return new Promise((resolve) => {
-    server.listen(0, "127.0.0.1", () => {
-      resolve({ server, port: (server.address() as AddressInfo).port, received });
-    });
-  });
-}
 
 function smtpConfig(port: number) {
   return {
@@ -115,6 +61,25 @@ describe("sendEmail over SMTP", () => {
     expect(message).toMatch(/^Subject: Your order is ready$/m);
     expect(message).toMatch(/^Content-Type: text\/html/m);
     expect(message).toContain("SO-1001");
+  });
+
+  it("sends an attachment as its own part, byte for byte", async () => {
+    configMock.mockResolvedValue(smtpConfig(sink.port));
+    const content = Buffer.from("%PDF-1.3 a purchase order");
+
+    const result = await sendEmail({
+      to: "orders@vendor.test",
+      subject: "Purchase order PO-261030-001",
+      html: "<p>Attached.</p>",
+      attachments: [{ filename: "PO-261030-001.pdf", contentType: "application/pdf", content }],
+    });
+
+    expect(result).toEqual({ ok: true });
+    const message = sink.received.data[0];
+    expect(message).toMatch(/^Content-Type: multipart\/mixed/m);
+    expect(message).toMatch(/^Content-Type: application\/pdf; name=PO-261030-001\.pdf$/m);
+    expect(message).toMatch(/^Content-Disposition: attachment; filename=PO-261030-001\.pdf$/m);
+    expect(message).toContain(content.toString("base64"));
   });
 
   it("reports a failed connection as an error instead of throwing", async () => {

@@ -6,8 +6,13 @@
 // /api/purchasing/orders/[id] REST endpoint (GET + PUT), which stays REST.
 // Chrome from the (dashboard) layout. The id arrives as a prop from the server
 // page (params awaited there).
+//
+// GAP-01: Print opens the PO's PDF; a holder of "Write purchase orders" can
+// also email it to the vendor, edit it until anything is received, and
+// duplicate it as a new draft.
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
@@ -15,6 +20,8 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { CostHiddenNote } from "@/components/ui/CostHiddenNote";
+import Modal from "@/components/ui/Modal";
+import { getErrorMessage } from "@/lib/toastError";
 
 interface ReceivingDetail {
   id: number;
@@ -52,6 +59,11 @@ interface PODetails {
   id: number;
   poNumber: string;
   vendor: { id: number; name: string };
+  vendorEmail: string | null;
+  shipTo: { id: number; name: string } | null;
+  isReturn: boolean;
+  /** Why the lines can't be changed, or null when they can. */
+  editProblem: string | null;
   salesOrder: SalesOrderRef | null;
   orderDate: string;
   expectedDelivery?: string;
@@ -86,8 +98,92 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
-export function PurchaseOrderDetailView({ id }: { id: string }) {
+function EmailPoModal({
+  po,
+  onClose,
+  onSent,
+}: {
+  po: PODetails;
+  onClose: () => void;
+  onSent: () => void;
+}) {
+  const [to, setTo] = useState(po.vendorEmail ?? "");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const send = async () => {
+    setSending(true);
+    try {
+      await axios.post(`/api/purchasing/orders/${po.id}/email`, { to, message: message || null });
+      toast.success(`${po.poNumber} sent to ${to}.`);
+      onSent();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't send the purchase order."));
+      setSending(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={`Email ${po.poNumber} to ${po.vendor.name}`}
+      onClose={onClose}
+      onSave={send}
+      saving={sending}
+      saveLabel="Send"
+      savingLabel="Sending..."
+    >
+      <div className="space-y-3 text-sm">
+        <div>
+          <label className="block text-brand-gray mb-1" htmlFor="po-email-to">
+            To
+          </label>
+          <input
+            id="po-email-to"
+            type="email"
+            className="w-full border border-brand-gray/30 rounded px-3 py-2"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="orders@vendor.example"
+          />
+          {!po.vendorEmail && (
+            <p className="text-xs text-brand-gray mt-1">
+              No email is recorded for this vendor; it can be added on the vendor screen.
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-brand-gray mb-1" htmlFor="po-email-message">
+            Message (optional)
+          </label>
+          <textarea
+            id="po-email-message"
+            rows={3}
+            maxLength={2000}
+            className="w-full border border-brand-gray/30 rounded px-3 py-2"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+          />
+        </div>
+        <p className="text-xs text-brand-gray">
+          The PO goes as a PDF attachment.
+          {po.status === "DRAFT" && " Sending a draft marks it Submitted."}
+        </p>
+      </div>
+    </Modal>
+  );
+}
+
+export function PurchaseOrderDetailView({
+  id,
+  canWrite = false,
+}: {
+  id: string;
+  canWrite?: boolean;
+}) {
+  const router = useRouter();
   const formatCurrency = useMoneyFormatter();
+  const [emailing, setEmailing] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [po, setPo] = useState<PODetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -154,6 +250,21 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
       toast.error(msg || "Failed to update status.");
     } finally {
       setTransitioning(false);
+    }
+  };
+
+  const duplicate = async () => {
+    if (!po) return;
+    setDuplicating(true);
+    try {
+      const res = await axios.post(`/api/purchasing/orders/${po.id}/duplicate`);
+      const skipped: string[] = res.data.skipped ?? [];
+      toast.success(`${res.data.poNumber} created as a draft.`);
+      if (skipped.length > 0) toast.info(`Left off: ${skipped.join("; ")}`);
+      router.push(`/app/purchasing/orders/${res.data.id}`);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Couldn't duplicate the purchase order."));
+      setDuplicating(false);
     }
   };
 
@@ -267,6 +378,38 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
         </div>
       </div>
 
+      {/* The PO as a document, and the writer's tools (GAP-01) */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        <a href={`/api/purchasing/orders/${po.id}/pdf`} target="_blank" rel="noopener noreferrer">
+          <Button variant="secondary">Print PDF</Button>
+        </a>
+        {canWrite && po.status !== "CANCELLED" && (
+          <Button variant="secondary" onClick={() => setEmailing(true)}>
+            Email to vendor
+          </Button>
+        )}
+        {canWrite && !po.editProblem && (
+          <Link href={`/app/purchasing/orders/${po.id}/edit`}>
+            <Button variant="secondary">Edit</Button>
+          </Link>
+        )}
+        {canWrite && !po.isReturn && (
+          <Button variant="secondary" onClick={duplicate} disabled={duplicating}>
+            {duplicating ? "Duplicating..." : "Duplicate"}
+          </Button>
+        )}
+      </div>
+      {emailing && (
+        <EmailPoModal
+          po={po}
+          onClose={() => setEmailing(false)}
+          onSent={() => {
+            setEmailing(false);
+            fetchPO();
+          }}
+        />
+      )}
+
       {/* Summary */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <h2 className="text-xl font-semibold mb-3">Summary</h2>
@@ -278,6 +421,11 @@ export function PurchaseOrderDetailView({ id }: { id: string }) {
             <p>
               <strong>Order Date:</strong> {format(new Date(po.orderDate), "PPP")}
             </p>
+            {po.shipTo && (
+              <p>
+                <strong>Ship To:</strong> {po.shipTo.name}
+              </p>
+            )}
             {po.notes && (
               <p>
                 <strong>Notes:</strong> {po.notes}
