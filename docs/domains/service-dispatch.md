@@ -24,6 +24,10 @@ ZIP-based delivery zone pricing. `DeliveryZone` has `DeliveryZoneZip` children m
 
 **ZIP+4 handling**: the POS customer addresses include ZIP+4 format (e.g., `12345-6789`). All dispatch APIs strip ZIP to 5 digits before zone lookup. Any new zone-matching code must do the same (`zip.substring(0, 5)`).
 
+**One lookup for one ZIP (2026-10-29).** `zoneForZip()` in `lib/delivery/deliveryFee.ts` is the zone that delivers to an address. It matches by the first five digits, skips a switched-off zone (`isActive: false`), and picks the first zone by `sortOrder` when a ZIP is listed in two. `orderDeliveryZip()` beside it is the address chain below (the order's delivery address, else the customer's first address by id). Both the delivery fee and run assignment (`lib/deliveryService.ts`, which stamps `ServiceAppointment.deliveryZoneId`) use them. The dispatch boards still build their own ZIP-to-zone maps in bulk (`ready-to-deliver.ts`, `orders-by-zone.ts`, `delivery-planner.ts`). Those maps don't skip switched-off zones, and a ZIP in two zones goes to whichever row came last. That is in ROADMAP, not fixed. The old `resolveDeliveryZone()` had no callers and is gone.
+
+**The zone's fee goes on the order (GAP-09, 2026-10-29).** The zone's fee for a sale is `baseFee + perPieceFee × pieces` (`zoneFee()` in `lib/delivery/deliveryFeeShared.ts`). A piece is a unit of goods going out on the truck (`deliveryPieces()`). Returns, take-with lines, lines with no product and cancelled or zero lines don't count, and a cut length is one piece. The register shows the fee and the order charges it as a line of its own. See sales-orders.md, "Delivery fee".
+
 **Customer address fallback**: the POS does not export delivery addresses (`SalesOrder.deliveryAddressId` is NULL for all imported orders). All dispatch APIs use the fallback chain: `deliveryAddress ?? customer.addresses[0]`. Any new dispatch code must follow this pattern.
 
 ## Conveyance / Delivery Method

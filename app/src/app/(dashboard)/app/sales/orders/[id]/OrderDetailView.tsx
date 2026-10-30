@@ -25,6 +25,7 @@ import { getErrorMessage } from "@/lib/toastError";
 import { computeTotalPaid } from "@/lib/paymentBalance";
 import { openCheckoutFrom } from "@/lib/openCheckoutPrompt";
 import { ApplyStoreCredit } from "./ApplyStoreCredit";
+import { DeliveryFeePanel } from "./DeliveryFeePanel";
 
 interface LineItem {
   id: number;
@@ -102,6 +103,8 @@ interface OrderDetails {
   splitWith: StaffRef | null;
   storeLocation: string;
   deliveryMethod: string | null;
+  /** The delivery fee line: changed in DeliveryFeePanel, not by line edits. */
+  deliveryFeeLineItemId: number | null;
   totalTax: number;
   totalPaid: number;
   orderNotes?: string;
@@ -830,6 +833,16 @@ export function OrderDetailView({ id }: { id: string }) {
                 </span>
               )}
             </div>
+            <DeliveryFeePanel
+              orderId={orderDetails.id}
+              deliveryMethod={orderDetails.deliveryMethod}
+              editable={isEditable}
+              linesKey={orderDetails.lineItems
+                .map((l) => `${l.id}:${l.orderedQuantity}:${l.lineItemStatus}`)
+                .join(",")}
+              formatCurrency={formatCurrency}
+              onChanged={fetchOrder}
+            />
             {orderDetails.orderNotes && (
               <p>
                 <strong>Notes:</strong> {orderDetails.orderNotes}
@@ -1031,42 +1044,47 @@ export function OrderDetailView({ id }: { id: string }) {
                     </td>
                     {isEditable && (
                       <td className="p-2 border-b">
-                        {item.lineItemStatus === "ACTIVE" && (
-                          <div className="flex gap-1">
-                            {isQuote && (
+                        {item.lineItemStatus === "ACTIVE" &&
+                          item.id === orderDetails.deliveryFeeLineItemId && (
+                            <span className="text-xs text-brand-gray">Set under Summary</span>
+                          )}
+                        {item.lineItemStatus === "ACTIVE" &&
+                          item.id !== orderDetails.deliveryFeeLineItemId && (
+                            <div className="flex gap-1">
+                              {isQuote && (
+                                <button
+                                  onClick={() => handleRemoveLineItem(item)}
+                                  className="p-1 text-brand-gray hover:text-red-600 transition"
+                                  title="Remove from quote"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
                               <button
-                                onClick={() => handleRemoveLineItem(item)}
+                                onClick={() => {
+                                  setCancelModalItem(item);
+                                  setCancelReason("");
+                                }}
                                 className="p-1 text-brand-gray hover:text-red-600 transition"
-                                title="Remove from quote"
+                                title="Cancel item"
                               >
                                 <X className="w-4 h-4" />
                               </button>
-                            )}
-                            <button
-                              onClick={() => {
-                                setCancelModalItem(item);
-                                setCancelReason("");
-                              }}
-                              className="p-1 text-brand-gray hover:text-red-600 transition"
-                              title="Cancel item"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setReplaceModalItem(item);
-                                setReplacementName("");
-                                setReplacementPartNo(item.partNo || "");
-                                setReplacementGrade(item.selectedGrade || "");
-                                setReplaceReason("");
-                              }}
-                              className="p-1 text-brand-gray hover:text-blue-600 transition"
-                              title="Replace item"
-                            >
-                              <RefreshCw className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
+                              <button
+                                onClick={() => {
+                                  setReplaceModalItem(item);
+                                  setReplacementName("");
+                                  setReplacementPartNo(item.partNo || "");
+                                  setReplacementGrade(item.selectedGrade || "");
+                                  setReplaceReason("");
+                                }}
+                                className="p-1 text-brand-gray hover:text-blue-600 transition"
+                                title="Replace item"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
                       </td>
                     )}
                   </tr>

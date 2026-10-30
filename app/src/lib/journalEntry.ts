@@ -10,6 +10,7 @@ import {
   OVER_SHORT_MAPPING_LABEL,
   OVER_SHORT_ALERT_THRESHOLD,
   RESTOCKING_FEE_MAPPING_LABEL,
+  DELIVERY_FEE_MAPPING_LABEL,
   DEPOSIT_OFFSET_LABELS,
 } from "@/lib/glMapping";
 import { countedPaymentWhere } from "@/lib/paymentBalance";
@@ -933,13 +934,57 @@ type OrderRow = Prisma.SalesOrderGetPayload<{ include: typeof ORDER_FOR_JOURNAL_
  * Shared by the payment path and the recognition path for the same reason the
  * include is: the same order must book identically whichever one loaded it.
  */
+/** Where a fee line with no product is income: POS_TRANSACTIONS mappings. */
+interface FeeIncomeAccounts {
+  /** "Restocking Fee": a native return's fee line. */
+  restockingFeeGlId: number | null;
+  /** "Delivery Fee": an order's delivery fee line (lib/delivery/deliveryFee.ts). */
+  deliveryFeeGlId: number | null;
+}
+
+/**
+ * Where a line books. A fee line has no product, so it books to its fee's own
+ * income account; a line of goods books to its category's account group.
+ */
+function lineAccountGroup(
+  li: OrderRow["lineItems"][number],
+  feeLineIds: { restocking: number | null; delivery: number | null },
+  fees: FeeIncomeAccounts,
+): SalesOrderForJournal["lineItems"][number]["accountGroup"] {
+  if (li.id === feeLineIds.restocking) {
+    return {
+      name: "Restocking fees",
+      salesGlId: fees.restockingFeeGlId,
+      cogsGlId: null,
+      inventoryGlId: null,
+    };
+  }
+  if (li.id === feeLineIds.delivery) {
+    return {
+      name: "Delivery fees",
+      salesGlId: fees.deliveryFeeGlId,
+      cogsGlId: null,
+      inventoryGlId: null,
+    };
+  }
+  const group = li.product?.category?.accountGroup;
+  if (!group) return null;
+  return {
+    name: group.name,
+    salesGlId: group.salesAccount?.id || null,
+    cogsGlId: group.cogsAccount?.id || null,
+    inventoryGlId: group.inventoryAccount?.id || null,
+    shrinkageGlId: group.shrinkageAccount?.id || null,
+  };
+}
+
 function toOrderForJournal(
   o: OrderRow,
   fallbackTaxGlId: number | null,
-  /** POS_TRANSACTIONS/"Restocking Fee": where a return's fee line is income. */
-  restockingFeeGlId: number | null = null,
+  fees: FeeIncomeAccounts,
 ): SalesOrderForJournal {
   const feeLineId = o.returnFor?.restockingFeeLineItemId ?? null;
+  const deliveryFeeLineId = o.deliveryFeeLineItemId ?? null;
   return {
     id: o.id,
     hasInvoices: (o.invoices?.length || 0) > 0,
@@ -953,23 +998,11 @@ function toOrderForJournal(
       quantity: toNum(li.orderedQuantity),
       taxAmount: toNum(li.vatAmount),
       productId: li.productId ?? null,
-      accountGroup:
-        li.id === feeLineId
-          ? {
-              name: "Restocking fees",
-              salesGlId: restockingFeeGlId,
-              cogsGlId: null,
-              inventoryGlId: null,
-            }
-          : li.product?.category?.accountGroup
-            ? {
-                name: li.product.category.accountGroup.name,
-                salesGlId: li.product.category.accountGroup.salesAccount?.id || null,
-                cogsGlId: li.product.category.accountGroup.cogsAccount?.id || null,
-                inventoryGlId: li.product.category.accountGroup.inventoryAccount?.id || null,
-                shrinkageGlId: li.product.category.accountGroup.shrinkageAccount?.id || null,
-              }
-            : null,
+      accountGroup: lineAccountGroup(
+        li,
+        { restocking: feeLineId, delivery: deliveryFeeLineId },
+        fees,
+      ),
     })),
     // B3: hand the order's Return records through so buildJournalLines can
     // classify each return-shaped line (resolveReturnBookingPath) instead of
@@ -1078,13 +1111,19 @@ export async function generateSalesJournal(
   });
   const overShortGlId = overShortMapping?.glAccount?.id || null;
 
-  const feeMapping = await prisma.systemGLMapping.findUnique({
+  const feeMappings = await prisma.systemGLMapping.findMany({
     where: {
-      section_label: { section: POS_TRANSACTIONS_SECTION, label: RESTOCKING_FEE_MAPPING_LABEL },
+      section: POS_TRANSACTIONS_SECTION,
+      label: { in: [RESTOCKING_FEE_MAPPING_LABEL, DELIVERY_FEE_MAPPING_LABEL] },
     },
-    select: { glAccountId: true },
+    select: { label: true, glAccountId: true },
   });
-  const restockingFeeGlId = feeMapping?.glAccountId ?? null;
+  const feeAccountOf = (label: string) =>
+    feeMappings.find((m) => m.label === label)?.glAccountId ?? null;
+  const fees: FeeIncomeAccounts = {
+    restockingFeeGlId: feeAccountOf(RESTOCKING_FEE_MAPPING_LABEL),
+    deliveryFeeGlId: feeAccountOf(DELIVERY_FEE_MAPPING_LABEL),
+  };
 
   // Resolve deposit GL for offset on cash payments without invoices
   const depositMapping =
@@ -1190,7 +1229,7 @@ export async function generateSalesJournal(
       // can only be a deposit.
       settles: settlesOf(payment.salesOrder?.invoices?.[0]?.invoiceDate, payment.paymentDate),
       order: payment.salesOrder
-        ? toOrderForJournal(payment.salesOrder, fallbackTaxGlId, restockingFeeGlId)
+        ? toOrderForJournal(payment.salesOrder, fallbackTaxGlId, fees)
         : null,
     });
   }
@@ -1222,7 +1261,7 @@ export async function generateSalesJournal(
     }
 
     for (const row of recognisedOrders) {
-      const order = toOrderForJournal(row, fallbackTaxGlId, restockingFeeGlId);
+      const order = toOrderForJournal(row, fallbackTaxGlId, fees);
       const orderTotal = round2(
         order.lineItems.reduce((sum, li) => sum + li.netPrice + li.taxAmount, 0),
       );

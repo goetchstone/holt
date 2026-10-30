@@ -268,17 +268,31 @@ interface TaxDistrictOption {
   isActive: boolean;
 }
 
+interface TaxGroupOption {
+  id: number;
+  name: string;
+  exempt: boolean;
+}
+
 // The deployment-wide fallback district (AppSettings.defaultTaxDistrictId):
 // resolveTaxRate.ts uses it when a sale's store has no district of its own.
-// With neither, the sale is charged 0% tax and POS / New Quote say so.
+// With neither, the sale is charged 0% tax and POS / New Quote say so. And the
+// group delivery fees sell under (AppSettings.deliveryFeeTaxGroupId): whether
+// delivery is taxed is the store's state's law, so it is the store's to say.
 function SalesTaxSection({
   value,
   districts,
   onChange,
+  deliveryGroupId,
+  groups,
+  onDeliveryGroupChange,
 }: Readonly<{
   value: number | null;
   districts: TaxDistrictOption[] | null;
   onChange: (id: number | null) => void;
+  deliveryGroupId: number | null;
+  groups: TaxGroupOption[] | null;
+  onDeliveryGroupChange: (id: number | null) => void;
 }>) {
   // Inactive districts stay out of the list, except the one already chosen --
   // hiding it would make the select read as "None" while the setting is not.
@@ -315,6 +329,28 @@ function SalesTaxSection({
         {districts?.length === 0 ? (
           <p className="mt-1 text-xs text-brand-gray">No tax districts exist yet.</p>
         ) : null}
+      </div>
+      <div className="max-w-md">
+        <label htmlFor="delivery-fee-tax-group" className="mb-1 block text-sm text-brand-gray">
+          Delivery fees are taxed as
+        </label>
+        <select
+          id="delivery-fee-tax-group"
+          value={deliveryGroupId ?? ""}
+          onChange={(e) => onDeliveryGroupChange(e.target.value ? Number(e.target.value) : null)}
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
+        >
+          <option value="">By the district&apos;s rules, like goods</option>
+          {(groups ?? []).map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+              {g.exempt ? " (not taxed)" : ""}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-brand-gray">
+          Where delivery isn&apos;t taxed, choose a group marked &ldquo;Not taxed&rdquo;.
+        </p>
       </div>
     </section>
   );
@@ -516,6 +552,7 @@ export function SettingsOverviewView() {
   // null until loaded: an empty list must not read as "no districts exist" when
   // it only means the request failed.
   const [taxDistricts, setTaxDistricts] = useState<TaxDistrictOption[] | null>(null);
+  const [taxGroups, setTaxGroups] = useState<TaxGroupOption[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -551,10 +588,23 @@ export function SettingsOverviewView() {
     }
   }, []);
 
+  // The delivery-fee tax group picker's options, loaded the same way.
+  const loadTaxGroups = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tax/groups");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(serverError(data, "Failed to load tax groups"));
+      setTaxGroups(Array.isArray(data) ? data : []);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to load tax groups"));
+    }
+  }, []);
+
   useEffect(() => {
     load();
     loadTaxDistricts();
-  }, [load, loadTaxDistricts]);
+    loadTaxGroups();
+  }, [load, loadTaxDistricts, loadTaxGroups]);
 
   const setText = (key: StringSettingKey, value: string) =>
     setSettings((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -595,6 +645,7 @@ export function SettingsOverviewView() {
           orderNumberPrefix: settings.orderNumberPrefix,
           barcodePrefix: settings.barcodePrefix,
           defaultTaxDistrictId: settings.defaultTaxDistrictId,
+          deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -699,6 +750,11 @@ export function SettingsOverviewView() {
         districts={taxDistricts}
         onChange={(id) =>
           setSettings((prev) => (prev ? { ...prev, defaultTaxDistrictId: id } : prev))
+        }
+        deliveryGroupId={settings.deliveryFeeTaxGroupId}
+        groups={taxGroups}
+        onDeliveryGroupChange={(id) =>
+          setSettings((prev) => (prev ? { ...prev, deliveryFeeTaxGroupId: id } : prev))
         }
       />
       <NumberingSection settings={settings} onChange={setPrefix} />

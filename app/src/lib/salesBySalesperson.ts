@@ -137,6 +137,9 @@ export function buildLineItemWhere(
       {
         OR: [{ productName: null }, { NOT: { OR: DELIVERY_FREIGHT_MATCH_CLAUSES } }],
       },
+      // An order's own delivery fee (lib/delivery/deliveryFee.ts), known by the
+      // order's link to it rather than by its name.
+      { deliveryFeeFor: { is: null } },
     ];
   }
   if (departmentNames.length > 0) {

@@ -114,6 +114,10 @@ export async function seedAccounting(prisma: PrismaClient): Promise<AccountingSe
     accountGroupIdByDepartment.set(dept.name, group.id);
   }
 
+  // Delivery fee income (lib/delivery/deliveryFee.ts). Created after the
+  // department accounts so every account before it keeps its id.
+  await upsertGl("4-4960", "Delivery Fees", "REVENUE");
+
   // --- SystemGLMapping: POS_PAYMENTS ----------------------------------
   // Every METHOD_DISPLAY value (lib/paymentMethodDisplay.ts) gets a
   // lowercase-matched label here -- generateSalesJournal() keys its
@@ -166,6 +170,7 @@ export async function seedAccounting(prisma: PrismaClient): Promise<AccountingSe
   await upsertMapping("POS_TRANSACTIONS", "Sales Tax", "2-2120");
   await upsertMapping("POS_TRANSACTIONS", "Over/Short", "5-5900");
   await upsertMapping("POS_TRANSACTIONS", "Restocking Fee", "4-4950");
+  await upsertMapping("POS_TRANSACTIONS", "Delivery Fee", "4-4960");
 
   // --- Tax setup (one district, Standard Retail at SEED_TAX_RATE, 3 exempt reasons) --
   const district = await prisma.taxDistrict.upsert({

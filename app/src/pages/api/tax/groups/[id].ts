@@ -71,6 +71,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           error: `Cannot delete: ${categoryCount} categor${categoryCount !== 1 ? "ies" : "y"} and ${productCount} product${productCount !== 1 ? "s" : ""} sell under this group.`,
         });
       }
+      // Delivery fees too (AppSettings.deliveryFeeTaxGroupId): the same SET
+      // NULL would quietly tax them by the district's rules.
+      const deliverySettings = await prisma.appSettings.count({
+        where: { deliveryFeeTaxGroupId: id },
+      });
+      if (deliverySettings > 0) {
+        return res.status(409).json({
+          error:
+            "Cannot delete: delivery fees sell under this group. Choose another in Admin › Settings › Sales tax first.",
+        });
+      }
 
       await prisma.taxGroup.delete({ where: { id } });
       return res.status(200).json({ success: true });

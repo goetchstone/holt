@@ -25,6 +25,7 @@ import {
   OVER_SHORT_MAPPING_LABEL,
   OVER_SHORT_ALERT_THRESHOLD,
   RESTOCKING_FEE_MAPPING_LABEL,
+  DELIVERY_FEE_MAPPING_LABEL,
 } from "./glMapping";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
@@ -318,7 +319,12 @@ export async function resolveReconciliationAccounts(
           {
             section: POS_TRANSACTIONS_SECTION,
             label: {
-              in: [SALES_TAX_MAPPING_LABEL, OVER_SHORT_MAPPING_LABEL, RESTOCKING_FEE_MAPPING_LABEL],
+              in: [
+                SALES_TAX_MAPPING_LABEL,
+                OVER_SHORT_MAPPING_LABEL,
+                RESTOCKING_FEE_MAPPING_LABEL,
+                DELIVERY_FEE_MAPPING_LABEL,
+              ],
             },
           },
         ],
@@ -342,6 +348,9 @@ export async function resolveReconciliationAccounts(
   // it; the journal credits it to its own account, which is revenue too.
   const feeId = mappingId(POS_TRANSACTIONS_SECTION, RESTOCKING_FEE_MAPPING_LABEL);
   if (feeId != null) revenue.add(feeId);
+  // So is an order's delivery fee line (lib/delivery/deliveryFee.ts).
+  const deliveryFeeId = mappingId(POS_TRANSACTIONS_SECTION, DELIVERY_FEE_MAPPING_LABEL);
+  if (deliveryFeeId != null) revenue.add(deliveryFeeId);
 
   const tax = new Set<number>();
   for (const d of districts) {

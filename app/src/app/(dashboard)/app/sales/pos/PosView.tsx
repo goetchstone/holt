@@ -32,6 +32,8 @@ import {
 import { onHandByStore } from "@/lib/inventory/onHandSummary";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { REFERENCE_MAX, type OfferedTender } from "@/lib/payments/tenderShared";
+import { deliveryPieces } from "@/lib/delivery/deliveryFeeShared";
+import { DeliveryFeeField } from "./DeliveryFeeField";
 
 const REGISTER_STORAGE_KEY = "pos-register-id";
 
@@ -89,9 +91,10 @@ interface GiftCardInfo {
 interface CreatedOrder {
   id: number;
   orderno: string;
-  /** All four come from the server's response -- see the note in handleCreateOrder. */
+  /** All five come from the server's response -- see the note in handleCreateOrder. */
   subtotal: number;
   orderDiscountAmount: number;
+  deliveryFee: number;
   taxAmount: number;
   total: number;
 }
@@ -156,6 +159,12 @@ function storeCreditProblem(
     return `Not enough store credit: ${fmt(credit ?? 0)} available, ${fmt(amount)} required`;
   }
   return null;
+}
+
+/** The delivery fee the sale charges: what's typed, when it goes out by delivery. */
+function deliveryFeeOf(method: DeliveryMethod, typed: string): number {
+  if (method !== "DELIVERY") return 0;
+  return Number.parseFloat(typed) || 0;
 }
 
 function onHandAt(item: CartItem, locationName: string): number {
@@ -246,6 +255,14 @@ export function PosView() {
   } = useCustomerSearch({ limit: 5 });
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>("TAKEN");
+  // The delivery fee as typed, and whether staff typed it or it follows the
+  // zone (DeliveryFeeField).
+  const [deliveryFee, setDeliveryFee] = useState("");
+  const [deliveryFeeEdited, setDeliveryFeeEdited] = useState(false);
+  const handleDeliveryFeeChange = useCallback((value: string, edited: boolean) => {
+    setDeliveryFee(value);
+    setDeliveryFeeEdited(edited);
+  }, []);
 
   // Load all registers and restore saved selection from localStorage
   const loadRegisters = useCallback(async () => {
@@ -315,6 +332,11 @@ export function PosView() {
   );
   const { subtotal, orderDiscountAmount, netSubtotal } = priced;
   const cartItemCount = cart.reduce((sum, item) => sum + Math.abs(item.quantity), 0);
+  // Every cart line is goods: a custom line becomes a product of its own.
+  const deliveryPieceCount = deliveryPieces(
+    cart.map((item) => ({ quantity: item.quantity, goods: true, isReturn: item.isReturn })),
+  );
+  const deliveryFeeAmount = deliveryFeeOf(deliveryMethod, deliveryFee);
 
   // Free stock per store, for informational display only. Failures are
   // silently ignored -- inventory never blocks a sale.
@@ -500,6 +522,8 @@ export function PosView() {
         })),
         orderDiscount: orderDiscount || undefined,
         deliveryMethod,
+        // 0 charges none (create-from-cart).
+        deliveryFee: deliveryFeeAmount,
       });
 
       const data = res.data as {
@@ -509,6 +533,7 @@ export function PosView() {
         subtotal?: number;
         taxAmount?: number;
         orderDiscountAmount?: number;
+        deliveryFee?: number;
       };
 
       // The server prices the order; tendering anything else -- including
@@ -530,6 +555,7 @@ export function PosView() {
         orderno: data.orderno,
         subtotal: data.subtotal ?? 0,
         orderDiscountAmount: data.orderDiscountAmount ?? 0,
+        deliveryFee: data.deliveryFee ?? 0,
         taxAmount: data.taxAmount ?? 0,
         total: data.total,
       });
@@ -715,6 +741,7 @@ export function PosView() {
     setOrderDiscount(null);
     setReturnMode(false);
     setDeliveryMethod("TAKEN");
+    handleDeliveryFeeChange("", false);
     setDiscountIdx(null);
     setCreatedOrder(null);
     setPaidSoFar(0);
@@ -731,6 +758,7 @@ export function PosView() {
     setOrderDiscount(null);
     setReturnMode(false);
     setDeliveryMethod("TAKEN");
+    handleDeliveryFeeChange("", false);
     setDiscountIdx(null);
     scanRef.current?.focus();
   };
@@ -1043,6 +1071,12 @@ export function PosView() {
                   <span>-{fmt(orderDiscountAmount)}</span>
                 </div>
               )}
+              {deliveryFeeAmount !== 0 && (
+                <div className="flex justify-between text-sm text-brand-gray">
+                  <span>Delivery</span>
+                  <span>{fmt(deliveryFeeAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center pt-1">
                 <button
                   onClick={() => setShowOrderDiscount(!showOrderDiscount)}
@@ -1051,7 +1085,9 @@ export function PosView() {
                   {orderDiscount ? "Change Order Discount" : "Add Order Discount"}
                 </button>
                 <div className="text-right">
-                  <span className="text-xl font-semibold text-brand-black">{fmt(netSubtotal)}</span>
+                  <span className="text-xl font-semibold text-brand-black">
+                    {fmt(netSubtotal + deliveryFeeAmount)}
+                  </span>
                   {/* No tax rate is known client-side (it depends on the tax
                       district/exemption resolved server-side), so this is
                       explicitly pre-tax rather than showing a guessed figure.
@@ -1132,6 +1168,16 @@ export function PosView() {
                 </button>
               ))}
             </div>
+            {deliveryMethod === "DELIVERY" && (
+              <DeliveryFeeField
+                customerId={selectedCustomer?.id ?? null}
+                pieces={deliveryPieceCount}
+                value={deliveryFee}
+                edited={deliveryFeeEdited}
+                onChange={handleDeliveryFeeChange}
+                fmt={fmt}
+              />
+            )}
           </div>
           <div className="flex gap-3">
             <Button onClick={handleCreateOrder} className="flex-1 py-3 text-base">
@@ -1362,6 +1408,12 @@ function TakePaymentPanel({
             <div className="flex justify-between text-green-700">
               <span>Discount</span>
               <span>-{fmt(order.orderDiscountAmount)}</span>
+            </div>
+          )}
+          {order.deliveryFee > 0 && (
+            <div className="flex justify-between">
+              <span>Delivery</span>
+              <span>{fmt(order.deliveryFee)}</span>
             </div>
           )}
           <div className="flex justify-between">

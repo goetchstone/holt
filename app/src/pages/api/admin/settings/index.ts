@@ -344,6 +344,25 @@ function parseDefaultTaxDistrict(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// The tax group delivery fees sell under (lib/delivery/deliveryFee.ts): a group
+// id, or null for the district's rules. Same shape as the default district.
+function parseDeliveryFeeTaxGroup(body: Body, data: SettingsData): ParseError {
+  const raw = body.deliveryFeeTaxGroupId;
+  if (raw === undefined) return null;
+  if (raw === null || raw === "") {
+    data.deliveryFeeTaxGroupId = null;
+    return null;
+  }
+  const id = Number(raw);
+  if (!Number.isInteger(id) || id <= 0) {
+    return {
+      error: "deliveryFeeTaxGroupId must be a tax group id, or empty for the district's rules.",
+    };
+  }
+  data.deliveryFeeTaxGroupId = id;
+  return null;
+}
+
 // The owner's two getting-started acknowledgements (lib/gettingStarted.ts):
 // true stamps the time now, false clears it. The server writes the time, never
 // the client -- the record is of when it was said, not of what a browser
@@ -377,6 +396,7 @@ const SETTINGS_PARSERS = [
   parsePortalTokenTtl,
   parsePrefixes,
   parseDefaultTaxDistrict,
+  parseDeliveryFeeTaxGroup,
   parseAcknowledgements,
 ];
 
@@ -384,6 +404,7 @@ const SETTINGS_PARSERS = [
 const REFERENCES = [
   ["unmatchedStockStoreLocationId", "unmatched-stock store"],
   ["defaultTaxDistrictId", "default tax district"],
+  ["deliveryFeeTaxGroupId", "delivery fee tax group"],
 ] as const;
 
 /** A foreign-key failure can only come from a reference this request set. */

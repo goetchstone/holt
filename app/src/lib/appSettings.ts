@@ -97,6 +97,9 @@ export interface ResolvedAppSettings {
   /** resolveTaxRate.ts's last-resort tax district; null = unset, and a sale
    *  whose store has no district of its own is then charged 0% tax. */
   defaultTaxDistrictId: number | null;
+  /** The tax group delivery fees sell under (lib/delivery/deliveryFee.ts);
+   *  null = the district's rules, like any line with no group. */
+  deliveryFeeTaxGroupId: number | null;
   /** When the owner confirmed currency, locale and timezone, as ISO 8601;
    *  null = never. A string, not a Date, because this object is sent to the
    *  Settings page as JSON and a Date type would lie there. */
@@ -149,6 +152,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   orderNumberPrefix: null,
   barcodePrefix: null,
   defaultTaxDistrictId: null,
+  deliveryFeeTaxGroupId: null,
   setupConfirmedAt: null,
   cashOnlyAcknowledgedAt: null,
 };
@@ -177,6 +181,7 @@ interface AppSettingsRow {
   orderNumberPrefix?: string | null;
   barcodePrefix?: string | null;
   defaultTaxDistrictId?: number | null;
+  deliveryFeeTaxGroupId?: number | null;
   setupConfirmedAt?: Date | null;
   cashOnlyAcknowledgedAt?: Date | null;
   // Optional because this is a LOOSE view of the row: a partial select, or a
@@ -251,6 +256,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     orderNumberPrefix: parsePrefix(row.orderNumberPrefix),
     barcodePrefix: parsePrefix(row.barcodePrefix),
     defaultTaxDistrictId: row.defaultTaxDistrictId ?? null,
+    deliveryFeeTaxGroupId: row.deliveryFeeTaxGroupId ?? null,
     setupConfirmedAt: isoOrNull(row.setupConfirmedAt),
     cashOnlyAcknowledgedAt: isoOrNull(row.cashOnlyAcknowledgedAt),
   };

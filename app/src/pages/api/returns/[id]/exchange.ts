@@ -23,7 +23,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     const ret = await prisma.return.findUniqueOrThrow({
       where: { id: returnId },
       include: {
-        salesOrder: { select: { customerId: true, storeLocation: true, salesperson: true } },
+        salesOrder: {
+          select: {
+            customerId: true,
+            storeLocation: true,
+            storeLocationId: true,
+            salesperson: true,
+          },
+        },
       },
     });
 
@@ -58,6 +65,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           status: "QUOTE",
           customerId: ret.salesOrder.customerId,
           storeLocation: ret.salesOrder.storeLocation,
+          // The store by id too: a line added to the exchange is taxed by its
+          // district (resolveTaxRate.ts), which the name alone doesn't reach.
+          storeLocationId: ret.salesOrder.storeLocationId,
           salesperson: ret.salesOrder.salesperson,
           orderNotes: `Exchange for return ${ret.returnNumber}`,
           createdBy: changedBy,

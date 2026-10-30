@@ -71,6 +71,8 @@ describe("buildLineItemWhere", () => {
           },
         ],
       },
+      // An order's delivery fee line, by the order's link to it (GAP-09).
+      { deliveryFeeFor: { is: null } },
     ]);
   });
 
