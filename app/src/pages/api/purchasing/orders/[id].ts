@@ -1,4 +1,10 @@
 // /app/src/pages/api/purchasing/orders/[id].ts
+//
+//   GET  one purchase order for its detail screen and the Receive screen.
+//        "View purchasing", the key both the PO list and this screen are on
+//        (pagePermissions.ts); cost only for a holder of "View cost".
+//   PUT  status, acknowledgement, dates and notes. "Receive stock" (the
+//        warehouse marks what it has) or "Write purchase orders" (the buyer).
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
@@ -6,8 +12,9 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
 import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
 import { logError } from "@/lib/logger";
+import { poEditProblem } from "@/lib/purchasing/purchaseOrderShared";
 
-async function handler(
+export async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
   session: Session,
@@ -36,14 +43,37 @@ async function handler(
 
 // Unit costs, line totals and receipt costs for a holder of "View cost"; the
 // same order without them for anyone else. Receiving does not need cost.
-export default requirePermission("purchasing.receive", handler, WITH_COST);
+const readGate = requirePermission("purchasing.read", handler, WITH_COST);
+const writeGate = requirePermission(
+  { anyOf: ["purchasing.receive", "purchasing.write"] },
+  handler,
+  WITH_COST,
+);
+
+export default async function route(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") return readGate(req, res);
+  return writeGate(req, res);
+}
 
 async function handleGet(poId: number, res: NextApiResponse, showCost: boolean) {
   try {
     const po = await prisma.purchaseOrder.findUnique({
       where: { id: poId },
       include: {
-        vendor: { select: { id: true, name: true } },
+        vendor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            contacts: {
+              where: { email: { not: null } },
+              orderBy: [{ isPrimary: "desc" }, { id: "asc" }],
+              take: 1,
+              select: { email: true },
+            },
+          },
+        },
+        shipTo: { select: { id: true, name: true } },
         salesOrder: {
           select: {
             id: true,
@@ -70,10 +100,17 @@ async function handleGet(poId: number, res: NextApiResponse, showCost: boolean) 
       return res.status(404).json({ error: "Purchase order not found." });
     }
 
+    const receivedCount = po.lineItems.reduce((n, l) => n + l.receivingRecords.length, 0);
     return res.status(200).json({
       id: po.id,
       poNumber: po.poNumber,
-      vendor: po.vendor,
+      vendor: { id: po.vendor.id, name: po.vendor.name },
+      // Where an email of this PO goes unless the sender changes it.
+      vendorEmail: po.vendor.email?.trim() || po.vendor.contacts[0]?.email?.trim() || null,
+      shipTo: po.shipTo,
+      isReturn: po.isReturn,
+      // Why the PO's lines can't be changed, or null when they can (GAP-01).
+      editProblem: poEditProblem({ status: po.status, isReturn: po.isReturn, receivedCount }),
       salesOrder: po.salesOrder
         ? {
             id: po.salesOrder.id,

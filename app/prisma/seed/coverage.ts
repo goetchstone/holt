@@ -115,6 +115,10 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
     status: "skipped",
     reason: "Outbound queue drained by a worker. Seeding it would send mail on first boot.",
   },
+  EmailQueueAttachment: {
+    status: "skipped",
+    reason: "Belongs to a queued EmailQueue row, which is skipped: nothing to attach it to.",
+  },
   EmailTemplate: { status: "seeded", seeder: "demo" },
   ErrorEvent: {
     status: "skipped",

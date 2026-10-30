@@ -7,7 +7,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
-import { sendEmail } from "./sender";
+import type { EmailStatus } from "@prisma/client";
+import { sendEmail, type EmailAttachment } from "./sender";
 import { nextEmailState, MAX_EMAIL_ATTEMPTS } from "./state";
 
 export interface EnqueueInput {
@@ -17,6 +18,8 @@ export interface EnqueueInput {
   html: string;
   templateKey?: string;
   createdBy?: string | null;
+  /** Kept on the queue row, so a retry sends the same files. */
+  attachments?: readonly EmailAttachment[];
 }
 
 export async function enqueueEmail(input: EnqueueInput): Promise<number> {
@@ -28,10 +31,86 @@ export async function enqueueEmail(input: EnqueueInput): Promise<number> {
       html: input.html,
       templateKey: input.templateKey ?? null,
       createdBy: input.createdBy ?? null,
+      ...(input.attachments?.length
+        ? {
+            attachments: {
+              create: input.attachments.map((a) => ({
+                filename: a.filename,
+                contentType: a.contentType,
+                content: new Uint8Array(a.content),
+              })),
+            },
+          }
+        : {}),
     },
     select: { id: true },
   });
   return row.id;
+}
+
+const WITH_ATTACHMENTS = {
+  attachments: { select: { filename: true, contentType: true, content: true } },
+} as const;
+
+type QueuedRow = {
+  id: number;
+  toAddress: string;
+  subject: string;
+  html: string;
+  attempts: number;
+  attachments: { filename: string; contentType: string; content: Uint8Array }[];
+};
+
+/** Send one row and record what happened. Null when SMTP isn't set up (the row stays PENDING). */
+async function deliverRow(
+  row: QueuedRow,
+  organizationId: number,
+): Promise<{ status: EmailStatus } | null> {
+  const result = await sendEmail(
+    {
+      to: row.toAddress,
+      subject: row.subject,
+      html: row.html,
+      attachments: row.attachments.map((a) => ({ ...a, content: Buffer.from(a.content) })),
+    },
+    organizationId,
+  );
+  if (result.skipped) return null;
+  const state = nextEmailState(row.attempts, result.ok, new Date(), result.error);
+  await prisma.emailQueue.update({
+    where: { id: row.id },
+    data: {
+      status: state.status,
+      attempts: state.attempts,
+      sentAt: state.sentAt,
+      lastError: state.lastError,
+    },
+  });
+  return { status: state.status };
+}
+
+/**
+ * Try one queued email now, for a screen that tells the sender whether it went.
+ * PENDING after a failed try means it stays queued for the next drain.
+ */
+export async function deliverQueuedEmail(
+  id: number,
+  organizationId: number = DEFAULT_ORG_ID,
+): Promise<EmailStatus> {
+  const row = await prisma.emailQueue.findUniqueOrThrow({
+    where: { id },
+    select: {
+      id: true,
+      toAddress: true,
+      subject: true,
+      html: true,
+      attempts: true,
+      status: true,
+      ...WITH_ATTACHMENTS,
+    },
+  });
+  if (row.status !== "PENDING") return row.status;
+  return (await deliverRow(row, organizationId))?.status ?? "PENDING";
 }
 
 export interface ProcessSummary {
@@ -55,33 +134,21 @@ export async function processEmailQueue(
     },
     orderBy: { scheduledAt: "asc" },
     take: limit,
+    include: WITH_ATTACHMENTS,
   });
 
   const summary: ProcessSummary = { processed: 0, sent: 0, failed: 0, skipped: 0 };
   for (const row of due) {
-    const result = await sendEmail(
-      { to: row.toAddress, subject: row.subject, html: row.html },
-      organizationId,
-    );
+    const outcome = await deliverRow(row, organizationId);
     // SMTP not configured -- leave everything PENDING and stop; nothing will
     // send this run, and the rows are picked up once SMTP is set.
-    if (result.skipped) {
+    if (!outcome) {
       summary.skipped++;
       break;
     }
-    const state = nextEmailState(row.attempts, result.ok, new Date(), result.error);
-    await prisma.emailQueue.update({
-      where: { id: row.id },
-      data: {
-        status: state.status,
-        attempts: state.attempts,
-        sentAt: state.sentAt,
-        lastError: state.lastError,
-      },
-    });
     summary.processed++;
-    if (state.status === "SENT") summary.sent++;
-    else if (state.status === "FAILED") summary.failed++;
+    if (outcome.status === "SENT") summary.sent++;
+    else if (outcome.status === "FAILED") summary.failed++;
   }
   return summary;
 }

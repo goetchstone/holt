@@ -14,8 +14,10 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import TableWithFilters from "@/components/table/TableWithFilters";
 import { type Column } from "@/components/table/PaginatedTable";
+import Link from "next/link";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { CostHiddenNote } from "@/components/ui/CostHiddenNote";
+import { Button } from "@/components/ui/button";
 
 interface PurchaseOrderRow {
   id: number;
@@ -51,7 +53,8 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
-export function PurchaseOrdersView() {
+/** canWrite: the viewer holds "Write purchase orders" (New purchase order). */
+export function PurchaseOrdersView({ canWrite = false }: { canWrite?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const formatCurrency = useMoneyFormatter();
@@ -149,9 +152,16 @@ export function PurchaseOrdersView() {
 
   return (
     <div className="py-2 font-serif text-brand-black">
-      <h1 className="mb-4 text-2xl font-semibold text-brand-blue">
-        {isReturnView ? "Vendor Returns" : "Purchase Orders"}
-      </h1>
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold text-brand-blue">
+          {isReturnView ? "Vendor Returns" : "Purchase Orders"}
+        </h1>
+        {canWrite && !isReturnView && (
+          <Link href="/app/purchasing/orders/new">
+            <Button>New purchase order</Button>
+          </Link>
+        )}
+      </div>
       <TableWithFilters<PurchaseOrderRow>
         data={data}
         columns={columns}

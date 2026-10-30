@@ -1593,6 +1593,7 @@ model StoreLocation {
   returnsReceived     Return[]             @relation("ReturnReceivedAt")
   returnsRestocked    Return[]             @relation("ReturnRestockedAt")
   serviceAppointments ServiceAppointment[] @relation("AppointmentStore")
+  purchaseOrdersTo    PurchaseOrder[]      @relation("PurchaseOrderShipTo")
 
   // Reverse relations for legacy string-to-FK bridge
   orders                   SalesOrder[]              @relation("OrderStore")
@@ -2007,6 +2008,11 @@ model PurchaseOrder {
   vendorAckNumber         String?
   vendorAckDate           DateTime?
   notes                   String?
+  // Where the vendor delivers: the store or warehouse printed as Ship To on the
+  // PO, and the store the Receive screen starts on. Null on special-order and
+  // imported POs, which never named one.
+  shipToLocationId        Int?
+  shipTo                  StoreLocation?      @relation("PurchaseOrderShipTo", fields: [shipToLocationId], references: [id])
   // Stamped by the legacy-POS inbound-items import (a full snapshot of open
   // POs): a PO absent from the latest export was received/cancelled upstream,
   // so inbound dashboards filter to MAX(lastSeenInInboundExport).
@@ -5823,12 +5829,27 @@ model EmailQueue {
   scheduledAt DateTime    @default(now())
   sentAt      DateTime?
 
+  attachments EmailQueueAttachment[]
+
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
   createdBy String?
 
   @@index([organizationId, status])
   @@index([status, scheduledAt])
+}
+
+// A file sent with a queued email (a purchase order's PDF), kept on the row so
+// a retry sends the same bytes.
+model EmailQueueAttachment {
+  id          Int        @id @default(autoincrement())
+  emailId     Int
+  email       EmailQueue @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  filename    String
+  contentType String
+  content     Bytes
+
+  @@index([emailId])
 }
 
 // ---------------------------------------------------------------------------
