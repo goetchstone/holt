@@ -20,6 +20,7 @@ import { useCustomerSearch, type CustomerSearchResult } from "@/hooks/useCustome
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { RetailPriceTag } from "@/components/sales/RetailPriceTag";
+import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
 import { catalogRetailPrice, noRetailPriceMessage } from "@/lib/pos/cartPricing";
 
 type ItemSource = "FLOOR" | "ORDER";
@@ -119,6 +120,7 @@ export function NewQuoteView() {
   // Notes
   const [orderNotes, setOrderNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const { send: sendWithApproval, modal: approvalModal } = useDiscountApproval();
 
   // Pre-populate customer from URL query param (e.g. linked from an interaction)
   useEffect(() => {
@@ -276,25 +278,31 @@ export function NewQuoteView() {
 
     setSubmitting(true);
     try {
-      const res = await axios.post("/api/sales/orders/create-from-cart", {
-        customerId: selectedCustomer?.id || null,
-        storeLocation: activeStore?.name || null,
-        orderNotes: orderNotes.trim() || null,
-        items: lines.map((l) => ({
-          type: l.type,
-          productId: l.productId || undefined,
-          productNumber: l.productNumber || undefined,
-          quantity: l.quantity,
-          unitPrice: l.price,
-          cost: l.cost || undefined,
-          name: l.name,
-          description: l.description,
-          vendor: l.vendor || undefined,
-          source: l.source,
-          fulfillment: l.fulfillment,
-          pickLocationId: l.pickLocationId || undefined,
-        })),
-      });
+      // A price below list past what this person may give asks for a
+      // manager's PIN and sends again (GAP-06); Cancel keeps the quote here.
+      const res = await sendWithApproval((discountApproval) =>
+        axios.post("/api/sales/orders/create-from-cart", {
+          discountApproval,
+          customerId: selectedCustomer?.id || null,
+          storeLocation: activeStore?.name || null,
+          orderNotes: orderNotes.trim() || null,
+          items: lines.map((l) => ({
+            type: l.type,
+            productId: l.productId || undefined,
+            productNumber: l.productNumber || undefined,
+            quantity: l.quantity,
+            unitPrice: l.price,
+            cost: l.cost || undefined,
+            name: l.name,
+            description: l.description,
+            vendor: l.vendor || undefined,
+            source: l.source,
+            fulfillment: l.fulfillment,
+            pickLocationId: l.pickLocationId || undefined,
+          })),
+        }),
+      );
+      if (!res) return;
       // Link the interaction to the new sales order if created from one
       const qInteractionId = searchParams?.get("interactionId");
       if (qInteractionId) {
@@ -324,6 +332,7 @@ export function NewQuoteView() {
 
   return (
     <div className="max-w-4xl mx-auto py-4 font-serif">
+      {approvalModal}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold text-brand-blue">New Quote</h1>
         <Button variant="outline" onClick={() => router.push("/app/sales/orders")}>

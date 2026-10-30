@@ -34,6 +34,7 @@ import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { REFERENCE_MAX, type OfferedTender } from "@/lib/payments/tenderShared";
 import { deliveryPieces } from "@/lib/delivery/deliveryFeeShared";
 import { DeliveryFeeField } from "./DeliveryFeeField";
+import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
 
 const REGISTER_STORAGE_KEY = "pos-register-id";
 
@@ -259,6 +260,7 @@ export function PosView() {
   // zone (DeliveryFeeField).
   const [deliveryFee, setDeliveryFee] = useState("");
   const [deliveryFeeEdited, setDeliveryFeeEdited] = useState(false);
+  const { send: sendWithApproval, modal: approvalModal } = useDiscountApproval();
   const handleDeliveryFeeChange = useCallback((value: string, edited: boolean) => {
     setDeliveryFee(value);
     setDeliveryFeeEdited(edited);
@@ -508,23 +510,29 @@ export function PosView() {
     }
 
     try {
-      const res = await axios.post("/api/sales/orders/create-from-cart", {
-        customerId: selectedCustomer?.id || null,
-        storeLocation: activeStore?.name || null,
-        registerId: selectedRegister?.id || null,
-        items: cart.map((item) => ({
-          productId: item.productId,
-          quantity: item.isReturn ? -item.quantity : item.quantity,
-          unitPrice: item.price,
-          cost: item.cost || undefined,
-          discounts: item.discounts,
-          isReturn: item.isReturn,
-        })),
-        orderDiscount: orderDiscount || undefined,
-        deliveryMethod,
-        // 0 charges none (create-from-cart).
-        deliveryFee: deliveryFeeAmount,
-      });
+      // A discount past what this person may give asks for a manager's PIN
+      // and sends again (GAP-06); Cancel leaves the cart as it is.
+      const res = await sendWithApproval((discountApproval) =>
+        axios.post("/api/sales/orders/create-from-cart", {
+          customerId: selectedCustomer?.id || null,
+          storeLocation: activeStore?.name || null,
+          registerId: selectedRegister?.id || null,
+          items: cart.map((item) => ({
+            productId: item.productId,
+            quantity: item.isReturn ? -item.quantity : item.quantity,
+            unitPrice: item.price,
+            cost: item.cost || undefined,
+            discounts: item.discounts,
+            isReturn: item.isReturn,
+          })),
+          orderDiscount: orderDiscount || undefined,
+          deliveryMethod,
+          // 0 charges none (create-from-cart).
+          deliveryFee: deliveryFeeAmount,
+          discountApproval,
+        }),
+      );
+      if (!res) return;
 
       const data = res.data as {
         id: number;
@@ -839,6 +847,7 @@ export function PosView() {
 
   return (
     <div className="max-w-3xl mx-auto py-4 font-serif">
+      {approvalModal}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-semibold text-brand-blue">Point of Sale</h1>

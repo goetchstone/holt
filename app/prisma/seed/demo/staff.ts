@@ -13,11 +13,16 @@
 // makes "log in and look around" actually usable.
 
 import type { PrismaClient, StaffRole } from "@prisma/client";
-import { hashPassword } from "@/lib/auth/password";
+import { hashPassword, hashPin } from "@/lib/auth/password";
 
 /** Every seeded staff account's local-login password. Synthetic data only —
  * documented openly in docs/domains/seed-data.md. */
 export const DEMO_STAFF_PASSWORD = "Showroom2026!";
+
+/** Every seeded staff account's register PIN, so a demo manager can approve a
+ * discount (lib/sales/discountApproval.ts). Only staff whose role holds "Apply
+ * discounts" can use it. Synthetic, like the password above. */
+export const DEMO_STAFF_PIN = "2468";
 
 export interface SeededStaffMember {
   id: number;
@@ -87,6 +92,7 @@ async function upsertStaff(
   prisma: PrismaClient,
   entry: RosterEntry,
   passwordHash: string,
+  pinHash: string,
 ): Promise<SeededStaffMember> {
   const email = `${entry.emailLocal}@example.com`;
 
@@ -117,6 +123,7 @@ async function upsertStaff(
       activeStoreLocationId: entry.homeStoreId,
       userId: user.id,
       passwordHash,
+      pinHash,
       isActive: entry.isActive ?? true,
     },
     create: {
@@ -128,6 +135,7 @@ async function upsertStaff(
       activeStoreLocationId: entry.homeStoreId,
       userId: user.id,
       passwordHash,
+      pinHash,
       isActive: entry.isActive ?? true,
     },
   });
@@ -160,6 +168,7 @@ export async function seedStaff(
   designerCount: number,
 ): Promise<StaffSetup> {
   const passwordHash = hashPassword(DEMO_STAFF_PASSWORD);
+  const pinHash = hashPin(DEMO_STAFF_PIN);
   const storeA = stores[0]?.id ?? null;
   const storeB = stores[1]?.id ?? stores[0]?.id ?? null;
 
@@ -285,23 +294,29 @@ export async function seedStaff(
     homeStoreId: warehouseStoreLocationId,
   }));
 
-  const superAdmin = await upsertStaff(prisma, superAdminEntry, passwordHash);
-  const admin = await upsertStaff(prisma, adminEntry, passwordHash);
+  const superAdmin = await upsertStaff(prisma, superAdminEntry, passwordHash, pinHash);
+  const admin = await upsertStaff(prisma, adminEntry, passwordHash, pinHash);
   const managers: SeededStaffMember[] = [];
-  for (const e of managerEntries) managers.push(await upsertStaff(prisma, e, passwordHash));
+  for (const e of managerEntries)
+    managers.push(await upsertStaff(prisma, e, passwordHash, pinHash));
   const designers: SeededStaffMember[] = [];
-  for (const e of designerEntries) designers.push(await upsertStaff(prisma, e, passwordHash));
+  for (const e of designerEntries)
+    designers.push(await upsertStaff(prisma, e, passwordHash, pinHash));
   const operatingStaff: SeededStaffMember[] = [];
-  for (const e of operatingEntries) operatingStaff.push(await upsertStaff(prisma, e, passwordHash));
+  for (const e of operatingEntries)
+    operatingStaff.push(await upsertStaff(prisma, e, passwordHash, pinHash));
   const floorSellers: SeededStaffMember[] = [];
-  for (const e of floorSellerEntries) floorSellers.push(await upsertStaff(prisma, e, passwordHash));
+  for (const e of floorSellerEntries)
+    floorSellers.push(await upsertStaff(prisma, e, passwordHash, pinHash));
   const departedDesigners: SeededStaffMember[] = [];
   for (const e of departedEntries)
-    departedDesigners.push(await upsertStaff(prisma, e, passwordHash));
+    departedDesigners.push(await upsertStaff(prisma, e, passwordHash, pinHash));
   const registerStaff: SeededStaffMember[] = [];
-  for (const e of registerEntries) registerStaff.push(await upsertStaff(prisma, e, passwordHash));
+  for (const e of registerEntries)
+    registerStaff.push(await upsertStaff(prisma, e, passwordHash, pinHash));
   const warehouseStaff: SeededStaffMember[] = [];
-  for (const e of warehouseEntries) warehouseStaff.push(await upsertStaff(prisma, e, passwordHash));
+  for (const e of warehouseEntries)
+    warehouseStaff.push(await upsertStaff(prisma, e, passwordHash, pinHash));
 
   return {
     all: [

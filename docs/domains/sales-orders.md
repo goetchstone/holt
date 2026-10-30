@@ -204,6 +204,15 @@ the register's sale (`create-from-cart`, body `deliveryFee`) and the order scree
   (`POST /api/returns`) refuse it through `deliveryFeeLineEditProblem()`. Refunding a
   delivery fee after the order is handed over is not built (ROADMAP GAP-09).
 
+**The printed receipt and invoice (2026-10-30).** `GET /api/print/order/[id]`
+returned every line and every payment, and both prints totalled them. So a
+cancelled or replaced line was printed and charged in the total, and a voided,
+failed or pending payment counted as paid. It now returns only lines that are not
+CANCELLED or REPLACED (rule 33), and counted payments (`countedPaymentWhere`) with
+refunds negative, as the order screen counts them. It also returns each line's
+`listPrice`, so the prints can show the saving (pos.md, "Discounts and manager
+approval").
+
 **A register order records its store's id (2026-10-29).** `create-from-cart`
 resolved the store to tax the sale but wrote only its name on the order. So
 everything that taxed the order later ignored the store's district: an added line, a

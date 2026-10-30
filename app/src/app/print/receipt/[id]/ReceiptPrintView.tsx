@@ -14,6 +14,7 @@ import axios from "axios";
 import { parseLocalDate } from "@/lib/dateUtils";
 import { useBranding } from "@/components/branding/BrandingProvider";
 import { RECEIPT_WIDTH_PX, receiptPageRule, wrapText } from "@/lib/receiptPage";
+import { lineSaving } from "@/lib/sales/discountPolicyShared";
 
 interface StoreAddress {
   name: string;
@@ -36,6 +37,8 @@ interface OrderData {
     partNo: string | null;
     orderedQuantity: number;
     netPrice: number;
+    /** The unit price it was listed at (GAP-06); null on older lines. */
+    listPrice: number | null;
     vatAmount: number | null;
   }[];
   payments: {
@@ -88,6 +91,8 @@ const HEADER_HEIGHT = 56;
 const DIVIDER_HEIGHT = 18;
 
 interface ReceiptTotals {
+  /** What the customer saved below list, across the lines (GAP-06). */
+  saved: number;
   subtotal: number;
   tax: number;
   total: number;
@@ -100,7 +105,13 @@ function computeReceiptTotals(order: OrderData): ReceiptTotals {
   const tax = order.lineItems.reduce((s, li) => s + (li.vatAmount || 0), 0);
   const total = subtotal + tax;
   const paid = order.payments.reduce((s, p) => s + p.paymentAmount, 0);
-  return { subtotal, tax, total, paid, balance: total - paid };
+  const saved = order.lineItems.reduce(
+    (s, li) =>
+      s +
+      lineSaving({ listUnit: li.listPrice, quantity: li.orderedQuantity, netPrice: li.netPrice }),
+    0,
+  );
+  return { saved, subtotal, tax, total, paid, balance: total - paid };
 }
 
 /**
@@ -127,8 +138,9 @@ function computeReceiptHeight(
   // Line items
   y += order.lineItems.length * LINE_HEIGHT;
   y += DIVIDER_HEIGHT;
-  // Totals: subtotal + (tax?) + total
+  // Totals: subtotal + (saved?) + (tax?) + total
   y += LINE_HEIGHT;
+  if (totals.saved > 0) y += LINE_HEIGHT;
   if (totals.tax > 0) y += LINE_HEIGHT;
   y += LINE_HEIGHT + 4;
   // Payments
@@ -235,7 +247,7 @@ export function ReceiptPrintView({ id }: { id: string }) {
     const FONT_LARGE = "bold 36px Arial, Helvetica, sans-serif";
 
     const totals = computeReceiptTotals(order);
-    const { subtotal, tax, total, balance } = totals;
+    const { saved, subtotal, tax, total, balance } = totals;
 
     // Set canvas size from pre-flight height
     canvas.width = W;
@@ -333,6 +345,11 @@ export function ReceiptPrintView({ id }: { id: string }) {
     ctx.font = FONT_NORMAL;
     drawRow(ctx, "Subtotal:", `$${fmt(subtotal)}`, cy);
     cy += lineHeight;
+
+    if (saved > 0) {
+      drawRow(ctx, "You saved:", `$${fmt(saved)}`, cy);
+      cy += lineHeight;
+    }
 
     if (tax > 0) {
       drawRow(ctx, "Tax:", `$${fmt(tax)}`, cy);

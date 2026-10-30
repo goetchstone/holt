@@ -2880,6 +2880,12 @@ model OrderLineItem {
   productName     String?
   orderedQuantity Decimal
   netPrice        Decimal
+  /// The unit price the line was listed at when it was sold: the product's
+  /// retail, or the price a custom line was written at. netPrice below
+  /// listPrice x orderedQuantity is the discount the customer was given
+  /// (lib/sales/discountPolicyShared.ts). Null on lines written before it was
+  /// recorded (2026-10-30).
+  listPrice       Decimal?
   cost            Decimal
   productId       Int?
   product         Product?   @relation(fields: [productId], references: [id])
@@ -3335,6 +3341,12 @@ model StaffMember {
   // OAuth-only staff. Only consulted when AUTH_LOCAL_ENABLED turns on the
   // credentials sign-in method.
   passwordHash          String?
+  // The register PIN a manager enters to approve a discount (lib/sales/
+  // discountApproval.ts), scrypt-hashed like the password. Set by its owner on
+  // My Account. Five wrong tries lock it for fifteen minutes.
+  pinHash               String?
+  pinFailedAttempts     Int                  @default(0)
+  pinLockedUntil        DateTime?
   passwordResetTokens   PasswordResetToken[]
   role                  StaffRole            @default(DESIGNER)
   // The permission-layer role. NULLABLE and coexisting with `role` above on
@@ -5367,6 +5379,13 @@ model AppSettings {
   // the district's rules, like any line with no group of its own.
   deliveryFeeTaxGroupId Int?
   deliveryFeeTaxGroup   TaxGroup? @relation("DeliveryFeeTaxGroup", fields: [deliveryFeeTaxGroupId], references: [id], onDelete: SetNull)
+
+  // The largest discount, as a whole percent of a line's list price, that
+  // staff without the "Apply discounts" permission may give on their own;
+  // above it a manager approves with their PIN (lib/sales/discountApproval.ts).
+  // How a store runs discounts is its own call, so it is set here. The default,
+  // 0, is the locked-down one: every such discount needs a manager.
+  discountLimitPercent Int @default(0)
 
   /// Which SourceAdapter (lib/adapters/) pulls data from the system this
   /// deployment ran before holt. "none" is the shipped default and a real

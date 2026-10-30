@@ -110,3 +110,10 @@ ALTER TABLE "InventoryTransfer" ADD CONSTRAINT "InventoryTransfer_received_withi
 -- Store credit is never spent past zero.
 ALTER TABLE "Customer" DROP CONSTRAINT IF EXISTS "Customer_creditBalance_nonnegative";
 ALTER TABLE "Customer" ADD CONSTRAINT "Customer_creditBalance_nonnegative" CHECK ("creditBalance" >= 0);
+
+-- 20261030120000_discount_policy
+-- What staff may discount alone is a whole percent, 0 to 100.
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_discountLimitPercent_range";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_discountLimitPercent_range" CHECK (
+  "discountLimitPercent" >= 0 AND "discountLimitPercent" <= 100
+);

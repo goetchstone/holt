@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useBranding } from "@/components/branding/BrandingProvider";
+import { lineSaving } from "@/lib/sales/discountPolicyShared";
 
 interface StoreAddress {
   name: string;
@@ -38,6 +39,8 @@ interface InvoiceLineItem {
   selectedOptions: string | null;
   orderedQuantity: number;
   netPrice: number;
+  /** The unit price it was listed at (GAP-06); null on older lines. */
+  listPrice: number | null;
   vatRate: number | null;
   vatAmount: number | null;
 }
@@ -167,6 +170,13 @@ export function InvoicePrintView({ id }: { id: string }) {
   }
 
   const subtotal = order.lineItems.reduce((s, li) => s + li.netPrice, 0);
+  // What the customer saved below list (GAP-06).
+  const saved = order.lineItems.reduce(
+    (s, li) =>
+      s +
+      lineSaving({ listUnit: li.listPrice, quantity: li.orderedQuantity, netPrice: li.netPrice }),
+    0,
+  );
   const tax = order.lineItems.reduce((s, li) => s + (li.vatAmount || 0), 0);
   const total = subtotal + tax;
   const paid = order.payments.reduce((s, p) => s + p.paymentAmount, 0);
@@ -307,6 +317,15 @@ export function InvoicePrintView({ id }: { id: string }) {
                 {fmt(subtotal)}
               </td>
             </tr>
+            {saved > 0 && (
+              <tr>
+                <td></td>
+                <td className="right" style={{ color: "#6D6D6D" }}>
+                  You saved:
+                </td>
+                <td className="right">{fmt(saved)}</td>
+              </tr>
+            )}
             {tax > 0 && (
               <tr>
                 <td></td>

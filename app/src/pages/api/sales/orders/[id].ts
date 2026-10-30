@@ -231,6 +231,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         barcode: item.barcode,
         orderedQuantity: Number(item.orderedQuantity),
         netPrice: Number(item.netPrice),
+        listPrice: item.listPrice != null ? Number(item.listPrice) : null,
         vatRate: item.vatRate != null ? Number(item.vatRate) : null,
         vatAmount: item.vatAmount != null ? Number(item.vatAmount) : null,
         source: item.source,

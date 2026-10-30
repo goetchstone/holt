@@ -22,8 +22,23 @@ import {
 import { getAppSettings } from "@/lib/appSettings";
 import { nextOrderNumber } from "@/lib/orderNumber";
 import { effectivePrefix } from "@/lib/numberingPrefix";
-import { DeliveryFeeError, setDeliveryFee } from "@/lib/delivery/deliveryFee";
-import { deliveryFeeProblem } from "@/lib/delivery/deliveryFeeShared";
+import {
+  DeliveryFeeError,
+  customerZip,
+  quoteDeliveryFee,
+  setDeliveryFee,
+} from "@/lib/delivery/deliveryFee";
+import { deliveryFeeProblem, deliveryPieces } from "@/lib/delivery/deliveryFeeShared";
+import type { CallerAccess } from "@/lib/auth/gateOptions";
+import {
+  type Approver,
+  DiscountApprovalError,
+  NO_EXTRA_ACCESS,
+  authorizeDiscount,
+  catalogListUnits,
+  logDiscountApproval,
+} from "@/lib/sales/discountApproval";
+import { type DiscountLine, largestDiscountPercent } from "@/lib/sales/discountPolicyShared";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -49,7 +64,12 @@ interface CartItem {
  *  Prisma client with a fake req/res + session -- requireAuthWithRole needs
  *  real cookies. Role enforcement is covered by the apiRouteAuthorization
  *  tripwire. Same pattern as inventory/snapshot/generate.ts. */
-export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
+export async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  session: Session,
+  access: CallerAccess = NO_EXTRA_ACCESS,
+) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -63,6 +83,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     deliveryMethod,
     orderDiscount,
     deliveryFee,
+    discountApproval,
   } = req.body as {
     customerId?: number | null;
     items: CartItem[];
@@ -72,6 +93,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     orderDiscount?: CartDiscount | null;
     /** The delivery fee to charge: the zone's, or what staff set (GAP-09). */
     deliveryFee?: number | null;
+    /** A manager's PIN, when the sale's discount needs one (GAP-06). */
+    discountApproval?: unknown;
   };
 
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -84,6 +107,37 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     }
     const feeProblem = deliveryFeeProblem(deliveryFee);
     if (feeProblem) return res.status(400).json({ error: feeProblem });
+  }
+
+  // Each line's list price, and the deepest discount the sale gives, judged
+  // before anything is written: a manager's PIN is checked on its own, outside
+  // the sale's transaction, so a wrong try counts even when the sale is refused
+  // (lib/sales/discountApproval.ts).
+  const cartItems = items.map((item) => ({
+    unitPrice: item.unitPrice,
+    quantity: Math.abs(item.quantity),
+    discounts: item.discounts,
+    isReturn: item.isReturn,
+  }));
+  let listUnits: number[];
+  let discount: { percent: number; approver: Approver | null };
+  try {
+    ({ listUnits, discount } = await judgeCartDiscount({
+      items,
+      netPrices: priceCart(cartItems, { orderDiscount }).items.map((l) => l.netPrice),
+      delivery:
+        deliveryMethod === "DELIVERY"
+          ? { customerId: customerId ?? null, charged: deliveryFee ?? 0 }
+          : null,
+      access,
+      approval: discountApproval,
+    }));
+  } catch (error) {
+    if (error instanceof DiscountApprovalError) {
+      return res.status(error.status).json(error.body);
+    }
+    logError("Create order from cart: discount check", error);
+    return res.status(500).json({ error: "Failed to create order" });
   }
 
   try {
@@ -164,12 +218,6 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       // field except vatAmount/taxAmount; this is the one pricing function
       // called twice, not a second pricing path (cartPricing.ts's own header
       // is exactly the "don't reintroduce a second implementation" rule).
-      const cartItems = items.map((item) => ({
-        unitPrice: item.unitPrice,
-        quantity: Math.abs(item.quantity),
-        discounts: item.discounts,
-        isReturn: item.isReturn,
-      }));
       // Each line sells under its product's tax group (a CUSTOM or CONFIGURED
       // line: its source product's, which the minted product inherits below).
       const untaxed = priceCart(cartItems, { orderDiscount });
@@ -264,6 +312,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           // that duplication is exactly how the client and server used to
           // disagree. netPrice already reflects item + order discounts.
           netPrice: priced.items[idx].netPrice,
+          // What it was listed at, so the saving can be shown (GAP-06).
+          listPrice: listUnits[idx],
           // itemCost is per-unit (configurator value or product baseCost);
           // OrderLineItem.cost stores the LINE total, like netPrice.
           cost: itemCost * item.quantity,
@@ -365,6 +415,14 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
             actor: session.user?.email || null,
           })
         : null;
+      if (discount.approver) {
+        await logDiscountApproval(tx, {
+          orderId: created.id,
+          approver: discount.approver,
+          percent: discount.percent,
+          changedBy: session.user?.email || null,
+        });
+      }
       const feeAmount = delivery?.amount ?? 0;
       const feeTax = delivery?.taxAmount ?? 0;
 
@@ -388,7 +446,74 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   }
 }
 
-export default requirePermission("sales.write", handler);
+export default requirePermission("sales.write", handler, { also: ["sales.discount"] });
+
+/** Each line's list price, the sale's deepest discount, and who approved it. */
+async function judgeCartDiscount(input: {
+  items: CartItem[];
+  netPrices: number[];
+  delivery: { customerId: number | null; charged: number } | null;
+  access: CallerAccess;
+  approval: unknown;
+}): Promise<{ listUnits: number[]; discount: { percent: number; approver: Approver | null } }> {
+  const listUnits = await cartListUnits(prisma, input.items);
+  const percent = await cartDiscountPercent({
+    items: input.items,
+    listUnits,
+    netPrices: input.netPrices,
+    delivery: input.delivery,
+  });
+  const approver = await authorizeDiscount(prisma, {
+    percent,
+    access: input.access,
+    approval: input.approval,
+  });
+  return { listUnits, discount: { percent, approver } };
+}
+
+/** Each cart line's unit list price (lib/sales/discountApproval.ts catalogListUnits). */
+function cartListUnits(db: typeof prisma, items: CartItem[]): Promise<number[]> {
+  return catalogListUnits(
+    db,
+    items.map((item) => ({
+      productId: (item.type || "PRODUCT") === "PRODUCT" ? (item.productId ?? null) : null,
+      unitPrice: item.unitPrice,
+    })),
+  );
+}
+
+/**
+ * The deepest discount the sale gives: each line sold (returns are not
+ * discounts) against its list, and a delivery fee charged below its zone's.
+ */
+async function cartDiscountPercent(input: {
+  items: CartItem[];
+  listUnits: number[];
+  netPrices: number[];
+  delivery: { customerId: number | null; charged: number } | null;
+}): Promise<number> {
+  const lines: DiscountLine[] = [];
+  input.items.forEach((item, i) => {
+    if (item.isReturn) return;
+    lines.push({
+      listUnit: input.listUnits[i],
+      quantity: Math.abs(item.quantity),
+      netPrice: input.netPrices[i],
+    });
+  });
+  if (input.delivery) {
+    const quote = await quoteDeliveryFee(prisma, {
+      zip: await customerZip(prisma, input.delivery.customerId),
+      pieces: deliveryPieces(
+        input.items.map((i) => ({ quantity: i.quantity, goods: true, isReturn: i.isReturn })),
+      ),
+    });
+    if (quote.amount != null) {
+      lines.push({ listUnit: quote.amount, quantity: 1, netPrice: input.delivery.charged });
+    }
+  }
+  return largestDiscountPercent(lines);
+}
 
 // Finds or creates a default "Uncategorized" department or category
 async function getOrCreateDefault(

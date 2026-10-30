@@ -589,3 +589,16 @@ when `AUTH_LOCAL_ENABLED` is off:
 
 Real-DB proof: `__tests__/integration/passwordReset.integration.test.ts`
 (enumeration safety, single-use, expiry, supersession, hash verifies).
+
+**Register PIN (GAP-06, 2026-10-30).** My Account also sets the PIN a manager
+approves a discount with, through tRPC `account.setPin`. It shows whether or not
+local passwords are enabled, but proves the current password when the account
+has one. `StaffMember.pinHash` holds a scrypt hash in the password's format
+(`hashPin` in `lib/auth/password.ts`, checked with `verifyPassword`). A PIN is
+4 to 8 digits, so its strength is the lockout:
+
+- five wrong tries set `pinLockedUntil` fifteen minutes out;
+- setting the PIN again clears the count and the lock.
+
+The rules for who may discount, and who may approve, are in pos.md, "Discounts
+and manager approval".

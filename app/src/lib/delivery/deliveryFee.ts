@@ -46,6 +46,11 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 /** Orders whose fee may change: not yet handed over, cancelled or returned. */
 const FEE_EDITABLE_STATUSES: ReadonlySet<string> = new Set(["QUOTE", "ORDER"]);
 
+/** Whether an order in this status may still have its fee changed. */
+export function feeIsEditable(status: string): boolean {
+  return FEE_EDITABLE_STATUSES.has(status);
+}
+
 export interface DeliveryZoneFees {
   id: number;
   name: string;
@@ -262,7 +267,7 @@ async function loadFeeEditableOrder(tx: PrismaTx, orderId: number) {
     },
   });
   if (!order) throw new DeliveryFeeError("Order not found.", 404);
-  if (!FEE_EDITABLE_STATUSES.has(order.status)) {
+  if (!feeIsEditable(order.status)) {
     throw new DeliveryFeeError(
       `This order is ${order.status.toLowerCase()}: its delivery fee can no longer change.`,
       409,
@@ -302,9 +307,13 @@ async function writeFeeLine(
   });
   const rate = rateForLineAmount(taxDistrict.rules, fee, await deliveryFeeTaxGroup(tx)).rate;
   const taxAmount = round2(fee * rate);
+  const existingId = order.deliveryFeeLine?.id ?? null;
   const line = {
     productName: zone ? `Delivery — ${zone.name}` : "Delivery",
     netPrice: fee,
+    // Listed at the zone's fee, so a fee cut below it shows as a saving and
+    // counts as a discount (GAP-06). With no zone, the fee is its own list.
+    listPrice: zone ? zoneFee(zone, await orderPieces(tx, order.id, existingId)) : fee,
     vatRate: rate,
     vatAmount: taxAmount,
   };

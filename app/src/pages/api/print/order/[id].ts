@@ -9,8 +9,9 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { countedPaymentWhere } from "@/lib/paymentBalance";
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+export async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -28,9 +29,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         customer: {
           include: { addresses: true },
         },
-        lineItems: { include: { product: true } },
+        // What the customer bought: a cancelled line, or one replaced by
+        // another, is out of every sum (CLAUDE.md rule 33). The receipt and the
+        // invoice total these lines, and used to print cancelled ones in.
+        lineItems: {
+          where: { lineItemStatus: { notIn: ["CANCELLED", "REPLACED"] } },
+          include: { product: true },
+        },
         invoices: { include: { lineItems: { include: { orderLineItem: true } } } },
-        payments: true,
+        // Money the order actually holds (lib/paymentBalance.ts), as the order
+        // screen counts it: not voided, failed or still-pending payments.
+        payments: { where: countedPaymentWhere(), orderBy: { paymentDate: "asc" } },
       },
     });
 
@@ -100,6 +109,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         selectedOptions: item.selectedOptions || null,
         orderedQuantity: Number(item.orderedQuantity),
         netPrice: Number(item.netPrice),
+        // What the line was listed at, for the saving (GAP-06); null before it was kept.
+        listPrice: item.listPrice != null ? Number(item.listPrice) : null,
         vatRate: item.vatRate != null ? Number(item.vatRate) : null,
         vatAmount: item.vatAmount != null ? Number(item.vatAmount) : null,
       })),
@@ -118,7 +129,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         id: p.id,
         paymentDate: p.paymentDate,
         paymentType: p.paymentType,
-        paymentAmount: Number(p.paymentAmount),
+        // A refund takes money back: negative, so the printed total is net.
+        paymentAmount: p.isRefund ? -Math.abs(Number(p.paymentAmount)) : Number(p.paymentAmount),
       })),
     });
   } catch (error) {
