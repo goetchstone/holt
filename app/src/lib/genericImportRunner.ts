@@ -482,6 +482,10 @@ async function importProducts(
       const baseCost = pickNumber(row, mapping, "baseCost");
       const baseRetail = pickNumber(row, mapping, "baseRetail");
       const description = pickString(row, mapping, "description");
+      // A case pack is a whole count of one or more; anything else (blank,
+      // unmapped, 0) leaves the product's own value alone.
+      const pack = pickNumber(row, mapping, "cartonQty");
+      const cartonQty = pack != null && pack >= 1 ? Math.round(pack) : undefined;
 
       const existing = await prisma.product.findFirst({
         where: { productNumber, vendorId },
@@ -497,6 +501,7 @@ async function importProducts(
             description,
             baseCost,
             baseRetail,
+            cartonQty,
             updatedBy: userEmail,
           },
         });
@@ -511,6 +516,7 @@ async function importProducts(
             description,
             baseCost,
             baseRetail,
+            cartonQty,
             createdBy: userEmail,
           },
         });

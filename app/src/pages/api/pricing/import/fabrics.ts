@@ -9,7 +9,7 @@
 import { getErrorMessage } from "@/lib/toastError";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
-import { fabricImportSchema } from "@/lib/validation/schemas";
+import { fabricImportSchema, type FabricImportInput } from "@/lib/validation/schemas";
 import { validateBody } from "@/lib/validation/validate";
 import { ValidationError } from "@/lib/apiHandler";
 import { auditLog } from "@/lib/audit";
@@ -25,29 +25,17 @@ export const config = {
   },
 };
 
-interface FabricRow {
-  fabricName: string;
-  fabricCode?: string;
-  grade: string; // Must match a PriceDimensionTier.code (e.g., "14", "20", "COM")
-  colorName?: string;
-  colorCode?: string;
-  patternRepeat?: string;
-  width?: string;
-  content?: string; // Fiber content
-  collection?: string;
-  usage?: string;
-  notes?: string;
-}
-
 export default requirePermission(
   "catalog.pricing",
   async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
-    let validated: { vendorId: number; fabrics: any[]; clearExisting?: boolean };
+    // Typed from the schema (rule 7): a read of a field it does not declare
+    // -- and so strips -- fails to compile instead of being undefined.
+    let validated: FabricImportInput;
     try {
-      validated = validateBody(fabricImportSchema, req.body) as typeof validated;
+      validated = validateBody(fabricImportSchema, req.body);
     } catch (err: unknown) {
       if (err instanceof ValidationError) {
         return res

@@ -26,6 +26,7 @@ import {
 } from "@/lib/pricing/wesleyHallParser";
 import type { ParseDiagnostic } from "@/lib/pricing/pricingTypes";
 import { VENDOR_CONFIGS } from "@/lib/pricing/importVendorConfigs";
+import { parseStandardPriceBookRows, standardTemplateCsv } from "@/lib/pricing/standardPriceBook";
 import { getErrorMessage } from "@/lib/toastError";
 import { toast } from "react-toastify";
 import axios from "axios";
@@ -109,6 +110,7 @@ const TAB_ORDER: ImportStep[] = ["upload", "preview", "import"];
 
 // XLSX vendor spreadsheets sometimes have a title row before the real headers.
 const KNOWN_XLSX_COLS = new Set([
+  "style #",
   "pattern",
   "grade",
   "color",
@@ -163,6 +165,7 @@ function importItemsLabel(
 }
 
 function selectRowParser(importType: string) {
+  if (importType === "standard") return parseStandardPriceBookRows;
   if (importType === "fabrics") return parseFabricRows;
   if (importType === "foundations" || importType === "simplicity") return parseFoundationsRows;
   return parseWholesaleRows;
@@ -617,7 +620,7 @@ export function PricingImportView() {
       // Auto-select from URL param (e.g. ?vendor=wesley-hall)
       if (urlVendor) {
         const config = VENDOR_CONFIGS.find((vc) => vc.slug === urlVendor);
-        if (config) {
+        if (config && !config.pickVendor) {
           const match = list.find((v) => v.name.toLowerCase().includes(config.nameMatch));
           if (match) {
             setSelectedVendorSlug(config.slug);
@@ -639,6 +642,28 @@ export function PricingImportView() {
     loadVendors();
   }, [loadVendors]);
 
+  // The standard layout's own vendor picker: any of the store's vendors.
+  const handlePickedVendor = useCallback(
+    (id: string) => {
+      handleReset();
+      const picked = allVendors.find((v) => String(v.id) === id);
+      setVendorId(picked?.id ?? null);
+      setVendorName(picked?.name ?? "");
+      setPriceListName(picked ? `${picked.name} Wholesale` : "");
+    },
+    [allVendors, handleReset],
+  );
+
+  const downloadTemplate = useCallback(() => {
+    const blob = new Blob([standardTemplateCsv()], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "holt-standard-price-book.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
   // ─── Vendor change handler ────────────────────────────────────
   const handleVendorChange = useCallback(
     (slug: string) => {
@@ -654,7 +679,10 @@ export function PricingImportView() {
         return;
       }
 
-      const match = allVendors.find((v) => v.name.toLowerCase().includes(config.nameMatch));
+      // The standard layout imports any vendor's book: the store picks it below.
+      const match = config.pickVendor
+        ? undefined
+        : allVendors.find((v) => v.name.toLowerCase().includes(config.nameMatch));
       if (match) {
         setVendorId(match.id);
         setVendorName(match.name);
@@ -824,7 +852,11 @@ export function PricingImportView() {
       const ext = file.name.split(".").pop()?.toLowerCase();
 
       try {
-        if (ext === "pdf") {
+        if (ext === "pdf" && importTypeValue === "standard") {
+          toast.error(
+            "The standard layout is a spreadsheet. Upload it as CSV or XLSX, or download the template.",
+          );
+        } else if (ext === "pdf") {
           await parsePdf(file);
         } else if (ext === "csv") {
           parseCsv(file);
@@ -837,7 +869,7 @@ export function PricingImportView() {
         toast.error(getErrorMessage(err, "Failed to process file."));
       }
     },
-    [parsePdf, parseCsv, parseXlsx],
+    [parsePdf, parseCsv, parseXlsx, importTypeValue],
   );
 
   // ─── File input + drag-and-drop handlers ──────────────────────
@@ -909,7 +941,8 @@ export function PricingImportView() {
           effectiveDate,
           products: parsedProducts,
           mode: importMode,
-          sourceBook: importTypeValue || "wholesale",
+          // A standard-layout book is the vendor's wholesale book, renewed as one.
+          sourceBook: importTypeValue === "standard" ? "wholesale" : importTypeValue || "wholesale",
         };
       }
 
@@ -1131,7 +1164,8 @@ export function PricingImportView() {
     </div>
   );
 
-  const vendorMissing = !!selectedVendorSlug && !vendorLoading && !vendorId;
+  const vendorMissing =
+    !!selectedVendorSlug && !vendorLoading && !vendorId && !vendorConfig?.pickVendor;
 
   return (
     <div className="py-2 font-serif space-y-4">
@@ -1153,6 +1187,28 @@ export function PricingImportView() {
       </div>
 
       {vendorMissing && <VendorMissingNotice displayName={vendorConfig?.displayName} />}
+
+      {vendorConfig?.pickVendor && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-4">
+          <div className="max-w-xs flex-1">
+            <FormDropdown
+              label="Vendor for this book"
+              emptyLabel="Choose the vendor"
+              options={allVendors.map((v) => ({ id: String(v.id), name: v.name }))}
+              value={vendorId ? String(vendorId) : ""}
+              onChange={handlePickedVendor}
+            />
+          </div>
+          <p className="mb-4 max-w-md text-sm text-brand-gray">
+            Put the book in the standard layout: one row per style, one column per grade
+            (&ldquo;Fabric 14&rdquo;, &ldquo;Leather D&rdquo;), one per option.{" "}
+            <button type="button" onClick={downloadTemplate} className="text-brand-blue underline">
+              Download the template
+            </button>
+            .
+          </p>
+        </div>
+      )}
 
       {!selectedVendorSlug && !vendorLoading && (
         <div className="text-center py-16 text-brand-gray">
@@ -1247,7 +1303,8 @@ export function PricingImportView() {
                 {importResult && (
                   <ImportSuccessPanel
                     result={importResult}
-                    showImageExtraction={!!uploadedFile}
+                    // Only a PDF has line drawings to extract; a spreadsheet has none.
+                    showImageExtraction={!!uploadedFile?.name.toLowerCase().endsWith(".pdf")}
                     imageExtractionResult={imageExtractionResult}
                     extractingImages={extractingImages}
                     onExtractImages={handleExtractImages}
