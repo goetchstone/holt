@@ -319,6 +319,13 @@ model Product {
   baseCost   Decimal?
   baseRetail Decimal?
   mapPrice   Decimal?
+  /// What a unit has cost to land, on average (GAP-02): the running average of
+  /// its native receipts, each at its PO line's unit cost plus its share of the
+  /// PO's landed charges (lib/purchasing/landedCost.ts). It values stock and is
+  /// the cost a new sale takes. Null until the first such receipt; until then
+  /// baseCost stands in. baseCost stays the vendor's price, which retail is
+  /// figured from.
+  landedCost Decimal?
 
   // Physical attributes
   length     Float?
@@ -2026,6 +2033,8 @@ model PurchaseOrder {
 
   lineItems               PurchaseOrderItem[]
   receivingRecords        ReceivingRecord[]
+  // Freight, duty, crating: spread across the lines into their landed cost.
+  charges                 PurchaseOrderCharge[]
   linkedTasks             ServiceTask[]            @relation("TaskLinkedPO")
   // Imported customer-service cases that reference this PO. Mirrors
   // linkedTasks above — cases via ServiceCase.purchaseOrderId, tasks
@@ -2077,6 +2086,30 @@ model PurchaseOrderItem {
   @@index([orderLineItemId])
 }
 
+// How a landed charge is spread across a PO's lines (lib/purchasing/landedCostShared.ts).
+enum LandedCostSplit {
+  VALUE
+  QUANTITY
+  VOLUME
+}
+
+// A charge that lands goods on top of their price -- freight, duty, crating --
+// spread across the PO's lines by `splitBy` into each line's landed unit cost
+// (GAP-02, lib/purchasing/landedCost.ts).
+model PurchaseOrderCharge {
+  id              Int             @id @default(autoincrement())
+  purchaseOrderId Int
+  purchaseOrder   PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  description     String
+  amount          Decimal         @db.Decimal(12, 2)
+  splitBy         LandedCostSplit
+
+  created   DateTime @default(now())
+  createdBy String?
+
+  @@index([purchaseOrderId])
+}
+
 model ReceivingRecord {
   id                  Int      @id @default(autoincrement())
   purchaseOrderItemId Int
@@ -2094,10 +2127,15 @@ model ReceivingRecord {
   condition   String? // OK, Damaged, Wrong Item, Short
   tagsPrinted Boolean @default(false)
 
-  externalGipNo String?
-  externalPorNo String?
-  lineCost      Decimal?
-  invoiceNumber String?
+  externalGipNo  String?
+  externalPorNo  String?
+  lineCost       Decimal?
+  /// The landed unit cost this receipt brought into its product's average: the
+  /// PO line's unit cost plus its share of the PO's landed charges, kept current
+  /// as charges are added or removed. Null when the line had no cost, or for a
+  /// receipt written before landed cost.
+  landedUnitCost Decimal?
+  invoiceNumber  String?
 
   purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
   purchaseOrder     PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id])
@@ -5392,6 +5430,11 @@ model AppSettings {
   // How a store runs discounts is its own call, so it is set here. The default,
   // 0, is the locked-down one: every such discount needs a manager.
   discountLimitPercent Int @default(0)
+
+  // How a landed charge on a PO is spread across its lines unless the buyer
+  // picks another when entering it (GAP-02). By value, the default, gives each
+  // line its share of what the shipment cost.
+  landedCostSplit LandedCostSplit @default(VALUE)
 
   /// Which SourceAdapter (lib/adapters/) pulls data from the system this
   /// deployment ran before holt. "none" is the shipped default and a real

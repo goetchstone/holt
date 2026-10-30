@@ -61,7 +61,11 @@ export async function stillNeeded(tx: Tx, orderId: number, productId: number): P
   return Math.max(0, roundQty(toQty(lines._sum.orderedQuantity) - toQty(held._sum.quantity)));
 }
 
-/** Post one receipt line into stock. Returns the order it was committed to, if any. */
+/**
+ * Post one receipt line into stock. Returns the order it was committed to, if
+ * any, and the place it landed, which the receipt records so it can be taken
+ * back from there (lib/purchasing/unreceive.ts).
+ */
 export async function receiveIntoStock(
   tx: Tx,
   args: {
@@ -75,7 +79,7 @@ export async function receiveIntoStock(
     actor: string | null;
     actionKey?: string | null;
   },
-): Promise<{ committedTo: number | null }> {
+): Promise<{ committedTo: number | null; stockLocationId: number }> {
   const source = { type: "PurchaseOrder", id: args.po.id } as const;
   const base = {
     productId: args.productId,
@@ -97,7 +101,7 @@ export async function receiveIntoStock(
       },
       note: `Received ${args.condition}`,
     });
-    return { committedTo: null };
+    return { committedTo: null, stockLocationId: quarantine };
   }
 
   const place = await placeAt(tx, {
@@ -117,5 +121,5 @@ export async function receiveIntoStock(
   const free = roundQty(args.quantity - committed);
   if (free > 0) await postMovement(tx, { ...base, quantity: free, to: place });
   if (committed > 0 && orderId != null) await settleShortfalls(tx, orderId);
-  return { committedTo: committed > 0 ? orderId : null };
+  return { committedTo: committed > 0 ? orderId : null, stockLocationId: place.stockLocationId };
 }

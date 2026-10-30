@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 import { logError } from "@/lib/logger";
 import { roundQty, toQty } from "@/lib/inventory/quantity";
 import { resolveStoreLocationId } from "@/lib/storeLocationResolver";
+import { countUnitValue } from "@/lib/purchasing/landedCostShared";
 
 const APPAREL_DEPARTMENTS = ["Accessories", "Mens Apparel", "Womens Apparel"];
 
@@ -121,6 +122,7 @@ async function handler(
         name: true,
         productNumber: true,
         baseCost: true,
+        landedCost: true,
         baseRetail: true,
       },
     });
@@ -166,9 +168,7 @@ async function handler(
           countedCost: 0,
         };
       itemDetails[product.id].expectedQty += s.quantity;
-      const itemCost = Number(
-        product.baseCost || (product.baseRetail ? Number(product.baseRetail) * 0.5 : 0),
-      );
+      const itemCost = countUnitValue(product);
       itemDetails[product.id].expectedCost += s.quantity * itemCost;
     });
 
@@ -184,9 +184,7 @@ async function handler(
         };
       const counted = toQty(p.quantity);
       itemDetails[product.id].countedQty = roundQty(itemDetails[product.id].countedQty + counted);
-      const itemCost = Number(
-        product.baseCost || (product.baseRetail ? Number(product.baseRetail) * 0.5 : 0),
-      );
+      const itemCost = countUnitValue(product);
       itemDetails[product.id].countedCost += counted * itemCost;
     });
 

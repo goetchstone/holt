@@ -8,6 +8,7 @@ import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { generateAppointmentNumber } from "@/lib/serviceDispatchService";
 import { logError } from "@/lib/logger";
+import { productCost } from "@/lib/purchasing/landedCostShared";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
@@ -163,7 +164,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, createdBy: 
               partNo: houseCallProduct.productNumber || "DC250",
               orderedQuantity: 1,
               netPrice: houseCallProduct.baseRetail || 0,
-              cost: houseCallProduct.baseCost || 0,
+              cost: productCost(houseCallProduct) ?? 0,
             },
           });
         }

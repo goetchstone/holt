@@ -28,3 +28,21 @@ export function nativeReceiptStatus(
   if (live.some((l) => l.received > 0)) return "RECEIVED_PARTIAL";
   return current;
 }
+
+/**
+ * A PO's status after a receipt is corrected (lib/purchasing/unreceive.ts).
+ * Lines received in full or in part read as they do after a receipt. With
+ * nothing received any more, a PO that read as received goes back to
+ * Confirmed: the goods were on their way, which is what a correction says they
+ * still are. A short-closed or cancelled PO keeps the status someone gave it.
+ */
+export function correctedReceiptStatus(
+  lines: ReceiptLine[],
+  current: PurchaseOrderStatus,
+): PurchaseOrderStatus {
+  if (current === "SHORT_CLOSED" || current === "CANCELLED") return current;
+  const live = lines.filter((l) => l.ordered > 0);
+  if (live.length > 0 && live.every((l) => l.received >= l.ordered)) return "RECEIVED_FULL";
+  if (live.some((l) => l.received > 0)) return "RECEIVED_PARTIAL";
+  return current === "RECEIVED_FULL" || current === "RECEIVED_PARTIAL" ? "CONFIRMED" : current;
+}

@@ -212,6 +212,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   ProposalItemImage: { status: "todo", tranche: "crm-pipeline" },
   ProposalLineItem: { status: "seeded", seeder: "demo" },
   PurchaseOrder: { status: "seeded" },
+  PurchaseOrderCharge: { status: "todo", tranche: "buying-consignment" },
   PurchaseOrderItem: { status: "seeded" },
   ReceivingRecord: { status: "seeded" },
   Reconciliation: { status: "todo", tranche: "money-detail" },

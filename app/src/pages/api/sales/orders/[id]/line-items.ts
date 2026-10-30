@@ -16,6 +16,7 @@ import {
   logDiscountApproval,
 } from "@/lib/sales/discountApproval";
 import { lineDiscountPercent } from "@/lib/sales/discountPolicyShared";
+import { productCost } from "@/lib/purchasing/landedCostShared";
 import {
   resolveTaxDistrict,
   rateForLineAmount,
@@ -80,12 +81,13 @@ export async function handler(
       const product = productId
         ? await prisma.product.findUnique({
             where: { id: productId },
-            select: { baseCost: true, ...LINE_TAX_GROUP_SELECT },
+            select: { baseCost: true, landedCost: true, ...LINE_TAX_GROUP_SELECT },
           })
         : null;
-      // Resolve wholesale cost: use explicit value, or look up product baseCost
+      // The cost sent, else what the product cost Holt: its landed cost, else
+      // its catalog cost (productCost, GAP-02).
       let itemCost = Number(explicitCost || 0);
-      if (itemCost === 0 && product?.baseCost) itemCost = Number(product.baseCost);
+      if (itemCost === 0 && product) itemCost = productCost(product) ?? 0;
 
       const nextLineNumber = (order.lineItems[0]?.lineNumber || 0) + 1;
       const netPrice = Number(quantity) * Number(unitPrice);
@@ -136,7 +138,7 @@ export async function handler(
             orderedQuantity: quantity,
             netPrice,
             listPrice: listUnit,
-            // itemCost is per-unit (explicit value or product baseCost);
+            // itemCost is per-unit (the cost sent, or the product's cost);
             // OrderLineItem.cost stores the LINE total, like netPrice.
             cost: itemCost * Number(quantity),
             barcode: "",

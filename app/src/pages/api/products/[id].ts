@@ -44,6 +44,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         isActive: product.isActive,
         isDiscontinued: product.isDiscontinued,
         baseCost: product.baseCost != null ? Number(product.baseCost) : null,
+        // The average landed cost of its receipts (GAP-02); null until one.
+        landedCost: product.landedCost != null ? Number(product.landedCost) : null,
         baseRetail: product.baseRetail != null ? Number(product.baseRetail) : null,
         mapPrice: product.mapPrice != null ? Number(product.mapPrice) : null,
         length: product.length,

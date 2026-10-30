@@ -26,6 +26,12 @@ import { isFeatureEnabled } from "@/lib/featureCatalog";
 import { ImageUploadField } from "@/components/cms/admin/ImageUploadField";
 import type { ResolvedAppSettings } from "@/lib/appSettings";
 import { derivePrefix, effectivePrefix } from "@/lib/numberingPrefix";
+import {
+  LANDED_COST_SPLITS,
+  LANDED_COST_SPLIT_KEYS,
+  isLandedCostSplit,
+  type LandedCostSplit,
+} from "@/lib/purchasing/landedCostShared";
 
 // fetch() bodies are plain objects, not axios errors, so getErrorMessage can't
 // reach the server's { error } -- pull it out here, then let the outer catch
@@ -412,6 +418,45 @@ function DiscountsSection({
   );
 }
 
+// How a landed charge on a PO is spread across its lines unless the buyer
+// picks another when entering it (AppSettings.landedCostSplit, GAP-02).
+function LandedCostSection({
+  value,
+  onChange,
+}: Readonly<{ value: LandedCostSplit; onChange: (split: LandedCostSplit) => void }>) {
+  return (
+    <section id="landed-cost" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Landed cost</h2>
+      <p className="text-xs text-brand-gray">
+        Freight, duty and crating on a purchase order are spread across its lines, and each
+        product&apos;s landed cost is the average of what its receipts cost with them. It values
+        stock and is the cost of a new sale; the catalog cost stays the vendor&apos;s price. A buyer
+        can split one charge another way when entering it.
+      </p>
+      <div className="max-w-xs">
+        <label htmlFor="landed-cost-split" className="mb-1 block text-sm text-brand-gray">
+          Split charges across lines
+        </label>
+        <select
+          id="landed-cost-split"
+          value={value}
+          onChange={(e) => {
+            if (isLandedCostSplit(e.target.value)) onChange(e.target.value);
+          }}
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
+        >
+          {LANDED_COST_SPLIT_KEYS.map((key) => (
+            <option key={key} value={key}>
+              {LANDED_COST_SPLITS[key].label}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-brand-gray">{LANDED_COST_SPLITS[value].help}</p>
+      </div>
+    </section>
+  );
+}
+
 function NumberingSection({
   settings,
   onChange,
@@ -683,6 +728,7 @@ export function SettingsOverviewView() {
           defaultTaxDistrictId: settings.defaultTaxDistrictId,
           deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
           discountLimitPercent: settings.discountLimitPercent,
+          landedCostSplit: settings.landedCostSplit,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -798,6 +844,12 @@ export function SettingsOverviewView() {
         value={settings.discountLimitPercent}
         onChange={(percent) =>
           setSettings((prev) => (prev ? { ...prev, discountLimitPercent: percent } : prev))
+        }
+      />
+      <LandedCostSection
+        value={settings.landedCostSplit}
+        onChange={(split) =>
+          setSettings((prev) => (prev ? { ...prev, landedCostSplit: split } : prev))
         }
       />
       <NumberingSection settings={settings} onChange={setPrefix} />

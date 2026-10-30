@@ -1155,7 +1155,14 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
   // Create draft POs grouped by vendor for items that need ordering
   const vendorItems = new Map<
     number,
-    { productId: number; partNo: string; name: string; qty: number; cost: number }[]
+    {
+      orderLineItemId: number;
+      productId: number;
+      partNo: string;
+      name: string;
+      qty: number;
+      cost: number;
+    }[]
   >();
 
   for (const li of order.lineItems) {
@@ -1169,6 +1176,7 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
     const lineCost = Number(li.cost || 0);
     const productCost = Number(li.product.baseCost || 0);
     vendorItems.get(vendorId)!.push({
+      orderLineItemId: li.id,
       productId: li.product.id,
       partNo: li.product.productNumber,
       name: li.product.name,
@@ -1208,7 +1216,11 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
             expectedDelivery: expectedArrival(now, leadTimes.get(vendorId)),
             createdBy: order.salesperson || null,
             lineItems: {
+              // Each PO line names the order line it was raised for (GAP-02):
+              // its goods arrive committed to that line while it is active,
+              // and free when the customer's line is cancelled.
               create: items.map((item) => ({
+                orderLineItemId: item.orderLineItemId,
                 productId: item.productId,
                 partNo: item.partNo,
                 productName: item.name,

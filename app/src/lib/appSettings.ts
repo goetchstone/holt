@@ -17,6 +17,7 @@ import { isValidTimeZone } from "@/lib/reports/businessDay";
 import type { Branding } from "@/lib/branding";
 import { parseBookingConfig, BOOKING_DEFAULTS, type BookingConfig } from "@/lib/booking/config";
 import { parsePrefix } from "@/lib/numberingPrefix";
+import { isLandedCostSplit, type LandedCostSplit } from "@/lib/purchasing/landedCostShared";
 
 export const DEFAULT_ORG_ID = 1;
 
@@ -104,6 +105,9 @@ export interface ResolvedAppSettings {
    *  discounts" may give alone (lib/sales/discountApproval.ts). 0 = every such
    *  discount needs a manager. */
   discountLimitPercent: number;
+  /** How a landed charge on a PO is spread across its lines unless the buyer
+   *  picks another (lib/purchasing/landedCostShared.ts). By value by default. */
+  landedCostSplit: LandedCostSplit;
   /** When the owner confirmed currency, locale and timezone, as ISO 8601;
    *  null = never. A string, not a Date, because this object is sent to the
    *  Settings page as JSON and a Date type would lie there. */
@@ -158,6 +162,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   defaultTaxDistrictId: null,
   deliveryFeeTaxGroupId: null,
   discountLimitPercent: 0,
+  landedCostSplit: "VALUE",
   setupConfirmedAt: null,
   cashOnlyAcknowledgedAt: null,
 };
@@ -188,6 +193,7 @@ interface AppSettingsRow {
   defaultTaxDistrictId?: number | null;
   deliveryFeeTaxGroupId?: number | null;
   discountLimitPercent?: number | null;
+  landedCostSplit?: string | null;
   setupConfirmedAt?: Date | null;
   cashOnlyAcknowledgedAt?: Date | null;
   // Optional because this is a LOOSE view of the row: a partial select, or a
@@ -264,6 +270,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     defaultTaxDistrictId: row.defaultTaxDistrictId ?? null,
     deliveryFeeTaxGroupId: row.deliveryFeeTaxGroupId ?? null,
     discountLimitPercent: row.discountLimitPercent ?? 0,
+    landedCostSplit: isLandedCostSplit(row.landedCostSplit) ? row.landedCostSplit : "VALUE",
     setupConfirmedAt: isoOrNull(row.setupConfirmedAt),
     cashOnlyAcknowledgedAt: isoOrNull(row.cashOnlyAcknowledgedAt),
   };

@@ -283,6 +283,27 @@ Pipeline API flags probable duplicates via `lib/duplicateQuotes.ts`. Two active 
 
 Response includes `possibleDuplicateOf: { id, orderno }[]` per quote. UI shows an amber "Possible duplicate of …" line on cards. Archived quotes are excluded from detection (intentional — once you've decided something is a duplicate, stop flagging it).
 
+## A new line's cost (GAP-02, since 2026-10-30)
+
+`OrderLineItem.cost` (the line total, like `netPrice`) is set when a line is
+written. The unit cost comes from `saleUnitCost` / `productCost` in
+`lib/purchasing/landedCostShared.ts`.
+
+- **A catalog product** (a register or New Quote line of type PRODUCT) costs
+  what it cost Holt: its average landed cost, else `baseCost`. The screens still
+  send the catalog cost, and `create-from-cart.ts` no longer takes it. Before
+  this the server used any cost above zero that the browser sent, so a line's
+  cost (margin, commission) was whatever the screen said.
+- **A configured or custom line**, which has no catalog product, carries the
+  configurator's cost.
+- **`POST /api/sales/orders/[id]/line-items`** (add a line) uses the cost sent,
+  else the product's cost.
+- **Not changed:** the reporting cascade that imputes a cost for historical lines
+  with none (`lib/marginMath.ts`) still falls back to `baseCost`.
+
+Landed cost itself is in `docs/domains/purchasing.md`. Tested in
+`cartPricingEndToEnd.integration.test.ts` and `landedCost.integration.test.ts`.
+
 ## OrderLineItem.netPrice Invariant
 
 `OrderLineItem.netPrice` stores the **line total** (unit price × quantity), not the unit price. Both the POS imports and POS creation follow this model. `computeBalance()` in `lib/paymentService.ts` is the canonical total calculation — always prefer it over re-implementing the formula. If you need the unit price, divide: `netPrice / orderedQuantity`.

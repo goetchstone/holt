@@ -5,12 +5,18 @@
 // within staleDays (never-sold counts as dead). Aggregated in the DB (GROUP BY;
 // P2029-safe); cutoff is a bound timestamp, pivot a validated enum. Rule 33: the
 // last-sold lookup excludes cancelled OrderLineItem rows (SalesOrder.lineItems) so
-// a cancelled line can't make stale stock look alive. baseCost is missing on a meaningful
-// share of products — uncostedUnits surfaces that valuation blind spot. Cost value,
+// a cancelled line can't make stale stock look alive. Cost is a unit's landed cost,
+// else its catalog cost (GAP-02); a meaningful share of products has neither --
+// uncostedUnits surfaces that valuation blind spot. Cost value,
 // dead-stock cost, dead % and uncosted units only for a viewer holding "View
 // cost" (inventoryHealthForCaller).
 
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { productCostSql } from "@/lib/purchasing/landedCost";
+
+// What a unit on hand is worth: its landed cost, else its catalog cost (GAP-02).
+// A constant fragment, never caller input.
+const UNIT_COST = Prisma.raw(productCostSql("p"));
 
 export const INVENTORY_PIVOTS = ["department", "vendor"] as const;
 export type InventoryPivot = (typeof INVENTORY_PIVOTS)[number];
@@ -28,7 +34,7 @@ export interface InventoryHealthRow {
   deadUnits: number;
   deadCostValue: number;
   deadPct: number | null; // deadCostValue / costValue * 100; null when costValue 0
-  uncostedUnits: number; // on-hand units with no baseCost (valuation blind spot)
+  uncostedUnits: number; // on-hand units with no landed or catalog cost (valuation blind spot)
 }
 
 export interface InventoryHealthTotals {
@@ -103,16 +109,16 @@ export async function getInventoryHealth(
           )
           SELECT COALESCE(v.name, 'No Vendor') AS key,
                  SUM(ip.quantity)::float8 AS units,
-                 SUM(ip.quantity * p."baseCost")::float8 AS cost_value,
+                 SUM(ip.quantity * ${UNIT_COST})::float8 AS cost_value,
                  SUM(ip.quantity * p."baseRetail")::float8 AS retail_value,
                  SUM(ip.quantity) FILTER (
                    WHERE ls.last_sold IS NULL OR ls.last_sold < ${cutoffIso}::timestamptz
                  )::float8 AS dead_units,
-                 SUM(ip.quantity * p."baseCost") FILTER (
+                 SUM(ip.quantity * ${UNIT_COST}) FILTER (
                    WHERE ls.last_sold IS NULL OR ls.last_sold < ${cutoffIso}::timestamptz
                  )::float8 AS dead_cost_value,
                  SUM(ip.quantity) FILTER (
-                   WHERE p."baseCost" IS NULL OR p."baseCost" = 0
+                   WHERE ${UNIT_COST} IS NULL OR ${UNIT_COST} = 0
                  )::float8 AS uncosted_units
           FROM "InventoryPosition" ip
           JOIN "Product" p ON p.id = ip."productId"
@@ -139,16 +145,16 @@ export async function getInventoryHealth(
           )
           SELECT COALESCE(d.name, 'Uncategorized') AS key,
                  SUM(ip.quantity)::float8 AS units,
-                 SUM(ip.quantity * p."baseCost")::float8 AS cost_value,
+                 SUM(ip.quantity * ${UNIT_COST})::float8 AS cost_value,
                  SUM(ip.quantity * p."baseRetail")::float8 AS retail_value,
                  SUM(ip.quantity) FILTER (
                    WHERE ls.last_sold IS NULL OR ls.last_sold < ${cutoffIso}::timestamptz
                  )::float8 AS dead_units,
-                 SUM(ip.quantity * p."baseCost") FILTER (
+                 SUM(ip.quantity * ${UNIT_COST}) FILTER (
                    WHERE ls.last_sold IS NULL OR ls.last_sold < ${cutoffIso}::timestamptz
                  )::float8 AS dead_cost_value,
                  SUM(ip.quantity) FILTER (
-                   WHERE p."baseCost" IS NULL OR p."baseCost" = 0
+                   WHERE ${UNIT_COST} IS NULL OR ${UNIT_COST} = 0
                  )::float8 AS uncosted_units
           FROM "InventoryPosition" ip
           JOIN "Product" p ON p.id = ip."productId"

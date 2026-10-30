@@ -147,6 +147,87 @@ text extractor.
 - a logo on the PDF;
 - a vendor-facing confirmation link.
 
+## Landed cost and receiving corrections (GAP-02, since 2026-10-30)
+
+**Landed cost** (owner's decision, `docs/DECISIONS.md` 26).
+
+- **The product's cost.** Each product keeps an average landed cost
+  (`Product.landedCost`). It values stock, and it is the cost a new sale takes.
+  `baseCost` stays the vendor's price, which retail is figured from and a PO
+  orders at.
+- **Charges.** A PO carries charges (`PurchaseOrderCharge`: freight, duty,
+  crating), each split across the PO's lines by value, by quantity or by cubic
+  volume. The split is the store's choice in Settings > Landed cost (by value
+  unless set otherwise), and a buyer can pick another for one charge.
+- **The arithmetic** is in `lib/purchasing/landedCostShared.ts`, pure and
+  shared with the screen. The book-keeping is in `lib/purchasing/landedCost.ts`.
+
+- **A line's landed unit cost** is its unit cost plus its charges per unit.
+  - Charges split to the cent, and the shares sum to the charge exactly.
+  - A zero-quantity line (rule 31) takes no share, and nor does a line with no
+    catalog product (it isn't stock).
+  - Volume is the product's `cubicFeet`, else width (or length) × depth × height
+    in inches over 1,728. A volume charge on a line with neither is refused,
+    naming the product. If such a line is added later, that charge is spread by
+    value rather than holding up a receipt.
+- **A receipt** (`lib/purchasing/receivePurchaseOrder.ts`) brings its units
+  into the product's average at the line's landed unit cost. The average is
+  taken over what was on hand, which stood at the landed cost (or `baseCost`
+  until the product had one). It records that cost on the receipt
+  (`ReceivingRecord.landedUnitCost`) and the place the units landed
+  (`destinationStockLocationId`). A line with no unit cost moves no average.
+- **A charge added or removed after goods arrived** moves each receipt to the
+  new landed unit cost. The difference lands on the product's average over
+  what is on hand now. Whatever falls on stock already gone has nothing to land
+  on: the route answers it as `unabsorbed`, and the screen says so.
+- **Stock value and a new sale's cost** read one rule, `productCost`: the
+  landed cost, else `baseCost`. In SQL it is `productCostSql` (inventory
+  health), and the count reports use `countUnitValue`, which falls back to half
+  of retail. See `docs/domains/sales-orders.md` for the sale's side.
+- **Who.**
+  - Charges are added and removed on the PO screen by "Write purchase orders"
+    holders who also hold "View cost". A charge is nothing but cost, so a
+    writer without View cost gets a 403.
+  - The PO screen shows charges and landed cost to View cost holders only.
+  - A cancelled PO or a vendor return takes no charges.
+  - Routes: `POST /api/purchasing/orders/[id]/charges` and
+    `DELETE .../charges/[chargeId]`.
+
+**Taking a receipt back** (`lib/purchasing/unreceive.ts`,
+`POST /api/purchasing/receiving/[id]/unreceive`, "Adjust inventory") is for
+goods booked in that never came, or came short.
+
+- **Which units go.** They leave stock from the place they landed (recorded
+  since GAP-02; before that, the store's receiving or quarantine place by the
+  receipt's condition). Free units go first, then units committed there to the
+  order the PO line was raised for, so an order keeps its goods as long as it
+  can. Units that have since moved or sold are not taken from elsewhere: the
+  correction is refused (409) with how many are still there.
+- **The books.** The movement's reason is `UNRECEIVE`, with the actor and the
+  PO. The product's average loses the units at the landed cost they came in
+  at, unless nothing would be left or later moves make that go below zero; then
+  the average stands.
+- **The receipt and the PO.** The receipt shrinks, or is deleted when nothing is
+  left of it. The PO's status is worked out again
+  (`correctedReceiptStatus`): with nothing received any more it goes back to
+  Confirmed. A short-closed or cancelled PO keeps its status.
+- **Imported receipts** (the POS import's GIP/POR) are not taken back here; a
+  count corrects them.
+
+**Special-order PO lines name their order lines.** The draft PO raised on an
+order's first payment (`lib/paymentService.ts` `onPaymentReceived`) now sets
+each line's `orderLineItemId`, as imported POs could.
+
+- Its goods arrive committed to that line while it is active, and free once
+  the customer's line is cancelled (`receiptOrderId`).
+- The PO editor keeps such a line's product and quantity (GAP-01).
+
+Tested by `__tests__/integration/landedCost.integration.test.ts` (real routes
+through their gates), `__tests__/lib/purchasing/landedCostShared.test.ts` and
+`receiptStatus.test.ts`. The sale's side is in
+`cartPricingEndToEnd.integration.test.ts`, and the count reports' side in
+`viewCostInventory.integration.test.ts`.
+
 ## Consignment PO Integration
 
 When a consignment vendor's PO (`Vendor.isConsignment`) transitions to RECEIVED_FULL, the import runner auto-creates a `ConsignmentPaymentBatch` and marks matching ConsignmentItems as PAID. See `docs/domains/consignment.md` for matching rules.
@@ -183,6 +264,7 @@ fields the same way.
 - `pages/api/purchasing/` -- PO CRUD, receiving endpoints. Native receiving (`orders/[id]/receive.ts`) adds stock through `lib/inventory/ledger.ts`, the single writer of `InventoryPosition` (see `docs/domains/inventory.md`). Until 2026-10-14 it wrote the user's email into `ReceivingRecord.receiverUserId`, a foreign key to `User.id`, so every native receipt failed; it now uses the session's user id.
 - `pages/api/purchasing/orders/index.ts` -- the PO list, gated on `purchasing.read` ("View purchasing"); its totals go only to holders of "View cost" (`catalog.cost`). A service case does not use it: it finds a PO to link through `pages/api/service/purchase-order-lookup.ts`, which returns number and vendor only. Its POST creates a stock PO (`purchasing.write`, above)
 - `lib/purchasing/stockPurchaseOrder.ts`, `purchaseOrderShared.ts`, `poNumber.ts`, `purchaseOrderDocument.ts`, `purchaseOrderPdf.ts` -- stock POs written by hand: create, change, duplicate, number, print and email (section above)
+- `lib/purchasing/landedCost.ts`, `landedCostShared.ts`, `unreceive.ts` -- landed charges, the average landed cost, and taking a receipt back (GAP-02, section above)
 - `app/(dashboard)/app/purchasing/orders/PurchaseOrderEditor.tsx` -- the New and Edit PO screen
 - `pages/purchasing/` -- PO list, detail, receiving UI
 - `pages/inventory/warehouse/inbound.tsx` -- Warehouse inbound dashboard
@@ -255,4 +337,4 @@ The the POS "Daily Quote Temp Purchase Orders" report (formerly named "Prior_Day
 The owner-facing decision for "is this temp PO actionable yet?" is the `status = CONFIRMED` filter that already applies to most operational surfaces. No code changes needed beyond the runner fix itself.
 
 ---
-Last verified: 2026-10-30 (stock POs by hand; sections before it 2026-05-21)
+Last verified: 2026-10-30 (stock POs by hand, landed cost and receipt corrections; sections before them 2026-05-21)

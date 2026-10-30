@@ -22,6 +22,8 @@ import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { CostHiddenNote } from "@/components/ui/CostHiddenNote";
 import Modal from "@/components/ui/Modal";
 import { getErrorMessage } from "@/lib/toastError";
+import type { LandedCostSplit } from "@/lib/purchasing/landedCostShared";
+import { LandedChargesPanel, TakeBackModal, type PoCharge } from "./LandedCharges";
 
 interface ReceivingDetail {
   id: number;
@@ -31,7 +33,10 @@ interface ReceivingDetail {
   invoiceNumber?: string;
   // Cost fields are present only for a viewer holding "View cost".
   lineCost?: number | null;
+  landedUnitCost?: number | null;
   externalPorNo?: string;
+  /** Written by the POS import: corrected by a count, not taken back here. */
+  imported: boolean;
 }
 
 interface LineItem {
@@ -42,6 +47,8 @@ interface LineItem {
   orderedQuantity: number;
   unitCost?: number;
   lineTotal?: number;
+  /** Unit cost plus its share of the landed charges (GAP-02). */
+  landedUnitCost?: number | null;
   totalReceived: number;
   salesOrderNo: string | null;
   selectedGrade?: string;
@@ -73,6 +80,10 @@ interface PODetails {
   status: string;
   notes?: string;
   costVisible: boolean;
+  /** The split a new landed charge starts at (Settings > Landed cost). */
+  defaultSplit: LandedCostSplit;
+  /** Present only for a viewer holding "View cost". */
+  charges?: PoCharge[];
   created: string;
   updated?: string;
   lineItems: LineItem[];
@@ -176,12 +187,18 @@ function EmailPoModal({
 export function PurchaseOrderDetailView({
   id,
   canWrite = false,
+  canAdjust = false,
 }: {
   id: string;
   canWrite?: boolean;
+  /** Holds "Adjust inventory": may take a receipt back (GAP-02). */
+  canAdjust?: boolean;
 }) {
   const router = useRouter();
   const formatCurrency = useMoneyFormatter();
+  const [takingBack, setTakingBack] = useState<
+    (ReceivingDetail & { partNo?: string; productName?: string }) | null
+  >(null);
   const [emailing, setEmailing] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [po, setPo] = useState<PODetails | null>(null);
@@ -535,6 +552,7 @@ export function PurchaseOrderDetailView({
                   <>
                     <th className="p-2 border-b">Unit Cost</th>
                     <th className="p-2 border-b">Total</th>
+                    <th className="p-2 border-b">Landed</th>
                   </>
                 )}
                 <th className="p-2 border-b">Received</th>
@@ -563,6 +581,9 @@ export function PurchaseOrderDetailView({
                       <>
                         <td className="p-2 border-b">{formatCurrency(item.unitCost ?? 0)}</td>
                         <td className="p-2 border-b">{formatCurrency(item.lineTotal ?? 0)}</td>
+                        <td className="p-2 border-b">
+                          {item.landedUnitCost != null ? formatCurrency(item.landedUnitCost) : "--"}
+                        </td>
                       </>
                     )}
                     <td className="p-2 border-b">
@@ -582,6 +603,17 @@ export function PurchaseOrderDetailView({
         {!showCost && <CostHiddenNote className="mt-2" />}
       </div>
 
+      {showCost && po.charges && (
+        <LandedChargesPanel
+          poId={po.id}
+          charges={po.charges}
+          defaultSplit={po.defaultSplit}
+          canWrite={canWrite}
+          open={po.status !== "CANCELLED" && !po.isReturn}
+          onChanged={fetchPO}
+        />
+      )}
+
       {/* Receiving Records */}
       {allReceivingRecords.length > 0 && (
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
@@ -595,8 +627,10 @@ export function PurchaseOrderDetailView({
                   <th className="p-2 border-b">Part #</th>
                   <th className="p-2 border-b">Qty</th>
                   {showCost && <th className="p-2 border-b">Cost</th>}
+                  {showCost && <th className="p-2 border-b">Landed unit</th>}
                   <th className="p-2 border-b">Destination</th>
                   <th className="p-2 border-b">Invoice #</th>
+                  {canAdjust && <th className="p-2 border-b" />}
                 </tr>
               </thead>
               <tbody>
@@ -613,14 +647,43 @@ export function PurchaseOrderDetailView({
                         {r.lineCost != null ? formatCurrency(r.lineCost) : "--"}
                       </td>
                     )}
+                    {showCost && (
+                      <td className="p-2 border-b">
+                        {r.landedUnitCost != null ? formatCurrency(r.landedUnitCost) : "--"}
+                      </td>
+                    )}
                     <td className="p-2 border-b">{r.destinationLocation || "--"}</td>
                     <td className="p-2 border-b">{r.invoiceNumber || "--"}</td>
+                    {canAdjust && (
+                      <td className="p-2 border-b">
+                        {!r.imported && (
+                          <button
+                            type="button"
+                            className="text-sm text-brand-blue hover:underline"
+                            onClick={() => setTakingBack(r)}
+                          >
+                            Take back
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
+      )}
+
+      {takingBack && (
+        <TakeBackModal
+          receipt={takingBack}
+          onClose={() => setTakingBack(null)}
+          onDone={() => {
+            setTakingBack(null);
+            fetchPO();
+          }}
+        />
       )}
 
       {/* Audit */}
