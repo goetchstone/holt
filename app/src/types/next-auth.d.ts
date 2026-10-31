@@ -6,6 +6,8 @@ declare module "next-auth" {
     user: {
       id: string;
     } & DefaultSession["user"];
+    /** The store's automatic sign-out time in minutes, 0 = off (lib/auth/idleLogoff.ts). */
+    idleLogoffMinutes?: number;
   }
 
   interface User {

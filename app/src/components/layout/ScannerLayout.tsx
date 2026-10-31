@@ -2,9 +2,9 @@
 
 import Head from "next/head";
 import { ReactNode } from "react";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutTo } from "@/lib/auth/endSession";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
 
 interface ScannerLayoutProps {
   children: ReactNode;
@@ -13,11 +13,9 @@ interface ScannerLayoutProps {
 
 export default function ScannerLayout({ children, title }: ScannerLayoutProps) {
   const { data: session } = useSession();
-  const router = useRouter();
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push("/auth/login");
+    await signOutTo("/auth/login");
   };
 
   return (

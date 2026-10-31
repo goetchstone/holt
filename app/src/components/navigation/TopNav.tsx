@@ -1,7 +1,8 @@
 // /app/src/components/navigation/TopNav.tsx
 
 import Link from "next/link";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutTo } from "@/lib/auth/endSession";
 import { BrandLogo } from "@/components/branding/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/router";
@@ -204,8 +205,7 @@ export default function TopNav() {
   // from _app.tsx so the escape hatch exists on every layout).
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push("/auth/login");
+    await signOutTo("/auth/login");
   };
 
   function isActive(href: string): boolean {

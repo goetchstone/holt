@@ -14,8 +14,8 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { format } from "date-fns";
 import { Trash2, Camera } from "lucide-react";
-import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { signOutTo } from "@/lib/auth/endSession";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/Modal";
 import FormTextArea from "@/components/form/FormTextArea";
@@ -314,12 +314,10 @@ export function PhysicalCountView() {
 
 function CountHeader() {
   const { data: session } = useSession();
-  const router = useRouter();
   const firstName = session?.user?.name ? session.user.name.split(" ")[0] : null;
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push("/auth/login");
+    await signOutTo("/auth/login");
   };
 
   return (
