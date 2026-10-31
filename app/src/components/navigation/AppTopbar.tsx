@@ -7,17 +7,15 @@
 // rendered by each page via the PageHeader primitive, not here.
 
 import { Menu } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutTo } from "@/lib/auth/endSession";
 import { Button } from "@/components/ui/button";
 
 export function AppTopbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { data: session } = useSession();
-  const router = useRouter();
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push("/auth/login");
+    await signOutTo("/auth/login");
   };
 
   return (

@@ -667,6 +667,52 @@ loaded again on the books.
 
 ---
 
+## 27. A session ends by its own expiry, set from the last activity
+
+**Decided 2026-10-31 (GAP-27).** The idle time is the store's: Settings →
+Automatic sign-out, 5 to 720 minutes or off. It defaults to 15 minutes, the
+strict choice (owner: "This should be some sort of config").
+
+- **Enforced by the token.** The session JWT's `exp` is set to its
+  `lastActiveAt` plus the idle time plus a 2-minute grace. Every reader refuses
+  an expired token, so no gate checks the idle time itself.
+- **Activity is a person.** `lastActiveAt` moves at sign-in, and when the
+  browser reports typing, tapping or the mouse (at most once a minute). A
+  background request never moves it.
+- **The browser warns.** A minute before the time runs out it asks "Still
+  there?", then signs out and returns to the same screen after sign-in.
+
+**Rejected:**
+
+- **An idle check in each gate.** That means checks in requirePage,
+  requirePermission, requireAuthWithRole, the tRPC procedures and every route
+  that reads the session itself, and a gate added later would need to remember
+  one. Rule 42 is about exactly this: a guard on one path is no guard.
+- **NextAuth's sliding `maxAge` alone.** Every request re-issues the token, and
+  screens poll (notifications, the home page, the Up Board). A screen left open
+  would keep itself signed in forever.
+- **A server-side session table.** It would mean a database read on every
+  request, and a second source of truth beside the JWT.
+- **A lock screen asking for a PIN instead of signing out.** Not asked for, and
+  heavier. Sign-out is what "automatic logoff" means.
+
+**Cost accepted:**
+
+- The browser and the server keep separate clocks. The grace keeps the server
+  later than the browser, so the warning always gets its minute.
+- A screen left open as a display is signed out too. Such a store chooses a
+  longer time or turns sign-out off.
+- Lowering the time takes effect at each session's next request, not at once.
+
+**Enforced by:** `__tests__/integration/idleLogoff.integration.test.ts`,
+`__tests__/lib/auth/idleLogoff.test.ts`.
+
+**Source:** [`app/src/lib/auth/sessionToken.ts`](../app/src/lib/auth/sessionToken.ts),
+[`app/src/lib/auth/idleLogoff.ts`](../app/src/lib/auth/idleLogoff.ts),
+[`app/src/components/auth/IdleLogoff.tsx`](../app/src/components/auth/IdleLogoff.tsx)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

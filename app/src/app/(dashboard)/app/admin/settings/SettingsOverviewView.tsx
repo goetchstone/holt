@@ -32,6 +32,12 @@ import {
   isLandedCostSplit,
   type LandedCostSplit,
 } from "@/lib/purchasing/landedCostShared";
+import {
+  IDLE_LOGOFF_DEFAULT_MINUTES,
+  IDLE_LOGOFF_MAX_MINUTES,
+  IDLE_LOGOFF_MIN_MINUTES,
+  IDLE_LOGOFF_OFF,
+} from "@/lib/auth/idleLogoff";
 
 // fetch() bodies are plain objects, not axios errors, so getErrorMessage can't
 // reach the server's { error } -- pull it out here, then let the outer catch
@@ -457,6 +463,62 @@ function LandedCostSection({
   );
 }
 
+// How long staff may sit idle before their session ends
+// (AppSettings.idleLogoffMinutes, GAP-27). Off is 0. The minutes are kept as
+// typed, so clearing the box to type a new number never reads as "off": a box
+// left empty or at 0 while sign-out is on goes up as null, and the server says
+// what it needs.
+function AutomaticSignOutSection({
+  value,
+  onChange,
+}: Readonly<{ value: number; onChange: (minutes: number | null) => void }>) {
+  const on = value !== IDLE_LOGOFF_OFF;
+  const [typed, setTyped] = useState(String(on ? value : IDLE_LOGOFF_DEFAULT_MINUTES));
+  const minutesFrom = (text: string) => {
+    const n = Number(text);
+    return text.trim() === "" || n === IDLE_LOGOFF_OFF ? null : n;
+  };
+  return (
+    <section id="automatic-sign-out" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Automatic sign-out</h2>
+      <p className="text-xs text-brand-gray">
+        After this long with no typing, tapping or mouse movement in Holt, staff are signed out and
+        sign in again to carry on; a minute before, the screen asks whether they&apos;re still
+        there. It stops the next person at a register or desk acting as whoever walked away. A
+        screen refreshing itself, like the home page or the Up Board, doesn&apos;t count as
+        activity.
+      </p>
+      <label className="flex items-center gap-2 text-sm text-brand-black">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => onChange(e.target.checked ? minutesFrom(typed) : IDLE_LOGOFF_OFF)}
+        />
+        Sign staff out when idle
+      </label>
+      <div className="max-w-xs">
+        <label htmlFor="idle-logoff-minutes" className="mb-1 block text-sm text-brand-gray">
+          Minutes without activity ({IDLE_LOGOFF_MIN_MINUTES} to {IDLE_LOGOFF_MAX_MINUTES})
+        </label>
+        <input
+          id="idle-logoff-minutes"
+          type="number"
+          min={IDLE_LOGOFF_MIN_MINUTES}
+          max={IDLE_LOGOFF_MAX_MINUTES}
+          step={1}
+          disabled={!on}
+          value={typed}
+          onChange={(e) => {
+            setTyped(e.target.value);
+            onChange(minutesFrom(e.target.value));
+          }}
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none disabled:bg-brand-stripe disabled:text-brand-gray"
+        />
+      </div>
+    </section>
+  );
+}
+
 function NumberingSection({
   settings,
   onChange,
@@ -729,6 +791,7 @@ export function SettingsOverviewView() {
           deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
           discountLimitPercent: settings.discountLimitPercent,
           landedCostSplit: settings.landedCostSplit,
+          idleLogoffMinutes: settings.idleLogoffMinutes,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -850,6 +913,14 @@ export function SettingsOverviewView() {
         value={settings.landedCostSplit}
         onChange={(split) =>
           setSettings((prev) => (prev ? { ...prev, landedCostSplit: split } : prev))
+        }
+      />
+      <AutomaticSignOutSection
+        value={settings.idleLogoffMinutes}
+        onChange={(minutes) =>
+          setSettings((prev) =>
+            prev ? { ...prev, idleLogoffMinutes: minutes ?? Number.NaN } : prev,
+          )
         }
       />
       <NumberingSection settings={settings} onChange={setPrefix} />

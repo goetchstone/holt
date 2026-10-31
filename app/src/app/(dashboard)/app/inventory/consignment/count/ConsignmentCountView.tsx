@@ -12,8 +12,8 @@
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { signOutTo } from "@/lib/auth/endSession";
 import { Button } from "@/components/ui/button";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { CostHiddenNote } from "@/components/ui/CostHiddenNote";
@@ -320,12 +320,10 @@ function ReconciliationReport({
 
 function CountHeader() {
   const { data: session } = useSession();
-  const router = useRouter();
   const firstName = session?.user?.name ? session.user.name.split(" ")[0] : null;
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push("/auth/login");
+    await signOutTo("/auth/login");
   };
 
   return (

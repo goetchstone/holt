@@ -356,6 +356,86 @@ bootstrap safeguard's first operator) and a deactivated staff member -- treating
 deactivation as signed out would loop in the bootstrap window, where the API
 still admits them. Tested in `__tests__/integration/sessionEnded.integration.test.ts`.
 
+## Automatic sign-out (GAP-27, 2026-10-31)
+
+A signed-in session ends after the store's idle time: Settings → Automatic
+sign-out, `AppSettings.idleLogoffMinutes`. It is 5 to 720 minutes, or 0 for
+never. The default is 15, the strict one (owner, 2026-10-31: "This should be
+some sort of config"). The rules live in `lib/auth/idleLogoff.ts`.
+
+**What counts as activity.** Only a person at the screen counts: typing,
+tapping, the mouse, scrolling. A screen refreshing itself does not, so neither
+TopNav's notification poll, the home dashboard nor the Up Board keeps a session
+alive.
+
+**The browser** (`components/auth/IdleLogoff.tsx`, mounted once in
+`AppShell`, so on every back-office screen):
+
+- notes activity in every tab of the browser through `localStorage`;
+- reports it to the server at most once a minute, via next-auth's session
+  `update({ active: true })`. Loading a page counts and reports at once;
+- a minute before the time runs out, shows "Still there?" with a countdown;
+- then signs out to `/auth/login?reason=idle&callbackUrl=<the screen>`. The
+  login page says why, and after sign-in returns to that screen;
+- if the session ends elsewhere (another tab signed out), goes to the sign-in
+  screen instead of going on showing the page.
+
+**The server** (`lib/auth/sessionToken.ts`):
+
+- The JWT's `exp` is set from the token's `lastActiveAt`, not from now:
+  `lastActiveAt + idle time + 2 minutes of grace`, by a custom `jwt.encode` in
+  `[...nextauth].ts`.
+- Every reader already refuses a token past `exp`: `getServerSession` behind
+  the API gates and the routes that call it themselves, and `getToken` behind
+  `requirePage` and the tRPC context. So the idle time is enforced at every
+  gate without a check in any of them, including gates added later.
+- An idle session reads as no session: 401 from an API route, a redirect to
+  sign in from a page, no user in tRPC.
+- `lastActiveAt` moves only at sign-in and on the browser's report
+  (`stampActivity`, `trigger === "update"` with `active: true`), and the time
+  stamped is the server's. A background request re-issues the token with its
+  `exp` unchanged.
+- Once the time has run out, a re-issued token is born already expired.
+- The grace is longer than the reporting interval, so the server never ends a
+  session before the browser's warning has finished. It also ends one the
+  browser can't (a closed laptop, a killed tab).
+- A session issued before this change gets one idle time from its next
+  request.
+
+**Signing out sticks** (`lib/auth/endSession.ts`, every sign-out in the app):
+
+- **The race.** `signOut()` clears the session cookie, but every API response
+  re-issues it, so a poll sent just before a sign-out can answer just after and
+  put the session back. GAP-27's browser check found this on 2026-10-31: the
+  idle sign-out landed on the sign-in screen with the session still live. The
+  Sign out buttons had the same race, and on a session with no idle time a
+  session put back that way lasted 30 days.
+- **The fix.** `signOutTo` marks the tab in `sessionStorage`, signs out, and
+  goes to the sign-in screen. Once that screen has replaced the old one (whose
+  requests have answered or been abandoned), `confirmSignedOut` signs out any
+  session that came back. It looks again, up to three times, because its own
+  first session read can race too.
+- **Why a mark.** Only a sign-out sets it, so a link to `/auth/login` can't
+  sign anyone out. Next-auth's CSRF check on sign-out exists to stop exactly
+  that.
+- **The tripwire.** `__tests__/lib/auth/endSession.test.ts` fails if any file
+  but the helper calls next-auth's `signOut`.
+
+**A change in Settings** takes effect on the server at a session's next
+request (settings are cached for up to a minute). The browser picks it up at its
+next session read, which happens on its next activity report or when the window
+regains focus. With the setting at 0, a session lasts the 30-day ceiling
+(`session.maxAge`), as before GAP-27.
+
+**Consequence.** A screen left open as a display, such as the Up Board on a
+sales-floor tablet, is signed out like any other. A store that keeps one sets a
+longer time, or turns sign-out off.
+
+Tested in `__tests__/integration/idleLogoff.integration.test.ts` (real
+next-auth readers and encoder, the real session route with its CSRF check, a
+real database), `__tests__/lib/auth/idleLogoff.test.ts` and
+`__tests__/lib/auth/endSession.test.ts`.
+
 ## Card Filtering
 
 `CardGrid` supports a `roles` prop (and an optional `feature` key) on each card item. Cards without `roles` are visible to all authenticated users.
@@ -497,6 +577,10 @@ Staff rotation board for customer assignment. Managed in `lib/upboard.ts`. Shift
 - `lib/auth/navPermissions.ts` -- the nav vocabulary; menu derived from permissions
 - `lib/auth/requireAuth.ts` -- API auth wrappers (`requireAuthWithRole`, `requirePermission`)
 - `lib/auth/requirePage.ts` -- App Router page gate (positional role list, or a capability)
+- `lib/auth/idleLogoff.ts` -- automatic sign-out's rules (what a store may set, warning, expiry)
+- `lib/auth/sessionToken.ts` -- the session JWT's encoder: expiry from the last activity
+- `components/auth/IdleLogoff.tsx` -- the browser's idle timer, warning and sign-out
+- `lib/auth/endSession.ts` -- every sign-out, and the sign-in screen's check that it held
 - `lib/auth/roleAdmin.ts` -- wire types + serialization shared by the Roles GUI and its API
 - `server/trpc/trpc.ts` -- `roleProcedure` / `permissionProcedure`
 - `lib/hooks/useEffectiveRole.ts` -- client-side hook for impersonation-aware role

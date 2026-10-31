@@ -14,6 +14,12 @@ import {
 import { resolveGrantedPermissions } from "@/lib/auth/permissionResolver";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { logger } from "@/lib/logger";
+import { getAppSettings } from "@/lib/appSettings";
+import {
+  SESSION_CEILING_SECONDS,
+  encodeSessionToken,
+  stampActivity,
+} from "@/lib/auth/sessionToken";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -39,9 +45,14 @@ export const authOptions: NextAuthOptions = {
 
   pages: { signIn: "/auth/login" },
 
+  // The token's expiry follows the store's idle time from the person's last
+  // activity, not from the last request (GAP-27, lib/auth/sessionToken.ts).
+  // maxAge is only the ceiling, for a store that has turned that off.
   session: {
     strategy: "jwt",
+    maxAge: SESSION_CEILING_SECONDS,
   },
+  jwt: { encode: encodeSessionToken },
 
   callbacks: {
     async signIn({ user }) {
@@ -71,7 +82,7 @@ export const authOptions: NextAuthOptions = {
       return false;
     },
 
-    async jwt({ token, account, user }) {
+    async jwt({ token, account, user, trigger, session }) {
       // Narrow inline so the locals stay non-null inside the block —
       // avoids 6× non-null assertions (S4325). Both `account` and `user`
       // are nullable in NextAuth's types.
@@ -167,7 +178,9 @@ export const authOptions: NextAuthOptions = {
           }
         }
       }
-      return token;
+      // Someone at the screen (IdleLogoff's session update) or a fresh sign-in
+      // restarts the idle time; a background request does not.
+      return stampActivity(token, { trigger, session });
     },
 
     async session({ session, token }) {
@@ -183,6 +196,9 @@ export const authOptions: NextAuthOptions = {
       if (token.permissions) {
         (session as any).permissions = token.permissions;
       }
+      // The browser times itself from this (components/auth/IdleLogoff.tsx),
+      // and picks up a change at its next session read.
+      session.idleLogoffMinutes = (await getAppSettings()).idleLogoffMinutes;
       return session;
     },
   },
