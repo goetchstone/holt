@@ -75,3 +75,47 @@ reason = "ReDoS in SheetJS xlsx (CVE-2024-22363), fixed upstream in 0.20.2 per c
 id = "GHSA-gcqx-w48m-w2h4"
 ignoreUntil = 2027-01-27
 reason = "Prototype poisoning in deepmerge mergeObject() through 4.3.1; no fixed version exists (npm latest is 4.3.1). Dev-only: jest -> @jest/core -> jest-config, which merges Jest's defaults with jest.config.ts (jest-config/build/index.js:943) and preset globals (:1442), developer-authored config only; src/ never imports deepmerge. Verified 2026-10-27."
+
+# Fixed 2026-10-31 with version-scoped overrides in app/package.json (CLAUDE.md
+# rule 53), not suppressed:
+#   GHSA-mrwp-f3q8-3g9p (follow-redirects 1.16.1, runtime via axios) -- the
+#     override floor moves to ^1.16.2, a patch release.
+#   GHSA-3g3m-2fjr-6pw4 (glob 10.5.0 and 13.0.6, dev) -- "glob@10" and
+#     "glob@13" now resolve to 14.0.3. Every consumer (jest-config, jest-runtime,
+#     @jest/reporters, nyc, rimraf, test-exclude 7 and 8) calls only glob(),
+#     glob.sync() or globSync() with cwd/nodir/dot/posix/ignore/
+#     windowsPathsNoEscape; glob 14 drops the debug option and renames Pattern
+#     internals, which none of them touch. glob 14 needs minimatch ^11, so the
+#     old nested "glob" > "minimatch": "^10.2.5" override is gone.
+#   GHSA-g3hv-75wg-m249 on the minimatch 10.x line (typescript-estree,
+#     eslint-plugin-sonarjs, test-exclude) -- "minimatch@10" now resolves to
+#     11.0.3. Those consumers call minimatch(), new Minimatch().match() and
+#     hasMagic(); 11 removes makeRe(), .regexp, AST, matchOne() and debug,
+#     none of which they use.
+# On a clean `npm ci`, unit coverage instruments the same 366 files with
+# identical statement, function and branch maps before and after. Hit counts
+# move only in modules the fast-check fuzz suites reach, and they move as much
+# between two runs of one tree.
+
+# Added 2026-10-31: GHSA-g3hv-75wg-m249 on minimatch 3.1.5 only. The advisory
+# is globParts amplification in firstPhasePreProcess() at optimizationLevel >= 2.
+# minimatch added optimizationLevel in 7.1 (its changelog); 3.1.5 has neither
+# (node_modules/minimatch/minimatch.js: make() at :180-199 maps each
+# brace-expanded part straight to parse(), with no **/.. rewriting). OSV lists
+# the range as introduced 0, so every version matches. 3.1.5 is the copy that
+# eslint 9.39.5, @eslint/config-array, @eslint/eslintrc and eslint-plugin-
+# import/jsx-a11y/react require (^3.1.x); none of their releases on our majors
+# moves off 3.x (eslint 9 pins @eslint/config-array ^0.21.2, still on ^3.1.5),
+# and they call minimatch as a default function (eslint-helpers.js:18,
+# config-array index.cjs:5), an export 9+ dropped: forcing 11 would be the
+# brace-expansion break of 2026-07-25. Its patterns come from eslint.config.mjs
+# and file paths eslint walks, never request input.
+#
+# The suppression is by advisory id, so it would also hide a 4.x-10.x minimatch
+# that re-entered. On renewal, list every minimatch in package-lock.json and
+# confirm the only copy below 11.0.1 is the 3.x one.
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-01-31
+reason = "minimatch globParts amplification in firstPhasePreProcess() at optimizationLevel >= 2 (added in minimatch 7.1). Suppressed for 3.1.5 only, the dev copy eslint 9 and its plugins require: its make() (minimatch.js:180-199) has no optimizationLevel or preprocess pass. Every other minimatch in the tree is 11.0.3 (the minimatch@10 override, and glob 14's own ^11). Verified 2026-10-31."
