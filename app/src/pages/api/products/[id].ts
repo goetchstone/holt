@@ -100,6 +100,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         height,
         boxesPerUnit,
         serviceType,
+        isDiscontinued,
       } = body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- same untyped shape req.body had
 
       const validServiceTypes = ["MEASURE", "INSTALL", "DELIVERY", "HOUSE_CALL"];
@@ -128,6 +129,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         boxes = n;
       }
 
+      // Discontinued (GAP-16): no longer ordered -- the PO pickers leave it out
+      // (purchasing/vendor-products.ts) -- and what is on hand still sells.
+      // Staff set it here; it was set only by the POS import.
+      if (isDiscontinued !== undefined && typeof isDiscontinued !== "boolean") {
+        return res.status(400).json({ error: "isDiscontinued must be true or false." });
+      }
+
       const taxGroup = await readTaxGroupId(prisma, (body as Record<string, unknown>).taxGroupId);
       if ("error" in taxGroup) return res.status(400).json({ error: taxGroup.error });
 
@@ -144,7 +152,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           height: parseOptionalFloat(height),
           boxesPerUnit: boxes,
           taxGroupId: taxGroup.value,
-          serviceType: resolvedServiceType,
+          // Only when sent: a PATCH that leaves it out (a discontinued toggle)
+          // used to clear it.
+          serviceType: serviceType === undefined ? undefined : resolvedServiceType,
+          isDiscontinued,
         },
       });
 

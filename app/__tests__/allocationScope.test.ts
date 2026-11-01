@@ -3,7 +3,8 @@
 // allocationTiers: the order an order line draws free stock in. Back stock
 // before floor models; the order's own store before the store it is fulfilled
 // from; and a take-with line only at its own store, the floor piece first --
-// the customer leaves with the piece in front of them.
+// the customer leaves with the piece in front of them -- and a floor sample
+// (DISPLAY place) last, which no other sale draws.
 
 import { allocationTiers } from "@/lib/inventory/allocation";
 
@@ -32,10 +33,16 @@ describe("allocationTiers", () => {
     ).toHaveLength(2);
   });
 
-  it("take-with: own store only, the floor piece first", () => {
+  it("take-with: own store only, the floor piece first, a floor sample last", () => {
     expect(allocationTiers({ storeLocationId: 1, fulfilmentStoreLocationId: 9 }, true)).toEqual([
       { storeLocationId: 1, floor: true },
       { storeLocationId: 1, floor: false },
+      { storeLocationId: 1, floor: false, display: true },
     ]);
+  });
+
+  it("nothing but a take-with sale draws a floor sample (GAP-15)", () => {
+    const tiers = allocationTiers({ storeLocationId: 1, fulfilmentStoreLocationId: 9 }, false);
+    expect(tiers.some((t) => t.display)).toBe(false);
   });
 });

@@ -343,6 +343,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
     widensFrom: "MANAGER,ADMIN,WAREHOUSE",
   },
   "/app/warehouse/returns": { permission: "warehouse.read", widensFrom: "MANAGER,ADMIN,WAREHOUSE" },
+  "/app/warehouse/set-aside": { permission: "inventory.read" },
   "/app/warehouse/transfers": {
     permission: "warehouse.read",
     widensFrom: "MANAGER,ADMIN,WAREHOUSE",

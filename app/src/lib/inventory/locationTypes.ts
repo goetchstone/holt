@@ -14,12 +14,20 @@
 // between sites is Holt's and is counted and valued, but nobody can sell it
 // until it is somewhere sellable.
 //
+// DISPLAY is a floor sample's place (GAP-15): the piece stays on the floor for
+// customers to see. Owned and counted, like quarantine, but no sale, hold or
+// order draws it -- except a take-with sale at its own store, which draws it
+// last, when the customer is carrying that very piece out. A store chooses
+// which of its places are displays; a sales floor whose pieces are stock to
+// sell stays FLOOR.
+//
 // GROUP is a place that holds only other places -- a building, a floor -- and
 // never stock itself. WORK_CENTRE is reserved for manufacturing and is not
 // listed until something uses it.
 
 export const STOCK_LOCATION_TYPES = [
   "FLOOR",
+  "DISPLAY",
   "STOCK",
   "RECEIVING",
   "STAGING",
@@ -40,6 +48,9 @@ interface LocationTypeInfo {
 
 export const LOCATION_TYPE_INFO: Record<StockLocationType, LocationTypeInfo> = {
   FLOOR: { label: "Sales floor", sellable: true, holdsStock: true },
+  // Floor samples: they stay put. Only a take-with sale at the store draws one,
+  // last (lib/inventory/allocation.ts allocationTiers).
+  DISPLAY: { label: "Display (floor samples)", sellable: false, holdsStock: true },
   STOCK: { label: "Stock room", sellable: true, holdsStock: true },
   // Arrived and not yet put away. Still sellable: a customer can buy the sofa
   // that came off the truck this morning.

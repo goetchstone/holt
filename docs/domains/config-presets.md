@@ -331,7 +331,8 @@ had no repeatable way to get its real layout back.
       locations:
         - code: FLR                       # identity within the store
           name: Sales Floor
-          locationType: FLOOR             # a type from lib/inventory/locationTypes.ts (default STOCK)
+          locationType: FLOOR             # a type from lib/inventory/locationTypes.ts (default STOCK);
+                                          # DISPLAY = floor samples that stay put
           squareFootage: 6000
         - code: BARN
           name: North Barn

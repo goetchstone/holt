@@ -65,7 +65,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           include: {
             product: { select: { id: true, name: true, productNumber: true } },
             storeLocation: { select: { id: true, name: true, code: true } },
-            stockLocation: { select: { id: true, code: true, name: true } },
+            stockLocation: { select: { id: true, code: true, name: true, locationType: true } },
             salesOrder: { select: { id: true, orderno: true } },
           },
         }),
@@ -83,6 +83,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         stockLocationId: p.stockLocationId,
         stockLocationName: p.stockLocation?.name || null,
         stockLocationCode: p.stockLocation?.code || null,
+        // The place's type: the screen offers "Damaged" only where stock is not
+        // already set aside (lib/inventory/setAside.ts).
+        stockLocationType: p.stockLocation?.locationType ?? null,
         quantity: toQty(p.quantity),
         salesOrderId: p.salesOrderId,
         salesOrderNo: p.salesOrder?.orderno || null,
