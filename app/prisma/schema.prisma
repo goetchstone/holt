@@ -5436,6 +5436,11 @@ model AppSettings {
   // line its share of what the shipment cost.
   landedCostSplit LandedCostSplit @default(VALUE)
 
+  // Minutes without typing, tapping or mouse movement before a signed-in
+  // session ends (GAP-27, lib/auth/idleLogoff.ts): 5 to 720, or 0 for never.
+  // How strict to be is the store's call. The default, 15, is the strict one.
+  idleLogoffMinutes Int @default(15)
+
   /// Which SourceAdapter (lib/adapters/) pulls data from the system this
   /// deployment ran before holt. "none" is the shipped default and a real
   /// answer -- a deployment that keys everything natively imports nothing.
