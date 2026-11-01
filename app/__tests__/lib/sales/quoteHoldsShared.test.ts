@@ -12,7 +12,6 @@ import {
   holdDateValue,
   holdDaysLeft,
   holdIsOpen,
-  isCalendarDate,
   isQuoteHoldMaxDays,
   isStockedProduct,
   latestHoldDate,
@@ -28,14 +27,8 @@ describe("what a store may set as its longest hold", () => {
   });
 });
 
+// Which strings name a real day is isDayKey's, pinned in businessDay.test.ts.
 describe("calendar days", () => {
-  it("names only real days", () => {
-    expect(["2026-11-01", "2028-02-29"].every(isCalendarDate)).toBe(true);
-    expect(
-      ["2026-02-30", "2027-02-29", "2026-1-1", "11/01/2026", "", 20261101].some(isCalendarDate),
-    ).toBe(false);
-  });
-
   it("counts days across months, years and a leap day", () => {
     expect(addDays("2026-11-29", 3)).toBe("2026-12-02");
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");

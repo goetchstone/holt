@@ -19,6 +19,8 @@
 // today is businessDayKey, lib/reports/businessDay.ts), stored in a DATE
 // column: "held until Saturday" means through Saturday, not until midnight UTC.
 
+import { isDayKey } from "@/lib/reports/businessDay";
+
 /** What the screens need to offer a hold: GET /api/sales/quote-hold-policy. */
 export interface QuoteHoldPolicy {
   /** Today on the store's clock, "YYYY-MM-DD". */
@@ -43,17 +45,6 @@ export function isQuoteHoldMaxDays(value: unknown): value is number {
     value >= 0 &&
     value <= QUOTE_HOLD_MAX_DAYS_LIMIT
   );
-}
-
-const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/** "YYYY-MM-DD" that names a real day. */
-export function isCalendarDate(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  const m = CALENDAR_DATE.exec(value);
-  if (!m) return false;
-  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-  return d.toISOString().slice(0, 10) === value;
 }
 
 /** The calendar day `days` after `date`. */
@@ -85,7 +76,7 @@ export function holdDateProblem(
 ): string | null {
   const latest = latestHoldDate(ctx.today, ctx.maxDays);
   if (latest == null) return "This store's quotes don't hold stock (Settings › Sales).";
-  if (!isCalendarDate(holdUntil)) return "holdUntil must be a date (YYYY-MM-DD).";
+  if (!isDayKey(holdUntil)) return "holdUntil must be a date (YYYY-MM-DD).";
   if (holdUntil < ctx.today) return "A hold can't end before today.";
   if (holdUntil > latest) {
     const days = ctx.maxDays === 1 ? "1 day" : `${ctx.maxDays} days`;
