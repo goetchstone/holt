@@ -3,9 +3,9 @@
 import Head from "next/head";
 import { ReactNode } from "react";
 import { BrandLogo } from "@/components/branding/BrandLogo";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutTo } from "@/lib/auth/endSession";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/router";
 import { useBranding } from "@/components/branding/BrandingProvider";
 
 interface MinimalLayoutProps {
@@ -15,12 +15,10 @@ interface MinimalLayoutProps {
 
 export default function MinimalLayout({ children, title }: MinimalLayoutProps) {
   const { data: session } = useSession();
-  const router = useRouter();
   const branding = useBranding();
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push("/auth/login");
+    await signOutTo("/auth/login");
   };
 
   return (
