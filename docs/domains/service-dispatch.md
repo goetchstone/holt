@@ -183,6 +183,16 @@ confirm with the customer.
 - **Due dates on the case page** show the stored day. They used to be formatted
   from the timestamp, which showed the evening before west of UTC (fixed with
   this work).
+- **Lists the service screens read** (also fixed with this work). The case
+  type, status and priority routes (`api/service/settings/*`) answered a bare
+  list while every screen read `{ types }`, `{ statuses }`, `{ priorities }`, so
+  Service Settings showed none and the new-case form offered no type or
+  priority. They answer the wrapped shape now (`serviceSettingsRoutes.integration.test.ts`).
+  `/api/staff` answers a bare list too. Four screens read `.staff` from it and
+  so listed nobody: the new-case form's and case page's assignee, the service
+  list's "My cases" lookup, and a delivery run's driver picker. They read the
+  list now. The run's picker asked for `?role=WAREHOUSE`, which the route never
+  honoured, and now asks for every active staff member.
 
 Left open (ROADMAP GAP-11):
 
@@ -192,6 +202,10 @@ Left open (ROADMAP GAP-11):
 - No checklist is applied automatically by case type, and the new-case form
   doesn't offer one.
 - Emails from a case: `ServiceEmail` is still unread and unwritten.
+- The case type, status and priority routes are gated to MANAGER and ADMIN by
+  role, reads included. Anyone else who works service cases gets an empty type
+  and priority list on the new-case form, and an empty status list on the case
+  page.
 
 ## Key Files
 
