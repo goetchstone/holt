@@ -6,7 +6,6 @@
 
 import {
   QUOTE_HOLD_DEFAULT_MAX_DAYS,
-  addDays,
   holdDateProblem,
   holdDateString,
   holdDateValue,
@@ -34,13 +33,6 @@ describe("calendar days", () => {
     expect(
       ["2026-02-30", "2027-02-29", "2026-1-1", "11/01/2026", "", 20261101].some(isCalendarDate),
     ).toBe(false);
-  });
-
-  it("counts days across months, years and a leap day", () => {
-    expect(addDays("2026-11-29", 3)).toBe("2026-12-02");
-    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
-    expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
-    expect(addDays("2026-11-01", -1)).toBe("2026-10-31");
   });
 
   it("round-trips through the DATE column's value", () => {

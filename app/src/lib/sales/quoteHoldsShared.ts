@@ -19,6 +19,8 @@
 // today is businessDayKey, lib/reports/businessDay.ts), stored in a DATE
 // column: "held until Saturday" means through Saturday, not until midnight UTC.
 
+import { addDays } from "@/lib/reports/businessDay";
+
 /** What the screens need to offer a hold: GET /api/sales/quote-hold-policy. */
 export interface QuoteHoldPolicy {
   /** Today on the store's clock, "YYYY-MM-DD". */
@@ -54,13 +56,6 @@ export function isCalendarDate(value: unknown): value is string {
   if (!m) return false;
   const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
   return d.toISOString().slice(0, 10) === value;
-}
-
-/** The calendar day `days` after `date`. */
-export function addDays(date: string, days: number): string {
-  const d = new Date(`${date}T00:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 /** The last day a hold set today may run to, or null when the store holds nothing. */

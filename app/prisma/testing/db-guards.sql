@@ -131,3 +131,15 @@ ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_quoteHoldMaxDay
 ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_quoteHoldMaxDays_range" CHECK (
   "quoteHoldMaxDays" >= 0 AND "quoteHoldMaxDays" <= 365
 );
+
+-- 20261101160000_service_checklists
+-- A checklist step is due 0 to 365 days after it is applied, or has no due date;
+-- steps count up from 0.
+ALTER TABLE "ServiceChecklistStep" DROP CONSTRAINT IF EXISTS "ServiceChecklistStep_dueAfterDays_range";
+ALTER TABLE "ServiceChecklistStep" ADD CONSTRAINT "ServiceChecklistStep_dueAfterDays_range" CHECK (
+  "dueAfterDays" IS NULL OR ("dueAfterDays" >= 0 AND "dueAfterDays" <= 365)
+);
+ALTER TABLE "ServiceChecklistStep" DROP CONSTRAINT IF EXISTS "ServiceChecklistStep_position_nonnegative";
+ALTER TABLE "ServiceChecklistStep" ADD CONSTRAINT "ServiceChecklistStep_position_nonnegative" CHECK (
+  "position" >= 0
+);

@@ -342,6 +342,12 @@ Measured on a seeded database: 24 cases — 7 New, 1 In Progress, 4 Waiting on
 Vendor, 5 Resolved, 7 Closed — with 48 internal notes, because a case detail page
 is mostly a timeline and a timeline with one row does not look like one.
 
+Service checklists (GAP-11, `serviceChecklists.ts`) are three, made through
+`lib/service/checklists.ts`, the code staff use. One is switched off, so the
+case page's picker leaves it out. The first three open cases by id are given
+"Recliner mechanism repair", so a case page shows a checklist's tasks with their
+due dates. It makes no RNG draws, so nothing else the seed makes shifts.
+
 Still dark after this: Helpdesk (`Ticket`) and Time (`TimeEntry`, `StaffShift`)
 are each their own nav section with no seeded rows.
 

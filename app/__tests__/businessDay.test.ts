@@ -8,6 +8,7 @@
 // database. getBusinessTimeZone (the one async part) is covered in CI.
 
 import {
+  addDays,
   businessDayKey,
   businessDayRange,
   businessDayStart,
@@ -143,5 +144,15 @@ describe("getDateRanges in a business timezone", () => {
     const r = getDateRanges("2026-03-24");
     expect(r.ytd.start.toISOString()).toBe("2026-01-01T00:00:00.000Z");
     expect(r.mtd.end.toISOString()).toBe("2026-03-25T00:00:00.000Z");
+  });
+});
+
+describe("addDays — a day key moved by whole days", () => {
+  it("counts across months, years and a leap day, and back", () => {
+    expect(addDays("2026-11-29", 3)).toBe("2026-12-02");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+    expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
+    expect(addDays("2026-11-01", -1)).toBe("2026-10-31");
+    expect(addDays("2026-11-01", 0)).toBe("2026-11-01");
   });
 });

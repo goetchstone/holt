@@ -192,6 +192,8 @@ const ALL_TABLES = [
   "ServiceCasePriority",
   "ServiceCaseStatus",
   "ServiceCaseType",
+  "ServiceChecklist",
+  "ServiceChecklistStep",
   "ServiceEmail",
   "ServiceTask",
   "Session",

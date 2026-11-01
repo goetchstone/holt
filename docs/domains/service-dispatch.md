@@ -149,6 +149,50 @@ stop as the run's last, and moves the return to PICKUP_SCHEDULED. It refuses:
 A pickup stop's order is kept off the run's pull list and pick list
 (`pullList.ts`, `pick.ts`): the stop brings goods back, it takes none out.
 
+## Service checklists (GAP-11, 2026-11-01)
+
+The owner chose task checklists for "service work-order templates". A checklist
+is the steps a kind of service job takes. "Recliner mechanism repair", for
+example, is photograph the mechanism, order the part, book the technician,
+confirm with the customer.
+
+- **Where they're set up.** Settings › Service › Checklists
+  (`ServiceChecklistsSection.tsx`), gated like the rest of that page
+  (`admin.config`). The store makes its own, and none ship. A step has a title,
+  an optional note, and how many days after the checklist is applied its task
+  is due (0 to 365, or blank for no due date). A checklist holds 1 to 30 steps.
+  Saving the steps replaces the whole list, in the order sent
+  (`updateChecklist`).
+- **Applying one.** The case page's "Add a checklist" picker (`ApplyChecklist.tsx`)
+  calls `POST /api/service/cases/[id]/checklist` (`service.write`, like the
+  case's notes and tasks). `applyChecklist` (`lib/service/checklists.ts`) makes
+  one `ServiceTask` per step, in step order, unassigned and pending. Each is due
+  its days after today on the store's calendar (`AppSettings.timezone`,
+  `businessDayKey`), stored as midnight UTC of that day, as the hand-added task
+  form stores its dates.
+- **A copy, not a link.** Editing or deleting a checklist changes no case
+  already given it. `ServiceTask.checklistId` remembers where a task came from,
+  only so the same checklist isn't given to a case twice (409). It is cleared
+  when the checklist is deleted (ON DELETE SET NULL). An advisory lock per case
+  (space `5_461_073`) makes two clicks on Apply give it once.
+- **Switched off** checklists stay listed in Settings but aren't offered on a
+  case. A case can't be given one (409).
+- **Task order.** A checklist's tasks are made in one statement and share a
+  `created` time, so both task readers (`cases/[id]/index.ts`, `cases/[id]/tasks.ts`)
+  order by `created`, then `id`.
+- **Due dates on the case page** show the stored day. They used to be formatted
+  from the timestamp, which showed the evening before west of UTC (fixed with
+  this work).
+
+Left open (ROADMAP GAP-11):
+
+- The service dashboard counts a task as overdue once its due date is before
+  now (`dashboard.ts`). A task due today counts from midnight UTC, not from the
+  end of the store's day.
+- No checklist is applied automatically by case type, and the new-case form
+  doesn't offer one.
+- Emails from a case: `ServiceEmail` is still unread and unwritten.
+
 ## Key Files
 
 - `lib/fulfilment/stops.ts` -- what a stop's outcome does: `completeStop`, `failStop`
@@ -167,6 +211,8 @@ A pickup stop's order is kept off the run's pull list and pick list
 - `pages/api/service/house-calls/index.ts` -- books a house call and the order line that charges for it; the line's cost is the house-call product's cost through `productCost` (landed, else catalog: `docs/domains/sales-orders.md`, "A new line's cost")
 - `pages/api/service/purchase-order-lookup.ts` -- the "Link PO" search on a case task: PO number and vendor name only (no totals, cost or notes), gated on `service.write` like the task save it serves. The purchasing list (`purchasing.read`) stays with purchasing
 - `pages/service/` -- service pages (dispatch queue, house calls)
+- `lib/service/checklists.ts` -- service checklists: Settings writes and `applyChecklist` (GAP-11); `lib/service/checklistsShared.ts` -- their limits and shapes, shared with the screens
+- `pages/api/service/checklists/` -- the store's checklists (GET active: `service.write` or `admin.config`; GET ?all, POST, PUT, DELETE: `admin.config`); `pages/api/service/cases/[id]/checklist.ts` -- give a case one
 - `components/dnd/` -- reusable drag-and-drop components (DndBoard, DroppableColumn, SortableList, SortableItem)
 
 ## Verification Checklist
@@ -185,6 +231,19 @@ Covered: `serviceDispatch.test.ts` (transitions, number generation)
 Covered: `fractionalStock.integration.test.ts` (a run's and an order's pick list carry the line's quantity -- the run builder wrote 1 on every line until 2026-10-15 -- and the pick-list API answers it as a number); `costUnreadPayloads.integration.test.ts` (pick-list create/read payloads carry no cost).
 
 Covered: `pullList.integration.test.ts` (the one builder both pick lists use).
+
+Covered: `serviceChecklists.integration.test.ts`:
+
+- setting up a checklist, with every refusal;
+- replacing its steps in order;
+- switching it off and deleting it;
+- applying one: tasks in step order, due on the store's calendar (a time zone whose day differs from UTC's when the test runs);
+- refusing a second copy, a switched-off or unknown checklist, or an unknown case;
+- copies outliving edits and deletes;
+- who may set up and who may apply;
+- the database's CHECKs.
+
+Not covered: two Apply requests racing. The test database's pool has one connection, so the requests run one after the other with or without the lock.
 
 Covered: `stockDelivery.integration.test.ts` (part delivery, the handover after it, a stop completed once, over-delivery refused, a failed stop back in the pool); `returnPickupStop.integration.test.ts` (scheduling once, kept off the pull list and picks, completion is not a handover, a failed pickup scheduled again); `deliveredLines.test.ts`; `deliveryRunStatus.integration.test.ts` (an open stop holds the run open, a failed stop does not, a planning run cannot be completed); `stockTruck.integration.test.ts` (the run's truck: loaded from the bay, delivered from first, a failed stop's units aboard until unloaded, no completion with anything aboard).
 
