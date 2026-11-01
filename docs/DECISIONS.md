@@ -667,6 +667,39 @@ loaded again on the books.
 
 ---
 
+## 29. A floor sample is a place, not a flag on a unit
+
+**Decided 2026-11-01 (GAP-15).** A store marks the places its samples sit in as
+`DISPLAY`, a type in `lib/inventory/locationTypes.ts`. Stock there is owned and
+counted but not free, so nothing draws it. The one exception is a take-with sale
+at its own store, which draws it last: the customer carrying the sample out.
+
+- **Stock is kept by place, not by unit** (`lib/inventory/ledger.ts`). A sample
+  is the piece in a display, and moving it out of the display is how it becomes
+  stock to sell. That is an ordinary move, recorded in the journal.
+- **The store chooses its displays.** A sales floor whose pieces are stock to
+  sell, such as lamps and rugs, stays `FLOOR` and behaves as before.
+
+**Rejected:**
+
+- **Making every `FLOOR` place behave this way.** That is stricter, but floor
+  accessories would stop counting as sellable until a store re-typed those
+  places.
+- **A per-unit sample flag.** It would need a column on every stock row and a
+  rule in every reader of free stock. A place type is already read by the one
+  free-stock predicate.
+
+**Cost accepted:** a sample sold for delivery needs a move out of display first.
+The register has no "sell this sample" choice yet (ROADMAP GAP-15).
+
+**Enforced by:** `__tests__/integration/stockSetAside.integration.test.ts`,
+`__tests__/allocationScope.test.ts`.
+
+**Source:** [`app/src/lib/inventory/locationTypes.ts`](../app/src/lib/inventory/locationTypes.ts),
+[`app/src/lib/inventory/allocation.ts`](../app/src/lib/inventory/allocation.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was
