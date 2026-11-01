@@ -21,7 +21,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         orderBy: { sortOrder: "asc" },
         include: { _count: { select: { cases: true } } },
       });
-      return success(res, priorities);
+      // Wrapped: Service Settings, the new-case form, the service list and the
+      // case page all read `.priorities`. A bare list showed none of them (2026-11-01).
+      return success(res, { priorities });
     } catch (err) {
       return handleError(res, err, "GET /service/settings/priorities");
     }
