@@ -15,6 +15,9 @@ import { lockProducts } from "@/lib/inventory/ledger";
 import { buildLocationMap } from "@/lib/storeLocationResolver";
 import { logger } from "@/lib/logger";
 import { settleShortfalls } from "@/lib/reports/oversold";
+import { getAppSettings } from "@/lib/appSettings";
+import { isStockedProduct, lineCommitsStock } from "@/lib/sales/quoteHoldsShared";
+import { businessDayKey } from "@/lib/reports/businessDay";
 
 export interface OrderLineForAllocation {
   productId: number;
@@ -23,6 +26,10 @@ export interface OrderLineForAllocation {
   quantity: number;
   /** The customer takes it today (the line is TAKE, or the order is TAKEN). */
   takeWith: boolean;
+  /** The last day a quote holds this line's stock (GAP-16); read only on a quote. */
+  holdUntil: Date | null;
+  /** The product is drawn from stock: not made to order, in a category that keeps stock. */
+  stocked: boolean;
 }
 
 /**
@@ -70,6 +77,8 @@ export async function getActiveOrderLines(
       orderedQuantity: true,
       fulfilledQty: true,
       fulfillment: true,
+      holdUntil: true,
+      product: { select: { madeToOrder: true, category: { select: { trackInventory: true } } } },
       salesOrder: { select: { deliveryMethod: true } },
     },
   });
@@ -80,6 +89,8 @@ export async function getActiveOrderLines(
       // A return line (negative) has nothing to fulfil; it passes through.
       quantity: ordered > 0 ? roundQty(Math.max(0, ordered - toQty(l.fulfilledQty))) : ordered,
       takeWith: l.fulfillment === "TAKE" || l.salesOrder.deliveryMethod === "TAKEN",
+      holdUntil: l.holdUntil,
+      stocked: l.product ? isStockedProduct(l.product) : false,
     };
   });
 }
@@ -136,6 +147,14 @@ export async function recordShortfalls(
  * delivery, places allocate() does not draw from. Releasing those to re-commit
  * them would have handed the order's units back to free stock in a truck.
  *
+ * What the order needs is what it commits (lib/sales/quoteHoldsShared.ts): an
+ * order, every active line; a quote, only the lines it holds today (GAP-16), so
+ * a hold that ran out, or one taken off, releases its units here. A product
+ * that isn't drawn from stock (made to order, or a category that keeps none:
+ * GAP-21) is never allocated -- there is nothing free to commit, only a false
+ * shortfall to raise -- but its units still count as needed, so ones its PO
+ * delivered committed to the order are never released.
+ *
  * Skips allocation (logging why) when the order's storeLocation string
  * can't be resolved to a StoreLocation id -- never throws, never blocks the
  * write that already happened.
@@ -157,7 +176,14 @@ export async function resyncOrderAllocation(
   // Lock every product this resync will touch -- the ones the order holds now
   // and the ones its lines want -- once, in ascending order. Locking them in
   // two batches could take 9 then 2 while a sale takes 2 then 9: a deadlock.
-  const lines = await getActiveOrderLines(orderId, tx);
+  const order = await tx.salesOrder.findUniqueOrThrow({
+    where: { id: orderId },
+    select: { status: true },
+  });
+  const today = businessDayKey(new Date(), (await getAppSettings()).timezone);
+  const lines = (await getActiveOrderLines(orderId, tx)).filter((line) =>
+    lineCommitsStock({ orderStatus: order.status, holdUntil: line.holdUntil, today }),
+  );
   const held = await tx.inventoryPosition.groupBy({
     by: ["productId"],
     where: { salesOrderId: orderId },
@@ -167,10 +193,12 @@ export async function resyncOrderAllocation(
 
   const needed = new Map<number, number>();
   const takeWith = new Set<number>();
+  const unstocked = new Set<number>();
   for (const line of lines) {
     if (line.quantity > 0) {
       needed.set(line.productId, roundQty((needed.get(line.productId) ?? 0) + line.quantity));
       if (line.takeWith) takeWith.add(line.productId);
+      if (!line.stocked) unstocked.add(line.productId);
     }
   }
   const holding = new Map(held.map((h) => [h.productId, toQty(h._sum.quantity)]));
@@ -179,7 +207,7 @@ export async function resyncOrderAllocation(
   for (const productId of new Set([...needed.keys(), ...holding.keys()])) {
     const difference = roundQty((needed.get(productId) ?? 0) - (holding.get(productId) ?? 0));
     if (difference < 0) await releaseUnits(orderId, productId, -difference, tx);
-    else if (difference > 0) {
+    else if (difference > 0 && !unstocked.has(productId)) {
       deficits.push({
         productId,
         quantity: difference,

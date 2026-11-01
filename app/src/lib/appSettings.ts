@@ -18,6 +18,7 @@ import type { Branding } from "@/lib/branding";
 import { parseBookingConfig, BOOKING_DEFAULTS, type BookingConfig } from "@/lib/booking/config";
 import { parsePrefix } from "@/lib/numberingPrefix";
 import { isLandedCostSplit, type LandedCostSplit } from "@/lib/purchasing/landedCostShared";
+import { QUOTE_HOLD_DEFAULT_MAX_DAYS, isQuoteHoldMaxDays } from "@/lib/sales/quoteHoldsShared";
 
 export const DEFAULT_ORG_ID = 1;
 
@@ -105,6 +106,9 @@ export interface ResolvedAppSettings {
    *  discounts" may give alone (lib/sales/discountApproval.ts). 0 = every such
    *  discount needs a manager. */
   discountLimitPercent: number;
+  /** The longest, in days from today, a quote may hold floor stock for its
+   *  customer (lib/sales/quoteHolds.ts). 0 = quotes hold nothing. */
+  quoteHoldMaxDays: number;
   /** How a landed charge on a PO is spread across its lines unless the buyer
    *  picks another (lib/purchasing/landedCostShared.ts). By value by default. */
   landedCostSplit: LandedCostSplit;
@@ -162,6 +166,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   defaultTaxDistrictId: null,
   deliveryFeeTaxGroupId: null,
   discountLimitPercent: 0,
+  quoteHoldMaxDays: QUOTE_HOLD_DEFAULT_MAX_DAYS,
   landedCostSplit: "VALUE",
   setupConfirmedAt: null,
   cashOnlyAcknowledgedAt: null,
@@ -193,6 +198,7 @@ interface AppSettingsRow {
   defaultTaxDistrictId?: number | null;
   deliveryFeeTaxGroupId?: number | null;
   discountLimitPercent?: number | null;
+  quoteHoldMaxDays?: number | null;
   landedCostSplit?: string | null;
   setupConfirmedAt?: Date | null;
   cashOnlyAcknowledgedAt?: Date | null;
@@ -270,6 +276,9 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     defaultTaxDistrictId: row.defaultTaxDistrictId ?? null,
     deliveryFeeTaxGroupId: row.deliveryFeeTaxGroupId ?? null,
     discountLimitPercent: row.discountLimitPercent ?? 0,
+    quoteHoldMaxDays: isQuoteHoldMaxDays(row.quoteHoldMaxDays)
+      ? row.quoteHoldMaxDays
+      : QUOTE_HOLD_DEFAULT_MAX_DAYS,
     landedCostSplit: isLandedCostSplit(row.landedCostSplit) ? row.landedCostSplit : "VALUE",
     setupConfirmedAt: isoOrNull(row.setupConfirmedAt),
     cashOnlyAcknowledgedAt: isoOrNull(row.cashOnlyAcknowledgedAt),

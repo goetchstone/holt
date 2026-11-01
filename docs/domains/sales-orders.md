@@ -221,6 +221,77 @@ or charged 0% with none set. It now writes `storeLocationId`, and an exchange or
 copies its sale's (`returns/[id]/exchange.ts`). Register orders written before this
 carry no `storeLocationId`. Holt has no live deployment, so none were backfilled.
 
+## Quote holds: what a sale commits (GAP-16 and GAP-21, since 2026-11-01)
+
+**A quote commits only the floor stock it holds; an order commits everything.**
+Every order starts as a quote (`create-from-cart` writes `status: QUOTE`), and
+until 2026-11-01 it committed every line's stock the moment it was written, with
+no end. So a quote nobody came back for kept its sofa off the floor
+indefinitely, and nobody could hold a piece for a customer on purpose. The
+owner's design (2026-11-01): "we can put it on a quote and part of the quote if
+it is floor stock can be hold until x date, and again a config would set the max
+allowed" (`docs/DECISIONS.md` 28).
+
+- **The rule** is `lineCommitsStock()` in `lib/sales/quoteHoldsShared.ts`:
+  an order (anything but a quote) commits every line; a quote commits a line
+  only while `OrderLineItem.holdUntil` is today or later, in the store's time
+  zone (`businessDayKey`, `AppSettings.timezone`). `resyncOrderAllocation`
+  (`lib/inventory/orderInventorySync.ts`) applies it, so any resync of a quote
+  commits its open holds and releases everything else, and `settleShortfalls`
+  (`lib/reports/oversold.ts`) measures what the order needs the same way. A
+  hold that ends closes its shortfall instead of leaving the quote oversold.
+- **What can be held.** An active line of a catalog product drawn from stock,
+  not special-ordered (`source` ORDER), not a return (`lineHoldProblem`,
+  `isStockedProduct`). The day runs from today to
+  `AppSettings.quoteHoldMaxDays` days from today. That is Settings › Quote
+  holds, 0 to 365, where 0 means quotes hold nothing. The default is 3, the
+  strict end (a CHECK in the migration and in `prisma/testing/db-guards.sql`).
+  `holdDateProblem` says which rule a day breaks.
+- **Setting one.** The quote builder offers "Hold until" on a floor-stock catalog
+  line, and the create-from-cart body takes `items[].holdUntil`. The order screen
+  holds, moves or takes off a quote line's hold through
+  `PUT /api/sales/orders/[id]/line-items/[lineItemId]` `{ action: "hold",
+  holdUntil }` (`setLineHold`). Each change is a `HOLD_SET` or `HOLD_ENDED`
+  change-log row, and the units commit or release at once.
+  `GET /api/sales/quote-hold-policy` gives the screens today and the last day
+  allowed. The server decides again on every save.
+- **Every way out of a quote** goes through `promoteQuoteToOrder`
+  (`lib/sales/quoteHolds.ts`). It moves QUOTE to ORDER in one conditional
+  statement, so two payments arriving together promote once, then resyncs, so
+  every line commits. The paths are a payment (`onPaymentReceived`: the
+  payments route, create-po, and the Stripe and Square webhooks) and a status
+  change to ORDER or FULFILLED (`PUT /api/sales/orders/[id]`). A handover
+  straight from a quote by another path (`markHandedOver` from dispatch or a
+  stop) resyncs as the order it has become before consuming. An order sent back
+  to a quote resyncs, so only its held lines stay committed.
+- **A hold ends** after its last day. The hourly `expire-quote-holds` automation
+  (`releaseExpiredHolds`; `docs/OPERATIONS.md`, "Expire Quote Holds") resyncs
+  every quote still committing stock, which also releases what quotes written
+  before 2026-11-01 commit. Archiving a quote, one at a time or in bulk, ends its
+  holds (`endQuoteHolds`): the customer said no. Restoring it brings back the
+  quote, not the holds.
+- **The register.** A sale rung up with no hold now commits its stock at its first
+  payment, seconds later, not when it is written. Between the two, another
+  register can sell the last unit; the second sale then records a shortfall like
+  any oversale (`docs/domains/inventory.md`, "Overselling is allowed").
+- **What isn't stocked (GAP-21).** A configured or custom cart line mints a
+  one-off product, which is now marked `Product.madeToOrder`. That product, and
+  one in a category with `trackInventory` off, is never allocated: there is no
+  stock to commit, only a false shortfall to raise. Its units still count as
+  needed, so ones its PO delivered committed to the order are never released.
+  Products minted before 2026-11-01 are not marked; Holt has no live deployment.
+- **Reports › On hold** (`lib/reports/onHold.ts`, `/app/reports/on-hold`, CSV at
+  `/api/reports/on-hold?format=csv`) lists every open hold, soonest to end
+  first. Each row shows what the quote really commits ("held 0 of 1" when the
+  piece had already sold) and where it sits.
+- **A transfer raised for a quote** commits the units it ships to the quote
+  (`lib/inventory/transfers.ts`). If the quote doesn't hold that line, its next
+  resync (an edit, or the sweep) frees them where they are: a quote owns only
+  what it holds. Hold the line first, or raise the transfer once it's an order.
+- **Not built** (ROADMAP GAP-16): a hold at the register, since a sale there is
+  paid on the spot; a deposit or layaway that holds past the store's longest
+  (GAP-25); telling the customer when a hold is about to end (GAP-13).
+
 ## Key Files
 
 - `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`
@@ -266,6 +337,7 @@ Archive via `PATCH /api/sales/pipeline/[id]` with `{ archived: true, reason, rep
 
 Archived quotes:
 
+- Hold no stock: archiving ends the quote's holds (see "Quote holds" above)
 - Default-hidden on pipeline (an "Archived" tab next to "Active" switches the view)
 - Excluded from `quoteCount` / `totalValue` staff metrics
 - Show as greyed cards with a "Replaced by SO-1234" link when the link is set
@@ -336,6 +408,8 @@ Landed cost itself is in `docs/domains/purchasing.md`. Tested in
 - [ ] Salesperson corrections (salesPersonId set) are preserved on reimport
 
 ## Test Coverage
+
+Quote holds: `__tests__/integration/quoteHolds.integration.test.ts` (real routes and database: what a quote and an order commit, every way out of a quote, the sweep, archiving, the On hold report, the setting, and made-to-order lines raising no shortfall) and `__tests__/lib/sales/quoteHoldsShared.test.ts` (the day arithmetic and the rule).
 
 Covered in `__tests__/ordoriteShared.test.ts`: `deriveSalesOrderStatus`, `isReturnOrder` (R/CR prefix AND the A-suffix forms of the configured store codes, plus negative cases for M-suffix codes and rewrite suffixes), `isRewriteOrder`, `rewriteBaseOrderno`, `isRefundPayment`
 

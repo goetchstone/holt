@@ -21,6 +21,7 @@ import { refundCounts } from "@/lib/returns/returnMoney";
 import type { Payment, Prisma } from "@prisma/client";
 import { expectedArrival } from "@/lib/vendorLeadTime";
 import { createNumberedPurchaseOrder } from "@/lib/purchasing/poNumber";
+import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
 import { resolveTenderPayment } from "@/lib/payments/tenders";
 
 type Tx = Prisma.TransactionClient;
@@ -1138,13 +1139,13 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
     },
   });
 
-  // Promote QUOTE → ORDER on first payment
-  if (order.status === "QUOTE") {
-    await prisma.salesOrder.update({
-      where: { id: orderId },
-      data: { status: "ORDER" },
-    });
-
+  // Promote QUOTE → ORDER on first payment. Its lines all commit stock now: a
+  // quote committed only the ones it held (GAP-16, lib/sales/quoteHolds.ts).
+  // Only the call that moves the status runs the follow-ups below.
+  const promoted =
+    order.status === "QUOTE" &&
+    (await prisma.$transaction((tx) => promoteQuoteToOrder(tx, orderId)));
+  if (promoted) {
     // Create service appointments for any service line items
     await syncServiceAppointments(orderId);
 

@@ -26,6 +26,7 @@ import { parseBookingConfig } from "@/lib/booking/config";
 import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
 import { isValidTimeZone } from "@/lib/reports/businessDay";
 import { LANDED_COST_SPLIT_KEYS, isLandedCostSplit } from "@/lib/purchasing/landedCostShared";
+import { QUOTE_HOLD_RULE, isQuoteHoldMaxDays } from "@/lib/sales/quoteHoldsShared";
 
 const THEME_KEYS = Object.keys(DEFAULT_THEME) as ThemeKey[];
 
@@ -377,6 +378,17 @@ function parseDiscountLimit(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// The longest a quote may hold floor stock, in days from today (GAP-16,
+// lib/sales/quoteHolds.ts). How long a store holds a piece is its own call; 0
+// means quotes hold nothing.
+function parseQuoteHoldMaxDays(body: Body, data: SettingsData): ParseError {
+  const raw = body.quoteHoldMaxDays;
+  if (raw === undefined) return null;
+  if (!isQuoteHoldMaxDays(raw)) return { error: `quoteHoldMaxDays must be ${QUOTE_HOLD_RULE}.` };
+  data.quoteHoldMaxDays = raw;
+  return null;
+}
+
 // How a landed charge on a PO is spread unless the buyer picks another
 // (GAP-02): one of LANDED_COST_SPLITS (lib/purchasing/landedCostShared.ts).
 function parseLandedCostSplit(body: Body, data: SettingsData): ParseError {
@@ -424,6 +436,7 @@ const SETTINGS_PARSERS = [
   parseDefaultTaxDistrict,
   parseDeliveryFeeTaxGroup,
   parseDiscountLimit,
+  parseQuoteHoldMaxDays,
   parseLandedCostSplit,
   parseAcknowledgements,
 ];
