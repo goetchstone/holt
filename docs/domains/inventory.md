@@ -195,7 +195,18 @@ mint a brand-new `Product` during the sale, so they have no `InventoryPosition`
 by construction. Allocating them would post a full-shortfall exception on every
 custom order — for a furniture retailer, a large share of them — and a queue
 full of the normal case is a queue nobody reads. The filter is per-line, so a
-mixed cart still reports its stocked lines.
+mixed cart still reports its stocked lines. Since 2026-11-01 the minted product
+is marked `Product.madeToOrder`, and `resyncOrderAllocation` never allocates it,
+nor a product in a category with `trackInventory` off (`isStockedProduct`,
+GAP-21). Its units still count as needed, so ones its PO delivered committed to
+the order are not released.
+
+**A quote commits only what it holds (GAP-16, since 2026-11-01).** An order
+commits every line. A quote commits a floor-stock line only through the day the
+quote holds it for its customer, and nothing else
+(`docs/domains/sales-orders.md`, "Quote holds"). So a register sale commits at
+its first payment, when the quote becomes an order, not when it is written. The
+hourly `expire-quote-holds` sweep releases holds whose day has passed.
 
 ### One writer (since 2026-10-14)
 

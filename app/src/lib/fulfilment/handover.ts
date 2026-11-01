@@ -34,7 +34,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { consume } from "@/lib/inventory/allocation";
-import { getActiveOrderLines } from "@/lib/inventory/orderInventorySync";
+import { getActiveOrderLines, resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { lockProducts } from "@/lib/inventory/ledger";
 import { roundQty, toQty } from "@/lib/inventory/quantity";
 import { generateAppointmentNumber } from "@/lib/serviceDispatchService";
@@ -104,7 +104,13 @@ export function handoverMethodFor(deliveryMethod: string | null | undefined): Ha
 export async function markHandedOver(tx: Tx, input: HandoverInput): Promise<HandoverResult> {
   const existing = await tx.salesOrder.findUniqueOrThrow({
     where: { id: input.salesOrderId },
-    select: { id: true, deliveredAt: true, status: true, dispatchStatus: true },
+    select: {
+      id: true,
+      deliveredAt: true,
+      status: true,
+      dispatchStatus: true,
+      storeLocation: true,
+    },
   });
 
   if (existing.deliveredAt) {
@@ -125,6 +131,13 @@ export async function markHandedOver(tx: Tx, input: HandoverInput): Promise<Hand
       updatedBy: input.actor ?? null,
     },
   });
+
+  // Handed over straight from a quote: as a quote it committed only the lines
+  // it held (GAP-16), so commit the rest as the order it now is before taking
+  // any out -- otherwise the unheld lines' units would stay on the books.
+  if (existing.status === "QUOTE") {
+    await resyncOrderAllocation(input.salesOrderId, existing.storeLocation, tx);
+  }
 
   // The goods left the building, so the stock did too. This used to happen only
   // as a side effect of the two status endpoints -- a completed delivery never

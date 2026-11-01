@@ -40,6 +40,13 @@ import {
 } from "@/lib/sales/discountApproval";
 import { type DiscountLine, largestDiscountPercent } from "@/lib/sales/discountPolicyShared";
 import { saleUnitCost } from "@/lib/purchasing/landedCostShared";
+import { quoteHoldContext } from "@/lib/sales/quoteHolds";
+import {
+  holdDateProblem,
+  holdDateValue,
+  isStockedProduct,
+  lineHoldProblem,
+} from "@/lib/sales/quoteHoldsShared";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -59,6 +66,12 @@ interface CartItem {
   discounts?: CartDiscount[];
   /** A return line; priceCart negates it and excludes it from discount allocation. */
   isReturn?: boolean;
+  /**
+   * Hold this line's floor stock for the customer through this day
+   * ("YYYY-MM-DD", the store's day; GAP-16). The order starts as a quote, and a
+   * quote commits only the lines it holds.
+   */
+  holdUntil?: string | null;
 }
 
 /** Exported for integration tests, which call it directly against the real
@@ -98,17 +111,9 @@ export async function handler(
     discountApproval?: unknown;
   };
 
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: "Cart must contain at least one item" });
-  }
+  const requestProblem = await cartRequestProblem({ items, deliveryMethod, deliveryFee });
+  if (requestProblem) return res.status(400).json({ error: requestProblem });
   const chargesDelivery = deliveryFee != null && deliveryFee !== 0;
-  if (chargesDelivery) {
-    if (deliveryMethod !== "DELIVERY") {
-      return res.status(400).json({ error: "A delivery fee needs Delivery as the conveyance." });
-    }
-    const feeProblem = deliveryFeeProblem(deliveryFee);
-    if (feeProblem) return res.status(400).json({ error: feeProblem });
-  }
 
   // Each line's list price, and the deepest discount the sale gives, judged
   // before anything is written: a manager's PIN is checked on its own, outside
@@ -287,6 +292,9 @@ export async function handler(
               typeId: sourceProduct?.typeId || null,
               baseCost: item.cost ?? 0,
               baseRetail: item.unitPrice,
+              // Made for this sale: never stock on hand, so nothing draws free
+              // stock for it (GAP-21). Its units come in on its PO, committed.
+              madeToOrder: true,
               createdBy: session.user?.email || null,
             },
           });
@@ -330,6 +338,7 @@ export async function handler(
           selectedGrade: item.description || null,
           source: item.source || null,
           fulfillment: item.fulfillment || null,
+          holdUntil: item.holdUntil ? holdDateValue(item.holdUntil) : null,
         });
       }
 
@@ -371,25 +380,22 @@ export async function handler(
         },
       });
 
-      // Commit stock for this sale in the same transaction as the order
-      // write -- allocation that isn't atomic with the order is how stock
-      // gets committed to an order that then fails to save. `quantity` is
-      // passed signed (not Math.abs'd): a return line's quantity is
-      // negative here, and allocate() already skips non-positive
-      // quantities, so a return never allocates. Never fails the sale --
-      // if the store location can't be resolved, skip and log instead.
-      // (storeLocationId was already resolved above, for tax purposes.)
+      // Commit the stock this quote holds, in the same transaction as the
+      // order write -- allocation that isn't atomic with the order is how
+      // stock gets committed to an order that then fails to save. The order
+      // starts as a quote, and a quote commits only the lines it holds
+      // (GAP-16, lib/sales/quoteHoldsShared.ts); the rest commit when it
+      // becomes an order (promoteQuoteToOrder, at its first payment). A held
+      // line is a catalog product drawn from stock (cartHoldProblem), never a
+      // made-to-order line, which mints a product with no stock. Never fails
+      // the sale -- if the store location can't be resolved, skip and log
+      // instead. (storeLocationId was already resolved above, for tax.)
       if (storeLocationId != null) {
         const allocationLines: AllocationLine[] = lineItemData
-          // CONFIGURED and CUSTOM lines mint a brand-new Product a few lines
-          // above, so they have no InventoryPosition by construction and never
-          // will. Allocating them would post a full-shortfall
-          // InventoryException on every made-to-order sale -- which for a
-          // furniture retailer is a large share of them. The queue exists so
-          // somebody notices a real discrepancy; filling it with the normal
-          // case is how it gets ignored. A made-to-order item was never in
-          // stock and was never expected to be.
-          .filter((item) => item.productId != null && item.itemType === "PRODUCT")
+          .filter(
+            (item) =>
+              item.productId != null && item.itemType === "PRODUCT" && item.holdUntil != null,
+          )
           .map((item) => ({
             productId: item.productId as number,
             quantity: item.orderedQuantity,
@@ -451,6 +457,58 @@ export async function handler(
 }
 
 export default requirePermission("sales.write", handler, { also: ["sales.discount"] });
+
+/** What is wrong with the cart as sent, before anything is priced or written; null when nothing. */
+async function cartRequestProblem(input: {
+  items: CartItem[] | undefined;
+  deliveryMethod: string | undefined;
+  deliveryFee: number | null | undefined;
+}): Promise<string | null> {
+  const { items, deliveryMethod, deliveryFee } = input;
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return "Cart must contain at least one item";
+  }
+  if (deliveryFee != null && deliveryFee !== 0) {
+    if (deliveryMethod !== "DELIVERY") return "A delivery fee needs Delivery as the conveyance.";
+    const feeProblem = deliveryFeeProblem(deliveryFee);
+    if (feeProblem) return feeProblem;
+  }
+  return cartHoldProblem(items);
+}
+
+/**
+ * Why a cart's holds can't stand, or null (GAP-16): a hold is on a catalog
+ * product drawn from stock, sold rather than returned and not special-ordered,
+ * and ends no later than the store's longest hold allows.
+ */
+async function cartHoldProblem(items: CartItem[]): Promise<string | null> {
+  const held = items.filter((item) => item.holdUntil != null);
+  if (held.length === 0) return null;
+  const ctx = await quoteHoldContext();
+  const products = new Map(
+    (
+      await prisma.product.findMany({
+        where: { id: { in: held.flatMap((i) => (i.productId ? [i.productId] : [])) } },
+        select: { id: true, madeToOrder: true, category: { select: { trackInventory: true } } },
+      })
+    ).map((p) => [p.id, p]),
+  );
+  for (const item of held) {
+    if (item.isReturn || !(item.quantity > 0)) return "A return line can't be held.";
+    const product =
+      (item.type || "PRODUCT") === "PRODUCT" && item.productId
+        ? products.get(item.productId)
+        : undefined;
+    const problem =
+      lineHoldProblem({
+        lineItemStatus: "ACTIVE",
+        source: item.source ?? null,
+        stocked: product ? isStockedProduct(product) : null,
+      }) ?? holdDateProblem(item.holdUntil, ctx);
+    if (problem) return problem;
+  }
+  return null;
+}
 
 /** Each line's list price, the sale's deepest discount, and who approved it. */
 async function judgeCartDiscount(input: {

@@ -26,6 +26,8 @@ import { computeTotalPaid } from "@/lib/paymentBalance";
 import { openCheckoutFrom } from "@/lib/openCheckoutPrompt";
 import { ApplyStoreCredit } from "./ApplyStoreCredit";
 import { DeliveryFeePanel } from "./DeliveryFeePanel";
+import { QuoteLineHold } from "./QuoteLineHold";
+import { useQuoteHoldPolicy } from "@/components/sales/useQuoteHoldPolicy";
 import { lineSaving } from "@/lib/sales/discountPolicyShared";
 
 interface LineItem {
@@ -47,6 +49,10 @@ interface LineItem {
   replacedByLineItemId?: number;
   selectedGrade?: string;
   productId?: number;
+  /** The day a quote holds this line's stock through (GAP-16); null = not held. */
+  holdUntil?: string | null;
+  /** A quote's active floor-stock line, which can be held. */
+  holdable?: boolean;
 }
 
 interface ChangeLogEntry {
@@ -182,6 +188,8 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
   PRICE_CHANGE: "Price/Qty Changed",
   NOTE_ADDED: "Note Added",
   SALESPERSON_CHANGE: "Salesperson Changed",
+  HOLD_SET: "Held for Customer",
+  HOLD_ENDED: "Hold Taken Off",
 };
 
 const DEPOSIT_MODE_LABELS: Record<DepositMode, string> = {
@@ -329,6 +337,8 @@ export function OrderDetailView({ id }: { id: string }) {
   const [editSalesPersonId, setEditSalesPersonId] = useState<number | null>(null);
   const [editSplitWithId, setEditSplitWithId] = useState<number | null>(null);
   const [salespersonSaving, setSalespersonSaving] = useState(false);
+
+  const holdPolicy = useQuoteHoldPolicy();
 
   const fetchOrder = useCallback(() => {
     if (!id) return;
@@ -967,7 +977,15 @@ export function OrderDetailView({ id }: { id: string }) {
       {/* Line Items */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <div className="flex justify-between items-center mb-3">
-          <h2 className="text-xl font-semibold">Line Items</h2>
+          <div>
+            <h2 className="text-xl font-semibold">Line Items</h2>
+            {isQuote && (
+              <p className="text-xs text-brand-gray">
+                A quote keeps only the floor stock it holds off sale. Everything is committed once
+                it is paid.
+              </p>
+            )}
+          </div>
           {isEditable && (
             <Link href={`/app/sales/quotes/new?editOrderId=${orderDetails.id}`}>
               <Button size="sm" variant="outline">
@@ -1024,6 +1042,18 @@ export function OrderDetailView({ id }: { id: string }) {
                           <p className="text-xs text-purple-600 mt-0.5">
                             Replaced by line #{replacedByLineNumber || "?"}
                           </p>
+                        )}
+                        {isQuote && item.holdable && (
+                          <QuoteLineHold
+                            orderId={orderDetails.id}
+                            line={{
+                              id: item.id,
+                              name: item.productName || item.partNo || "this line",
+                              holdUntil: item.holdUntil ?? null,
+                            }}
+                            policy={holdPolicy}
+                            onChanged={fetchOrder}
+                          />
                         )}
                       </div>
                     </td>

@@ -38,6 +38,7 @@ import {
   IDLE_LOGOFF_MIN_MINUTES,
   IDLE_LOGOFF_OFF,
 } from "@/lib/auth/idleLogoff";
+import { QUOTE_HOLD_MAX_DAYS_LIMIT } from "@/lib/sales/quoteHoldsShared";
 
 // fetch() bodies are plain objects, not axios errors, so getErrorMessage can't
 // reach the server's { error } -- pull it out here, then let the outer catch
@@ -424,6 +425,39 @@ function DiscountsSection({
   );
 }
 
+// How long a quote may hold floor stock (AppSettings.quoteHoldMaxDays, GAP-16).
+// The store's own call; 0 means quotes hold nothing.
+function QuoteHoldsSection({
+  value,
+  onChange,
+}: Readonly<{ value: number; onChange: (days: number) => void }>) {
+  return (
+    <section id="quote-holds" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Quote holds</h2>
+      <p className="text-xs text-brand-gray">
+        A quote can hold a floor-stock piece for its customer until a day you choose, so nobody else
+        sells it in the meantime. The day after, it goes back on sale. A quote holds only the lines
+        you hold; a sale commits everything once it is paid. At 0 days, quotes hold nothing.
+      </p>
+      <div className="max-w-xs">
+        <label htmlFor="quote-hold-max-days" className="mb-1 block text-sm text-brand-gray">
+          Longest a quote may hold stock (days)
+        </label>
+        <input
+          id="quote-hold-max-days"
+          type="number"
+          min={0}
+          max={QUOTE_HOLD_MAX_DAYS_LIMIT}
+          step={1}
+          value={value}
+          onChange={(e) => onChange(Math.round(Number(e.target.value) || 0))}
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
+        />
+      </div>
+    </section>
+  );
+}
+
 // How a landed charge on a PO is spread across its lines unless the buyer
 // picks another when entering it (AppSettings.landedCostSplit, GAP-02).
 function LandedCostSection({
@@ -790,6 +824,7 @@ export function SettingsOverviewView() {
           defaultTaxDistrictId: settings.defaultTaxDistrictId,
           deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
           discountLimitPercent: settings.discountLimitPercent,
+          quoteHoldMaxDays: settings.quoteHoldMaxDays,
           landedCostSplit: settings.landedCostSplit,
           idleLogoffMinutes: settings.idleLogoffMinutes,
         }),
@@ -907,6 +942,12 @@ export function SettingsOverviewView() {
         value={settings.discountLimitPercent}
         onChange={(percent) =>
           setSettings((prev) => (prev ? { ...prev, discountLimitPercent: percent } : prev))
+        }
+      />
+      <QuoteHoldsSection
+        value={settings.quoteHoldMaxDays}
+        onChange={(days) =>
+          setSettings((prev) => (prev ? { ...prev, quoteHoldMaxDays: days } : prev))
         }
       />
       <LandedCostSection

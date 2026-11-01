@@ -2,14 +2,18 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { release } from "@/lib/inventory/allocation";
+import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { markHandedOver, handoverMethodFor } from "@/lib/fulfilment/handover";
 import { rerateQuoteTax } from "@/lib/tax/rerateQuoteTax";
+import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
+import { holdDateString, isStockedProduct, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -47,6 +51,12 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       const changedBy = session.user?.email || null;
 
       const updated = await prisma.$transaction(async (tx) => {
+        // A quote leaving for an order (or handed over outright) becomes one
+        // first, through the one function that does it (lib/sales/quoteHolds.ts),
+        // so every line commits stock: as a quote it committed only those it held.
+        if (existing.status === "QUOTE" && (status === "ORDER" || status === "FULFILLED")) {
+          await promoteQuoteToOrder(tx, existing.id, changedBy);
+        }
         const result = await tx.salesOrder.update({
           where: { id: Number.parseInt(id) },
           data: {
@@ -74,47 +84,18 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         }
 
         if (status && status !== existing.status) {
-          await tx.orderChangeLog.create({
-            data: {
-              salesOrderId: Number.parseInt(id),
-              changeType: "STATUS_CHANGE",
-              previousValue: existing.status,
-              newValue: status,
-              changedBy,
-            },
+          await applyStatusChange(tx, {
+            order: result,
+            from: existing.status,
+            to: status,
+            actor: changedBy,
           });
-
-          // Consume/release on the TRANSITION into a terminal state, not on
-          // every write of this route -- guarded by status !== existing.status
-          // above. The goods leaving the building (FULFILLED) deletes the
-          // committed positions outright; cancelling returns them to free
-          // stock. Both are no-ops if nothing is currently committed (e.g. a
-          // CANCELLED after FULFILLED already consumed it), which is correct,
-          // not a bug -- see allocation.ts's consume()/release() headers.
-          if (status === "FULFILLED") {
-            // Marking an order fulfilled by hand is a real thing a store needs
-            // -- a delivery done off-system, or history being corrected -- so
-            // it is not refused. But it is the SAME event as a stop completing
-            // or a customer collecting, and it goes through the same function
-            // rather than flipping a flag and consuming stock on the side.
-            //
-            // That is what closes the two-FULFILLED-flags gap: this route wrote
-            // `status` and never `dispatchStatus`, the dispatch route wrote
-            // `dispatchStatus` and never `status`, and an order could sit
-            // disagreeing with itself indefinitely with no way to tell which
-            // one to believe.
-            await markHandedOver(tx, {
-              salesOrderId: result.id,
-              at: new Date(),
-              method: handoverMethodFor(result.deliveryMethod),
-              actor: session.user?.email ?? null,
-            });
-          } else if (status === "CANCELLED") {
-            await release(result.id, tx);
-          }
         }
 
-        return result;
+        return tx.salesOrder.findUniqueOrThrow({
+          where: { id: result.id },
+          select: { id: true, status: true },
+        });
       });
 
       return res.status(200).json({ id: updated.id, status: updated.status });
@@ -179,7 +160,14 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         customer: true,
         salesPerson: { select: { id: true, displayName: true } },
         splitWith: { select: { id: true, displayName: true } },
-        lineItems: { omit: { cost: true } },
+        lineItems: {
+          omit: { cost: true },
+          include: {
+            product: {
+              select: { madeToOrder: true, category: { select: { trackInventory: true } } },
+            },
+          },
+        },
         invoices: { include: { lineItems: { include: { orderLineItem: true } } } },
         payments: true,
       },
@@ -243,6 +231,16 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         selectedFinish: item.selectedFinish,
         selectedOptions: item.selectedOptions,
         productId: item.productId,
+        // GAP-16: the day a quote holds this line's stock through, and whether
+        // it could hold it (lib/sales/quoteHoldsShared.ts lineHoldProblem).
+        holdUntil: item.holdUntil ? holdDateString(item.holdUntil) : null,
+        holdable:
+          order.status === "QUOTE" &&
+          lineHoldProblem({
+            lineItemStatus: item.lineItemStatus,
+            source: item.source,
+            stocked: item.product ? isStockedProduct(item.product) : null,
+          }) === null,
       })),
       invoices: order.invoices.map((inv) => ({
         id: inv.id,
@@ -275,3 +273,57 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 }
 
 export default requirePermission("sales.write", handler);
+
+/**
+ * What a status change does beyond writing the status: the change-log row, and
+ * stock on the TRANSITION into a terminal state, not on every write of this
+ * route (the caller only calls it when the status changed). The goods leaving
+ * the building (FULFILLED) deletes the committed positions outright; cancelling
+ * returns them to free stock. Both are no-ops if nothing is currently committed
+ * (e.g. a CANCELLED after FULFILLED already consumed it), which is correct, not
+ * a bug -- see allocation.ts's consume()/release() headers.
+ */
+async function applyStatusChange(
+  tx: Prisma.TransactionClient,
+  args: {
+    order: { id: number; deliveryMethod: string | null; storeLocation: string | null };
+    from: string;
+    to: string;
+    actor: string | null;
+  },
+): Promise<void> {
+  const { order, from, to, actor } = args;
+  await tx.orderChangeLog.create({
+    data: {
+      salesOrderId: order.id,
+      changeType: "STATUS_CHANGE",
+      previousValue: from,
+      newValue: to,
+      changedBy: actor,
+    },
+  });
+
+  if (to === "FULFILLED") {
+    // Marking an order fulfilled by hand is a real thing a store needs -- a
+    // delivery done off-system, or history being corrected -- so it is not
+    // refused. But it is the SAME event as a stop completing or a customer
+    // collecting, and it goes through the same function rather than flipping a
+    // flag and consuming stock on the side.
+    //
+    // That is what closes the two-FULFILLED-flags gap: this route wrote
+    // `status` and never `dispatchStatus`, the dispatch route wrote
+    // `dispatchStatus` and never `status`, and an order could sit disagreeing
+    // with itself indefinitely with no way to tell which one to believe.
+    await markHandedOver(tx, {
+      salesOrderId: order.id,
+      at: new Date(),
+      method: handoverMethodFor(order.deliveryMethod),
+      actor,
+    });
+  } else if (to === "CANCELLED") {
+    await release(order.id, tx);
+  } else if (to === "QUOTE" && from === "ORDER") {
+    // Back to a quote: only the lines it holds stay committed (GAP-16).
+    await resyncOrderAllocation(order.id, order.storeLocation, tx);
+  }
+}

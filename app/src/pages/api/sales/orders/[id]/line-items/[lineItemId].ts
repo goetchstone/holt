@@ -18,6 +18,7 @@ import { lineDiscountPercent } from "@/lib/sales/discountPolicyShared";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
+import { HoldError, quoteHoldContext, setLineHold } from "@/lib/sales/quoteHolds";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -64,6 +65,27 @@ export async function handler(
       // shouldn't block recategorization for reporting purposes.
       if (lineItem.lineItemStatus === "CANCELLED" && action !== "relink") {
         return res.status(400).json({ error: "Cannot modify a cancelled line item." });
+      }
+
+      // Hold a quote line's floor stock for the customer through a day, or
+      // take the hold off with null (GAP-16, lib/sales/quoteHolds.ts).
+      if (action === "hold") {
+        const { holdUntil } = req.body as { holdUntil?: unknown };
+        if (holdUntil !== null && typeof holdUntil !== "string") {
+          return res.status(400).json({ error: "holdUntil must be a date (YYYY-MM-DD) or null." });
+        }
+        try {
+          const ctx = await quoteHoldContext();
+          const result = await prisma.$transaction((tx) =>
+            setLineHold(tx, { orderId, lineItemId: itemId, holdUntil, actor: changedBy }, ctx),
+          );
+          return res.status(200).json({ id: itemId, holdUntil: result.holdUntil });
+        } catch (error) {
+          if (error instanceof HoldError) {
+            return res.status(error.status).json({ error: error.message });
+          }
+          throw error;
+        }
       }
 
       // Relink: change the productId so the line item joins the right
