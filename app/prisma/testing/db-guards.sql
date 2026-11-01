@@ -117,3 +117,10 @@ ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_discountLimitPe
 ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_discountLimitPercent_range" CHECK (
   "discountLimitPercent" >= 0 AND "discountLimitPercent" <= 100
 );
+
+-- 20261031120000_idle_logoff
+-- The idle time is 5 to 720 minutes, or 0 for never.
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_idleLogoffMinutes_range";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_idleLogoffMinutes_range" CHECK (
+  "idleLogoffMinutes" = 0 OR ("idleLogoffMinutes" >= 5 AND "idleLogoffMinutes" <= 720)
+);

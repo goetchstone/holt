@@ -18,6 +18,7 @@ import type { Branding } from "@/lib/branding";
 import { parseBookingConfig, BOOKING_DEFAULTS, type BookingConfig } from "@/lib/booking/config";
 import { parsePrefix } from "@/lib/numberingPrefix";
 import { isLandedCostSplit, type LandedCostSplit } from "@/lib/purchasing/landedCostShared";
+import { IDLE_LOGOFF_DEFAULT_MINUTES, isIdleLogoffMinutes } from "@/lib/auth/idleLogoff";
 
 export const DEFAULT_ORG_ID = 1;
 
@@ -108,6 +109,9 @@ export interface ResolvedAppSettings {
   /** How a landed charge on a PO is spread across its lines unless the buyer
    *  picks another (lib/purchasing/landedCostShared.ts). By value by default. */
   landedCostSplit: LandedCostSplit;
+  /** Minutes without activity before a signed-in session ends, 5-720, or 0
+   *  for never (lib/auth/idleLogoff.ts). 15 by default. */
+  idleLogoffMinutes: number;
   /** When the owner confirmed currency, locale and timezone, as ISO 8601;
    *  null = never. A string, not a Date, because this object is sent to the
    *  Settings page as JSON and a Date type would lie there. */
@@ -163,6 +167,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   deliveryFeeTaxGroupId: null,
   discountLimitPercent: 0,
   landedCostSplit: "VALUE",
+  idleLogoffMinutes: IDLE_LOGOFF_DEFAULT_MINUTES,
   setupConfirmedAt: null,
   cashOnlyAcknowledgedAt: null,
 };
@@ -194,6 +199,7 @@ interface AppSettingsRow {
   deliveryFeeTaxGroupId?: number | null;
   discountLimitPercent?: number | null;
   landedCostSplit?: string | null;
+  idleLogoffMinutes?: number | null;
   setupConfirmedAt?: Date | null;
   cashOnlyAcknowledgedAt?: Date | null;
   // Optional because this is a LOOSE view of the row: a partial select, or a
@@ -271,6 +277,10 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     deliveryFeeTaxGroupId: row.deliveryFeeTaxGroupId ?? null,
     discountLimitPercent: row.discountLimitPercent ?? 0,
     landedCostSplit: isLandedCostSplit(row.landedCostSplit) ? row.landedCostSplit : "VALUE",
+    // Anything the column guard would refuse resolves to the strict default.
+    idleLogoffMinutes: isIdleLogoffMinutes(row.idleLogoffMinutes)
+      ? row.idleLogoffMinutes
+      : IDLE_LOGOFF_DEFAULT_MINUTES,
     setupConfirmedAt: isoOrNull(row.setupConfirmedAt),
     cashOnlyAcknowledgedAt: isoOrNull(row.cashOnlyAcknowledgedAt),
   };

@@ -4,19 +4,22 @@
 //
 // Client shell for the App Router back-office: persistent left sidebar +
 // slim top bar + content canvas. Holds the mobile drawer open/close state and
-// passes it to the sidebar + topbar. Server-rendered page `children` are passed
+// passes it to the sidebar + topbar. Automatic sign-out (IdleLogoff, GAP-27)
+// runs here, so it covers every back-office screen. Server-rendered page `children` are passed
 // through as a prop, so pages stay server components.
 
 import { useState } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { AppTopbar } from "./AppTopbar";
 import { PRODUCT } from "@/lib/branding";
+import { IdleLogoff } from "@/components/auth/IdleLogoff";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-brand-linen">
+      <IdleLogoff />
       <AppSidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar onMenuClick={() => setMobileOpen(true)} />
