@@ -89,6 +89,12 @@ const ITEMS: CardGridItem[] = [
     roles: ["MANAGER", "ADMIN"],
   },
   {
+    title: "Referrals",
+    description:
+      "How customers heard of you and who sent them: customers, how many bought, and what they spent, by source and by referring customer.",
+    href: "/app/reports/referrals",
+  },
+  {
     title: "Stock and Space",
     description:
       "Everything in a store, a building or any place inside it, grouped by the places in it, place type, department, category, vendor or collection — with the units and each group's share of the measured floor.",

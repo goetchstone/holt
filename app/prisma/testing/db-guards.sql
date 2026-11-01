@@ -117,3 +117,10 @@ ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_discountLimitPe
 ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_discountLimitPercent_range" CHECK (
   "discountLimitPercent" >= 0 AND "discountLimitPercent" <= 100
 );
+
+-- 20261101140000_customer_referrals
+-- Nobody refers themselves.
+ALTER TABLE "Customer" DROP CONSTRAINT IF EXISTS "Customer_not_referred_by_self";
+ALTER TABLE "Customer" ADD CONSTRAINT "Customer_not_referred_by_self" CHECK (
+  "referredByCustomerId" IS NULL OR "referredByCustomerId" <> "id"
+);

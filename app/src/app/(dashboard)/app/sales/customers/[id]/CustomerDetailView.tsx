@@ -125,6 +125,11 @@ interface CustomerWithRelations {
   salesOrders: SalesOrderWithCalculatedFields[];
   tradeTier: TradeTier | null;
   windfallEnrichment: WindfallData | null;
+  /** How they heard of the store, and who sent them (GAP-08). */
+  referralSourceId: number | null;
+  referralSource: { id: number; name: string; isActive: boolean } | null;
+  referredByCustomerId: number | null;
+  referredBy: { id: number; firstName: string | null; lastName: string | null } | null;
 }
 
 interface EmailStats {
@@ -818,6 +823,25 @@ export function CustomerDetailView({ id }: { id: string }) {
             </p>
             <p>
               <strong>Phone:</strong> {customer.phone || "N/A"}
+            </p>
+            <p>
+              <strong>Heard of us through:</strong>{" "}
+              {customer.referralSource?.name || "Not recorded"}
+            </p>
+            <p>
+              <strong>Referred by:</strong>{" "}
+              {customer.referredBy ? (
+                <Link
+                  href={`/app/sales/customers/${customer.referredBy.id}`}
+                  className="text-brand-blue underline"
+                >
+                  {[customer.referredBy.firstName, customer.referredBy.lastName]
+                    .filter(Boolean)
+                    .join(" ") || `Customer #${customer.referredBy.id}`}
+                </Link>
+              ) : (
+                "Nobody recorded"
+              )}
             </p>
           </div>
         </TabsContent>

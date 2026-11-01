@@ -109,6 +109,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/admin/setup/labels": { permission: "admin.config" },
   // The key /api/tenders writes with, so whoever opens it can use it.
   "/app/admin/setup/payment-types": { permission: "admin.settings" },
+  "/app/admin/setup/referral-sources": { permission: "admin.settings" },
   "/app/admin/setup/printers": { permission: "admin.config" },
   "/app/admin/setup/product-pairings": { permission: "admin.config" },
   "/app/admin/setup/registers": { permission: "admin.config" },
@@ -235,6 +236,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
     widensFrom: "MANAGER,ADMIN",
   },
   "/app/reports/oversold": { permission: "reporting.read" },
+  "/app/reports/referrals": { permission: "reporting.read" },
   "/app/reports/po-gaps": { permission: "reporting.read", widensFrom: "ADMIN" },
   "/app/reports/po-sell-thru": { permission: "reporting.read", widensFrom: "MANAGER,ADMIN" },
   "/app/reports/returns": { permission: "reporting.read", widensFrom: "MANAGER,ADMIN" },
@@ -260,6 +262,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/sales": { permission: "sales.read" },
   "/app/sales/customers": { permission: "sales.read" },
   "/app/sales/customers/[id]": { permission: "sales.read" },
+  "/app/sales/customers/email-list": { permission: "marketing.write" },
   "/app/sales/gift-card-sale": { permission: "sales.read" },
   "/app/sales/import-hd": { permission: "sales.read" },
   "/app/sales/invoices": { permission: "sales.read", widensFrom: "MANAGER,ADMIN" },

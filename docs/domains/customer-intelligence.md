@@ -293,6 +293,54 @@ Answers the marketing director's real question: **"which campaigns made us money
 
 ---
 
+## The Customer Record: Referrals and the Email List (GAP-08, since 2026-11-01)
+
+**How a customer heard of the store, and who sent them** (owner, 2026-11-01: both).
+
+- **Sources are the store's own list.** `ReferralSource` rows are set up in
+  Settings › Referral sources (`/app/admin/setup/referral-sources`, admin.settings);
+  no fixed set ships. A source customers have is switched off, not deleted
+  (`deleteReferralSource` refuses with how many have it), so their record keeps
+  it. A switched-off source stays on a customer who has it and is offered to
+  nobody new.
+- **On the customer:** `Customer.referralSourceId` and `referredByCustomerId`
+  (another customer or trade account; never themselves, by a CHECK and the
+  route). The customer form picks both; the customer page shows them and links
+  the referrer. `readReferral` (`lib/customers/referrals.ts`) is the one check
+  both writes apply.
+- **Merging duplicates** (`customers/merge-duplicates.ts`) moves the customers a
+  duplicate sent onto the one kept, and the kept record takes the duplicate's
+  source or referrer where it has none, never itself.
+- **Reports › Referrals** (`lib/reports/referrals.ts`): customers, how many bought,
+  and what they spent, by source (plus "Not recorded") and by the customers who
+  sent the most. Spend is revenue as every report counts it
+  (`SALES_REVENUE_STATUSES`, `COUNTED_LINE_STATUSES`). All time.
+
+**Customer email list** (`/app/sales/customers/email-list`, `GET
+/api/customers/email-list`, `lib/customers/emailList.ts`). Everyone with an email
+who matches: bought between two days (the store's business days, revenue
+statuses only), at a store (an imported order's store name counts), at least a
+level, trade or retail, by referral source. It shows the count and a sample,
+then downloads a CSV. It needs "Run marketing" (marketing.write): the list leaves
+the building. Holt records no email opt-outs, so the screen says to send through
+a tool that honours unsubscribes. Before this the only way out was the admin's
+full Customers table export.
+
+**Creating and editing a customer** go through `lib/customers/customerContact.ts`:
+names, email and phone, plus the referral fields, and nothing else.
+
+- `POST /api/customers` used to write `...req.body` into the new row, so a caller
+  with "Edit customers" could create a customer holding store credit, a trade
+  account or a tax exemption, outside the ledger and the routes that guard them.
+- The edit form called `PUT /api/customers/[id]`, which answered only GET, so a
+  customer's name, email or phone could not be changed. It is GET (customer.read)
+  and PUT (customer.write) now.
+- A duplicate email answers 409 with what to fix.
+
+Tested in `__tests__/integration/customerReferrals.integration.test.ts`.
+
+---
+
 ## Where to Make Changes
 
 | What you want to change | File |
