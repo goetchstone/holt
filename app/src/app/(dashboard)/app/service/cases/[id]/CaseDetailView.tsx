@@ -163,7 +163,8 @@ export function CaseDetailView({ id }: { id: string }) {
           axios.get("/api/staff?limit=100"),
           axios.get("/api/service/settings/statuses"),
         ]);
-        setStaff(staffRes.data.staff || []);
+        // /api/staff answers a bare list; reading `.staff` found nothing (2026-11-01).
+        setStaff(Array.isArray(staffRes.data) ? staffRes.data : []);
         const statuses: StatusOption[] = statusRes.data.statuses || [];
         setAllStatuses(statuses);
         setClosedStatuses(statuses.filter((s) => s.isClosed));

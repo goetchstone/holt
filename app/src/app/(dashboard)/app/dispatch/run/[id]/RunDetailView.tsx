@@ -121,8 +121,10 @@ export function RunDetailView({ id }: { id: string }) {
 
   const fetchStaff = useCallback(async () => {
     try {
-      const res = await axios.get("/api/staff?role=WAREHOUSE&active=true");
-      setStaff(res.data.staff || []);
+      // Every active staff member: /api/staff never filtered by role, and it
+      // answers a bare list, so reading `.staff` left no driver to pick (2026-11-01).
+      const res = await axios.get("/api/staff");
+      setStaff(Array.isArray(res.data) ? res.data : []);
     } catch {
       // Staff list is supplementary
     }

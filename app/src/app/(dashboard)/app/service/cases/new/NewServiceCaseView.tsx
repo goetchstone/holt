@@ -83,7 +83,8 @@ export function NewServiceCaseView() {
         ]);
         setTypes(typesRes.data.types || []);
         setPriorities(prioritiesRes.data.priorities || []);
-        setStaff(staffRes.data.staff || []);
+        // /api/staff answers a bare list; reading `.staff` found nothing (2026-11-01).
+        setStaff(Array.isArray(staffRes.data) ? staffRes.data : []);
         setLocations(
           (locationsRes.data.locations || []).map((l: { id: number; name: string }) => ({
             id: l.id,
