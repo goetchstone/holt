@@ -89,6 +89,12 @@ const ITEMS: CardGridItem[] = [
     roles: ["MANAGER", "ADMIN"],
   },
   {
+    title: "On hold",
+    description:
+      "Floor stock quotes are holding for their customers, soonest to end first — who it is for, who quoted it, how many units are held and where they sit. A hold drops off the day after it ends, when the piece goes back on sale.",
+    href: "/app/reports/on-hold",
+  },
+  {
     title: "Referrals",
     description:
       "How customers heard of you and who sent them: customers, how many bought, and what they spent, by source and by referring customer.",

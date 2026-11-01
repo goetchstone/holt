@@ -354,6 +354,11 @@ model Product {
   isActive       Boolean @default(true)
   isDiscontinued Boolean @default(false)
   season         String?
+  /// Made for one sale: the one-off product a configured or custom cart line
+  /// mints (create-from-cart). Never stock on hand, so a sale never draws free
+  /// stock for it (GAP-21); its units arrive committed to their order when
+  /// its PO is received.
+  madeToOrder    Boolean @default(false)
 
   // Grade-based products: how many yards/sq ft of material are needed
   comYardage        Decimal? // Plain yardage (54" plain fabric)
@@ -2975,6 +2980,13 @@ model OrderLineItem {
   fulfillment  String? // TAKE, PICKUP, or DELIVERY
   fulfilledQty Decimal? @default(0) // how many have been delivered/picked up/taken
 
+  /// The last day, in the store's time, a quote holds this line's floor stock
+  /// for the customer (GAP-16, lib/sales/quoteHolds.ts). On a quote, only held
+  /// lines commit stock; the hold ends after this day, and the stock goes back
+  /// on sale. Never later than AppSettings.quoteHoldMaxDays from the day it was
+  /// set. Read only while the order is a quote: an order commits every line.
+  holdUntil DateTime? @db.Date
+
   // For configurable products: what was selected at time of sale
   selectedGrade   String?
   selectedFinish  String?
@@ -5459,6 +5471,12 @@ model AppSettings {
   // How a store runs discounts is its own call, so it is set here. The default,
   // 0, is the locked-down one: every such discount needs a manager.
   discountLimitPercent Int @default(0)
+
+  // The longest, in days from today, a quote may hold floor stock for its
+  // customer (GAP-16, lib/sales/quoteHolds.ts). 0 = quotes hold nothing. How
+  // long a store holds a piece is its own call; the default, 3, is the strict
+  // end. A CHECK keeps it within 0-365.
+  quoteHoldMaxDays Int @default(3)
 
   // How a landed charge on a PO is spread across its lines unless the buyer
   // picks another when entering it (GAP-02). By value, the default, gives each

@@ -280,6 +280,33 @@ cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scrip
 - `Customer.mailchimpSyncedAt` populated on the rows just pushed
 - Spot-check a sample customer in Mailchimp's audience UI — should have `pending` status
 
+### Expire Quote Holds
+
+Runs hourly via the host scheduler. A quote can hold a floor-stock line for its
+customer through a chosen day (GAP-16; `docs/domains/sales-orders.md`, "Quote
+holds"). After that day the piece should be back on sale, but a quote nobody
+touches again has no edit to release it, so this sweep does: it resyncs every
+quote still committing stock, which lets go of any line whose hold has ended.
+It also releases what quotes written before holds existed still commit (every
+quote used to commit every line). Idempotent: a second run releases nothing.
+
+**Scheduler config:**
+
+- Task name: `Expire Quote Holds`
+- User: `root`
+- Schedule: Hourly
+- Command:
+
+```bash
+cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scripts/auto-expire-quote-holds.sh >> logs/auto-expire-quote-holds.log 2>&1
+```
+
+**Verify it ran:**
+
+- `logs/auto-expire-quote-holds.log` on the host: each run answers
+  `{ checked, released, units }`
+- Reports › On hold no longer lists a hold the day after its last day
+
 ### Database Backup
 
 Runs daily via the host scheduler using `scripts/backup-db.sh`.
@@ -296,6 +323,7 @@ Runs daily via the host scheduler using `scripts/backup-db.sh`.
 | Daily Import | Daily 06:10 | `auto-import.sh` | `/api/automations/source-import` |
 | Mailchimp New Customer Sync | Daily 06:30 | `auto-mailchimp-customer-sync.sh` | `/api/automations/mailchimp-customer-sync` |
 | Daily Reconciliation | Daily 22:30 | `auto-daily-reconciliation.sh` | `/api/automations/daily-reconciliation` |
+| Expire Quote Holds | Hourly | `auto-expire-quote-holds.sh` | `/api/automations/expire-quote-holds` |
 | Database Backup | Daily | `backup-db.sh` | n/a |
 
 Per-run audit lives in the appropriate `*SyncLog` table — `TrafficSyncLog`, `MailchimpSyncLog`, `AutoImportLog`, `CustomerArDriftLog`, `DailyReconciliationLog`. The admin pages under `/admin/automations/*` surface the latest run + Run Now button for each.

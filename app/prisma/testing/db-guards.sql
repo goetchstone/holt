@@ -125,6 +125,13 @@ ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_idleLogoffMinutes_range" C
   "idleLogoffMinutes" = 0 OR ("idleLogoffMinutes" >= 5 AND "idleLogoffMinutes" <= 720)
 );
 
+-- 20261101120000_quote_holds
+-- A quote holds stock for 0 to 365 days.
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_quoteHoldMaxDays_range";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_quoteHoldMaxDays_range" CHECK (
+  "quoteHoldMaxDays" >= 0 AND "quoteHoldMaxDays" <= 365
+);
+
 -- 20261101140000_customer_referrals
 -- Nobody refers themselves.
 ALTER TABLE "Customer" DROP CONSTRAINT IF EXISTS "Customer_not_referred_by_self";
