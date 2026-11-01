@@ -1,6 +1,6 @@
 // /app/src/pages/auth/login.tsx
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { GetServerSideProps } from "next";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/router";
@@ -13,6 +13,7 @@ import { useBranding } from "@/components/branding/BrandingProvider";
 import { getEnabledAuthMethodsResolved } from "@/lib/auth/authMethodsResolved";
 import type { AuthMethodDef } from "@/lib/auth/authMethods";
 import { safeCallbackUrl } from "@/lib/auth/safeCallbackUrl";
+import { confirmSignedOut } from "@/lib/auth/endSession";
 
 interface LoginProps {
   methods: AuthMethodDef[];
@@ -45,6 +46,14 @@ export default function Login({ methods }: LoginProps) {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Sent here by automatic sign-out (components/auth/IdleLogoff.tsx).
+  const signedOutIdle = router.query.reason === "idle";
+
+  // Coming from a sign-out, make sure it held: a request the last screen sent
+  // just before can put the session back (lib/auth/endSession.ts).
+  useEffect(() => {
+    void confirmSignedOut();
+  }, []);
 
   const handleOAuth = (id: string) => signIn(id, { callbackUrl: callbackUrl() });
 
@@ -78,6 +87,16 @@ export default function Login({ methods }: LoginProps) {
             wordmarkClassName="font-serif text-3xl font-semibold text-brand-navy"
           />
         </div>
+
+        {signedOutIdle && (
+          <p
+            role="status"
+            className="mb-5 rounded-md bg-brand-linen px-3 py-2 text-sm text-brand-black"
+          >
+            You were signed out after a while without activity. Sign in to carry on where you left
+            off.
+          </p>
+        )}
 
         {methods.length === 0 && (
           <p className="text-center text-sm text-brand-gray">

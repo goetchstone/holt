@@ -4,7 +4,7 @@
 //
 // App Router top navigation. A deliberately lean sibling to the Pages-Router
 // TopNav: it reuses the SAME getVisibleNavItems permission logic + branding,
-// but uses next/navigation (usePathname/useRouter) instead of next/router, so
+// but uses next/navigation (usePathname) instead of next/router, so
 // it's valid inside App Router server layouts. TopNav stays untouched for the
 // ~200 Pages-Router screens during the migration; ported pages use this.
 //
@@ -13,8 +13,9 @@
 // nav + sign-out chrome that every ported page needs.
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { signOutTo } from "@/lib/auth/endSession";
 import { useCallback, useMemo } from "react";
 import { BrandLogo } from "@/components/branding/BrandLogo";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,6 @@ export function AppNav() {
   const { data: session } = useSession();
   const { isImpersonating, impersonatedRole } = useEffectiveRole();
   const branding = useBranding();
-  const router = useRouter();
   const pathname = usePathname() ?? "/";
 
   // Permissions ride in on the session — no per-navigation fetch. Feature
@@ -53,8 +53,7 @@ export function AppNav() {
   );
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push("/auth/login");
+    await signOutTo("/auth/login");
   };
 
   return (

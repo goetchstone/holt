@@ -26,6 +26,7 @@ import { parseBookingConfig } from "@/lib/booking/config";
 import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
 import { isValidTimeZone } from "@/lib/reports/businessDay";
 import { LANDED_COST_SPLIT_KEYS, isLandedCostSplit } from "@/lib/purchasing/landedCostShared";
+import { IDLE_LOGOFF_RULE, isIdleLogoffMinutes } from "@/lib/auth/idleLogoff";
 
 const THEME_KEYS = Object.keys(DEFAULT_THEME) as ThemeKey[];
 
@@ -389,6 +390,18 @@ function parseLandedCostSplit(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// How long staff may sit idle before their session ends (GAP-27,
+// lib/auth/idleLogoff.ts): 5-720 minutes, or 0 for never.
+function parseIdleLogoff(body: Body, data: SettingsData): ParseError {
+  const raw = body.idleLogoffMinutes;
+  if (raw === undefined) return null;
+  if (!isIdleLogoffMinutes(raw)) {
+    return { error: `idleLogoffMinutes must be ${IDLE_LOGOFF_RULE}.` };
+  }
+  data.idleLogoffMinutes = raw;
+  return null;
+}
+
 // The owner's two getting-started acknowledgements (lib/gettingStarted.ts):
 // true stamps the time now, false clears it. The server writes the time, never
 // the client -- the record is of when it was said, not of what a browser
@@ -425,6 +438,7 @@ const SETTINGS_PARSERS = [
   parseDeliveryFeeTaxGroup,
   parseDiscountLimit,
   parseLandedCostSplit,
+  parseIdleLogoff,
   parseAcknowledgements,
 ];
 
