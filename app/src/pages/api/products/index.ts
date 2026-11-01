@@ -62,6 +62,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           depth: true,
           height: true,
           serviceType: true,
+          // The list's Edit opens ProductEditModal on this row, and the modal
+          // saves every field it shows. A field missing here was saved as
+          // empty: a list edit cleared the product's tax group and box count
+          // (found 2026-11-01 adding isDiscontinued, which would have done the same).
+          boxesPerUnit: true,
+          taxGroupId: true,
+          isDiscontinued: true,
           vendorId: true,
           departmentId: true,
           categoryId: true,

@@ -28,6 +28,9 @@ export default function ProductEditModal({
     taxGroupId: product.taxGroupId ? String(product.taxGroupId) : "",
   });
   const [taxGroups, setTaxGroups] = useState<{ id: number; name: string; exempt: boolean }[]>([]);
+  // GAP-16: no longer ordered (the PO pickers leave it out); what is on hand
+  // still sells.
+  const [discontinued, setDiscontinued] = useState<boolean>(product.isDiscontinued === true);
 
   useEffect(() => {
     fetch("/api/tax/groups")
@@ -48,7 +51,11 @@ export default function ProductEditModal({
     const res = await fetch(`/api/products/${product.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, taxGroupId: form.taxGroupId || null }),
+      body: JSON.stringify({
+        ...form,
+        taxGroupId: form.taxGroupId || null,
+        isDiscontinued: discontinued,
+      }),
     });
 
     if (res.ok) {
@@ -188,6 +195,21 @@ export default function ProductEditModal({
               onChange={(v) => handleChange("boxesPerUnit", v)}
             />
           </div>
+
+          <label className="mb-4 flex items-start gap-2 text-sm text-brand-black">
+            <input
+              type="checkbox"
+              checked={discontinued}
+              onChange={(e) => setDiscontinued(e.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              Discontinued
+              <span className="block text-xs text-brand-gray">
+                No longer ordered: purchase orders leave it out. What is on hand still sells.
+              </span>
+            </span>
+          </label>
 
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="secondary" onClick={onClose}>

@@ -60,6 +60,12 @@ const ITEMS: CardGridItem[] = [
     roles: ["ADMIN", "WAREHOUSE"],
   },
   {
+    title: "Set aside",
+    description:
+      "Stock in quarantine: damaged, a wrong item, an incomplete set. Put it back on sale or write it off.",
+    href: "/app/warehouse/set-aside",
+  },
+  {
     title: "Locations",
     description: "Manage store locations, zones, and stock positions.",
     href: "/app/warehouse/locations",

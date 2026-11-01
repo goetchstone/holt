@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { format } from "date-fns";
+import { SetAsideDamagedDialog } from "./SetAsideDamagedDialog";
 
 interface PositionRow {
   id: number;
@@ -22,6 +23,7 @@ interface PositionRow {
   stockLocationId: number | null;
   stockLocationName: string | null;
   stockLocationCode: string | null;
+  stockLocationType: string | null;
   quantity: number;
   salesOrderId: number | null;
   salesOrderNo: string | null;
@@ -51,6 +53,7 @@ export function InventoryPositionsView() {
   const [stockLocationFilter, setStockLocationFilter] = useState("");
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [damaged, setDamaged] = useState<PositionRow | null>(null);
 
   const limit = 25;
 
@@ -179,18 +182,19 @@ export function InventoryPositionsView() {
                 Sales Order
               </th>
               <th className="text-left px-4 py-3 font-medium text-brand-gray w-[100px]">Updated</th>
+              <th className="px-4 py-3 w-[90px]" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-brand-gray">
+                <td colSpan={7} className="px-4 py-8 text-center text-brand-gray">
                   Loading...
                 </td>
               </tr>
             ) : positions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-brand-gray">
+                <td colSpan={7} className="px-4 py-8 text-center text-brand-gray">
                   No inventory positions found
                 </td>
               </tr>
@@ -218,12 +222,34 @@ export function InventoryPositionsView() {
                   <td className="px-4 py-2 text-brand-gray text-xs">
                     {pos.updated ? format(new Date(pos.updated), "MMM d") : ""}
                   </td>
+                  <td className="px-4 py-2 text-right">
+                    {pos.stockLocationType !== "QUARANTINE" && (
+                      <button
+                        type="button"
+                        onClick={() => setDamaged(pos)}
+                        className="text-xs text-brand-blue underline"
+                      >
+                        Damaged…
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {damaged && (
+        <SetAsideDamagedDialog
+          position={damaged}
+          onClose={() => setDamaged(null)}
+          onDone={() => {
+            setDamaged(null);
+            fetchPositions();
+          }}
+        />
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

@@ -96,13 +96,19 @@ export interface AllocationLine {
 export interface DrawTier {
   storeLocationId: number;
   floor: boolean;
+  /** Floor samples (DISPLAY places, GAP-15): drawn only by a take-with sale, last. */
+  display?: boolean;
 }
 
 /**
  * Pure: the order an order line draws free stock in (ledger plan phase 10).
  *
  *   - Take-with: the customer leaves with the piece in front of them, so only
- *     the order's own store, the floor piece first, then its back stock.
+ *     the order's own store, the floor piece first, then its back stock, and
+ *     last a floor sample: nothing else at the store covers the sale, so the
+ *     piece going out the door is the display (GAP-15). No other sale draws a
+ *     display; a store that sells one for delivery moves it out of display
+ *     first.
  *   - Everything else: back stock anywhere in reach -- the order's own store,
  *     then the store it is fulfilled from (StoreLocation.
  *     fulfilmentStoreLocationId, one hop) -- and floor models last, own store
@@ -117,6 +123,7 @@ export function allocationTiers(
     return [
       { storeLocationId: own, floor: true },
       { storeLocationId: own, floor: false },
+      { storeLocationId: own, floor: false, display: true },
     ];
   }
   const stores = [own];
@@ -131,6 +138,15 @@ export function allocationTiers(
 const BACK_STOCK_TYPES = SELLABLE_LOCATION_TYPES.filter((t) => t !== "FLOOR");
 
 function tierWhere(tier: DrawTier): Prisma.InventoryPositionWhereInput {
+  // A display is not sellable, so it is outside freePositionWhere(); the same
+  // two owner conditions, and the place a display.
+  if (tier.display) {
+    return {
+      salesOrderId: null,
+      storeLocationId: tier.storeLocationId,
+      stockLocation: { holdsCommittedStock: false, locationType: "DISPLAY" },
+    };
+  }
   return {
     AND: [
       freePositionWhere(),

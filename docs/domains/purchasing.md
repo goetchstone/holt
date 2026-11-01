@@ -75,6 +75,9 @@ one function per act, each called by its route:
 - **Lines are the vendor's products.** A line names a catalog product whose
   `vendorId` is the PO's vendor; anything else is refused with the product's
   name. The picker offers only the vendor's active, non-discontinued products.
+  Staff mark a product discontinued in its edit form (`isDiscontinued` on
+  `PATCH /api/products/[id]`, since 2026-11-01, GAP-16); before that only the POS
+  import set it. What is on hand still sells.
   Part number and name are copied from the product onto the line.
 - **Ship to** is `PurchaseOrder.shipToLocationId`, an open store or warehouse
   (migration `20261030140000_stock_purchase_orders`). It is printed on the PO,

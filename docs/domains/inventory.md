@@ -81,6 +81,7 @@ A place's type comes from one catalog, `lib/inventory/locationTypes.ts`:
 | Type | Sellable | For |
 |---|---|---|
 | `FLOOR` | yes | the sales floor |
+| `DISPLAY` | no* | floor samples that stay put (GAP-15); *only a take-with sale at its own store draws one, last |
 | `STOCK` | yes | a stock room or warehouse bay |
 | `RECEIVING` | yes | arrived, not yet put away |
 | `STAGING` | no | picked and waiting to load |
@@ -148,6 +149,37 @@ stock unchanged at 19,317 rows and 43,146 units.
 
 **Stock and space** (Reports › Stock and Space, `lib/reports/stockBy.ts`) reads
 this tree; see `docs/domains/reporting.md`.
+
+### Floor samples and stock set aside (GAP-15, GAP-16; since 2026-11-01)
+
+**A display piece stays on the floor.** A store marks the places its floor
+samples sit in as `DISPLAY` (Warehouse › Locations, or the stock-locations
+preset). Display stock is owned, counted and valued, but it is not free stock
+(`freePositionWhere`), so no sale, quote hold or order draws it, the register
+doesn't offer it, and a transfer from "the store, any place" leaves it. The one
+exception is a take-with sale at its own store, which draws a display last, after
+the floor piece and back stock (`allocationTiers`): nothing else there covers the
+sale, so the piece going out the door is the sample. A store that sells a sample
+for delivery moves it out of display first (an admin move, or the handheld). A
+sales floor whose pieces are stock to sell (lamps, rugs) stays `FLOOR`, and
+behaves as before.
+
+**Stock already on hand can be set aside as damaged** (`lib/inventory/setAside.ts`).
+Warehouse › Inventory by Location › "Damaged…" moves the units into the store's
+quarantine place (the landing place, created on first use), free, with what is
+wrong on the journal (reason `DAMAGE`, note `Damaged: …`). Units an order had are
+taken from it, and the order is resynced: it draws another unit, or shows as
+short. Warehouse › Set aside lists everything in a quarantine place, whatever put
+it there (receiving's Damaged and Wrong Item, an incomplete set, a damage), with:
+
+- **Back to stock**: to a sellable place at the same store, still whoever's it was.
+- **Write off**: out of the books (`WRITE_OFF`), with why.
+
+Both need "Adjust inventory". Two kinds of quarantined stock have their own way out
+and are refused here. A store's returns place, if pointed at a quarantine place,
+belongs to the returned-stock queue. An incomplete set (an open INCOMPLETE box
+note) is finished by its missing boxes or counted absent. Tested in
+`stockSetAside.integration.test.ts`.
 
 ### Overselling is allowed, deliberately
 
@@ -226,7 +258,7 @@ Every movement `postMovement` makes is also a `StockMovement` row, written in
 the same transaction: product, quantity, the place it came from and the place it
 went to (a side with no store is outside the books), why (`MOVEMENT_REASONS` in
 `ledger.ts`: `OPENING`, `RECEIVE`, `UNRECEIVE`, `ALLOCATE`, `RELEASE`, `DELIVER`,
-`RETURN`, `WRITE_OFF`, `TRANSFER`, `ADJUST`, `IMPORT_SYNC`), the document that moved it
+`RETURN`, `WRITE_OFF`, `DAMAGE`, `TRANSFER`, `ADJUST`, `IMPORT_SYNC`), the document that moved it
 (`sourceType` and `sourceId`), who, and when. Every caller must name a reason; the compiler
 enforces it.
 
@@ -411,6 +443,7 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 - `inventoryAllocation.integration.test.ts` — allocate/release/consume lifecycle, including the same inversion for the free-stock predicate and the no-stock-location case
 - `stockLedgerWriter.integration.test.ts` — the single writer, against real Postgres: receive, restock, transfer cancel and admin set each leave one row per place (rule 64); a transfer from "any stock location" takes units from where they sit and refuses (409) when short; deleting an order releases its committed stock; a place never goes negative; two concurrent sales of the last unit leave one sale short. Mutation-checked: removing the merge fails 4 cases, removing the product lock fails the race case.
 - `stockWriterTripwire.test.ts` — only `ledger.ts` writes `InventoryPosition`; fails both ways (new writer, stale manifest)
+- `stockSetAside.integration.test.ts` — floor samples (a delivery sale goes short rather than draw one; a take-with sale draws it last; a place typed DISPLAY from Locations), damaged stock set aside into quarantine with its note and journal row, an order that loses a unit drawing another or going short, the refusals, the Set aside list, back to stock and write off, and the returns-place and incomplete-set refusals
 - `warehouseQuantities.integration.test.ts` — every response under `warehouse/positions/*` and `warehouse/transfers/*` sends a 12.625 quantity as the number 12.625, not text, through a mock `res.json` that serialises as Next does. Failed 7/7 with `"string"` before the fix.
 - `ordoriteShared.test.ts` — `ordoriteHoldsCommittedStock`, the adapter-local name convention
 - No dedicated tests for `runStockByItemImport`'s catch-all routing — **gap, worth a tripwire**
