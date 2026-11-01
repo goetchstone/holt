@@ -537,6 +537,18 @@ This section previously said the window used `setHours` — **local** process ti
 was true until the business-day fix, and it was why `TZ=UTC` mattered so much: the
 journal silently followed whatever timezone the host happened to have.
 
+**The days the journal step samples are business days too (2026-11-01).**
+`journal.ts` picked its days from each payment's UTC date (`DATE("paymentDate")`) and
+asked `generateSalesJournal` for the business day of the same name. Showroom hours run
+to 19:59 New York time, which is before midnight UTC in summer but after it once the
+clocks go back. On 2026-11-01, the day they went back, that evening's sales fell on UTC
+date 2026-11-02. The seed asked for a journal for business day 2026-11-02, which had no
+sales, and failed. CI's setup step runs this seed, so every PR's "Setup, build, boot,
+smoke" check went red. The days are now picked on the business clock
+(`DATE(("paymentDate" AT TIME ZONE 'UTC') AT TIME ZONE SEED_TIME_ZONE)`), the same day
+the journal covers. Reproduced on `main` against a scratch database that morning; with
+the fix the seed posted all six sampled journals, balanced.
+
 ## Volume knob
 
 |                                          | `ci` (default)                          | `demo`                                  |

@@ -20,6 +20,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { generateSalesJournal } from "@/lib/journalEntry";
+import { SEED_TIME_ZONE } from "./config";
 
 const SEED_ACTOR = "seed:demo";
 
@@ -42,18 +43,31 @@ export interface JournalResult {
   }[];
 }
 
-/** Distinct calendar days (UTC) that have at least one Payment, evenly
- * sampled across the range plus a day that's guaranteed to include a
+/** Distinct business days (SEED_TIME_ZONE) that have at least one Payment,
+ * evenly sampled across the range plus a day that's guaranteed to include a
  * refund — so the journal run exercises both the plain-sale path and the
- * B3 sale-in-reverse refund path. */
+ * B3 sale-in-reverse refund path.
+ *
+ * Business days, because that is the day generateSalesJournal covers
+ * (businessDayRange in the store's zone). This read the UTC date
+ * (`DATE("paymentDate")`), and a sale rung after 7pm in New York falls on the
+ * next UTC date once the clocks go back: on 2026-11-01 the seed picked
+ * 2026-11-02 for that evening's sales, the journal for the business day
+ * 2026-11-02 found none, and the seed -- CI's setup step -- failed. In summer
+ * the last sale hour ends before midnight UTC, which is why it went unseen. */
 async function pickRepresentativeDays(prisma: PrismaClient, sampleCount: number): Promise<Date[]> {
+  // "paymentDate" is a UTC instant stored without a zone: read it as UTC, then
+  // take its date on the business's clock.
+  const businessDay = `DATE(("paymentDate" AT TIME ZONE 'UTC') AT TIME ZONE $1)`;
   const allDays = await prisma.$queryRawUnsafe<{ day: Date }[]>(
-    `SELECT DISTINCT DATE("paymentDate") AS day FROM "Payment" ORDER BY day ASC`,
+    `SELECT DISTINCT ${businessDay} AS day FROM "Payment" ORDER BY day ASC`,
+    SEED_TIME_ZONE,
   );
   if (allDays.length === 0) return [];
 
   const refundDayRows = await prisma.$queryRawUnsafe<{ day: Date }[]>(
-    `SELECT DISTINCT DATE("paymentDate") AS day FROM "Payment" WHERE "isRefund" = true ORDER BY day ASC LIMIT 1`,
+    `SELECT DISTINCT ${businessDay} AS day FROM "Payment" WHERE "isRefund" = true ORDER BY day ASC LIMIT 1`,
+    SEED_TIME_ZONE,
   );
 
   const picks = new Set<string>();
