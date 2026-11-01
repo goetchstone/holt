@@ -5,6 +5,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
+import { endQuoteHolds } from "@/lib/sales/quoteHolds";
 
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 interface BulkArchiveBody {
@@ -56,6 +57,12 @@ export default requireAuthWithRole(
         updatedBy: session.user?.email ?? undefined,
       },
     });
+    // Archived quotes are ones the customers passed on: the stock they held
+    // goes back on sale (GAP-16), the same as archiving one at a time. Each in
+    // its own transaction, so one large sweep doesn't hold every product lock.
+    for (const id of ids) {
+      await prisma.$transaction((tx) => endQuoteHolds(tx, id));
+    }
 
     return res.status(200).json({ archived: ids.length });
   },

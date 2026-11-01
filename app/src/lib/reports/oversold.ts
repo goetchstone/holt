@@ -19,30 +19,59 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { freePositionWhere } from "@/lib/inventory/allocation";
 import { roundQty, toQty } from "@/lib/inventory/quantity";
+import { getAppSettings } from "@/lib/appSettings";
+import { isStockedProduct, lineCommitsStock } from "@/lib/sales/quoteHoldsShared";
+import { businessDayKey } from "@/lib/reports/businessDay";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
 /**
  * Close the order's open exceptions it now holds enough stock for, and bring
  * the rest up to date with what is still short.
+ *
+ * What the order needs is what it commits (lib/sales/quoteHoldsShared.ts): a
+ * quote needs only the lines it holds today, so a hold that ran out closes its
+ * shortfall rather than leaving the quote reading as oversold; a product that
+ * isn't drawn from stock needs nothing.
  */
 export async function settleShortfalls(db: Db, orderId: number): Promise<void> {
   const open = await db.inventoryException.findMany({
     where: { salesOrderId: orderId, resolvedAt: null },
     select: { id: true, productId: true },
   });
+  if (open.length === 0) return;
+  const order = await db.salesOrder.findUniqueOrThrow({
+    where: { id: orderId },
+    select: { status: true },
+  });
+  const today = businessDayKey(new Date(), (await getAppSettings()).timezone);
   for (const ex of open) {
-    const [need, held] = await Promise.all([
-      db.orderLineItem.aggregate({
+    const [lines, held] = await Promise.all([
+      db.orderLineItem.findMany({
         where: { salesOrderId: orderId, productId: ex.productId, lineItemStatus: "ACTIVE" },
-        _sum: { orderedQuantity: true },
+        select: {
+          orderedQuantity: true,
+          holdUntil: true,
+          product: {
+            select: { madeToOrder: true, category: { select: { trackInventory: true } } },
+          },
+        },
       }),
       db.inventoryPosition.aggregate({
         where: { salesOrderId: orderId, productId: ex.productId },
         _sum: { quantity: true },
       }),
     ]);
-    const requested = toQty(need._sum.orderedQuantity);
+    const requested = roundQty(
+      lines
+        .filter(
+          (l) =>
+            l.product != null &&
+            isStockedProduct(l.product) &&
+            lineCommitsStock({ orderStatus: order.status, holdUntil: l.holdUntil, today }),
+        )
+        .reduce((sum, l) => sum + toQty(l.orderedQuantity), 0),
+    );
     const allocated = Math.min(requested, toQty(held._sum.quantity));
     const shortfall = roundQty(requested - allocated);
     await db.inventoryException.update({
@@ -56,7 +85,10 @@ export async function settleShortfalls(db: Db, orderId: number): Promise<void> {
               shortfall: 0,
               resolvedAt: new Date(),
               resolvedBy: "system",
-              resolutionNote: "Covered: the order now holds the stock it needs.",
+              resolutionNote:
+                requested > 0
+                  ? "Covered: the order now holds the stock it needs."
+                  : "Nothing to cover: the order no longer commits this product (a quote's hold ended, or it isn't drawn from stock).",
             },
     });
   }

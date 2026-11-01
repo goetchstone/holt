@@ -6,7 +6,9 @@
 // consume/availableQuantity in isolation; this file proves the API routes
 // actually call them at the right moment:
 //
-//   - a POS sale (create-from-cart) commits stock
+//   - a POS sale commits stock at its first payment: create-from-cart writes a
+//     quote, which commits only the lines it holds (GAP-16, lib/sales/
+//     quoteHolds.ts), and the payment makes it an order, which commits all
 //   - a return line in that same cart never allocates
 //   - an oversold sale still succeeds AND leaves an InventoryException row
 //     for back office (the owner's rule -- never block the register)
@@ -35,6 +37,7 @@ import { handler as orderHandler } from "@/pages/api/sales/orders/[id]";
 import { handler as dispatchHandler } from "@/pages/api/sales/orders/[id]/dispatch";
 import { handler as lineItemsHandler } from "@/pages/api/sales/orders/[id]/line-items";
 import { handler as lineItemHandler } from "@/pages/api/sales/orders/[id]/line-items/[lineItemId]";
+import { onPaymentReceived } from "@/lib/paymentService";
 
 // An exception's three quantities are Decimal (a part roll can be short), so
 // they are read as numbers to compare.
@@ -126,6 +129,13 @@ async function createOrderViaCart(
   return res;
 }
 
+/** A register sale as it happens: written (a quote), then its first payment makes it an order. */
+async function sellViaCart(storeName: string, items: Parameters<typeof createOrderViaCart>[1]) {
+  const res = await createOrderViaCart(storeName, items);
+  if (res.statusCode === 201) await onPaymentReceived((res.body as { id: number }).id);
+  return res;
+}
+
 describe("inventory order wiring (real DB)", () => {
   beforeEach(async () => {
     await resetTestDb();
@@ -135,7 +145,7 @@ describe("inventory order wiring (real DB)", () => {
     await prisma.$disconnect();
   });
 
-  it("a POS sale (create-from-cart) reduces available stock", async () => {
+  it("a POS sale (create-from-cart) reduces available stock once it is paid", async () => {
     const { store, floor, product } = await seed();
     await stockAt({
       productId: product.id,
@@ -150,6 +160,10 @@ describe("inventory order wiring (real DB)", () => {
 
     expect(res.statusCode).toBe(201);
     const orderId = (res.body as { id: number }).id;
+    // Written, it is a quote holding nothing: the stock is still on sale.
+    expect(await availableQuantity(product.id, store.id, prisma)).toBe(5);
+
+    await onPaymentReceived(orderId);
 
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(3);
     const committed = await prisma.inventoryPosition.findMany({ where: { salesOrderId: orderId } });
@@ -167,7 +181,7 @@ describe("inventory order wiring (real DB)", () => {
     });
 
     // The client sign-flips a return's quantity before sending it.
-    const res = await createOrderViaCart(store.name, [
+    const res = await sellViaCart(store.name, [
       { productId: product.id, quantity: -1, unitPrice: 100, isReturn: true },
     ]);
 
@@ -187,7 +201,7 @@ describe("inventory order wiring (real DB)", () => {
       quantity: 1,
     });
 
-    const res = await createOrderViaCart(store.name, [
+    const res = await sellViaCart(store.name, [
       { productId: product.id, quantity: 3, unitPrice: 100 },
     ]);
 
@@ -212,7 +226,7 @@ describe("inventory order wiring (real DB)", () => {
     // case is a queue nobody reads.
     const { store } = await seed();
 
-    const res = await createOrderViaCart(store.name, [
+    const res = await sellViaCart(store.name, [
       { type: "CONFIGURED", name: "Custom Sectional", quantity: 1, unitPrice: 4200 },
     ]);
 
@@ -233,7 +247,7 @@ describe("inventory order wiring (real DB)", () => {
       quantity: 1,
     });
 
-    const res = await createOrderViaCart(store.name, [
+    const res = await sellViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
       { type: "CUSTOM", name: "Bespoke Ottoman", quantity: 1, unitPrice: 900 },
     ]);
@@ -252,7 +266,7 @@ describe("inventory order wiring (real DB)", () => {
   it("a sale with no matching StoreLocation skips allocation instead of failing the sale", async () => {
     const { product } = await seed();
 
-    const res = await createOrderViaCart("Nonexistent Store", [
+    const res = await sellViaCart("Nonexistent Store", [
       { productId: product.id, quantity: 1, unitPrice: 100 },
     ]);
 
@@ -270,7 +284,7 @@ describe("inventory order wiring (real DB)", () => {
       stockLocationId: floor.id,
       quantity: 5,
     });
-    const createRes = await createOrderViaCart(store.name, [
+    const createRes = await sellViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
     ]);
     const orderId = (createRes.body as { id: number }).id;
@@ -296,7 +310,7 @@ describe("inventory order wiring (real DB)", () => {
       stockLocationId: floor.id,
       quantity: 5,
     });
-    const createRes = await createOrderViaCart(store.name, [
+    const createRes = await sellViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
     ]);
     const orderId = (createRes.body as { id: number }).id;
@@ -323,7 +337,7 @@ describe("inventory order wiring (real DB)", () => {
       stockLocationId: floor.id,
       quantity: 5,
     });
-    const createRes = await createOrderViaCart(store.name, [
+    const createRes = await sellViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
     ]);
     const orderId = (createRes.body as { id: number }).id;
@@ -352,7 +366,7 @@ describe("inventory order wiring (real DB)", () => {
       stockLocationId: floor.id,
       quantity: 5,
     });
-    const createRes = await createOrderViaCart(store.name, [
+    const createRes = await sellViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
     ]);
     const orderId = (createRes.body as { id: number }).id;
@@ -381,7 +395,7 @@ describe("inventory order wiring (real DB)", () => {
       stockLocationId: floor.id,
       quantity: 5,
     });
-    const createRes = await createOrderViaCart(store.name, [
+    const createRes = await sellViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
     ]);
     const orderId = (createRes.body as { id: number }).id;
@@ -410,7 +424,7 @@ describe("inventory order wiring (real DB)", () => {
       stockLocationId: floor.id,
       quantity: 5,
     });
-    const createRes = await createOrderViaCart(store.name, [
+    const createRes = await sellViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
     ]);
     const orderId = (createRes.body as { id: number }).id;
@@ -443,7 +457,7 @@ describe("inventory order wiring (real DB)", () => {
       stockLocationId: floor.id,
       quantity: 5,
     });
-    const createRes = await createOrderViaCart(store.name, [
+    const createRes = await sellViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
     ]);
     const orderId = (createRes.body as { id: number }).id;

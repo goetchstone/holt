@@ -710,6 +710,53 @@ strict choice (owner: "This should be some sort of config").
 **Source:** [`app/src/lib/auth/sessionToken.ts`](../app/src/lib/auth/sessionToken.ts),
 [`app/src/lib/auth/idleLogoff.ts`](../app/src/lib/auth/idleLogoff.ts),
 [`app/src/components/auth/IdleLogoff.tsx`](../app/src/components/auth/IdleLogoff.tsx)
+## 28. A quote commits only the floor stock it holds; an order commits everything
+
+**Decided 2026-11-01 (owner, GAP-16).** "We can put it on a quote and part of
+the quote if it is floor stock can be hold until x date, and again a config
+would set the max allowed because who am I to tell anyone how to run their
+business."
+
+- **On hold is a quote line.** Staff hold a floor-stock line of a quote for its
+  customer through a day they choose. While held, its units are committed to
+  the quote, so nobody else sells them. There is no separate hold record:
+  the commitment is the ledger's existing owner, the sales order.
+- **Nothing else on a quote commits.** A line with no hold, or one whose day
+  has passed, commits nothing. Before this, every quote committed every line
+  with no end.
+- **An order commits everything.** A quote becoming an order (its first payment,
+  or a status change) commits every line through one function,
+  `promoteQuoteToOrder`.
+- **The store sets the longest hold** (`AppSettings.quoteHoldMaxDays`, 0 to 365
+  days; 0 = quotes hold nothing). It ships at 3, the strict end.
+- **What isn't stocked never commits.** A made-to-order one-off product
+  (`Product.madeToOrder`) or a category with `trackInventory` off has no stock,
+  so asking for some would only raise a false shortfall (GAP-21).
+
+**Rejected:**
+
+- **A separate hold record beside the stock.** A second home for "these units
+  are spoken for" would drift from the ledger, and every reader of free stock
+  would need to subtract it (principle 6).
+- **Quotes committing everything, with an expiry.** A quote would still keep
+  stock it never meant to hold for days. And a hold would be the default, where
+  the owner described it as something staff choose.
+- **A fixed hold length.** How long a store holds a piece is its own call.
+
+**Cost accepted:**
+
+- A register sale commits at its first payment, seconds after it is written.
+  Another register can sell the last unit in between; the later sale records a
+  shortfall, as any oversale does.
+- A hold ends with the hourly sweep, so a piece goes back on sale within the hour
+  after its last day ends, not to the minute.
+
+**Enforced by:** `__tests__/integration/quoteHolds.integration.test.ts`,
+`__tests__/lib/sales/quoteHoldsShared.test.ts`.
+
+**Source:** [`app/src/lib/sales/quoteHolds.ts`](../app/src/lib/sales/quoteHolds.ts),
+[`app/src/lib/sales/quoteHoldsShared.ts`](../app/src/lib/sales/quoteHoldsShared.ts),
+[`app/src/lib/inventory/orderInventorySync.ts`](../app/src/lib/inventory/orderInventorySync.ts)
 
 ---
 

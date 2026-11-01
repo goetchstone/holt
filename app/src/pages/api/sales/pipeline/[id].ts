@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
+import { endQuoteHolds } from "@/lib/sales/quoteHolds";
 import {
   ARCHIVE_REASONS,
   isValidArchiveReason,
@@ -100,22 +101,28 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
     }
   }
 
-  const updated = await prisma.salesOrder.update({
-    where: { id },
-    data: {
-      pipelineArchivedAt: archived ? new Date() : null,
-      pipelineNote: archived ? note?.trim() || null : null,
-      archiveReason: archived ? (reason ?? null) : null,
-      replacedByOrderId: archived ? (replacedByOrderId ?? null) : null,
-      updatedBy: session.user.email,
-    },
-    select: {
-      id: true,
-      pipelineArchivedAt: true,
-      pipelineNote: true,
-      archiveReason: true,
-      replacedByOrderId: true,
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.salesOrder.update({
+      where: { id },
+      data: {
+        pipelineArchivedAt: archived ? new Date() : null,
+        pipelineNote: archived ? note?.trim() || null : null,
+        archiveReason: archived ? (reason ?? null) : null,
+        replacedByOrderId: archived ? (replacedByOrderId ?? null) : null,
+        updatedBy: session.user.email,
+      },
+      select: {
+        id: true,
+        pipelineArchivedAt: true,
+        pipelineNote: true,
+        archiveReason: true,
+        replacedByOrderId: true,
+      },
+    });
+    // An archived quote is one the customer passed on: the stock it held goes
+    // back on sale (GAP-16). Restoring it brings back the quote, not the holds.
+    if (archived) await endQuoteHolds(tx, id);
+    return row;
   });
 
   return res.status(200).json(updated);

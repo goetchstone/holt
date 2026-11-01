@@ -21,6 +21,7 @@ import { useProductSearch } from "@/hooks/useProductSearch";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { RetailPriceTag } from "@/components/sales/RetailPriceTag";
 import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
+import { useQuoteHoldPolicy } from "@/components/sales/useQuoteHoldPolicy";
 import { catalogRetailPrice, noRetailPriceMessage } from "@/lib/pos/cartPricing";
 
 type ItemSource = "FLOOR" | "ORDER";
@@ -40,6 +41,8 @@ interface QuoteLineItem {
   source: ItemSource;
   fulfillment: FulfillmentMethod;
   pickLocationId: number | null;
+  /** Hold this floor-stock line for the customer through this day (GAP-16). */
+  holdUntil: string | null;
 }
 
 interface StoreLocationOption {
@@ -121,6 +124,7 @@ export function NewQuoteView() {
   const [orderNotes, setOrderNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { send: sendWithApproval, modal: approvalModal } = useDiscountApproval();
+  const holdPolicy = useQuoteHoldPolicy();
 
   // Pre-populate customer from URL query param (e.g. linked from an interaction)
   useEffect(() => {
@@ -175,6 +179,7 @@ export function NewQuoteView() {
             source: "ORDER" as ItemSource,
             fulfillment: "DELIVERY" as FulfillmentMethod,
             pickLocationId: null,
+            holdUntil: null,
           },
         ]);
       } catch {
@@ -228,6 +233,7 @@ export function NewQuoteView() {
         source: "FLOOR" as ItemSource,
         fulfillment: "TAKE" as FulfillmentMethod,
         pickLocationId: activeStore?.id ?? null,
+        holdUntil: null,
       },
     ]);
     clearProductSearch();
@@ -256,6 +262,7 @@ export function NewQuoteView() {
         source: "ORDER" as ItemSource,
         fulfillment: "DELIVERY" as FulfillmentMethod,
         pickLocationId: null,
+        holdUntil: null,
       },
     ]);
     setCustomForm({ name: "", description: "", price: "", quantity: "1" });
@@ -299,6 +306,9 @@ export function NewQuoteView() {
             source: l.source,
             fulfillment: l.fulfillment,
             pickLocationId: l.pickLocationId || undefined,
+            // A quote commits only the stock it holds (GAP-16).
+            holdUntil:
+              l.type === "PRODUCT" && l.source === "FLOOR" && l.holdUntil ? l.holdUntil : undefined,
           })),
         }),
       );
@@ -560,6 +570,8 @@ export function NewQuoteView() {
                             updateLine(line.id, {
                               source,
                               pickLocationId: source === "ORDER" ? null : line.pickLocationId,
+                              // A special order isn't floor stock: nothing to hold.
+                              holdUntil: source === "ORDER" ? null : line.holdUntil,
                             });
                           }}
                           className="text-[10px] border border-brand-gray/30 rounded px-1 py-0.5 bg-white"
@@ -598,6 +610,24 @@ export function NewQuoteView() {
                           <option value="PICKUP">Pickup</option>
                           <option value="DELIVERY">Delivery</option>
                         </select>
+                        {line.type === "PRODUCT" &&
+                          line.source === "FLOOR" &&
+                          holdPolicy?.latest && (
+                            <label className="flex items-center gap-1 text-[10px] text-brand-gray">
+                              Hold until
+                              <input
+                                type="date"
+                                min={holdPolicy.today}
+                                max={holdPolicy.latest}
+                                value={line.holdUntil ?? ""}
+                                onChange={(e) =>
+                                  updateLine(line.id, { holdUntil: e.target.value || null })
+                                }
+                                aria-label={`Hold ${line.name} until`}
+                                className="text-[10px] border border-brand-gray/30 rounded px-1 py-0.5 bg-white"
+                              />
+                            </label>
+                          )}
                       </div>
                     </td>
                     <td className="p-3 text-center">
