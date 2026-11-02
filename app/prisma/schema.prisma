@@ -16,6 +16,31 @@ datasource db {
 // CORE CATALOG & PRODUCT STRUCTURE
 // ---------------------------------------------------------------------------
 
+/// A name a vendor went by before it was merged into another (GAP-22,
+/// lib/vendors/mergeVendor.ts). Every lookup of a vendor by name
+/// (lib/vendors/vendorByName.ts) finds the vendor through these, so the next
+/// import that spells the old name doesn't bring the duplicate back.
+///
+/// A vendor's own name wins over an alias. Nothing creates a vendor under a
+/// name listed here: imports find the alias first, and the vendor screen
+/// refuses it.
+model VendorAlias {
+  id       Int    @id @default(autoincrement())
+  /// The merged vendor's name, exactly as it was.
+  name     String @unique
+  vendorId Int
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  /// The id the merged vendor had, for tracing old logs and exports. Not a
+  /// foreign key: that vendor is gone.
+  mergedVendorId Int
+
+  created   DateTime @default(now())
+  createdBy String?
+
+  @@index([vendorId])
+}
+
 /// How a vendor's numbers look, so a product or part number can be traced back
 /// to the vendor that issued it.
 ///
@@ -117,6 +142,8 @@ model Vendor {
   serviceCases    ServiceCase[]
   /// Items this vendor sells us besides its own (GAP-22).
   productSources  ProductSource[]
+  /// Names this vendor was known by before others were merged into it (GAP-22).
+  aliases         VendorAlias[]
 
   allowTradeDiscount Boolean @default(true)
 

@@ -295,6 +295,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   User: { status: "seeded" },
   Vehicle: { status: "seeded", seeder: "demo" },
   Vendor: { status: "seeded" },
+  VendorAlias: { status: "seeded", seeder: "demo" },
   VendorContact: { status: "todo", tranche: "special-order-pricing" },
   VendorOption: { status: "seeded", seeder: "demo" },
   VendorOptionGroup: { status: "seeded", seeder: "demo" },

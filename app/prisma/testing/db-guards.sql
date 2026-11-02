@@ -162,3 +162,10 @@ ALTER TABLE "ProductSource" DROP CONSTRAINT IF EXISTS "ProductSource_itemNumber_
 ALTER TABLE "ProductSource" ADD CONSTRAINT "ProductSource_itemNumber_not_blank" CHECK (
   "itemNumber" IS NULL OR btrim("itemNumber") <> ''
 );
+
+-- 20261102200000_vendor_aliases
+-- A merged vendor's old name is never blank.
+ALTER TABLE "VendorAlias" DROP CONSTRAINT IF EXISTS "VendorAlias_name_not_blank";
+ALTER TABLE "VendorAlias" ADD CONSTRAINT "VendorAlias_name_not_blank" CHECK (
+  btrim("name") <> ''
+);

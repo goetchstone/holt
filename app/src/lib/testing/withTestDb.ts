@@ -235,6 +235,7 @@ const ALL_TABLES = [
   "User",
   "Vehicle",
   "Vendor",
+  "VendorAlias",
   "VendorContact",
   "VendorOption",
   "VendorOptionGroup",

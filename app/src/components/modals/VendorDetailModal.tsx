@@ -1,4 +1,8 @@
 // /app/src/components/modals/VendorDetailModal.tsx
+//
+// A vendor's details, contacts, and the names it went by before others were
+// merged into it (GAP-22). Imports find the vendor by those names; forgetting
+// one (admin.data) lets the next import of it make a new vendor again.
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,19 +11,23 @@ import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/toastError";
 import { VENDOR_DETAIL_FIELDS } from "@/lib/vendorPatch";
 import { MAX_LEAD_TIME_DAYS } from "@/lib/vendorLeadTime";
+import type { VendorAliasRow } from "@/lib/vendors/vendorMergeShared";
 
 export default function VendorDetailModal({
   vendor,
+  canForgetNames = false,
   onClose,
   onRefresh,
 }: {
   vendor: any;
+  canForgetNames?: boolean;
   onClose: () => void;
   onRefresh: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ ...vendor });
   const [contacts, setContacts] = useState<any[]>([]);
+  const [aliases, setAliases] = useState<VendorAliasRow[]>([]);
 
   const [newContact, setNewContact] = useState({
     name: "",
@@ -108,8 +116,35 @@ export default function VendorDetailModal({
     }
   };
 
+  const fetchAliases = async () => {
+    try {
+      const res = await fetch(`/api/vendors/${vendor.id}/aliases`);
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error);
+      setAliases(await res.json());
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to load the vendor's earlier names."));
+    }
+  };
+
+  const handleForgetAlias = async (alias: VendorAliasRow) => {
+    const confirmed = confirm(
+      `Forget "${alias.name}"? Imports will no longer find ${vendor.name} by it, and the next one that spells it makes a new vendor.`,
+    );
+    if (!confirmed) return;
+    const res = await fetch(`/api/vendors/${vendor.id}/aliases?aliasId=${alias.id}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      fetchAliases();
+    } else {
+      const err = await res.json().catch(() => null);
+      toast.error(err?.error || `Failed to forget the name (${res.status})`);
+    }
+  };
+
   useEffect(() => {
     fetchContacts();
+    fetchAliases();
   }, [vendor.id]);
 
   return (
@@ -174,6 +209,34 @@ export default function VendorDetailModal({
             <Button variant="secondary" onClick={() => setEditing(true)}>
               Edit
             </Button>
+          </div>
+        )}
+
+        {aliases.length > 0 && (
+          <div className="mt-6">
+            <h3 className="text-md font-semibold mb-1">Earlier names</h3>
+            <p className="text-xs text-brand-gray mb-2">
+              Vendors merged into this one. Imports that spell these names find {vendor.name}.
+            </p>
+            <ul className="text-sm space-y-1">
+              {aliases.map((a) => (
+                <li key={a.id} className="border p-2 rounded flex justify-between items-center">
+                  <span>
+                    {a.name}
+                    <span className="text-brand-gray">
+                      {" "}
+                      &middot; merged {new Date(a.created).toLocaleDateString()}
+                      {a.createdBy ? ` by ${a.createdBy}` : ""}
+                    </span>
+                  </span>
+                  {canForgetNames && (
+                    <Button variant="outline" size="sm" onClick={() => handleForgetAlias(a)}>
+                      Forget
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

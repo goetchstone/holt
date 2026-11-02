@@ -61,7 +61,8 @@ async function main(): Promise<void> {
   const { seedInventory } = await import("./inventory");
   const { seedService } = await import("./service");
   const { seedServiceChecklists } = await import("./serviceChecklists");
-  const { seedProductSources } = await import("./productSources");
+  const { seedProductSources, SUPPLIER_NAME } = await import("./productSources");
+  const { seedVendorMerge } = await import("./vendorMerge");
   const { seedOperations } = await import("./operations");
   const { seedDelivery } = await import("./delivery");
   const { seedScheduling } = await import("./scheduling");
@@ -284,6 +285,7 @@ async function main(): Promise<void> {
   });
   // Last, and with no RNG draws, so nothing above shifts.
   const sourcesResult = await seedProductSources(prisma, catalog.vendorIds, catalog.products);
+  const mergeResult = await seedVendorMerge(prisma, SUPPLIER_NAME);
 
   console.log(
     `Inventory: ${inventoryResult.positionsCreated} positions, ${inventoryResult.unitsOnHand} units on hand ` +
@@ -319,6 +321,9 @@ async function main(): Promise<void> {
   );
   console.log(
     `Other vendors: ${sourcesResult.sources} items also bought from ${sourcesResult.vendors} other vendors`,
+  );
+  console.log(
+    `Vendor merge: "${mergeResult.merged}" merged into ${mergeResult.into} (${mergeResult.moved} records moved)`,
   );
   console.log(`Orders: ${salesResult.ordersCreated}, Invoices: ${salesResult.invoicesCreated}`);
   console.log(
