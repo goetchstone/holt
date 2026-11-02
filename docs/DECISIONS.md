@@ -923,6 +923,40 @@ elsewhere).
 
 ---
 
+## 33. A scanned reorder files each vendor's lines on its open draft PO
+
+**Decided 2026-11-02 (GAP-19), by the owner.** Asked how POs should come out
+of a buyer scanning items to reorder, and what to do when the vendor already
+has a draft for the store, the owner chose "a draft per vendor" and "add to
+that draft".
+
+- **Scan anything, one PO per vendor.** Each scanned item goes to its own
+  vendor, or to another vendor it is bought from (DECISIONS 31) when the buyer
+  picks one on that line. Saving files each vendor's lines on its own PO,
+  because a PO has one vendor.
+- **The vendor's newest open draft for the store takes them.** An item already
+  on that draft adds to its line, which keeps its cost; anything else is a new
+  line at what the item costs from that vendor. A draft that was sent, has had
+  goods received against it, is a vendor return, or ships elsewhere is left
+  alone, and a new draft is made instead. A line raised for a customer's order,
+  or a cancelled (zero) line, is never added to.
+- **The buyer still sends it from the desk.** The handheld writes drafts only;
+  the PO screen reviews, prints and emails them as for any draft.
+
+**Rejected:**
+
+- **Choosing the vendor first, one scanning session per PO.** It refuses
+  every item the vendor doesn't sell, so a walk down a floor of mixed vendors
+  is several walks.
+- **A new draft every session.** A reorder list built over several walks
+  would be several drafts for one vendor, to be combined by hand.
+
+**Enforced by:** `__tests__/integration/scanOrder.integration.test.ts`.
+
+**Source:** [`app/src/lib/purchasing/scannedOrder.ts`](../app/src/lib/purchasing/scannedOrder.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

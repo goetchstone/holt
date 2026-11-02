@@ -296,6 +296,58 @@ Files: `lib/purchasing/productSources.ts` (the list),
 Tested by `__tests__/integration/productSources.integration.test.ts` (real
 routes, real gates, real database).
 
+## A reorder scanned on the handheld (GAP-19, since 2026-11-02)
+
+A buyer walks the floor with a scanner and scans what to reorder (Scanner ->
+Order stock, `/app/scan/order`). The owner's design (`docs/DECISIONS.md` 33):
+one draft PO per vendor, added to the vendor's open draft when there is one.
+
+- **A scan** (`GET /api/scan/order?code=`) reads the code itself through
+  `resolveScan` rather than asking `/api/scan/resolve`, so a role that writes POs
+  without reading inventory can use the page. It answers the item and the
+  vendors it can be ordered from, its own first, then the others it lists, each
+  at that vendor's number (`buyingTerms`). It refuses a discontinued or inactive
+  item, the same products the desk's picker leaves out
+  (`pages/api/purchasing/vendor-products.ts`), a place, and a code that is
+  nothing.
+- **The page** adds one per scan; the number on a line can be typed, for a roll
+  ordered by the yard. An item with other vendors has a vendor choice on its
+  line. No cost is shown or sent.
+- **Saving** (`POST /api/scan/order`, `lib/purchasing/scannedOrder.ts`) groups
+  the lines by vendor, and an item scanned twice orders the sum. Each vendor's
+  lines go on its **newest open draft shipping to the scanner's store**: a DRAFT,
+  not a vendor return, not for a sales order, with nothing received against it,
+  locked and read again before it is changed. An item already on it adds to its
+  line, which keeps its cost; a line raised for a customer's order and a
+  cancelled (zero) line are never added to. With no such draft, a new one is
+  made: ship-to the store, expected date from the vendor's lead time
+  (`lib/vendorLeadTime.ts`), numbered by `nextPoNumber`.
+- **Every line goes through `resolvePoLines`**, the checks the desk's PO editor
+  gets: the vendor must sell us the item (its own, or listed on it, GAP-22), and
+  a new line costs what the item costs from that vendor.
+- **Done once per action key** (`withAction`, kind `ORDER`): a resend gets the
+  first answer and adds nothing twice. A new draft is numbered inside that
+  transaction, so a number taken by a PO saved at the same moment runs the whole
+  action again (up to five times), as `createNumberedPurchaseOrder` does for one
+  insert.
+- **The buyer sends it from the desk.** The answer links each draft's PO page,
+  where it is reviewed, printed and emailed like any draft.
+- **Key:** `purchasing.write` for the page, the scan and the save, the key a PO
+  written at the desk takes. Classified in `lib/auth/pagePermissions.ts`.
+
+**Not built, or open:**
+
+- The PO save accepts a discontinued or inactive product sent to it directly.
+  Only the pickers (the desk's and the handheld's) leave such a product out, and
+  the desk's editor test adds one through the save on purpose. Whether a store
+  may make one last order of a discontinued item is the owner's call (ROADMAP
+  GAP-19).
+- No stock or on-order figure is shown while scanning; Look up shows where an
+  item is.
+
+Tested by `__tests__/integration/scanOrder.integration.test.ts`, which goes
+through the real route and permission gate.
+
 ## Consignment PO Integration
 
 When a consignment vendor's PO (`Vendor.isConsignment`) transitions to RECEIVED_FULL, the import runner auto-creates a `ConsignmentPaymentBatch` and marks matching ConsignmentItems as PAID. See `docs/domains/consignment.md` for matching rules.
@@ -346,6 +398,7 @@ for one vendor in a file used to make two POs.
 - `lib/purchasing/landedCost.ts`, `landedCostShared.ts`, `unreceive.ts` -- landed charges, the average landed cost, and taking a receipt back (GAP-02, section above)
 - `app/(dashboard)/app/purchasing/orders/PurchaseOrderEditor.tsx` -- the New and Edit PO screen
 - `lib/purchasing/productSources.ts`, `productSourcesShared.ts`, `pages/api/products/[id]/sources/` -- an item's other vendors and `buyingTerms`, the rule for what a PO's vendor may order (GAP-22, section above)
+- `lib/purchasing/scannedOrder.ts`, `pages/api/scan/order.ts`, `app/(dashboard)/app/scan/order/` -- a reorder scanned on the handheld, filed on each vendor's open draft (GAP-19, section above)
 - `pages/purchasing/` -- PO list, detail, receiving UI
 - `pages/inventory/warehouse/inbound.tsx` -- Warehouse inbound dashboard
 - `scripts/reimport-invoices-direct.js` -- One-time invoice reimport with rewrite matching

@@ -299,9 +299,9 @@ describe("a session still inside its idle time", () => {
     expect(out.token).not.toBeNull();
     const after = await claims(out.token as string);
     expect(after.lastActiveAt as number).toBeGreaterThanOrEqual(started);
-    expect(after.exp * 1000).toBeGreaterThanOrEqual(
-      started + 15 * MINUTE + SERVER_GRACE_MS - 1_000,
-    );
+    // Two whole-second floors stand between them -- the seconds left
+    // (sessionMaxAgeSeconds) and next-auth's own now -- each under a second.
+    expect(after.exp * 1000).toBeGreaterThan(started + 15 * MINUTE + SERVER_GRACE_MS - 2_000);
   });
 
   it("takes the server's clock, not a time the browser sends", async () => {

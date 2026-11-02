@@ -7,7 +7,9 @@
 //
 // The next number is read, then written; two POs raised at the same moment can
 // read the same one. The unique index on poNumber refuses the second, and it is
-// numbered again rather than failing the request.
+// numbered again rather than failing the request. The handheld's scanned
+// reorder (scannedOrder.ts) numbers a new draft inside its own transaction
+// with nextPoNumber, and runs the whole action again instead.
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { getBusinessTimeZone } from "@/lib/appSettings";
