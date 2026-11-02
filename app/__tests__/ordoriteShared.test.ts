@@ -877,8 +877,11 @@ describe("findProduct autoCreate fallback", () => {
       }),
     },
     vendor: {
-      findFirst: jest.fn().mockResolvedValue({ id: 1 }),
+      findMany: jest.fn().mockResolvedValue([{ id: 1, name: "Unknown Vendor" }]),
       create: jest.fn(),
+    },
+    vendorAlias: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
     department: {
       findFirst: jest.fn().mockResolvedValue({ id: 2 }),
@@ -900,7 +903,7 @@ describe("findProduct autoCreate fallback", () => {
     fakePrisma.product.findUnique.mockClear();
     fakePrisma.product.findFirst.mockClear();
     fakePrisma.product.create.mockClear();
-    fakePrisma.vendor.findFirst.mockClear();
+    fakePrisma.vendor.findMany.mockClear();
     fakePrisma.department.findFirst.mockClear();
     fakePrisma.category.findFirst.mockClear();
   });
@@ -940,9 +943,14 @@ describe("findProduct autoCreate fallback", () => {
       createdBy: "test",
     });
 
-    // findFirst on Vendor was called because no vendorId was supplied
-    // (ensureUnknownVendorId resolves the shared fallback row)
-    expect(fakePrisma.vendor.findFirst).toHaveBeenCalled();
+    // Vendor was looked up by name because no vendorId was supplied
+    // (ensureUnknownVendorId resolves the shared fallback row through
+    // lib/vendors/vendorByName.ts, earlier names included)
+    expect(fakePrisma.vendor.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { name: { in: ["Unknown Vendor"], mode: "insensitive" } },
+      }),
+    );
     expect(capturedCreateData!.vendor).toEqual({ connect: { id: 1 } });
   });
 });

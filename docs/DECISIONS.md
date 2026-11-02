@@ -866,6 +866,63 @@ vendor; routing one through another vendor isn't built (ROADMAP GAP-22).
 
 ---
 
+## 32. A merged vendor's name stays behind; a clash refuses rather than guesses
+
+**Decided 2026-11-02 (GAP-22).** Not put to the owner as a question; the #79
+report described the plan (keep the old name for imports, refuse clashes,
+naming each) before this was built.
+
+Duplicate vendors come from imports that spell a vendor two ways, so merging
+two must keep the import from making the duplicate again.
+
+- **The merged vendor's name becomes an earlier name** (`VendorAlias`) of the
+  vendor kept. Every lookup of a vendor by name goes through one module,
+  `lib/vendors/vendorByName.ts`, which finds the kept vendor by it. A vendor's
+  own name wins over an earlier one, and the vendor screen won't add a vendor
+  under an earlier name.
+- **Everything filed under the merged vendor moves**, in one transaction, and
+  the vendor is deleted. `VENDOR_REFERENCES` lists every table that names a
+  vendor and what a merge does with it.
+- **It refuses rather than choose** when both vendors hold a record the
+  database keeps one of per vendor (a style number, a price list's name), when
+  an item would list a vendor twice, when only one takes consignment, and when
+  a commission rule names the merged vendor. Each refusal names what clashes.
+  Same-named collections fold together, since a collection is only a name.
+- **The kept vendor keeps its details and pricing**, and takes from the merged
+  one only details it lacks (contact, terms, lead time, minimum order, code);
+  the merged vendor's notes are added to its own.
+
+**Rejected:**
+
+- **Rewriting the import files' names or making every import "fuzzy".** A file
+  spells what the old system spelled. One lookup that knows the earlier names
+  covers every import.
+- **Choosing one of two clashing records** (keeping the kept vendor's style
+  1010 and dropping the other's). Each carries prices and history; dropping one
+  silently changes what an item costs.
+- **Moving or nulling a commission rule for the merged vendor.** Moving it
+  widens it to the kept vendor's items; nulling it (the foreign key's SET NULL)
+  widens it to every vendor. Either changes what someone earns without anyone
+  deciding to.
+- **An undo.** The merged vendor is gone. Forgetting an earlier name (vendor
+  screen, admin.data) is the way back for imports: the next one that spells it
+  makes a new vendor.
+
+**Cost accepted:** most clashes have no screen to renumber, rename or remove
+one of the pair yet (styles, price lists, price dimensions, fabrics, programs,
+components; option groups do, on the pricing options screen), so those merges
+stay refused until one exists (ROADMAP GAP-22).
+
+**Enforced by:** `__tests__/integration/vendorMerge.integration.test.ts`,
+`__tests__/vendorMergeCoverage.test.ts` (every table naming a vendor is listed),
+`__tests__/vendorNameLookups.test.ts` (no vendor found or made by name
+elsewhere).
+
+**Source:** [`app/src/lib/vendors/mergeVendor.ts`](../app/src/lib/vendors/mergeVendor.ts),
+[`app/src/lib/vendors/vendorByName.ts`](../app/src/lib/vendors/vendorByName.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

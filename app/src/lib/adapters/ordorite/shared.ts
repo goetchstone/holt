@@ -18,6 +18,8 @@ export {
 } from "@/lib/importHelpers";
 import { safeString, safeFloat } from "@/lib/importHelpers";
 import type { PaymentMethod } from "@prisma/client";
+import { findOrCreateVendorId } from "@/lib/vendors/vendorByName";
+import { vendorMergeCount } from "@/lib/vendors/mergeVendor";
 // ---------------------------------------------------------------------------
 // Tax label parsing (Ordorite "Tax Amount" column values)
 // ---------------------------------------------------------------------------
@@ -490,7 +492,7 @@ interface FindProductOptions {
 // underlying row gets wiped, leading to FK violations on the next
 // auto-create. `resetTestDb()` calls `clearAutoCreateCachesForTesting()`
 // to handle this.
-let cachedUnknownVendorId: number | null = null;
+let cachedUnknownVendorId: { id: number; merges: number } | null = null;
 let cachedUncategorizedTaxonomy: { departmentId: number; categoryId: number } | null = null;
 
 /**
@@ -507,22 +509,19 @@ export function clearAutoCreateCachesForTesting(): void {
   cachedUncategorizedTaxonomy = null;
 }
 
+/**
+ * The shared fallback vendor, found by name (earlier names too) or made. The id
+ * is cached until a vendor merge in this process, which may have merged it away.
+ */
 export async function ensureUnknownVendorId(prisma: PrismaClient): Promise<number> {
-  if (cachedUnknownVendorId !== null) return cachedUnknownVendorId;
-  const existing = await prisma.vendor.findFirst({
-    where: { name: { equals: "Unknown Vendor", mode: "insensitive" } },
-    select: { id: true },
+  const merges = vendorMergeCount();
+  if (cachedUnknownVendorId?.merges === merges) return cachedUnknownVendorId.id;
+  const id = await findOrCreateVendorId(prisma, "Unknown Vendor", {
+    ignoreCase: true,
+    data: { pricingModel: "FLAT" },
   });
-  if (existing) {
-    cachedUnknownVendorId = existing.id;
-    return existing.id;
-  }
-  const created = await prisma.vendor.create({
-    data: { name: "Unknown Vendor", pricingModel: "FLAT" },
-    select: { id: true },
-  });
-  cachedUnknownVendorId = created.id;
-  return created.id;
+  cachedUnknownVendorId = { id, merges };
+  return id;
 }
 
 async function ensureUncategorizedTaxonomy(

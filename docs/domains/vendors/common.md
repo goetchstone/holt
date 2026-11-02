@@ -66,6 +66,54 @@ Options are seeded via `VENDOR_OPTION_SEEDS` in the import endpoint. Surcharges 
 
 the POS vendor mapping in `productEntryMapping.ts` bridges vendor names to POS supplier names.
 
+## Merging Duplicate Vendors (GAP-22, since 2026-11-02)
+
+`docs/DECISIONS.md` 32. Source: `app/src/lib/vendors/mergeVendor.ts`,
+`app/src/lib/vendors/vendorByName.ts`.
+
+- **Where:** Vendors list, a Merge button on each row, for a holder of
+  `admin.data` (the key the customer merge takes). Choosing the vendor to keep
+  previews what moves, what the kept vendor takes, and why it can't merge yet
+  (`GET /api/vendors/[id]/merge?into=`); Merge carries it out (`POST`, body
+  `{ intoId }`).
+- **What moves:** every row naming the merged vendor, by `VENDOR_REFERENCES`
+  (items, contacts, number prefixes, styles, collections, price books, fabrics,
+  option groups, programs, components, other-vendor rows, POs, buyer drafts,
+  service cases, consignment, import definitions, earlier names). One
+  transaction, with both vendor rows locked first (`FOR UPDATE`), so a row
+  written against the merged vendor meanwhile waits and then fails rather than
+  landing between the moves and the delete. A buyer draft takes the kept
+  vendor's name as well as its id: `lib/buyerDraftRealPoLink.ts` compares the
+  two.
+- **Refused, each named:** a style number, price list, price dimension, fabric
+  and colour, option group, program or component on both; an item listing both
+  as other vendors, or that would list the kept vendor as its own and another;
+  one consignment vendor and one not; a commission rule for the merged vendor.
+  Same-named collections fold into the kept vendor's.
+- **The kept vendor** keeps its details and pricing and takes only what it
+  lacks: code, website, account number, payment and freight terms, lead time,
+  minimum order, address, phone, email. The merged vendor's notes are added to
+  its own.
+- **Earlier names** (`VendorAlias`): the merged vendor's name, and any earlier
+  names it had, point at the kept vendor. The vendor window lists them; a
+  holder of `admin.data` can forget one (`DELETE /api/vendors/[id]/aliases`),
+  after which the next import of it makes a new vendor.
+- **Finding a vendor by name** goes only through `vendorByName.ts`:
+  `findVendorByName` / `findVendorsByName` / `vendorIdByName`,
+  `findOrCreateVendor(Id)`, and for runners `vendorNameIndex` +
+  `findOrCreateInIndex`. A vendor's own name wins over an earlier one, and an
+  exact match over one ignoring case; each caller keeps its own matching (exact
+  or ignoring case). `__tests__/vendorNameLookups.test.ts` fails on a vendor
+  found by name, or created, anywhere else.
+- **Adding a vendor** on the vendors screen refuses a name a vendor or earlier
+  name already has, ignoring case (409), where it used to fail with a 500 on an
+  exact duplicate and accept a case twin.
+- **Caches:** the Ordorite import's cached Unknown Vendor id is re-read after
+  any merge in the process (`vendorMergeCount`). `lib/vendorPrefixService.ts`
+  caches prefixes with their vendor ids until restart; only the prefixes are
+  read (`vendorIdForNumber` has no callers), so a merge leaves nothing stale
+  that's used.
+
 ## Server-Only Module Constraint
 
 `pdf-parse` uses Node's `fs` and cannot be imported from files pulled into client bundles. **If a parser uses `pdf-parse`, it must live in a separate file that is only imported by API routes.**

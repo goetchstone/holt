@@ -280,6 +280,14 @@ allowed" (`docs/DECISIONS.md` 28).
   stock to commit, only a false shortfall to raise. Its units still count as
   needed, so ones its PO delivered committed to the order are never released.
   Products minted before 2026-11-01 are not marked; Holt has no live deployment.
+- **A custom line's vendor (GAP-22, 2026-11-02).** A configured or custom cart
+  line naming a vendor files its minted product under the vendor that name
+  means, an earlier name of a merged vendor included (`findVendorsByName`,
+  `lib/vendors/vendorByName.ts`), else under its source product's vendor. A name
+  no vendor has makes one, once: it goes into the cart's map, so a second line
+  naming the same new vendor uses it. Before, the second line tried to make it
+  again and the unique name failed the whole sale. The fallback "Custom" vendor
+  is found the same way. `vendorMerge.integration.test.ts`.
 - **Reports › On hold** (`lib/reports/onHold.ts`, `/app/reports/on-hold`, CSV at
   `/api/reports/on-hold?format=csv`) lists every open hold, soonest to end
   first. Each row shows what the quote really commits ("held 0 of 1" when the

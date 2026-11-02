@@ -11,6 +11,7 @@ import { effectivePrefix } from "@/lib/numberingPrefix";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { findOrCreateVendorId } from "@/lib/vendors/vendorByName";
 export const config = { api: { bodyParser: { sizeLimit: "20mb" } } };
 
 interface ImportRow {
@@ -91,16 +92,12 @@ const COL = {
   notes: ["Notes", "notes", "Comments", "comments", "Order Notes"],
 };
 
-async function findOrCreateVendor(name: string, createdBy: string | null) {
-  let vendor = await prisma.vendor.findFirst({
-    where: { name: { equals: name, mode: "insensitive" } },
+/** The vendor a name means, by an earlier name too (a vendor merged away), or a new one. */
+async function findOrCreateVendor(name: string, createdBy: string | null): Promise<number> {
+  return findOrCreateVendorId(prisma, name, {
+    ignoreCase: true,
+    data: { pricingModel: "FLAT", createdBy },
   });
-  if (!vendor) {
-    vendor = await prisma.vendor.create({
-      data: { name, pricingModel: "FLAT", createdBy },
-    });
-  }
-  return vendor;
 }
 
 async function findOrCreateDepartment(name: string) {
@@ -155,10 +152,11 @@ export default requirePermission(
 
     try {
       const barcodePrefix = effectivePrefix(await getAppSettings(), "barcodePrefix");
-      // Group rows by vendor to create one PO per vendor
+      // Group rows by vendor to create one PO per vendor. By id: two spellings
+      // of one vendor (its name and an earlier one) are one PO.
       const vendorGroups = new Map<
-        string,
-        { vendorId: number; items: { row: ImportRow; productId: number; partNo: string }[] }
+        number,
+        { label: string; items: { row: ImportRow; productId: number; partNo: string }[] }
       >();
 
       // Cache lookups
@@ -205,8 +203,7 @@ export default requirePermission(
           // Resolve vendor
           let vendor = vendorCache.get(vendorName.toLowerCase());
           if (!vendor) {
-            const v = await findOrCreateVendor(vendorName, changedBy);
-            vendor = { id: v.id };
+            vendor = { id: await findOrCreateVendor(vendorName, changedBy) };
             vendorCache.set(vendorName.toLowerCase(), vendor);
           }
 
@@ -286,11 +283,10 @@ export default requirePermission(
           }
 
           // Group by vendor for PO creation
-          const vendorKey = vendorName.toLowerCase();
-          if (!vendorGroups.has(vendorKey)) {
-            vendorGroups.set(vendorKey, { vendorId: vendor.id, items: [] });
+          if (!vendorGroups.has(vendor.id)) {
+            vendorGroups.set(vendor.id, { label: vendorName.toLowerCase(), items: [] });
           }
-          vendorGroups.get(vendorKey)!.items.push({
+          vendorGroups.get(vendor.id)!.items.push({
             row,
             productId: product.id,
             partNo: fullPartNo,
@@ -304,7 +300,7 @@ export default requirePermission(
       // Create one PO per vendor
       const createdPOs: { id: number; poNumber: string; vendor: string; itemCount: number }[] = [];
 
-      for (const [vendorKey, group] of vendorGroups) {
+      for (const [vendorId, group] of vendorGroups) {
         const poPrefix = generatePONumber(await getBusinessTimeZone());
 
         // Find next sequence number for this prefix
@@ -323,7 +319,7 @@ export default requirePermission(
         const po = await prisma.purchaseOrder.create({
           data: {
             poNumber,
-            vendorId: group.vendorId,
+            vendorId,
             status: "DRAFT",
             orderDate: new Date(),
             notes: `Imported from wholesale order CSV`,
@@ -344,7 +340,7 @@ export default requirePermission(
         createdPOs.push({
           id: po.id,
           poNumber: po.poNumber,
-          vendor: vendorKey,
+          vendor: group.label,
           itemCount: group.items.length,
         });
       }

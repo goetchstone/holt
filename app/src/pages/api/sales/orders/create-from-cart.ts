@@ -47,6 +47,11 @@ import {
   isStockedProduct,
   lineHoldProblem,
 } from "@/lib/sales/quoteHoldsShared";
+import {
+  findOrCreateInIndex,
+  findOrCreateVendorId,
+  findVendorsByName,
+} from "@/lib/vendors/vendorByName";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -176,13 +181,12 @@ export async function handler(
       });
       const productMap = new Map(existingProducts.map((p) => [p.id, p]));
 
-      // Resolve vendor IDs for configured/custom items
+      // Resolve vendor IDs for configured/custom items, by an earlier name
+      // too (a vendor merged away). Keyed lowercased, as findOrCreateInIndex
+      // reads it.
       const vendorNames = [...new Set(items.filter((i) => i.vendor).map((i) => i.vendor!))];
-      const vendors = await tx.vendor.findMany({
-        where: { name: { in: vendorNames, mode: "insensitive" } },
-        select: { id: true, name: true },
-      });
-      const vendorMap = new Map(vendors.map((v) => [v.name.toLowerCase(), v.id]));
+      const found = await findVendorsByName(tx, vendorNames, { ignoreCase: true });
+      const vendorMap = new Map([...found].map(([name, v]) => [name.toLowerCase(), v.id]));
 
       // Resolve salesperson from session
       const staff = await tx.staffMember.findFirst({
@@ -259,13 +263,14 @@ export async function handler(
             ? vendorMap.get(item.vendor.toLowerCase()) || sourceProduct?.vendorId
             : sourceProduct?.vendorId;
 
-          // Ensure we have a vendor -- create one if the name was provided but not found
+          // Ensure we have a vendor -- create one if the name was provided but
+          // not found. It goes into the map, so a second line naming the same
+          // new vendor finds it rather than creating it again.
           let finalVendorId = resolvedVendorId || null;
           if (!finalVendorId && item.vendor) {
-            const created = await tx.vendor.create({
-              data: { name: item.vendor, createdBy: session.user?.email || null },
+            finalVendorId = await findOrCreateInIndex(tx, vendorMap, item.vendor, {
+              createdBy: session.user?.email || null,
             });
-            finalVendorId = created.id;
           }
 
           // Fall back to an "Uncategorized" department/category if source product unavailable
@@ -601,8 +606,5 @@ async function getOrCreateDefault(
 async function getOrCreateDefaultVendor(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
 ): Promise<number> {
-  const existing = await tx.vendor.findFirst({ where: { name: "Custom" } });
-  if (existing) return existing.id;
-  const created = await tx.vendor.create({ data: { name: "Custom" } });
-  return created.id;
+  return findOrCreateVendorId(tx, "Custom");
 }
