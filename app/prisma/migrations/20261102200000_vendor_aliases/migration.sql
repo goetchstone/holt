@@ -6,8 +6,6 @@
 --                 the old name doesn't bring the duplicate back. No rows exist
 --                 before this.
 
-◇ injected env (5) from .env.local // tip: ◈ secrets for agents [www.dotenvx.com]
-◇ injected env (3) from ../.env // tip: ◈ secrets for agents [www.dotenvx.com]
 -- CreateTable
 CREATE TABLE "VendorAlias" (
     "id" SERIAL NOT NULL,
@@ -28,7 +26,6 @@ CREATE INDEX "VendorAlias_vendorId_idx" ON "VendorAlias"("vendorId");
 
 -- AddForeignKey
 ALTER TABLE "VendorAlias" ADD CONSTRAINT "VendorAlias_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "Vendor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
 
 -- An alias is a name someone will type or an import will spell; a blank one
 -- would match a blank vendor column in a file.
