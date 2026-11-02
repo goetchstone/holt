@@ -383,7 +383,7 @@ Status changes move the stock (`pages/api/warehouse/transfers/[id]/status.ts`, t
 | IN_TRANSIT → RECEIVED | Adds the shipped units at the destination as free stock, then (best-effort) commits them to the transfer's order, if it has one. |
 | IN_TRANSIT → CANCELLED | Puts the shipped units back at the source. |
 
-Each change claims the transfer inside its transaction (an update conditioned on the status it read), so a double-submitted "Ship" returns 409 instead of taking the units twice. Return status changes are claimed the same way.
+Each change claims the transfer inside its transaction (an update conditioned on the status it read), so a double-submitted "Ship" returns 409 instead of taking the units twice. Return status changes are claimed the same way. A receipt claims through `claimAndReceive` (`lib/inventory/transfers.ts`), the one function the handheld's receipt also goes through (since 2026-11-02, GAP-19; "The handheld floor" below). It refuses a transfer that isn't on its way, which would otherwise be received from outside the books.
 
 Until 2026-10-14 the ship step looked only for a free row at exactly the chosen stock location — none, for "any" — and silently did nothing when it found none. Imported stock always carries a stock location, so the ordinary path shipped nothing and RECEIVED then created the units at the destination: stock appeared from nowhere.
 
@@ -452,6 +452,7 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 - `snapshotImport.test.ts` — unit tests for `resolveSnapshotImportRow` (the POS cutover importer's per-row resolution)
 - `inventorySnapshotGenerate.integration.test.ts` — real-DB coverage for `POST /api/inventory/snapshot/generate`, including a product with no `externalId` and same-day re-run idempotency
 - The handheld floor, phases 15–20: `scanCodes.test.ts`, `labelRender.test.ts`, `boxes.test.ts`, `countDifference.test.ts`, `deliveredLines.test.ts`; real-DB `resolveScan`, `withAction`, `handheldReceive`, `stockCount`, `stockMove`, `stockPick`, `stockDelivery` and `returnPickupStop` (`*.integration.test.ts`)
+- Transfers and reorders on the handheld (GAP-19): `scanTransfer.integration.test.ts` (send free first and each order's own; refusals; receive an order's first; all or none; done once; one claim with the desk; the routes' gate) and `scanOrder.integration.test.ts`
 - The run's truck: `stockTruck.integration.test.ts` (loading boards the bay, a delivery draws from the truck first, a failed stop's units stay aboard until unloaded, completion refused while anything is aboard, another run's truck still to pull)
 
 ## Document flows (since 2026-10-17)
@@ -561,7 +562,9 @@ HTTPS staging is **unverified** until someone runs it on one (rule 58).
 | `/app/scan/receive` | `purchasing.receive` | goods in against a PO |
 | `/app/scan/count` | `inventory.count` | count a place; posting needs `inventory.adjust` too |
 | `/app/scan/move` | `inventory.transfer` | put away and move |
+| `/app/scan/transfer` | `inventory.transfer` | send a transfer to another store, and receive what is on its way (GAP-19) |
 | `/app/scan/pick` | `warehouse.operate` | pick a run to the loading bay, load it onto the run's truck, and unload what came back |
+| `/app/scan/order` | `purchasing.write` | scan what to reorder into draft POs (GAP-19; `docs/domains/purchasing.md`) |
 
 **What a scan is** (`lib/scan/resolveScan.ts`, one resolver for every page
 and `GET /api/scan/resolve`). Holt's own labels come first: `L-<placeId>` for
@@ -611,9 +614,48 @@ from an oversale.
 
 **Moving** (`lib/inventory/floorMove.ts`). Quick moves only: free units first,
 then committed units, each keeping its order. A move that a place's mode wants
-tracked is refused and raised as a transfer instead. A place without a mode
-takes the nearest one above it in the place tree, then its store's
-(`lib/inventory/moveModes.ts`).
+tracked is refused with `tracked: true`, and the page offers "Send as a
+transfer" with what was scanned, to the place scanned as "to" (below). A place
+without a mode takes the nearest one above it in the place tree, then its
+store's (`lib/inventory/moveModes.ts`).
+
+**Transfers** (GAP-19, since 2026-11-02; `sendFromPlace` and `receiveArrivals`
+in `lib/inventory/transfers.ts`). Until then the handheld refused a tracked move
+and sent the person to the desk.
+
+- **Sending** (`POST /api/scan/transfer/send`): scan the place it leaves, what
+  is going, then choose the store it goes to or scan a place there. It is on
+  its way at once: each product's units go into the source store's transit
+  place on an IN_TRANSIT transfer. Free units go first, then units committed to
+  orders, as a quick move takes them; each order's units go on a transfer of
+  their own, so the commitment travels as on the desk's transfer for an order.
+  The longer way is always allowed, so a move the mode would let through as
+  quick may still be sent.
+- **Refused, naming why:** more than the place holds (and nothing is sent); a
+  GROUP place; an in-transit place, whose units belong to a transfer or a run's
+  truck; a closed store; a place at another store than the one chosen; within
+  one store, no destination place; the place it is already in.
+- **Receiving** (`GET`/`POST /api/scan/transfer/receive`): the page lists what
+  is on its way to the scanner's store. Scan what arrived, and a place to put
+  it all there instead of where each transfer was sent. Each product is
+  received against its transfers to this store, an order's first, then the
+  oldest. All of it or none: a product scanned more times than it is on its
+  way, or not on its way here, is refused by name and nothing is received. A
+  transfer keeps the place it was sent to; where the units were put is in the
+  receipt's movements.
+- **One claim with the desk.** Every receipt goes through `claimAndReceive`,
+  which matches the transfer as it was read. The handheld locks the transfers
+  it receives before reading them (product order, transfer rows before the
+  stock lock, as the desk takes them), so the two can't take the same units.
+- **Boxes.** A multi-box product is sent only in whole sets; the page won't
+  send while a box is scanned without its set. On receipt, boxes that make no
+  whole unit stay on their way until the rest arrive.
+- **Done once.** Each send and receipt carries an action key, and every
+  movement records it.
+
+SCANNED, a move mode that would *require* a scan at both ends, is still not
+built (ROADMAP, "Handheld floor"): a tracked transfer can still be shipped and
+received at the desk.
 
 **Picking** (`lib/fulfilment/pick.ts`).
 
