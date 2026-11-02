@@ -81,30 +81,30 @@ export function vendorMergeCount(): number {
   return merges;
 }
 
-/** The rows moved by a plain vendorId change (Prisma delegate), with the label the plan shows. */
+/** The rows moved by a plain vendorId change (Prisma delegate), with what the plan calls one and many. */
 export const MOVED = [
-  ["product", "items"],
-  ["vendorContact", "contacts"],
-  ["vendorNumberPrefix", "number prefixes"],
-  ["vendorStyle", "styles"],
-  ["collection", "collections"],
-  ["priceList", "price lists"],
-  ["vendorPriceDimension", "price dimensions"],
-  ["fabricCatalog", "fabrics"],
-  ["vendorOptionGroup", "option groups"],
-  ["vendorProgram", "programs"],
-  ["sEComponent", "components"],
-  ["productSource", "items it sells us besides its own"],
-  ["purchaseOrder", "purchase orders"],
-  ["buyerDraftPurchaseOrder", "buyer draft orders"],
-  ["buyerDraftItem", "buyer draft items"],
-  ["serviceCase", "service cases"],
-  ["consignmentReceipt", "consignment receipts"],
-  ["consignmentItem", "consignment items"],
-  ["consignmentPaymentBatch", "consignment payments"],
-  ["consignmentVendorReturn", "consignment returns"],
-  ["importDefinition", "import definitions"],
-  ["vendorAlias", "earlier names"],
+  ["product", "item", "items"],
+  ["vendorContact", "contact", "contacts"],
+  ["vendorNumberPrefix", "number prefix", "number prefixes"],
+  ["vendorStyle", "style", "styles"],
+  ["collection", "collection", "collections"],
+  ["priceList", "price list", "price lists"],
+  ["vendorPriceDimension", "price dimension", "price dimensions"],
+  ["fabricCatalog", "fabric", "fabrics"],
+  ["vendorOptionGroup", "option group", "option groups"],
+  ["vendorProgram", "program", "programs"],
+  ["sEComponent", "component", "components"],
+  ["productSource", "item it sells us besides its own", "items it sells us besides its own"],
+  ["purchaseOrder", "purchase order", "purchase orders"],
+  ["buyerDraftPurchaseOrder", "buyer draft order", "buyer draft orders"],
+  ["buyerDraftItem", "buyer draft item", "buyer draft items"],
+  ["serviceCase", "service case", "service cases"],
+  ["consignmentReceipt", "consignment receipt", "consignment receipts"],
+  ["consignmentItem", "consignment item", "consignment items"],
+  ["consignmentPaymentBatch", "consignment payment", "consignment payments"],
+  ["consignmentVendorReturn", "consignment return", "consignment returns"],
+  ["importDefinition", "import definition", "import definitions"],
+  ["vendorAlias", "earlier name", "earlier names"],
 ] as const;
 
 type MovedModel = (typeof MOVED)[number][0];
@@ -337,10 +337,10 @@ export async function planVendorMerge(
   const into = await vendorOrThrow(db, intoId, "merge into");
 
   const counts = await Promise.all(
-    MOVED.map(async ([model, label]) => ({
-      label,
-      count: await delegate(db, model).count({ where: { vendorId: from.id } }),
-    })),
+    MOVED.map(async ([model, one, many]) => {
+      const count = await delegate(db, model).count({ where: { vendorId: from.id } });
+      return { label: count === 1 ? one : many, count };
+    }),
   );
 
   const problems: string[] = [];

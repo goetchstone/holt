@@ -323,7 +323,7 @@ async function main(): Promise<void> {
     `Other vendors: ${sourcesResult.sources} items also bought from ${sourcesResult.vendors} other vendors`,
   );
   console.log(
-    `Vendor merge: "${mergeResult.merged}" merged into ${mergeResult.into} (${mergeResult.moved} records moved)`,
+    `Vendor merge: "${mergeResult.merged}" merged into ${mergeResult.into} (${mergeResult.moved} ${mergeResult.moved === 1 ? "record" : "records"} moved)`,
   );
   console.log(`Orders: ${salesResult.ordersCreated}, Invoices: ${salesResult.invoicesCreated}`);
   console.log(
