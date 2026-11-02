@@ -324,6 +324,17 @@ named `constructor` shadow the object's members (CodeQL
 js/remote-property-injection, 2026-10-15). A new import route lists its
 fields the same way.
 
+## The vendor an import names (GAP-22, since 2026-11-02)
+
+The PO file imports find their vendor by the name the file carries through
+`lib/vendors/vendorByName.ts`, ignoring case as before, so a vendor merged into
+another (`docs/domains/vendors/common.md`, "Merging Duplicate Vendors") is found
+under its old spelling rather than made again: `import-nuorder.ts` (the PDF's
+vendor, else "Unknown Vendor"), `import-zsupply.ts` ("Z Supply"),
+`import-wholesale-order.ts` (the CSV's vendor column or the default). The
+wholesale-order import now makes one PO per vendor, not per spelling: two names
+for one vendor in a file used to make two POs.
+
 ## Key Files
 
 - `lib/importHelpers.ts` -- `derivePOStatus()`, `findProduct()`
