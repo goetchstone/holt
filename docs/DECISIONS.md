@@ -829,6 +829,43 @@ given it. Staff edit those tasks by hand.
 
 ---
 
+## 31. An item can have more than one vendor; a purchase order has one
+
+**Decided 2026-11-01 (owner, GAP-22).** The roadmap asked for "distributor
+records, for a line bought through another company". The owner: the store
+doesn't tell the brand from the company it buys through, and its buyers "do not
+even know what a distributor is". Instead, "an item could have multiple
+vendors", and "a po is always linked to a single source", which may be a brand
+or a company selling several.
+
+- **The item's own vendor** (`Product.vendorId`) stays as it is: the vendor for
+  pricing, price books and sales reports.
+- **Its other vendors** are `ProductSource` rows, each with that vendor's item
+  number and cost.
+- **A PO's vendor may order an item** that is its own or that lists it as
+  another vendor, under that vendor's number and at its cost. One function
+  decides it, `buyingTerms`, and every path that puts a product on a PO asks it.
+
+**Rejected:**
+
+- **A distributor as its own kind of record** (a vendor "bought through"
+  another, or a separate "sent to" on the PO). It names a difference the store
+  doesn't make, and each brand's POs would still be split by brand.
+- **One PO ordering from several vendors at once.** The owner: one source per
+  PO. (A PO to a company that sells several lines may still hold items whose
+  own vendors differ; it is ordering them all from that one company.)
+- **Moving an item's own vendor to whoever it is bought from.** Pricing, price
+  books and sales reports read the own vendor, and would move with it.
+
+**Cost accepted:** special-order POs are still raised to each item's own
+vendor; routing one through another vendor isn't built (ROADMAP GAP-22).
+
+**Enforced by:** `__tests__/integration/productSources.integration.test.ts`.
+
+**Source:** [`app/src/lib/purchasing/productSourcesShared.ts`](../app/src/lib/purchasing/productSourcesShared.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

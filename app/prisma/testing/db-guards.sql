@@ -150,3 +150,15 @@ ALTER TABLE "ServiceChecklistStep" DROP CONSTRAINT IF EXISTS "ServiceChecklistSt
 ALTER TABLE "ServiceChecklistStep" ADD CONSTRAINT "ServiceChecklistStep_position_nonnegative" CHECK (
   "position" >= 0
 );
+
+-- 20261102100000_product_sources
+-- Another vendor's cost for an item is never negative, and its item number is
+-- never blank.
+ALTER TABLE "ProductSource" DROP CONSTRAINT IF EXISTS "ProductSource_cost_nonnegative";
+ALTER TABLE "ProductSource" ADD CONSTRAINT "ProductSource_cost_nonnegative" CHECK (
+  "cost" IS NULL OR "cost" >= 0
+);
+ALTER TABLE "ProductSource" DROP CONSTRAINT IF EXISTS "ProductSource_itemNumber_not_blank";
+ALTER TABLE "ProductSource" ADD CONSTRAINT "ProductSource_itemNumber_not_blank" CHECK (
+  "itemNumber" IS NULL OR btrim("itemNumber") <> ''
+);

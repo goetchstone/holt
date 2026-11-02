@@ -59,7 +59,7 @@ Tested by `__tests__/vendorLeadTime.test.ts` and
 
 A buyer writes a purchase order for stock on Purchasing -> Purchase Orders ->
 New purchase order (`/app/purchasing/orders/new`): vendor, where it ships,
-expected date, notes, and lines picked from that vendor's products. It is
+expected date, notes, and lines picked from what that vendor sells us. It is
 created as a DRAFT. All of it lives in `lib/purchasing/stockPurchaseOrder.ts`,
 one function per act, each called by its route:
 
@@ -72,13 +72,20 @@ one function per act, each called by its route:
 | Email to the vendor | `POST /api/purchasing/orders/[id]/email` | `purchasing.write` |
 | The editor's product picker | `GET /api/purchasing/vendor-products` | `purchasing.write` |
 
-- **Lines are the vendor's products.** A line names a catalog product whose
-  `vendorId` is the PO's vendor; anything else is refused with the product's
-  name. The picker offers only the vendor's active, non-discontinued products.
+- **Lines are what the vendor sells us.** A line names a catalog product whose
+  own vendor is the PO's vendor, or that lists the PO's vendor among its other
+  vendors (GAP-22, section below); anything else is refused with the product's
+  name. One rule decides it, `buyingTerms`
+  (`lib/purchasing/productSourcesShared.ts`), asked by the picker, by saving a
+  PO and by duplicating one. The picker offers only active, non-discontinued
+  products.
   Staff mark a product discontinued in its edit form (`isDiscontinued` on
   `PATCH /api/products/[id]`, since 2026-11-01, GAP-16); before that only the POS
   import set it. What is on hand still sells.
-  Part number and name are copied from the product onto the line.
+  The name is copied from the product onto the line, and the part number is
+  the one this vendor knows it by: the product's own number from its own
+  vendor, the other vendor's item number from another (the product's own when
+  that vendor has none).
 - **Ship to** is `PurchaseOrder.shipToLocationId`, an open store or warehouse
   (migration `20261030140000_stock_purchase_orders`). It is printed on the PO,
   and the Receive screen starts on that store. Special-order and imported POs
@@ -97,12 +104,14 @@ one function per act, each called by its route:
 - **Duplicate** makes a new draft with the vendor, ship-to, notes and lines at
   the costs they had, and a fresh expected date from lead time. Zero-quantity
   lines are cancelled lines and are left behind (rule 31). A line with no
-  catalog product, or whose product another vendor now supplies, is left
+  catalog product, or whose product this vendor no longer sells us, is left
   behind and named in the answer. A duplicate of a special-order PO is a stock
   PO: no sales order, no linked lines.
 - **Cost follows "View cost"** (strip, never deny). A writer without
-  `catalog.cost` still writes POs. A new line takes the product's `baseCost`, a
-  line already on the PO keeps its own, and any cost sent is ignored. The PDF
+  `catalog.cost` still writes POs. A new line takes what the item costs from
+  this vendor (`buyingTerms`: the product's `baseCost` from its own vendor,
+  another vendor's cost from that vendor, falling back to `baseCost`), a line
+  already on the PO keeps its own, and any cost sent is ignored. The PDF
   that writer prints or emails carries quantities and no prices.
 - **Numbering.** `lib/purchasing/poNumber.ts` is the one numberer: `PO-YYMMDD-NNN`
   by business day, used by the special-order draft (`lib/paymentService.ts`)
@@ -231,6 +240,62 @@ through their gates), `__tests__/lib/purchasing/landedCostShared.test.ts` and
 `cartPricingEndToEnd.integration.test.ts`, and the count reports' side in
 `viewCostInventory.integration.test.ts`.
 
+## An item bought from more than one vendor (GAP-22, since 2026-11-02)
+
+The owner, 2026-11-01: the store doesn't tell a brand from the company it buys
+through ("my buyers do not even know what a distributor is"), so "an item could
+have multiple vendors", and "a po is always linked to a single source", which
+may be a brand or a company selling several (`docs/DECISIONS.md` 31).
+
+- **The item's own vendor** (`Product.vendorId`) is unchanged: the vendor for
+  pricing, the price books and every sales report that groups by vendor.
+- **Its other vendors** are `ProductSource` rows (migration
+  `20261102100000_product_sources`): the vendor, that vendor's number for the
+  item, and its cost, each optional. One row per vendor per item (a unique
+  key), never the item's own vendor (refused), cost zero or more and an item
+  number never blank (CHECKs, mirrored in `prisma/testing/db-guards.sql`). The
+  rows go with the item if it is deleted; a vendor with rows can't be deleted.
+- **A PO has one vendor**, and may order an item from its own vendor or from
+  any vendor listed on it. `buyingTerms` gives the number and cost to order
+  under: the item's own from its own vendor; the other vendor's from that
+  vendor, falling back to the item's where it has none.
+- **The product screen** (`/app/inventory/products/[id]`) shows "Other vendors"
+  to anyone who reads the catalog; anyone who edits it (`catalog.write`, the
+  key the item's barcodes take) adds, changes and removes them. The page asks
+  for that key beside its gate and hands the view `canEdit`.
+- **Cost follows View cost** (strip, never deny): a catalog editor without it
+  adds a vendor and its item number, and never sets or sees its cost.
+- **The cost is stored exactly as entered.** It is written to Prisma as text:
+  handed a JS number, Prisma stores 708.81 as 708.8099999999999 (ROADMAP,
+  "Money in DECIMAL columns").
+- **Removing a vendor from an item** leaves POs already written alone. A saved
+  PO can't add the item from that vendor again, and duplicating one leaves
+  the line behind and names it.
+
+| Act | Route | Key |
+|---|---|---|
+| List an item's other vendors | `GET /api/products/[id]/sources` | `catalog.read` |
+| Add one | `POST /api/products/[id]/sources` | `catalog.write` |
+| Change its number or cost | `PATCH /api/products/[id]/sources/[sourceId]` | `catalog.write` |
+| Remove it | `DELETE /api/products/[id]/sources/[sourceId]` | `catalog.write` |
+
+Files: `lib/purchasing/productSources.ts` (the list),
+`productSourcesShared.ts` (`buyingTerms`, the shared types),
+`app/(dashboard)/app/inventory/products/[id]/OtherVendorsSection.tsx`.
+
+**Not changed by this, on purpose or still open:**
+
+- **Special-order POs** are still raised to each item's own vendor
+  (`lib/paymentService.ts` groups a paid order's lines by `Product.vendorId`).
+  Choosing another vendor for a special order is not built.
+- **Buyer drafts** are unchanged: a draft item carries its own vendor, which
+  the buyer sets, so a draft for another vendor isn't blocked by this.
+- **Reports** that group POs by vendor group by the PO's vendor, so a PO to
+  another vendor counts under that vendor, as it should.
+
+Tested by `__tests__/integration/productSources.integration.test.ts` (real
+routes, real gates, real database).
+
 ## Consignment PO Integration
 
 When a consignment vendor's PO (`Vendor.isConsignment`) transitions to RECEIVED_FULL, the import runner auto-creates a `ConsignmentPaymentBatch` and marks matching ConsignmentItems as PAID. See `docs/domains/consignment.md` for matching rules.
@@ -269,6 +334,7 @@ fields the same way.
 - `lib/purchasing/stockPurchaseOrder.ts`, `purchaseOrderShared.ts`, `poNumber.ts`, `purchaseOrderDocument.ts`, `purchaseOrderPdf.ts` -- stock POs written by hand: create, change, duplicate, number, print and email (section above)
 - `lib/purchasing/landedCost.ts`, `landedCostShared.ts`, `unreceive.ts` -- landed charges, the average landed cost, and taking a receipt back (GAP-02, section above)
 - `app/(dashboard)/app/purchasing/orders/PurchaseOrderEditor.tsx` -- the New and Edit PO screen
+- `lib/purchasing/productSources.ts`, `productSourcesShared.ts`, `pages/api/products/[id]/sources/` -- an item's other vendors and `buyingTerms`, the rule for what a PO's vendor may order (GAP-22, section above)
 - `pages/purchasing/` -- PO list, detail, receiving UI
 - `pages/inventory/warehouse/inbound.tsx` -- Warehouse inbound dashboard
 - `scripts/reimport-invoices-direct.js` -- One-time invoice reimport with rewrite matching
@@ -284,6 +350,8 @@ fields the same way.
 ## Test Coverage
 
 Covered: `derivePOStatus`, `classifyPOReceiptStatus` in `importHelpers.test.ts`
+
+Covered: `productSources.integration.test.ts` (an item's other vendors: the list, every refusal, View cost, the gates, the product page's `canEdit`, and the picker, saving and duplicating a PO through `buyingTerms`).
 
 Covered: `handheldReceive.integration.test.ts` (the handheld receive through `receivePurchaseOrder`: whole units, box scans assembled, an incomplete set held in quarantine and completed later, a resend done once); `stockReceive.integration.test.ts` (where receipts land).
 

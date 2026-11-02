@@ -32,6 +32,27 @@ export interface NewPoInput extends PoDraftInput {
 
 export const MAX_PO_NOTES = 2000;
 
+/**
+ * A product the editor's picker offers for a PO's vendor (GET
+ * /api/purchasing/vendor-products): one of that vendor's own, or one it sells
+ * us besides (GAP-22, buyingTerms in productSourcesShared.ts).
+ */
+export interface VendorProductHit {
+  id: number;
+  name: string;
+  /** The item's own number, as the catalog knows it. */
+  productNumber: string;
+  /** The number this vendor knows it by, which the PO line prints. */
+  partNo: string;
+  /** What it costs from this vendor, for a holder of "View cost". */
+  cost?: number | null;
+}
+
+export interface VendorProductsResponse {
+  costVisible: boolean;
+  products: VendorProductHit[];
+}
+
 type Parsed<T> = { ok: true; value: T } | { ok: false; problem: string };
 
 /**

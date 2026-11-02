@@ -14,7 +14,11 @@ Parsers live in `lib/pricing/`. Import endpoints live in `pages/api/pricing/impo
 - **VendorStyle** = catalog template from a vendor price list ("a frame"). Has a style number, grade prices, option overrides. Not a physical item.
 - **Product** = physical inventory item. Created alongside the VendorStyle during import, linked via `vendorStyleId`.
 
-Import always creates both. Products are upserted by `(productNumber, vendorId)` unique constraint.
+`Product` has no unique key on `(productNumber, vendorId)` (checked against
+`app/prisma/schema.prisma` 2026-11-02), so nothing upserts a product through
+one. Whether every price-book import still creates a Product beside its
+VendorStyle is [NEEDS VERIFICATION]: `pages/api/pricing/import/jensen-prices.ts`
+upserts the VendorStyle only.
 
 ## Pricing Models (VendorPricingModel enum)
 
@@ -74,7 +78,7 @@ the POS vendor mapping in `productEntryMapping.ts` bridges vendor names to POS s
 
 - [ ] `npm test -- wesleyHallParser priceCalculator pricingUtils` passes
 - [ ] Parser does not import `pdf-parse` if also imported client-side
-- [ ] Import creates both VendorStyle and Product in a transaction
+- [ ] Import creates both VendorStyle and Product in a transaction [NEEDS VERIFICATION]
 - [ ] Grade tiers auto-extend correctly
 - [ ] Option seeds use upsert with `update: {}` to preserve manual edits
 - [ ] New vendor added to `productEntryMapping.ts` for POS matching

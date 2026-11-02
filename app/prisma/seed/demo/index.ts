@@ -61,6 +61,7 @@ async function main(): Promise<void> {
   const { seedInventory } = await import("./inventory");
   const { seedService } = await import("./service");
   const { seedServiceChecklists } = await import("./serviceChecklists");
+  const { seedProductSources } = await import("./productSources");
   const { seedOperations } = await import("./operations");
   const { seedDelivery } = await import("./delivery");
   const { seedScheduling } = await import("./scheduling");
@@ -281,6 +282,8 @@ async function main(): Promise<void> {
     asOf: window.now,
     accountGroupIdByDepartment: accounting.accountGroupIdByDepartment,
   });
+  // Last, and with no RNG draws, so nothing above shifts.
+  const sourcesResult = await seedProductSources(prisma, catalog.vendorIds, catalog.products);
 
   console.log(
     `Inventory: ${inventoryResult.positionsCreated} positions, ${inventoryResult.unitsOnHand} units on hand ` +
@@ -313,6 +316,9 @@ async function main(): Promise<void> {
   console.log(`Products: ${catalog.products.length}, Customers: ${customers.length}`);
   console.log(
     `Price books: ${priceBookResult.vendors} vendors, ${priceBookResult.styles} special-order styles, ${priceBookResult.products} catalog products`,
+  );
+  console.log(
+    `Other vendors: ${sourcesResult.sources} items also bought from ${sourcesResult.vendors} other vendors`,
   );
   console.log(`Orders: ${salesResult.ordersCreated}, Invoices: ${salesResult.invoicesCreated}`);
   console.log(

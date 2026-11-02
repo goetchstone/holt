@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import ProductEditModal from "@/components/modals/ProductEditModal";
+import { OtherVendorsSection } from "./OtherVendorsSection";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 
 interface ProductDetails {
@@ -81,7 +82,7 @@ function DimensionRow({
   );
 }
 
-export function ProductDetailView({ id }: { id: string }) {
+export function ProductDetailView({ id, canEdit }: { id: string; canEdit: boolean }) {
   const fmt = useMoneyFormatter();
   const [product, setProduct] = useState<ProductDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -243,6 +244,12 @@ export function ProductDetailView({ id }: { id: string }) {
           </div>
         </div>
       )}
+
+      <OtherVendorsSection
+        productId={product.id}
+        ownVendorId={product.vendor?.id}
+        canEdit={canEdit}
+      />
 
       {/* Barcodes */}
       {product.upcs.length > 0 && (
