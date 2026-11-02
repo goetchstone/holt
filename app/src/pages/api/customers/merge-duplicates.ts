@@ -63,6 +63,12 @@ export default requirePermission(
             data: { customerId: masterCustomer.id },
           });
 
+          // Referrals (GAP-08): whoever the duplicate sent was sent by the
+          // customer kept, and the kept record takes the duplicate's source and
+          // referrer where it has none. Never a referral to itself: the CHECK
+          // would refuse the merge.
+          await moveReferrals(duplicate.id, masterCustomer.id);
+
           // Now that relations are moved, delete the duplicate customer
           await prisma.customer.delete({
             where: { id: duplicate.id },
@@ -80,3 +86,33 @@ export default requirePermission(
     }
   },
 );
+
+/** Move a merged-away customer's referral links onto the customer kept. */
+async function moveReferrals(fromId: number, toId: number): Promise<void> {
+  await prisma.customer.updateMany({
+    where: { referredByCustomerId: fromId, NOT: { id: toId } },
+    data: { referredByCustomerId: toId },
+  });
+  const [from, to] = await Promise.all([
+    prisma.customer.findUniqueOrThrow({
+      where: { id: fromId },
+      select: { referralSourceId: true, referredByCustomerId: true },
+    }),
+    prisma.customer.findUniqueOrThrow({
+      where: { id: toId },
+      select: { referralSourceId: true, referredByCustomerId: true },
+    }),
+  ]);
+  // The kept customer may have been referred by the duplicate (or by nobody).
+  const referrer =
+    to.referredByCustomerId === fromId
+      ? null
+      : (to.referredByCustomerId ?? from.referredByCustomerId);
+  await prisma.customer.update({
+    where: { id: toId },
+    data: {
+      referralSourceId: to.referralSourceId ?? from.referralSourceId,
+      referredByCustomerId: referrer === toId ? null : referrer,
+    },
+  });
+}

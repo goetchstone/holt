@@ -1,10 +1,19 @@
 // /app/src/pages/api/customers/[id]/index.ts
+//
+// One customer. GET (View customers) is the record with its history; PUT (Edit
+// customers) changes contact details and how they heard of the store (GAP-08).
+// The edit form called PUT here from the start, and this route answered only
+// GET, so a customer's name, email or phone could not be changed (found
+// 2026-11-01). Per-method gates follow tenders/index.ts.
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { CustomerInputError, isDuplicateEmail, readContact } from "@/lib/customers/customerContact";
+import { ReferralError, readReferral } from "@/lib/customers/referrals";
 
 // Wealth enrichment data (net worth, wealth tier, lifestyle signals)
 // lives on Customer via the `windfallEnrichment` relation. Only ADMIN
@@ -13,59 +22,97 @@ import { logError } from "@/lib/logger";
 // SUPER_ADMIN (owner role above ADMIN) sees wealth fields too.
 const WEALTH_ROLES = new Set(["SUPER_ADMIN", "ADMIN", "MARKETING"]);
 
-export default requirePermission(
-  "customer.read",
-  async (req: NextApiRequest, res: NextApiResponse, session) => {
-    const { id } = req.query;
-    if (!id) {
-      return res.status(400).json({ error: "Customer ID is required." });
-    }
+function customerIdOf(req: NextApiRequest): number | null {
+  const id = Number.parseInt(String(req.query.id));
+  return Number.isNaN(id) ? null : id;
+}
 
-    const customerId = Number.parseInt(id as string);
-    if (Number.isNaN(customerId)) {
-      return res.status(400).json({ error: "Invalid customer ID." });
-    }
+async function handleGet(req: NextApiRequest, res: NextApiResponse, session: Session) {
+  const customerId = customerIdOf(req);
+  if (customerId == null) return res.status(400).json({ error: "Invalid customer ID." });
+  try {
+    const role = (await activeStaffRole(session as { user?: { id?: string | null } | null })) ?? "";
+    const canSeeWealth = WEALTH_ROLES.has(role);
 
-    if (req.method === "GET") {
-      try {
-        const role =
-          (await activeStaffRole(session as { user?: { id?: string | null } | null })) ?? "";
-        const canSeeWealth = WEALTH_ROLES.has(role);
-
-        const customer = await prisma.customer.findUnique({
-          where: { id: customerId },
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      include: {
+        addresses: true,
+        externalIds: true,
+        tradeTier: true,
+        taxExemptReason: { select: { id: true, name: true } },
+        referralSource: { select: { id: true, name: true, isActive: true } },
+        referredBy: { select: { id: true, firstName: true, lastName: true } },
+        windfallEnrichment: canSeeWealth,
+        salesOrders: {
           include: {
-            addresses: true,
-            externalIds: true,
-            tradeTier: true,
-            taxExemptReason: { select: { id: true, name: true } },
-            windfallEnrichment: canSeeWealth,
-            salesOrders: {
-              include: {
-                // The detail view sums netPrice and vatAmount; what the store
-                // paid for each line is not part of a customer record.
-                lineItems: { omit: { cost: true } },
-                payments: true,
-              },
-              orderBy: {
-                orderDate: "desc",
-              },
-            },
+            // The detail view sums netPrice and vatAmount; what the store
+            // paid for each line is not part of a customer record.
+            lineItems: { omit: { cost: true } },
+            payments: true,
           },
-        });
+          orderBy: {
+            orderDate: "desc",
+          },
+        },
+      },
+    });
 
-        if (!customer) {
-          return res.status(404).json({ error: "Customer not found." });
-        }
-
-        return res.status(200).json(customer);
-      } catch (error) {
-        logError("Fetch customer details failed", error, { customerId });
-        return res.status(500).json({ error: "Failed to fetch customer details." });
-      }
+    if (!customer) {
+      return res.status(404).json({ error: "Customer not found." });
     }
 
-    res.setHeader("Allow", ["GET"]);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
-  },
-);
+    return res.status(200).json(customer);
+  } catch (error) {
+    logError("Fetch customer details failed", error, { customerId });
+    return res.status(500).json({ error: "Failed to fetch customer details." });
+  }
+}
+
+async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Session) {
+  const customerId = customerIdOf(req);
+  if (customerId == null) return res.status(400).json({ error: "Invalid customer ID." });
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  try {
+    const current = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, referralSourceId: true },
+    });
+    if (!current) return res.status(404).json({ error: "Customer not found." });
+    const contact = readContact(body);
+    const referral = await readReferral(prisma, body, current);
+    const updated = await prisma.customer.update({
+      where: { id: customerId },
+      data: { ...contact, ...referral, updatedBy: session.user?.email ?? null },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        referralSourceId: true,
+        referredByCustomerId: true,
+      },
+    });
+    return res.status(200).json(updated);
+  } catch (error) {
+    if (error instanceof CustomerInputError || error instanceof ReferralError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    if (isDuplicateEmail(error)) {
+      return res.status(409).json({ error: "Another customer already has that email." });
+    }
+    logError("Update customer failed", error, { customerId });
+    return res.status(500).json({ error: "Failed to save the customer." });
+  }
+}
+
+/** Exported for integration tests, which call each method's body without the gate. */
+export const handlers = { GET: handleGet, PUT: handlePut };
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === "GET") return requirePermission("customer.read", handleGet)(req, res);
+  if (req.method === "PUT") return requirePermission("customer.write", handlePut)(req, res);
+  res.setHeader("Allow", ["GET", "PUT"]);
+  return res.status(405).end(`Method ${req.method} Not Allowed`);
+}

@@ -131,3 +131,10 @@ ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_quoteHoldMaxDay
 ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_quoteHoldMaxDays_range" CHECK (
   "quoteHoldMaxDays" >= 0 AND "quoteHoldMaxDays" <= 365
 );
+
+-- 20261101140000_customer_referrals
+-- Nobody refers themselves.
+ALTER TABLE "Customer" DROP CONSTRAINT IF EXISTS "Customer_not_referred_by_self";
+ALTER TABLE "Customer" ADD CONSTRAINT "Customer_not_referred_by_self" CHECK (
+  "referredByCustomerId" IS NULL OR "referredByCustomerId" <> "id"
+);

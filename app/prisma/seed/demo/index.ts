@@ -53,6 +53,7 @@ async function main(): Promise<void> {
   const { seedStaff } = await import("./staff");
   const { seedCatalog } = await import("./catalog");
   const { seedCustomers } = await import("./customers");
+  const { seedReferrals } = await import("./referrals");
   const { seedCommissionPlans } = await import("./commissionPlan");
   const { seedSalesOrdersAndTills } = await import("./salesOrders");
   const { seedPurchasing } = await import("./purchasing");
@@ -133,6 +134,7 @@ async function main(): Promise<void> {
     accounting.taxExemptReasonIdByName.get("Resale")!,
     volume.customerCount,
   );
+  await seedReferrals(prisma, customers);
   const commissionPlans = await seedCommissionPlans(prisma);
 
   // Assign the two most senior designers to the richer plan so the seed

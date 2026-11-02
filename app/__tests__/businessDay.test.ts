@@ -13,6 +13,7 @@ import {
   businessDayStart,
   businessMonthRange,
   sameDateLastYear,
+  isDayKey,
 } from "@/lib/reports/businessDay";
 import { getDateRanges } from "@/lib/reports/dateRanges";
 
@@ -143,5 +144,23 @@ describe("getDateRanges in a business timezone", () => {
     const r = getDateRanges("2026-03-24");
     expect(r.ytd.start.toISOString()).toBe("2026-01-01T00:00:00.000Z");
     expect(r.mtd.end.toISOString()).toBe("2026-03-25T00:00:00.000Z");
+  });
+});
+
+describe("isDayKey — a day a caller sent", () => {
+  it("is YYYY-MM-DD naming a real calendar day", () => {
+    expect(["2026-11-01", "2028-02-29", "2026-12-31"].every(isDayKey)).toBe(true);
+    expect(
+      [
+        "2026-02-30",
+        "2027-02-29",
+        "2026-1-1",
+        "11/01/2026",
+        "",
+        "2026-11-01T00:00",
+        20261101,
+        null,
+      ].some(isDayKey),
+    ).toBe(false);
   });
 });

@@ -56,6 +56,12 @@ const ITEMS: CardGridItem[] = [
     href: "/app/admin/setup/payment-types",
   },
   {
+    title: "Referral Sources",
+    description:
+      "How customers hear of you: a friend, Instagram, a designer. Staff pick one on each customer.",
+    href: "/app/admin/setup/referral-sources",
+  },
+  {
     title: "Gift Card Presets",
     description: "Configure quick codes for gift card sales (GC, GC25, GC50).",
     href: "/app/admin/setup/gift-cards",

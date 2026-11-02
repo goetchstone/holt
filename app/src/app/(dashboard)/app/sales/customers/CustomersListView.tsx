@@ -16,6 +16,7 @@ import { toast } from "react-toastify";
 import TableWithFilters from "@/components/table/TableWithFilters";
 import { type Column } from "@/components/table/PaginatedTable";
 import CustomerEditModal from "@/components/modals/CustomerEditModal";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
 
@@ -161,6 +162,12 @@ export function CustomersListView() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold text-brand-blue">Customers</h1>
         <div className="flex gap-2">
+          <Link
+            href="/app/sales/customers/email-list"
+            className="self-center text-sm text-brand-blue underline"
+          >
+            Email list
+          </Link>
           {isManager && (
             <Button variant="secondary" onClick={handleRecalculateLevels} disabled={recalculating}>
               {recalculating ? "Recalculating..." : "Recalculate Levels"}

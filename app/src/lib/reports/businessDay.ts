@@ -144,6 +144,15 @@ export function sameDateLastYear(dateKey: string): string {
   return `${y - 1}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+/** "YYYY-MM-DD" naming a real calendar day: a business-day key a caller sent. */
+export function isDayKey(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return false;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.toISOString().slice(0, 10) === value;
+}
+
 /**
  * Which business day an instant belongs to, as YYYY-MM-DD.
  *

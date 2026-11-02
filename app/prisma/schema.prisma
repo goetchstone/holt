@@ -1132,6 +1132,16 @@ model Customer {
   // emailed a confirmation.
   mailchimpSyncedAt DateTime?
 
+  /// How they heard of the store (GAP-08): one of the store's own referral
+  /// sources, set up in Settings (lib/customers/referrals.ts).
+  referralSourceId     Int?
+  referralSource       ReferralSource? @relation(fields: [referralSourceId], references: [id], onDelete: Restrict)
+  /// The customer (or trade account) who sent them. Never themselves -- a CHECK
+  /// says so. Merging customers moves these links to the one kept.
+  referredByCustomerId Int?
+  referredBy           Customer?       @relation("CustomerReferral", fields: [referredByCustomerId], references: [id], onDelete: SetNull)
+  referrals            Customer[]      @relation("CustomerReferral")
+
   addresses         CustomerAddress[]
   externalIds       CustomerExternalId[]
   salesOrders       SalesOrder[]
@@ -1153,6 +1163,25 @@ model Customer {
   proposals           Proposal[]
   tickets             Ticket[]
   timeEntries         TimeEntry[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([referralSourceId])
+  @@index([referredByCustomerId])
+}
+
+/// How a customer heard of the store (GAP-08). The store sets up its own list in
+/// Settings > Referral sources: no fixed set ships. A source customers use is
+/// deactivated, never deleted, so their record keeps it.
+model ReferralSource {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  isActive  Boolean    @default(true)
+  sortOrder Int        @default(0)
+  customers Customer[]
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
