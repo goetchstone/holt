@@ -3,7 +3,13 @@
 // Boxes are evidence, never a quantity (lib/inventory/boxes.ts): box scans
 // assemble into whole units, and what is left is incomplete sets.
 
-import { assembleUnits, BoxError, boxNumbers, stillMissing } from "@/lib/inventory/boxes";
+import {
+  assembleUnits,
+  BoxError,
+  boxNumbers,
+  stillMissing,
+  tallyUnits,
+} from "@/lib/inventory/boxes";
 
 describe("assembleUnits", () => {
   it("makes whole units from complete sets of boxes, in any order", () => {
@@ -39,5 +45,15 @@ describe("stillMissing", () => {
 
   it("numbers boxes from 1", () => {
     expect(boxNumbers(3)).toEqual([1, 2, 3]);
+  });
+});
+
+describe("tallyUnits", () => {
+  it("adds the sets box labels make to units counted by tag, and lists the boxes left over", () => {
+    expect(tallyUnits(3, { units: 1, boxes: [1, 2, 3, 1, 2] })).toEqual({
+      units: 2,
+      loose: [1, 2],
+    });
+    expect(tallyUnits(1, { units: 4, boxes: [] })).toEqual({ units: 4, loose: [] });
   });
 });

@@ -164,3 +164,27 @@ export function parseNewPo(body: unknown): Parsed<NewPoInput> {
 export function poLineTotal(quantity: number, unitCost: number): number {
   return Math.round(quantity * unitCost * 100) / 100;
 }
+
+// The handheld's scanned reorder (GAP-19, lib/purchasing/scannedOrder.ts).
+
+export interface ScannedLine {
+  productId: number;
+  vendorId: number;
+  quantity: number;
+}
+
+/** A draft a save filed lines on. */
+export interface FiledPo {
+  id: number;
+  poNumber: string;
+  vendor: string;
+  /** Lines added or added to. */
+  lines: number;
+  created: boolean;
+}
+
+/** A scanned item and the vendors it can be ordered from, its own first. */
+export interface OrderableItem {
+  product: { id: number; name: string; productNumber: string };
+  vendors: { id: number; name: string; partNo: string }[];
+}

@@ -4,7 +4,8 @@
 // duplicate. One function per act, called by its route; the checks they share
 // (each line a product the PO's vendor sells us, buyingTerms -- its own, or one
 // it is listed on as another vendor, GAP-22; a line raised for a customer's
-// order keeping its product and quantity) live once, in resolvePoLines.
+// order keeping its product and quantity) live once, in resolvePoLines. A
+// reorder scanned on the handheld (scannedOrder.ts, GAP-19) goes through it too.
 //
 // Cost follows "View cost" (lib/auth/costVisibility.ts): strip, never deny. A
 // buyer who can't see cost still writes POs; a new line takes the product's
@@ -152,7 +153,7 @@ export async function resolvePoLines(
   });
 }
 
-async function activeShipTo(db: Db, id: number): Promise<void> {
+export async function activeShipTo(db: Db, id: number): Promise<void> {
   const store = await db.storeLocation.findUnique({ where: { id }, select: { isActive: true } });
   if (!store?.isActive) {
     throw new PurchaseOrderError("Choose an open store or warehouse for the vendor to deliver to.");
@@ -161,7 +162,7 @@ async function activeShipTo(db: Db, id: number): Promise<void> {
 
 const asDate = (ymd: string | null): Date | null => (ymd ? new Date(`${ymd}T00:00:00Z`) : null);
 
-const lineData = (l: ResolvedLine) => ({
+export const lineData = (l: ResolvedLine) => ({
   productId: l.productId,
   partNo: l.partNo,
   productName: l.productName,

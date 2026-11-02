@@ -8,7 +8,7 @@
 // red, readable at arm's length. Pages put their own steps below.
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useActiveStore } from "@/hooks/useActiveStore";
 import { useWedgeScan } from "@/hooks/useWedgeScan";
 
@@ -29,6 +29,7 @@ export function ScanFrame({
   onScan,
   message,
   scanEnabled = true,
+  onStoreChange,
   children,
 }: {
   title: string;
@@ -37,9 +38,13 @@ export function ScanFrame({
   onScan: (code: string, storeLocationId: number | null) => void;
   message: ScanMessage | null;
   scanEnabled?: boolean;
+  /** Told the store the scanner is working in, and again when it changes. */
+  onStoreChange?: (storeLocationId: number | null) => void;
   children?: ReactNode;
 }) {
   const { activeStore, allStores, setActiveStore } = useActiveStore();
+  const storeId = activeStore?.id ?? null;
+  useEffect(() => onStoreChange?.(storeId), [storeId, onStoreChange]);
   const { inputProps } = useWedgeScan((code) => onScan(code, activeStore?.id ?? null), {
     enabled: scanEnabled,
   });

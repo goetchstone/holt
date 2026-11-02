@@ -5,14 +5,16 @@
 // Scan where it is, what is moving, then where it goes. A one-box product's
 // tag is one unit; a multi-box product moves by its box labels: whole sets
 // move as units, and boxes that make no whole set move on their own and are
-// noted as stray where they went (lib/inventory/floorMove.ts).
+// noted as stray where they went (lib/inventory/floorMove.ts). A move the
+// places' mode wants tracked is refused, and the page offers to send what was
+// scanned as a transfer instead (GAP-19).
 
 import { useRef, useState } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { ScanFrame, type ScanMessage } from "@/components/scan/ScanFrame";
 import { getErrorMessage } from "@/lib/toastError";
-import { assembleUnits } from "@/lib/inventory/boxes";
+import { tallyUnits } from "@/lib/inventory/boxes";
 import type { ScanResult, ScannedPlace, ScannedProduct } from "@/lib/scan/resolveScan";
 
 interface Item {
@@ -27,11 +29,7 @@ const newKey = () =>
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /** Whole units to move, and the boxes left over that move on their own. */
-function split(item: Item) {
-  const a = assembleUnits(item.product.boxesPerUnit, item.boxes);
-  const loose = a.incomplete.flatMap((s) => s.present);
-  return { units: item.units + a.units, loose };
-}
+const split = (item: Item) => tallyUnits(item.product.boxesPerUnit, item);
 
 export function MoveView() {
   const [from, setFrom] = useState<ScannedPlace | null>(null);
@@ -39,13 +37,17 @@ export function MoveView() {
   const [items, setItems] = useState<Record<number, Item>>({});
   const [message, setMessage] = useState<ScanMessage | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tracked, setTracked] = useState(false);
   const keyRef = useRef<string | null>(null);
+  const sendKeyRef = useRef<string | null>(null);
 
   const reset = () => {
     setFrom(null);
     setTo(null);
     setItems({});
+    setTracked(false);
     keyRef.current = null;
+    sendKeyRef.current = null;
   };
 
   const onScan = async (code: string, storeLocationId: number | null) => {
@@ -56,6 +58,8 @@ export function MoveView() {
       const r = res.data.result;
       if (r.kind === "unknown") return setMessage({ tone: "error", text: r.message });
       keyRef.current = null;
+      sendKeyRef.current = null;
+      setTracked(false);
       if (r.kind === "place") {
         if (!r.place.holdsStock) {
           return setMessage({
@@ -125,13 +129,47 @@ export function MoveView() {
       });
       reset();
     } catch (err) {
+      setTracked(axios.isAxiosError(err) && err.response?.data?.tracked === true);
       setMessage({ tone: "error", text: getErrorMessage(err, "Not moved: send it again.") });
     } finally {
       setBusy(false);
     }
   };
 
+  /** The same scans, sent as a transfer to the place scanned as "to". */
+  const sendAsTransfer = async () => {
+    if (!from || !to) return;
+    sendKeyRef.current ??= newKey();
+    setBusy(true);
+    try {
+      const res = await axios.post("/api/scan/transfer/send", {
+        actionKey: sendKeyRef.current,
+        fromStockLocationId: from.id,
+        toLocationId: to.storeLocationId,
+        toStockLocationId: to.id,
+        items: Object.values(items).map((i) => ({
+          productId: i.product.id,
+          units: split(i).units,
+        })),
+      });
+      const d = res.data;
+      setMessage({
+        tone: "ok",
+        text:
+          `Sent ${d.units} to ${to.path}` +
+          (d.committed ? ` (${d.committed} sold)` : "") +
+          ": on its way until it is received there",
+      });
+      reset();
+    } catch (err) {
+      setMessage({ tone: "error", text: getErrorMessage(err, "Not sent: send it again.") });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const entries = Object.values(items);
+  const loose = entries.some((i) => split(i).loose.length > 0);
   return (
     <ScanFrame
       title="Put away and move"
@@ -190,6 +228,24 @@ export function MoveView() {
               Clear
             </Button>
           </div>
+          {tracked && to && (
+            <div className="space-y-1">
+              <Button
+                variant="secondary"
+                onClick={sendAsTransfer}
+                disabled={busy || loose}
+                fullWidth
+                className="h-12 text-lg"
+              >
+                Send as a transfer to {to.storeName}
+              </Button>
+              {loose && (
+                <p className="text-amber-800">
+                  A transfer sends whole sets: scan the rest of the boxes first.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </ScanFrame>
