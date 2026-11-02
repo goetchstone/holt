@@ -1,9 +1,11 @@
 // /app/src/pages/api/purchasing/vendor-products.ts
 //
 // GAP-01: GET ?vendorId=&search= -- the products a PO line can order from one
-// vendor, for the PO editor's picker: that vendor's active, current products
-// matching the search by name, number or UPC. Each carries its catalog cost,
-// which a new line starts from, for a holder of "View cost".
+// vendor, for the PO editor's picker: the active, current products that vendor
+// sells us (its own, and others' it is listed on, GAP-22) matching the search
+// by name, number or UPC. Each carries the number and, for a holder of "View
+// cost", the cost of ordering it from this vendor (buyingTerms), which a new
+// line starts from.
 //
 // Its own route rather than a vendor filter on /api/products, which seven
 // screens share under their own keys: this one is "Write purchase orders".
@@ -16,6 +18,8 @@ import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
 import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import { logError } from "@/lib/logger";
+import { SOURCE_TERMS, termsFrom } from "@/lib/purchasing/stockPurchaseOrder";
+import type { VendorProductsResponse } from "@/lib/purchasing/purchaseOrderShared";
 
 const LIMIT = 20;
 
@@ -37,25 +41,47 @@ export async function handler(
 
   try {
     const where: Prisma.ProductWhereInput = {
-      vendorId,
-      isActive: true,
-      isDiscontinued: false,
-      ...((buildSearchFilter(search, ["name", "productNumber", "upcs.some.upc"]) ??
-        {}) as Prisma.ProductWhereInput),
+      AND: [
+        { OR: [{ vendorId }, { sources: { some: { vendorId } } }] },
+        { isActive: true, isDiscontinued: false },
+        (buildSearchFilter(search, [
+          "name",
+          "productNumber",
+          "upcs.some.upc",
+          "sources.some.itemNumber",
+        ]) ?? {}) as Prisma.ProductWhereInput,
+      ],
     };
     const products = await prisma.product.findMany({
       where,
       orderBy: { name: "asc" },
       take: LIMIT,
-      select: { id: true, productNumber: true, name: true, baseCost: true },
+      select: {
+        id: true,
+        productNumber: true,
+        name: true,
+        vendorId: true,
+        baseCost: true,
+        sources: { where: { vendorId }, select: SOURCE_TERMS },
+      },
     });
-    return res.status(200).json({
+    const body: VendorProductsResponse = {
       costVisible: showCost,
-      products: products.map(({ baseCost, ...p }) => ({
-        ...p,
-        ...(showCost ? { baseCost: baseCost === null ? null : Number(baseCost) } : {}),
-      })),
-    });
+      products: products.flatMap((p) => {
+        const terms = termsFrom(p, vendorId);
+        if (!terms) return [];
+        return [
+          {
+            id: p.id,
+            name: p.name,
+            productNumber: p.productNumber,
+            partNo: terms.partNo,
+            ...(showCost ? { cost: terms.cost } : {}),
+          },
+        ];
+      }),
+    };
+    return res.status(200).json(body);
   } catch (err) {
     logError("Error searching vendor products", err);
     return res.status(500).json({ error: "Failed to search products." });

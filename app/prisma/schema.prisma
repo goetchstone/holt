@@ -115,6 +115,8 @@ model Vendor {
   fabrics         FabricCatalog[]
   seComponents    SEComponent[]
   serviceCases    ServiceCase[]
+  /// Items this vendor sells us besides its own (GAP-22).
+  productSources  ProductSource[]
 
   allowTradeDiscount Boolean @default(true)
 
@@ -380,6 +382,8 @@ model Product {
   pricePerSqYd Decimal?
 
   upcs            Upc[]
+  /// Other vendors it can be bought from (GAP-22); its own is vendorId.
+  sources         ProductSource[]
   variants        ProductVariant[]
   gradePrices     ProductGradePrice[]
   speciesPrices   ProductSpeciesPrice[]
@@ -1025,6 +1029,33 @@ model Upc {
   updated   DateTime? @updatedAt
   createdBy String?
   updatedBy String?
+}
+
+/// GAP-22 (docs/DECISIONS.md 31): another vendor an item can be bought from.
+///
+/// An item's own vendor (Product.vendorId) stays the one for pricing and
+/// reports. A purchase order has one vendor, and may order an item from the
+/// item's own vendor or from any vendor listed here, under that vendor's item
+/// number and at its cost (buyingTerms, lib/purchasing/productSourcesShared.ts).
+/// The store doesn't tell brands and distributors apart: either is a vendor.
+model ProductSource {
+  id         Int      @id @default(autoincrement())
+  productId  Int
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  vendorId   Int
+  vendor     Vendor   @relation(fields: [vendorId], references: [id])
+  /// This vendor's number for the item; null orders it under the item's own.
+  itemNumber String?
+  /// What this vendor charges; null starts a PO line at the item's own cost.
+  cost       Decimal?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([productId, vendorId])
+  @@index([vendorId])
 }
 
 // ---------------------------------------------------------------------------

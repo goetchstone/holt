@@ -20,7 +20,13 @@ import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getErrorMessage } from "@/lib/toastError";
 import { expectedArrival } from "@/lib/vendorLeadTime";
-import { MAX_PO_NOTES, poLineTotal, type PoLineInput } from "@/lib/purchasing/purchaseOrderShared";
+import {
+  MAX_PO_NOTES,
+  poLineTotal,
+  type PoLineInput,
+  type VendorProductHit,
+  type VendorProductsResponse,
+} from "@/lib/purchasing/purchaseOrderShared";
 import type { PoEditorState } from "@/lib/purchasing/stockPurchaseOrder";
 
 interface VendorOption {
@@ -32,13 +38,6 @@ interface VendorOption {
 interface StoreOption {
   id: number;
   name: string;
-}
-
-interface ProductHit {
-  id: number;
-  productNumber: string;
-  name: string;
-  baseCost?: number | null;
 }
 
 interface EditorLine {
@@ -98,14 +97,14 @@ function ProductPicker({
 }: {
   vendorId: number;
   costVisible: boolean;
-  onPick: (p: ProductHit) => void;
+  onPick: (p: VendorProductHit) => void;
 }) {
   const formatCurrency = useMoneyFormatter();
   const [query, setQuery] = useState("");
   const debounced = useDebounce(query, 250);
   // The answer and the search it answers: still loading while they differ.
   const asked = `${vendorId}|${debounced}`;
-  const [answer, setAnswer] = useState<{ asked: string; hits: ProductHit[] }>({
+  const [answer, setAnswer] = useState<{ asked: string; hits: VendorProductHit[] }>({
     asked: "",
     hits: [],
   });
@@ -115,7 +114,9 @@ function ProductPicker({
   useEffect(() => {
     let live = true;
     axios
-      .get("/api/purchasing/vendor-products", { params: { vendorId, search: debounced } })
+      .get<VendorProductsResponse>("/api/purchasing/vendor-products", {
+        params: { vendorId, search: debounced },
+      })
       .then((res) => live && setAnswer({ asked, hits: res.data.products ?? [] }))
       .catch((err) => {
         if (!live) return;
@@ -137,7 +138,7 @@ function ProductPicker({
         className={INPUT}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search this vendor's products by name, number or UPC"
+        placeholder="Search what this vendor sells us by name, number or UPC"
       />
       <ul className="mt-1 max-h-56 overflow-y-auto border border-brand-gray/20 rounded divide-y divide-brand-gray/10">
         {hits.map((p) => (
@@ -148,11 +149,14 @@ function ProductPicker({
               onClick={() => onPick(p)}
             >
               <span>
-                <span className="text-brand-gray mr-2">{p.productNumber}</span>
+                <span className="text-brand-gray mr-2">{p.partNo}</span>
                 {p.name}
+                {p.partNo !== p.productNumber && (
+                  <span className="text-brand-gray ml-2">(our {p.productNumber})</span>
+                )}
               </span>
-              {costVisible && p.baseCost != null && (
-                <span className="text-brand-gray">{formatCurrency(p.baseCost)}</span>
+              {costVisible && p.cost != null && (
+                <span className="text-brand-gray">{formatCurrency(p.cost)}</span>
               )}
             </button>
           </li>
@@ -292,16 +296,16 @@ export function PurchaseOrderEditor({
     setExpected(ymd(expectedArrival(new Date(), vendor?.leadTimeDays)));
   };
 
-  const addProduct = (p: ProductHit) =>
+  const addProduct = (p: VendorProductHit) =>
     setLines((ls) => [
       ...ls,
       {
         key: newKey(),
         productId: p.id,
-        partNo: p.productNumber,
+        partNo: p.partNo,
         productName: p.name,
         quantity: "1",
-        unitCost: p.baseCost == null ? "" : String(p.baseCost),
+        unitCost: p.cost == null ? "" : String(p.cost),
         linked: false,
       },
     ]);

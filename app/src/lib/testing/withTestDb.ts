@@ -163,6 +163,7 @@ const ALL_TABLES = [
   "ProductGradePrice",
   "ProductOptionOverride",
   "ProductPairing",
+  "ProductSource",
   "ProductSpeciesPrice",
   "ProductVariant",
   "Proposal",

@@ -2,17 +2,19 @@
 //
 // GAP-01: stock purchase orders a buyer writes by hand -- create, change and
 // duplicate. One function per act, called by its route; the checks they share
-// (each line a product of the PO's vendor, a line raised for a customer's order
-// keeping its product and quantity) live once, in resolvePoLines.
+// (each line a product the PO's vendor sells us, buyingTerms -- its own, or one
+// it is listed on as another vendor, GAP-22; a line raised for a customer's
+// order keeping its product and quantity) live once, in resolvePoLines.
 //
 // Cost follows "View cost" (lib/auth/costVisibility.ts): strip, never deny. A
 // buyer who can't see cost still writes POs; a new line takes the product's
 // cost from the catalog, and a line already on the PO keeps its own.
 
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createNumberedPurchaseOrder } from "@/lib/purchasing/poNumber";
 import { expectedArrival } from "@/lib/vendorLeadTime";
+import { buyingTerms, type BuyingTerms } from "@/lib/purchasing/productSourcesShared";
 import {
   poEditProblem,
   type NewPoInput,
@@ -66,6 +68,27 @@ function lineCost(
   return catalogCost;
 }
 
+/** What buyingTerms reads of a product's other vendors. */
+export const SOURCE_TERMS = { vendorId: true, itemNumber: true, cost: true } as const;
+
+/** buyingTerms over a product read with its own cost and SOURCE_TERMS. */
+export function termsFrom(
+  product: {
+    vendorId: number;
+    productNumber: string;
+    baseCost: Prisma.Decimal | null;
+    sources: { vendorId: number; itemNumber: string | null; cost: Prisma.Decimal | null }[];
+  },
+  vendorId: number,
+): BuyingTerms | null {
+  const num = (d: Prisma.Decimal | null) => (d === null ? null : Number(d));
+  return buyingTerms(
+    { ...product, baseCost: num(product.baseCost) },
+    product.sources.map((s) => ({ ...s, cost: num(s.cost) })),
+    vendorId,
+  );
+}
+
 /** Each line checked against the catalog and the PO's own lines, its cost decided. */
 export async function resolvePoLines(
   db: Db,
@@ -78,7 +101,14 @@ export async function resolvePoLines(
     (
       await db.product.findMany({
         where: { id: { in: [...new Set(lines.map((l) => l.productId))] } },
-        select: { id: true, productNumber: true, name: true, vendorId: true, baseCost: true },
+        select: {
+          id: true,
+          productNumber: true,
+          name: true,
+          vendorId: true,
+          baseCost: true,
+          sources: { where: { vendorId: vendor.id }, select: SOURCE_TERMS },
+        },
       })
     ).map((p) => [p.id, p]),
   );
@@ -93,9 +123,10 @@ export async function resolvePoLines(
     const n = i + 1;
     const product = products.get(line.productId);
     if (!product) throw new PurchaseOrderError(`Line ${n}: that product doesn't exist.`);
-    if (product.vendorId !== vendor.id) {
+    const terms = termsFrom(product, vendor.id);
+    if (!terms) {
       throw new PurchaseOrderError(
-        `Line ${n}: ${product.name} isn't one of ${vendor.name}'s products. Set its vendor on the product first.`,
+        `Line ${n}: ${vendor.name} doesn't sell us ${product.name}. Make it the product's vendor, or add it under the product's other vendors, first.`,
       );
     }
     const before = line.id === undefined ? undefined : onPo.get(line.id);
@@ -113,10 +144,10 @@ export async function resolvePoLines(
     return {
       ...(before ? { id: before.id } : {}),
       productId: product.id,
-      partNo: product.productNumber,
+      partNo: terms.partNo,
       productName: product.name,
       orderedQuantity: line.quantity,
-      unitCost: lineCost(line, before, Number(product.baseCost ?? 0), canSetCost),
+      unitCost: lineCost(line, before, terms.cost ?? 0, canSetCost),
     };
   });
 }
@@ -263,7 +294,15 @@ export async function duplicatePurchaseOrder(
           productName: true,
           orderedQuantity: true,
           unitCost: true,
-          product: { select: { productNumber: true, name: true, vendorId: true } },
+          product: {
+            select: {
+              productNumber: true,
+              name: true,
+              vendorId: true,
+              baseCost: true,
+              sources: { select: SOURCE_TERMS },
+            },
+          },
         },
       },
     },
@@ -279,14 +318,15 @@ export async function duplicatePurchaseOrder(
       return [];
     }
     if (Number(l.orderedQuantity) <= 0) return []; // a cancelled line (rule 31)
-    if (l.product.vendorId !== po.vendor.id) {
-      skipped.push(`${label}: no longer this vendor's product`);
+    const terms = termsFrom(l.product, po.vendor.id);
+    if (!terms) {
+      skipped.push(`${label}: no longer sold to us by this vendor`);
       return [];
     }
     return [
       {
         productId: l.productId,
-        partNo: l.product.productNumber,
+        partNo: terms.partNo,
         productName: l.product.name,
         orderedQuantity: l.orderedQuantity,
         unitCost: l.unitCost,

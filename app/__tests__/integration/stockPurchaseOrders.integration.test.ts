@@ -255,7 +255,7 @@ describe("writing a stock PO", () => {
     });
     expect(r.status).toBe(400);
     expect(r.body.error).toBe(
-      "Line 1: Quarry LAMP isn't one of Fernbrook Upholstery's products. Set its vendor on the product first.",
+      "Line 1: Fernbrook Upholstery doesn't sell us Quarry LAMP. Make it the product's vendor, or add it under the product's other vendors, first.",
     );
     expect(await prisma.purchaseOrder.count()).toBe(before);
   });
@@ -344,14 +344,16 @@ describe("the vendor's products for a PO line", () => {
       "FB-CHAIR",
       "FB-SOFA",
     ]);
-    expect(r.body.products[0].baseCost).toBe(400);
+    expect(r.body.products[0]).toMatchObject({ partNo: "FB-CHAIR", cost: 400 });
 
     const clerk = await call(vendorProductsRoute, "oli", {
       query: { vendorId: String(w.fern.id), search: "sofa" },
     });
     expect(clerk.body).toEqual({
       costVisible: false,
-      products: [{ id: w.sofa.id, productNumber: "FB-SOFA", name: "Ashby SOFA" }],
+      products: [
+        { id: w.sofa.id, productNumber: "FB-SOFA", partNo: "FB-SOFA", name: "Ashby SOFA" },
+      ],
     });
   });
 });
@@ -554,7 +556,7 @@ describe("duplicating a PO", () => {
     expect(r.body.poNumber).not.toBe(poNumber);
     expect(r.body.skipped).toEqual([
       "Retired settee: not a product in the catalog",
-      "Quarry LAMP: no longer this vendor's product",
+      "Quarry LAMP: no longer sold to us by this vendor",
     ]);
     const copy = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: r.body.id } });
     expect(copy).toMatchObject({
