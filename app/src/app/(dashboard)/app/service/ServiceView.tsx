@@ -105,7 +105,11 @@ export function ServiceView() {
     const lookupStaff = async () => {
       try {
         const res = await axios.get("/api/staff?limit=100");
-        const staff = (res.data.staff || []).find(
+        // /api/staff answers a bare list; reading `.staff` found nothing (2026-11-01).
+        const list: { id: number; email: string | null }[] = Array.isArray(res.data)
+          ? res.data
+          : [];
+        const staff = list.find(
           (s: { email: string | null }) =>
             s.email && s.email.toLowerCase() === session.user?.email?.toLowerCase(),
         );

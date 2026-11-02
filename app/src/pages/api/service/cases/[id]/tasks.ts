@@ -30,7 +30,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       const tasks = await prisma.serviceTask.findMany({
         where: { caseId },
         include: taskInclude,
-        orderBy: { created: "asc" },
+        // A checklist's tasks share a created time; the id keeps step order.
+        orderBy: [{ created: "asc" }, { id: "asc" }],
       });
       return success(res, tasks);
     } catch (err) {

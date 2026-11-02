@@ -144,6 +144,13 @@ export function sameDateLastYear(dateKey: string): string {
   return `${y - 1}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+/** The day `days` after the day key `date` (negative counts back), as YYYY-MM-DD. */
+export function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 /** "YYYY-MM-DD" naming a real calendar day: a business-day key a caller sent. */
 export function isDayKey(value: unknown): value is string {
   if (typeof value !== "string") return false;

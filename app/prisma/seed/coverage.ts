@@ -239,6 +239,8 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   ServiceCasePriority: { status: "seeded" },
   ServiceCaseStatus: { status: "seeded" },
   ServiceCaseType: { status: "seeded" },
+  ServiceChecklist: { status: "seeded" },
+  ServiceChecklistStep: { status: "seeded" },
   ServiceEmail: { status: "seeded", seeder: "demo" },
   ServiceTask: { status: "seeded", seeder: "demo" },
   Session: {

@@ -6,7 +6,6 @@
 
 import {
   QUOTE_HOLD_DEFAULT_MAX_DAYS,
-  addDays,
   holdDateProblem,
   holdDateString,
   holdDateValue,
@@ -27,15 +26,9 @@ describe("what a store may set as its longest hold", () => {
   });
 });
 
-// Which strings name a real day is isDayKey's, pinned in businessDay.test.ts.
+// Which strings name a real day (isDayKey) and moving a day (addDays) are
+// businessDay.ts's, pinned in businessDay.test.ts.
 describe("calendar days", () => {
-  it("counts days across months, years and a leap day", () => {
-    expect(addDays("2026-11-29", 3)).toBe("2026-12-02");
-    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
-    expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
-    expect(addDays("2026-11-01", -1)).toBe("2026-10-31");
-  });
-
   it("round-trips through the DATE column's value", () => {
     expect(holdDateValue("2026-11-03").toISOString()).toBe("2026-11-03T00:00:00.000Z");
     expect(holdDateString(holdDateValue("2026-11-03"))).toBe("2026-11-03");

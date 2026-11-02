@@ -58,6 +58,9 @@ export default requirePermission(
                 linkedOrder: { select: { id: true, orderno: true } },
                 linkedPurchaseOrder: { select: { id: true, poNumber: true } },
               },
+              // A checklist's tasks are made in one statement and share a
+              // created time; the id keeps them in step order (GAP-11).
+              orderBy: [{ created: "asc" }, { id: "asc" }],
             },
             emails: true,
           },

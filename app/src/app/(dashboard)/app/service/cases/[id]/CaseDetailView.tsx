@@ -17,6 +17,7 @@ import { toast } from "react-toastify";
 import { format, differenceInDays } from "date-fns";
 import Link from "next/link";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
+import { ApplyChecklist } from "./ApplyChecklist";
 
 type StaffOption = { id: number; displayName: string };
 
@@ -162,7 +163,8 @@ export function CaseDetailView({ id }: { id: string }) {
           axios.get("/api/staff?limit=100"),
           axios.get("/api/service/settings/statuses"),
         ]);
-        setStaff(staffRes.data.staff || []);
+        // /api/staff answers a bare list; reading `.staff` found nothing (2026-11-01).
+        setStaff(Array.isArray(staffRes.data) ? staffRes.data : []);
         const statuses: StatusOption[] = statusRes.data.statuses || [];
         setAllStatuses(statuses);
         setClosedStatuses(statuses.filter((s) => s.isClosed));
@@ -659,7 +661,9 @@ export function CaseDetailView({ id }: { id: string }) {
                 )}
                 {task.dueDate && (
                   <span className="text-xs text-brand-gray">
-                    Due {format(new Date(task.dueDate), "MMM d")}
+                    {/* Stored as midnight UTC of the day; read as that day, not
+                        the evening before in a zone west of UTC. */}
+                    Due {format(new Date(`${task.dueDate.slice(0, 10)}T12:00:00`), "MMM d")}
                   </span>
                 )}
 
@@ -755,6 +759,7 @@ export function CaseDetailView({ id }: { id: string }) {
               {addingTask ? "Adding..." : "Add"}
             </Button>
           </div>
+          <ApplyChecklist caseId={caseData.id} onApplied={fetchCase} />
         </div>
       </div>
 

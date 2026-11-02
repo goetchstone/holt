@@ -6,7 +6,7 @@
 // (minus MainLayout chrome, which the (dashboard) layout supplies). Manages case
 // types, statuses, and priorities via the shared /api/service/settings/* REST
 // endpoints. The three sections share a SettingsCard table and per-entity edit
-// modals.
+// modals. Checklists (GAP-11) are their own section, ServiceChecklistsSection.
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/Modal";
 import FormInput from "@/components/form/FormInput";
 import { getErrorMessage } from "@/lib/toastError";
+import { ServiceChecklistsSection } from "./ServiceChecklistsSection";
 
 interface CaseType {
   id: number;
@@ -415,6 +416,8 @@ export function ServiceSetupView() {
           { header: "Sort Order", render: (p) => p.sortOrder },
         ]}
       />
+
+      <ServiceChecklistsSection />
 
       {/* Type Modal */}
       {typeModal && (

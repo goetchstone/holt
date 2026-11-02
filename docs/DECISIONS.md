@@ -796,6 +796,39 @@ The register has no "sell this sample" choice yet (ROADMAP GAP-15).
 
 ---
 
+## 30. A service checklist is copied onto a case, not linked to it
+
+**Decided 2026-11-01 (owner chose task checklists, GAP-11).** A checklist is
+the steps a kind of service job takes, set up by the store in Settings ›
+Service. Applying one to a case copies each step into one of the case's tasks,
+due its days after today on the store's calendar. From then on the tasks are
+the case's own.
+
+- **Editing a checklist changes no case already given it.** A case's tasks are
+  the record of what that job needed. A checklist edited next month shouldn't
+  rewrite them.
+- **The task remembers its checklist** (`ServiceTask.checklistId`), only so a
+  case isn't given the same one twice. Deleting the checklist clears it.
+
+**Rejected:**
+
+- **Tasks that follow the checklist live.** Tasks already ticked off or
+  re-dated would change under the people working them.
+- **Applying by case type automatically.** In the option the owner chose, staff
+  apply one. A case type and a job don't line up one to one either. It is in
+  ROADMAP as a later choice.
+- **Emails from a case** (the other reading of "templates"). The owner chose
+  checklists. `ServiceEmail` stays unused, in ROADMAP.
+
+**Cost accepted:** a step fixed in a checklist isn't fixed on cases already
+given it. Staff edit those tasks by hand.
+
+**Enforced by:** `__tests__/integration/serviceChecklists.integration.test.ts`.
+
+**Source:** [`app/src/lib/service/checklists.ts`](../app/src/lib/service/checklists.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

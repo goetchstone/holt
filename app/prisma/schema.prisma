@@ -3998,6 +3998,11 @@ model ServiceTask {
   linkedPurchaseOrderId Int?
   linkedPurchaseOrder   PurchaseOrder? @relation("TaskLinkedPO", fields: [linkedPurchaseOrderId], references: [id])
 
+  // The checklist this task was copied from (GAP-11), so a case isn't given the
+  // same checklist twice. A copy: editing or deleting the checklist leaves it be.
+  checklistId Int?
+  checklist   ServiceChecklist? @relation(fields: [checklistId], references: [id], onDelete: SetNull)
+
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
   createdBy String?
@@ -4006,6 +4011,41 @@ model ServiceTask {
   @@index([caseId])
   @@index([assignedToId])
   @@index([status])
+  @@index([checklistId])
+}
+
+// GAP-11 (owner, 2026-11-01: task checklists). The steps a kind of service job
+// takes -- "order the part, book the tech, confirm with the customer" -- set up
+// by the store in Settings > Service. None ship. Applying one to a case copies
+// its steps into the case's tasks (lib/service/checklists.ts).
+model ServiceChecklist {
+  id        Int     @id @default(autoincrement())
+  name      String  @unique
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  steps ServiceChecklistStep[]
+  tasks ServiceTask[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+model ServiceChecklistStep {
+  id           Int              @id @default(autoincrement())
+  checklistId  Int
+  checklist    ServiceChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  /// 0, 1, 2... in the order the tasks are made.
+  position     Int
+  title        String
+  description  String?
+  /// The task is due this many days after the checklist is applied, on the
+  /// store's calendar; null = no due date. 0 to 365 (db-guards.sql).
+  dueAfterDays Int?
+
+  @@unique([checklistId, position])
 }
 
 model EmailTemplate {

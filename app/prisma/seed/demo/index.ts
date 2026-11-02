@@ -60,6 +60,7 @@ async function main(): Promise<void> {
   const { seedConsignment } = await import("./consignment");
   const { seedInventory } = await import("./inventory");
   const { seedService } = await import("./service");
+  const { seedServiceChecklists } = await import("./serviceChecklists");
   const { seedOperations } = await import("./operations");
   const { seedDelivery } = await import("./delivery");
   const { seedScheduling } = await import("./scheduling");
@@ -217,6 +218,7 @@ async function main(): Promise<void> {
     locations.stores,
     volume.serviceCaseCount,
   );
+  const checklistResult = await seedServiceChecklists(prisma);
 
   const operationsResult = await seedOperations(
     prisma,
@@ -288,7 +290,8 @@ async function main(): Promise<void> {
   console.log(
     `Service: ${serviceResult.casesCreated} cases (${serviceResult.openCases} open), ` +
       `${serviceResult.notesCreated} notes, ${serviceResult.tasksCreated} tasks, ` +
-      `${serviceResult.emailsCreated} emails, ${serviceResult.typesCreated} case types`,
+      `${serviceResult.emailsCreated} emails, ${serviceResult.typesCreated} case types, ` +
+      `${checklistResult.checklistsCreated} checklists (on ${checklistResult.casesGivenOne} cases)`,
   );
   console.log(
     `Helpdesk: ${operationsResult.ticketsCreated} tickets (${operationsResult.openTickets} open), ` +
