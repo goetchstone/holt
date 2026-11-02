@@ -6,6 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
+import { logError } from "@/lib/logger";
+import {
+  CustomerInputError,
+  assertIdentifiable,
+  isDuplicateEmail,
+  readContact,
+} from "@/lib/customers/customerContact";
+import { ReferralError, readReferral } from "@/lib/customers/referrals";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const userEmail = session.user.email;
@@ -54,15 +62,26 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       return res.status(500).json({ error: "Failed to fetch customers" });
     }
   } else if (req.method === "POST") {
+    // Only what a new-customer form sets: contact details and how they heard of
+    // the store (lib/customers/customerContact.ts). Store credit, AR, trade and
+    // tax status each have their own route and permission.
+    const body = (req.body ?? {}) as Record<string, unknown>;
     try {
+      const contact = readContact(body);
+      assertIdentifiable(contact);
+      const referral = await readReferral(prisma, body, null);
       const customer = await prisma.customer.create({
-        data: {
-          ...req.body,
-          createdBy: userEmail,
-        },
+        data: { ...contact, ...referral, createdBy: userEmail },
       });
       return res.status(201).json(customer);
     } catch (error) {
+      if (error instanceof CustomerInputError || error instanceof ReferralError) {
+        return res.status(error.status).json({ error: error.message });
+      }
+      if (isDuplicateEmail(error)) {
+        return res.status(409).json({ error: "Another customer already has that email." });
+      }
+      logError("Create customer failed", error);
       return res.status(500).json({ error: "Failed to create customer" });
     }
   } else {

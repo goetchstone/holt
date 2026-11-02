@@ -11,7 +11,6 @@ import {
   holdDateValue,
   holdDaysLeft,
   holdIsOpen,
-  isCalendarDate,
   isQuoteHoldMaxDays,
   isStockedProduct,
   latestHoldDate,
@@ -27,14 +26,9 @@ describe("what a store may set as its longest hold", () => {
   });
 });
 
+// Which strings name a real day (isDayKey) and moving a day (addDays) are
+// businessDay.ts's, pinned in businessDay.test.ts.
 describe("calendar days", () => {
-  it("names only real days", () => {
-    expect(["2026-11-01", "2028-02-29"].every(isCalendarDate)).toBe(true);
-    expect(
-      ["2026-02-30", "2027-02-29", "2026-1-1", "11/01/2026", "", 20261101].some(isCalendarDate),
-    ).toBe(false);
-  });
-
   it("round-trips through the DATE column's value", () => {
     expect(holdDateValue("2026-11-03").toISOString()).toBe("2026-11-03T00:00:00.000Z");
     expect(holdDateString(holdDateValue("2026-11-03"))).toBe("2026-11-03");

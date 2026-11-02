@@ -101,6 +101,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   ConsignmentVendorReturn: { status: "todo", tranche: "buying-consignment" },
   Customer: { status: "seeded" },
   CustomerAddress: { status: "seeded" },
+  ReferralSource: { status: "seeded", seeder: "demo" },
   CustomerCreditTransaction: { status: "seeded" },
   CustomerExternalId: { status: "todo", tranche: "catalog-depth" },
   CustomerInteraction: { status: "seeded", seeder: "demo" },

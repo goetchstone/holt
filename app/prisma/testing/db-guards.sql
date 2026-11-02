@@ -132,6 +132,13 @@ ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_quoteHoldMaxDays_range" CH
   "quoteHoldMaxDays" >= 0 AND "quoteHoldMaxDays" <= 365
 );
 
+-- 20261101140000_customer_referrals
+-- Nobody refers themselves.
+ALTER TABLE "Customer" DROP CONSTRAINT IF EXISTS "Customer_not_referred_by_self";
+ALTER TABLE "Customer" ADD CONSTRAINT "Customer_not_referred_by_self" CHECK (
+  "referredByCustomerId" IS NULL OR "referredByCustomerId" <> "id"
+);
+
 -- 20261101160000_service_checklists
 -- A checklist step is due 0 to 365 days after it is applied, or has no due date;
 -- steps count up from 0.
