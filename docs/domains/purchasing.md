@@ -265,6 +265,9 @@ may be a brand or a company selling several (`docs/DECISIONS.md` 31).
   for that key beside its gate and hands the view `canEdit`.
 - **Cost follows View cost** (strip, never deny): a catalog editor without it
   adds a vendor and its item number, and never sets or sees its cost.
+- **The cost is stored exactly as entered.** It is written to Prisma as text:
+  handed a JS number, Prisma stores 708.81 as 708.8099999999999 (ROADMAP,
+  "Money in DECIMAL columns").
 - **Removing a vendor from an item** leaves POs already written alone. A saved
   PO can't add the item from that vendor again, and duplicating one leaves
   the line behind and names it.

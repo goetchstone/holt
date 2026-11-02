@@ -224,6 +224,24 @@ describe("an item's other vendors, on the product screen", () => {
     expect(row.createdBy).toBe("bea@example.com");
   });
 
+  it("stores a cost exactly as entered, added or changed", async () => {
+    // Handed a JS number, Prisma writes 708.81 as 708.8099999999999.
+    const { id } = await brightSellsSofa({ cost: 708.81 });
+    const stored = async () =>
+      (await prisma.productSource.findUniqueOrThrow({ where: { id } })).cost?.toString();
+    expect(await stored()).toBe("708.81");
+    const change = (cost: number) =>
+      call(sourceRoute, "bea", {
+        method: "PATCH",
+        query: { id: String(w.sofa.id), sourceId: String(id) },
+        body: { cost },
+      });
+    await change(790);
+    expect(await stored()).toBe("790");
+    await change(708.81);
+    expect(await stored()).toBe("708.81");
+  });
+
   it("lists them by vendor name, with a blank number or cost left blank", async () => {
     await add(w.sofa.id, { vendorId: w.quarry.id, itemNumber: "", cost: null });
     await brightSellsSofa();

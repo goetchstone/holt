@@ -67,6 +67,12 @@ function readItemNumber(value: unknown): string | null {
   return trimmed || null;
 }
 
+/**
+ * A cost as the text Prisma writes exactly. Handed a JS number, Prisma writes
+ * the DECIMAL with the float's error: 708.81 lands as 708.8099999999999.
+ */
+const exact = (cost: number | null): string | null => (cost === null ? null : String(cost));
+
 function readCost(value: unknown): number | null {
   if (value === undefined || value === null || value === "") return null;
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
@@ -111,7 +117,7 @@ export async function addProductSource(
   const cost = who.canSetCost ? readCost(body.cost) : null;
   try {
     const created = await db.productSource.create({
-      data: { productId, vendorId, itemNumber, cost, createdBy: who.by },
+      data: { productId, vendorId, itemNumber, cost: exact(cost), createdBy: who.by },
       select: ROW,
     });
     return toRow(created, who.canSetCost);
@@ -138,7 +144,7 @@ export async function updateProductSource(
   if (!source) throw new ProductSourceError("That vendor isn't on this item.", 404);
   const data: Prisma.ProductSourceUpdateInput = { updatedBy: who.by };
   if ("itemNumber" in body) data.itemNumber = readItemNumber(body.itemNumber);
-  if (who.canSetCost && "cost" in body) data.cost = readCost(body.cost);
+  if (who.canSetCost && "cost" in body) data.cost = exact(readCost(body.cost));
   const updated = await db.productSource.update({
     where: { id: source.id },
     data,
