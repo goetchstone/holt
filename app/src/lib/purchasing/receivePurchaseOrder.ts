@@ -15,6 +15,11 @@
 // Each receipt records the place its units landed and the landed unit cost they
 // brought into their product's average (GAP-02, lib/purchasing/landedCost.ts),
 // so it can be taken back exactly (lib/purchasing/unreceive.ts).
+//
+// A product whose category keeps no stock (GAP-21, lib/inventory/stocked.ts)
+// is received as a record only: the receipt counts toward its PO line, so the
+// PO closes, and says it put nothing into stock (`intoStock` false). No units,
+// no place, no landed cost into an average over stock it never has, no tag.
 
 import type { Prisma } from "@prisma/client";
 import { lockProducts } from "@/lib/inventory/ledger";
@@ -24,6 +29,7 @@ import { parseQty } from "@/lib/inventory/qtyInput";
 import { nativeReceiptStatus } from "@/lib/purchasing/receiptStatus";
 import { INCOMPLETE_SET_CONDITION } from "@/lib/purchasing/receiptConditions";
 import { averageInReceipt, poLandedUnitCosts } from "@/lib/purchasing/landedCost";
+import { notStocked } from "@/lib/inventory/stocked";
 
 type Tx = Prisma.TransactionClient;
 
@@ -59,6 +65,8 @@ export interface ReceiveResult {
   printItems: { productId: number; quantity: number }[];
   /** BoxNote ids opened for incomplete sets. */
   incompleteNotes: number[];
+  /** Why each line received as a record only put nothing into stock. */
+  notStocked: string[];
 }
 
 export async function receivePurchaseOrder(
@@ -105,12 +113,11 @@ export async function receivePurchaseOrder(
   // Lock every product on this receipt once, in ascending order, before any
   // stock moves. Locking them one at a time in request order could take 9
   // then 2 while a sale takes 2 then 9, and deadlock.
-  await lockProducts(
-    tx,
-    args.items
-      .map((item) => po.lineItems.find((li) => li.id === item.purchaseOrderItemId)?.product?.id)
-      .filter((id): id is number => id != null),
-  );
+  const productIds = args.items
+    .map((item) => po.lineItems.find((li) => li.id === item.purchaseOrderItemId)?.product?.id)
+    .filter((id): id is number => id != null);
+  await lockProducts(tx, productIds);
+  const unstocked = await notStocked(tx, productIds);
 
   const receivingRecords: ReceiveResult["receivingRecords"] = [];
   const printItems: ReceiveResult["printItems"] = [];
@@ -149,6 +156,7 @@ export async function receivePurchaseOrder(
     quantity: number,
     condition: string | null,
     landedAt: number | null,
+    intoStock = true,
   ): Promise<void> => {
     const r = await tx.receivingRecord.create({
       data: {
@@ -157,10 +165,13 @@ export async function receivePurchaseOrder(
         quantityReceived: quantity,
         receiverUserId: args.receiverUserId,
         destinationLocationId: args.storeLocationId,
-        destinationStockLocationId: landedAt ?? (item.destinationStockLocationId || null),
+        destinationStockLocationId: intoStock
+          ? (landedAt ?? (item.destinationStockLocationId || null))
+          : null,
         condition,
-        tagsPrinted: item.printTag ?? false,
-        landedUnitCost: landed.get(item.purchaseOrderItemId) ?? null,
+        tagsPrinted: intoStock && (item.printTag ?? false),
+        landedUnitCost: intoStock ? (landed.get(item.purchaseOrderItemId) ?? null) : null,
+        intoStock,
       },
     });
     receivingRecords.push({
@@ -172,9 +183,18 @@ export async function receivePurchaseOrder(
     });
   };
 
+  const notStockedLines: string[] = [];
   for (const item of args.items) {
     const poItem = po.lineItems.find((li) => li.id === item.purchaseOrderItemId);
     if (!poItem) continue;
+
+    const recordOnly = poItem.product ? unstocked.get(poItem.product.id) : undefined;
+    if (recordOnly) {
+      if ((item.incompleteSets ?? []).length > 0) throw new ReceiveError(recordOnly);
+      await record(item, item.quantityReceived, item.condition || null, null, false);
+      notStockedLines.push(recordOnly);
+      continue;
+    }
 
     if (item.quantityReceived > 0) {
       const landedAt = poItem.product
@@ -242,5 +262,5 @@ export async function receivePurchaseOrder(
     });
   }
 
-  return { receivingRecords, newStatus, printItems, incompleteNotes };
+  return { receivingRecords, newStatus, printItems, incompleteNotes, notStocked: notStockedLines };
 }

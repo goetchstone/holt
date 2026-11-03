@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/Modal";
 import { useFetchOptions } from "@/hooks/useFetchOptions";
 import { toast } from "react-toastify";
+import { isSavedRecord } from "@/lib/savedRecord";
 
 type Props = {
   category: Category | null;
@@ -90,8 +91,9 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
 
   const handleSubmit = async () => {
     setSaving(true);
-    const method = category ? "PUT" : "POST";
-    const url = category ? `/api/categories/${category.id}` : "/api/categories";
+    const editing = isSavedRecord(category);
+    const method = editing ? "PUT" : "POST";
+    const url = editing ? `/api/categories/${category.id}` : "/api/categories";
 
     const payload = {
       ...form,
@@ -116,7 +118,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
       });
 
       if (res.ok) {
-        toast.success(`Category ${category ? "updated" : "added"} successfully.`);
+        toast.success(`Category ${editing ? "updated" : "added"} successfully.`);
         onRefresh();
         onClose();
       } else {
@@ -134,7 +136,7 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
 
   return (
     <Modal
-      title={category ? "Edit Category" : "Add Category"}
+      title={isSavedRecord(category) ? "Edit Category" : "Add Category"}
       onClose={onClose}
       onSave={handleSubmit}
       saving={saving}
@@ -175,8 +177,12 @@ export default function CategoryModal({ category, onClose, onRefresh }: Props) {
         name="trackInventory"
         checked={form.trackInventory}
         onChange={handleCheckboxChange}
-        className="mb-4 h-5 w-5 border border-brand-gray rounded accent-brand-blue"
+        className="mb-1 h-5 w-5 border border-brand-gray rounded accent-brand-blue"
       />
+      <p className="mb-4 text-xs text-brand-gray">
+        Off for services, fees and supplies: its items never go into stock. Receiving records them
+        only, and counts, returns and imports add none. Stock already there stays until counted out.
+      </p>
 
       <FormDropdown
         label="Account Group"

@@ -41,12 +41,8 @@ import {
 import { type DiscountLine, largestDiscountPercent } from "@/lib/sales/discountPolicyShared";
 import { saleUnitCost } from "@/lib/purchasing/landedCostShared";
 import { quoteHoldContext } from "@/lib/sales/quoteHolds";
-import {
-  holdDateProblem,
-  holdDateValue,
-  isStockedProduct,
-  lineHoldProblem,
-} from "@/lib/sales/quoteHoldsShared";
+import { holdDateProblem, holdDateValue, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
+import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
 import {
   findOrCreateInIndex,
   findOrCreateVendorId,
@@ -494,7 +490,7 @@ async function cartHoldProblem(items: CartItem[]): Promise<string | null> {
     (
       await prisma.product.findMany({
         where: { id: { in: held.flatMap((i) => (i.productId ? [i.productId] : [])) } },
-        select: { id: true, madeToOrder: true, category: { select: { trackInventory: true } } },
+        select: { id: true, ...STOCKED_SELECT },
       })
     ).map((p) => [p.id, p]),
   );

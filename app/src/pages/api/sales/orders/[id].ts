@@ -13,7 +13,8 @@ import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { markHandedOver, handoverMethodFor } from "@/lib/fulfilment/handover";
 import { rerateQuoteTax } from "@/lib/tax/rerateQuoteTax";
 import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
-import { holdDateString, isStockedProduct, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
+import { holdDateString, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
+import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -164,7 +165,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           omit: { cost: true },
           include: {
             product: {
-              select: { madeToOrder: true, category: { select: { trackInventory: true } } },
+              select: STOCKED_SELECT,
             },
           },
         },

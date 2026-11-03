@@ -150,6 +150,39 @@ stock unchanged at 19,317 rows and 43,146 units.
 **Stock and space** (Reports › Stock and Space, `lib/reports/stockBy.ts`) reads
 this tree; see `docs/domains/reporting.md`.
 
+### What isn't stocked (GAP-21; since 2026-11-02)
+
+A store turns **Track Inventory** off on a category (Inventory › Categories) for
+what it sells but never shelves: services, fees, warranties, supplies. Its items
+never go on the books (`lib/inventory/stocked.ts`, owner 2026-11-02):
+
+- **The ledger refuses them.** `postMovement` throws `NotStockedError` for a
+  movement that brings units onto the books from outside (a destination and no
+  source: a receipt, a return, a count or import adding, an opening count). One
+  guard in the one writer covers every path (rule 42). Moving what is already
+  on the books is never refused.
+- **Receiving records it and stocks nothing** (`receivePurchaseOrder`). The
+  receipt counts toward its PO line, so the PO closes, and carries `intoStock`
+  false, no place, no landed cost and no tag. Both receive screens say which
+  lines were recorded only. Taking it back (`unreceive`) takes nothing out,
+  read from the receipt, not from the category now (rule 60). A landed charge
+  re-spread skips it (no landed cost). It can't arrive as an incomplete set.
+- **A count can take it down, never up** (`submitCount`, `postCount`: both
+  check, since the books can change between submit and post). So can a hand
+  edit (`warehouse/positions`, 400) and the stock import (`applyImportSync`
+  leaves a place it would add to as it is and counts it in `notStocked`, which
+  the import's message reports).
+- **A return comes back to no place** (`receiveReturnStock` returns null), so it
+  never enters the returned-stock queue, and putting it back is refused.
+- **Switching a category off keeps the stock it has.** Nothing removes it: it
+  stays in stock reports and counts, movable, until someone counts it out or
+  edits it to zero. A sale no longer draws it.
+
+Store-grain counts (snapshot, physical count, variance) never change the books,
+and their snapshot lists only stock on the books, so an item that isn't stocked
+and holds none never appears there. Tested in
+`unstockedItems.integration.test.ts`.
+
 ### Floor samples and stock set aside (GAP-15, GAP-16; since 2026-11-01)
 
 **A display piece stays on the floor.** A store marks the places its floor
@@ -190,16 +223,18 @@ shortfalls land in `InventoryException` (Admin → Inventory Exceptions) with
 order, product, store, requested, allocated and shortfall, resolvable once
 handled.
 
-**Made-to-order lines never allocate.** `CONFIGURED` and `CUSTOM` cart lines
-mint a brand-new `Product` during the sale, so they have no `InventoryPosition`
-by construction. Allocating them would post a full-shortfall exception on every
-custom order — for a furniture retailer, a large share of them — and a queue
-full of the normal case is a queue nobody reads. The filter is per-line, so a
-mixed cart still reports its stocked lines. Since 2026-11-01 the minted product
-is marked `Product.madeToOrder`, and `resyncOrderAllocation` never allocates it,
-nor a product in a category with `trackInventory` off (`isStockedProduct`,
-GAP-21). Its units still count as needed, so ones its PO delivered committed to
-the order are not released.
+**A made-to-order item is an item (owner, 2026-11-02).** `CONFIGURED` and
+`CUSTOM` cart lines mint a brand-new `Product` during the sale (marked
+`Product.madeToOrder`, a record of where it came from). It allocates like
+anything else: with nothing in stock it shows as short on the Oversold report
+until its PO arrives committed to the order, the same as a catalog item sold
+before it is received; a spare one (its first customer cancelled, or extra
+arrived) is free stock a sale takes. From 2026-11-01 to 2026-11-02 such lines
+never allocated, so a spare piece could never sell down; before that, the cart
+skipped them per line. **A product whose category keeps no stock never
+allocates** (`isStockedProduct`, `lib/inventory/stocked.ts`): there is nothing
+to commit, only a false shortfall. The filter is per line, so a mixed cart
+still reports its stocked lines.
 
 **A quote commits only what it holds (GAP-16, since 2026-11-01).** An order
 commits every line. A quote commits a floor-stock line only through the day the
@@ -452,6 +487,7 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 - `snapshotImport.test.ts` — unit tests for `resolveSnapshotImportRow` (the POS cutover importer's per-row resolution)
 - `inventorySnapshotGenerate.integration.test.ts` — real-DB coverage for `POST /api/inventory/snapshot/generate`, including a product with no `externalId` and same-day re-run idempotency
 - The handheld floor, phases 15–20: `scanCodes.test.ts`, `labelRender.test.ts`, `boxes.test.ts`, `countDifference.test.ts`, `deliveredLines.test.ts`; real-DB `resolveScan`, `withAction`, `handheldReceive`, `stockCount`, `stockMove`, `stockPick`, `stockDelivery` and `returnPickupStop` (`*.integration.test.ts`)
+- What isn't stocked (GAP-21): `unstockedItems.integration.test.ts` (a receipt records it and stocks nothing yet closes the PO; no incomplete set; taking the receipt back takes nothing out even once the category keeps stock; a landed charge skips it; the ledger refuses it and moves what is already there; a hand edit, a count and the import take it down, never up, and a count is checked again at posting; a return comes back to no place; a spare made-to-order piece is taken by a sale)
 - Transfers and reorders on the handheld (GAP-19): `scanTransfer.integration.test.ts` (send free first and each order's own; refusals; receive an order's first; all or none; done once; one claim with the desk; the routes' gate) and `scanOrder.integration.test.ts`
 - The run's truck: `stockTruck.integration.test.ts` (loading boards the bay, a delivery draws from the truck first, a failed stop's units stay aboard until unloaded, completion refused while anything is aboard, another run's truck still to pull)
 

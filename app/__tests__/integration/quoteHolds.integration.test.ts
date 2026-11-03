@@ -13,8 +13,9 @@
 // their day; an order commits everything; the store sets the longest hold.
 //
 // And once a register sale commits at its first payment rather than when it
-// is written, a made-to-order line (a minted one-off product) or a product in
-// a category that keeps no stock must not raise a shortfall: neither has stock.
+// is written, a product in a category that keeps no stock must not raise a
+// shortfall: it has no stock. A made-to-order line is an item like any other
+// (owner, 2026-11-02), short until its piece arrives.
 //
 // Real routes, real database; next-auth's session is the only mock.
 
@@ -562,7 +563,7 @@ describe("a hold ends", () => {
 });
 
 describe("what isn't stocked never raises a shortfall (GAP-21)", () => {
-  it("made-to-order and no-stock lines commit nothing when paid; a stocked line with none does", async () => {
+  it("a no-stock line commits nothing when paid; a made-to-order or stocked line with none is short", async () => {
     const w = await world();
     const sale = await ring(w, [
       {
@@ -578,7 +579,7 @@ describe("what isn't stocked never raises a shortfall (GAP-21)", () => {
     expect(sale.statusCode).toBe(201);
     const minted = await prisma.orderLineItem.findFirstOrThrow({
       where: { salesOrderId: sale.body.id, productName: "Custom sofa" },
-      select: { product: { select: { madeToOrder: true } } },
+      select: { productId: true, product: { select: { madeToOrder: true } } },
     });
     expect(minted.product?.madeToOrder).toBe(true);
 
@@ -587,8 +588,11 @@ describe("what isn't stocked never raises a shortfall (GAP-21)", () => {
     const short = await prisma.inventoryException.findMany({
       where: { salesOrderId: sale.body.id },
       select: { productId: true },
+      orderBy: { productId: "asc" },
     });
-    expect(short).toEqual([{ productId: w.chair.id }]);
+    expect(short.map((r) => r.productId)).toEqual(
+      [w.chair.id, minted.productId as number].sort((a, b) => a - b),
+    );
   });
 });
 

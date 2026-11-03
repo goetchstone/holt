@@ -732,9 +732,10 @@ business."
   `promoteQuoteToOrder`.
 - **The store sets the longest hold** (`AppSettings.quoteHoldMaxDays`, 0 to 365
   days; 0 = quotes hold nothing). It ships at 3, the strict end.
-- **What isn't stocked never commits.** A made-to-order one-off product
-  (`Product.madeToOrder`) or a category with `trackInventory` off has no stock,
-  so asking for some would only raise a false shortfall (GAP-21).
+- **What isn't stocked never commits.** A category with `trackInventory` off
+  has no stock, so asking for some would only raise a false shortfall (GAP-21).
+  A made-to-order one-off product was in this bullet too until 2026-11-02;
+  it is now an item like any other (DECISIONS 34).
 
 **Rejected:**
 
@@ -954,6 +955,48 @@ that draft".
 **Enforced by:** `__tests__/integration/scanOrder.integration.test.ts`.
 
 **Source:** [`app/src/lib/purchasing/scannedOrder.ts`](../app/src/lib/purchasing/scannedOrder.ts)
+
+---
+
+## 34. What isn't stocked is its category's call; a made-to-order item is an item
+
+**Decided 2026-11-02 (GAP-21), by the owner.** Asked what receiving does with an
+item whose category doesn't track inventory, and what happens when a category is
+switched off while it holds stock, the owner chose "record it, stock nothing"
+and "allow it, stock stays visible". On made-to-order pieces: "an item is an
+item no matter if it was speciall made to order or not"; a custom one is on a
+PO until it arrives, and if its order was cancelled "it is stock like anything
+else".
+
+- **Not stocked means one thing: a category with Track Inventory off.** Its
+  items never go on the books. The ledger refuses units arriving from outside
+  for one (`postMovement`, `NotStockedError`), so no path can add them.
+- **Receiving records it and stocks nothing.** The receipt counts toward the PO
+  line so the PO closes, and says so itself (`ReceivingRecord.intoStock`), so
+  taking it back takes nothing out whatever the category says later (rule 60).
+- **Switching a category off keeps the stock it has.** Counts, hand edits and
+  the import can take it down, never up; nothing removes it on its own.
+- **A made-to-order item is an item.** It allocates like any other: short on the
+  Oversold report until its PO arrives committed to the order, and a spare one
+  is stock a sale takes. `Product.madeToOrder` stays as a record of where the
+  product came from, read by nothing in stock.
+
+**Rejected:**
+
+- **Refusing to receive an item that isn't stocked.** The PO line could never
+  close without cancelling it or changing the item's category.
+- **Refusing to switch a category off while it holds stock.** Moving an item
+  with stock into such a category would have to be refused too, on every path
+  that sets a product's category, the product import among them.
+- **Made-to-order lines never drawing stock (2026-11-01 to 2026-11-02).** It
+  kept custom orders off the Oversold report, but a piece whose customer
+  cancelled after it arrived could never sell down: a sale of it took nothing,
+  and it sat on the books until counted out.
+
+**Enforced by:** `__tests__/integration/unstockedItems.integration.test.ts`,
+`inventoryOrderWiring.integration.test.ts` and `quoteHolds.integration.test.ts`.
+
+**Source:** [`app/src/lib/inventory/stocked.ts`](../app/src/lib/inventory/stocked.ts)
 
 ---
 

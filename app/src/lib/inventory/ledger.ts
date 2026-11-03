@@ -14,7 +14,8 @@
 //   setPlaceQuantity  make one place hold exactly N, as a movement of the
 //                  difference (the POS import and admin edits need this)
 //
-// Everything else in lib/inventory is built from these three.
+// Everything else in lib/inventory is built from these three. A product whose
+// category keeps no stock never gains any here (lib/inventory/stocked.ts).
 //
 // THE JOURNAL
 //
@@ -61,6 +62,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { roundQty, toQty, qtyEquals, qtyIsZero, QTY_EPSILON } from "./quantity";
 import { isStockLocationType, LOCATION_TYPE_INFO } from "./locationTypes";
+import { NotStockedError, notStocked } from "./stocked";
 
 export type PrismaTx = PrismaClient | Prisma.TransactionClient;
 type Tx = Prisma.TransactionClient;
@@ -317,6 +319,8 @@ export async function postMovement(db: PrismaTx, movement: Movement): Promise<vo
     await lockProduct(tx, movement.productId);
     const actor = movement.actor ?? null;
 
+    await assertMayArrive(tx, movement);
+
     if (movement.from) {
       const rows = await tx.inventoryPosition.findMany({
         where: placeWhere(movement.productId, movement.from),
@@ -385,6 +389,17 @@ export async function postMovement(db: PrismaTx, movement: Movement): Promise<vo
       },
     });
   });
+}
+
+/**
+ * Units coming onto the books from outside -- a receipt, a return, a count or
+ * an import adding some -- only for a product that keeps stock (GAP-21,
+ * lib/inventory/stocked.ts). Moving what is already here is never refused.
+ */
+async function assertMayArrive(tx: Tx, movement: Movement): Promise<void> {
+  if (!movement.to || movement.from) return;
+  const refused = (await notStocked(tx, [movement.productId])).get(movement.productId);
+  if (refused) throw new NotStockedError(movement.productId, refused);
 }
 
 /**

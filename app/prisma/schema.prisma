@@ -384,9 +384,9 @@ model Product {
   isDiscontinued Boolean @default(false)
   season         String?
   /// Made for one sale: the one-off product a configured or custom cart line
-  /// mints (create-from-cart). Never stock on hand, so a sale never draws free
-  /// stock for it (GAP-21); its units arrive committed to their order when
-  /// its PO is received.
+  /// mints (create-from-cart). A record of where it came from only: in stock it
+  /// is an item like any other (owner, 2026-11-02), on order until its PO
+  /// arrives committed to the order, and free stock if that order is gone.
   madeToOrder    Boolean @default(false)
 
   // Grade-based products: how many yards/sq ft of material are needed
@@ -2228,6 +2228,10 @@ model ReceivingRecord {
   /// receipt written before landed cost.
   landedUnitCost Decimal?
   invoiceNumber  String?
+  /// False when the product's category keeps no stock (GAP-21): the receipt
+  /// counts toward its PO line and put nothing on the books, so taking it back
+  /// takes nothing out (rule 60: the recorded fact, not the category now).
+  intoStock      Boolean  @default(true)
 
   purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
   purchaseOrder     PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id])
