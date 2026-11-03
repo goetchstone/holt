@@ -35,6 +35,7 @@ import type { OrderDisclaimerRef } from "@/lib/sales/orderDisclaimersShared";
 import { LineNote } from "./LineNote";
 import { OrderFlagChip, OrderFlagsPanel } from "./OrderFlagsPanel";
 import { OrderDisclaimersPanel } from "./OrderDisclaimersPanel";
+import { UndoHandoverButton } from "./UndoHandoverButton";
 
 interface LineItem {
   id: number;
@@ -122,6 +123,8 @@ interface OrderDetails {
   splitPercent: number;
   storeLocation: string;
   deliveryMethod: string | null;
+  /** When the goods reached the customer; null while still to go. */
+  deliveredAt: string | null;
   /** The delivery fee line: changed in DeliveryFeePanel, not by line edits. */
   deliveryFeeLineItemId: number | null;
   /** The store's flags on it, and the disclaimers it prints (GAP-07). */
@@ -207,6 +210,8 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
   DISCLAIMER_ADDED: "Disclaimer Added",
   DISCLAIMER_REMOVED: "Disclaimer Taken Off",
   COPIED_FROM: "Copied From",
+  HANDED_OVER: "Handed Over",
+  HANDOVER_UNDONE: "Handover Undone",
   SALESPERSON_CHANGE: "Salesperson Changed",
   HOLD_SET: "Held for Customer",
   HOLD_ENDED: "Hold Taken Off",
@@ -333,7 +338,10 @@ function splitCreditNote(typed: string): string {
   return `Sales credit is split ${splitLabel(percent)}: ${percent}% to the salesperson, ${100 - percent}% to the partner, in reports and commission.`;
 }
 
-export function OrderDetailView({ id }: { id: string }) {
+export function OrderDetailView({
+  id,
+  canUndoHandover = false,
+}: Readonly<{ id: string; canUndoHandover?: boolean }>) {
   const router = useRouter();
   const { data: session } = useSession();
   const userRole = (session as { role?: string } | null)?.role || "DESIGNER";
@@ -815,6 +823,14 @@ export function OrderDetailView({ id }: { id: string }) {
             <Clock className="w-3.5 h-3.5 mr-1" />
             History
           </Button>
+          {canUndoHandover && orderDetails.deliveredAt && (
+            <UndoHandoverButton
+              orderId={orderDetails.id}
+              orderno={orderDetails.orderno}
+              deliveredAt={orderDetails.deliveredAt}
+              onUndone={fetchOrder}
+            />
+          )}
           <Button variant="secondary" size="sm" onClick={handleDeleteOrder}>
             Delete
           </Button>

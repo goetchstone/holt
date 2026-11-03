@@ -188,6 +188,10 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   OrderChangeLog: { status: "seeded" },
   OrderDisclaimer: { status: "seeded" },
   OrderFlag: { status: "seeded" },
+  // GAP-07: a handover through lib/fulfilment/handover.ts records one. The demo
+  // writes its past deliveries' deliveredAt directly, so it has none, and its
+  // delivered orders can't be undone until it hands them over properly.
+  OrderHandover: { status: "todo", tranche: "fulfilment-history" },
   OrderLineItem: { status: "seeded" },
   Organization: { status: "seeded" },
   Page: { status: "seeded", seeder: "cms" },
@@ -329,6 +333,7 @@ export const SEED_TRANCHES: readonly string[] = [
   "money-detail",
   "buying-consignment",
   "content-comms",
+  "fulfilment-history",
 ];
 
 export function modelsInTranche(tranche: string): string[] {

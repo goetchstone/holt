@@ -21,8 +21,10 @@ const VALID_RUN_TRANSITIONS: Record<DeliveryRunStatus, DeliveryRunStatus[]> = {
 // was recognised, and there is nothing to reverse. (Goods that were delivered
 // and then sent back are a Return with a pickup -- lib/returnService.ts.)
 //
-// COMPLETED is terminal because handing the goods over is not undoable: it sets
-// SalesOrder.deliveredAt, which recognises the sale.
+// COMPLETED is terminal: handing the goods over sets SalesOrder.deliveredAt,
+// which recognises the sale. One recorded by mistake is not reopened here; a
+// manager undoes the handover itself (lib/fulfilment/undoHandover.ts, GAP-07),
+// which takes the stop off its run.
 //
 // PENDING -> ARRIVED directly: nothing sets EN_ROUTE (the driver screen has no
 // such step), so with only PENDING -> EN_ROUTE allowed, the driver's "Mark

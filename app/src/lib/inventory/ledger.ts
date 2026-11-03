@@ -89,6 +89,7 @@ export const MOVEMENT_REASONS = {
   ALLOCATE: "Committed to a sales order",
   RELEASE: "Released from a sales order to free stock",
   DELIVER: "Left with the customer",
+  UNDELIVER: "Back on the books: a handover recorded by mistake, undone",
   RETURN: "Returned by a customer",
   WRITE_OFF: "Written off: out of the books",
   DAMAGE: "Set aside as damaged",
@@ -122,6 +123,8 @@ export interface Movement {
   note?: string | null;
   /** The handheld action this belongs to (lib/inventory/withAction.ts). */
   actionKey?: string | null;
+  /** The handover these units left with, or came back from (GAP-07). */
+  orderHandoverId?: number | null;
 }
 
 /**
@@ -386,6 +389,7 @@ export async function postMovement(db: PrismaTx, movement: Movement): Promise<vo
         actor,
         note: movement.note ?? null,
         actionKey: movement.actionKey ?? null,
+        orderHandoverId: movement.orderHandoverId ?? null,
       },
     });
   });

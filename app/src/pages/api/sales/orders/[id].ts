@@ -17,6 +17,7 @@ import { holdDateString, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
 import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
 import { orderFlagsOf } from "@/lib/sales/orderFlags";
 import { orderDisclaimersOf } from "@/lib/sales/orderDisclaimers";
+import { handedOverStatusProblem } from "@/lib/fulfilment/undoHandover";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -50,6 +51,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       if (!existing) return res.status(404).json({ error: "Order not found" });
       const locked = await returnOrderEditProblem(prisma, existing.id);
       if (locked) return res.status(409).json({ error: locked });
+      const leaving = handedOverStatusProblem(existing, status);
+      if (leaving) return res.status(409).json({ error: leaving });
 
       const changedBy = session.user?.email || null;
 
@@ -211,6 +214,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       storeLocation: order.storeLocation,
       orderNotes: order.orderNotes,
       deliveryMethod: order.deliveryMethod,
+      // When the goods reached the customer; null while still to go (GAP-07:
+      // the order screen offers Undo handover on a handed-over order).
+      deliveredAt: order.deliveredAt,
       // Which line is the delivery fee: it changes only through
       // orders/[id]/delivery-fee.ts, so the screen leaves it out of line edits.
       deliveryFeeLineItemId: order.deliveryFeeLineItemId,

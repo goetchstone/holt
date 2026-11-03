@@ -373,8 +373,8 @@ configurations"), and a duplicate is priced at today's prices. `docs/DECISIONS.m
   cancelled line, and now a flag, a note or a copy's `COPIED_FROM`) could not be
   deleted: a manager deleting a copy made by mistake got "Failed to delete
   order". The route deletes them first now.
-- **Not built** (ROADMAP GAP-07): undoing a delivery. Choosing the split share
-  at the register is "Split sales" below.
+- Choosing the split share at the register is "Split sales" below, and undoing
+  a delivery "Undoing a handover".
 
 ## Split sales (GAP-07, since 2026-11-03)
 
@@ -386,6 +386,43 @@ corrections set it: a new split takes the store's default, a new partner keeps
 the share, and a change is logged ("split 60/40 with ..."). The register and the
 quote builder can split a sale too (pos.md). How every report credits it:
 commission.md "Split sales".
+
+## Undoing a handover (GAP-07, since 2026-11-03)
+
+A handover, the goods reaching the customer, is terminal by design: it sets
+`deliveredAt` and recognises the sale. One recorded by mistake is undone, not
+reopened (owner, 2026-11-03; DECISIONS 38).
+
+- **Who and where.** The order page's **Undo handover**, for holders of "Undo
+  a handover" (`sales.undo-handover`). General managers and managers hold it by
+  default. It asks why, then calls `POST /api/sales/orders/[id]/undo-handover`
+  (`lib/fulfilment/undoHandover.ts`).
+- **What it does.** It reads the handover's own record (`OrderHandover`) and
+  reverses exactly that:
+  - **Stock.** The units it took off the books come back committed to the
+    order, where they left from (inventory.md).
+  - **The order.** It reopens: `deliveredAt` is cleared, the status is ORDER,
+    the dispatch status goes back to what it was, and each line's fulfilled
+    quantity goes back too.
+  - **Dispatch.** A delivery goes back in the dispatch pool
+    (service-dispatch.md).
+  - **Records.** The handover keeps who undid it and why, and the order's
+    history gets HANDOVER_UNDONE.
+- **Only the latest.** A part delivery before it was its own stop and stays
+  delivered.
+- **Refused:**
+  - once commission on the order has been paid out: a paid `CommissionPayout`
+    for anyone credited with the sale, for the period the sale counted in on
+    their plan (the order date when written, the delivery date when
+    delivered);
+  - once a return against the order exists;
+  - for a handover recorded before 2026-11-03, which has no record of what it
+    moved.
+- **The status buttons can't skip it.** A handed-over order's status
+  (`orders/[id]` PUT) and dispatch status (`orders/[id]/dispatch`) no longer
+  leave FULFILLED on their own: that left the goods off the books while the
+  order read as open. Both answer 409 and point to Undo handover.
+- **Tests:** `__tests__/integration/undoHandover.integration.test.ts`.
 
 ## Key Files
 
