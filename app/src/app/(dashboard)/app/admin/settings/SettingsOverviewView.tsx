@@ -442,10 +442,10 @@ function SplitSalesSection({
     <section id="split-sales" className="scroll-mt-6 space-y-4">
       <h2 className="font-serif text-lg text-brand-blue">Split sales</h2>
       <p className="text-xs text-brand-gray">
-        A sale two people write is credited to both: the salesperson gets this share and the
-        partner the rest, in every sales report and in commission. Staff whose role has
-        &ldquo;Reassign salesperson&rdquo; (Admin → Setup → Roles) may choose another share on a
-        sale. Changing this moves no sale already split.
+        A sale two people write is credited to both: the salesperson gets this share and the partner
+        the rest, in every sales report and in commission. Staff whose role has &ldquo;Reassign
+        salesperson&rdquo; (Admin → Setup → Roles) may choose another share on a sale. Changing this
+        moves no sale already split.
       </p>
       <div className="max-w-xs">
         <label htmlFor="default-split" className="mb-1 block text-sm text-brand-gray">
