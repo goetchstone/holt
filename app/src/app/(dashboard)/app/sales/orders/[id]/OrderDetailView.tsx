@@ -22,6 +22,7 @@ import { Printer, FileText, Plus, X, RefreshCw, Clock, UserCog, Search, Copy } f
 import Modal from "@/components/ui/Modal";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { computeTotalPaid } from "@/lib/paymentBalance";
 import { openCheckoutFrom } from "@/lib/openCheckoutPrompt";
 import { ApplyStoreCredit } from "./ApplyStoreCredit";
@@ -140,12 +141,6 @@ interface OrderDetails {
   payments: OrderPayment[];
 }
 
-interface CustomerSearchResult {
-  id: number;
-  firstName: string;
-  lastName: string;
-}
-
 interface SalespersonUpdateResponse {
   salesPersonId: number | null;
   salesPerson: StaffRef | null;
@@ -234,28 +229,14 @@ function CustomerField({
   onLinked: () => void;
 }) {
   const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<CustomerSearchResult[]>([]);
-
-  const doSearch = useCallback(async (q: string) => {
-    if (q.length < 2) {
-      setResults([]);
-      return;
-    }
-    try {
-      const res = await axios.get(`/api/customers?search=${encodeURIComponent(q)}&limit=8`);
-      setResults(res.data.customers || res.data || []);
-    } catch {
-      setResults([]);
-    }
-  }, []);
+  const { query, setQuery, results, clear } = useCustomerSearch({ limit: 8 });
 
   const linkCustomer = async (custId: number) => {
     try {
       await axios.put(`/api/sales/orders/${orderId}`, { customerId: custId });
       toast.success("Customer linked");
       setSearching(false);
-      setQuery("");
+      clear();
       onLinked();
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to link customer"));
@@ -294,10 +275,7 @@ function CustomerField({
         <input
           type="text"
           value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            doSearch(e.target.value);
-          }}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name..."
           className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-brand-gold focus:outline-none"
           aria-label="Search customers by name"
