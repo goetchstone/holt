@@ -18,6 +18,7 @@ import {
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayKey, businessMonthRange } from "@/lib/reports/businessDay";
+import { creditShare } from "@/lib/commissionSplit";
 
 export interface MonthRow {
   month: number;
@@ -109,7 +110,9 @@ export async function getMonthlyPerformance(
       id: true,
       orderDate: true,
       status: true,
+      salesPersonId: true,
       splitWithId: true,
+      splitPercent: true,
       lineItems: {
         // Excludes cancelled lines (rule 33) and the delivery + freight
         // pass-throughs. Labor stays included.
@@ -135,7 +138,8 @@ export async function getMonthlyPerformance(
     const salesOrders = monthOrders.filter((o) => REVENUE_STATUSES.includes(o.status));
     let totalSales = 0;
     for (const order of salesOrders) {
-      const multiplier = order.splitWithId ? 0.5 : 1;
+      // This person's share of a split sale (lib/commissionSplit.ts).
+      const multiplier = creditShare(order, staffId);
       const orderNet = order.lineItems.reduce((sum, li) => sum + Number(li.netPrice), 0);
       totalSales += orderNet * multiplier;
     }

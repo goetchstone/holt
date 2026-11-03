@@ -14,6 +14,7 @@ import { imputeMissingCost, resolveLineCost } from "@/lib/marginMath";
 import type { CommissionCountsWhen } from "@prisma/client";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 import type { CommissionSaleRow } from "@/lib/commissionRuleEngine";
+import { creditShare } from "@/lib/commissionSplit";
 
 /**
  * Sum a designer's net sales over `[fromDate, toDateExclusive)`.
@@ -31,10 +32,11 @@ import type { CommissionSaleRow } from "@/lib/commissionRuleEngine";
  * Line-item filter: `buildLineItemWhere([], false)` excludes cancelled
  * lines + freight/delivery pass-throughs. Same shape used everywhere.
  *
- * Split orders are counted at 0.5× per partner (matches the HR comp
- * report's convention). If a designer is BOTH the primary and the
- * split partner on the same order (impossible in current data but
- * possible in principle), they get 1×.
+ * A split order counts at the designer's share of it (creditShare,
+ * lib/commissionSplit.ts): the salesperson's splitPercent, the partner the
+ * rest; until GAP-07 every split was 0.5x each. If a designer is BOTH the
+ * primary and the split partner on the same order (impossible in current
+ * data but possible in principle), they get 1x.
  */
 /**
  * Which date puts a sale in a commission period.
@@ -92,7 +94,9 @@ export async function sumDesignerSales(
       ],
     },
     select: {
+      salesPersonId: true,
       splitWithId: true,
+      splitPercent: true,
       lineItems: {
         where: buildLineItemWhere([], false),
         select: { netPrice: true },
@@ -102,7 +106,7 @@ export async function sumDesignerSales(
 
   let total = 0;
   for (const o of orders) {
-    const multiplier = o.splitWithId ? 0.5 : 1;
+    const multiplier = creditShare(o, staffId);
     for (const li of o.lineItems) {
       total += Number(li.netPrice) * multiplier;
     }
@@ -113,7 +117,7 @@ export async function sumDesignerSales(
 /**
  * Row-level equivalent of `sumDesignerSales`, feeding the Stage 1 rule
  * engine (lib/commissionRuleEngine.ts). Same matching rules (FK + aliases +
- * the POS-string OR, 0.5x split multiplier, the cancelled-line filter via
+ * the POS-string OR, the designer's split share, the cancelled-line filter via
  * `buildLineItemWhere`) and the same SALES_REVENUE_STATUSES scope (rule
  * 47) — this function must never diverge from `sumDesignerSales`'s WHERE
  * clause, or the engine's REVENUE-basis total for a scope-all rule would
@@ -151,7 +155,9 @@ export async function loadDesignerSaleRows(
       id: true,
       orderDate: true,
       deliveredAt: true,
+      salesPersonId: true,
       splitWithId: true,
+      splitPercent: true,
       storeLocationId: true,
       lineItems: {
         where: buildLineItemWhere([], false),
@@ -175,7 +181,7 @@ export async function loadDesignerSaleRows(
 
   const rows: CommissionSaleRow[] = [];
   for (const o of orders) {
-    const multiplier = o.splitWithId ? 0.5 : 1;
+    const multiplier = creditShare(o, staffId);
     // orderDate is nullable in the schema; buildSalesOrderWhere above
     // requires it in-range, so it's non-null on every returned row, but
     // guard defensively rather than assert.

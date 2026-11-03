@@ -11,7 +11,7 @@
 
 import {
   aggregateMargin,
-  applySplit,
+  applyShare,
   formatMarginPct,
   imputeMissingCost,
 } from "../src/lib/marginMath";
@@ -93,16 +93,16 @@ describe("aggregateMargin", () => {
   });
 });
 
-describe("applySplit", () => {
-  it("returns the line unchanged when not a split", () => {
+describe("applyShare", () => {
+  it("returns the line unchanged at a whole share (not a split)", () => {
     const line = { retail: 1000, cost: 400 };
-    const result = applySplit(line, false);
+    const result = applyShare(line, 1);
     expect(result).toEqual(line);
   });
 
-  it("halves retail AND cost on a split, preserving margin%", () => {
+  it("halves retail AND cost on an even split, preserving margin%", () => {
     const line = { retail: 1000, cost: 400 };
-    const half = applySplit(line, true);
+    const half = applyShare(line, 0.5);
     expect(half.retail).toBe(500);
     expect(half.cost).toBe(200);
     // Critical invariant: each salesperson sees the same margin% as the
@@ -116,12 +116,23 @@ describe("applySplit", () => {
     // Both salespeople run the report; their numbers add up to the
     // original sale. This is what HR will spot-check against.
     const line = { retail: 1000, cost: 400 };
-    const half = applySplit(line, true);
+    const half = applyShare(line, 0.5);
     const sum = aggregateMargin([half, half]);
     const full = aggregateMargin([line]);
     expect(sum.retail).toBeCloseTo(full.retail, 2);
     expect(sum.cost).toBeCloseTo(full.cost, 2);
     expect(sum.margin).toBeCloseTo(full.margin, 2);
+  });
+
+  it("an uneven split's two shares sum to the full line, each at the line's margin%", () => {
+    // GAP-07: a 60/40 split. The salesperson sees 60% of the retail and the
+    // cost, the partner 40%; the two add up to the sale.
+    const line = { retail: 1000, cost: 400 };
+    const primary = applyShare(line, 0.6);
+    const partner = applyShare(line, 0.4);
+    expect([primary.retail, partner.retail]).toEqual([600, 400]);
+    expect(aggregateMargin([primary]).marginPct).toBeCloseTo(0.6, 4);
+    expect(aggregateMargin([primary, partner]).retail).toBeCloseTo(1000, 2);
   });
 });
 
@@ -191,17 +202,17 @@ describe("imputeMissingCost", () => {
     expect(imputed).toBe(line);
   });
 
-  it("composes correctly with applySplit (order independent)", () => {
+  it("composes correctly with applyShare (order independent)", () => {
     // Whether you impute-then-split or split-then-impute, you should
     // arrive at the same margin% (50%). This is a property the
     // pipeline relies on -- the aggregator doesn't know which order
     // the data layer applied them in.
     const line = { retail: 1000, cost: 0 };
 
-    const imputeFirst = applySplit(imputeMissingCost(line), true);
+    const imputeFirst = applyShare(imputeMissingCost(line), 0.5);
     expect(imputeFirst).toEqual({ retail: 500, cost: 250 });
 
-    const splitFirst = imputeMissingCost(applySplit(line, true));
+    const splitFirst = imputeMissingCost(applyShare(line, 0.5));
     expect(splitFirst).toEqual({ retail: 500, cost: 250 });
 
     expect(aggregateMargin([imputeFirst]).marginPct).toBeCloseTo(0.5, 4);

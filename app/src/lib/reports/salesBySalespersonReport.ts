@@ -22,7 +22,7 @@ import type { PrismaClient, Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
 import {
   aggregateMargin,
-  applySplit,
+  applyShare,
   imputeMissingCost,
   resolveLineCost,
   type MarginRow,
@@ -37,6 +37,7 @@ import {
   customerLabel,
 } from "@/lib/salesBySalesperson";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { creditShare, partnerShare, primaryShare } from "@/lib/commissionSplit";
 
 export type { GroupBy } from "@/lib/salesBySalesperson";
 
@@ -146,6 +147,7 @@ interface OrderForReport {
   id: number;
   salesPersonId: number | null;
   splitWithId: number | null;
+  splitPercent: number;
   salesperson: string | null;
   customer: {
     id: number;
@@ -266,8 +268,9 @@ function bucketBySalesperson(
   maps: StaffMaps,
   lockedToStaffId: number | null,
 ): void {
-  const isSplit = order.splitWithId !== null;
-  const halfLine = applySplit(baseLine, isSplit);
+  // Each side's share of a split sale (lib/commissionSplit.ts); the whole line
+  // to the salesperson when it isn't split.
+  const primaryLine = applyShare(baseLine, primaryShare(order));
 
   const primaryId = effectiveStaffId(order, maps.idByLcName);
   // When `lockedToStaffId` is set (designer self-only view), only emit
@@ -280,22 +283,27 @@ function bucketBySalesperson(
   if (primaryId !== null) {
     if (shouldEmit(primaryId)) {
       const name = maps.nameById.get(primaryId) || order.salesperson || "Unknown";
-      addToBucket(buckets, `sp-${primaryId}`, name, halfLine);
+      addToBucket(buckets, `sp-${primaryId}`, name, primaryLine);
     }
   } else if (order.salesperson) {
     // Unlinked-by-id but has a name. The lock matched via name (resolvedNames),
     // so this case ONLY runs when lockedToStaffId is null OR when the locked
     // designer's name matches. Either way safe to emit.
     if (lockedToStaffId === null) {
-      addToBucket(buckets, `sp-name-${order.salesperson}`, order.salesperson, halfLine);
+      addToBucket(buckets, `sp-name-${order.salesperson}`, order.salesperson, primaryLine);
     }
   } else if (lockedToStaffId === null) {
     // "(no salesperson)" bucket — only show to admins, never to a locked designer
-    addToBucket(buckets, "sp-unassigned", "(no salesperson)", halfLine);
+    addToBucket(buckets, "sp-unassigned", "(no salesperson)", primaryLine);
   }
-  if (isSplit && order.splitWithId !== null && shouldEmit(order.splitWithId)) {
+  if (order.splitWithId !== null && shouldEmit(order.splitWithId)) {
     const name2 = maps.nameById.get(order.splitWithId) || "Unknown";
-    addToBucket(buckets, `sp-${order.splitWithId}`, name2, halfLine);
+    addToBucket(
+      buckets,
+      `sp-${order.splitWithId}`,
+      name2,
+      applyShare(baseLine, partnerShare(order)),
+    );
   }
 }
 
@@ -389,6 +397,7 @@ export async function getSalesBySalesperson(
       id: true,
       salesPersonId: true,
       splitWithId: true,
+      splitPercent: true,
       salesperson: true,
       customer: {
         select: {
@@ -600,6 +609,7 @@ interface RawOrder {
   orderDate: Date | null;
   salesPersonId: number | null;
   splitWithId: number | null;
+  splitPercent: number;
   salesperson: string | null;
   customer: {
     id: number;
@@ -654,9 +664,10 @@ function resolveSalesPersonName(
 function lineToItem(
   order: RawOrder,
   li: RawOrder["lineItems"][number],
-  groupBy: GroupBy,
   salesPersonName: string | null,
   custLabel: string,
+  /** The share of the line this row credits: the drilled-into person's on a split. */
+  share: number,
 ): SalesByGroupItem {
   const isSplit = order.splitWithId !== null;
   // Cost fallback chain (user direction 2026-04-30): li.cost -> product
@@ -668,8 +679,7 @@ function lineToItem(
     retail: Number(li.netPrice ?? 0),
     cost: resolveLineCost(li),
   });
-  const showSplit = groupBy === "salesperson" && isSplit;
-  const halved = applySplit(cleaned, showSplit);
+  const halved = applyShare(cleaned, share);
   const margin = halved.retail - halved.cost;
   const marginPct = halved.retail === 0 ? 0 : margin / halved.retail;
 
@@ -733,8 +743,11 @@ function buildResultRows(
     if (shouldSkipOrder(order, narrowed, groupBy)) continue;
     const custLabel = customerLabel(order.customer);
     const salesPersonName = resolveSalesPersonName(order, narrowed, groupBy, staffNameById);
+    // Drilling into a salesperson shows their share of a split sale; any other
+    // grouping shows the whole line.
+    const share = groupBy === "salesperson" ? creditShare(order, narrowed.groupSalesPersonId) : 1;
     for (const li of order.lineItems) {
-      rows.push(lineToItem(order, li, groupBy, salesPersonName, custLabel));
+      rows.push(lineToItem(order, li, salesPersonName, custLabel, share));
       if (rows.length >= MAX_ROWS) return rows;
     }
   }
@@ -842,6 +855,7 @@ export async function getSalesBySalespersonItems(
       orderDate: true,
       salesPersonId: true,
       splitWithId: true,
+      splitPercent: true,
       salesperson: true,
       customer: {
         select: {

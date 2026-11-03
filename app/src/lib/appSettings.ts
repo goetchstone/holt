@@ -20,6 +20,7 @@ import { parsePrefix } from "@/lib/numberingPrefix";
 import { isLandedCostSplit, type LandedCostSplit } from "@/lib/purchasing/landedCostShared";
 import { IDLE_LOGOFF_DEFAULT_MINUTES, isIdleLogoffMinutes } from "@/lib/auth/idleLogoff";
 import { QUOTE_HOLD_DEFAULT_MAX_DAYS, isQuoteHoldMaxDays } from "@/lib/sales/quoteHoldsShared";
+import { EVEN_SPLIT_PERCENT, isSplitPercent } from "@/lib/commissionSplit";
 
 export const DEFAULT_ORG_ID = 1;
 
@@ -107,6 +108,9 @@ export interface ResolvedAppSettings {
    *  discounts" may give alone (lib/sales/discountApproval.ts). 0 = every such
    *  discount needs a manager. */
   discountLimitPercent: number;
+  /** A new split sale's share to its salesperson, whole percent 1-99; the
+   *  partner gets the rest (lib/commissionSplit.ts). 50 = even. */
+  defaultSplitPercent: number;
   /** The longest, in days from today, a quote may hold floor stock for its
    *  customer (lib/sales/quoteHolds.ts). 0 = quotes hold nothing. */
   quoteHoldMaxDays: number;
@@ -170,6 +174,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   defaultTaxDistrictId: null,
   deliveryFeeTaxGroupId: null,
   discountLimitPercent: 0,
+  defaultSplitPercent: EVEN_SPLIT_PERCENT,
   quoteHoldMaxDays: QUOTE_HOLD_DEFAULT_MAX_DAYS,
   landedCostSplit: "VALUE",
   idleLogoffMinutes: IDLE_LOGOFF_DEFAULT_MINUTES,
@@ -203,6 +208,7 @@ interface AppSettingsRow {
   defaultTaxDistrictId?: number | null;
   deliveryFeeTaxGroupId?: number | null;
   discountLimitPercent?: number | null;
+  defaultSplitPercent?: number | null;
   quoteHoldMaxDays?: number | null;
   landedCostSplit?: string | null;
   idleLogoffMinutes?: number | null;
@@ -282,6 +288,9 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     defaultTaxDistrictId: row.defaultTaxDistrictId ?? null,
     deliveryFeeTaxGroupId: row.deliveryFeeTaxGroupId ?? null,
     discountLimitPercent: row.discountLimitPercent ?? 0,
+    defaultSplitPercent: isSplitPercent(row.defaultSplitPercent)
+      ? row.defaultSplitPercent
+      : EVEN_SPLIT_PERCENT,
     quoteHoldMaxDays: isQuoteHoldMaxDays(row.quoteHoldMaxDays)
       ? row.quoteHoldMaxDays
       : QUOTE_HOLD_DEFAULT_MAX_DAYS,

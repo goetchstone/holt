@@ -125,6 +125,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         salesperson: order.salesperson,
         salesPersonId: order.salesPersonId,
         splitWithId: order.splitWithId,
+        splitPercent: order.splitPercent,
         storeLocation: order.storeLocation,
         status: order.status,
         dispatchStatus: order.dispatchStatus,

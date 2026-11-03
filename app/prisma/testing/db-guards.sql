@@ -169,3 +169,14 @@ ALTER TABLE "VendorAlias" DROP CONSTRAINT IF EXISTS "VendorAlias_name_not_blank"
 ALTER TABLE "VendorAlias" ADD CONSTRAINT "VendorAlias_name_not_blank" CHECK (
   btrim("name") <> ''
 );
+
+-- 20261103180000_split_share
+-- A split's share to the salesperson, and the store's default, are 1 to 99.
+ALTER TABLE "SalesOrder" DROP CONSTRAINT IF EXISTS "SalesOrder_splitPercent_range";
+ALTER TABLE "SalesOrder" ADD CONSTRAINT "SalesOrder_splitPercent_range" CHECK (
+  "splitPercent" >= 1 AND "splitPercent" <= 99
+);
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_defaultSplitPercent_range";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_defaultSplitPercent_range" CHECK (
+  "defaultSplitPercent" >= 1 AND "defaultSplitPercent" <= 99
+);

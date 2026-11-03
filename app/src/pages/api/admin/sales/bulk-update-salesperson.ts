@@ -9,6 +9,8 @@ import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { loadActiveConfirmations } from "@/lib/payPeriodLockGuard";
 import { isAttributionLocked } from "@/lib/payPeriodLock";
+import { getAppSettings } from "@/lib/appSettings";
+import { nextSplitPercent, splitPercentProblem } from "@/lib/commissionSplit";
 
 export const config = { api: { bodyParser: { sizeLimit: "5mb" } } };
 
@@ -16,6 +18,9 @@ interface UpdateRow {
   orderId: number;
   salesPersonId: number | null;
   splitWithId?: number | null;
+  /** The salesperson's share of a split (GAP-07); absent keeps the order's,
+   *  or gives a new split the store's default (lib/commissionSplit.ts). */
+  splitPercent?: number;
 }
 
 export default requirePermission(
@@ -41,6 +46,7 @@ export default requirePermission(
     // designer. Per-row (not whole-batch) so one locked order doesn't
     // sink the rest.
     const activeConfirmations = await loadActiveConfirmations();
+    const { defaultSplitPercent } = await getAppSettings();
 
     let updated = 0;
     const errors: { orderId: number; reason: string }[] = [];
@@ -60,6 +66,7 @@ export default requirePermission(
               salesperson: true,
               salesPersonId: true,
               splitWithId: true,
+              splitPercent: true,
             },
           });
 
@@ -101,8 +108,25 @@ export default requirePermission(
             continue;
           }
 
+          const shareProblem =
+            row.splitPercent === undefined ? null : splitPercentProblem(row.splitPercent);
+          if (shareProblem) {
+            errors.push({ orderId: row.orderId, reason: shareProblem });
+            continue;
+          }
+          const splitPercent = nextSplitPercent({
+            current: order,
+            splitWithId: resolvedSplit,
+            chosen: row.splitPercent,
+            storeDefault: defaultSplitPercent,
+          });
+
           // Skip if nothing changed
-          if (order.salesPersonId === row.salesPersonId && order.splitWithId === resolvedSplit) {
+          if (
+            order.salesPersonId === row.salesPersonId &&
+            order.splitWithId === resolvedSplit &&
+            order.splitPercent === splitPercent
+          ) {
             continue;
           }
 
@@ -114,6 +138,7 @@ export default requirePermission(
               salesPersonId: row.salesPersonId,
               salesperson: newName ?? order.salesperson,
               splitWithId: resolvedSplit,
+              splitPercent,
               updatedBy: session.user!.email,
             },
           });

@@ -200,6 +200,16 @@ the helper. A cashier can still change a line's price once it is on the cart.
 8. Return the order id plus the server-priced subtotal / order discount / delivery
    fee / tax / total.
 
+## Splitting a sale (GAP-07, since 2026-11-03)
+
+Someone with "Reassign salesperson" sees **Split the sale with** on the
+register and the quote builder: a colleague, and their own share (the store's
+default from Admin › Settings › Split sales, 50 to start). `create-from-cart`
+takes `splitWithId` and `splitPercent`, refuses a split from anyone without the
+permission (403), a partner who is the seller, gone or unknown, and a share
+outside 1-99, and records the share on the order. Every report then credits the
+seller their share and the partner the rest (commission.md "Split sales").
+
 ## Discounts and manager approval
 
 **A discount follows the store's policy (GAP-06, 2026-10-30).** How a store

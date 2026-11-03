@@ -209,6 +209,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       salesPersonId: order.salesPersonId,
       salesPerson: order.salesPerson,
       splitWithId: order.splitWithId,
+      splitPercent: order.splitPercent,
       splitWith: order.splitWith,
       storeLocation: order.storeLocation,
       orderNotes: order.orderNotes,
