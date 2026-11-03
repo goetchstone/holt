@@ -1065,6 +1065,43 @@ option). Duplicating an order makes a new quote.
 
 ---
 
+## 38. A handover recorded by mistake is undone by reversing its own record
+
+**Decided 2026-11-03 (GAP-07).** Offered "a permission, managers by default,
+refused once commission on the order is paid out" as the recommended option,
+the owner answered "Yes configurations", read as yes to it. The order reopens,
+its units come back where they left from, still committed to it, and the
+delivery goes back to the dispatch pool.
+
+- **A handover records what it changes.** `OrderHandover`: the dispatch status
+  and each open line's fulfilled quantity before it, and its stop. Every unit
+  it moves points back at it (`StockMovement.orderHandoverId`). The undo
+  reverses exactly that, and the record keeps who undid it and why.
+- **Only the latest handover.** A part delivery before it was its own stop,
+  confirmed as it happened.
+- **A truck's units go to a loading bay.** A finished run's truck places leave
+  service, so a unit that left from one comes back where an unloaded truck
+  puts it.
+- **The status buttons can't reopen a handed-over order.** Only the undo can,
+  so the stock always comes back with it.
+
+**Rejected:**
+
+- **Reopening by status.** That is what the buttons did. It left the goods
+  off the books while the order read as open.
+- **Reversing every delivery on the order.** It would bring back units a
+  correct part delivery left with the customer.
+- **Finding the handover's movements by time or reason.** Part deliveries move
+  the same products with the same reason. A recorded link can't be mistaken.
+- **Undoing handovers recorded before the record existed.** There is nothing
+  to say what they moved. They are refused, and a count corrects the stock.
+
+**Enforced by:** `__tests__/integration/undoHandover.integration.test.ts`.
+
+**Source:** [`app/src/lib/fulfilment/undoHandover.ts`](../app/src/lib/fulfilment/undoHandover.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

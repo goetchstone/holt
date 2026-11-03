@@ -145,6 +145,7 @@ const ALL_TABLES = [
   "OrderChangeLog",
   "OrderDisclaimer",
   "OrderFlag",
+  "OrderHandover",
   "OrderLineItem",
   "Organization",
   "Page",

@@ -740,6 +740,15 @@ that store, coded `TRUCK-<run number>` and named after the vehicle.
   fulfilled, so a resync never commits stock again for units already gone. A
   delivery's handover draws from the truck first too, so none are left
   reading as aboard.
+- **A handover is recorded so it can be undone** (GAP-07, since 2026-11-03).
+  `markHandedOver` writes an `OrderHandover` first, recording each open line's
+  fulfilled quantity and the dispatch status before it, and its stop. Every
+  DELIVER movement it makes carries `StockMovement.orderHandoverId`. Undoing it
+  (`lib/fulfilment/undoHandover.ts`) posts each of those units back with reason
+  `UNDELIVER`, from outside the books to the place it left, committed to the
+  order. A unit that left from a finished run's truck goes to the store's
+  loading bay instead, where `unloadRun` would have put it. Handovers before
+  this have no record and are not undone.
 - **A stop that could not be done** comes off the run. The reason goes on the
   order, and the stock stays committed to it where it is: on the run's truck,
   until the truck is unloaded to a loading bay, where it waits for the order's

@@ -1934,15 +1934,20 @@ model StockMovement {
   sourceType String?
   sourceId   Int?
 
-  actor      String?
-  note       String?
-  occurredAt DateTime @default(now())
+  actor           String?
+  note            String?
+  occurredAt      DateTime       @default(now())
   /// The handheld action that made this move (StockAction.key), when one did.
-  actionKey  String?
+  actionKey       String?
+  /// The handover these units left with (GAP-07, lib/fulfilment/handover.ts),
+  /// so undoing that handover puts exactly these units back.
+  orderHandoverId Int?
+  orderHandover   OrderHandover? @relation(fields: [orderHandoverId], references: [id], onDelete: SetNull)
 
   @@index([productId, occurredAt])
   @@index([sourceType, sourceId])
   @@index([actionKey])
+  @@index([orderHandoverId])
 }
 
 /// A note about boxes, never a quantity (lib/inventory/boxes.ts). INCOMPLETE:
@@ -2018,6 +2023,39 @@ model StockCountLine {
 /// (lib/inventory/withAction.ts). A scanner on bad Wi-Fi retries; the key is
 /// the device's, chosen per action, and a retry gets the first answer back
 /// instead of moving the stock again.
+/// GAP-07: one handover -- the goods reaching the customer
+/// (lib/fulfilment/handover.ts markHandedOver) -- as it was recorded, so that
+/// one recorded by mistake can be undone exactly (lib/fulfilment/undoHandover.ts).
+/// It keeps what the handover changed: the order's statuses and each line's
+/// fulfilled quantity before it, and the stop it came from. Its stock movements
+/// point back at it (StockMovement.orderHandoverId).
+model OrderHandover {
+  id                     Int             @id @default(autoincrement())
+  salesOrderId           Int
+  salesOrder             SalesOrder      @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  /// DELIVERY, PICKUP or TAKEN (handover.ts HandoverMethod).
+  method                 String
+  /// The moment recorded as SalesOrder.deliveredAt.
+  at                     DateTime
+  /// The run and stop it was completed from, when it was a delivery stop.
+  deliveryRunId          Int?
+  deliveryStopId         Int?
+  /// The dispatch status before, which an undo puts back; the order itself
+  /// reopens as an ORDER.
+  previousDispatchStatus DispatchStatus?
+  /// Each open line's fulfilledQty before: [{ "lineItemId": n, "fulfilledQty": q }].
+  linesBefore            Json
+  actor                  String?
+  created                DateTime        @default(now())
+  /// Set when it was undone; the record stays as the history of both.
+  undoneAt               DateTime?
+  undoneBy               String?
+  undoReason             String?
+  movements              StockMovement[]
+
+  @@index([salesOrderId])
+}
+
 model StockAction {
   key     String   @id
   kind    String
@@ -3058,6 +3096,8 @@ model SalesOrder {
   leads               Lead[]
   linkedTasks         ServiceTask[]               @relation("TaskLinkedOrder")
   proposal            Proposal?
+  /// Each time the goods reached the customer, as recorded (GAP-07).
+  handovers           OrderHandover[]
   /// The store's flags on this order (GAP-07, lib/sales/orderFlags.ts).
   flags               SalesOrderFlag[]
   /// Disclaimers printed on this order, each copied as it read (GAP-07).

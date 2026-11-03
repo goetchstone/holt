@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { success, badRequest, methodNotAllowed, handleError } from "@/lib/apiResponse";
 import { release } from "@/lib/inventory/allocation";
 import { markHandedOver, handoverMethodFor } from "@/lib/fulfilment/handover";
+import { handedOverDispatchProblem } from "@/lib/fulfilment/undoHandover";
 
 const VALID_STATUSES = [
   "PO_PLACED",
@@ -56,6 +57,14 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   // inventory (the goods left the building, or the dispatch is off) -- only
   // that path pays for a transaction. Every other write stays a plain update.
   const isTerminalTransition = dispatchStatus === "FULFILLED" || dispatchStatus === "CANCELLED";
+
+  // A handed-over order's dispatch status stays FULFILLED until Undo handover
+  // reopens it (GAP-07, lib/fulfilment/undoHandover.ts).
+  const handedOver = handedOverDispatchProblem(
+    await prisma.salesOrder.findUnique({ where: { id: orderId }, select: { deliveredAt: true } }),
+    dispatchStatus,
+  );
+  if (handedOver) return res.status(409).json({ error: handedOver });
 
   try {
     if (!isTerminalTransition) {

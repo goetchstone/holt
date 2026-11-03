@@ -12,6 +12,11 @@ import { OrderDetailView } from "./OrderDetailView";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage(undefined, { permission: "sales.read" });
-  return <OrderDetailView id={id} />;
+  // Undo handover is offered to its permission's holders (GAP-07); the route
+  // checks it again.
+  const { holds } = await requirePage(undefined, {
+    permission: "sales.read",
+    also: ["sales.undo-handover"],
+  });
+  return <OrderDetailView id={id} canUndoHandover={holds["sales.undo-handover"]} />;
 }
