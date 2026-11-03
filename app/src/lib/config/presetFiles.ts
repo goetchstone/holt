@@ -84,12 +84,31 @@ export function safeJoin(root: string, ...segments: string[]): string {
 }
 
 async function readIfSmallEnough(filePath: string): Promise<string> {
-  // stat before read so an enormous file is refused rather than buffered.
-  const stat = await fs.stat(filePath);
-  if (stat.size > MAX_PRESET_BYTES) {
-    throw new Error(`file is ${stat.size} bytes, over the ${MAX_PRESET_BYTES}-byte limit`);
+  // One open file for the size check and the read, so the file read is the
+  // file checked: a stat then a separate readFile let it be swapped or grow in
+  // between (CodeQL #21). An enormous file is refused rather than buffered,
+  // and the read itself stops one byte past the limit, so a file that grows
+  // after the check is refused too.
+  const file = await fs.open(filePath, "r");
+  try {
+    const { size } = await file.stat();
+    if (size > MAX_PRESET_BYTES) {
+      throw new Error(`file is ${size} bytes, over the ${MAX_PRESET_BYTES}-byte limit`);
+    }
+    const buffer = Buffer.alloc(MAX_PRESET_BYTES + 1);
+    let length = 0;
+    for (;;) {
+      const { bytesRead } = await file.read(buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+      if (length > MAX_PRESET_BYTES) {
+        throw new Error(`file is over the ${MAX_PRESET_BYTES}-byte limit`);
+      }
+    }
+    return buffer.toString("utf8", 0, length);
+  } finally {
+    await file.close();
   }
-  return fs.readFile(filePath, "utf8");
 }
 
 async function listPresetFiles(dir: string): Promise<string[]> {

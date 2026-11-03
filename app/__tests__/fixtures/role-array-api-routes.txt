@@ -59,7 +59,6 @@ src/pages/api/proposals/[id]/line-items/[lineId]/images/[imgId].ts  roles=[MANAG
 src/pages/api/proposals/[id]/line-items/[lineId]/images/index.ts  roles=[MANAGER,ADMIN]  proposed=sales.write  widens: +DESIGNER,REGISTER
 src/pages/api/proposals/[id]/line-items/[lineId]/index.ts  roles=[MANAGER,ADMIN]  proposed=sales.write  widens: +DESIGNER,REGISTER
 src/pages/api/proposals/[id]/line-items/index.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
-src/pages/api/proposals/[id]/reorder.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE
 src/pages/api/proposals/index.ts  roles=[MANAGER,ADMIN]  proposed=sales.write  widens: +DESIGNER,REGISTER
 src/pages/api/reports/monthly-percentages.ts  roles=[MANAGER,ADMIN]  proposed=reporting.read  widens: +DESIGNER,MARKETING
 src/pages/api/reports/pay-period-sales/confirm.ts  roles=[SUPER_ADMIN]  proposed=reporting.read  widens: +ADMIN,DESIGNER,MANAGER,MARKETING

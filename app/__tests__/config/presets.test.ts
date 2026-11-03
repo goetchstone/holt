@@ -530,9 +530,26 @@ describe("disk loader", () => {
     expect(report.errors[0].sourceFile).toBe("config/local/broken.yaml");
   });
 
+  it("reads a large file under the limit whole", async () => {
+    // Bigger than a default read chunk (64 KiB), well under the limit.
+    const padding = `# ${"x".repeat(200 * 1024)}\n`;
+    await local("big.yaml", `${padding}${trafficPreset("alpha", "A")}`);
+    const result = await loadPresetFile("local/big.yaml", root);
+    expect("bundle" in result && result.bundle.presets.map((p) => p.name)).toEqual(["alpha"]);
+  });
+
+  it("stops reading at the limit when the size on disk doesn't say (CodeQL #21)", async () => {
+    // A file can grow after its size is checked. A character device shows
+    // the same thing deterministically: /dev/zero reports size 0 and never
+    // ends. The read is held to the limit whatever the size check said.
+    await fs.symlink("/dev/zero", path.join(root, "local", "zero.yaml"));
+    const result = await loadPresetFile("local/zero.yaml", root);
+    expect("errors" in result && result.errors.join(" ")).toMatch(/over the \d+-byte limit/);
+  });
+
   it("refuses an oversized file on disk before reading it", async () => {
-    // readIfSmallEnough stats before it reads, so a file over the limit is
-    // reported, never buffered.
+    // readIfSmallEnough checks the size before it reads, so a file over the
+    // limit is reported, never buffered.
     await shipped("huge.yaml", `# ${"x".repeat(MAX_PRESET_BYTES)}\n`);
     await shipped("a.yaml", trafficPreset("alpha", "A"));
     const report = await loadAllPresets(root);
