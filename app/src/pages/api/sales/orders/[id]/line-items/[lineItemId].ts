@@ -19,6 +19,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { HoldError, quoteHoldContext, setLineHold } from "@/lib/sales/quoteHolds";
+import { readLineNote } from "@/lib/sales/lineNotesShared";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -86,6 +87,31 @@ export async function handler(
           }
           throw error;
         }
+      }
+
+      // Staff's note on the line (GAP-07, lib/sales/lineNotesShared.ts):
+      // printed under it on the invoice and found by the orders search. null
+      // clears it. A note changes no money, so a delivered order's lines take
+      // one too.
+      if (action === "note") {
+        const read = readLineNote((req.body as { notes?: unknown }).notes);
+        if ("problem" in read) return res.status(400).json({ error: read.problem });
+        if (read.note !== lineItem.notes) {
+          await prisma.$transaction([
+            prisma.orderLineItem.update({ where: { id: itemId }, data: { notes: read.note } }),
+            prisma.orderChangeLog.create({
+              data: {
+                salesOrderId: orderId,
+                lineItemId: itemId,
+                changeType: "LINE_NOTE",
+                previousValue: lineItem.notes,
+                newValue: read.note,
+                changedBy,
+              },
+            }),
+          ]);
+        }
+        return res.status(200).json({ id: itemId, notes: read.note });
       }
 
       // Relink: change the productId so the line item joins the right

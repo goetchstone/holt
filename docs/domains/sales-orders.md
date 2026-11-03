@@ -301,6 +301,81 @@ allowed" (`docs/DECISIONS.md` 28).
   paid on the spot; a deposit or layaway that holds past the store's longest
   (GAP-25); telling the customer when a hold is about to end (GAP-13).
 
+## Invoice tools (GAP-07, since 2026-11-03)
+
+Owner, 2026-11-03: flags and disclaimers are the store's own lists ("Yes
+configurations"), and a duplicate is priced at today's prices. `docs/DECISIONS.md`
+35 and 36.
+
+- **Line notes.** `OrderLineItem.notes`: staff's note on a line ("legs in
+  walnut"). Written through `line-items/[lineItemId]` PUT, action `note`, which
+  `lib/sales/lineNotesShared.ts` `readLineNote` reads on both sides: trimmed, up
+  to 500 characters, blank stored as null. Each change leaves a `LINE_NOTE`
+  change-log row. A cancelled line or the delivery fee line takes none (the
+  route's existing refusals); a delivered order's lines do, since a note
+  changes no money. The invoice prints it under the line, and the orders list
+  search (`GET /api/sales/orders?search=`) finds an order by any line's note.
+- **Order flags.** `OrderFlag` is the store's list, set up in Settings › Order
+  flags (`/api/order-flags`, `admin.settings`), with a colour from a fixed set of
+  tones (`lib/sales/orderFlagsShared.ts`) and an optional **warn when opened**.
+  `SalesOrderFlag` puts one on an order. `setOrderFlags` (`lib/sales/orderFlags.ts`)
+  is the one write, through `PUT /api/sales/orders/[id]/flags` (`sales.write`).
+  It refuses a switched-off flag on an order that doesn't have it, keeps one that
+  does, and logs `FLAG_ADDED` / `FLAG_REMOVED`. A flag orders carry is switched
+  off, never deleted. Flags change no money, so any order can carry them.
+  - **Shown** as chips on the order page, the orders list (with a flag filter,
+    `?flag=`), the dispatch board, a run's page and the driver's screen.
+  - **Warn when opened.** The order page opens with a dialog naming the flags
+    set to warn, once per visit (`openingAlerts`).
+- **Disclaimers.** `OrderDisclaimer` is the store's list, set up in Settings ›
+  Disclaimers (`/api/order-disclaimers`, `admin.settings`): a name staff pick by,
+  and the text that prints.
+  - **A copy.** Adding one to an order copies its text into
+    `SalesOrderDisclaimer` (`addOrderDisclaimer`, `lib/sales/orderDisclaimers.ts`).
+    Rewording or deleting the store's disclaimer changes no order that has it;
+    deleting clears the link (`orderDisclaimerId`) and leaves the text.
+  - **When.** An order's disclaimers change only while it is a QUOTE or ORDER
+    (`disclaimerEditProblem`), and never on a native return's own order. The
+    same one can't be added twice. Changes log `DISCLAIMER_ADDED` /
+    `DISCLAIMER_REMOVED`.
+  - **Printed** on the invoice and the receipt, above the store-wide
+    `receiptFooter` (printing.md).
+- **Duplicating an order.** `POST /api/sales/orders/[id]/duplicate`
+  (`sales.write`) makes a new QUOTE and the order page opens it
+  (`lib/sales/duplicateOrder.ts`).
+  - **What comes across:** the lines that are part of the sale (ACTIVE or
+    BACKORDERED, more than zero, not given back on an exchange, not the delivery
+    fee; rules 31 and 33) with their options, fulfilment and notes; the
+    customer, store and delivery method and address. The one copying it is its
+    salesperson, as at the register.
+  - **Today's prices.** A catalog item at its retail now (`catalogListUnits`).
+    A custom or configured item is its own product, created at the price it was
+    sold at, so it keeps that price. No discount comes across: staff give it
+    again, under the discount policy (GAP-06). The delivery fee is the zone's
+    fee today, when the original charged one.
+  - **What doesn't:** payments, holds, flags, disclaimers, order notes, history.
+  - **Priced like a sale.** Every number goes through what `create-from-cart`
+    uses (`priceCart`, `resolveTaxDistrict` / `rateForLineAmount`,
+    `saleUnitCost`, `nextOrderNumber`, `setDeliveryFee`), so a copy is the same
+    cart rung up today, to the cent. Like any quote that holds nothing, it
+    commits no stock.
+  - **Refused:** a native return's own order, and an order with no line left to
+    copy.
+  - The copy logs `COPIED_FROM` with the original's number.
+- **The orders list's totals (fixed 2026-11-03).** `GET /api/sales/orders`
+  summed every line into an order's total, cancelled ones included (rule 33),
+  and every payment into what was paid: a voided card and a refund counted as
+  paid. It now leaves cancelled lines out and counts payments the way every
+  balance does (`computeTotalPaid`, `lib/paymentBalance.ts`).
+- **Deleting an order takes its history with it (fixed 2026-11-03).**
+  `OrderChangeLog`'s foreign key restricts, and `DELETE /api/sales/orders/[id]`
+  never removed the rows, so an order with any history (a status change, a
+  cancelled line, and now a flag, a note or a copy's `COPIED_FROM`) could not be
+  deleted: a manager deleting a copy made by mistake got "Failed to delete
+  order". The route deletes them first now.
+- **Not built** (ROADMAP GAP-07): undoing a delivery. Choosing the split share
+  at the register is "Split sales" below.
+
 ## Split sales (GAP-07, since 2026-11-03)
 
 A split order records its salesperson's share (`SalesOrder.splitPercent`, 1-99)
@@ -428,6 +503,8 @@ Landed cost itself is in `docs/domains/purchasing.md`. Tested in
 - [ ] Salesperson corrections (salesPersonId set) are preserved on reimport
 
 ## Test Coverage
+
+Invoice tools: `__tests__/integration/invoiceTools.integration.test.ts` (real routes and database: line notes, the search and the print; the store's flags, on an order and in the orders list; disclaimers copied, locked and printed; pictures; duplicating, against the same cart rung up at the register; the orders list's totals) and `__tests__/lib/sales/invoiceToolsShared.test.ts` (the shared rules).
 
 Quote holds: `__tests__/integration/quoteHolds.integration.test.ts` (real routes and database: what a quote and an order commit, every way out of a quote, the sweep, archiving, the On hold report, the setting, and made-to-order lines raising no shortfall) and `__tests__/lib/sales/quoteHoldsShared.test.ts` (the day arithmetic and the rule).
 

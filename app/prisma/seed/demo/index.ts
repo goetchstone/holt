@@ -61,6 +61,7 @@ async function main(): Promise<void> {
   const { seedInventory } = await import("./inventory");
   const { seedService } = await import("./service");
   const { seedServiceChecklists } = await import("./serviceChecklists");
+  const { seedOrderTools } = await import("./orderTools");
   const { seedProductSources, SUPPLIER_NAME } = await import("./productSources");
   const { seedVendorMerge } = await import("./vendorMerge");
   const { seedOperations } = await import("./operations");
@@ -221,6 +222,8 @@ async function main(): Promise<void> {
     volume.serviceCaseCount,
   );
   const checklistResult = await seedServiceChecklists(prisma);
+  // After salesOrders: flags, disclaimers and line notes on its open orders.
+  const orderToolsResult = await seedOrderTools(prisma);
 
   const operationsResult = await seedOperations(
     prisma,
@@ -297,6 +300,10 @@ async function main(): Promise<void> {
       `${serviceResult.notesCreated} notes, ${serviceResult.tasksCreated} tasks, ` +
       `${serviceResult.emailsCreated} emails, ${serviceResult.typesCreated} case types, ` +
       `${checklistResult.checklistsCreated} checklists (on ${checklistResult.casesGivenOne} cases)`,
+  );
+  console.log(
+    `Order tools: ${orderToolsResult.flags} flags (on ${orderToolsResult.flagged} orders), ` +
+      `${orderToolsResult.disclaimers} disclaimers given, ${orderToolsResult.notes} line notes`,
   );
   console.log(
     `Helpdesk: ${operationsResult.ticketsCreated} tickets (${operationsResult.openTickets} open), ` +

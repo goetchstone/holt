@@ -110,6 +110,8 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   // The key /api/tenders writes with, so whoever opens it can use it.
   "/app/admin/setup/payment-types": { permission: "admin.settings" },
   "/app/admin/setup/referral-sources": { permission: "admin.settings" },
+  "/app/admin/setup/order-flags": { permission: "admin.settings" },
+  "/app/admin/setup/disclaimers": { permission: "admin.settings" },
   "/app/admin/setup/printers": { permission: "admin.config" },
   "/app/admin/setup/product-pairings": { permission: "admin.config" },
   "/app/admin/setup/registers": { permission: "admin.config" },

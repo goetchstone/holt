@@ -62,6 +62,18 @@ const ITEMS: CardGridItem[] = [
     href: "/app/admin/setup/referral-sources",
   },
   {
+    title: "Order Flags",
+    description:
+      "Your own flags for orders: Call before delivery, Fragile, VIP. A flag can warn whoever opens the order.",
+    href: "/app/admin/setup/order-flags",
+  },
+  {
+    title: "Disclaimers",
+    description:
+      "Your own disclaimers to print on an order: Sold as-is, Special order. Staff add them per order.",
+    href: "/app/admin/setup/disclaimers",
+  },
+  {
     title: "Gift Card Presets",
     description: "Configure quick codes for gift card sales (GC, GC25, GC50).",
     href: "/app/admin/setup/gift-cards",

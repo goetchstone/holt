@@ -18,6 +18,8 @@ import { format } from "date-fns";
 import Link from "next/link";
 import { ArrowUp, ArrowDown, Trash2, Plus, FileText, Phone } from "lucide-react";
 import type { AboardLine } from "@/lib/fulfilment/truck";
+import { type SelectedOrderFlag, flagRefsOf } from "@/lib/sales/orderFlagsShared";
+import { OrderFlagChip } from "@/app/(dashboard)/app/sales/orders/[id]/OrderFlagsPanel";
 
 type LineItem = {
   id: number;
@@ -50,6 +52,8 @@ type ServiceAppointment = {
     id: number;
     orderno: string;
     lineItems: LineItem[];
+    /** The store's flags, as the run's query selected them (flagRefsOf). */
+    flags?: SelectedOrderFlag[];
   } | null;
 };
 
@@ -384,6 +388,13 @@ export function RunDetailView({ id }: { id: string }) {
                     </span>
                     <div>
                       <div className="font-semibold text-brand-navy">{customerName}</div>
+                      {appt.salesOrder?.flags && appt.salesOrder.flags.length > 0 && (
+                        <div className="mt-0.5 flex flex-wrap gap-1">
+                          {flagRefsOf(appt.salesOrder.flags).map((f) => (
+                            <OrderFlagChip key={f.id} flag={f} />
+                          ))}
+                        </div>
+                      )}
                       {appt.address && (
                         <div className="text-sm text-brand-gray mt-0.5">
                           {appt.address.address1}, {appt.address.city}, {appt.address.state}{" "}

@@ -1000,6 +1000,71 @@ else".
 
 ---
 
+## 35. An order's disclaimer is a copy of the store's; its flags are the store's own
+
+**Decided 2026-11-03 (GAP-07), by the owner.** Offered the store's own flags and
+disclaimers, set up in Settings, as the recommended options, the owner answered
+"Yes configurations". No fixed set of either ships.
+
+- **A disclaimer on an order is a copy.** Adding one copies its text onto the
+  order (`SalesOrderDisclaimer.text`), as a service checklist is copied onto a
+  case (30). It is what the customer was given. Rewording the
+  store's disclaimer next month changes no order that has it; deleting it
+  leaves the text.
+- **It changes only before handover.** While the order is a quote or an order.
+  After that it is what the customer took the goods under.
+- **A flag is a live label.** Renaming or recolouring the store's flag changes it
+  on every order, because a flag says what the order needs now ("Call before
+  delivery"), not what was agreed. One that orders carry is switched off, never
+  deleted, so they keep it.
+
+**Rejected:**
+
+- **Disclaimers that follow the store's text live.** A disclaimer reworded after
+  a sale would reprint the customer's invoice with words they never saw.
+- **Typed per order.** The owner chose the store's list. A typed one-off can be
+  added later as its own disclaimer, if a store asks.
+- **A fixed set of flags.** Every store's words differ ("Balance due on
+  delivery", "White glove").
+
+**Enforced by:** `__tests__/integration/invoiceTools.integration.test.ts`.
+
+**Source:** [`app/src/lib/sales/orderDisclaimers.ts`](../app/src/lib/sales/orderDisclaimers.ts),
+[`app/src/lib/sales/orderFlags.ts`](../app/src/lib/sales/orderFlags.ts)
+
+---
+
+## 36. A copied order is the same goods at today's prices
+
+**Decided 2026-11-03 (GAP-07), by the owner** ("Today's prices", the recommended
+option). Duplicating an order makes a new quote.
+
+- **Today's prices.** A catalog item at its retail now. A custom or configured
+  item is its own product, made at the price it was sold at, so that is its
+  price.
+- **No discount comes across.** A copied discount would be one nobody approved
+  under the store's discount policy (GAP-06, pos.md "Discounts and manager
+  approval"). Staff give it again, and the policy decides.
+- **The goods and who they are for, nothing that happened.** Lines, options,
+  notes, the customer, the store and the delivery come across. Payments, holds,
+  flags, disclaimers, order notes and history don't. A "Sold as-is" disclaimer
+  or a "Balance due" flag belongs to the sale it was put on.
+- **Priced by the register's own functions.** A copy is the same cart rung up
+  today, to the cent, tax and the zone's delivery fee included.
+
+**Rejected:**
+
+- **Prices as written.** It would carry each line's discount past the policy.
+- **Copying flags and disclaimers.** They describe the original sale, not the
+  goods.
+
+**Enforced by:** `__tests__/integration/invoiceTools.integration.test.ts`
+("duplicating an order").
+
+**Source:** [`app/src/lib/sales/duplicateOrder.ts`](../app/src/lib/sales/duplicateOrder.ts)
+
+---
+
 ## 37. A split sale records its shares; splitting it is a reassignment
 
 **Decided 2026-11-03 (GAP-07).** "Choosing the split share at the POS", built on

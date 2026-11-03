@@ -1234,6 +1234,80 @@ model Customer {
 /// How a customer heard of the store (GAP-08). The store sets up its own list in
 /// Settings > Referral sources: no fixed set ships. A source customers use is
 /// deactivated, never deleted, so their record keeps it.
+/// GAP-07: a flag the store puts on orders -- "Call before delivery",
+/// "Fragile", "VIP". The store's own list, set up in Settings > Order flags
+/// (lib/sales/orderFlags.ts); no fixed set ships. A flag orders carry is
+/// switched off, never deleted, so they keep it.
+model OrderFlag {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  /// One of ORDER_FLAG_COLORS (lib/sales/orderFlagsShared.ts).
+  color       String           @default("gray")
+  /// Warn whoever opens an order that carries it.
+  alertOnOpen Boolean          @default(false)
+  isActive    Boolean          @default(true)
+  sortOrder   Int              @default(0)
+  orders      SalesOrderFlag[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+/// A flag on an order (GAP-07).
+model SalesOrderFlag {
+  salesOrderId Int
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  orderFlagId  Int
+  orderFlag    OrderFlag  @relation(fields: [orderFlagId], references: [id])
+  created      DateTime   @default(now())
+  createdBy    String?
+
+  @@id([salesOrderId, orderFlagId])
+  @@index([orderFlagId])
+}
+
+/// GAP-07: a disclaimer the store prints on an order -- "Sold as-is",
+/// "Special order: no cancellations". The store's own list, set up in
+/// Settings > Disclaimers (lib/sales/orderDisclaimers.ts). Adding one to an
+/// order copies its text (SalesOrderDisclaimer), so editing or deleting it here
+/// changes no order that already has it.
+model OrderDisclaimer {
+  id        Int                    @id @default(autoincrement())
+  /// What staff pick it by; only its text prints.
+  name      String                 @unique
+  text      String
+  isActive  Boolean                @default(true)
+  sortOrder Int                    @default(0)
+  orders    SalesOrderDisclaimer[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+/// A disclaimer on an order, its text as it read when it was added (GAP-07).
+/// Printed on the invoice and receipt, above the store-wide receiptFooter.
+model SalesOrderDisclaimer {
+  id                Int              @id @default(autoincrement())
+  salesOrderId      Int
+  salesOrder        SalesOrder       @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  /// The store's disclaimer it was copied from, only so an order isn't given
+  /// the same one twice. Deleting that disclaimer clears this; the text stays.
+  orderDisclaimerId Int?
+  orderDisclaimer   OrderDisclaimer? @relation(fields: [orderDisclaimerId], references: [id], onDelete: SetNull)
+  text              String
+  created           DateTime         @default(now())
+  createdBy         String?
+
+  /// A backstop against the same disclaimer twice. A cleared link (NULL) is
+  /// distinct from every other, which is right: never upsert through it (rule 64).
+  @@unique([salesOrderId, orderDisclaimerId])
+  @@index([orderDisclaimerId])
+}
+
 model ReferralSource {
   id        Int        @id @default(autoincrement())
   name      String     @unique
@@ -2991,6 +3065,10 @@ model SalesOrder {
   leads               Lead[]
   linkedTasks         ServiceTask[]               @relation("TaskLinkedOrder")
   proposal            Proposal?
+  /// The store's flags on this order (GAP-07, lib/sales/orderFlags.ts).
+  flags               SalesOrderFlag[]
+  /// Disclaimers printed on this order, each copied as it read (GAP-07).
+  disclaimers         SalesOrderDisclaimer[]
 
   // Pipeline archiving — set when a quote is marked lost/closed; clearable to restore
   pipelineArchivedAt DateTime?
@@ -3055,6 +3133,11 @@ model OrderLineItem {
   /// on sale. Never later than AppSettings.quoteHoldMaxDays from the day it was
   /// set. Read only while the order is a quote: an order commits every line.
   holdUntil DateTime? @db.Date
+
+  /// Staff's note on this line -- "legs in walnut", "customer to confirm fabric"
+  /// (GAP-07). Printed under the line on the invoice and found by the orders
+  /// search (lib/sales/lineNotesShared.ts).
+  notes String?
 
   // For configurable products: what was selected at time of sale
   selectedGrade   String?
