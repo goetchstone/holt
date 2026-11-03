@@ -11,7 +11,7 @@
 // commission correctness — this module is a pure READ extraction. All matching
 // + split rules reuse `sumDesignerSales` (the commission engine's summer) so the
 // designer's number cannot diverge from the payout math; the detail rows apply
-// the same 0.5× split multiplier so they sum to the period total. Cancelled
+// the same split share (creditShare) so they sum to the period total. Cancelled
 // lines are excluded via `buildLineItemWhere` (rule 33) and RETURNED is in the
 // status filter so negative return lines net out rewrite chains.
 //
@@ -37,6 +37,7 @@ import {
   type PeriodConfirmationStatusRow,
 } from "@/lib/payPeriodConfirmationService";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { creditShare } from "@/lib/commissionSplit";
 
 export interface PayPeriodStatementOrderRow {
   orderId: number;
@@ -45,7 +46,9 @@ export interface PayPeriodStatementOrderRow {
   customer: string;
   storeLocation: string | null;
   isSplit: boolean;
-  /** Net credited to THIS designer (line sum × split multiplier). */
+  /** THIS designer's share of a split order, in percent; null when not split. */
+  sharePercent: number | null;
+  /** Net credited to THIS designer (line sum × their split share). */
   creditedNet: number;
 }
 
@@ -167,7 +170,9 @@ export async function getPayPeriodSales(
         orderno: true,
         orderDate: true,
         storeLocation: true,
+        salesPersonId: true,
         splitWithId: true,
+        splitPercent: true,
         customer: {
           select: { firstName: true, lastName: true, tradeCompanyName: true },
         },
@@ -182,7 +187,7 @@ export async function getPayPeriodSales(
 
   const orders: PayPeriodStatementOrderRow[] = detailOrders
     .map((o) => {
-      const multiplier = o.splitWithId ? 0.5 : 1;
+      const multiplier = creditShare(o, staff.id);
       const net = o.lineItems.reduce((sum, li) => sum + Number(li.netPrice), 0) * multiplier;
       return {
         orderId: o.id,
@@ -191,6 +196,7 @@ export async function getPayPeriodSales(
         customer: customerLabel(o.customer),
         storeLocation: o.storeLocation,
         isSplit: o.splitWithId !== null,
+        sharePercent: o.splitWithId === null ? null : Math.round(multiplier * 100),
         creditedNet: Math.round(net * 100) / 100,
       };
     })

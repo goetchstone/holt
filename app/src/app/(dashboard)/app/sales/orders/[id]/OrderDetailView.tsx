@@ -29,6 +29,7 @@ import { DeliveryFeePanel } from "./DeliveryFeePanel";
 import { QuoteLineHold } from "./QuoteLineHold";
 import { useQuoteHoldPolicy } from "@/components/sales/useQuoteHoldPolicy";
 import { lineSaving } from "@/lib/sales/discountPolicyShared";
+import { SPLIT_PERCENT_MAX, SPLIT_PERCENT_MIN, splitLabel } from "@/lib/commissionSplit";
 import { type OrderFlagRef, openingAlerts } from "@/lib/sales/orderFlagsShared";
 import type { OrderDisclaimerRef } from "@/lib/sales/orderDisclaimersShared";
 import { LineNote } from "./LineNote";
@@ -117,6 +118,8 @@ interface OrderDetails {
   salesPerson: StaffRef | null;
   splitWithId: number | null;
   splitWith: StaffRef | null;
+  /** The salesperson's share of a split, in percent (GAP-07). */
+  splitPercent: number;
   storeLocation: string;
   deliveryMethod: string | null;
   /** The delivery fee line: changed in DeliveryFeePanel, not by line edits. */
@@ -144,6 +147,7 @@ interface SalespersonUpdateResponse {
   salesPerson: StaffRef | null;
   splitWithId: number | null;
   splitWith: StaffRef | null;
+  splitPercent: number;
   salesperson: string;
 }
 
@@ -317,6 +321,18 @@ function CustomerField({
   );
 }
 
+/** What the salesperson dialog says a split will do, as the share is typed. */
+function splitCreditNote(typed: string): string {
+  const percent = Number(typed);
+  if (!typed.trim()) {
+    return "Sales credit is split at the store's default share for reporting and commission.";
+  }
+  if (!Number.isInteger(percent) || percent < SPLIT_PERCENT_MIN || percent > SPLIT_PERCENT_MAX) {
+    return `A share is ${SPLIT_PERCENT_MIN} to ${SPLIT_PERCENT_MAX} percent.`;
+  }
+  return `Sales credit is split ${splitLabel(percent)}: ${percent}% to the salesperson, ${100 - percent}% to the partner, in reports and commission.`;
+}
+
 export function OrderDetailView({ id }: { id: string }) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -352,6 +368,9 @@ export function OrderDetailView({ id }: { id: string }) {
   const [staffList, setStaffList] = useState<StaffRef[]>([]);
   const [editSalesPersonId, setEditSalesPersonId] = useState<number | null>(null);
   const [editSplitWithId, setEditSplitWithId] = useState<number | null>(null);
+  // The salesperson's share of a split; blank lets a new split take the
+  // store's default (GAP-07).
+  const [editSplitPercent, setEditSplitPercent] = useState("");
   const [salespersonSaving, setSalespersonSaving] = useState(false);
 
   const holdPolicy = useQuoteHoldPolicy();
@@ -396,6 +415,7 @@ export function OrderDetailView({ id }: { id: string }) {
     if (!orderDetails) return;
     setEditSalesPersonId(orderDetails.salesPersonId);
     setEditSplitWithId(orderDetails.splitWithId);
+    setEditSplitPercent(orderDetails.splitWithId ? String(orderDetails.splitPercent) : "");
     try {
       const res = await axios.get("/api/staff");
       const rows = res.data as { id: number; displayName: string; isActive: boolean }[];
@@ -417,6 +437,9 @@ export function OrderDetailView({ id }: { id: string }) {
         {
           salesPersonId: editSalesPersonId,
           splitWithId: editSplitWithId,
+          ...(editSplitWithId && editSplitPercent.trim()
+            ? { splitPercent: Number(editSplitPercent) }
+            : {}),
         },
       );
       const data = res.data as SalespersonUpdateResponse;
@@ -426,6 +449,7 @@ export function OrderDetailView({ id }: { id: string }) {
         salesPerson: data.salesPerson,
         splitWithId: data.splitWithId,
         splitWith: data.splitWith,
+        splitPercent: data.splitPercent,
         salesperson: data.salesperson,
       });
       setShowSalespersonModal(false);
@@ -435,7 +459,7 @@ export function OrderDetailView({ id }: { id: string }) {
     } finally {
       setSalespersonSaving(false);
     }
-  }, [orderDetails, id, editSalesPersonId, editSplitWithId]);
+  }, [orderDetails, id, editSalesPersonId, editSplitWithId, editSplitPercent]);
 
   const formatCurrency = useCallback(
     (value: number | null | undefined): string => {
@@ -864,7 +888,8 @@ export function OrderDetailView({ id }: { id: string }) {
                 {orderDetails.salesPerson?.displayName || orderDetails.salesperson || "N/A"}
                 {orderDetails.splitWith && (
                   <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                    50/50 with {orderDetails.splitWith.displayName}
+                    {splitLabel(orderDetails.splitPercent)} with{" "}
+                    {orderDetails.splitWith.displayName}
                   </span>
                 )}
               </p>
@@ -1408,10 +1433,25 @@ export function OrderDetailView({ id }: { id: string }) {
           </select>
 
           {editSplitWithId && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-2">
-              Sales credit will be split 50/50 between the two salespeople for reporting and bonus
-              calculation.
-            </p>
+            <>
+              <label htmlFor="edit-split-percent" className="block text-sm font-medium mb-1">
+                Salesperson&apos;s share (%)
+              </label>
+              <input
+                id="edit-split-percent"
+                type="number"
+                min={SPLIT_PERCENT_MIN}
+                max={SPLIT_PERCENT_MAX}
+                step={1}
+                value={editSplitPercent}
+                placeholder="Store default"
+                onChange={(e) => setEditSplitPercent(e.target.value)}
+                className="w-32 border border-brand-gray/30 rounded px-3 py-2 text-sm mb-2"
+              />
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-2">
+                {splitCreditNote(editSplitPercent)}
+              </p>
+            </>
           )}
         </Modal>
       )}

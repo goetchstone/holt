@@ -1065,6 +1065,45 @@ option). Duplicating an order makes a new quote.
 
 ---
 
+## 37. A split sale records its shares; splitting it is a reassignment
+
+**Decided 2026-11-03 (GAP-07).** "Choosing the split share at the POS", built on
+the owner's standing rules: how a store runs this is configuration, and policy
+ships at its strictest (memory, 2026-10-29 and 2026-10-30).
+
+- **The order records the share.** `SalesOrder.splitPercent` is the salesperson's
+  share of a split sale, 1-99; the partner gets the rest. It is written when the
+  split is made, from the store's `AppSettings.defaultSplitPercent` (50 to
+  start) unless staff choose another. A change to the default moves no sale
+  already split, so a payout locked last month and recomputed today agree
+  (rule 60's reasoning: route by what was recorded, not by what is configured
+  now).
+- **One rule credits it.** `creditShare` in `lib/commissionSplit.ts`; nothing
+  else in the code knows what a split is worth.
+- **Splitting is a reassignment.** It moves commission, so at the register and
+  on a quote it takes "Reassign salesperson", the permission that already
+  governed changing it on the order. Managers hold it by default; a store grants
+  it to other roles.
+
+**Rejected:**
+
+- **Reading the store's default live for every split order.** Changing the
+  setting would rewrite every past split's credit, under payouts already locked.
+- **A nullable share meaning "the default".** Two meanings for one column; the
+  column defaults to 50 instead, which is what every split before it was.
+- **Anyone at the register may split.** A split moves commission between two
+  people; the strict default is the reassign permission, and the store can widen
+  it.
+- **Both partners credited 100%.** Some businesses do it, but it is a different
+  rule (credit is not shared), not a share. Not asked for.
+
+**Enforced by:** `__tests__/integration/splitShare.integration.test.ts`, and the
+`SalesOrder_splitPercent_range` / `AppSettings_defaultSplitPercent_range` CHECKs.
+
+**Source:** [`app/src/lib/commissionSplit.ts`](../app/src/lib/commissionSplit.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

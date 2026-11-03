@@ -373,8 +373,19 @@ configurations"), and a duplicate is priced at today's prices. `docs/DECISIONS.m
   cancelled line, and now a flag, a note or a copy's `COPIED_FROM`) could not be
   deleted: a manager deleting a copy made by mistake got "Failed to delete
   order". The route deletes them first now.
-- **Not built** (ROADMAP GAP-07): choosing the split share at the register, and
-  undoing a delivery.
+- **Not built** (ROADMAP GAP-07): undoing a delivery. Choosing the split share
+  at the register is "Split sales" below.
+
+## Split sales (GAP-07, since 2026-11-03)
+
+A split order records its salesperson's share (`SalesOrder.splitPercent`, 1-99)
+beside its partner (`splitWithId`); the partner gets the rest. The order page
+shows it ("60/40 with Ben"), and its salesperson dialog
+(`PUT /api/sales/orders/[id]/salesperson`, `sales.reassign`) and the bulk
+corrections set it: a new split takes the store's default, a new partner keeps
+the share, and a change is logged ("split 60/40 with ..."). The register and the
+quote builder can split a sale too (pos.md). How every report credits it:
+commission.md "Split sales".
 
 ## Key Files
 

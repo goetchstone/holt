@@ -107,7 +107,7 @@ function DrilldownRow({
         </Link>
         {item.isSplit && (
           <span
-            title="50/50 split — half attribution to each partner"
+            title="Split sale: each partner is credited their share"
             className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-100 text-amber-700 border border-amber-200 align-middle"
           >
             SPLIT
