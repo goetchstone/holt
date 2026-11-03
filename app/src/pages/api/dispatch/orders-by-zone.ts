@@ -9,6 +9,8 @@ import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { computeBalance } from "@/lib/paymentService";
+import { ORDER_FLAGS_SELECT } from "@/lib/sales/orderFlags";
+import { type OrderFlagRef, flagRefsOf } from "@/lib/sales/orderFlagsShared";
 
 export interface DispatchLineItem {
   id: number;
@@ -34,6 +36,8 @@ export interface DispatchOrder {
   lineItems: DispatchLineItem[];
   purchaseOrders: DispatchOrderPO[];
   balanceDue: number;
+  /** The store's flags on the order (GAP-07): "Call before delivery", "Fragile". */
+  flags: OrderFlagRef[];
 }
 
 export interface DispatchCustomer {
@@ -96,6 +100,7 @@ export default requireAuthWithRole(
             select: { id: true },
             take: 1,
           },
+          flags: ORDER_FLAGS_SELECT,
         },
         orderBy: { orderDate: "asc" },
       });
@@ -168,6 +173,7 @@ export default requireAuthWithRole(
             expectedDelivery: po.expectedDelivery?.toISOString() ?? null,
           })),
           balanceDue: balance.balanceDue,
+          flags: flagRefsOf(o.flags),
         };
 
         if (customerMap.has(groupKey)) {

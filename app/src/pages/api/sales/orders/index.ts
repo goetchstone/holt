@@ -6,6 +6,9 @@ import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import { logError } from "@/lib/logger";
+import { computeTotalPaid } from "@/lib/paymentBalance";
+import { ORDER_FLAGS_SELECT } from "@/lib/sales/orderFlags";
+import { flagRefsOf } from "@/lib/sales/orderFlagsShared";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -23,11 +26,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const salespersonFilter = (req.query.salesperson as string)?.trim() || "";
 
     // Multi-token search: ""ORD-100 John"" matches orderno starting with the prefix AND customer John.
+    // A line's note is searched too (GAP-07): "walnut" finds the order whose
+    // line says "legs in walnut".
     const searchFilter = buildSearchFilter(search, [
       "orderno",
       "customer.firstName",
       "customer.lastName",
       "salesperson",
+      "lineItems.some.notes",
     ]);
     const where: Prisma.SalesOrderWhereInput = (searchFilter ?? {}) as Prisma.SalesOrderWhereInput;
     if (statusFilter) {
@@ -35,6 +41,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
     if (salespersonFilter) {
       where.salesperson = { contains: salespersonFilter, mode: "insensitive" };
+    }
+
+    // Orders carrying one of the store's flags (GAP-07).
+    const flagFilter = Number.parseInt(req.query.flag as string, 10);
+    if (Number.isInteger(flagFilter)) {
+      where.flags = { some: { orderFlagId: flagFilter } };
     }
 
     const storeFilter = (req.query.store as string)?.trim() || "";
@@ -67,17 +79,27 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               lastName: true,
             },
           },
-          lineItems: true,
-          invoices: true,
+          // Cancelled lines are out of every sum (CLAUDE.md rule 33).
+          // lineItemStatus is never null, so a bare `not` is safe (rule 51).
+          lineItems: { where: { lineItemStatus: { not: "CANCELLED" } } },
           payments: true,
+          flags: ORDER_FLAGS_SELECT,
         },
       }),
       prisma.salesOrder.count({ where }),
     ]);
 
     const ordersWithTotals = salesOrders.map((order) => {
-      // Calculate total paid
-      const totalPaid = order.payments.reduce((sum, p) => sum + (Number(p.paymentAmount) || 0), 0);
+      // Money received, the one way every balance counts it: voided, failed
+      // and pending rows out, refunds netted (lib/paymentBalance.ts). Summing
+      // every row counted a voided card and a refund as paid.
+      const totalPaid = computeTotalPaid(
+        order.payments.map((p) => ({
+          paymentAmount: Number(p.paymentAmount) || 0,
+          status: p.status,
+          isRefund: p.isRefund,
+        })),
+      );
 
       // Calculate total net sales from line items
       const totalNetSales = order.lineItems.reduce(
@@ -111,6 +133,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         totalPaid,
         totalTax,
         totalAmount,
+        flags: flagRefsOf(order.flags),
       };
     });
 

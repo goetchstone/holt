@@ -172,6 +172,7 @@ export async function handler(
           typeId: true,
           baseCost: true,
           landedCost: true,
+          imageUrl: true,
           ...LINE_TAX_GROUP_SELECT,
         },
       });
@@ -291,10 +292,17 @@ export async function handler(
               // follows from categoryId. This line was taxed under it above.
               taxGroupId: sourceProduct?.taxGroup?.id ?? null,
               typeId: sourceProduct?.typeId || null,
+              // The picture of what it was configured from, so its invoice
+              // line prints it (GAP-07, lib/sales/linePicture.ts). Not the
+              // vendor style itself: editing a style rewrites the name and
+              // retail of every product linked to it (pricing/styles/[id]),
+              // and this one keeps the price it was sold at.
+              imageUrl: sourceProduct?.imageUrl ?? null,
               baseCost: item.cost ?? 0,
               baseRetail: item.unitPrice,
-              // Made for this sale: never stock on hand, so nothing draws free
-              // stock for it (GAP-21). Its units come in on its PO, committed.
+              // Where it came from, nothing more (DECISIONS 34): new, so it has
+              // no stock, and its units come in on its PO committed to this
+              // sale. Once here it is stock like any other item.
               madeToOrder: true,
               createdBy: session.user?.email || null,
             },
