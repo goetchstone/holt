@@ -108,10 +108,9 @@ Parser safety is not left to defaults:
   full of them.
 - **512 KB ceiling**, enforced at every entry point (disk read, HTTP upload) —
   a real mapping file is tens of KB; a megabyte is a mistake or a probe. On
-  disk the size check and the read use one open file, and the read stops one
-  byte past the ceiling, so a file that grows after it was checked, or a device
-  that reports no size, is refused rather than buffered (2026-11-03, CodeQL
-  #21; `presets.test.ts`).
+  disk there is one read, stopped one byte past the ceiling, and no separate
+  size check to race, so a file that changes, or a device that reports no size,
+  is refused rather than buffered (2026-11-03, CodeQL #21; `presets.test.ts`).
 - **Path traversal** is blocked at one choke point (`safeJoin`), belt and
   braces: the name is pattern-checked _and_ the resolved path is verified to
   still sit under the config root. Only the CLI turns user input into a path

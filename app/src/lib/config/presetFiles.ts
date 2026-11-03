@@ -21,7 +21,7 @@
 // Precedence is local-over-shipped on a (kind, name) collision, so a tenant
 // can override one shipped preset without forking or deleting the rest.
 
-import { promises as fs } from "node:fs";
+import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 
 import { MAX_PRESET_BYTES, detectFormat, parsePresetText } from "@/lib/config/presetSerialize";
@@ -84,31 +84,21 @@ export function safeJoin(root: string, ...segments: string[]): string {
 }
 
 async function readIfSmallEnough(filePath: string): Promise<string> {
-  // One open file for the size check and the read, so the file read is the
-  // file checked: a stat then a separate readFile let it be swapped or grow in
-  // between (CodeQL #21). An enormous file is refused rather than buffered,
-  // and the read itself stops one byte past the limit, so a file that grows
-  // after the check is refused too.
-  const file = await fs.open(filePath, "r");
-  try {
-    const { size } = await file.stat();
-    if (size > MAX_PRESET_BYTES) {
-      throw new Error(`file is ${size} bytes, over the ${MAX_PRESET_BYTES}-byte limit`);
-    }
-    const buffer = Buffer.alloc(MAX_PRESET_BYTES + 1);
-    let length = 0;
-    for (;;) {
-      const { bytesRead } = await file.read(buffer, length, buffer.length - length, length);
-      if (bytesRead === 0) break;
-      length += bytesRead;
-      if (length > MAX_PRESET_BYTES) {
-        throw new Error(`file is over the ${MAX_PRESET_BYTES}-byte limit`);
-      }
-    }
-    return buffer.toString("utf8", 0, length);
-  } finally {
-    await file.close();
+  // One read, stopped one byte past the limit, and no separate size check to
+  // race: a stat then a readFile let the file change in between (CodeQL #21).
+  // An enormous file, one that grows, or a device that reports no size is
+  // refused once that byte arrives, never buffered whole.
+  const chunks: Buffer[] = [];
+  let length = 0;
+  for await (const chunk of createReadStream(filePath, { start: 0, end: MAX_PRESET_BYTES })) {
+    const bytes = chunk as Buffer;
+    chunks.push(bytes);
+    length += bytes.length;
   }
+  if (length > MAX_PRESET_BYTES) {
+    throw new Error(`file is over the ${MAX_PRESET_BYTES}-byte limit`);
+  }
+  return Buffer.concat(chunks, length).toString("utf8");
 }
 
 async function listPresetFiles(dir: string): Promise<string[]> {

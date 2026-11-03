@@ -539,17 +539,17 @@ describe("disk loader", () => {
   });
 
   it("stops reading at the limit when the size on disk doesn't say (CodeQL #21)", async () => {
-    // A file can grow after its size is checked. A character device shows
-    // the same thing deterministically: /dev/zero reports size 0 and never
-    // ends. The read is held to the limit whatever the size check said.
+    // A file can change between a size check and the read. A character device
+    // shows the same thing deterministically: /dev/zero reports size 0 and
+    // never ends. The read itself is held to the limit.
     await fs.symlink("/dev/zero", path.join(root, "local", "zero.yaml"));
     const result = await loadPresetFile("local/zero.yaml", root);
     expect("errors" in result && result.errors.join(" ")).toMatch(/over the \d+-byte limit/);
   });
 
   it("refuses an oversized file on disk before reading it", async () => {
-    // readIfSmallEnough checks the size before it reads, so a file over the
-    // limit is reported, never buffered.
+    // readIfSmallEnough reads at most one byte past the limit, so a file over
+    // it is reported, never buffered whole.
     await shipped("huge.yaml", `# ${"x".repeat(MAX_PRESET_BYTES)}\n`);
     await shipped("a.yaml", trafficPreset("alpha", "A"));
     const report = await loadAllPresets(root);
