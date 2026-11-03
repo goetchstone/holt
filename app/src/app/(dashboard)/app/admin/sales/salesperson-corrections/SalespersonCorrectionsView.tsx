@@ -14,6 +14,7 @@ import { toast } from "react-toastify";
 import { Loader2, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/toastError";
+import { splitLabel } from "@/lib/commissionSplit";
 
 interface StaffOption {
   id: number;
@@ -27,6 +28,8 @@ interface OrderRow {
   salesperson: string | null;
   salesPersonId: number | null;
   splitWithId: number | null;
+  /** The salesperson's share of a split, in percent (GAP-07). */
+  splitPercent: number;
   storeLocation: string | null;
   customer: { firstName: string | null; lastName: string | null } | null;
   status: string;
@@ -479,7 +482,7 @@ function OrderTableRow({ order, index, staff, onToggleSelect }: Readonly<OrderTa
       <td className="px-3 py-3 text-brand-gray">
         {splitName && (
           <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-            50/50 {splitName}
+            {splitLabel(order.splitPercent)} {splitName}
           </span>
         )}
       </td>

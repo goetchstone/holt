@@ -2919,6 +2919,13 @@ model SalesOrder {
   salesPerson     StaffMember?   @relation("OrderSalesPerson", fields: [salesPersonId], references: [id])
   splitWithId     Int?
   splitWith       StaffMember?   @relation("SplitSales", fields: [splitWithId], references: [id])
+  /// A split sale's share credited to its salesperson, in whole percent (1-99);
+  /// the split partner is credited the rest (lib/commissionSplit.ts, GAP-07).
+  /// Read only while splitWithId is set. Written with the split, from the
+  /// store's AppSettings.defaultSplitPercent unless staff choose another, so a
+  /// change to that default moves no sale already split. Split orders before
+  /// this column were all 50/50, which is what the default gave them.
+  splitPercent    Int            @default(50)
   storeLocation   String?
   storeLocationId Int?
   store           StoreLocation? @relation("OrderStore", fields: [storeLocationId], references: [id])
@@ -5579,6 +5586,12 @@ model AppSettings {
   // long a store holds a piece is its own call; the default, 3, is the strict
   // end. A CHECK keeps it within 0-365.
   quoteHoldMaxDays Int @default(3)
+
+  // The share of a split sale credited to its salesperson, in whole percent;
+  // the split partner gets the rest (GAP-07, lib/commissionSplit.ts). A new
+  // split starts here and staff with "Reassign salesperson" may choose
+  // another. 50 is an even split. A CHECK keeps it within 1-99.
+  defaultSplitPercent Int @default(50)
 
   // How a landed charge on a PO is spread across its lines unless the buyer
   // picks another when entering it (GAP-02). By value, the default, gives each

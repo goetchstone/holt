@@ -205,7 +205,7 @@ export function PayPeriodSalesView() {
       o.orderDate,
       o.customer,
       o.storeLocation ?? "",
-      o.isSplit ? "50%" : "",
+      o.sharePercent === null ? "" : `${o.sharePercent}%`,
       o.creditedNet.toFixed(2),
     ]);
     const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v);
@@ -240,8 +240,8 @@ export function PayPeriodSalesView() {
           <h1 className="text-2xl font-semibold text-brand-navy font-serif">Pay Period Sales</h1>
           <p className="mt-1 text-sm text-brand-gray">
             Your sales for the bi-weekly pay period — order detail, period total, and year-to-date.
-            Split orders are credited at 50%. This is sales only; commission is calculated
-            separately by management.
+            A split order is credited at your share of it, shown beside it. This is sales only;
+            commission is calculated separately by management.
           </p>
         </div>
         <Button onClick={handleExport} variant="outline" disabled={loading || !data?.orders.length}>
@@ -444,12 +444,12 @@ export function PayPeriodSalesView() {
                       <td className="p-2 text-xs text-brand-gray">{o.storeLocation ?? "—"}</td>
                       <td className="p-2 text-right tabular-nums">
                         {currency(o.creditedNet)}
-                        {o.isSplit && (
+                        {o.sharePercent !== null && (
                           <span
                             className="ml-1 text-[10px] text-brand-gold"
-                            title="Split order — credited at 50%"
+                            title={`Split order — credited at ${o.sharePercent}%`}
                           >
-                            50%
+                            {o.sharePercent}%
                           </span>
                         )}
                       </td>

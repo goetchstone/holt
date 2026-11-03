@@ -149,7 +149,7 @@ Endpoints that only need auth-without-role (e.g. designer dashboards filtering t
 
 ## Salesperson Detail Drilldown
 
-Four levels: Month -> Customer -> Order -> Line Items. Split sales (50/50) show half amounts at every level. The `splitWithId` field on SalesOrder indicates a split.
+Four levels: Month -> Customer -> Order -> Line Items. A split sale shows this person's share of it at every level: `SalesOrder.splitWithId` names the partner and `splitPercent` the salesperson's share (GAP-07, commission.md "Split sales"; `creditShare` in `lib/commissionSplit.ts`). Until 2026-11-03 every split was half.
 
 ## Sales by Salesperson (HR comp)
 
@@ -157,9 +157,9 @@ Report at `/reports/sales-by-salesperson` for HR's compensation structure. Date-
 
 ### Math
 
-- Pure helpers in `lib/marginMath.ts` — `aggregateMargin`, `applySplit`, `formatMarginPct`, `imputeMissingCost`.
-- `applySplit` halves BOTH retail and cost so margin % stays correct across partners. `aggregateMargin` uses `retail !== 0` (not `> 0`) so return-day rows with negative retail still produce a meaningful margin %.
-- **`imputeMissingCost` (added 2026-04-29)** — when a line has non-zero retail but cost = 0 (the common shape for auto-created products without a vendor cost feed), treat its cost as `retail / 2` so margin reads as 50 % rather than the misleading 100 %. Sign-preserving (returns get the same treatment), idempotent on already-populated lines, idempotent on fully-zero lines. Apply BEFORE `applySplit` and `aggregateMargin` — it's a data-cleaning step. Order doesn't actually matter (split halves both sides) but data-cleaning-first is the convention.
+- Pure helpers in `lib/marginMath.ts` — `aggregateMargin`, `applyShare`, `formatMarginPct`, `imputeMissingCost`.
+- `applyShare` scales BOTH retail and cost by a person's share of a split sale (the salesperson's `splitPercent`, the partner the rest; GAP-07), so margin % stays correct across partners. A split order's two rows take each side's share, and a drill-down into a person shows theirs. `aggregateMargin` uses `retail !== 0` (not `> 0`) so return-day rows with negative retail still produce a meaningful margin %.
+- **`imputeMissingCost` (added 2026-04-29)** — when a line has non-zero retail but cost = 0 (the common shape for auto-created products without a vendor cost feed), treat its cost as `retail / 2` so margin reads as 50 % rather than the misleading 100 %. Sign-preserving (returns get the same treatment), idempotent on already-populated lines, idempotent on fully-zero lines. Apply BEFORE `applyShare` and `aggregateMargin` — it's a data-cleaning step. Order doesn't actually matter (a share scales both sides) but data-cleaning-first is the convention.
 
 ### Filtering and bucketing — match by name OR id
 

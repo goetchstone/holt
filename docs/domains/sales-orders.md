@@ -301,6 +301,17 @@ allowed" (`docs/DECISIONS.md` 28).
   paid on the spot; a deposit or layaway that holds past the store's longest
   (GAP-25); telling the customer when a hold is about to end (GAP-13).
 
+## Split sales (GAP-07, since 2026-11-03)
+
+A split order records its salesperson's share (`SalesOrder.splitPercent`, 1-99)
+beside its partner (`splitWithId`); the partner gets the rest. The order page
+shows it ("60/40 with Ben"), and its salesperson dialog
+(`PUT /api/sales/orders/[id]/salesperson`, `sales.reassign`) and the bulk
+corrections set it: a new split takes the store's default, a new partner keeps
+the share, and a change is logged ("split 60/40 with ..."). The register and the
+quote builder can split a sale too (pos.md). How every report credits it:
+commission.md "Split sales".
+
 ## Key Files
 
 - `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`

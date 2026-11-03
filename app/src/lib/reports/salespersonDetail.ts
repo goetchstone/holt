@@ -1,8 +1,8 @@
 // /app/src/lib/reports/salespersonDetail.ts
 //
 // Salesperson detail report: sales broken down by month and customer for one
-// salesperson within a calendar year. Handles 50/50 split attribution when
-// splitWithId is set. Extracted from the Pages API so the App Router page +
+// salesperson within a calendar year. A split sale counts at this person's
+// share of it (lib/commissionSplit.ts). Extracted from the Pages API so the App Router page +
 // tRPC procedure share one source of truth; the caller-vs-requested
 // authorization stays in the tRPC procedure (it needs the session). CLAUDE.md
 // rule 33 + RETURNED included (returns carry negative line items that net out
@@ -13,6 +13,7 @@ import { buildLineItemWhere } from "@/lib/salesBySalesperson";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayKey, businessMonthRange } from "@/lib/reports/businessDay";
+import { creditShare } from "@/lib/commissionSplit";
 
 export interface LineItemDetail {
   partNo: string;
@@ -152,7 +153,9 @@ export async function getSalespersonDetail(
       id: true,
       orderno: true,
       orderDate: true,
+      salesPersonId: true,
       splitWithId: true,
+      splitPercent: true,
       customer: { select: { id: true, firstName: true, lastName: true, tradeCompanyName: true } },
       lineItems: {
         // Excludes cancelled lines (rule 33) and the delivery + freight
@@ -180,7 +183,8 @@ export async function getSalespersonDetail(
     const customerName = resolveCustomerName(order.customer);
     const customerId = order.customer?.id ?? null;
     const isSplit = order.splitWithId !== null;
-    const multiplier = isSplit ? 0.5 : 1;
+    // This person's share of a split sale (lib/commissionSplit.ts).
+    const multiplier = creditShare(order, staffId);
     const orderNet = order.lineItems.reduce((sum, li) => sum + Number(li.netPrice), 0) * multiplier;
 
     if (!monthMap.has(monthKey)) {

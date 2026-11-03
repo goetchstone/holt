@@ -88,17 +88,17 @@ export function formatMarginPct(pct: number): string {
 }
 
 /**
- * Apply split attribution to a line. If the order is a 50/50 split,
- * each salesperson gets credit for HALF the retail and HALF the cost.
- * The cost halving is critical: margin% must stay the same regardless
- * of split status (a $1000 retail / $400 cost line is 60% margin
- * whether one or two salespeople get credit).
+ * A salesperson's share of a line: on a split order, their share of the
+ * retail AND the same share of the cost (lib/commissionSplit.ts decides the
+ * share; 1 for an order that isn't split). Scaling the cost too is critical:
+ * margin% must stay the same whoever is credited (a $1000 retail / $400 cost
+ * line is 60% margin at a 60% share or a 40% one).
  */
-export function applySplit(line: MarginLine, isSplit: boolean): MarginLine {
-  if (!isSplit) return line;
+export function applyShare(line: MarginLine, share: number): MarginLine {
+  if (share === 1) return line;
   return {
-    retail: line.retail * 0.5,
-    cost: line.cost * 0.5,
+    retail: line.retail * share,
+    cost: line.cost * share,
   };
 }
 

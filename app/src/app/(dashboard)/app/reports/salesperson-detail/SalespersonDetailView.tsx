@@ -186,7 +186,7 @@ function CustomerDrilldownRow({
             {cust.customerName}
             {cust.isSplit && (
               <span className="ml-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                50/50
+                split
               </span>
             )}
           </span>

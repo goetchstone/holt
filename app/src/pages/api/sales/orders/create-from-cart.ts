@@ -43,6 +43,7 @@ import { saleUnitCost } from "@/lib/purchasing/landedCostShared";
 import { quoteHoldContext } from "@/lib/sales/quoteHolds";
 import { holdDateProblem, holdDateValue, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
 import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
+import { splitPercentProblem } from "@/lib/commissionSplit";
 import {
   findOrCreateInIndex,
   findOrCreateVendorId,
@@ -99,6 +100,8 @@ export async function handler(
     orderDiscount,
     deliveryFee,
     discountApproval,
+    splitWithId,
+    splitPercent,
   } = req.body as {
     customerId?: number | null;
     items: CartItem[];
@@ -110,10 +113,21 @@ export async function handler(
     deliveryFee?: number | null;
     /** A manager's PIN, when the sale's discount needs one (GAP-06). */
     discountApproval?: unknown;
+    /** A colleague who wrote the sale too (GAP-07): credited the rest of it. */
+    splitWithId?: number | null;
+    /** The seller's share of a split sale; the store's default when absent. */
+    splitPercent?: number;
   };
 
   const requestProblem = await cartRequestProblem({ items, deliveryMethod, deliveryFee });
   if (requestProblem) return res.status(400).json({ error: requestProblem });
+  const split = await saleSplitProblem({
+    splitWithId,
+    splitPercent,
+    sellerEmail: session.user?.email ?? null,
+    access,
+  });
+  if (split) return res.status(split.status).json({ error: split.error });
   const chargesDelivery = deliveryFee != null && deliveryFee !== 0;
 
   // Each line's list price, and the deepest discount the sale gives, judged
@@ -361,6 +375,11 @@ export async function handler(
           storeLocationId,
           orderNotes: orderNotes || null,
           deliveryMethod: deliveryMethod || null,
+          // Written with a colleague (GAP-07): the seller is credited their
+          // share, the partner the rest (lib/commissionSplit.ts).
+          ...(splitWithId != null
+            ? { splitWithId, splitPercent: splitPercent ?? settings.defaultSplitPercent }
+            : {}),
           createdBy: session.user?.email || null,
           totalTax: priced.taxAmount,
           // NOTE: SalesOrder/OrderLineItem have no discount column, so the
@@ -457,9 +476,54 @@ export async function handler(
   }
 }
 
-export default requirePermission("sales.write", handler, { also: ["sales.discount"] });
+export default requirePermission("sales.write", handler, {
+  also: ["sales.discount", "sales.reassign"],
+});
 
 /** What is wrong with the cart as sent, before anything is priced or written; null when nothing. */
+/**
+ * Why a sale can't be split as asked, or null (GAP-07). Splitting moves
+ * commission, so it takes "Reassign salesperson", as changing it on the order
+ * does; the partner is someone else on the staff, still working; the share is
+ * 1-99 (lib/commissionSplit.ts).
+ */
+async function saleSplitProblem(input: {
+  splitWithId: number | null | undefined;
+  splitPercent: number | undefined;
+  sellerEmail: string | null;
+  access: CallerAccess;
+}): Promise<{ status: 400 | 403; error: string } | null> {
+  if (input.splitWithId == null) {
+    return input.splitPercent === undefined
+      ? null
+      : { status: 400, error: "A split share needs someone to split the sale with." };
+  }
+  if (!input.access.holds["sales.reassign"]) {
+    return {
+      status: 403,
+      error: "Splitting a sale takes the Reassign salesperson permission; a manager can add it.",
+    };
+  }
+  if (typeof input.splitWithId !== "number" || !Number.isInteger(input.splitWithId)) {
+    return { status: 400, error: "splitWithId must be a staff id, or null." };
+  }
+  if (input.splitPercent !== undefined) {
+    const problem = splitPercentProblem(input.splitPercent);
+    if (problem) return { status: 400, error: problem };
+  }
+  const partner = await prisma.staffMember.findUnique({
+    where: { id: input.splitWithId },
+    select: { email: true, isActive: true, displayName: true },
+  });
+  if (!partner) return { status: 400, error: "The split partner isn't on the staff." };
+  if (!partner.isActive)
+    return { status: 400, error: `${partner.displayName} no longer works here.` };
+  if (input.sellerEmail && partner.email === input.sellerEmail) {
+    return { status: 400, error: "A sale can't be split with the person selling it." };
+  }
+  return null;
+}
+
 async function cartRequestProblem(input: {
   items: CartItem[] | undefined;
   deliveryMethod: string | undefined;
