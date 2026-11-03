@@ -20,7 +20,8 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { freePositionWhere } from "@/lib/inventory/allocation";
 import { roundQty, toQty } from "@/lib/inventory/quantity";
 import { getAppSettings } from "@/lib/appSettings";
-import { isStockedProduct, lineCommitsStock } from "@/lib/sales/quoteHoldsShared";
+import { lineCommitsStock } from "@/lib/sales/quoteHoldsShared";
+import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
 import { businessDayKey } from "@/lib/reports/businessDay";
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -53,7 +54,7 @@ export async function settleShortfalls(db: Db, orderId: number): Promise<void> {
           orderedQuantity: true,
           holdUntil: true,
           product: {
-            select: { madeToOrder: true, category: { select: { trackInventory: true } } },
+            select: STOCKED_SELECT,
           },
         },
       }),

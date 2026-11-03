@@ -5,6 +5,7 @@ import { Department } from "@prisma/client";
 import FormInput from "@/components/form/FormInput";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/Modal";
+import { isSavedRecord } from "@/lib/savedRecord";
 
 type Props = {
   department: Department | null; // Can be null for new department
@@ -39,8 +40,9 @@ export default function DepartmentModal({ department, onClose, onRefresh }: Prop
 
   const handleSubmit = async () => {
     setSaving(true);
-    const method = department ? "PUT" : "POST";
-    const url = department ? `/api/departments/${department.id}` : "/api/departments";
+    const editing = isSavedRecord(department);
+    const method = editing ? "PUT" : "POST";
+    const url = editing ? `/api/departments/${department.id}` : "/api/departments";
 
     try {
       const res = await fetch(url, {
@@ -97,7 +99,7 @@ export default function DepartmentModal({ department, onClose, onRefresh }: Prop
 
   return (
     <Modal
-      title={department ? "Edit Department" : "Add Department"}
+      title={isSavedRecord(department) ? "Edit Department" : "Add Department"}
       onClose={onClose}
       onSave={handleSubmit}
       saving={saving}
@@ -111,7 +113,7 @@ export default function DepartmentModal({ department, onClose, onRefresh }: Prop
       />
 
       <div className="flex justify-end gap-4 mt-4">
-        {department && ( // Only show delete button for existing departments
+        {isSavedRecord(department) && ( // Only show delete button for existing departments
           <Button variant="secondary" onClick={handleDelete} disabled={saving}>
             Delete
           </Button>

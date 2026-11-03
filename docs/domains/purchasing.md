@@ -34,6 +34,16 @@ Daily imports:
 
 **Native receiving into stock** (since 2026-10-17, `lib/inventory/receiving.ts`): Damaged and Wrong Item go to the store's quarantine place (`lib/purchasing/receiptConditions.ts`, the list the Receive PO screen offers); a line raised for an open order -- its own line, or a PO raised for the whole order -- arrives committed to the order up to what it still needs, the rest free; quantities parse as fractions. See `docs/domains/inventory.md` "Document flows".
 
+**An item whose category keeps no stock is received as a record only** (GAP-21,
+since 2026-11-02; owner's choice). A service, fee or supplies line on a PO
+counts toward its line when received, so the PO closes, but nothing goes into
+stock: the receipt carries `ReceivingRecord.intoStock` false, no place, no
+landed cost (its product has no stock to average over) and no tag. The Receive
+PO screen's message and the handheld's confirmation name each such line
+("Recorded only: Assembly isn't stocked: its category, Services, doesn't track
+inventory."). Taking it back takes nothing out of stock. See
+`docs/domains/inventory.md` "What isn't stocked".
+
 ## Vendor lead time (since 2026-10-17)
 
 `Vendor.leadTimeDays` is the vendor's standard lead time, in days from order to
@@ -417,7 +427,7 @@ Covered: `derivePOStatus`, `classifyPOReceiptStatus` in `importHelpers.test.ts`
 
 Covered: `productSources.integration.test.ts` (an item's other vendors: the list, every refusal, View cost, the gates, the product page's `canEdit`, and the picker, saving and duplicating a PO through `buyingTerms`).
 
-Covered: `handheldReceive.integration.test.ts` (the handheld receive through `receivePurchaseOrder`: whole units, box scans assembled, an incomplete set held in quarantine and completed later, a resend done once); `stockReceive.integration.test.ts` (where receipts land).
+Covered: `handheldReceive.integration.test.ts` (the handheld receive through `receivePurchaseOrder`: whole units, box scans assembled, an incomplete set held in quarantine and completed later, a resend done once); `stockReceive.integration.test.ts` (where receipts land); `unstockedItems.integration.test.ts` (an item whose category keeps no stock received as a record only, taken back, and skipped by a landed charge).
 
 Gaps: `findProduct()`, received items runner, inbound items runner (all need Prisma for integration tests)
 

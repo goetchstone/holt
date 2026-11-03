@@ -12,11 +12,11 @@ import {
   holdDaysLeft,
   holdIsOpen,
   isQuoteHoldMaxDays,
-  isStockedProduct,
   latestHoldDate,
   lineCommitsStock,
   lineHoldProblem,
 } from "@/lib/sales/quoteHoldsShared";
+import { isStockedProduct } from "@/lib/inventory/stocked";
 
 describe("what a store may set as its longest hold", () => {
   it("is a whole number of days from 0 to 365, and ships at the strict 3", () => {
@@ -89,12 +89,10 @@ describe("what a sale commits", () => {
 });
 
 describe("what can be held", () => {
-  it("a product drawn from stock: not made to order, in a category that keeps stock", () => {
-    expect(isStockedProduct({ madeToOrder: false, category: { trackInventory: true } })).toBe(true);
-    expect(isStockedProduct({ madeToOrder: true, category: { trackInventory: true } })).toBe(false);
-    expect(isStockedProduct({ madeToOrder: false, category: { trackInventory: false } })).toBe(
-      false,
-    );
+  it("a product drawn from stock: anything but a category that keeps none", () => {
+    expect(isStockedProduct({ category: { trackInventory: true } })).toBe(true);
+    expect(isStockedProduct({ category: null })).toBe(true);
+    expect(isStockedProduct({ category: { trackInventory: false } })).toBe(false);
   });
 
   it("an active floor-stock line only", () => {

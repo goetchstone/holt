@@ -92,18 +92,6 @@ export function lineCommitsStock(args: {
   return args.orderStatus !== "QUOTE" || holdIsOpen(args.holdUntil, args.today);
 }
 
-/**
- * A product a sale draws from stock: not made for one sale (GAP-21), and in a
- * category that keeps stock (Category.trackInventory). Anything else has no
- * stock to commit, so asking for some would only raise a false shortfall.
- */
-export function isStockedProduct(product: {
-  madeToOrder: boolean;
-  category: { trackInventory: boolean } | null;
-}): boolean {
-  return !product.madeToOrder && (product.category?.trackInventory ?? true);
-}
-
 /** Why this quote line can't hold stock, or null when it can. */
 export function lineHoldProblem(line: {
   lineItemStatus: string;

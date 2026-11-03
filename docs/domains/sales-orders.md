@@ -274,12 +274,13 @@ allowed" (`docs/DECISIONS.md` 28).
   payment, seconds later, not when it is written. Between the two, another
   register can sell the last unit; the second sale then records a shortfall like
   any oversale (`docs/domains/inventory.md`, "Overselling is allowed").
-- **What isn't stocked (GAP-21).** A configured or custom cart line mints a
-  one-off product, which is now marked `Product.madeToOrder`. That product, and
-  one in a category with `trackInventory` off, is never allocated: there is no
-  stock to commit, only a false shortfall to raise. Its units still count as
-  needed, so ones its PO delivered committed to the order are never released.
-  Products minted before 2026-11-01 are not marked; Holt has no live deployment.
+- **What isn't stocked (GAP-21).** A product in a category with
+  `trackInventory` off is never allocated: there is no stock to commit, only a
+  false shortfall to raise (`lib/inventory/stocked.ts`). A configured or custom
+  cart line mints a one-off product, marked `Product.madeToOrder` as a record of
+  where it came from, and it is an item like any other (owner, 2026-11-02):
+  short until its PO arrives committed to the order, and a spare one is stock a
+  sale takes. From 2026-11-01 to 2026-11-02 it was never allocated either.
 - **A custom line's vendor (GAP-22, 2026-11-02).** A configured or custom cart
   line naming a vendor files its minted product under the vendor that name
   means, an earlier name of a merged vendor included (`findVendorsByName`,

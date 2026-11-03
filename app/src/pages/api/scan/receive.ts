@@ -167,6 +167,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
         incompleteSets: received?.incompleteNotes.length ?? 0,
         completedSets: completed.length,
         newStatus: received?.newStatus ?? null,
+        notStocked: received?.notStocked ?? [],
       };
     },
   );

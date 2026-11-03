@@ -1613,6 +1613,9 @@ export interface StockByItemImportResult {
   unmatchedRowsNotWritten: number;
   /** Places where the file says fewer than are already committed to orders. */
   shortOfCommitted: number;
+  /** Places the file would have added to an item whose category keeps no stock
+   *  (GAP-21). Left as they were. */
+  notStocked: number;
   /** Rows whose On Hand is not a number. Skipped, never written as stock. */
   skippedUnparseableQty: number;
   unmappedLocations: string[];
@@ -1897,6 +1900,7 @@ export async function runStockByItemImport(
     unmappedCount: unmappedArr.length,
     unmatchedRowsNotWritten,
     shortOfCommitted: sync.shortOfCommitted.length,
+    notStocked: sync.notStocked,
     buyerDraftsAutoLinked,
   });
 
@@ -1908,6 +1912,7 @@ export async function runStockByItemImport(
     negativeClampedToZero,
     unmatchedRowsNotWritten,
     shortOfCommitted: sync.shortOfCommitted.length,
+    notStocked: sync.notStocked,
     skippedUnparseableQty,
     unmappedLocations: unmappedArr,
     ...(buyerDraftsAutoLinked > 0 ? { buyerDraftsAutoLinked } : {}),
@@ -1924,6 +1929,7 @@ function buildStockByItemMessage(parts: {
   unmappedCount: number;
   unmatchedRowsNotWritten: number;
   shortOfCommitted: number;
+  notStocked: number;
   buyerDraftsAutoLinked: number;
 }): string {
   const segments: string[] = [
@@ -1942,6 +1948,11 @@ function buildStockByItemMessage(parts: {
   if (parts.shortOfCommitted > 0) {
     segments.push(
       `${parts.shortOfCommitted} places hold fewer than are committed to orders; commitments kept`,
+    );
+  }
+  if (parts.notStocked > 0) {
+    segments.push(
+      `${parts.notStocked} places not added to: their item's category doesn't track inventory`,
     );
   }
   if (parts.buyerDraftsAutoLinked > 0) {
