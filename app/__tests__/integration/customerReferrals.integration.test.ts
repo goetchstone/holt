@@ -486,3 +486,37 @@ describe("Reports › Referrals", () => {
     ]);
   });
 });
+
+describe("The customer list (CodeQL #24)", () => {
+  // It wrote whatever column it was sent into orderBy, and returned as many
+  // rows as it was asked for.
+  it("sorts only by its own columns, either way", async () => {
+    await customer({ firstName: "Bo", lastName: "Zed" });
+    await customer({ firstName: "Al", lastName: "Ash" });
+    const asc = await call(customersRoute, "GET", { sortBy: "lastName" });
+    expect(asc.body.data.map((c: { lastName: string }) => c.lastName)).toEqual(["Ash", "Zed"]);
+    const desc = await call(customersRoute, "GET", { sortBy: "firstName", sortDirection: "desc" });
+    expect(desc.body.data.map((c: { firstName: string }) => c.firstName)).toEqual(["Bo", "Al"]);
+    // Anything but "desc" is ascending, never written into the query as sent.
+    const odd = await call(customersRoute, "GET", { sortDirection: "sideways" });
+    expect(odd.statusCode).toBe(200);
+  });
+
+  it("refuses any other column", async () => {
+    for (const sortBy of ["creditBalance", "__proto__", "constructor"]) {
+      const res = await call(customersRoute, "GET", { sortBy });
+      expect([res.statusCode, res.body.error]).toEqual([400, expect.stringContaining(sortBy)]);
+    }
+  });
+
+  it("returns at most 100 a page, and treats a page below 1 as the first", async () => {
+    await prisma.customer.createMany({
+      data: Array.from({ length: 105 }, (_, i) => ({ firstName: "C", lastName: `L${i}` })),
+    });
+    const big = await call(customersRoute, "GET", { limit: "100000" });
+    expect(big.body.data).toHaveLength(100);
+    const below = await call(customersRoute, "GET", { page: "-3", limit: "5" });
+    expect(below.statusCode).toBe(200);
+    expect(below.body.data).toHaveLength(5);
+  });
+});
