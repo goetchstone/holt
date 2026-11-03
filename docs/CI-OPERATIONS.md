@@ -220,6 +220,36 @@ Markdown file, not only the ones it changed. That also matters for what it
 lints with: markdownlint-cli2's version lives in `app/package.json` and
 `app/package-lock.json`, so a PR that only bumps it must run this check.
 
+## Open alerts on main: triage of 2026-11-03
+
+CodeQL only refuses a merge for an alert the pull request adds, so alerts
+already on `main` sit in the Security tab until someone resolves them (rule 48:
+fixed, tripwire-tested, or won't-fix with a reason). On 2026-11-03 there were
+17 open CodeQL alerts, all high, and 2 Dependabot alerts.
+
+**Fixed in code** (each closes when CodeQL next scans `main`):
+
+| Alert | Rule | What was wrong | Fix |
+|---|---|---|---|
+| #24 | `js/remote-property-injection` | `GET /api/customers` wrote any `sortBy` it was sent into `orderBy`, took any direction, and returned as many rows as `limit` asked | Sort columns are a fixed list (others are a 400), the direction is `asc` unless `desc`, a page is 1-100 rows. `customerReferrals.integration.test.ts` |
+| #17 | `js/loop-bound-injection` | `POST /api/proposals/[id]/reorder` looped over any list it was sent and updated those lines without checking they were the proposal's | Removed: no screen called it. A drag-and-drop reorder brings it back scoped to its proposal |
+| #21 | `js/file-system-race` | The preset loader checked a file's size, then read it separately, so the file read could differ from the file checked | One read stream that stops one byte past the limit, and no separate size check. A first fix with one open file (`fs.open`) raised `js/insecure-temporary-file`, since CodeQL counts any `fs.open` as creating a file and followed the test's temp directory into it. `presets.test.ts` |
+
+**False positives** (dismissed in the Security tab on 2026-11-03 with these reasons):
+
+| Alert | Rule | Why it isn't one |
+|---|---|---|
+| #52-#62 | `js/user-controlled-bypass` | The conditions in the line-item routes pick which edit a caller asked for (hold, note, relink, cancel, replace, update) or check required fields. Both routes are gated by `sales.write`, and every path that sets a price runs `authorizeDiscount` on the caller's own permissions |
+| #10 | `js/insufficient-password-hash` | `hashResetToken` hashes a 32-byte random token, not a password. Passwords use scrypt (`lib/auth/password.ts`) |
+| #11 | `js/insufficient-password-hash` | `fingerprintError` hashes an error message to group repeats. The taint is an error message that mentions `MIN_PASSWORD_LENGTH` |
+| #8 | `js/path-injection` | The upload's path is server-generated (`createSecureForm`: `<ms>-<hex><allow-listed ext>`), and `assertUploadedFileInRoot` checks it stays in its directory |
+
+**Dependabot, won't fix** (dismissed as tolerable risk on 2026-11-03): alert 25, minimatch
+3.1.5, and alert 24, deepmerge 4.3.1. Both are dev-only, and each is already suppressed with its
+evidence in `app/osv-scanner.toml`. Re-verified against `main`'s lockfile on
+2026-11-03: every other minimatch is 11.0.3, and nothing in `src/` imports
+either package.
+
 ## Adding a new check
 
 If you add a new linter / scanner / type-check:
