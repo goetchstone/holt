@@ -18,6 +18,7 @@ import type { Rng } from "./rng";
 import { pick, randInt, shuffle, subRng } from "./rng";
 import type { StaffSetup } from "./staff";
 import type { StoreSetup } from "./locations";
+import { getMessageSettings } from "@/lib/messages/settings";
 
 const SEED_ACTOR = "seed:demo";
 
@@ -122,6 +123,7 @@ export interface SetupDataResult {
   tradeTiers: number;
   emailTemplates: number;
   labelTemplates: number;
+  customerMessages: number;
   salesGoals: number;
   upBoardEntries: number;
   /** Today's open shifts: the people on the up boards. */
@@ -142,6 +144,7 @@ export async function seedSetupData(
     tradeTiers: 0,
     emailTemplates: 0,
     labelTemplates: 0,
+    customerMessages: 0,
     salesGoals: 0,
     upBoardEntries: 0,
     openShifts: 0,
@@ -169,6 +172,12 @@ export async function seedSetupData(
     await prisma.labelTemplate.create({ data: { ...t, createdBy: SEED_ACTOR } });
     result.labelTemplates += 1;
   }
+
+  // Settings › Customer messages (GAP-13): each kind with its suggested wording
+  // and timing, as a store finds them on first opening the screen. Switched
+  // off, as every store starts; the demo's customers are invented, and nothing
+  // should write to them.
+  result.customerMessages = (await getMessageSettings(prisma)).length;
 
   // ---- sales goals -------------------------------------------------------
   // The commission tier ladder and the goals screen both read these. A goal

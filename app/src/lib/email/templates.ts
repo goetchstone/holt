@@ -25,12 +25,14 @@ function formatDateTime(date: Date, timezone?: string): string {
 
 function layout(appName: string, heading: string, bodyHtml: string): string {
   const safeApp = escapeHtml(appName);
+  // "Sent by Holt Home & Rug Co." -- a name that ends in a full stop gets one, not two.
+  const signedBy = escapeHtml(appName.trim().replace(/\.+$/, ""));
   return `<!doctype html><html><body style="margin:0;background:#f5f4f0;font-family:Helvetica,Arial,sans-serif;color:#14161f">
   <div style="max-width:560px;margin:0 auto;padding:32px 24px">
     <h1 style="font-size:20px;color:#1c1f2e;margin:0 0 16px">${safeApp}</h1>
     <h2 style="font-size:18px;margin:0 0 12px">${escapeHtml(heading)}</h2>
     ${bodyHtml}
-    <p style="font-size:12px;color:#9a968d;margin-top:32px">Sent by ${safeApp}.</p>
+    <p style="font-size:12px;color:#9a968d;margin-top:32px">Sent by ${signedBy}.</p>
   </div></body></html>`;
 }
 
@@ -174,4 +176,36 @@ export function purchaseOrderEmail(input: PurchaseOrderEmailInput): RenderedEmai
     subject,
     html: layout(input.companyName, `Purchase order ${input.poNumber}`, body),
   };
+}
+
+export interface CustomerMessageEmailInput {
+  /** The store's name, at the head and foot. */
+  storeName: string;
+  /** The store's own subject and wording, placeholders already filled (lib/messages/render.ts). */
+  subject: string;
+  text: string;
+  /** Buttons under the wording: the order link, the review page. */
+  links: { label: string; url: string }[];
+}
+
+/**
+ * An automatic customer message (GAP-13) in the store's own words. Plain text:
+ * a blank line starts a paragraph and a line break stays one, and all of it is
+ * escaped, so neither the store's wording nor a customer's name can inject
+ * markup.
+ */
+export function customerMessageEmail(input: CustomerMessageEmailInput): RenderedEmail {
+  const paragraphs = input.text
+    .trim()
+    .split(/\r?\n\s*\r?\n/)
+    .map((p) => `<p>${escapeHtml(p.trim()).replace(/\r?\n/g, "<br>")}</p>`)
+    .join("\n    ");
+  const buttons = input.links
+    .map(
+      (l) =>
+        `<p style="margin:24px 0"><a href="${escapeHtml(l.url)}" style="background:#1c1f2e;color:#f5f4f0;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">${escapeHtml(l.label)}</a></p>`,
+    )
+    .join("\n    ");
+  const subject = input.subject.replace(/\s*[\r\n]+\s*/g, " ").trim();
+  return { subject, html: layout(input.storeName, subject, `${paragraphs}\n    ${buttons}`) };
 }

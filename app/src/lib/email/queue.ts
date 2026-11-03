@@ -7,7 +7,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
-import type { EmailStatus } from "@prisma/client";
+import type { EmailStatus, Prisma } from "@prisma/client";
 import { sendEmail, type EmailAttachment } from "./sender";
 import { nextEmailState, MAX_EMAIL_ATTEMPTS } from "./state";
 
@@ -22,8 +22,15 @@ export interface EnqueueInput {
   attachments?: readonly EmailAttachment[];
 }
 
-export async function enqueueEmail(input: EnqueueInput): Promise<number> {
-  const row = await prisma.emailQueue.create({
+/**
+ * Record a PENDING email. Pass a transaction as `db` to queue it with the
+ * caller's own write, so the two are kept or lost together.
+ */
+export async function enqueueEmail(
+  input: EnqueueInput,
+  db: Pick<Prisma.TransactionClient, "emailQueue"> = prisma,
+): Promise<number> {
+  const row = await db.emailQueue.create({
     data: {
       organizationId: input.organizationId ?? DEFAULT_ORG_ID,
       toAddress: input.to,

@@ -1141,6 +1141,50 @@ delivery goes back to the dispatch pool.
 
 ---
 
+## 39. Customer messages are the store's to switch on and word; Holt only decides when they're due
+
+**Decided 2026-11-03 (GAP-13).** Offered the recommended options (each message
+on or off with its own wording, the order link in every message, one opt-out
+for all of them, the review invitation a store-set number of days after
+handover), the owner chose all four, then added "All configurations": every
+choice about how a message behaves belongs to the store.
+
+- **Every message starts off.** A store switches on the ones it wants, and
+  only events after that send. Turning a feature on must not mail every
+  customer about last month.
+- **The kinds are code; the store's row only configures them** (rule 62). The
+  event, its timing rule and its placeholders are fixed per kind. Wording is
+  plain text with placeholders the kind can fill, checked when it's saved.
+- **Each event is recorded once, sent or not.** The row is the dedupe and the
+  history. A skipped message says why, and is not retried when the customer
+  adds an email later.
+- **A late message isn't sent at all.** A reminder goes on its day or not, and
+  nothing goes more than a week late. Old news by email is worse than none.
+- **Its own settings, not the service desk's Email Templates.** Those are a
+  library staff pick from by hand on a service case. These are tied to an event
+  and carry timing, so they don't fit the same table.
+
+**Rejected:**
+
+- **A hook in each write path** (receiving, dispatch, handover) that queues
+  the email. Each path would need the same opt-out, dedupe and on/off checks
+  (rule 42), and the timed messages (the reminder, the review invitation) have
+  no write to hook at all. One scan of recorded facts covers every path,
+  including ones not written yet.
+- **On by default with the suggested wording.** It would mail a deployment's
+  customers the moment it upgrades, in words nobody there chose.
+- **A store-written template language.** Conditionals in a stored string are
+  logic in config (rule 62).
+
+**Enforced by:** `__tests__/integration/customerMessages.integration.test.ts`,
+`__tests__/lib/messages/customerMessages.test.ts`, and the unique
+`CustomerMessage.dedupeKey`.
+
+**Source:** [`app/src/lib/messages/due.ts`](../app/src/lib/messages/due.ts),
+[`docs/domains/email.md`](domains/email.md)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

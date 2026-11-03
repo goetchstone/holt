@@ -90,6 +90,7 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
         lastName: true,
         email: true,
         phone: true,
+        autoMessagesOptOut: true,
         referralSourceId: true,
         referredByCustomerId: true,
       },

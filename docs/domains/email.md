@@ -40,14 +40,15 @@ Configurable in **Settings → Integrations** (provider `smtp`, added to
   PENDING until `MAX_EMAIL_ATTEMPTS` (4), then FAILED. Tested.
 - `templates.ts` — pure `bookingConfirmationEmail` / `ticketReceivedEmail` /
   `ticketReplyEmail` / `invoiceIssuedEmail` / `passwordResetEmail` /
-  `purchaseOrderEmail` → `{ subject, html }`. Inline styles; **all interpolated
+  `purchaseOrderEmail` / `customerMessageEmail` → `{ subject, html }`. Inline styles; **all interpolated
   values HTML-escaped** (no injection from customer/author text). Tested.
 - `config.ts` — `getSmtpConfig` / `isEmailConfigured` (above).
 - `sender.ts` — **server-only** nodemailer transport (cached per config) +
   `sendEmail({to,subject,html,attachments?})`; no-ops when unconfigured. Import
   only from API routes / the queue. Tested over a real SMTP conversation with a
   sink on localhost (`__tests__/helpers/smtpSink.ts`), attachments included.
-- `queue.ts` — `enqueueEmail` (PENDING row, with any attachments), `processEmailQueue`
+- `queue.ts` — `enqueueEmail` (PENDING row, with any attachments; pass a
+  transaction to queue it with the caller's own write), `processEmailQueue`
   (send due rows, advance state; stops the run if SMTP is unconfigured),
   `enqueueAndSend` (fire-and-forget enqueue + drain after a write, never blocks
   the response), and `deliverQueuedEmail(id)` (try one row now and return its
@@ -67,6 +68,8 @@ after an SMTP failure sends the same bytes.
 
 ## Touchpoints (wired)
 
+- **Automatic customer messages** (GAP-13): see "Customer messages" below.
+
 - **Booking create** (`pages/api/bookings/index.ts`) → `booking-confirmation`.
 - **Public ticket submit** (`pages/api/tickets/index.ts`) → `ticket-received`
   (with the `/support/<token>` status link).
@@ -84,15 +87,84 @@ All use `enqueueAndSend` (best-effort; the durable row survives an SMTP outage).
   See `docs/domains/purchasing.md`.
 Status links use `NEXTAUTH_URL` as the base.
 
+## Customer messages (GAP-13)
+
+Messages Holt sends a customer by itself. Owner, 2026-11-03: each one on or off
+with the store's own wording and timing, a fresh order link in each, a customer
+opt-out, and the review invitation some days after handover; "All
+configurations". DECISIONS 39.
+
+- **The kinds** are code (`lib/messages/catalog.ts`, shared with the screen).
+  Each kind fixes which event sends it and which `{placeholders}` it can fill:
+  - `ARRIVED`: goods ordered for the customer are received.
+  - `DELIVERY_SCHEDULED`: the delivery is put on a run.
+  - `DELIVERY_REMINDER`: some days before the delivery.
+  - `REVIEW_INVITE`: some days after the handover.
+- **The store's setting** is one `CustomerMessageSetting` row per kind
+  (`lib/messages/settings.ts`; Settings › Customer messages,
+  `/app/admin/setup/customer-messages`; `GET /api/customer-messages`,
+  `PUT /api/customer-messages/[kind]`; admin.settings). It holds:
+  - on or off;
+  - the subject and wording;
+  - whether it carries the "View your order" button;
+  - for a timed kind, its days and the hour of the store's day;
+  - for the review invitation, the review page (https, required to switch it
+    on).
+
+  A missing row is written on first read with the suggested wording, switched
+  off. Switching a kind on stamps `activeSince`, and only events after it send.
+  The config only selects (rule 62): the wording is text with placeholders,
+  never an expression.
+- **The scan** (`lib/messages/due.ts` `queueDueMessages`) runs at the start of
+  every `POST /api/automations/email-queue`, so it runs every 5 minutes with the
+  cron, and its emails drain in the same run. The rules per kind are in the
+  file's header. In short:
+  - **Arrivals** come from receipts against a PO line tied to an order line.
+    Only goods that came onto the books in a saleable condition count, not
+    quarantined ones (`receiptConditions.ts`) and not receipts imported with an
+    `externalGipNo`. One message per order lists what came in, and each receipt
+    is announced once (`CustomerMessage.receivingRecordIds`).
+  - **Deliveries** are announced once per appointment and day, so a delivery
+    moved to another day is announced again. A run's day is its stored UTC date
+    (`timing.ts runDay`).
+  - **A reminder** goes on its day, from its hour, and never late.
+  - **A review invitation** is not sent once a return is open against the
+    order, nor after the handover is undone.
+  - **Nothing goes more than `LATE_LIMIT_DAYS` (7) late.**
+- **Every event is recorded once** as a `CustomerMessage` (`dedupeKey` unique),
+  sent or not. A customer with no email, or with `Customer.autoMessagesOptOut`
+  (the customer form's "No automatic messages"), gets a `SKIPPED` row with the
+  reason and is not tried again for that event. The row and its `EmailQueue`
+  row are written in one transaction (`enqueueEmail(input, tx)`), so two runs at
+  once send one message. A failure (no `NEXTAUTH_SECRET` to sign the link, say)
+  writes nothing, is logged, and is tried again on the next run.
+- **Rendering** (`lib/messages/render.ts`, `templates.ts`
+  `customerMessageEmail`) fills placeholders in one pass and escapes
+  everything. A blank line starts a paragraph. The order button is a fresh
+  portal link (`lib/portalLink.ts`, the same as the order page's copy-link,
+  `AppSettings.portalTokenTtlHours`). `templateKey` is
+  `customer-message-<kind>`.
+- **The order page** shows each message and where its email stands
+  (`GET /api/sales/orders/[id]/messages`, sales.read, `CustomerMessagesPanel`).
+  It shows nothing when there are none. The mail server's error text stays on
+  Admin › Email.
+
+Not built (ROADMAP GAP-13): text messages (GAP-12), the "minutes out" notice
+(telematics), telling the customer a quote hold is ending, and sending one again
+by hand.
+
 ## Operate
 
 - **Drain endpoint** `POST /api/automations/email-queue` — admin session OR
-  `Authorization: Bearer $AUTO_IMPORT_API_KEY` (cron). Returns
-  `{ sent, failed, skipped }`.
+  `Authorization: Bearer $AUTO_IMPORT_API_KEY` (cron). It first queues the
+  customer messages that are due, then drains. Returns
+  `{ summary: { processed, sent, failed, skipped }, messages }`, where
+  `messages` is the scan's count per kind (null if the scan failed; the drain
+  runs anyway).
 - **Admin viewer** `/app/admin/email` — SMTP-configured banner, per-status
   counts, recent rows + last error, "Process now". Card on the Admin hub.
-- A daily cron hitting the drain endpoint retries any FAILED/PENDING (add when
-  setting up the host).
+- **The cron** (`scripts/auto-email-queue.sh`) runs every 5 minutes, installed
+  by `scripts/install-cron.sh`. `scripts/go-live-check.sh` checks it is there.
 
 ## Verification checklist
 

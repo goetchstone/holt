@@ -65,7 +65,9 @@ const CustomerEditModal = ({ item: customer, onClose }: CustomerEditModalProps) 
     customer?.referralSourceId ? String(customer.referralSourceId) : "",
   );
   const [referrer, setReferrer] = useState(initialReferrer(customer));
-  const [touched, setTouched] = useState({ source: false, referrer: false });
+  const [touched, setTouched] = useState({ source: false, referrer: false, optOut: false });
+  // No automatic messages (GAP-13), sent only when changed here, for the same reason.
+  const [optOut, setOptOut] = useState(customer?.autoMessagesOptOut ?? false);
   const search = useCustomerSearch({ limit: 6 });
 
   useEffect(() => {
@@ -103,7 +105,11 @@ const CustomerEditModal = ({ item: customer, onClose }: CustomerEditModalProps) 
 
   const handleSave = async () => {
     setIsSaving(true);
-    const body = { ...formData, ...referralChanges(touched, sourceId, referrer) };
+    const body = {
+      ...formData,
+      ...referralChanges(touched, sourceId, referrer),
+      ...(touched.optOut ? { autoMessagesOptOut: optOut } : {}),
+    };
     try {
       if (customer?.id) {
         await axios.put(`/api/customers/${customer.id}`, body);
@@ -161,6 +167,24 @@ const CustomerEditModal = ({ item: customer, onClose }: CustomerEditModalProps) 
             onChange={(value) => setFormData({ ...formData, phone: value })}
           />
         </div>
+        <label className="mt-4 flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={optOut}
+            onChange={(e) => {
+              setOptOut(e.target.checked);
+              setTouched((t) => ({ ...t, optOut: true }));
+            }}
+            className="mt-1"
+          />
+          <span>
+            No automatic messages
+            <span className="block text-brand-gray">
+              They asked not to get the store&apos;s automatic emails (arrivals, deliveries,
+              reminders, review invitations). Staff can still write to them.
+            </span>
+          </span>
+        </label>
       </FormSection>
       <FormSection title="How they found us">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

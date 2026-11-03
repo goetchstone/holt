@@ -94,7 +94,7 @@ fi
 # cadence somewhere in the docs. Where this script differs from an
 # in-repo doc, it's a resolved conflict, not a fabrication.
 JOBS=(
-  "*/5 * * * *|auto-email-queue.sh|auto-email-queue.log|Every invoice delivery, booking confirmation, ticket reply, and password-reset email silently never sends -- queued messages sit PENDING forever. Highest-frequency job in the system."
+  "*/5 * * * *|auto-email-queue.sh|auto-email-queue.log|Every invoice delivery, booking confirmation, ticket reply, and password-reset email silently never sends -- queued messages sit PENDING forever -- and no automatic customer message (arrival, delivery, reminder, review) is queued at all. Highest-frequency job in the system."
   "45 4 * * *|auto-customer-ar-drift-check.sh|auto-customer-ar-drift-check.log|Books silently drift from the source-of-truth ledger recompute -- AR discrepancies go undetected until someone stumbles on them or a customer disputes a balance."
   "30 22 * * *|auto-daily-reconciliation.sh|auto-daily-reconciliation.log|JE-vs-source mismatches accumulate with nobody alerted -- the day's books don't tie out and it isn't caught until someone looks by hand."
   "30 4 * * 0|auto-customer-level-recalc.sh|auto-customer-level-recalc.log|Customer.customerLevel/lifetimeSpend/customerGroup go stale -- leveling-dependent pricing and marketing logic keeps acting on outdated tiers indefinitely (weekly job, so the staleness compounds for a week at a time)."

@@ -35,6 +35,7 @@ import type { OrderDisclaimerRef } from "@/lib/sales/orderDisclaimersShared";
 import { LineNote } from "./LineNote";
 import { OrderFlagChip, OrderFlagsPanel } from "./OrderFlagsPanel";
 import { OrderDisclaimersPanel } from "./OrderDisclaimersPanel";
+import { CustomerMessagesPanel } from "./CustomerMessagesPanel";
 import { UndoHandoverButton } from "./UndoHandoverButton";
 
 interface LineItem {
@@ -1258,6 +1259,8 @@ export function OrderDetailView({
         disclaimers={orderDetails.disclaimers ?? []}
         onChanged={(disclaimers) => setOrderDetails({ ...orderDetails, disclaimers })}
       />
+
+      <CustomerMessagesPanel orderId={orderDetails.id} />
 
       {/* Invoices */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">

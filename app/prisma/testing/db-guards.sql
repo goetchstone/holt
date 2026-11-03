@@ -180,3 +180,19 @@ ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_defaultSplitPer
 ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_defaultSplitPercent_range" CHECK (
   "defaultSplitPercent" >= 1 AND "defaultSplitPercent" <= 99
 );
+
+-- 20261103220000_customer_messages
+-- A timed customer message goes out at an hour 0-23, 0-90 days from its event;
+-- a message is queued or skipped.
+ALTER TABLE "CustomerMessageSetting" DROP CONSTRAINT IF EXISTS "CustomerMessageSetting_sendHour_range";
+ALTER TABLE "CustomerMessageSetting" ADD CONSTRAINT "CustomerMessageSetting_sendHour_range" CHECK (
+  "sendHour" IS NULL OR ("sendHour" >= 0 AND "sendHour" <= 23)
+);
+ALTER TABLE "CustomerMessageSetting" DROP CONSTRAINT IF EXISTS "CustomerMessageSetting_offsetDays_range";
+ALTER TABLE "CustomerMessageSetting" ADD CONSTRAINT "CustomerMessageSetting_offsetDays_range" CHECK (
+  "offsetDays" IS NULL OR ("offsetDays" >= 0 AND "offsetDays" <= 90)
+);
+ALTER TABLE "CustomerMessage" DROP CONSTRAINT IF EXISTS "CustomerMessage_status_known";
+ALTER TABLE "CustomerMessage" ADD CONSTRAINT "CustomerMessage_status_known" CHECK (
+  "status" IN ('QUEUED', 'SKIPPED')
+);

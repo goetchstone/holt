@@ -130,6 +130,8 @@ interface CustomerWithRelations {
   referralSource: { id: number; name: string; isActive: boolean } | null;
   referredByCustomerId: number | null;
   referredBy: { id: number; firstName: string | null; lastName: string | null } | null;
+  /** They asked for no automatic messages (GAP-13). */
+  autoMessagesOptOut: boolean;
 }
 
 interface EmailStats {
@@ -820,6 +822,11 @@ export function CustomerDetailView({ id }: { id: string }) {
           <div className="space-y-4">
             <p>
               <strong>Email:</strong> {customer.email || "N/A"}
+              {customer.autoMessagesOptOut && (
+                <span className="ml-2 rounded-full bg-brand-gray/15 px-2 py-0.5 text-xs text-brand-gray">
+                  No automatic messages
+                </span>
+              )}
             </p>
             <p>
               <strong>Phone:</strong> {customer.phone || "N/A"}
