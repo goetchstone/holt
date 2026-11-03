@@ -307,6 +307,21 @@ cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scrip
   `{ checked, released, units }`
 - Reports › On hold no longer lists a hold the day after its last day
 
+### Email Queue
+
+Runs every 5 minutes (`scripts/install-cron.sh` installs it). It first queues
+the automatic customer messages that are due (GAP-13, Settings › Customer
+messages; `docs/domains/email.md`), then sends what is waiting in the email
+queue and retries what failed. Without it no email goes at all: invoices,
+booking and ticket confirmations, password resets, and every customer message.
+
+**Verify it ran:**
+
+- `logs/auto-email-queue.log` on the host: each run answers
+  `{ summary: { processed, sent, failed, skipped }, messages }`
+- Admin › Email shows nothing PENDING for longer than a few minutes once SMTP
+  is set up
+
 ### Database Backup
 
 Runs daily via the host scheduler using `scripts/backup-db.sh`.
@@ -324,6 +339,7 @@ Runs daily via the host scheduler using `scripts/backup-db.sh`.
 | Mailchimp New Customer Sync | Daily 06:30 | `auto-mailchimp-customer-sync.sh` | `/api/automations/mailchimp-customer-sync` |
 | Daily Reconciliation | Daily 22:30 | `auto-daily-reconciliation.sh` | `/api/automations/daily-reconciliation` |
 | Expire Quote Holds | Hourly | `auto-expire-quote-holds.sh` | `/api/automations/expire-quote-holds` |
+| Email Queue | Every 5 minutes | `auto-email-queue.sh` | `/api/automations/email-queue` |
 | Database Backup | Daily | `backup-db.sh` | n/a |
 
 Per-run audit lives in the appropriate `*SyncLog` table — `TrafficSyncLog`, `MailchimpSyncLog`, `AutoImportLog`, `CustomerArDriftLog`, `DailyReconciliationLog`. The admin pages under `/admin/automations/*` surface the latest run + Run Now button for each.

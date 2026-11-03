@@ -1200,6 +1200,11 @@ model Customer {
   referredBy           Customer?       @relation("CustomerReferral", fields: [referredByCustomerId], references: [id], onDelete: SetNull)
   referrals            Customer[]      @relation("CustomerReferral")
 
+  /// The customer asked for no automatic messages (GAP-13): none of the store's
+  /// customer messages go to them. Staff can still write to them by hand.
+  autoMessagesOptOut Boolean           @default(false)
+  customerMessages   CustomerMessage[]
+
   addresses         CustomerAddress[]
   externalIds       CustomerExternalId[]
   salesOrders       SalesOrder[]
@@ -1306,6 +1311,60 @@ model SalesOrderDisclaimer {
   /// distinct from every other, which is right: never upsert through it (rule 64).
   @@unique([salesOrderId, orderDisclaimerId])
   @@index([orderDisclaimerId])
+}
+
+/// GAP-13: one of the automatic customer messages (lib/messages/catalog.ts),
+/// as the store has set it up in Settings > Customer messages. Every choice is
+/// the store's: whether it goes at all (off until switched on), what it says,
+/// whether it carries a link to the customer's order, and when it goes.
+model CustomerMessageSetting {
+  /// One of MESSAGE_KINDS. The kind decides what event sends it; this row only
+  /// configures it (rule 62).
+  kind             String    @id
+  isActive         Boolean   @default(false)
+  /// When it was last switched on. Only events after it send, so switching a
+  /// message on sends nothing about what had already happened.
+  activeSince      DateTime?
+  subject          String
+  /// Plain text with {placeholders} (lib/messages/render.ts); blank lines
+  /// separate paragraphs.
+  body             String
+  includeOrderLink Boolean   @default(true)
+  /// Days before the delivery (the reminder) or after the handover (the
+  /// review invitation); null for a kind that goes at once.
+  offsetDays       Int?
+  /// The hour of the store's day it goes out, 0-23; null for a kind that goes
+  /// at once.
+  sendHour         Int?
+  /// The page the review invitation sends the customer to.
+  linkUrl          String?
+
+  updated   DateTime? @updatedAt
+  updatedBy String?
+}
+
+/// GAP-13: an automatic message about an order -- sent (queued as an email) or
+/// deliberately not sent, with why. One per event (dedupeKey), so the scan
+/// that finds what is due (lib/messages/due.ts) never sends anything twice.
+model CustomerMessage {
+  id                 Int        @id @default(autoincrement())
+  kind               String
+  dedupeKey          String     @unique
+  salesOrderId       Int
+  salesOrder         SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  customerId         Int?
+  customer           Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  /// QUEUED (handed to the email queue) or SKIPPED (see skipReason).
+  status             String
+  skipReason         String?
+  toAddress          String?
+  emailQueueId       Int?
+  /// The received lines an arrival message announced, so each is announced once.
+  receivingRecordIds Int[]      @default([])
+  created            DateTime   @default(now())
+
+  @@index([salesOrderId])
+  @@index([kind, created])
 }
 
 model ReferralSource {
@@ -3105,6 +3164,8 @@ model SalesOrder {
   proposal            Proposal?
   /// Each time the goods reached the customer, as recorded (GAP-07).
   handovers           OrderHandover[]
+  /// The automatic messages sent, or not sent, about it (GAP-13).
+  customerMessages    CustomerMessage[]
   /// The store's flags on this order (GAP-07, lib/sales/orderFlags.ts).
   flags               SalesOrderFlag[]
   /// Disclaimers printed on this order, each copied as it read (GAP-07).

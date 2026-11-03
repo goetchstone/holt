@@ -74,6 +74,12 @@ const ITEMS: CardGridItem[] = [
     href: "/app/admin/setup/disclaimers",
   },
   {
+    title: "Customer messages",
+    description:
+      "Messages Holt sends customers by itself: their furniture arrived, their delivery is scheduled, a reminder, a review invitation. Each in your words, on or off.",
+    href: "/app/admin/setup/customer-messages",
+  },
+  {
     title: "Gift Card Presets",
     description: "Configure quick codes for gift card sales (GC, GC25, GC50).",
     href: "/app/admin/setup/gift-cards",

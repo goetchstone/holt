@@ -100,6 +100,8 @@ const ALL_TABLES = [
   "CustomerInteraction",
   "CustomerLedgerEntry",
   "CustomerExternalId",
+  "CustomerMessage",
+  "CustomerMessageSetting",
   "DailyReconciliationLog",
   "DeliveryRun",
   "DeliveryStop",

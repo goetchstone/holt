@@ -424,6 +424,17 @@ reopened (owner, 2026-11-03; DECISIONS 38).
   order read as open. Both answer 409 and point to Undo handover.
 - **Tests:** `__tests__/integration/undoHandover.integration.test.ts`.
 
+## Messages to the customer (GAP-13, since 2026-11-03)
+
+The order page's **Messages to the customer** panel lists the automatic
+messages Holt sent about the order: arrived, delivery scheduled, reminder,
+review invitation. It also lists the ones it didn't send and why: the customer
+opted out, or has no email. Each sent one shows whether its email has gone
+(`GET /api/sales/orders/[id]/messages`, `sales.read`). The panel shows nothing
+until there is one. A customer's "No automatic messages" is on their record
+(the customer form; `Customer.autoMessagesOptOut`). What sends each message,
+and the store's settings: email.md, "Customer messages".
+
 ## Key Files
 
 - `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`

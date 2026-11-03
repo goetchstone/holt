@@ -106,6 +106,12 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   CustomerExternalId: { status: "todo", tranche: "catalog-depth" },
   CustomerInteraction: { status: "seeded", seeder: "demo" },
   CustomerLedgerEntry: { status: "todo", tranche: "money-detail" },
+  CustomerMessage: {
+    status: "skipped",
+    reason:
+      "Runtime log of automatic customer messages (GAP-13), written by the email-queue cron; the demo switches none on, so it writes to none of its invented customers.",
+  },
+  CustomerMessageSetting: { status: "seeded" },
   DailyReconciliationLog: { status: "todo", tranche: "money-detail" },
   DeliveryRun: { status: "seeded", seeder: "demo" },
   DeliveryStop: { status: "seeded", seeder: "demo" },
