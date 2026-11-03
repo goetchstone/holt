@@ -15,6 +15,8 @@ import { rerateQuoteTax } from "@/lib/tax/rerateQuoteTax";
 import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
 import { holdDateString, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
 import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
+import { orderFlagsOf } from "@/lib/sales/orderFlags";
+import { orderDisclaimersOf } from "@/lib/sales/orderDisclaimers";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -133,7 +135,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         // sofas it had reserved: physically still on the floor, gone from the
         // books.
         await release(orderId, tx);
-        // Delete child records in dependency order
+        // Delete child records in dependency order. The order's history goes
+        // with it: its foreign key restricts, so any order with a row (a
+        // status change, or since GAP-07 a flag, a note, or a copy's "copied
+        // from") could not be deleted at all.
+        await tx.orderChangeLog.deleteMany({ where: { salesOrderId: orderId } });
         await tx.payment.deleteMany({ where: { salesOrderId: orderId } });
         await tx.invoiceLineItem.deleteMany({
           where: { invoice: { salesOrderId: orderId } },
@@ -177,6 +183,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     if (!order) {
       return res.status(404).json({ error: "Order not found." });
     }
+    // The store's flags on it and the disclaimers it prints (GAP-07).
+    const [flags, disclaimers] = await Promise.all([
+      orderFlagsOf(prisma, order.id),
+      orderDisclaimersOf(prisma, order.id),
+    ]);
 
     // Cancelled lines are out of every sum (CLAUDE.md rule 33); they are still
     // listed below, struck through on the order screen.
@@ -202,6 +213,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       // Which line is the delivery fee: it changes only through
       // orders/[id]/delivery-fee.ts, so the screen leaves it out of line edits.
       deliveryFeeLineItemId: order.deliveryFeeLineItemId,
+      flags,
+      disclaimers,
       totalTax,
       totalPaid: Number(order.totalPaid || 0),
       totalAmount,
@@ -231,6 +244,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         selectedGrade: item.selectedGrade,
         selectedFinish: item.selectedFinish,
         selectedOptions: item.selectedOptions,
+        notes: item.notes,
         productId: item.productId,
         // GAP-16: the day a quote holds this line's stock through, and whether
         // it could hold it (lib/sales/quoteHoldsShared.ts lineHoldProblem).

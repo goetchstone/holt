@@ -183,7 +183,11 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   MediaAsset: { status: "todo", tranche: "catalog-depth" },
   Menu: { status: "seeded", seeder: "cms" },
   MonthlySalesPercentage: { status: "todo", tranche: "commission-completeness" },
-  OrderChangeLog: { status: "todo", tranche: "money-detail" },
+  // Seeded by the order tools (GAP-07): adding a flag or a disclaimer writes
+  // the row staff's would. Price and line changes are still unseeded history.
+  OrderChangeLog: { status: "seeded" },
+  OrderDisclaimer: { status: "seeded" },
+  OrderFlag: { status: "seeded" },
   OrderLineItem: { status: "seeded" },
   Organization: { status: "seeded" },
   Page: { status: "seeded", seeder: "cms" },
@@ -233,6 +237,8 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   SalesGoal: { status: "seeded", seeder: "demo" },
   SalesGoals: { status: "todo", tranche: "commission-completeness" },
   SalesOrder: { status: "seeded" },
+  SalesOrderDisclaimer: { status: "seeded" },
+  SalesOrderFlag: { status: "seeded" },
   Service: { status: "seeded", seeder: "demo" },
   ServiceAppointment: { status: "seeded", seeder: "demo" },
   ServiceCase: { status: "seeded" },

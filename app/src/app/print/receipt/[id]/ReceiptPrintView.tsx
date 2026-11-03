@@ -47,6 +47,8 @@ interface OrderData {
     paymentAmount: number;
   }[];
   orderNotes: string | null;
+  /** The order's disclaimers, each as it read when added (GAP-07). */
+  disclaimers: string[];
 }
 
 // 80mm at 203 DPI = 641 pixels
@@ -124,6 +126,7 @@ function computeReceiptHeight(
   order: OrderData,
   totals: ReceiptTotals,
   footerLines: number,
+  disclaimerLines: number,
 ): number {
   let y = PAD;
   // Header (3 lines of small text + divider)
@@ -154,6 +157,11 @@ function computeReceiptHeight(
   if (order.orderNotes) {
     y += DIVIDER_HEIGHT;
     y += SMALL_LINE_HEIGHT * 2;
+  }
+  // The order's disclaimers, wrapped (GAP-07)
+  if (disclaimerLines > 0) {
+    y += DIVIDER_HEIGHT;
+    y += SMALL_LINE_HEIGHT * disclaimerLines;
   }
   // Footer: divider, the thank-you line, then the store's own footer lines
   y += DIVIDER_HEIGHT;
@@ -213,6 +221,19 @@ function drawWrappedNotes(ctx: CanvasRenderingContext2D, notes: string, startY: 
   return cy;
 }
 
+/** The order's disclaimers, already wrapped, under a divider (GAP-07). */
+function drawDisclaimers(ctx: CanvasRenderingContext2D, lines: string[], y: number): number {
+  let cy = y + 4;
+  drawDivider(ctx, cy);
+  cy += DIVIDER_HEIGHT;
+  ctx.textAlign = "left";
+  for (const line of lines) {
+    ctx.fillText(line, PAD, cy);
+    cy += SMALL_LINE_HEIGHT;
+  }
+  return cy;
+}
+
 export function ReceiptPrintView({ id }: { id: string }) {
   const branding = useBranding();
   const storeName = branding.companyName ?? branding.appName;
@@ -259,7 +280,11 @@ export function ReceiptPrintView({ id }: { id: string }) {
     const footerLines = branding.receiptFooter
       ? wrapText((t) => ctx.measureText(t).width, branding.receiptFooter, CONTENT_W)
       : [];
-    canvas.height = computeReceiptHeight(order, totals, footerLines.length);
+    // The order's own disclaimers (GAP-07), wrapped the same way, above it.
+    const disclaimerLines = order.disclaimers.flatMap((text) =>
+      wrapText((t) => ctx.measureText(t).width, text, CONTENT_W),
+    );
+    canvas.height = computeReceiptHeight(order, totals, footerLines.length, disclaimerLines.length);
     setHeightPx(canvas.height);
     const lineHeight = LINE_HEIGHT;
     const smallLineHeight = SMALL_LINE_HEIGHT;
@@ -388,6 +413,12 @@ export function ReceiptPrintView({ id }: { id: string }) {
       ctx.font = FONT_SMALL;
       ctx.textAlign = "left";
       cy = drawWrappedNotes(ctx, order.orderNotes, cy);
+    }
+
+    // Disclaimers
+    if (disclaimerLines.length > 0) {
+      ctx.font = FONT_SMALL;
+      cy = drawDisclaimers(ctx, disclaimerLines, cy);
     }
 
     // Footer

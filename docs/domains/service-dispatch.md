@@ -78,6 +78,8 @@ In-stock filter (default: on) requires ALL of a customer's orders to have all PO
 
 **API**: `GET /api/dispatch/orders-by-zone` (unassigned orders by zone), plus run/stop/vehicle CRUD endpoints under `api/dispatch/`.
 
+**The store's order flags (GAP-07, 2026-11-03)** show as chips beside each unassigned order on the board, under the customer on a run's page and on the driver's stop card: "Call before delivery", "Fragile" (sales-orders.md "Invoice tools"). `orders-by-zone` answers them sorted; `GET /api/dispatch/runs` and `GET /api/dispatch/runs/[id]` select them as stored, and the screens sort them with `flagRefsOf` (`lib/sales/orderFlagsShared.ts`).
+
 ## Run stop outcomes
 
 Since PR 4 of the ledger plan (`docs/domains/inventory.md` → "The handheld

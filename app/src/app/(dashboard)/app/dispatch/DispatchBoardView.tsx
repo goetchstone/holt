@@ -21,6 +21,12 @@ import { SortableItem } from "@/components/dnd/SortableItem";
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import {
+  type OrderFlagRef,
+  type SelectedOrderFlag,
+  flagRefsOf,
+} from "@/lib/sales/orderFlagsShared";
+import { OrderFlagChip } from "@/app/(dashboard)/app/sales/orders/[id]/OrderFlagsPanel";
 
 // --- Types ---
 
@@ -48,6 +54,8 @@ type DispatchOrder = {
   lineItems: DispatchLineItem[];
   purchaseOrders: DispatchOrderPO[];
   balanceDue: number;
+  /** The store's flags on the order (GAP-07). */
+  flags: OrderFlagRef[];
 };
 
 type DispatchCustomer = {
@@ -86,6 +94,8 @@ type Delivery = {
     customer?: { firstName: string | null; lastName: string | null };
     _count?: { lineItems: number };
     lineItems?: { id: number; productName: string | null; orderedQuantity: number }[];
+    /** The store's flags, as the run's query selected them (flagRefsOf). */
+    flags?: SelectedOrderFlag[];
   } | null;
   deliveryZone: { id: number; name: string } | null;
 };
@@ -681,7 +691,7 @@ function CustomerCard({
                   }
                 }}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/app/sales/orders/${order.id}`}
                     className="text-xs text-brand-blue hover:underline"
@@ -690,6 +700,9 @@ function CustomerCard({
                     {order.orderno}
                   </Link>
                   <span className="text-xs text-brand-gray">{order.lineItemCount} items</span>
+                  {order.flags?.map((f) => (
+                    <OrderFlagChip key={f.id} flag={f} />
+                  ))}
                   {order.balanceDue > 0 && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-red-50 text-red-700 font-semibold">
                       {fmt(order.balanceDue)}
@@ -783,6 +796,13 @@ function StopCard({ stop }: { stop: RunStop }) {
               </Link>
             )}
           </div>
+          {delivery.salesOrder?.flags && delivery.salesOrder.flags.length > 0 && (
+            <div className="mt-0.5 flex flex-wrap gap-1">
+              {flagRefsOf(delivery.salesOrder.flags).map((f) => (
+                <OrderFlagChip key={f.id} flag={f} />
+              ))}
+            </div>
+          )}
         </div>
         {itemCount > 0 && (
           <span className="bg-brand-linen text-brand-navy text-xs px-2 py-0.5 rounded-full flex-shrink-0">
