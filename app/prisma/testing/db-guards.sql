@@ -219,3 +219,7 @@ ALTER TABLE "SmsOptOut" DROP CONSTRAINT IF EXISTS "SmsOptOut_source_known";
 ALTER TABLE "SmsOptOut" ADD CONSTRAINT "SmsOptOut_source_known" CHECK (
   "source" IN ('REPLY', 'PROVIDER')
 );
+ALTER TABLE "StockLocation" DROP CONSTRAINT IF EXISTS "StockLocation_countEveryDays_range";
+ALTER TABLE "StockLocation" ADD CONSTRAINT "StockLocation_countEveryDays_range" CHECK (
+  "countEveryDays" IS NULL OR "countEveryDays" BETWEEN 1 AND 3650
+);

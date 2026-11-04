@@ -3,12 +3,15 @@
 // /app/src/app/(dashboard)/app/inventory/counts/CountsView.tsx
 //
 // Submitted counts and what posting each would change now; posting needs
-// Adjust inventory, and the server says so when it is missing (rule 11).
+// Adjust inventory, and the server says so when it is missing (rule 11). Above
+// them, the places on a counting schedule (lib/inventory/countSchedule.ts).
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
+import type { ScheduledCount } from "@/lib/inventory/countSchedule";
 import { getErrorMessage } from "@/lib/toastError";
 
 interface CountRow {
@@ -30,14 +33,37 @@ interface CountRow {
   }[];
 }
 
+function standingText(row: ScheduledCount): { text: string; className: string } {
+  switch (row.standing) {
+    case "OVERDUE":
+      return {
+        text: `${row.daysLate} ${row.daysLate === 1 ? "day" : "days"} overdue`,
+        className: "text-red-700 font-medium",
+      };
+    case "DUE":
+      return {
+        text: row.lastCountedOn ? "Due today" : "Never counted",
+        className: "text-amber-700 font-medium",
+      };
+    case "WAITING":
+      return { text: "Counted, waiting to be posted", className: "text-brand-gray" };
+    default:
+      return { text: `Due ${row.dueOn}`, className: "text-brand-gray" };
+  }
+}
+
 export function CountsView() {
   const [counts, setCounts] = useState<CountRow[]>([]);
+  const [schedule, setSchedule] = useState<ScheduledCount[] | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const res = await axios.get<{ counts: CountRow[] }>("/api/inventory/counts");
+      const res = await axios.get<{ counts: CountRow[]; schedule: ScheduledCount[] }>(
+        "/api/inventory/counts",
+      );
       setCounts(res.data.counts);
+      setSchedule(res.data.schedule);
     } catch (err) {
       toast.error(getErrorMessage(err, "Could not load counts."));
     }
@@ -95,6 +121,48 @@ export function CountsView() {
   return (
     <div className="py-2 space-y-6 font-serif">
       <h1 className="text-2xl text-brand-blue font-semibold">Counts</h1>
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold">Counting schedule</h2>
+        {schedule?.length === 0 && (
+          <p className="text-sm text-brand-gray">
+            No place is on a schedule. Set &quot;Count every&quot; on a place under Warehouse ›
+            Locations, and it shows here when it&apos;s due.
+          </p>
+        )}
+        {schedule && schedule.length > 0 && (
+          <ul className="bg-white rounded-lg shadow-sm divide-y divide-brand-gray/10">
+            {schedule.map((row) => {
+              const standing = standingText(row);
+              return (
+                <li
+                  key={row.stockLocationId}
+                  className="p-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm"
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium">{row.place}</div>
+                    <div className="text-xs text-brand-gray">
+                      {row.store} · {row.code} · every {row.everyDays} days · last counted{" "}
+                      {row.lastCountedOn ?? "never"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={standing.className}>{standing.text}</span>
+                    {(row.standing === "OVERDUE" || row.standing === "DUE") && (
+                      <Link href="/app/scan/count" className="underline whitespace-nowrap">
+                        Count it
+                      </Link>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="text-xs text-brand-gray">
+          A posted count of everything in a place resets its schedule. A quick count of a few
+          products doesn&apos;t.
+        </p>
+      </section>
       <section className="space-y-4">
         <h2 className="text-lg font-semibold">Waiting to be posted</h2>
         {waiting.length === 0 && <p className="text-sm text-brand-gray">None.</p>}

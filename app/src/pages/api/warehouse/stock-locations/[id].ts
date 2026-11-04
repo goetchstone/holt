@@ -15,6 +15,7 @@ import {
   placeTypeProblem,
 } from "@/lib/inventory/placeTree";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { countEveryDaysProblem } from "@/lib/inventory/countSchedule";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -43,6 +44,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         locationAliases,
         holdsCommittedStock,
         moveMode,
+        countEveryDays,
       } = req.body;
 
       // Validated rather than coerced -- see the POST route. Flipping this
@@ -64,9 +66,14 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
       const current = await prisma.stockLocation.findUnique({
         where: { id: stockLocationId },
-        select: { storeLocationId: true },
+        select: { storeLocationId: true, locationType: true },
       });
       if (!current) return res.status(404).json({ error: "Stock location not found." });
+      const scheduleProblem = countEveryDaysProblem(
+        countEveryDays,
+        locationType ?? current.locationType,
+      );
+      if (scheduleProblem) return res.status(400).json({ error: scheduleProblem });
       if (parentId !== undefined) {
         const problem = await placeParentProblem(prisma, {
           placeId: stockLocationId,
@@ -102,6 +109,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           }),
           ...(holdsCommittedStock !== undefined && { holdsCommittedStock }),
           ...(moveMode !== undefined && { moveMode: moveMode || null }),
+          ...(countEveryDays !== undefined && { countEveryDays }),
           updatedBy: session.user?.email || null,
         },
       });

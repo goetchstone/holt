@@ -282,6 +282,9 @@ ALL = visible to every signed-in user (Designer, Manager, Admin, Marketing). Des
 | Balance Due Aging         | `/app/reports/balance-aging`        | ADMIN                                      | ADMIN                                                                                   | Unpaid balances on ORDER-status orders by age bucket. Excludes QUOTE.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Unclassified Returns      | `/app/reports/unclassified-returns` | MANAGER, ADMIN                             | MANAGER+ADMIN (`roleProcedure(MANAGER_ADMIN)`)                                          | B3 exception report: return-shaped lines booked on the default-restock assumption because no `Return` record classifies them (imported/historical returns, or a native `Return` not yet inspected). Date, order #, store, customer, amount, and why it's unclassified. Accountant's worklist to review before export.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | On hold                   | `/app/reports/on-hold`              | ALL                                        | `reporting.read`                                                                        | Every quote line holding floor stock for its customer today, soonest to end first: who it is for, who quoted it, what the quote really commits ("held 0 of 1" when the piece had already sold) and where it sits. A hold drops off the day after its last day. CSV at `/api/reports/on-hold?format=csv`. Detail: `docs/domains/sales-orders.md` → "Quote holds" (GAP-16). |
+| Aged Stock                | `/app/reports/aged-stock`           | MANAGER, ADMIN                             | MANAGER+ADMIN; cost: View cost       |
+| Inventory Value           | `/app/reports/inventory-value`      | MANAGER, ADMIN                             | MANAGER+ADMIN; cost: View cost       |
+| Transfers                 | `/app/reports/transfers`            | MANAGER, ADMIN                             | `reporting.read`; cost: View cost    |
 | Oversold                  | `/app/reports/oversold`             | MANAGER, ADMIN                             | `reporting.read`                                                                        | Open stock shortfalls by product: the orders waiting and the quickest fix. Rows close themselves once covered, and a quote's once its hold ends (a quote needs only what it holds). "Last count off by" is the last posted count's difference at a place holding the product, so a miscount shows apart from an oversale. Detail: `docs/domains/inventory.md` → phase 11 and "The handheld floor".                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Referrals                 | `/app/reports/referrals`            | ALL                                        | `reporting.read`                                                                        | Customers, buyers and spend by how customers heard of the store (the store's own referral sources, plus "Not recorded") and by the customers who sent the most. Spend is `SALES_REVENUE_STATUSES` orders and `COUNTED_LINE_STATUSES` lines. All time. Detail: `docs/domains/customer-intelligence.md` → "The Customer Record" (GAP-08). |
 | Stock and Space           | `/app/reports/stock-by`             | MANAGER, ADMIN                             | `reporting.read`                                                                        | Units and square feet inside a store or any place, grouped by the places in it, place type or a product field. See "Stock and Space" below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -407,6 +410,68 @@ everything), place type, department, category, type, vendor or collection.
 
 Tests: `__tests__/splitSpaceBy.test.ts`,
 `__tests__/integration/stockBy.integration.test.ts`.
+
+### Aged Stock
+
+Engine: `lib/reports/agedStock.ts`; tRPC `reports.agedStock`; page
+`/app/reports/aged-stock`. How long uncommitted stock has been here, counted from
+when it came onto the books. Inventory Health's "dead stock" is a different
+question, how long since a product last sold, and the two disagree on purpose.
+
+- **Population.** On the books with no customer's name on it: no sales order, and
+  not in a place that holds customers' stock. It keeps display pieces, quarantine,
+  returns and stock in transit, which aren't for sale right now and can still be
+  old. Committed units are left out and reported as `committedUnits`, so the
+  report's units plus those equal Inventory Health's units on hand (principle 2).
+- **Age.** The journal says when units came in, not which unit is which, so the
+  report assumes the oldest sold first: what's still here is the newest in
+  (`layersOnHand`). `AGE_EFFECT` says what each journal reason does, one line per
+  reason, so a new reason can't compile without saying. A receipt, return, opening
+  balance, import or a count that found more starts an age. A move between places
+  or an undone delivery doesn't. A receipt taken back cancels the receipt.
+- **How far the claim goes (principle 5).** An opening balance or import only says
+  when Holt first heard of the stock, so those are "at least" that old
+  (`atLeastUnits`). Units no arrival accounts for are `noRecordUnits`, in no bucket.
+- **Across all stores.** Age belongs to the product here, not to a store, because a
+  transfer doesn't restart it and the journal can't say which units moved.
+- Buckets are Inventory Health's windows (`agedStockShared.ts`). Cost only with
+  "View cost"; rows go back to retail order without it.
+
+Tests: `__tests__/agedStock.test.ts`,
+`__tests__/integration/inventoryReports.integration.test.ts`.
+
+### Inventory Value
+
+Engine: `lib/reports/inventoryValue.ts`; tRPC `reports.inventoryValue`; page
+`/app/reports/inventory-value`. What was on the books at the end of a past store
+day, read back from the journal, for all stores or one.
+
+- **Quantities are the journal's. Values are today's.** Holt keeps no history of
+  cost and a freeze holds none, so this says how much stock was held in today's
+  money, not what the balance sheet said. The screen says so beside the number.
+  Valuing at the cost then is in `ROADMAP.md`.
+- **Population.** The same as Inventory Health: every unit on the books, committed
+  or free, in transit included. As of today it equals Inventory Health's units and
+  values, and a test holds it to that.
+- **What it can't answer.** A day before the journal's first movement gets
+  `beforeJournal` and no numbers, not a zero. A future date is refused.
+- `occurredAt` is when Holt was told, so a receipt entered late counts from then.
+
+### Transfers
+
+Engine: `lib/reports/transfersReport.ts`; tRPC `reports.transfersReport`; page
+`/app/reports/transfers`. What moved between stores in a period, by route and one
+by one.
+
+- **Population.** A transfer belongs to the day it was sent (`shippedAt`, or its
+  creation day if it never shipped). `moved`, the default, is `IN_TRANSIT` and
+  `RECEIVED`. A draft moved nothing and a cancelled one came back, so each has its
+  own view (`TRANSFER_VIEWS`) and neither is in those totals. Zero-quantity rows are
+  out (rule 31).
+- **A stuck transfer can't hide.** `in_transit` ignores the period, and
+  `inTransitNow` reports what is still to arrive on every view.
+- Totals and routes cover every match; the list stops at `TRANSFER_ROW_LIMIT` and
+  the screen says so. Cost only with "View cost", at today's cost.
 
 ### Balance Due Aging
 
