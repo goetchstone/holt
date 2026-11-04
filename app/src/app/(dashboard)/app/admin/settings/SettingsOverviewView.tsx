@@ -431,6 +431,66 @@ function DiscountsSection({
   );
 }
 
+// Who gets the daily list of what's below its reorder point (GAP-14,
+// lib/purchasing/lowStockAlert.ts). Off until both are set.
+function LowStockAlertSection({
+  emails,
+  hour,
+  onChange,
+}: Readonly<{
+  emails: string;
+  hour: number | null;
+  onChange: (next: {
+    lowStockAlertEmails?: string | null;
+    lowStockAlertHour?: number | null;
+  }) => void;
+}>) {
+  return (
+    <section id="low-stock-alert" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Low stock alert</h2>
+      <p className="text-xs text-brand-gray">
+        Once a day, an email listing what&apos;s below the level you keep at each store (set on each
+        product, under Keep in stock). Nothing is sent on a day when nothing is low. Purchasing →
+        Low Stock shows the same list any time. Leave the addresses blank to send none.
+      </p>
+      <div>
+        <label htmlFor="low-stock-emails" className="mb-1 block text-sm text-brand-gray">
+          Send it to (separate addresses with commas)
+        </label>
+        <input
+          id="low-stock-emails"
+          value={emails}
+          placeholder="buyer@yourstore.com"
+          onChange={(e) => onChange({ lowStockAlertEmails: e.target.value })}
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black"
+        />
+      </div>
+      <div className="max-w-xs">
+        <label htmlFor="low-stock-hour" className="mb-1 block text-sm text-brand-gray">
+          At this hour of your day
+        </label>
+        <select
+          id="low-stock-hour"
+          value={hour ?? ""}
+          onChange={(e) =>
+            onChange({ lowStockAlertHour: e.target.value === "" ? null : Number(e.target.value) })
+          }
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black"
+        >
+          <option value="">Choose...</option>
+          {Array.from({ length: 24 }, (_, h) => (
+            <option key={h} value={h}>
+              {new Intl.DateTimeFormat(undefined, { hour: "numeric", timeZone: "UTC" }).format(
+                new Date(Date.UTC(2000, 0, 1, h)),
+              )}
+            </option>
+          ))}
+        </select>
+      </div>
+    </section>
+  );
+}
+
 // How a split sale is credited (AppSettings.defaultSplitPercent, GAP-07): the
 // share a new split gives its salesperson; the partner gets the rest. Staff with
 // "Reassign salesperson" may choose another on each sale.
@@ -871,6 +931,8 @@ export function SettingsOverviewView() {
           deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
           discountLimitPercent: settings.discountLimitPercent,
           defaultSplitPercent: settings.defaultSplitPercent,
+          lowStockAlertEmails: settings.lowStockAlertEmails ?? "",
+          lowStockAlertHour: settings.lowStockAlertHour ?? null,
           quoteHoldMaxDays: settings.quoteHoldMaxDays,
           landedCostSplit: settings.landedCostSplit,
           idleLogoffMinutes: settings.idleLogoffMinutes,
@@ -996,6 +1058,11 @@ export function SettingsOverviewView() {
         onChange={(percent) =>
           setSettings((prev) => (prev ? { ...prev, defaultSplitPercent: percent } : prev))
         }
+      />
+      <LowStockAlertSection
+        emails={settings.lowStockAlertEmails ?? ""}
+        hour={settings.lowStockAlertHour ?? null}
+        onChange={(next) => setSettings((prev) => (prev ? { ...prev, ...next } : prev))}
       />
       <QuoteHoldsSection
         value={settings.quoteHoldMaxDays}

@@ -306,6 +306,54 @@ Files: `lib/purchasing/productSources.ts` (the list),
 Tested by `__tests__/integration/productSources.integration.test.ts` (real
 routes, real gates, real database).
 
+## Reorder points and low stock (GAP-14, since 2026-11-04)
+
+A store says how many of a product to keep at each store or warehouse, and Holt
+says what has fallen below that. DECISIONS 41.
+
+- **The level.** `ReorderPoint`, one per product per store: `minQuantity` ("keep at
+  least") and an optional `orderQuantity` ("order at least", a carton or a vendor's
+  minimum). Set on the product page under **Keep in stock**
+  (`/api/products/[id]/reorder-points`, `purchasing.write`; anyone who can read the
+  catalog sees them). No row means no level. An item whose category keeps no stock
+  can't have one (GAP-21).
+- **What's low** (`lib/purchasing/lowStock.ts`, `lowStockShared.ts shortfall`): free
+  stock plus what's on order is below the level. Which rows count:
+  - **Free stock** is `freePositionWhere`, what the register and the allocator call
+    free: not committed to an order, set aside or on display.
+  - **On order** is what's left to come on stock POs shipping to this store: SUBMITTED,
+    CONFIRMED or RECEIVED_PARTIAL. A line ordered for a customer doesn't count, nor
+    does a PO for a sale or a return to the vendor, since that stock is spoken for. A
+    PO with no ship-to counts at no store.
+  - **On a draft** doesn't count toward the level: nothing has been ordered. So the
+    item stays listed until the PO goes, but what the draft covers isn't suggested
+    again.
+  - **Left out:** a discontinued or inactive item, one that keeps no stock, and a closed
+    store. The level stays, and comes back with them.
+- **What to order** is what it takes to get back to the level, less what's on a draft,
+  and at least `orderQuantity` if anything is needed.
+- **Purchasing › Low Stock** (`/app/purchasing/low-stock`, `purchasing.read`) lists them
+  by store, furthest below first. Whoever holds `purchasing.write` can tick lines,
+  change the quantities, and add them to draft POs. That goes through
+  `POST /api/scan/order` (`saveScannedOrder`), the same filing a reorder scanned on the
+  floor gets: each vendor's open draft for the store, or a new one. Each store is its
+  own request, since a PO has one ship-to.
+- **The daily alert** (`lib/purchasing/lowStockAlert.ts`). Settings › Low stock alert
+  names who gets it and at what hour of the store's day (`AppSettings.lowStockAlertEmails`,
+  `lowStockAlertHour`); it's off until both are set. The email-queue cron asks on each
+  run, so it goes in the first run after the hour, once a store day
+  (`lowStockAlertedOn`, claimed in one transaction with the emails), and not at all on a
+  day when nothing is low. An email lists up to 100; the screen has them all.
+
+The Buyers report's "running low" is a different question: fast sellers with under two
+weeks of supply, from sales. A reorder point is a level the store chose.
+
+Not built: setting levels in bulk (a level is set one product at a time), a level
+suggested from sales, and a level across all stores together.
+
+**Tests:** `__tests__/integration/lowStock.integration.test.ts`,
+`__tests__/lib/purchasing/lowStockShared.test.ts`.
+
 ## A reorder scanned on the handheld (GAP-19, since 2026-11-02)
 
 A buyer walks the floor with a scanner and scans what to reorder (Scanner ->

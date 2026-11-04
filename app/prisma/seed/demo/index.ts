@@ -70,6 +70,7 @@ async function main(): Promise<void> {
   const { seedInventoryOps } = await import("./inventoryOps");
   const { seedPipeline } = await import("./pipeline");
   const { seedSetupData } = await import("./setupData");
+  const { seedReorderPoints } = await import("./reorderPoints");
   const { seedCommissionPayouts } = await import("./commissionPayouts");
   const { seedJournalEntries } = await import("./journal");
   const { seedPriceBooks } = await import("./priceBooks");
@@ -273,6 +274,7 @@ async function main(): Promise<void> {
   );
 
   const setupResult = await seedSetupData(prisma, rng, staff, locations.stores, window.now);
+  const reorderResult = await seedReorderPoints(prisma);
 
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 
@@ -301,6 +303,7 @@ async function main(): Promise<void> {
       `${serviceResult.emailsCreated} emails, ${serviceResult.typesCreated} case types, ` +
       `${checklistResult.checklistsCreated} checklists (on ${checklistResult.casesGivenOne} cases)`,
   );
+  console.log(`Reorder points: ${reorderResult.points}`);
   console.log(
     `Order tools: ${orderToolsResult.flags} flags (on ${orderToolsResult.flagged} orders), ` +
       `${orderToolsResult.disclaimers} disclaimers given, ${orderToolsResult.notes} line notes`,

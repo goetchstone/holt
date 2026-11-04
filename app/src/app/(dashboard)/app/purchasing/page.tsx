@@ -16,6 +16,11 @@ const ITEMS: CardGridItem[] = [
     href: "/app/purchasing/needs-ordering",
   },
   {
+    title: "Low Stock",
+    description: "What's below the level you keep, store by store, and ordering more of it.",
+    href: "/app/purchasing/low-stock",
+  },
+  {
     title: "Purchase Orders",
     description: "View and track all purchase orders",
     href: "/app/purchasing/orders",

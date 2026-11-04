@@ -15,6 +15,7 @@ import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import ProductEditModal from "@/components/modals/ProductEditModal";
 import { OtherVendorsSection } from "./OtherVendorsSection";
+import { ReorderPointsSection } from "./ReorderPointsSection";
 import { ProductPictureSection } from "./ProductPictureSection";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 
@@ -83,7 +84,15 @@ function DimensionRow({
   );
 }
 
-export function ProductDetailView({ id, canEdit }: { id: string; canEdit: boolean }) {
+export function ProductDetailView({
+  id,
+  canEdit,
+  canSetReorderPoints,
+}: {
+  id: string;
+  canEdit: boolean;
+  canSetReorderPoints: boolean;
+}) {
   const fmt = useMoneyFormatter();
   const [product, setProduct] = useState<ProductDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -253,6 +262,8 @@ export function ProductDetailView({ id, canEdit }: { id: string; canEdit: boolea
         canEdit={canEdit}
         onChanged={fetchProduct}
       />
+
+      <ReorderPointsSection productId={product.id} canEdit={canSetReorderPoints} />
 
       <OtherVendorsSection
         productId={product.id}

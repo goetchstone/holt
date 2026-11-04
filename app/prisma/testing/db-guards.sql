@@ -219,3 +219,18 @@ ALTER TABLE "SmsOptOut" DROP CONSTRAINT IF EXISTS "SmsOptOut_source_known";
 ALTER TABLE "SmsOptOut" ADD CONSTRAINT "SmsOptOut_source_known" CHECK (
   "source" IN ('REPLY', 'PROVIDER')
 );
+
+-- A reorder point's level and least order are above zero; a low-stock alert goes
+-- at an hour 0-23.
+ALTER TABLE "ReorderPoint" DROP CONSTRAINT IF EXISTS "ReorderPoint_minQuantity_positive";
+ALTER TABLE "ReorderPoint" ADD CONSTRAINT "ReorderPoint_minQuantity_positive" CHECK (
+  "minQuantity" > 0
+);
+ALTER TABLE "ReorderPoint" DROP CONSTRAINT IF EXISTS "ReorderPoint_orderQuantity_positive";
+ALTER TABLE "ReorderPoint" ADD CONSTRAINT "ReorderPoint_orderQuantity_positive" CHECK (
+  "orderQuantity" IS NULL OR "orderQuantity" > 0
+);
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_lowStockAlertHour_range";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_lowStockAlertHour_range" CHECK (
+  "lowStockAlertHour" IS NULL OR ("lowStockAlertHour" >= 0 AND "lowStockAlertHour" <= 23)
+);

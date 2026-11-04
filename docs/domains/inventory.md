@@ -312,6 +312,12 @@ enforces it.
   ids: an order can be deleted (its stock is released first) and the journal
   keeps that the stock was once committed to it.
 
+### Reorder points (GAP-14, since 2026-11-04)
+
+"Keep at least this many here", per product per store, reads free stock with
+`freePositionWhere` like everything else. What falls below it, the daily alert and
+ordering from the list: `purchasing.md`, "Reorder points and low stock".
+
 ### The register reads free stock
 
 The register's "on hand here" asks `/api/warehouse/positions` for the product's
