@@ -7,12 +7,14 @@
 // First it queues the customer messages that are due (GAP-13,
 // lib/messages/due.ts), so they go in the same run. A failure there is logged
 // and the drain still runs: an email already queued is not held up by one
-// that couldn't be.
+// that couldn't be. The daily low-stock list is queued here too (GAP-14,
+// lib/purchasing/lowStockAlert.ts): it goes in the first run after its hour.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { processEmailQueue } from "@/lib/email/queue";
 import { queueDueMessages, type DueSummary } from "@/lib/messages/due";
+import { queueLowStockAlert, type LowStockAlertResult } from "@/lib/purchasing/lowStockAlert";
 import { logError } from "@/lib/logger";
 
 function authorizedByApiKey(req: NextApiRequest): boolean {
@@ -28,9 +30,15 @@ async function drain(_req: NextApiRequest, res: NextApiResponse) {
   } catch (err: unknown) {
     logError("Customer messages could not be queued", err);
   }
+  let lowStock: LowStockAlertResult | null = null;
+  try {
+    lowStock = await queueLowStockAlert();
+  } catch (err: unknown) {
+    logError("Low stock alert could not be queued", err);
+  }
   try {
     const summary = await processEmailQueue();
-    return res.status(200).json({ summary, messages });
+    return res.status(200).json({ summary, messages, lowStock });
   } catch (err: unknown) {
     logError("Email queue drain failed", err);
     return res.status(500).json({ error: "Could not process email queue" });

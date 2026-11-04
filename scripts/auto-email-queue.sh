@@ -6,7 +6,8 @@
 # stays PENDING forever and never sends. This is the highest-frequency cron in
 # the system. Each run first queues the customer messages that are due (GAP-13,
 # Settings › Customer messages): arrivals, deliveries, reminders, review
-# invitations. Without it, none of those go either.
+# invitations. So is the daily low-stock list (GAP-14). Without it, none of those
+# go either.
 #
 # Configure in cron (or your host's task scheduler) to run every ~5 minutes.
 # Required env: AUTO_IMPORT_API_KEY (matches app/.env.local).

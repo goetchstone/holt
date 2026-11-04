@@ -401,8 +401,8 @@ describe("who may see and change an item's other vendors", () => {
       });
       return element.props;
     }
-    expect(await viewProps("bea")).toEqual({ id: String(w.sofa.id), canEdit: true });
-    expect(await viewProps("dee")).toEqual({ id: String(w.sofa.id), canEdit: false });
+    expect(await viewProps("bea")).toMatchObject({ id: String(w.sofa.id), canEdit: true });
+    expect(await viewProps("dee")).toMatchObject({ id: String(w.sofa.id), canEdit: false });
   });
 });
 

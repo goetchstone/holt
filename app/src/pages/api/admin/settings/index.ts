@@ -26,6 +26,7 @@ import { parseBookingConfig } from "@/lib/booking/config";
 import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
 import { isValidTimeZone } from "@/lib/reports/businessDay";
 import { LANDED_COST_SPLIT_KEYS, isLandedCostSplit } from "@/lib/purchasing/landedCostShared";
+import { readAlertEmails } from "@/lib/purchasing/lowStockShared";
 import { IDLE_LOGOFF_RULE, isIdleLogoffMinutes } from "@/lib/auth/idleLogoff";
 import { QUOTE_HOLD_RULE, isQuoteHoldMaxDays } from "@/lib/sales/quoteHoldsShared";
 import { splitPercentProblem } from "@/lib/commissionSplit";
@@ -391,6 +392,28 @@ function parseDefaultSplit(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// Who gets the daily low-stock list and when (GAP-14, lib/purchasing/lowStockAlert.ts).
+// Blank addresses or no hour is off.
+function parseLowStockAlert(body: Body, data: SettingsData): ParseError {
+  const { lowStockAlertEmails: rawEmails, lowStockAlertHour: rawHour } = body;
+  if (rawEmails !== undefined) {
+    if (rawEmails !== null && typeof rawEmails !== "string") {
+      return { error: "lowStockAlertEmails must be text." };
+    }
+    const read = readAlertEmails(rawEmails ?? "");
+    if ("problem" in read) return { error: read.problem };
+    data.lowStockAlertEmails = read.emails.length > 0 ? read.emails.join(", ") : null;
+  }
+  if (rawHour !== undefined) {
+    const valid =
+      rawHour === null ||
+      (typeof rawHour === "number" && Number.isInteger(rawHour) && rawHour >= 0 && rawHour <= 23);
+    if (!valid) return { error: "lowStockAlertHour must be an hour from 0 to 23." };
+    data.lowStockAlertHour = rawHour as number | null;
+  }
+  return null;
+}
+
 // The longest a quote may hold floor stock, in days from today (GAP-16,
 // lib/sales/quoteHolds.ts). How long a store holds a piece is its own call; 0
 // means quotes hold nothing.
@@ -462,6 +485,7 @@ const SETTINGS_PARSERS = [
   parseDeliveryFeeTaxGroup,
   parseDiscountLimit,
   parseDefaultSplit,
+  parseLowStockAlert,
   parseQuoteHoldMaxDays,
   parseLandedCostSplit,
   parseIdleLogoff,

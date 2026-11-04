@@ -209,3 +209,58 @@ export function customerMessageEmail(input: CustomerMessageEmailInput): Rendered
   const subject = input.subject.replace(/\s*[\r\n]+\s*/g, " ").trim();
   return { subject, html: layout(input.storeName, subject, `${paragraphs}\n    ${buttons}`) };
 }
+
+export interface LowStockEmailInput {
+  storeName: string;
+  rows: {
+    store: string;
+    productName: string;
+    free: number;
+    onOrder: number;
+    minQuantity: number;
+    suggested: number;
+  }[];
+  /** Purchasing > Low stock. */
+  url: string;
+}
+
+/** How many a list in an email shows; the screen has them all. */
+const LOW_STOCK_EMAIL_MAX_ROWS = 100;
+
+/** The daily list of what's below its reorder point (GAP-14). */
+export function lowStockEmail(input: LowStockEmailInput): RenderedEmail {
+  const count = input.rows.length;
+  const subject = `${count} item${count === 1 ? "" : "s"} below their reorder point`;
+  const cell = "padding:6px 8px;border-bottom:1px solid #e8e4dc";
+  const num = `${cell};text-align:right`;
+  const rows = input.rows
+    .slice(0, LOW_STOCK_EMAIL_MAX_ROWS)
+    .map(
+      (r) => `<tr>
+        <td style="${cell}">${escapeHtml(r.store)}</td>
+        <td style="${cell}">${escapeHtml(r.productName)}</td>
+        <td style="${num}">${r.free}</td>
+        <td style="${num}">${r.onOrder}</td>
+        <td style="${num}">${r.minQuantity}</td>
+        <td style="${num}">${r.suggested === 0 ? "On a draft" : r.suggested}</td>
+      </tr>`,
+    )
+    .join("");
+  const more =
+    count > LOW_STOCK_EMAIL_MAX_ROWS ? `<p>And ${count - LOW_STOCK_EMAIL_MAX_ROWS} more.</p>` : "";
+  const th = "padding:6px 8px;border-bottom:2px solid #1c1f2e";
+  const body = `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0">
+      <thead><tr>
+        <th style="${th};text-align:left">Store</th>
+        <th style="${th};text-align:left">Item</th>
+        <th style="${th};text-align:right">Free</th>
+        <th style="${th};text-align:right">On order</th>
+        <th style="${th};text-align:right">Keep</th>
+        <th style="${th};text-align:right">Order</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${more}
+    <p style="margin:24px 0"><a href="${escapeHtml(input.url)}" style="background:#1c1f2e;color:#f5f4f0;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Order from Low stock</a></p>`;
+  return { subject, html: layout(input.storeName, subject, body) };
+}

@@ -78,6 +78,8 @@ after an SMTP failure sends the same bytes.
 
 All use `enqueueAndSend` (best-effort; the durable row survives an SMTP outage).
 
+- **The daily low-stock list** (`lib/purchasing/lowStockAlert.ts`, GAP-14) →
+  `low-stock`, queued by the email-queue cron. See `docs/domains/purchasing.md`.
 - **Purchase order to its vendor** (`pages/api/purchasing/orders/[id]/email.ts`,
   GAP-01) → `purchase-order`, the PO's PDF attached. It is the one touchpoint
   where the sender waits: `enqueueEmail` then `deliverQueuedEmail`, because the
@@ -158,9 +160,10 @@ by hand.
 - **Drain endpoint** `POST /api/automations/email-queue` — admin session OR
   `Authorization: Bearer $AUTO_IMPORT_API_KEY` (cron). It first queues the
   customer messages that are due, then drains. Returns
-  `{ summary: { processed, sent, failed, skipped }, messages }`, where
-  `messages` is the scan's count per kind (null if the scan failed; the drain
-  runs anyway).
+  `{ summary: { processed, sent, failed, skipped }, messages, lowStock }`, where
+  `messages` is the scan's count per kind and `lowStock` is what became of the daily
+  list: how many it went to, or `off`, `not-yet`, `already-sent` or `nothing-low`.
+  Either is null if it failed; the drain runs anyway.
 - **Admin viewer** `/app/admin/email` — SMTP-configured banner, per-status
   counts, recent rows + last error, "Process now". Card on the Admin hub.
 - **The cron** (`scripts/auto-email-queue.sh`) runs every 5 minutes, installed

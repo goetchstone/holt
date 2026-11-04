@@ -111,6 +111,10 @@ export interface ResolvedAppSettings {
   /** A new split sale's share to its salesperson, whole percent 1-99; the
    *  partner gets the rest (lib/commissionSplit.ts). 50 = even. */
   defaultSplitPercent: number;
+  /** Who gets the daily low-stock list, as typed; null is nobody (GAP-14). */
+  lowStockAlertEmails: string | null;
+  /** The hour of the store's day it goes, 0-23; null is off. */
+  lowStockAlertHour: number | null;
   /** The longest, in days from today, a quote may hold floor stock for its
    *  customer (lib/sales/quoteHolds.ts). 0 = quotes hold nothing. */
   quoteHoldMaxDays: number;
@@ -175,6 +179,8 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   deliveryFeeTaxGroupId: null,
   discountLimitPercent: 0,
   defaultSplitPercent: EVEN_SPLIT_PERCENT,
+  lowStockAlertEmails: null,
+  lowStockAlertHour: null,
   quoteHoldMaxDays: QUOTE_HOLD_DEFAULT_MAX_DAYS,
   landedCostSplit: "VALUE",
   idleLogoffMinutes: IDLE_LOGOFF_DEFAULT_MINUTES,
@@ -209,6 +215,8 @@ interface AppSettingsRow {
   deliveryFeeTaxGroupId?: number | null;
   discountLimitPercent?: number | null;
   defaultSplitPercent?: number | null;
+  lowStockAlertEmails?: string | null;
+  lowStockAlertHour?: number | null;
   quoteHoldMaxDays?: number | null;
   landedCostSplit?: string | null;
   idleLogoffMinutes?: number | null;
@@ -291,6 +299,8 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     defaultSplitPercent: isSplitPercent(row.defaultSplitPercent)
       ? row.defaultSplitPercent
       : EVEN_SPLIT_PERCENT,
+    lowStockAlertEmails: row.lowStockAlertEmails ?? null,
+    lowStockAlertHour: row.lowStockAlertHour ?? null,
     quoteHoldMaxDays: isQuoteHoldMaxDays(row.quoteHoldMaxDays)
       ? row.quoteHoldMaxDays
       : QUOTE_HOLD_DEFAULT_MAX_DAYS,
