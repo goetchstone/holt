@@ -12,6 +12,7 @@ import {
   assertIdentifiable,
   isDuplicateEmail,
   readContact,
+  textConsentChange,
 } from "@/lib/customers/customerContact";
 import { ReferralError, readReferral } from "@/lib/customers/referrals";
 
@@ -88,7 +89,12 @@ async function createCustomer(req: NextApiRequest, res: NextApiResponse, session
     assertIdentifiable(contact);
     const referral = await readReferral(prisma, body, null);
     const customer = await prisma.customer.create({
-      data: { ...contact, ...referral, createdBy: userEmail },
+      data: {
+        ...contact,
+        ...referral,
+        ...textConsentChange(body.textConsent, null, userEmail ?? null),
+        createdBy: userEmail,
+      },
     });
     return res.status(201).json(customer);
   } catch (error) {

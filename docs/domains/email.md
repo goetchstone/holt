@@ -96,6 +96,10 @@ with the store's own wording and timing, a fresh order link in each, a customer
 opt-out, and the review invitation some days after handover; "All
 configurations". DECISIONS 39.
 
+- **Email or text.** Each message goes by email (where each starts), text, both, or
+  whichever the customer prefers (`CustomerMessageSetting.channel`, GAP-12). A text
+  has its own wording and link choice. Who may get one, the queue and opting out are
+  in `sms.md`.
 - **The kinds** are code (`lib/messages/catalog.ts`, shared with the screen).
   Each kind fixes which event sends it and which `{placeholders}` it can fill:
   - `ARRIVED`: goods ordered for the customer are received.
@@ -134,11 +138,13 @@ configurations". DECISIONS 39.
     order, nor after the handover is undone.
   - **Nothing goes more than `LATE_LIMIT_DAYS` (7) late.**
 - **Every event is recorded once** as a `CustomerMessage` (`dedupeKey` unique),
-  sent or not. A customer with no email, or with `Customer.autoMessagesOptOut`
-  (the customer form's "No automatic messages"), gets a `SKIPPED` row with the
-  reason and is not tried again for that event. The row and its `EmailQueue`
-  row are written in one transaction (`enqueueEmail(input, tx)`), so two runs at
-  once send one message. A failure (no `NEXTAUTH_SECRET` to sign the link, say)
+  sent or not. A customer with `Customer.autoMessagesOptOut` (the customer form's
+  "No automatic messages"), or who can't be reached by the channels the message
+  takes, gets a row with the reason and is not tried again for that event. With
+  both channels, one that can't go doesn't stop the other: `skipReason` is the
+  email's, `smsSkipReason` the text's, and `status` is `SKIPPED` only if nothing
+  went. The row and its queue rows are written in one transaction
+  (`enqueueEmail(input, tx)`), so two runs at once send one message. A failure (no `NEXTAUTH_SECRET` to sign the link, say)
   writes nothing, is logged, and is tried again on the next run.
 - **Rendering** (`lib/messages/render.ts`, `templates.ts`
   `customerMessageEmail`) fills placeholders in one pass and escapes
@@ -151,21 +157,23 @@ configurations". DECISIONS 39.
   It shows nothing when there are none. The mail server's error text stays on
   Admin › Email.
 
-Not built (ROADMAP GAP-13): text messages (GAP-12), the "minutes out" notice
-(telematics), telling the customer a quote hold is ending, and sending one again
-by hand.
+Not built (ROADMAP GAP-13): the "minutes out" notice (telematics), telling the
+customer a quote hold is ending, and sending a message again by hand.
 
 ## Operate
 
 - **Drain endpoint** `POST /api/automations/email-queue` — admin session OR
   `Authorization: Bearer $AUTO_IMPORT_API_KEY` (cron). It first queues the
-  customer messages that are due, then drains. Returns
-  `{ summary: { processed, sent, failed, skipped }, messages, lowStock }`, where
-  `messages` is the scan's count per kind and `lowStock` is what became of the daily
-  list: how many it went to, or `off`, `not-yet`, `already-sent` or `nothing-low`.
-  Either is null if it failed; the drain runs anyway.
+  customer messages that are due and the daily low-stock list, then drains the emails
+  and the texts. Returns
+  `{ summary: { processed, sent, failed, skipped }, texts, messages, lowStock }`, where
+  `texts` is the same count for the text queue, `messages` is the scan's count per
+  kind, and `lowStock` is what became of the daily list: how many it went to, or `off`,
+  `not-yet`, `already-sent` or `nothing-low`. `messages` or `lowStock` is null if it
+  failed; the drain runs anyway.
 - **Admin viewer** `/app/admin/email` — SMTP-configured banner, per-status
-  counts, recent rows + last error, "Process now". Card on the Admin hub.
+  counts, recent rows + last error, "Process now", and the same for texts. Card on
+  the Admin hub.
 - **The cron** (`scripts/auto-email-queue.sh`) runs every 5 minutes, installed
   by `scripts/install-cron.sh`. `scripts/go-live-check.sh` checks it is there.
 

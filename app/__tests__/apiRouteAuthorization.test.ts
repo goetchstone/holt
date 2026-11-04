@@ -48,6 +48,8 @@ const UNGATED_BY_DESIGN: Record<string, string> = {
     "Stripe webhook; the signature verified against the raw body IS the authorization, no staff session exists",
   "square/webhook.ts":
     "Square webhook; the signature verified against the raw body IS the authorization, no staff session exists",
+  "sms/twilio/webhook.ts":
+    "Twilio's delivery endpoint for STOP replies and delivery reports; its X-Twilio-Signature IS the authorization, no staff session exists",
 
   // --- Customer-portal surfaces: authorized as a CUSTOMER via a capability token, not staff ---
   "portal/pay.ts":

@@ -197,6 +197,28 @@ ALTER TABLE "CustomerMessage" ADD CONSTRAINT "CustomerMessage_status_known" CHEC
   "status" IN ('QUEUED', 'SKIPPED')
 );
 
+-- A message goes by a known channel; a customer prefers a known one; a text goes
+-- to a number in E.164, and an opt-out says how it came.
+ALTER TABLE "CustomerMessageSetting" DROP CONSTRAINT IF EXISTS "CustomerMessageSetting_channel_known";
+ALTER TABLE "CustomerMessageSetting" ADD CONSTRAINT "CustomerMessageSetting_channel_known" CHECK (
+  "channel" IN ('EMAIL', 'TEXT', 'BOTH', 'CUSTOMER')
+);
+ALTER TABLE "Customer" DROP CONSTRAINT IF EXISTS "Customer_preferredChannel_known";
+ALTER TABLE "Customer" ADD CONSTRAINT "Customer_preferredChannel_known" CHECK (
+  "preferredChannel" IS NULL OR "preferredChannel" IN ('EMAIL', 'TEXT', 'BOTH')
+);
+ALTER TABLE "SmsQueue" DROP CONSTRAINT IF EXISTS "SmsQueue_toPhone_e164";
+ALTER TABLE "SmsQueue" ADD CONSTRAINT "SmsQueue_toPhone_e164" CHECK (
+  "toPhone" ~ '^\+[1-9][0-9]{7,14}$'
+);
+ALTER TABLE "SmsOptOut" DROP CONSTRAINT IF EXISTS "SmsOptOut_phone_e164";
+ALTER TABLE "SmsOptOut" ADD CONSTRAINT "SmsOptOut_phone_e164" CHECK (
+  "phone" ~ '^\+[1-9][0-9]{7,14}$'
+);
+ALTER TABLE "SmsOptOut" DROP CONSTRAINT IF EXISTS "SmsOptOut_source_known";
+ALTER TABLE "SmsOptOut" ADD CONSTRAINT "SmsOptOut_source_known" CHECK (
+  "source" IN ('REPLY', 'PROVIDER')
+
 -- A reorder point's level and least order are above zero; a low-stock alert goes
 -- at an hour 0-23.
 ALTER TABLE "ReorderPoint" DROP CONSTRAINT IF EXISTS "ReorderPoint_minQuantity_positive";

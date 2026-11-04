@@ -12,7 +12,14 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { CustomerInputError, isDuplicateEmail, readContact } from "@/lib/customers/customerContact";
+import {
+  CustomerInputError,
+  isDuplicateEmail,
+  readContact,
+  textConsentChange,
+} from "@/lib/customers/customerContact";
+import { getAppSettings } from "@/lib/appSettings";
+import { toE164 } from "@/lib/sms/phone";
 import { ReferralError, readReferral } from "@/lib/customers/referrals";
 
 // Wealth enrichment data (net worth, wealth tier, lifestyle signals)
@@ -62,7 +69,17 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse, session: Ses
       return res.status(404).json({ error: "Customer not found." });
     }
 
-    return res.status(200).json(customer);
+    // A STOP is on the number, not the customer (SmsOptOut).
+    const { locale } = await getAppSettings();
+    const phone = toE164(customer.phone, locale);
+    const optOut = phone
+      ? await prisma.smsOptOut.findUnique({ where: { phone }, select: { optedOutAt: true } })
+      : null;
+    return res.status(200).json({
+      ...customer,
+      textableNumber: phone,
+      smsOptedOutAt: optOut?.optedOutAt ?? null,
+    });
   } catch (error) {
     logError("Fetch customer details failed", error, { customerId });
     return res.status(500).json({ error: "Failed to fetch customer details." });
@@ -76,14 +93,20 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
   try {
     const current = await prisma.customer.findUnique({
       where: { id: customerId },
-      select: { id: true, referralSourceId: true },
+      select: { id: true, referralSourceId: true, smsConsentAt: true },
     });
     if (!current) return res.status(404).json({ error: "Customer not found." });
     const contact = readContact(body);
     const referral = await readReferral(prisma, body, current);
+    const actor = session.user?.email ?? null;
     const updated = await prisma.customer.update({
       where: { id: customerId },
-      data: { ...contact, ...referral, updatedBy: session.user?.email ?? null },
+      data: {
+        ...contact,
+        ...referral,
+        ...textConsentChange(body.textConsent, current, actor),
+        updatedBy: actor,
+      },
       select: {
         id: true,
         firstName: true,
@@ -91,6 +114,9 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
         email: true,
         phone: true,
         autoMessagesOptOut: true,
+        preferredChannel: true,
+        smsConsentAt: true,
+        smsConsentBy: true,
         referralSourceId: true,
         referredByCustomerId: true,
       },

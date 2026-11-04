@@ -17,6 +17,7 @@ import { getStripe } from "@/lib/stripe";
 import { getSquareCredentials, squareRequest } from "@/lib/square";
 import { getInstallationToken } from "@/lib/githubApp";
 import { fetchAxperTraffic } from "@/lib/axperClient";
+import { getSmsProvider } from "@/lib/sms";
 
 export interface IntegrationTestResult {
   ok: boolean;
@@ -114,6 +115,12 @@ async function testAxper(): Promise<IntegrationTestResult> {
 
 // Providers whose credentials we can confirm are present but can't cheaply
 // live-test without a full OAuth/delegation flow.
+async function testTwilio(): Promise<IntegrationTestResult> {
+  const problem = await getSmsProvider("twilio").testConnection();
+  if (problem.ok) return verified(problem.message);
+  return fail(problem.message);
+}
+
 async function testConfigOnly(
   provider: string,
   fields: { field: string; envVar: string }[],
@@ -136,6 +143,8 @@ export async function testIntegration(provider: string): Promise<IntegrationTest
       return testMailchimp();
     case "github":
       return testGithub();
+    case "twilio":
+      return testTwilio();
     case "axper":
       return testAxper();
     case "google":

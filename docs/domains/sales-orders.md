@@ -429,11 +429,17 @@ reopened (owner, 2026-11-03; DECISIONS 38).
 The order page's **Messages to the customer** panel lists the automatic
 messages Holt sent about the order: arrived, delivery scheduled, reminder,
 review invitation. It also lists the ones it didn't send and why: the customer
-opted out, or has no email. Each sent one shows whether its email has gone
-(`GET /api/sales/orders/[id]/messages`, `sales.read`). The panel shows nothing
+opted out, has no email, or hasn't agreed to texts. Each shows where its email or
+text stands (`GET /api/sales/orders/[id]/messages`, `sales.read`), and a text
+handed to the carrier is told apart from one delivered. The panel shows nothing
 until there is one. A customer's "No automatic messages" is on their record
 (the customer form; `Customer.autoMessagesOptOut`). What sends each message,
-and the store's settings: email.md, "Customer messages".
+and the store's settings: email.md, "Customer messages". Texts: sms.md.
+
+The **Customer Portal** panel's **Text the link** sends the customer their link
+now and says whether it went (`POST /api/portal/text-link`, `sales.write`). Staff
+chose to send it, so "No automatic messages" doesn't stop it, but the rules on who
+may get a text do. It's listed in the panel above.
 
 ## Key Files
 

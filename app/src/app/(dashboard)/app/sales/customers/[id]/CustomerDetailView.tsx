@@ -132,6 +132,30 @@ interface CustomerWithRelations {
   referredBy: { id: number; firstName: string | null; lastName: string | null } | null;
   /** They asked for no automatic messages (GAP-13). */
   autoMessagesOptOut: boolean;
+  /** Texts (GAP-12): their consent, the number as a text would use it, and any STOP on it. */
+  smsConsentAt: string | null;
+  smsConsentBy: string | null;
+  preferredChannel: string | null;
+  textableNumber: string | null;
+  smsOptedOutAt: string | null;
+}
+
+/** Whether Holt can text them, or why not (lib/sms/consent.ts decides; this says it). */
+function textStanding(customer: {
+  phone: string | null;
+  textableNumber: string | null;
+  smsConsentAt: string | null;
+  smsConsentBy: string | null;
+  smsOptedOutAt: string | null;
+}): string {
+  if (!customer.phone) return "No phone number";
+  if (!customer.textableNumber) return "This number can't take a text";
+  if (customer.smsOptedOutAt) {
+    return `This number replied STOP on ${format(new Date(customer.smsOptedOutAt), "PPP")}`;
+  }
+  if (!customer.smsConsentAt) return "Haven't agreed to texts";
+  const by = customer.smsConsentBy ? `, recorded by ${customer.smsConsentBy}` : "";
+  return `Agreed on ${format(new Date(customer.smsConsentAt), "PPP")}${by}`;
 }
 
 interface EmailStats {
@@ -830,6 +854,9 @@ export function CustomerDetailView({ id }: { id: string }) {
             </p>
             <p>
               <strong>Phone:</strong> {customer.phone || "N/A"}
+            </p>
+            <p>
+              <strong>Texts:</strong> {textStanding(customer)}
             </p>
             <p>
               <strong>Heard of us through:</strong>{" "}

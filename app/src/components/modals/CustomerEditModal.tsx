@@ -14,6 +14,8 @@ import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 type EditableCustomer = Customer & {
   referralSource?: { id: number; name: string; isActive: boolean } | null;
   referredBy?: { id: number; firstName: string | null; lastName: string | null } | null;
+  /** When this number replied STOP (GAP-12), on the detail page's copy of the record. */
+  smsOptedOutAt?: string | Date | null;
 };
 
 interface CustomerEditModalProps {
@@ -65,9 +67,18 @@ const CustomerEditModal = ({ item: customer, onClose }: CustomerEditModalProps) 
     customer?.referralSourceId ? String(customer.referralSourceId) : "",
   );
   const [referrer, setReferrer] = useState(initialReferrer(customer));
-  const [touched, setTouched] = useState({ source: false, referrer: false, optOut: false });
-  // No automatic messages (GAP-13), sent only when changed here, for the same reason.
+  const [touched, setTouched] = useState({
+    source: false,
+    referrer: false,
+    optOut: false,
+    textConsent: false,
+    channel: false,
+  });
+  // No automatic messages (GAP-13), agreed to texts and how they'd rather hear
+  // from the store (GAP-12), sent only when changed here, for the same reason.
   const [optOut, setOptOut] = useState(customer?.autoMessagesOptOut ?? false);
+  const [textConsent, setTextConsent] = useState(Boolean(customer?.smsConsentAt));
+  const [channel, setChannel] = useState<string>(customer?.preferredChannel ?? "");
   const search = useCustomerSearch({ limit: 6 });
 
   useEffect(() => {
@@ -109,6 +120,8 @@ const CustomerEditModal = ({ item: customer, onClose }: CustomerEditModalProps) 
       ...formData,
       ...referralChanges(touched, sourceId, referrer),
       ...(touched.optOut ? { autoMessagesOptOut: optOut } : {}),
+      ...(touched.textConsent ? { textConsent } : {}),
+      ...(touched.channel ? { preferredChannel: channel || null } : {}),
     };
     try {
       if (customer?.id) {
@@ -180,11 +193,54 @@ const CustomerEditModal = ({ item: customer, onClose }: CustomerEditModalProps) 
           <span>
             No automatic messages
             <span className="block text-brand-gray">
-              They asked not to get the store&apos;s automatic emails (arrivals, deliveries,
+              They asked not to get the store&apos;s automatic messages (arrivals, deliveries,
               reminders, review invitations). Staff can still write to them.
             </span>
           </span>
         </label>
+        <label className="mt-3 flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={textConsent}
+            onChange={(e) => {
+              setTextConsent(e.target.checked);
+              setTouched((t) => ({ ...t, textConsent: true }));
+            }}
+            className="mt-1"
+          />
+          <span>
+            They agreed to get texts
+            <span className="block text-brand-gray">
+              Tick this only if they said yes. Holt texts nobody without it, and records who ticked
+              it and when.
+            </span>
+          </span>
+        </label>
+        {customer?.smsOptedOutAt && (
+          <p className="mt-2 text-sm text-red-700">
+            This number replied STOP on {new Date(customer.smsOptedOutAt).toLocaleDateString()}.
+            Nothing can text it until they reply START.
+          </p>
+        )}
+        <div className="mt-3">
+          <label htmlFor="preferred-channel" className="mb-1 block text-sm text-brand-gray">
+            How they&apos;d rather hear from us
+          </label>
+          <select
+            id="preferred-channel"
+            value={channel}
+            onChange={(e) => {
+              setChannel(e.target.value);
+              setTouched((t) => ({ ...t, channel: true }));
+            }}
+            className="w-full rounded-md border border-brand-accent-gray px-3 py-2 md:w-1/2"
+          >
+            <option value="">No preference (email)</option>
+            <option value="EMAIL">Email</option>
+            <option value="TEXT">Text</option>
+            <option value="BOTH">Both</option>
+          </select>
+        </div>
       </FormSection>
       <FormSection title="How they found us">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

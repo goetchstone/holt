@@ -336,6 +336,8 @@ export function OrderDetailView({
   const [depositMode, setDepositMode] = useState<DepositMode>("full");
   const [customAmount, setCustomAmount] = useState("");
   const [portalLinkLoading, setPortalLinkLoading] = useState(false);
+  const [textingLink, setTextingLink] = useState(false);
+  const [messagesVersion, setMessagesVersion] = useState(0);
   const [portalLinkUrl, setPortalLinkUrl] = useState<string | null>(null);
   const [portalLinkCopied, setPortalLinkCopied] = useState(false);
 
@@ -655,6 +657,28 @@ export function OrderDetailView({
       toast.error(getErrorMessage(err, "Failed to generate portal link"));
     } finally {
       setPortalLinkLoading(false);
+    }
+  }, [orderDetails]);
+
+  // GAP-12: the route says whether it went, or why not (lib/sms/consent.ts).
+  const handleTextPortalLink = useCallback(async () => {
+    if (!orderDetails) return;
+    setTextingLink(true);
+    try {
+      const res = await axios.post<{ status: string; to: string }>("/api/portal/text-link", {
+        orderId: orderDetails.id,
+      });
+      // Accepted isn't delivered: the panel below shows when it arrives.
+      toast.success(
+        res.data.status === "PENDING"
+          ? `Queued to text ${res.data.to}.`
+          : `Link handed to the carrier for ${res.data.to}.`,
+      );
+      setMessagesVersion((v) => v + 1);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Couldn't text the link."));
+    } finally {
+      setTextingLink(false);
     }
   }, [orderDetails]);
 
@@ -1029,12 +1053,20 @@ export function OrderDetailView({
         <div className="bg-white p-6 rounded-lg shadow-md mb-6">
           <h2 className="text-xl font-semibold mb-3">Customer Portal (Test Mode)</h2>
           <p className="text-xs text-brand-gray mb-3">
-            Generate a shareable link for the customer to view their order and make payments. Links
-            expire after 7 days.
+            Generate a shareable link for the customer to view their order and make payments, or
+            text it to them. A link expires after the time set in Settings.
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" onClick={handleGeneratePortalLink} disabled={portalLinkLoading}>
               {portalLinkLoading ? "Generating..." : "Generate Portal Link"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleTextPortalLink}
+              disabled={textingLink}
+            >
+              {textingLink ? "Texting..." : "Text the link"}
             </Button>
             {portalLinkUrl && (
               <>
@@ -1238,7 +1270,7 @@ export function OrderDetailView({
         onChanged={(disclaimers) => setOrderDetails({ ...orderDetails, disclaimers })}
       />
 
-      <CustomerMessagesPanel orderId={orderDetails.id} />
+      <CustomerMessagesPanel key={messagesVersion} orderId={orderDetails.id} />
 
       {/* Invoices */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">

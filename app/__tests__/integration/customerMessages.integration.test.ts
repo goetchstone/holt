@@ -94,7 +94,20 @@ async function settingBody(kind: MessageKind, patch: Record<string, unknown> = {
   const list = await call(listSettings, "GET", {});
   const row = list.body.find((s: { kind: string }) => s.kind === kind);
   const { isActive, subject, body, includeOrderLink, offsetDays, sendHour, linkUrl } = row;
-  return { isActive, subject, body, includeOrderLink, offsetDays, sendHour, linkUrl, ...patch };
+  const { channel, textBody, textIncludeOrderLink } = row;
+  return {
+    isActive,
+    subject,
+    body,
+    includeOrderLink,
+    offsetDays,
+    sendHour,
+    linkUrl,
+    channel,
+    textBody,
+    textIncludeOrderLink,
+    ...patch,
+  };
 }
 
 async function switchOn(kind: MessageKind, patch: Record<string, unknown> = {}) {

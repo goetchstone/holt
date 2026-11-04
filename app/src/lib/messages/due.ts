@@ -25,10 +25,11 @@
 //                      returned.
 //
 // Each event is recorded once (CustomerMessage.dedupeKey), sent or not. A
-// customer with no email, or who asked for no automatic messages
-// (Customer.autoMessagesOptOut), gets a SKIPPED row saying why and is not
-// tried again for that event. The row and its email are written together, so
-// two runs at once send one message.
+// customer who asked for no automatic messages (Customer.autoMessagesOptOut),
+// or who can't be reached by the channels the message takes (no email; for a
+// text, lib/sms/consent.ts), gets a row saying why and is not tried again for
+// that event. The row, its email and its text are written together, so two runs
+// at once send one message.
 //
 // A message more than LATE_LIMIT_DAYS late (the cron was off) isn't sent at
 // all: by then its news is old.
@@ -37,19 +38,22 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/appSettings";
 import { enqueueEmail } from "@/lib/email/queue";
+import { enqueueSms } from "@/lib/sms/queue";
+import { textableNumber } from "@/lib/sms/consent";
 import { getErrorCode } from "@/lib/errorCode";
 import { logError } from "@/lib/logger";
 import { portalOrderUrl } from "@/lib/portalLink";
 import { openStopLines } from "@/lib/fulfilment/deliveredLines";
 import { QUARANTINED_CONDITIONS } from "@/lib/purchasing/receiptConditions";
 import { addDays, businessDayKey } from "@/lib/reports/businessDay";
-import { MESSAGE_KINDS, type MessageKind } from "./catalog";
+import { MESSAGE_KINDS, channelsFor, type MessageKind } from "./catalog";
 import { getMessageSettings, type MessageSettingRow } from "./settings";
 import {
   customerName,
   describePieces,
   describeWhen,
   renderCustomerMessage,
+  renderTextMessage,
   type PlaceholderValues,
 } from "./render";
 import { reminderDueAt, reviewDueAt, runDateOf, runDay } from "./timing";
@@ -65,7 +69,16 @@ const ORDER_SELECT = {
   id: true,
   orderno: true,
   customer: {
-    select: { id: true, firstName: true, lastName: true, email: true, autoMessagesOptOut: true },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      autoMessagesOptOut: true,
+      smsConsentAt: true,
+      preferredChannel: true,
+    },
   },
   lineItems: {
     select: {
@@ -107,15 +120,87 @@ interface Message {
   receivingRecordIds?: number[];
 }
 
-function skipReason(order: OrderFacts): string | null {
-  const c = order.customer;
-  if (!c) return NO_CUSTOMER;
-  if (c.autoMessagesOptOut) return OPTED_OUT;
-  if (!c.email?.trim()) return NO_EMAIL;
+/** Why nothing at all goes to this order's customer, whichever the channel. */
+function nobodyToWrite(order: OrderFacts): string | null {
+  if (!order.customer) return NO_CUSTOMER;
+  if (order.customer.autoMessagesOptOut) return OPTED_OUT;
   return null;
 }
 
-/** Record one message, queuing its email unless it is skipped; nothing when another run recorded it first. */
+type Customer = NonNullable<OrderFacts["customer"]>;
+type Tx = Prisma.TransactionClient;
+
+const templateKey = (setting: ActiveSetting) =>
+  `customer-message-${setting.kind.toLowerCase().replace(/_/g, "-")}`;
+
+function fillIns(ctx: Context, m: Message, customer: Customer): PlaceholderValues {
+  return {
+    customer: customerName(customer),
+    order: m.order.orderno,
+    store: ctx.storeName,
+    ...m.values,
+  };
+}
+
+/** The email, queued: where it went, or why it didn't. */
+async function queueEmail(
+  tx: Tx,
+  ctx: Context,
+  setting: ActiveSetting,
+  m: Message,
+  customer: Customer,
+): Promise<{ toAddress: string; emailQueueId: number } | { skipReason: string }> {
+  const toAddress = customer.email?.trim();
+  if (!toAddress) return { skipReason: NO_EMAIL };
+  const email = renderCustomerMessage({
+    subject: setting.subject,
+    body: setting.body,
+    storeName: ctx.storeName,
+    values: fillIns(ctx, m, customer),
+    orderUrl: setting.includeOrderLink
+      ? portalOrderUrl(m.order.id, customer.id, ctx.ttlHours)
+      : null,
+    reviewUrl: setting.kind === "REVIEW_INVITE" ? setting.linkUrl : null,
+  });
+  const emailQueueId = await enqueueEmail(
+    {
+      to: toAddress,
+      subject: email.subject,
+      html: email.html,
+      templateKey: templateKey(setting),
+      createdBy: "system",
+    },
+    tx,
+  );
+  return { toAddress, emailQueueId };
+}
+
+/** The text, queued: where it went, or why it didn't. */
+async function queueText(
+  tx: Tx,
+  ctx: Context,
+  setting: ActiveSetting,
+  m: Message,
+  customer: Customer,
+): Promise<{ toPhone: string; smsQueueId: number } | { smsSkipReason: string }> {
+  const number = await textableNumber(tx, customer, ctx.locale);
+  if ("problem" in number) return { smsSkipReason: number.problem };
+  const body = renderTextMessage({
+    body: setting.textBody,
+    values: fillIns(ctx, m, customer),
+    orderUrl: setting.textIncludeOrderLink
+      ? portalOrderUrl(m.order.id, customer.id, ctx.ttlHours)
+      : null,
+    reviewUrl: setting.kind === "REVIEW_INVITE" ? setting.linkUrl : null,
+  });
+  const smsQueueId = await enqueueSms(
+    { to: number.phone, body, templateKey: templateKey(setting), createdBy: "system" },
+    tx,
+  );
+  return { toPhone: number.phone, smsQueueId };
+}
+
+/** Record one message, queuing what it takes; nothing when another run recorded it first. */
 async function send(
   ctx: Context,
   setting: ActiveSetting,
@@ -123,56 +208,34 @@ async function send(
   summary: KindSummary,
 ): Promise<void> {
   const customer = m.order.customer;
-  const skip = skipReason(m.order);
+  const nobody = nobodyToWrite(m.order);
   try {
-    await prisma.$transaction(async (tx) => {
-      let emailQueueId: number | null = null;
-      let toAddress: string | null = null;
-      if (!skip && customer?.email) {
-        toAddress = customer.email.trim();
-        const values = {
-          customer: customerName(customer),
-          order: m.order.orderno,
-          store: ctx.storeName,
-          ...m.values,
-        };
-        const email = renderCustomerMessage({
-          subject: setting.subject,
-          body: setting.body,
-          storeName: ctx.storeName,
-          values,
-          orderUrl: setting.includeOrderLink
-            ? portalOrderUrl(m.order.id, customer.id, ctx.ttlHours)
-            : null,
-          reviewUrl: setting.kind === "REVIEW_INVITE" ? setting.linkUrl : null,
-        });
-        emailQueueId = await enqueueEmail(
-          {
-            to: toAddress,
-            subject: email.subject,
-            html: email.html,
-            templateKey: `customer-message-${setting.kind.toLowerCase().replace(/_/g, "-")}`,
-            createdBy: "system",
-          },
-          tx,
-        );
-      }
+    const queued = await prisma.$transaction(async (tx) => {
+      const wanted = customer
+        ? channelsFor(setting.channel, customer.preferredChannel)
+        : { email: false, text: false };
+      const reachable = customer && !nobody;
+      const email =
+        reachable && wanted.email ? await queueEmail(tx, ctx, setting, m, customer) : {};
+      const text = reachable && wanted.text ? await queueText(tx, ctx, setting, m, customer) : {};
+      const anything = "emailQueueId" in email || "smsQueueId" in text;
       await tx.customerMessage.create({
         data: {
           kind: setting.kind,
           dedupeKey: m.dedupeKey,
           salesOrderId: m.order.id,
           customerId: customer?.id ?? null,
-          status: skip ? "SKIPPED" : "QUEUED",
-          skipReason: skip,
-          toAddress,
-          emailQueueId,
+          status: anything ? "QUEUED" : "SKIPPED",
+          skipReason: nobody,
+          ...email,
+          ...text,
           receivingRecordIds: m.receivingRecordIds ?? [],
         },
       });
+      return anything;
     });
-    if (skip) summary.skipped++;
-    else summary.queued++;
+    if (queued) summary.queued++;
+    else summary.skipped++;
   } catch (err) {
     // Another run recorded this event first: it is sent once, by that run.
     if (getErrorCode(err) === "P2002") return;
