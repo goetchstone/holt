@@ -423,6 +423,7 @@ model Product {
   purchaseOrderItems          PurchaseOrderItem[]
   inventoryTransfers          InventoryTransfer[]
   inventoryPositions          InventoryPosition[]
+  reorderPoints               ReorderPoint[]
   stockMovements              StockMovement[]
   inventoryExceptions         InventoryException[]
   reconciledUnidentifiedScans UnidentifiedScan[]
@@ -1836,6 +1837,7 @@ model StoreLocation {
   stockLocations      StockLocation[]
   registers           Register[]
   inventoryPositions  InventoryPosition[]
+  reorderPoints       ReorderPoint[]
   movementsFrom       StockMovement[]      @relation("MovementFromStore")
   unmatchedStockFor   AppSettings[]        @relation("UnmatchedStockStore")
   movementsTo         StockMovement[]      @relation("MovementToStore")
@@ -1943,6 +1945,30 @@ model StockLocation {
 
   @@unique([storeLocationId, code])
   @@index([deliveryRunId])
+}
+
+/// "Keep at least this many here" (GAP-14): a product's level at one store,
+/// each store or warehouse setting its own. Below it, the product is on
+/// Purchasing > Low stock (lib/purchasing/lowStock.ts). No row, no level.
+model ReorderPoint {
+  id              Int           @id @default(autoincrement())
+  productId       Int
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storeLocationId Int
+  storeLocation   StoreLocation @relation(fields: [storeLocationId], references: [id], onDelete: Cascade)
+  /// Fractional, like the stock it is compared with: a roll is a length.
+  minQuantity     Decimal       @db.Decimal(12, 3)
+  /// The least to order at a time: a carton, a vendor's minimum. Null is just
+  /// what it takes to get back to the level.
+  orderQuantity   Decimal?      @db.Decimal(12, 3)
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([productId, storeLocationId])
+  @@index([storeLocationId])
 }
 
 model InventoryPosition {
@@ -5804,6 +5830,13 @@ model AppSettings {
   // split starts here and staff with "Reassign salesperson" may choose
   // another. 50 is an even split. A CHECK keeps it within 1-99.
   defaultSplitPercent Int @default(50)
+
+  // Low stock (GAP-14): who gets the daily list of what's below its reorder
+  // point, and at what hour of the store's day. Off until an address is set.
+  // lowStockAlertedOn is the store day it last went, so it goes once a day.
+  lowStockAlertEmails String?
+  lowStockAlertHour   Int?
+  lowStockAlertedOn   String?
 
   // How a landed charge on a PO is spread across its lines unless the buyer
   // picks another when entering it (GAP-02). By value, the default, gives each

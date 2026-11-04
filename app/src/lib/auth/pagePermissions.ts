@@ -202,6 +202,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
     permission: "purchasing.read",
     widensFrom: "MANAGER,ADMIN,WAREHOUSE",
   },
+  "/app/purchasing/low-stock": { permission: "purchasing.read" },
   "/app/purchasing/orders": { permission: "purchasing.read" },
   "/app/purchasing/orders/[id]": { permission: "purchasing.read" },
   "/app/purchasing/orders/[id]/edit": { permission: "purchasing.write" },

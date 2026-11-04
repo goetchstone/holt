@@ -180,6 +180,7 @@ const ALL_TABLES = [
   "ReceivingRecord",
   "Reconciliation",
   "ReferralSource",
+  "ReorderPoint",
   "Register",
   "Return",
   // Role/RolePermission are product data, not fixtures, but they truncate like

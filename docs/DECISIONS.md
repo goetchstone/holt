@@ -1228,6 +1228,43 @@ E.164.
 
 ---
 
+## 41. A reorder point is a level per store, and a draft doesn't count toward it
+
+**Decided 2026-11-04 (GAP-14).** No owner question was needed: it's a store's own
+number, and off until set, as "All configurations" says.
+
+- **Per product per store.** Each store or warehouse stocks for itself, so a level
+  across all stores together would call a store fine because another has plenty.
+- **Free stock plus sent POs, against the level.** The rows are the allocator's free
+  stock and stock POs to this store. A customer's special-order line doesn't count: it
+  is spoken for, and counting it would hide the shortage it creates.
+- **A draft doesn't count, but isn't suggested twice.** A draft isn't on its way, and
+  one left unsent shouldn't silence the warning. The item stays listed until the PO
+  goes, showing what's on the draft, and only what the draft doesn't cover is
+  suggested.
+- **Below the level, not at it.** "Keep at least 3" is satisfied by 3.
+- **Ordering reuses the scanned-order filing** (`saveScannedOrder`), so a list and a
+  scanner can't file lines two ways.
+- **One daily list, by the existing cron.** A message per item would train people to
+  ignore it, and a list only goes when something is low.
+
+**Rejected:**
+
+- **Fields on `Product`.** They can't say different numbers for different stores.
+- **A nullable store for a chain-wide level.** It's a nullable column in a unique key
+  (rule 64), for a level nobody has asked for.
+- **Counting drafts as on order,** as the Buyers report does. That report describes
+  stock; this one tells someone to act, and an unsent draft is what they'd act on.
+
+**Enforced by:** `__tests__/integration/lowStock.integration.test.ts`,
+`__tests__/lib/purchasing/lowStockShared.test.ts`, and CHECKs holding the level and
+least order above zero.
+
+**Source:** [`app/src/lib/purchasing/lowStock.ts`](../app/src/lib/purchasing/lowStock.ts),
+[`docs/domains/purchasing.md`](domains/purchasing.md)
+
+---
+
 ## 42. How old stock is, and what it was worth, read back from the journal (2026-11-04)
 
 **Decided:** Age comes from the stock journal, assuming the oldest sold first, so

@@ -318,6 +318,12 @@ enforces it.
 - **What reads it.** Aged Stock and Inventory Value (`docs/domains/reporting.md`).
   A new reason has to say what it does to age (`AGE_EFFECT`, `lib/reports/agedStock.ts`).
 
+### Reorder points (GAP-14, since 2026-11-04)
+
+"Keep at least this many here", per product per store, reads free stock with
+`freePositionWhere` like everything else. What falls below it, the daily alert and
+ordering from the list: `purchasing.md`, "Reorder points and low stock".
+
 ### The register reads free stock
 
 The register's "on hand here" asks `/api/warehouse/positions` for the product's
