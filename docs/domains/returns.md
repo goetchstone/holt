@@ -207,9 +207,10 @@ the salesperson's commission is not adjusted for the fee (a native return
 claws back commission in its own period, as an imported one does).
 
 **Store credit** is spent at the register (a "Store Credit" tender, shown when
-the order's customer has some) or on an order's screen ("Apply store credit",
-for rewrites and exchanges). Credit is spent only on the same customer's order,
-under a per-customer lock, and never past zero (CHECK
+the order's customer has some), on an order's screen ("Apply store credit",
+for rewrites and exchanges), or on an invoice's "Record payment" (GAP-26, offered
+when the invoice's customer has some). Credit is spent only on the same customer's
+order or invoice, under a per-customer lock, and never past zero (CHECK
 `Customer_creditBalance_nonnegative`).
 
 The findings of 2026-10-16, all closed here (rule 48):

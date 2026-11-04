@@ -10,8 +10,8 @@
 //   - holding the customer's credit lock, so two spends of the same balance
 //     cannot both pass the check (the database's
 //     Customer_creditBalance_nonnegative CHECK is the floor under it);
-//   - and, for a spend, only on the customer's own order: credit is never
-//     spent on someone else's sale or on an order with no customer.
+//   - and, for a spend, only on the customer's own order or invoice: credit is
+//     never spent on someone else's sale or on an order with no customer.
 
 import type { CustomerCreditTransaction, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -133,6 +133,40 @@ export async function spendStoreCredit(
     paymentId: input.paymentId,
     salesOrderId: input.salesOrderId,
     reference: order.orderno,
+    createdBy: input.createdBy,
+  });
+}
+
+/**
+ * Spend `amount` of the customer's credit on the payment row `paymentId` for
+ * their own invoice `invoiceId`. An invoice needn't come from an order, so the
+ * credit records it by number and through the payment. Refused when the invoice
+ * belongs to someone else.
+ */
+export async function spendStoreCreditOnInvoice(
+  tx: Tx,
+  input: {
+    customerId: number;
+    amount: number;
+    paymentId: number;
+    invoiceId: number;
+    createdBy?: string | null;
+  },
+): Promise<CustomerCreditTransaction> {
+  if (!(input.amount > 0)) throw new StoreCreditError("Store credit spent must be positive.");
+  const invoice = await tx.invoice.findUniqueOrThrow({
+    where: { id: input.invoiceId },
+    select: { customerId: true, invoiceNo: true },
+  });
+  if (invoice.customerId !== input.customerId) {
+    throw new StoreCreditError("Store credit can only be spent on the same customer's invoice.");
+  }
+  return moveCredit(tx, {
+    customerId: input.customerId,
+    type: "USAGE",
+    amount: -input.amount,
+    paymentId: input.paymentId,
+    reference: invoice.invoiceNo,
     createdBy: input.createdBy,
   });
 }
