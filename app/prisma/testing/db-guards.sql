@@ -218,6 +218,7 @@ ALTER TABLE "SmsOptOut" ADD CONSTRAINT "SmsOptOut_phone_e164" CHECK (
 ALTER TABLE "SmsOptOut" DROP CONSTRAINT IF EXISTS "SmsOptOut_source_known";
 ALTER TABLE "SmsOptOut" ADD CONSTRAINT "SmsOptOut_source_known" CHECK (
   "source" IN ('REPLY', 'PROVIDER')
+);
 
 -- A reorder point's level and least order are above zero; a low-stock alert goes
 -- at an hour 0-23.
