@@ -17,6 +17,7 @@ import ProductEditModal from "@/components/modals/ProductEditModal";
 import { OtherVendorsSection } from "./OtherVendorsSection";
 import { ReorderPointsSection } from "./ReorderPointsSection";
 import { ProductPictureSection } from "./ProductPictureSection";
+import { ProductTagsSection } from "./ProductTagsSection";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 
 interface ProductDetails {
@@ -34,6 +35,8 @@ interface ProductDetails {
   landedCost: number | null;
   baseRetail: number | null;
   mapPrice: number | null;
+  wasPrice: number | null;
+  lawTagText: string | null;
   length?: number;
   width?: number;
   depth?: number;
@@ -88,10 +91,12 @@ export function ProductDetailView({
   id,
   canEdit,
   canSetReorderPoints,
+  canPrintTags,
 }: {
   id: string;
   canEdit: boolean;
   canSetReorderPoints: boolean;
+  canPrintTags: boolean;
 }) {
   const fmt = useMoneyFormatter();
   const [product, setProduct] = useState<ProductDetails | null>(null);
@@ -260,6 +265,15 @@ export function ProductDetailView({
         name={product.name}
         imageUrl={product.imageUrl}
         canEdit={canEdit}
+        onChanged={fetchProduct}
+      />
+
+      <ProductTagsSection
+        productId={product.id}
+        wasPrice={product.wasPrice}
+        lawTagText={product.lawTagText}
+        canEdit={canEdit}
+        canPrint={canPrintTags}
         onChanged={fetchProduct}
       />
 

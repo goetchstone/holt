@@ -317,6 +317,16 @@ function splitCreditNote(typed: string): string {
   return `Sales credit is split ${splitLabel(percent)}: ${percent}% to the salesperson, ${100 - percent}% to the partner, in reports and commission.`;
 }
 
+/** Print a "sold" tag for one line; the route says what's missing if it can't. */
+async function printSoldTag(orderId: number, lineItemId: number) {
+  try {
+    await axios.post(`/api/sales/orders/${orderId}/sold-tag`, { lineItemId });
+    toast.success("Sold tag sent to the printer.");
+  } catch (err) {
+    toast.error(getErrorMessage(err, "The sold tag did not print."));
+  }
+}
+
 export function OrderDetailView({
   id,
   canUndoHandover = false,
@@ -1147,6 +1157,17 @@ export function OrderDetailView({
                             ({item.selectedGrade})
                           </span>
                         )}
+                        {(orderDetails.status === "ORDER" || orderDetails.status === "FULFILLED") &&
+                          !isInactive &&
+                          item.id !== orderDetails.deliveryFeeLineItemId && (
+                            <button
+                              type="button"
+                              onClick={() => printSoldTag(orderDetails.id, item.id)}
+                              className="block text-xs text-brand-gray underline hover:text-brand-black"
+                            >
+                              Sold tag
+                            </button>
+                          )}
                         {item.cancelReason && (
                           <p className="text-xs text-red-600 mt-0.5">{item.cancelReason}</p>
                         )}

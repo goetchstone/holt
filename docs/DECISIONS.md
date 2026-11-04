@@ -1265,6 +1265,40 @@ least order above zero.
 
 ---
 
+## 43. A tag's price is what the register charges, and cost goes on it only in code (2026-11-04)
+
+**Decided:** A sale tag's price is the product's retail, and its was price is a field on
+the product. A tag's coded cost uses letters the store picks, and prints nothing until it
+has. A law tag's wording is the store's template, with a text field on the product for the
+part that varies. Printing while receiving is one at a time unless a person chooses
+otherwise, remembered per person. A tag named for a store prints only at that store.
+
+**Why:** a tag is a promise to a customer. If it could show a price the register doesn't
+charge, the two would disagree on the showroom floor, so there's only one price. The owner
+said to make printing one at a time or in a batch the user's choice, and that they prefer
+one at a time so they can match products (2026-10-29). What the law asks a tag to say
+depends on where the store is, so it's a deployment fact (rule 61).
+
+**Rejected:**
+
+- **Typing a sale price when printing.** The tag would promise a price the register doesn't
+  know. Scheduled sale prices that drive tags remain GAP-06.
+- **A built-in law tag.** Holt doesn't know each state's law, and would be wrong for
+  someone. The demo's template is a sample.
+- **A remembered default in the browser.** It wouldn't follow a person to the next device.
+- **Falling back to any printer loaded with the size.** The tag would come out in another
+  building, where nobody is matching it to a piece.
+- **Fetching a picture from another address.** A tag could be made to call out to one.
+
+**Enforced by:** `__tests__/integration/tags.integration.test.ts`, which reads the bytes a
+stand-in printer receives over TCP; `__tests__/tagFields.test.ts`; CHECKs on the key, the
+was price, the photo size and the print mode.
+
+**Source:** [`app/src/lib/labels/productTag.ts`](../app/src/lib/labels/productTag.ts),
+[`docs/domains/printing.md`](domains/printing.md)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

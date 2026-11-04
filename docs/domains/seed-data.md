@@ -355,6 +355,10 @@ due dates. It makes no RNG draws, so nothing else the seed makes shifts.
 Still dark after this: Helpdesk (`Ticket`) and Time (`TimeEntry`, `StaffShift`)
 are each their own nav section with no seeded rows.
 
+### Tags
+
+The demo has a template for each kind of tag, a price tag on every category, an invented cost code, a was price on every tenth product and law tag wording on every mattress. All of that is by id, with no random draws, so nothing else moves. The law tag's wording is a sample. Its printers are at made-up addresses, so printing from the demo says the printer can't be reached.
+
 ### On-hand stock
 
 `InventoryPosition` was empty until this was added, which left the Inventory

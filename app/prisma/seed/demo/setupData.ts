@@ -90,14 +90,29 @@ const LABEL_TEMPLATES = [
     // {{productName}}, {{partNo}} and {{retailPrice}}, which renderLabel never
     // filled, so the demo printed tags with only a barcode on them.
     zplTemplate:
-      "^XA^CF0,40^FO30,30^FD{{name}}^FS^CF0,28^FO30,90^FD{{sku}}^FS^FO30,140^BY3^BCN,80,Y,N,N^FD{{barcode}}^FS^CF0,32^FO30,260^FD{{baseRetail}}^FS^XZ",
+      "^XA^CF0,40^FO30,30^FD{{name}}^FS^CF0,28^FO30,90^FD{{sku}}^FS^FO30,140^BY3^BCN,80,Y,N,N^FD{{barcode}}^FS^CF0,20^FO600,30^FD{{costCode}}^FS^CF0,32^FO30,260^FD{{baseRetail}}^FS^XZ",
   },
   {
-    name: "Receiving tag 2x4",
-    context: "RECEIVING",
-    tagSize: "2x4",
+    name: "Sale tag 4x6",
+    context: "SALE",
+    tagSize: "4x6",
     zplTemplate:
-      "^XA^CF0,28^FO20,20^FD{{poNumber}}^FS^FO20,60^FD{{productName}}^FS^FO20,100^BY2^BCN,50,Y,N,N^FD{{barcode}}^FS^XZ",
+      "^XA^CF0,40^FO30,30^FD{{name}}^FS^CF0,28^FO30,90^FD{{sku}}^FS^CF0,34^FO30,150^FDWas ${{wasPrice}}^FS^CF0,70^FO30,200^FDNow ${{baseRetail}}^FS^CF0,30^FO30,290^FDYou save ${{saving}} ({{savingPercent}}%)^FS^FO30,350^BY3^BCN,80,Y,N,N^FD{{barcode}}^FS^CF0,20^FO30,480^FD{{costCode}}^FS^XZ",
+  },
+  {
+    name: "Sold tag 4x6",
+    context: "SOLD",
+    tagSize: "4x6",
+    zplTemplate:
+      "^XA^CF0,90^FO30,30^FDSOLD^FS^CF0,44^FO30,140^FD{{customerLastName}}^FS^CF0,34^FO30,200^FD{{orderNumber}}^FS^CF0,28^FO30,250^FD{{name}}^FS^CF0,24^FO30,295^FD{{sku}}  Qty {{quantity}}^FS^CF0,24^FO30,335^FDSold {{soldOn}} by {{salesperson}}^FS^XZ",
+  },
+  // A sample only: what a law tag has to say depends on where a store is.
+  {
+    name: "Mattress law tag 4x6",
+    context: "LAW",
+    tagSize: "4x6",
+    zplTemplate:
+      "^XA^CF0,30^FO30,30^FB750,3,4,C^FDUNDER PENALTY OF LAW THIS TAG NOT TO BE REMOVED EXCEPT BY THE CONSUMER^FS^CF0,28^FO30,150^FD{{name}}^FS^CF0,24^FO30,190^FD{{vendor}}  {{sku}}^FS^CF0,26^FO30,240^FB750,8,4,L^FD{{lawText}}^FS^XZ",
   },
   // Place and box labels carry a barcode a handheld scans back (L-<id>,
   // B-<product>-<box>-<of>; lib/scan/scanCodes.ts). 4x6, the size the demo's
@@ -172,6 +187,32 @@ export async function seedSetupData(
     await prisma.labelTemplate.create({ data: { ...t, createdBy: SEED_ACTOR } });
     result.labelTemplates += 1;
   }
+
+  // The tags have what they need: a price tag for every category, an invented
+  // cost code, a was price on every tenth product, and law tag wording on every
+  // mattress (GAP-18). By id, with no random draws, so nothing else moves.
+  const priceTag = await prisma.labelTemplate.findFirstOrThrow({ where: { context: "PRODUCT" } });
+  await prisma.category.updateMany({ data: { labelTemplateId: priceTag.id } });
+  await prisma.appSettings.updateMany({ data: { costCipherKey: "MARBLECOUT" } });
+  const everyTenth = await prisma.product.findMany({
+    where: { baseRetail: { gt: 0 } },
+    select: { id: true, baseRetail: true },
+    orderBy: { id: "asc" },
+  });
+  for (const [i, product] of everyTenth.entries()) {
+    if (i % 10 !== 0) continue;
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { wasPrice: Math.ceil(Number(product.baseRetail) * 1.25) },
+    });
+  }
+  await prisma.product.updateMany({
+    where: { department: { name: "Mattresses" } },
+    data: {
+      lawTagText:
+        "Contents: all new material. Polyurethane foam 70%, cotton 20%, polyester fiber 10%.",
+    },
+  });
 
   // Settings › Customer messages (GAP-13): each kind with its suggested wording
   // and timing, as a store finds them on first opening the screen. Switched

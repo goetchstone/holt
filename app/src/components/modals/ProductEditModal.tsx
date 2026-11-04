@@ -71,18 +71,11 @@ export default function ProductEditModal({
     const res = await fetch("/api/print-label", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        productId: product.id,
-        templateId: "", // will need template selector in future
-        printerId: "", // will need printer selector in future
-      }),
+      body: JSON.stringify({ productId: product.id }),
     });
-
-    if (res.ok) {
-      alert("Label sent to printer.");
-    } else {
-      alert("Error printing label.");
-    }
+    const body = await res.json().catch(() => null);
+    // The route says what happened or what's missing (rule 11).
+    alert(body?.message ?? body?.error ?? "The tag did not print.");
   };
 
   return (
