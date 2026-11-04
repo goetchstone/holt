@@ -7,10 +7,17 @@
 
 import { requirePage } from "@/lib/auth/requirePage";
 import { getAppSettings } from "@/lib/appSettings";
+import { isSmsConfigured } from "@/lib/sms";
 import { CustomerMessagesView } from "./CustomerMessagesView";
 
 export default async function CustomerMessagesPage() {
   await requirePage(undefined, { permission: "admin.settings" });
   const { companyName, appName, timezone } = await getAppSettings();
-  return <CustomerMessagesView storeName={companyName?.trim() || appName} timeZone={timezone} />;
+  return (
+    <CustomerMessagesView
+      storeName={companyName?.trim() || appName}
+      timeZone={timezone}
+      textingSetUp={await isSmsConfigured()}
+    />
+  );
 }

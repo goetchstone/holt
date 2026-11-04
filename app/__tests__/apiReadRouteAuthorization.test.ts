@@ -68,6 +68,8 @@ const EXEMPT: Record<string, string> = {
     "Stripe calls it with no session; authorized by the webhook signature (400 on a bad one).",
   "src/pages/api/square/webhook.ts":
     "Square calls it with no session; authorized by the webhook signature (400 on a bad one).",
+  "src/pages/api/sms/twilio/webhook.ts":
+    "Twilio calls it with no session; authorized by the webhook signature (403 on a bad one).",
   "src/pages/api/stripe/session-status.ts":
     "The customer's post-checkout page polls it; returns payment status only, never PII. Rate-limited.",
   "src/pages/api/portal/order.ts":

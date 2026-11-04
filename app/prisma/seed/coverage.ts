@@ -50,6 +50,14 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
     status: "skipped",
     reason: "Runtime floor notes, written when a handheld scans boxes; the demo has scanned none.",
   },
+  SmsOptOut: {
+    status: "skipped",
+    reason: "Written when a real number replies STOP to a text. The demo texts nobody.",
+  },
+  SmsQueue: {
+    status: "skipped",
+    reason: "Runtime queue of texts. The demo has no provider and texts none of its invented customers.",
+  },
   StockCount: {
     status: "skipped",
     reason: "Runtime floor counts, made on a handheld; the demo has counted nothing.",

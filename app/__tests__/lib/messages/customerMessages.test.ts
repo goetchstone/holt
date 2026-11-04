@@ -27,7 +27,13 @@ function input(
   kind: keyof typeof MESSAGE_CATALOG,
   patch: Partial<MessageSettingInput> = {},
 ): MessageSettingInput {
-  return { isActive: false, linkUrl: null, ...MESSAGE_CATALOG[kind].defaults, ...patch };
+  return {
+    isActive: false,
+    linkUrl: null,
+    channel: "EMAIL",
+    ...MESSAGE_CATALOG[kind].defaults,
+    ...patch,
+  };
 }
 
 describe("what a store's wording may say", () => {

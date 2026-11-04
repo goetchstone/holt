@@ -1185,6 +1185,49 @@ choice about how a message behaves belongs to the store.
 
 ---
 
+## 40. Holt texts only with consent on record, and a STOP belongs to the number
+
+**Decided 2026-11-04 (GAP-12).** The owner asked for texting through a third party,
+Twilio first, behind a provider seam, and for store-facing choices to be settings
+with strict defaults ("All configurations").
+
+- **Consent is a recorded fact, and strict by default.** `Customer.smsConsentAt` and
+  `smsConsentBy`, ticked on the customer form. A phone number on a record isn't
+  consent, so nobody is texted without it, and every message starts as email.
+- **A STOP is on the number, not the customer** (`SmsOptOut`). That's what the
+  provider blocks. Customers share numbers, and the phone is free text typed on each
+  record, so a per-customer flag would miss the next record with that number.
+- **Accepted isn't delivered.** SENT means Twilio took it. Delivery reports set
+  `deliveredAt` or turn the row FAILED, because an unregistered US number's texts are
+  accepted, then blocked (error 30034), and a store would otherwise never find out.
+- **Each message's text has its own wording.** A text can't be an email with the markup
+  off: it's billed by length.
+- **Every text says how to opt out,** unless the store's own wording does.
+- **No fallback between channels.** A message set to text, for a customer who hasn't
+  agreed, doesn't quietly become an email. It's recorded as not sent, with the reason,
+  on the order page, and staff can act on that.
+
+**Rejected:**
+
+- **Twilio's SDK.** Twilio's docs advise it for validating signatures. Holt sends one
+  REST call and checks one HMAC, as the Square webhook already does, and the SDK is a
+  large runtime dependency for that. The check is pinned to the worked example Twilio
+  publishes, and to its SDK's handling of repeated parameters.
+- **A column for a normalized phone on the customer.** Nothing else needs it, and it
+  would be a second home for the number (rule 6). A number is read into E.164 when it's
+  used.
+- **Filling in a default country** for a number with no country code. It's only read as
+  North American where the store's locale says so (rule 63).
+
+**Enforced by:** `__tests__/integration/smsProvider.integration.test.ts`,
+`__tests__/lib/sms/sms.test.ts`, and CHECKs holding queued and opted-out numbers to
+E.164.
+
+**Source:** [`app/src/lib/sms/consent.ts`](../app/src/lib/sms/consent.ts),
+[`docs/domains/sms.md`](domains/sms.md)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

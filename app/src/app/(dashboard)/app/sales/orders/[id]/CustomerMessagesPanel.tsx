@@ -10,14 +10,30 @@ import axios from "axios";
 import { format } from "date-fns";
 import type { OrderMessage } from "@/lib/messages/history";
 
-function standing(m: OrderMessage): string {
-  if (m.status === "SKIPPED") return `Not sent: ${m.skipReason ?? "no reason recorded."}`;
-  const to = m.toAddress ? ` to ${m.toAddress}` : "";
+/** Where the email stands; null for a message that took only the text. */
+function emailStanding(m: OrderMessage): string | null {
+  if (m.skipReason) return `Not sent: ${m.skipReason}`;
+  if (!m.toAddress) return null;
+  const to = ` to ${m.toAddress}`;
   if (m.emailStatus === "SENT") {
     return `Sent${to}${m.sentAt ? ` ${format(new Date(m.sentAt), "PPP p")}` : ""}.`;
   }
   if (m.emailStatus === "FAILED") return `Couldn't be sent${to}. Admin › Email has the reason.`;
   return `Waiting to send${to}.`;
+}
+
+/** Where the text stands. A provider accepting it isn't the phone getting it, so that's kept apart. */
+function textStanding(m: OrderMessage): string | null {
+  if (!m.text) return null;
+  if (m.text.skipReason) return `Text not sent: ${m.text.skipReason}`;
+  const to = m.text.toPhone ? ` to ${m.text.toPhone}` : "";
+  if (m.text.deliveredAt) {
+    return `Text delivered${to} ${format(new Date(m.text.deliveredAt), "PPP p")}.`;
+  }
+  if (m.text.status === "SENT") return `Text handed to the carrier${to}.`;
+  if (m.text.status === "FAILED")
+    return `Text couldn't be sent${to}. Admin › Email has the reason.`;
+  return `Text waiting to send${to}.`;
 }
 
 export function CustomerMessagesPanel({ orderId }: Readonly<{ orderId: number }>) {
@@ -48,7 +64,15 @@ export function CustomerMessagesPanel({ orderId }: Readonly<{ orderId: number }>
           <li key={m.id} className="flex flex-wrap gap-x-3">
             <span className="font-medium">{m.label}</span>
             <span className="text-brand-gray">{format(new Date(m.created), "PPP p")}</span>
-            <span className={m.status === "SKIPPED" ? "text-brand-gray" : ""}>{standing(m)}</span>
+            {[emailStanding(m), textStanding(m)].flatMap((line) =>
+              line
+                ? [
+                    <span key={line} className={m.status === "SKIPPED" ? "text-brand-gray" : ""}>
+                      {line}
+                    </span>,
+                  ]
+                : [],
+            )}
           </li>
         ))}
       </ul>

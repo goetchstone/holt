@@ -8,11 +8,14 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isSmsConfigured } from "@/lib/sms";
 import {
   MESSAGE_CATALOG,
   MESSAGE_KINDS,
+  isMessageChannel,
   isMessageKind,
   messageSettingProblem,
+  type MessageChannel,
   type MessageKind,
   type MessageSettingInput,
 } from "./catalog";
@@ -49,8 +52,25 @@ export async function getMessageSettings(db: Db = prisma): Promise<MessageSettin
   }
   return MESSAGE_KINDS.flatMap((kind) => {
     const row = rows.find((r) => r.kind === kind);
-    return row ? [{ ...row, kind }] : [];
+    return row ? [settingRow(kind, row)] : [];
   });
+}
+
+function settingRow(
+  kind: MessageKind,
+  row: Omit<MessageSettingRow, "kind" | "channel" | "textBody"> & {
+    channel: string;
+    textBody: string | null;
+  },
+): MessageSettingRow {
+  return {
+    ...row,
+    kind,
+    // A CHECK holds the column to the known channels; a row can't say another.
+    channel: row.channel as MessageChannel,
+    // A row saved before texts has no wording of its own.
+    textBody: row.textBody ?? MESSAGE_CATALOG[kind].defaults.textBody,
+  };
 }
 
 function readNumber(raw: unknown, label: string): number | null {
@@ -71,6 +91,9 @@ export function readSettingInput(kind: MessageKind, raw: unknown): MessageSettin
     if (typeof v !== "boolean") throw new MessageSettingError(`${label} must be true or false.`);
     return v;
   };
+  if (!isMessageChannel(body.channel)) {
+    throw new MessageSettingError("Choose how the message goes.");
+  }
   const timed = MESSAGE_CATALOG[kind].timing !== "at-once";
   const link = body.linkUrl;
   return {
@@ -83,6 +106,9 @@ export function readSettingInput(kind: MessageKind, raw: unknown): MessageSettin
     sendHour: timed ? readNumber(body.sendHour, "The hour") : null,
     linkUrl:
       link === undefined || link === null || link === "" ? null : text(link, "The link") || null,
+    channel: body.channel,
+    textBody: text(body.textBody, "The text's wording"),
+    textIncludeOrderLink: flag(body.textIncludeOrderLink, "Include the order link in the text"),
   };
 }
 
@@ -98,6 +124,13 @@ export async function saveMessageSetting(
   const input = readSettingInput(kind, raw);
   const problem = messageSettingProblem(kind, input);
   if (problem) throw new MessageSettingError(problem);
+  // A store sets up its provider first, rather than switching on a message whose
+  // texts would sit in the queue with nobody told why.
+  if (input.isActive && input.channel !== "EMAIL" && !(await isSmsConfigured())) {
+    throw new MessageSettingError(
+      "Set up texting in Settings › Integrations before this message goes by text.",
+    );
+  }
 
   const current = (await getMessageSettings(db)).find((s) => s.kind === kind);
   const switchedOn = input.isActive && !current?.isActive;
@@ -109,5 +142,5 @@ export async function saveMessageSetting(
       updatedBy: actor,
     },
   });
-  return { ...row, kind };
+  return settingRow(kind, row);
 }

@@ -59,6 +59,27 @@ export function describeWhen(day: string, window: string | null, locale: string)
   return time ? `${date}, ${time}` : date;
 }
 
+/** Said in a text unless the store's own wording already says it (GAP-12). */
+export const STOP_NOTICE = "Reply STOP to opt out.";
+
+/**
+ * A text as the store wrote it: its placeholders filled, then its links, one to
+ * a line, then how to opt out. The store's wording is read for the word STOP
+ * before anything is filled in, so a customer named Stop can't remove the notice.
+ */
+export function renderTextMessage(m: {
+  body: string;
+  values: PlaceholderValues;
+  orderUrl: string | null;
+  reviewUrl: string | null;
+}): string {
+  const lines = [fillPlaceholders(m.body, m.values).trim()];
+  if (m.reviewUrl) lines.push(m.reviewUrl);
+  if (m.orderUrl) lines.push(m.orderUrl);
+  if (!/\bstop\b/i.test(m.body)) lines.push(STOP_NOTICE);
+  return lines.join("\n");
+}
+
 export interface MessageToRender {
   subject: string;
   body: string;
