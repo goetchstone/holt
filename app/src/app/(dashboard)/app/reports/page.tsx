@@ -21,7 +21,7 @@ const ITEMS: CardGridItem[] = [
   {
     title: "Pay Period Sales",
     description:
-      "Bi-weekly pay-period statement per designer — order detail, period total, YTD. Confirm/lock + report-an-issue ledger. Split orders credited at 50%. CSV export.",
+      "Bi-weekly pay-period statement per designer — order detail, period total, YTD. Confirm/lock + report-an-issue ledger. Split orders credited at each designer's share. CSV export.",
     href: "/app/reports/pay-period-sales",
     roles: ["SUPER_ADMIN"],
   },

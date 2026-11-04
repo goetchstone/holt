@@ -186,7 +186,11 @@ describe("put away and move (real DB)", () => {
       items: [{ productId: sofa.id, units: 1 }],
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toContain("start a transfer");
+    // The page offers to send it as a transfer instead (scanTransfer.integration.test.ts).
+    expect(res.body).toEqual({
+      error: "Moves between these places are tracked: send it as a transfer.",
+      tracked: true,
+    });
   });
 
   it("a box moved on its own leaves a stray note, which clears when it rejoins its unit", async () => {

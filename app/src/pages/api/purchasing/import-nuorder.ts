@@ -15,6 +15,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { createSecureForm } from "@/lib/secureUpload";
 import { pickFormFields } from "@/lib/importFormFields";
 import { logError } from "@/lib/logger";
+import { findOrCreateVendor } from "@/lib/vendors/vendorByName";
 export const config = { api: { bodyParser: false } };
 
 const FIELD_NAMES = ["departmentId", "categoryId", "itemCategories"] as const;
@@ -50,19 +51,10 @@ export default requirePermission(
 
       // Find or prompt for vendor
       const vendorName = parsed.vendorName || "Unknown Vendor";
-      let vendor = await prisma.vendor.findFirst({
-        where: { name: { equals: vendorName, mode: "insensitive" } },
+      const vendor = await findOrCreateVendor(prisma, vendorName, {
+        ignoreCase: true,
+        data: { pricingModel: "FLAT", createdBy: session.user?.email || "system" },
       });
-
-      if (!vendor) {
-        vendor = await prisma.vendor.create({
-          data: {
-            name: vendorName,
-            pricingModel: "FLAT",
-            createdBy: session.user?.email || "system",
-          },
-        });
-      }
 
       // Department and category are provided by the user from the preview step
       const departmentId = Number.parseInt(fields.departmentId as string);
@@ -145,7 +137,7 @@ export default requirePermission(
           let product = await tx.product.findFirst({
             where: {
               productNumber: item.styleNumber,
-              vendorId: vendor!.id,
+              vendorId: vendor.id,
             },
           });
 
@@ -154,7 +146,7 @@ export default requirePermission(
               data: {
                 productNumber: item.styleNumber,
                 name: item.productName,
-                vendorId: vendor!.id,
+                vendorId: vendor.id,
                 departmentId: apparelDept.id,
                 categoryId: itemCatId,
                 baseCost: item.unitPrice,
@@ -219,7 +211,7 @@ export default requirePermission(
         const po = await tx.purchaseOrder.create({
           data: {
             poNumber,
-            vendorId: vendor!.id,
+            vendorId: vendor.id,
             orderDate: parsed.orderDate ? new Date(parsed.orderDate) : new Date(),
             expectedDelivery,
             vendorAckNumber: parsed.orderNumber !== poNumber ? parsed.orderNumber : null,
@@ -243,7 +235,7 @@ export default requirePermission(
         return {
           poId: po.id,
           poNumber: po.poNumber,
-          vendor: vendor!.name,
+          vendor: vendor.name,
           itemCount: po.lineItems.length,
           productsCreated,
           variantsCreated,

@@ -5,29 +5,30 @@
 // Vendors list. App Router port of the legacy inventory/vendors/index body.
 // Replicates StandardListPage's search + pagination inline (the (dashboard)
 // layout supplies the chrome), reading the shared /api/vendors REST endpoint.
-// Edit modal + inline create-vendor dialog preserved.
+// Edit modal + inline create-vendor dialog preserved. A row, or a vendor just
+// added, opens its detail modal: there is no vendor page to go to. A holder of
+// admin.data also merges a duplicate vendor into another (GAP-22).
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { Vendor } from "@prisma/client";
 import { Dialog, DialogPanel, DialogTitle, DialogBackdrop } from "@headlessui/react";
 import { toast } from "react-toastify";
-import { Pencil, Plus, Loader2 } from "lucide-react";
+import { Merge, Pencil, Plus, Loader2 } from "lucide-react";
 import TableWithFilters from "@/components/table/TableWithFilters";
 import { type Column } from "@/components/table/PaginatedTable";
 import VendorDetailModal from "@/components/modals/VendorDetailModal";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/toastError";
+import { VendorMergeDialog } from "./VendorMergeDialog";
 
-export function VendorsView() {
-  const router = useRouter();
-
+export function VendorsView({ canMerge }: { canMerge: boolean }) {
   const [data, setData] = useState<Vendor[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [mergingVendor, setMergingVendor] = useState<Vendor | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newVendorName, setNewVendorName] = useState("");
@@ -86,7 +87,7 @@ export function VendorsView() {
       setShowCreateModal(false);
       setNewVendorName("");
       setRefreshTrigger(Date.now());
-      router.push(`/app/inventory/vendors/${vendor.id}`);
+      setSelectedVendor(vendor);
     } catch (err) {
       toast.error(getErrorMessage(err, "Failed to create vendor"));
     } finally {
@@ -115,7 +116,7 @@ export function VendorsView() {
       key: "actions",
       label: "Actions",
       accessor: "id",
-      width: "120px",
+      width: canMerge ? "220px" : "120px",
       render: (row: Vendor) => (
         <div className="flex space-x-2">
           <Button
@@ -127,6 +128,17 @@ export function VendorsView() {
           >
             Edit <Pencil className="w-4 h-4 ml-2" />
           </Button>
+          {canMerge && (
+            <Button
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMergingVendor(row);
+              }}
+            >
+              Merge <Merge className="w-4 h-4 ml-2" />
+            </Button>
+          )}
         </div>
       ),
     },
@@ -150,15 +162,27 @@ export function VendorsView() {
         page={page}
         onPageChange={setPage}
         loading={loading}
-        onRowClick={(row) => router.push(`/app/inventory/vendors/${row.id}`)}
+        onRowClick={(row) => setSelectedVendor(row)}
         onSearchChange={handleSearchChange}
       />
 
       {selectedVendor && (
         <VendorDetailModal
           vendor={selectedVendor}
+          canForgetNames={canMerge}
           onClose={() => setSelectedVendor(null)}
           onRefresh={handleVendorSaved}
+        />
+      )}
+
+      {mergingVendor && (
+        <VendorMergeDialog
+          vendor={mergingVendor}
+          onClose={() => setMergingVendor(null)}
+          onMerged={() => {
+            setMergingVendor(null);
+            setRefreshTrigger(Date.now());
+          }}
         />
       )}
 

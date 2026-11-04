@@ -74,10 +74,27 @@ The batch endpoint caps at 50 items and 10 copies per item (max 500 labels per c
   paper by `lib/receiptPage.ts` `wrapText`). Unset prints nothing; it was a hardcoded "Returns within 7 days
   with receipt." for every deployment until 2026-10-17. The invoice prints the same note in its footer.
 - Total cross-checked against sum-of-lines + tax + payments [NEEDS VERIFICATION].
+- The order's own disclaimers (GAP-07, sales-orders.md "Invoice tools") print between the payments and
+  the footer, wrapped by the same `wrapText` and counted into the canvas height before it is sized
+  (`drawDisclaimers`).
 
 `app/print/invoice/[id]/InvoicePrintView.tsx` (letter, `@page { size: letter; margin: 0.75in }`):
 
 - Full-page layout with header (the company brand), line table, totals, payment summary
+- **Pictures (GAP-07, 2026-11-03).** A picture column appears when any line has one:
+  `lib/sales/linePicture.ts` `linePictureUrl` takes the line's product's `imageUrl`, else the vendor
+  style's on the line, else the one on its product. A product's picture is uploaded on its page
+  (`POST`/`DELETE /api/products/[id]/picture`, `catalog.write`, the `IMAGE` upload preset, saved
+  under `data/uploads/images/products/`). Removing or replacing one deletes no file: an extracted line
+  drawing is its style's too, and a custom product configured from it copied its `imageUrl`
+  (`create-from-cart`, which copies the picture and not the style link, since editing a style
+  rewrites the name and retail of every product linked to it). A picture whose file is gone prints
+  nothing rather than a broken box.
+- **It prints once the pictures are in.** The page used to call `print()` 500ms after the order
+  loaded, which could print before the pictures arrived. It now waits for every image to load or
+  fail, for up to 3 seconds (`picturesLoaded`).
+- **Line notes** print under their line, and the order's **disclaimers** above the footer, each as it
+  read when it was added (sales-orders.md "Invoice tools").
 - Email-friendly: also rendered to PDF via the proposal-PDF infrastructure when sent rather than
   printed [NEEDS VERIFICATION]
 
@@ -102,6 +119,7 @@ Add a printer: store IP, ping-test from the admin UI, save. The ping test does a
 | Template rendering | `labelRender.test.ts`: each context's fields, ZPL escaping |
 | Batch endpoint caps | None |
 | Receipt total cross-check | None — should be a real-DB integration |
+| Print payload: line notes, pictures, disclaimers | `invoiceTools.integration.test.ts` (the route); the picture order in `invoiceToolsShared.test.ts` |
 
 ## Known gaps
 

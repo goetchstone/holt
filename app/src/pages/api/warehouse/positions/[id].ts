@@ -17,6 +17,7 @@ import { placeAt } from "@/lib/inventory/places";
 import { requiredMoveMode } from "@/lib/inventory/moveModes";
 import { MoveModeError } from "@/lib/inventory/transfers";
 import { toQty } from "@/lib/inventory/quantity";
+import { NotStockedError } from "@/lib/inventory/stocked";
 
 // Mutating inventory positions (quantity changes, moves, deletes) is a
 // warehouse task. Outside of warehouse / manager / admin, no role has a
@@ -134,6 +135,8 @@ export const handler = async (req: NextApiRequest, res: NextApiResponse, session
       // store, or groups places -- is the editor's to fix. handleError would
       // answer it as a plain 500.
       if (err instanceof PlaceError) return badRequest(res, err.message);
+      // Raising a product whose category keeps no stock (GAP-21).
+      if (err instanceof NotStockedError) return badRequest(res, err.message);
       return handleError(res, err, "PUT /warehouse/positions/[id]");
     }
   }

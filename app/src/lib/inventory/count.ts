@@ -12,6 +12,9 @@
 //   - A PLACE count also says what is not there: a product on the books there
 //     but not counted was counted absent. A PRODUCTS count (a quick count)
 //     speaks only for what it lists.
+//   - A product whose category keeps no stock (GAP-21, lib/inventory/stocked.ts)
+//     can be counted down, never up: refused when the count is submitted, and
+//     again when it is posted, since the books can change in between.
 //
 // Counting is `inventory.count`; posting, which changes the books, is
 // `inventory.adjust`.
@@ -22,6 +25,7 @@ import { roundQty, toQty, qtyIsZero } from "./quantity";
 import { LOCATION_TYPE_INFO, isStockLocationType } from "./locationTypes";
 import { resyncOrderAllocation } from "./orderInventorySync";
 import { clearBoxNote } from "./boxNotes";
+import { notStocked } from "./stocked";
 
 type Tx = Prisma.TransactionClient;
 
@@ -105,6 +109,16 @@ export async function bookAtPlace(tx: Tx, stockLocationId: number): Promise<Book
   return [...byProduct.values()];
 }
 
+/** Refuse a count that would add stock to a product whose category keeps none. */
+async function refuseUnstockedSurplus(tx: Tx, diffs: CountDifference[]): Promise<void> {
+  const refused = await notStocked(
+    tx,
+    diffs.filter((d) => d.addFree > 0).map((d) => d.productId),
+  );
+  const [why] = refused.values();
+  if (why) throw new CountError(`${why} A count can take it down, not add to it.`);
+}
+
 export async function submitCount(
   tx: Tx,
   args: {
@@ -143,6 +157,14 @@ export async function submitCount(
     m.boxes.push(...(l.boxes ?? []));
     merged.set(l.productId, m);
   }
+  await refuseUnstockedSurplus(
+    tx,
+    countDifference(
+      [...merged].map(([productId, m]) => ({ productId, counted: m.counted })),
+      await bookAtPlace(tx, args.stockLocationId),
+      args.scope,
+    ),
+  );
   return tx.stockCount.create({
     data: {
       storeLocationId: args.storeLocationId,
@@ -204,6 +226,7 @@ export async function postCount(
     await bookAtPlace(tx, count.stockLocationId),
     count.scope as StockCountScope,
   );
+  await refuseUnstockedSurplus(tx, diffs);
   const free: Place = {
     storeLocationId: count.storeLocationId,
     stockLocationId: count.stockLocationId,

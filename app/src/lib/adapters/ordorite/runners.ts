@@ -50,6 +50,8 @@ import { planAutoFulfill, type DraftPoForAutoFulfill } from "@/lib/buyerDraftAut
 import { planPoAutoLinks } from "@/lib/buyerDraftPoAutoLink";
 import { logger, logError } from "@/lib/logger";
 import { applyImportSync, planImportSync, type ImportStockRow } from "@/lib/inventory/importSync";
+import { findOrCreateInIndex, vendorNameIndex } from "@/lib/vendors/vendorByName";
+import { getConsignmentVendorIds } from "@/lib/consignmentVendor";
 
 const BATCH_SIZE = 50;
 
@@ -1320,21 +1322,13 @@ export interface PurchaseOrdersImportResult {
 
 type NameIdMap = Map<string, number>;
 
+/** Every vendor name and earlier name (a vendor merged away), lowercased. */
 async function buildVendorCache(): Promise<NameIdMap> {
-  const vendors = await prisma.vendor.findMany({ select: { id: true, name: true } });
-  const map: NameIdMap = new Map();
-  for (const v of vendors) map.set(v.name.toLowerCase(), v.id);
-  return map;
+  return vendorNameIndex(prisma);
 }
 
 async function findOrCreateVendor(name: string, cache: NameIdMap): Promise<number> {
-  const key = name.toLowerCase();
-  const existing = cache.get(key);
-  if (existing) return existing;
-
-  const vendor = await prisma.vendor.create({ data: { name, pricingModel: "FLAT" } });
-  cache.set(key, vendor.id);
-  return vendor.id;
+  return findOrCreateInIndex(prisma, cache, name, { pricingModel: "FLAT" });
 }
 
 export async function runPurchaseOrdersImport(
@@ -1343,18 +1337,10 @@ export async function runPurchaseOrdersImport(
 ): Promise<PurchaseOrdersImportResult> {
   // Loaded once per run: these loop over thousands of line items.
   const prefixRules = await getVendorPrefixRules();
-  // Names of the configured consignors, lower-cased, to match against the
-  // vendor label the source file carries. By flag, not by one company's
-  // spelling -- the source gives us a NAME, so we resolve the configured set
-  // once and compare against that.
-  const consignmentVendorNames = new Set(
-    (
-      await prisma.vendor.findMany({
-        where: { isConsignment: true },
-        select: { name: true },
-      })
-    ).map((v) => v.name.toLowerCase()),
-  );
+  // The configured consignors, by flag. Compared by id: the file's supplier
+  // name has already become a vendor id, and a merged-away name finds its
+  // vendor under another name (GAP-22).
+  const consignmentVendorIds = new Set(await getConsignmentVendorIds(prisma));
   const results: PurchaseOrdersImportResult = {
     purchaseOrdersCreated: 0,
     purchaseOrdersUpdated: 0,
@@ -1517,8 +1503,7 @@ export async function runPurchaseOrdersImport(
   // Create consignment payment batches for consignment POs that just became RECEIVED_FULL.
   // Matches PO line items to ConsignmentItems via customerNumber and marks them PAID.
   for (const { poId, poNumber, vendorId, orderDate } of newlyReceivedPOs) {
-    const vendorEntry = [...vendorCache.entries()].find(([, id]) => id === vendorId);
-    if (!vendorEntry || !consignmentVendorNames.has(vendorEntry[0].toLowerCase())) continue;
+    if (!consignmentVendorIds.has(vendorId)) continue;
 
     // Skip if a payment batch already exists for this PO
     const existingBatch = await prisma.consignmentPaymentBatch.findUnique({
@@ -1628,6 +1613,9 @@ export interface StockByItemImportResult {
   unmatchedRowsNotWritten: number;
   /** Places where the file says fewer than are already committed to orders. */
   shortOfCommitted: number;
+  /** Places the file would have added to an item whose category keeps no stock
+   *  (GAP-21). Left as they were. */
+  notStocked: number;
   /** Rows whose On Hand is not a number. Skipped, never written as stock. */
   skippedUnparseableQty: number;
   unmappedLocations: string[];
@@ -1704,11 +1692,7 @@ export async function runStockByItemImport(
   }
   const catchall = await ensureCatchallStockLocation();
 
-  const allVendors = await prisma.vendor.findMany({ select: { id: true, name: true } });
-  const vendorMap = new Map<string, number>();
-  for (const v of allVendors) {
-    vendorMap.set(v.name.toLowerCase(), v.id);
-  }
+  const vendorMap = await vendorNameIndex(prisma);
 
   const allDepts = await prisma.department.findMany({ select: { id: true, name: true } });
   const deptMap = new Map<string, number>();
@@ -1765,26 +1749,10 @@ export async function runStockByItemImport(
         const locationName = String(row.Stocklocation || row.stocklocation || "").trim();
         const barcode = String(row["Barcode No"] || row.barcodeNo || "").trim();
 
-        // Resolve or create vendor
-        let vendorId = supplierName ? vendorMap.get(supplierName.toLowerCase()) : undefined;
-        if (!vendorId && supplierName) {
-          const v = await tx.vendor.create({
-            data: { name: supplierName, pricingModel: "FLAT" },
-          });
-          vendorId = v.id;
-          vendorMap.set(supplierName.toLowerCase(), v.id);
-        }
-        if (!vendorId) {
-          let unknown = vendorMap.get("unknown");
-          if (!unknown) {
-            const v = await tx.vendor.create({
-              data: { name: "Unknown", pricingModel: "FLAT" },
-            });
-            unknown = v.id;
-            vendorMap.set("unknown", v.id);
-          }
-          vendorId = unknown;
-        }
+        // Resolve or create the vendor; a row with no supplier goes to "Unknown".
+        const vendorId = await findOrCreateInIndex(tx, vendorMap, supplierName || "Unknown", {
+          pricingModel: "FLAT",
+        });
 
         // Resolve or create department
         let departmentId = deptName ? deptMap.get(deptName.toLowerCase()) : undefined;
@@ -1932,6 +1900,7 @@ export async function runStockByItemImport(
     unmappedCount: unmappedArr.length,
     unmatchedRowsNotWritten,
     shortOfCommitted: sync.shortOfCommitted.length,
+    notStocked: sync.notStocked,
     buyerDraftsAutoLinked,
   });
 
@@ -1943,6 +1912,7 @@ export async function runStockByItemImport(
     negativeClampedToZero,
     unmatchedRowsNotWritten,
     shortOfCommitted: sync.shortOfCommitted.length,
+    notStocked: sync.notStocked,
     skippedUnparseableQty,
     unmappedLocations: unmappedArr,
     ...(buyerDraftsAutoLinked > 0 ? { buyerDraftsAutoLinked } : {}),
@@ -1959,6 +1929,7 @@ function buildStockByItemMessage(parts: {
   unmappedCount: number;
   unmatchedRowsNotWritten: number;
   shortOfCommitted: number;
+  notStocked: number;
   buyerDraftsAutoLinked: number;
 }): string {
   const segments: string[] = [
@@ -1977,6 +1948,11 @@ function buildStockByItemMessage(parts: {
   if (parts.shortOfCommitted > 0) {
     segments.push(
       `${parts.shortOfCommitted} places hold fewer than are committed to orders; commitments kept`,
+    );
+  }
+  if (parts.notStocked > 0) {
+    segments.push(
+      `${parts.notStocked} places not added to: their item's category doesn't track inventory`,
     );
   }
   if (parts.buyerDraftsAutoLinked > 0) {
@@ -2726,18 +2702,10 @@ export async function runReceivedItemsImport(
 ): Promise<ReceivedItemsImportResult> {
   // Loaded once per run: these loop over thousands of line items.
   const prefixRules = await getVendorPrefixRules();
-  // Names of the configured consignors, lower-cased, to match against the
-  // vendor label the source file carries. By flag, not by one company's
-  // spelling -- the source gives us a NAME, so we resolve the configured set
-  // once and compare against that.
-  const consignmentVendorNames = new Set(
-    (
-      await prisma.vendor.findMany({
-        where: { isConsignment: true },
-        select: { name: true },
-      })
-    ).map((v) => v.name.toLowerCase()),
-  );
+  // The configured consignors, by flag. Compared by id: the file's supplier
+  // name has already become a vendor id, and a merged-away name finds its
+  // vendor under another name (GAP-22).
+  const consignmentVendorIds = new Set(await getConsignmentVendorIds(prisma));
   const results: ReceivedItemsImportResult = {
     receivingRecordsCreated: 0,
     receivingRecordsSkipped: 0,
@@ -3010,8 +2978,7 @@ export async function runReceivedItemsImport(
 
   // Consignment PAID sync for newly-received consignment POs
   for (const [poId, { poNumber, vendorId, orderDate }] of newlyReceivedPOs) {
-    const vendorEntry = [...vendorCache.entries()].find(([, id]) => id === vendorId);
-    if (!vendorEntry || !consignmentVendorNames.has(vendorEntry[0].toLowerCase())) continue;
+    if (!consignmentVendorIds.has(vendorId)) continue;
 
     const existingBatch = await prisma.consignmentPaymentBatch.findUnique({
       where: { purchaseOrderId: poId },
@@ -3557,14 +3524,14 @@ interface ProductsImportTaxonomyCache {
 }
 
 async function loadProductsImportTaxonomy(): Promise<ProductsImportTaxonomyCache> {
-  const [vendors, departments, categories, types] = await Promise.all([
-    prisma.vendor.findMany({ select: { id: true, name: true } }),
+  const [vendorCache, departments, categories, types] = await Promise.all([
+    vendorNameIndex(prisma),
     prisma.department.findMany({ select: { id: true, name: true } }),
     prisma.category.findMany({ select: { id: true, name: true, departmentId: true } }),
     prisma.type.findMany({ select: { id: true, name: true, categoryId: true } }),
   ]);
   return {
-    vendorCache: new Map(vendors.map((v) => [v.name.toLowerCase(), v.id])),
+    vendorCache,
     departmentCache: new Map(departments.map((d) => [d.name.toLowerCase(), d.id])),
     categoryCache: new Map(
       categories.map((c) => [`${c.departmentId}:${c.name.toLowerCase()}`, c.id]),
@@ -3577,12 +3544,7 @@ async function ensureProductsImportVendor(
   name: string,
   cache: Map<string, number>,
 ): Promise<number> {
-  const key = name.toLowerCase();
-  const existing = cache.get(key);
-  if (existing) return existing;
-  const created = await prisma.vendor.create({ data: { name, pricingModel: "FLAT" } });
-  cache.set(key, created.id);
-  return created.id;
+  return findOrCreateInIndex(prisma, cache, name, { pricingModel: "FLAT" });
 }
 
 async function ensureProductsImportDepartment(

@@ -16,8 +16,10 @@ const JOBS = [
   },
   { href: "/app/scan/receive", title: "Receive", detail: "Goods in against a purchase order" },
   { href: "/app/scan/move", title: "Put away and move", detail: "From one place to another" },
+  { href: "/app/scan/transfer", title: "Transfer", detail: "Send to another store, or receive" },
   { href: "/app/scan/pick", title: "Pick and load", detail: "A delivery run's pull list" },
   { href: "/app/scan/count", title: "Count", detail: "Count everything in one place" },
+  { href: "/app/scan/order", title: "Order stock", detail: "Scan what to reorder" },
 ];
 
 export default async function ScanMenuPage() {

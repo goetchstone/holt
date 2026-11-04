@@ -6,6 +6,7 @@ import { parseHDProposal } from "@/lib/pricing/hdProposalParser";
 import { resolveTaxDistrict, rateForLineAmount } from "@/lib/tax/resolveTaxRate";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { findOrCreateVendorId } from "@/lib/vendors/vendorByName";
 export const config = { api: { bodyParser: { sizeLimit: "10mb" } } };
 
 function splitCustomerName(fullName: string): { firstName: string; lastName: string } {
@@ -60,11 +61,10 @@ export default requirePermission(
 
     try {
       const result = await prisma.$transaction(async (tx) => {
-        // Find or create Hunter Douglas vendor
-        const hdVendor = await tx.vendor.upsert({
-          where: { name: "Hunter Douglas" },
-          update: {},
-          create: { name: "Hunter Douglas", code: "HD", pricingModel: "FLAT" },
+        // Find or create Hunter Douglas vendor, by an earlier name too
+        // (a vendor merged away).
+        const hdVendorId = await findOrCreateVendorId(tx, "Hunter Douglas", {
+          data: { code: "HD", pricingModel: "FLAT" },
         });
 
         // Find or create Window Treatments department and Blinds & Shades category
@@ -84,14 +84,14 @@ export default requirePermission(
 
         // Find or create LABOR-HD product
         let laborProduct = await tx.product.findFirst({
-          where: { productNumber: "LABOR-HD", vendorId: hdVendor.id },
+          where: { productNumber: "LABOR-HD", vendorId: hdVendorId },
         });
         if (!laborProduct) {
           laborProduct = await tx.product.create({
             data: {
               productNumber: "LABOR-HD",
               name: "Installation - Hunter Douglas",
-              vendorId: hdVendor.id,
+              vendorId: hdVendorId,
               departmentId: dept.id,
               categoryId: cat.id,
               createdBy: userEmail,
@@ -101,14 +101,14 @@ export default requirePermission(
 
         // Find or create HD-FREIGHT product
         let freightProduct = await tx.product.findFirst({
-          where: { productNumber: "HD-FREIGHT", vendorId: hdVendor.id },
+          where: { productNumber: "HD-FREIGHT", vendorId: hdVendorId },
         });
         if (!freightProduct) {
           freightProduct = await tx.product.create({
             data: {
               productNumber: "HD-FREIGHT",
               name: "Freight - Hunter Douglas",
-              vendorId: hdVendor.id,
+              vendorId: hdVendorId,
               departmentId: dept.id,
               categoryId: cat.id,
               createdBy: userEmail,

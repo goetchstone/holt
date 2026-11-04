@@ -117,6 +117,14 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Change who is credited for a sale — moves commission.",
     sensitive: true,
   },
+  {
+    key: "sales.undo-handover",
+    domain: "sales",
+    label: "Undo a handover",
+    description:
+      "Reopen an order recorded as delivered, collected or taken by mistake — its stock comes back on the books.",
+    sensitive: true,
+  },
 
   {
     key: "sales.lead",
@@ -630,6 +638,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "sales.discount",
       "sales.cancel",
       "sales.reassign",
+      "sales.undo-handover",
       "sales.lead",
       "sales.return",
       "pos.operate",
@@ -787,6 +796,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "sales.discount",
       "sales.cancel",
       "sales.reassign",
+      "sales.undo-handover",
       "sales.lead",
       "sales.return",
       "pos.operate",

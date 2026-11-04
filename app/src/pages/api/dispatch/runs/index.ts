@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { ORDER_FLAGS_SELECT } from "@/lib/sales/orderFlags";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
@@ -29,6 +30,9 @@ const stopsInclude = {
               orderno: true,
               customer: { select: { firstName: true, lastName: true } },
               _count: { select: { lineItems: true } },
+              // The store's flags (GAP-07), as selected: the board sorts them
+              // with flagRefsOf (lib/sales/orderFlagsShared.ts).
+              flags: ORDER_FLAGS_SELECT,
             },
           },
           deliveryZone: { select: { name: true } },

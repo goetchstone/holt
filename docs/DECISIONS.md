@@ -732,9 +732,10 @@ business."
   `promoteQuoteToOrder`.
 - **The store sets the longest hold** (`AppSettings.quoteHoldMaxDays`, 0 to 365
   days; 0 = quotes hold nothing). It ships at 3, the strict end.
-- **What isn't stocked never commits.** A made-to-order one-off product
-  (`Product.madeToOrder`) or a category with `trackInventory` off has no stock,
-  so asking for some would only raise a false shortfall (GAP-21).
+- **What isn't stocked never commits.** A category with `trackInventory` off
+  has no stock, so asking for some would only raise a false shortfall (GAP-21).
+  A made-to-order one-off product was in this bullet too until 2026-11-02;
+  it is now an item like any other (DECISIONS 34).
 
 **Rejected:**
 
@@ -863,6 +864,324 @@ vendor; routing one through another vendor isn't built (ROADMAP GAP-22).
 **Enforced by:** `__tests__/integration/productSources.integration.test.ts`.
 
 **Source:** [`app/src/lib/purchasing/productSourcesShared.ts`](../app/src/lib/purchasing/productSourcesShared.ts)
+
+---
+
+## 32. A merged vendor's name stays behind; a clash refuses rather than guesses
+
+**Decided 2026-11-02 (GAP-22).** Not put to the owner as a question; the #79
+report described the plan (keep the old name for imports, refuse clashes,
+naming each) before this was built.
+
+Duplicate vendors come from imports that spell a vendor two ways, so merging
+two must keep the import from making the duplicate again.
+
+- **The merged vendor's name becomes an earlier name** (`VendorAlias`) of the
+  vendor kept. Every lookup of a vendor by name goes through one module,
+  `lib/vendors/vendorByName.ts`, which finds the kept vendor by it. A vendor's
+  own name wins over an earlier one, and the vendor screen won't add a vendor
+  under an earlier name.
+- **Everything filed under the merged vendor moves**, in one transaction, and
+  the vendor is deleted. `VENDOR_REFERENCES` lists every table that names a
+  vendor and what a merge does with it.
+- **It refuses rather than choose** when both vendors hold a record the
+  database keeps one of per vendor (a style number, a price list's name), when
+  an item would list a vendor twice, when only one takes consignment, and when
+  a commission rule names the merged vendor. Each refusal names what clashes.
+  Same-named collections fold together, since a collection is only a name.
+- **The kept vendor keeps its details and pricing**, and takes from the merged
+  one only details it lacks (contact, terms, lead time, minimum order, code);
+  the merged vendor's notes are added to its own.
+
+**Rejected:**
+
+- **Rewriting the import files' names or making every import "fuzzy".** A file
+  spells what the old system spelled. One lookup that knows the earlier names
+  covers every import.
+- **Choosing one of two clashing records** (keeping the kept vendor's style
+  1010 and dropping the other's). Each carries prices and history; dropping one
+  silently changes what an item costs.
+- **Moving or nulling a commission rule for the merged vendor.** Moving it
+  widens it to the kept vendor's items; nulling it (the foreign key's SET NULL)
+  widens it to every vendor. Either changes what someone earns without anyone
+  deciding to.
+- **An undo.** The merged vendor is gone. Forgetting an earlier name (vendor
+  screen, admin.data) is the way back for imports: the next one that spells it
+  makes a new vendor.
+
+**Cost accepted:** most clashes have no screen to renumber, rename or remove
+one of the pair yet (styles, price lists, price dimensions, fabrics, programs,
+components; option groups do, on the pricing options screen), so those merges
+stay refused until one exists (ROADMAP GAP-22).
+
+**Enforced by:** `__tests__/integration/vendorMerge.integration.test.ts`,
+`__tests__/vendorMergeCoverage.test.ts` (every table naming a vendor is listed),
+`__tests__/vendorNameLookups.test.ts` (no vendor found or made by name
+elsewhere).
+
+**Source:** [`app/src/lib/vendors/mergeVendor.ts`](../app/src/lib/vendors/mergeVendor.ts),
+[`app/src/lib/vendors/vendorByName.ts`](../app/src/lib/vendors/vendorByName.ts)
+
+---
+
+## 33. A scanned reorder files each vendor's lines on its open draft PO
+
+**Decided 2026-11-02 (GAP-19), by the owner.** Asked how POs should come out
+of a buyer scanning items to reorder, and what to do when the vendor already
+has a draft for the store, the owner chose "a draft per vendor" and "add to
+that draft".
+
+- **Scan anything, one PO per vendor.** Each scanned item goes to its own
+  vendor, or to another vendor it is bought from (DECISIONS 31) when the buyer
+  picks one on that line. Saving files each vendor's lines on its own PO,
+  because a PO has one vendor.
+- **The vendor's newest open draft for the store takes them.** An item already
+  on that draft adds to its line, which keeps its cost; anything else is a new
+  line at what the item costs from that vendor. A draft that was sent, has had
+  goods received against it, is a vendor return, or ships elsewhere is left
+  alone, and a new draft is made instead. A line raised for a customer's order,
+  or a cancelled (zero) line, is never added to.
+- **The buyer still sends it from the desk.** The handheld writes drafts only;
+  the PO screen reviews, prints and emails them as for any draft.
+
+**Rejected:**
+
+- **Choosing the vendor first, one scanning session per PO.** It refuses
+  every item the vendor doesn't sell, so a walk down a floor of mixed vendors
+  is several walks.
+- **A new draft every session.** A reorder list built over several walks
+  would be several drafts for one vendor, to be combined by hand.
+
+**Enforced by:** `__tests__/integration/scanOrder.integration.test.ts`.
+
+**Source:** [`app/src/lib/purchasing/scannedOrder.ts`](../app/src/lib/purchasing/scannedOrder.ts)
+
+---
+
+## 34. What isn't stocked is its category's call; a made-to-order item is an item
+
+**Decided 2026-11-02 (GAP-21), by the owner.** Asked what receiving does with an
+item whose category doesn't track inventory, and what happens when a category is
+switched off while it holds stock, the owner chose "record it, stock nothing"
+and "allow it, stock stays visible". On made-to-order pieces: "an item is an
+item no matter if it was speciall made to order or not"; a custom one is on a
+PO until it arrives, and if its order was cancelled "it is stock like anything
+else".
+
+- **Not stocked means one thing: a category with Track Inventory off.** Its
+  items never go on the books. The ledger refuses units arriving from outside
+  for one (`postMovement`, `NotStockedError`), so no path can add them.
+- **Receiving records it and stocks nothing.** The receipt counts toward the PO
+  line so the PO closes, and says so itself (`ReceivingRecord.intoStock`), so
+  taking it back takes nothing out whatever the category says later (rule 60).
+- **Switching a category off keeps the stock it has.** Counts, hand edits and
+  the import can take it down, never up; nothing removes it on its own.
+- **A made-to-order item is an item.** It allocates like any other: short on the
+  Oversold report until its PO arrives committed to the order, and a spare one
+  is stock a sale takes. `Product.madeToOrder` stays as a record of where the
+  product came from, read by nothing in stock.
+
+**Rejected:**
+
+- **Refusing to receive an item that isn't stocked.** The PO line could never
+  close without cancelling it or changing the item's category.
+- **Refusing to switch a category off while it holds stock.** Moving an item
+  with stock into such a category would have to be refused too, on every path
+  that sets a product's category, the product import among them.
+- **Made-to-order lines never drawing stock (2026-11-01 to 2026-11-02).** It
+  kept custom orders off the Oversold report, but a piece whose customer
+  cancelled after it arrived could never sell down: a sale of it took nothing,
+  and it sat on the books until counted out.
+
+**Enforced by:** `__tests__/integration/unstockedItems.integration.test.ts`,
+`inventoryOrderWiring.integration.test.ts` and `quoteHolds.integration.test.ts`.
+
+**Source:** [`app/src/lib/inventory/stocked.ts`](../app/src/lib/inventory/stocked.ts)
+
+---
+
+## 35. An order's disclaimer is a copy of the store's; its flags are the store's own
+
+**Decided 2026-11-03 (GAP-07), by the owner.** Offered the store's own flags and
+disclaimers, set up in Settings, as the recommended options, the owner answered
+"Yes configurations". No fixed set of either ships.
+
+- **A disclaimer on an order is a copy.** Adding one copies its text onto the
+  order (`SalesOrderDisclaimer.text`), as a service checklist is copied onto a
+  case (30). It is what the customer was given. Rewording the
+  store's disclaimer next month changes no order that has it; deleting it
+  leaves the text.
+- **It changes only before handover.** While the order is a quote or an order.
+  After that it is what the customer took the goods under.
+- **A flag is a live label.** Renaming or recolouring the store's flag changes it
+  on every order, because a flag says what the order needs now ("Call before
+  delivery"), not what was agreed. One that orders carry is switched off, never
+  deleted, so they keep it.
+
+**Rejected:**
+
+- **Disclaimers that follow the store's text live.** A disclaimer reworded after
+  a sale would reprint the customer's invoice with words they never saw.
+- **Typed per order.** The owner chose the store's list. A typed one-off can be
+  added later as its own disclaimer, if a store asks.
+- **A fixed set of flags.** Every store's words differ ("Balance due on
+  delivery", "White glove").
+
+**Enforced by:** `__tests__/integration/invoiceTools.integration.test.ts`.
+
+**Source:** [`app/src/lib/sales/orderDisclaimers.ts`](../app/src/lib/sales/orderDisclaimers.ts),
+[`app/src/lib/sales/orderFlags.ts`](../app/src/lib/sales/orderFlags.ts)
+
+---
+
+## 36. A copied order is the same goods at today's prices
+
+**Decided 2026-11-03 (GAP-07), by the owner** ("Today's prices", the recommended
+option). Duplicating an order makes a new quote.
+
+- **Today's prices.** A catalog item at its retail now. A custom or configured
+  item is its own product, made at the price it was sold at, so that is its
+  price.
+- **No discount comes across.** A copied discount would be one nobody approved
+  under the store's discount policy (GAP-06, pos.md "Discounts and manager
+  approval"). Staff give it again, and the policy decides.
+- **The goods and who they are for, nothing that happened.** Lines, options,
+  notes, the customer, the store and the delivery come across. Payments, holds,
+  flags, disclaimers, order notes and history don't. A "Sold as-is" disclaimer
+  or a "Balance due" flag belongs to the sale it was put on.
+- **Priced by the register's own functions.** A copy is the same cart rung up
+  today, to the cent, tax and the zone's delivery fee included.
+
+**Rejected:**
+
+- **Prices as written.** It would carry each line's discount past the policy.
+- **Copying flags and disclaimers.** They describe the original sale, not the
+  goods.
+
+**Enforced by:** `__tests__/integration/invoiceTools.integration.test.ts`
+("duplicating an order").
+
+**Source:** [`app/src/lib/sales/duplicateOrder.ts`](../app/src/lib/sales/duplicateOrder.ts)
+
+---
+
+## 37. A split sale records its shares; splitting it is a reassignment
+
+**Decided 2026-11-03 (GAP-07).** "Choosing the split share at the POS", built on
+the owner's standing rules: how a store runs this is configuration, and policy
+ships at its strictest (memory, 2026-10-29 and 2026-10-30).
+
+- **The order records the share.** `SalesOrder.splitPercent` is the salesperson's
+  share of a split sale, 1-99; the partner gets the rest. It is written when the
+  split is made, from the store's `AppSettings.defaultSplitPercent` (50 to
+  start) unless staff choose another. A change to the default moves no sale
+  already split, so a payout locked last month and recomputed today agree
+  (rule 60's reasoning: route by what was recorded, not by what is configured
+  now).
+- **One rule credits it.** `creditShare` in `lib/commissionSplit.ts`; nothing
+  else in the code knows what a split is worth.
+- **Splitting is a reassignment.** It moves commission, so at the register and
+  on a quote it takes "Reassign salesperson", the permission that already
+  governed changing it on the order. Managers hold it by default; a store grants
+  it to other roles.
+
+**Rejected:**
+
+- **Reading the store's default live for every split order.** Changing the
+  setting would rewrite every past split's credit, under payouts already locked.
+- **A nullable share meaning "the default".** Two meanings for one column; the
+  column defaults to 50 instead, which is what every split before it was.
+- **Anyone at the register may split.** A split moves commission between two
+  people; the strict default is the reassign permission, and the store can widen
+  it.
+- **Both partners credited 100%.** Some businesses do it, but it is a different
+  rule (credit is not shared), not a share. Not asked for.
+
+**Enforced by:** `__tests__/integration/splitShare.integration.test.ts`, and the
+`SalesOrder_splitPercent_range` / `AppSettings_defaultSplitPercent_range` CHECKs.
+
+**Source:** [`app/src/lib/commissionSplit.ts`](../app/src/lib/commissionSplit.ts)
+
+---
+
+## 38. A handover recorded by mistake is undone by reversing its own record
+
+**Decided 2026-11-03 (GAP-07).** Offered "a permission, managers by default,
+refused once commission on the order is paid out" as the recommended option,
+the owner answered "Yes configurations", read as yes to it. The order reopens,
+its units come back where they left from, still committed to it, and the
+delivery goes back to the dispatch pool.
+
+- **A handover records what it changes.** `OrderHandover`: the dispatch status
+  and each open line's fulfilled quantity before it, and its stop. Every unit
+  it moves points back at it (`StockMovement.orderHandoverId`). The undo
+  reverses exactly that, and the record keeps who undid it and why.
+- **Only the latest handover.** A part delivery before it was its own stop,
+  confirmed as it happened.
+- **A truck's units go to a loading bay.** A finished run's truck places leave
+  service, so a unit that left from one comes back where an unloaded truck
+  puts it.
+- **The status buttons can't reopen a handed-over order.** Only the undo can,
+  so the stock always comes back with it.
+
+**Rejected:**
+
+- **Reopening by status.** That is what the buttons did. It left the goods
+  off the books while the order read as open.
+- **Reversing every delivery on the order.** It would bring back units a
+  correct part delivery left with the customer.
+- **Finding the handover's movements by time or reason.** Part deliveries move
+  the same products with the same reason. A recorded link can't be mistaken.
+- **Undoing handovers recorded before the record existed.** There is nothing
+  to say what they moved. They are refused, and a count corrects the stock.
+
+**Enforced by:** `__tests__/integration/undoHandover.integration.test.ts`.
+
+**Source:** [`app/src/lib/fulfilment/undoHandover.ts`](../app/src/lib/fulfilment/undoHandover.ts)
+
+---
+
+## 39. Customer messages are the store's to switch on and word; Holt only decides when they're due
+
+**Decided 2026-11-03 (GAP-13).** Offered the recommended options (each message
+on or off with its own wording, the order link in every message, one opt-out
+for all of them, the review invitation a store-set number of days after
+handover), the owner chose all four, then added "All configurations": every
+choice about how a message behaves belongs to the store.
+
+- **Every message starts off.** A store switches on the ones it wants, and
+  only events after that send. Turning a feature on must not mail every
+  customer about last month.
+- **The kinds are code; the store's row only configures them** (rule 62). The
+  event, its timing rule and its placeholders are fixed per kind. Wording is
+  plain text with placeholders the kind can fill, checked when it's saved.
+- **Each event is recorded once, sent or not.** The row is the dedupe and the
+  history. A skipped message says why, and is not retried when the customer
+  adds an email later.
+- **A late message isn't sent at all.** A reminder goes on its day or not, and
+  nothing goes more than a week late. Old news by email is worse than none.
+- **Its own settings, not the service desk's Email Templates.** Those are a
+  library staff pick from by hand on a service case. These are tied to an event
+  and carry timing, so they don't fit the same table.
+
+**Rejected:**
+
+- **A hook in each write path** (receiving, dispatch, handover) that queues
+  the email. Each path would need the same opt-out, dedupe and on/off checks
+  (rule 42), and the timed messages (the reminder, the review invitation) have
+  no write to hook at all. One scan of recorded facts covers every path,
+  including ones not written yet.
+- **On by default with the suggested wording.** It would mail a deployment's
+  customers the moment it upgrades, in words nobody there chose.
+- **A store-written template language.** Conditionals in a stored string are
+  logic in config (rule 62).
+
+**Enforced by:** `__tests__/integration/customerMessages.integration.test.ts`,
+`__tests__/lib/messages/customerMessages.test.ts`, and the unique
+`CustomerMessage.dedupeKey`.
+
+**Source:** [`app/src/lib/messages/due.ts`](../app/src/lib/messages/due.ts),
+[`docs/domains/email.md`](domains/email.md)
 
 ---
 

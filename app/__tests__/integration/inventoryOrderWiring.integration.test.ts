@@ -218,12 +218,12 @@ describe("inventory order wiring (real DB)", () => {
     expect(exceptions[0].resolvedAt).toBeNull();
   });
 
-  it("a made-to-order line does NOT raise an exception", async () => {
-    // CONFIGURED and CUSTOM lines mint a brand-new Product during the sale, so
-    // they have no InventoryPosition by construction. Allocating them would
-    // post a full-shortfall exception on every made-to-order sale -- for a
-    // furniture retailer, a large share of them. A queue full of the normal
-    // case is a queue nobody reads.
+  it("a made-to-order line is an item like any other: short until its piece arrives", async () => {
+    // A CONFIGURED or CUSTOM line mints its own product, so there is none in
+    // stock when it sells, and it reads as oversold until its PO is received
+    // for the order -- the same as a catalog item sold before it arrives
+    // (owner, 2026-11-02: "an item is an item no matter if it was speciall
+    // made to order or not").
     const { store } = await seed();
 
     const res = await sellViaCart(store.name, [
@@ -233,11 +233,14 @@ describe("inventory order wiring (real DB)", () => {
     expect(res.statusCode).toBe(201);
     const orderId = (res.body as { id: number }).id;
 
-    expect(await prisma.inventoryException.count({ where: { salesOrderId: orderId } })).toBe(0);
-    expect(await prisma.inventoryPosition.count({ where: { salesOrderId: orderId } })).toBe(0);
+    const exceptions = await prisma.inventoryException.findMany({
+      where: { salesOrderId: orderId },
+    });
+    expect(exceptions).toHaveLength(1);
+    expect(quantities(exceptions[0])).toEqual({ requested: 1, allocated: 0, shortfall: 1 });
   });
 
-  it("a stocked line on the SAME order still allocates and still reports", async () => {
+  it("a line whose category keeps no stock never reports; a stocked line beside it does", async () => {
     // The filter must be per-line, not per-order -- a mixed cart is ordinary.
     const { store, floor, product } = await seed();
     await stockAt({
@@ -246,10 +249,22 @@ describe("inventory order wiring (real DB)", () => {
       stockLocationId: floor.id,
       quantity: 1,
     });
+    const services = await prisma.category.create({
+      data: { name: "Services", departmentId: product.departmentId, trackInventory: false },
+    });
+    const assembly = await prisma.product.create({
+      data: {
+        productNumber: "ASSEMBLY",
+        name: "Assembly",
+        vendorId: product.vendorId,
+        departmentId: product.departmentId,
+        categoryId: services.id,
+      },
+    });
 
     const res = await sellViaCart(store.name, [
       { productId: product.id, quantity: 2, unitPrice: 100 },
-      { type: "CUSTOM", name: "Bespoke Ottoman", quantity: 1, unitPrice: 900 },
+      { productId: assembly.id, quantity: 1, unitPrice: 90 },
     ]);
 
     expect(res.statusCode).toBe(201);

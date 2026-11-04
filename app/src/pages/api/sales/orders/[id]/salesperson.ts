@@ -6,6 +6,8 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { success, badRequest, notFound, methodNotAllowed, handleError } from "@/lib/apiResponse";
 import { assertReassignAllowed, AttributionLockedError } from "@/lib/payPeriodLockGuard";
+import { getAppSettings } from "@/lib/appSettings";
+import { nextSplitPercent, splitLabel, splitPercentProblem } from "@/lib/commissionSplit";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "PUT") return methodNotAllowed(res, ["PUT"]);
@@ -13,7 +15,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   const orderId = Number.parseInt(req.query.id as string);
   if (Number.isNaN(orderId)) return badRequest(res, "Invalid order ID");
 
-  const { salesPersonId, splitWithId } = req.body;
+  const { salesPersonId, splitWithId, splitPercent } = req.body;
 
   if (salesPersonId === undefined) {
     return badRequest(res, "salesPersonId is required");
@@ -29,6 +31,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
   if (salesPersonId !== null && splitWithId === salesPersonId) {
     return badRequest(res, "Split salesperson must be different from primary salesperson");
+  }
+
+  // The salesperson's share of a split sale (GAP-07, lib/commissionSplit.ts).
+  // Absent keeps the share the sale has, or gives a new split the store's.
+  if (splitPercent !== undefined) {
+    const problem = splitPercentProblem(splitPercent);
+    if (problem) return badRequest(res, problem);
   }
 
   try {
@@ -66,6 +75,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       if (!splitStaff.isActive) return badRequest(res, "Split salesperson is not active");
     }
 
+    const resolvedPercent = nextSplitPercent({
+      current: order,
+      splitWithId: splitWithId ?? null,
+      chosen: splitPercent as number | undefined,
+      storeDefault: (await getAppSettings()).defaultSplitPercent,
+    });
+
     const updated = await prisma.$transaction(async (tx) => {
       // Look up the new primary salesperson name for the legacy string field
       let salespersonName = order.salesperson;
@@ -82,6 +98,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
           salesPersonId,
           salesperson: salespersonName,
           splitWithId: resolvedSplitWithId,
+          splitPercent: resolvedPercent,
           updatedBy: session.user!.email,
         },
         include: {
@@ -102,6 +119,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         const newSplit = result.splitWith?.displayName || "none";
         changes.push(`split: ${oldSplit} -> ${newSplit}`);
       }
+      const shareChanged =
+        resolvedSplitWithId !== null &&
+        order.splitWithId !== null &&
+        order.splitPercent !== resolvedPercent;
+      if (shareChanged) {
+        changes.push(`share: ${splitLabel(order.splitPercent)} -> ${splitLabel(resolvedPercent)}`);
+      }
 
       if (changes.length > 0) {
         await tx.orderChangeLog.create({
@@ -110,13 +134,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
             changeType: "SALESPERSON_CHANGE",
             previousValue: [
               order.salesperson || "none",
-              order.splitWithId ? `split #${order.splitWithId}` : null,
+              order.splitWithId
+                ? `split ${splitLabel(order.splitPercent)} with #${order.splitWithId}`
+                : null,
             ]
               .filter(Boolean)
               .join(", "),
             newValue: [
               salespersonName || "none",
-              resolvedSplitWithId ? `split with ${result.splitWith?.displayName}` : null,
+              resolvedSplitWithId
+                ? `split ${splitLabel(resolvedPercent)} with ${result.splitWith?.displayName}`
+                : null,
             ]
               .filter(Boolean)
               .join(", "),
@@ -134,6 +162,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       salesPerson: updated.salesPerson,
       splitWithId: updated.splitWithId,
       splitWith: updated.splitWith,
+      splitPercent: updated.splitPercent,
       salesperson: updated.salesperson,
     });
   } catch (err) {

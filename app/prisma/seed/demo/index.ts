@@ -61,7 +61,9 @@ async function main(): Promise<void> {
   const { seedInventory } = await import("./inventory");
   const { seedService } = await import("./service");
   const { seedServiceChecklists } = await import("./serviceChecklists");
-  const { seedProductSources } = await import("./productSources");
+  const { seedOrderTools } = await import("./orderTools");
+  const { seedProductSources, SUPPLIER_NAME } = await import("./productSources");
+  const { seedVendorMerge } = await import("./vendorMerge");
   const { seedOperations } = await import("./operations");
   const { seedDelivery } = await import("./delivery");
   const { seedScheduling } = await import("./scheduling");
@@ -220,6 +222,8 @@ async function main(): Promise<void> {
     volume.serviceCaseCount,
   );
   const checklistResult = await seedServiceChecklists(prisma);
+  // After salesOrders: flags, disclaimers and line notes on its open orders.
+  const orderToolsResult = await seedOrderTools(prisma);
 
   const operationsResult = await seedOperations(
     prisma,
@@ -284,6 +288,7 @@ async function main(): Promise<void> {
   });
   // Last, and with no RNG draws, so nothing above shifts.
   const sourcesResult = await seedProductSources(prisma, catalog.vendorIds, catalog.products);
+  const mergeResult = await seedVendorMerge(prisma, SUPPLIER_NAME);
 
   console.log(
     `Inventory: ${inventoryResult.positionsCreated} positions, ${inventoryResult.unitsOnHand} units on hand ` +
@@ -295,6 +300,10 @@ async function main(): Promise<void> {
       `${serviceResult.notesCreated} notes, ${serviceResult.tasksCreated} tasks, ` +
       `${serviceResult.emailsCreated} emails, ${serviceResult.typesCreated} case types, ` +
       `${checklistResult.checklistsCreated} checklists (on ${checklistResult.casesGivenOne} cases)`,
+  );
+  console.log(
+    `Order tools: ${orderToolsResult.flags} flags (on ${orderToolsResult.flagged} orders), ` +
+      `${orderToolsResult.disclaimers} disclaimers given, ${orderToolsResult.notes} line notes`,
   );
   console.log(
     `Helpdesk: ${operationsResult.ticketsCreated} tickets (${operationsResult.openTickets} open), ` +
@@ -319,6 +328,9 @@ async function main(): Promise<void> {
   );
   console.log(
     `Other vendors: ${sourcesResult.sources} items also bought from ${sourcesResult.vendors} other vendors`,
+  );
+  console.log(
+    `Vendor merge: "${mergeResult.merged}" merged into ${mergeResult.into} (${mergeResult.moved} ${mergeResult.moved === 1 ? "record" : "records"} moved)`,
   );
   console.log(`Orders: ${salesResult.ordersCreated}, Invoices: ${salesResult.invoicesCreated}`);
   console.log(

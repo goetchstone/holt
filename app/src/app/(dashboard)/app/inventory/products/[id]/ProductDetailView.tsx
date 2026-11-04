@@ -15,6 +15,7 @@ import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import ProductEditModal from "@/components/modals/ProductEditModal";
 import { OtherVendorsSection } from "./OtherVendorsSection";
+import { ProductPictureSection } from "./ProductPictureSection";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 
 interface ProductDetails {
@@ -244,6 +245,14 @@ export function ProductDetailView({ id, canEdit }: { id: string; canEdit: boolea
           </div>
         </div>
       )}
+
+      <ProductPictureSection
+        productId={product.id}
+        name={product.name}
+        imageUrl={product.imageUrl}
+        canEdit={canEdit}
+        onChanged={fetchProduct}
+      />
 
       <OtherVendorsSection
         productId={product.id}

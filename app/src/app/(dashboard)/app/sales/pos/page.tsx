@@ -8,9 +8,15 @@
 // all stay REST.
 
 import { requirePage } from "@/lib/auth/requirePage";
+import { splitSaleSetup } from "@/lib/sales/splitSaleSetup";
 import { PosView } from "./PosView";
 
 export default async function PosPage() {
-  await requirePage(undefined, { permission: "pos.operate", feature: "pos" });
-  return <PosView />;
+  // Splitting a sale moves commission: offered to "Reassign salesperson" (GAP-07).
+  const { userId, holds } = await requirePage(undefined, {
+    permission: "pos.operate",
+    feature: "pos",
+    also: ["sales.reassign"],
+  });
+  return <PosView splitSetup={await splitSaleSetup(userId, holds["sales.reassign"])} />;
 }

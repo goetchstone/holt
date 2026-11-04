@@ -450,8 +450,10 @@ export async function consume(
   lines: ConsumptionLine[],
   db: PrismaTx,
   takeFirst: Prisma.InventoryPositionWhereInput[] = [],
+  /** The handover these units leave with, so it can be undone (GAP-07). */
+  orderHandoverId: number | null = null,
 ): Promise<void> {
-  return withStockTx(db, (tx) => consumeIn(orderId, lines, tx, takeFirst));
+  return withStockTx(db, (tx) => consumeIn(orderId, lines, tx, takeFirst, orderHandoverId));
 }
 
 async function consumeIn(
@@ -459,6 +461,7 @@ async function consumeIn(
   lines: ConsumptionLine[],
   tx: PrismaTx,
   takeFirst: Prisma.InventoryPositionWhereInput[],
+  orderHandoverId: number | null,
 ): Promise<void> {
   const active = lines.filter((line) => line.quantity > 0);
   await lockProducts(
@@ -482,6 +485,7 @@ async function consumeIn(
           from: leg.place,
           reason: "DELIVER",
           source: { type: "SalesOrder", id: orderId },
+          orderHandoverId,
         });
       }
       left = shortfall;

@@ -16,6 +16,31 @@ datasource db {
 // CORE CATALOG & PRODUCT STRUCTURE
 // ---------------------------------------------------------------------------
 
+/// A name a vendor went by before it was merged into another (GAP-22,
+/// lib/vendors/mergeVendor.ts). Every lookup of a vendor by name
+/// (lib/vendors/vendorByName.ts) finds the vendor through these, so the next
+/// import that spells the old name doesn't bring the duplicate back.
+///
+/// A vendor's own name wins over an alias. Nothing creates a vendor under a
+/// name listed here: imports find the alias first, and the vendor screen
+/// refuses it.
+model VendorAlias {
+  id       Int    @id @default(autoincrement())
+  /// The merged vendor's name, exactly as it was.
+  name     String @unique
+  vendorId Int
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  /// The id the merged vendor had, for tracing old logs and exports. Not a
+  /// foreign key: that vendor is gone.
+  mergedVendorId Int
+
+  created   DateTime @default(now())
+  createdBy String?
+
+  @@index([vendorId])
+}
+
 /// How a vendor's numbers look, so a product or part number can be traced back
 /// to the vendor that issued it.
 ///
@@ -117,6 +142,8 @@ model Vendor {
   serviceCases    ServiceCase[]
   /// Items this vendor sells us besides its own (GAP-22).
   productSources  ProductSource[]
+  /// Names this vendor was known by before others were merged into it (GAP-22).
+  aliases         VendorAlias[]
 
   allowTradeDiscount Boolean @default(true)
 
@@ -357,9 +384,9 @@ model Product {
   isDiscontinued Boolean @default(false)
   season         String?
   /// Made for one sale: the one-off product a configured or custom cart line
-  /// mints (create-from-cart). Never stock on hand, so a sale never draws free
-  /// stock for it (GAP-21); its units arrive committed to their order when
-  /// its PO is received.
+  /// mints (create-from-cart). A record of where it came from only: in stock it
+  /// is an item like any other (owner, 2026-11-02), on order until its PO
+  /// arrives committed to the order, and free stock if that order is gone.
   madeToOrder    Boolean @default(false)
 
   // Grade-based products: how many yards/sq ft of material are needed
@@ -1173,6 +1200,11 @@ model Customer {
   referredBy           Customer?       @relation("CustomerReferral", fields: [referredByCustomerId], references: [id], onDelete: SetNull)
   referrals            Customer[]      @relation("CustomerReferral")
 
+  /// The customer asked for no automatic messages (GAP-13): none of the store's
+  /// customer messages go to them. Staff can still write to them by hand.
+  autoMessagesOptOut Boolean           @default(false)
+  customerMessages   CustomerMessage[]
+
   addresses         CustomerAddress[]
   externalIds       CustomerExternalId[]
   salesOrders       SalesOrder[]
@@ -1207,6 +1239,134 @@ model Customer {
 /// How a customer heard of the store (GAP-08). The store sets up its own list in
 /// Settings > Referral sources: no fixed set ships. A source customers use is
 /// deactivated, never deleted, so their record keeps it.
+/// GAP-07: a flag the store puts on orders -- "Call before delivery",
+/// "Fragile", "VIP". The store's own list, set up in Settings > Order flags
+/// (lib/sales/orderFlags.ts); no fixed set ships. A flag orders carry is
+/// switched off, never deleted, so they keep it.
+model OrderFlag {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  /// One of ORDER_FLAG_COLORS (lib/sales/orderFlagsShared.ts).
+  color       String           @default("gray")
+  /// Warn whoever opens an order that carries it.
+  alertOnOpen Boolean          @default(false)
+  isActive    Boolean          @default(true)
+  sortOrder   Int              @default(0)
+  orders      SalesOrderFlag[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+/// A flag on an order (GAP-07).
+model SalesOrderFlag {
+  salesOrderId Int
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  orderFlagId  Int
+  orderFlag    OrderFlag  @relation(fields: [orderFlagId], references: [id])
+  created      DateTime   @default(now())
+  createdBy    String?
+
+  @@id([salesOrderId, orderFlagId])
+  @@index([orderFlagId])
+}
+
+/// GAP-07: a disclaimer the store prints on an order -- "Sold as-is",
+/// "Special order: no cancellations". The store's own list, set up in
+/// Settings > Disclaimers (lib/sales/orderDisclaimers.ts). Adding one to an
+/// order copies its text (SalesOrderDisclaimer), so editing or deleting it here
+/// changes no order that already has it.
+model OrderDisclaimer {
+  id        Int                    @id @default(autoincrement())
+  /// What staff pick it by; only its text prints.
+  name      String                 @unique
+  text      String
+  isActive  Boolean                @default(true)
+  sortOrder Int                    @default(0)
+  orders    SalesOrderDisclaimer[]
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
+/// A disclaimer on an order, its text as it read when it was added (GAP-07).
+/// Printed on the invoice and receipt, above the store-wide receiptFooter.
+model SalesOrderDisclaimer {
+  id                Int              @id @default(autoincrement())
+  salesOrderId      Int
+  salesOrder        SalesOrder       @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  /// The store's disclaimer it was copied from, only so an order isn't given
+  /// the same one twice. Deleting that disclaimer clears this; the text stays.
+  orderDisclaimerId Int?
+  orderDisclaimer   OrderDisclaimer? @relation(fields: [orderDisclaimerId], references: [id], onDelete: SetNull)
+  text              String
+  created           DateTime         @default(now())
+  createdBy         String?
+
+  /// A backstop against the same disclaimer twice. A cleared link (NULL) is
+  /// distinct from every other, which is right: never upsert through it (rule 64).
+  @@unique([salesOrderId, orderDisclaimerId])
+  @@index([orderDisclaimerId])
+}
+
+/// GAP-13: one of the automatic customer messages (lib/messages/catalog.ts),
+/// as the store has set it up in Settings > Customer messages. Every choice is
+/// the store's: whether it goes at all (off until switched on), what it says,
+/// whether it carries a link to the customer's order, and when it goes.
+model CustomerMessageSetting {
+  /// One of MESSAGE_KINDS. The kind decides what event sends it; this row only
+  /// configures it (rule 62).
+  kind             String    @id
+  isActive         Boolean   @default(false)
+  /// When it was last switched on. Only events after it send, so switching a
+  /// message on sends nothing about what had already happened.
+  activeSince      DateTime?
+  subject          String
+  /// Plain text with {placeholders} (lib/messages/render.ts); blank lines
+  /// separate paragraphs.
+  body             String
+  includeOrderLink Boolean   @default(true)
+  /// Days before the delivery (the reminder) or after the handover (the
+  /// review invitation); null for a kind that goes at once.
+  offsetDays       Int?
+  /// The hour of the store's day it goes out, 0-23; null for a kind that goes
+  /// at once.
+  sendHour         Int?
+  /// The page the review invitation sends the customer to.
+  linkUrl          String?
+
+  updated   DateTime? @updatedAt
+  updatedBy String?
+}
+
+/// GAP-13: an automatic message about an order -- sent (queued as an email) or
+/// deliberately not sent, with why. One per event (dedupeKey), so the scan
+/// that finds what is due (lib/messages/due.ts) never sends anything twice.
+model CustomerMessage {
+  id                 Int        @id @default(autoincrement())
+  kind               String
+  dedupeKey          String     @unique
+  salesOrderId       Int
+  salesOrder         SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  customerId         Int?
+  customer           Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  /// QUEUED (handed to the email queue) or SKIPPED (see skipReason).
+  status             String
+  skipReason         String?
+  toAddress          String?
+  emailQueueId       Int?
+  /// The received lines an arrival message announced, so each is announced once.
+  receivingRecordIds Int[]      @default([])
+  created            DateTime   @default(now())
+
+  @@index([salesOrderId])
+  @@index([kind, created])
+}
+
 model ReferralSource {
   id        Int        @id @default(autoincrement())
   name      String     @unique
@@ -1833,15 +1993,20 @@ model StockMovement {
   sourceType String?
   sourceId   Int?
 
-  actor      String?
-  note       String?
-  occurredAt DateTime @default(now())
+  actor           String?
+  note            String?
+  occurredAt      DateTime       @default(now())
   /// The handheld action that made this move (StockAction.key), when one did.
-  actionKey  String?
+  actionKey       String?
+  /// The handover these units left with (GAP-07, lib/fulfilment/handover.ts),
+  /// so undoing that handover puts exactly these units back.
+  orderHandoverId Int?
+  orderHandover   OrderHandover? @relation(fields: [orderHandoverId], references: [id], onDelete: SetNull)
 
   @@index([productId, occurredAt])
   @@index([sourceType, sourceId])
   @@index([actionKey])
+  @@index([orderHandoverId])
 }
 
 /// A note about boxes, never a quantity (lib/inventory/boxes.ts). INCOMPLETE:
@@ -1917,6 +2082,39 @@ model StockCountLine {
 /// (lib/inventory/withAction.ts). A scanner on bad Wi-Fi retries; the key is
 /// the device's, chosen per action, and a retry gets the first answer back
 /// instead of moving the stock again.
+/// GAP-07: one handover -- the goods reaching the customer
+/// (lib/fulfilment/handover.ts markHandedOver) -- as it was recorded, so that
+/// one recorded by mistake can be undone exactly (lib/fulfilment/undoHandover.ts).
+/// It keeps what the handover changed: the order's statuses and each line's
+/// fulfilled quantity before it, and the stop it came from. Its stock movements
+/// point back at it (StockMovement.orderHandoverId).
+model OrderHandover {
+  id                     Int             @id @default(autoincrement())
+  salesOrderId           Int
+  salesOrder             SalesOrder      @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  /// DELIVERY, PICKUP or TAKEN (handover.ts HandoverMethod).
+  method                 String
+  /// The moment recorded as SalesOrder.deliveredAt.
+  at                     DateTime
+  /// The run and stop it was completed from, when it was a delivery stop.
+  deliveryRunId          Int?
+  deliveryStopId         Int?
+  /// The dispatch status before, which an undo puts back; the order itself
+  /// reopens as an ORDER.
+  previousDispatchStatus DispatchStatus?
+  /// Each open line's fulfilledQty before: [{ "lineItemId": n, "fulfilledQty": q }].
+  linesBefore            Json
+  actor                  String?
+  created                DateTime        @default(now())
+  /// Set when it was undone; the record stays as the history of both.
+  undoneAt               DateTime?
+  undoneBy               String?
+  undoReason             String?
+  movements              StockMovement[]
+
+  @@index([salesOrderId])
+}
+
 model StockAction {
   key     String   @id
   kind    String
@@ -2201,6 +2399,10 @@ model ReceivingRecord {
   /// receipt written before landed cost.
   landedUnitCost Decimal?
   invoiceNumber  String?
+  /// False when the product's category keeps no stock (GAP-21): the receipt
+  /// counts toward its PO line and put nothing on the books, so taking it back
+  /// takes nothing out (rule 60: the recorded fact, not the category now).
+  intoStock      Boolean  @default(true)
 
   purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id])
   purchaseOrder     PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id])
@@ -2888,6 +3090,13 @@ model SalesOrder {
   salesPerson     StaffMember?   @relation("OrderSalesPerson", fields: [salesPersonId], references: [id])
   splitWithId     Int?
   splitWith       StaffMember?   @relation("SplitSales", fields: [splitWithId], references: [id])
+  /// A split sale's share credited to its salesperson, in whole percent (1-99);
+  /// the split partner is credited the rest (lib/commissionSplit.ts, GAP-07).
+  /// Read only while splitWithId is set. Written with the split, from the
+  /// store's AppSettings.defaultSplitPercent unless staff choose another, so a
+  /// change to that default moves no sale already split. Split orders before
+  /// this column were all 50/50, which is what the default gave them.
+  splitPercent    Int            @default(50)
   storeLocation   String?
   storeLocationId Int?
   store           StoreLocation? @relation("OrderStore", fields: [storeLocationId], references: [id])
@@ -2953,6 +3162,14 @@ model SalesOrder {
   leads               Lead[]
   linkedTasks         ServiceTask[]               @relation("TaskLinkedOrder")
   proposal            Proposal?
+  /// Each time the goods reached the customer, as recorded (GAP-07).
+  handovers           OrderHandover[]
+  /// The automatic messages sent, or not sent, about it (GAP-13).
+  customerMessages    CustomerMessage[]
+  /// The store's flags on this order (GAP-07, lib/sales/orderFlags.ts).
+  flags               SalesOrderFlag[]
+  /// Disclaimers printed on this order, each copied as it read (GAP-07).
+  disclaimers         SalesOrderDisclaimer[]
 
   // Pipeline archiving — set when a quote is marked lost/closed; clearable to restore
   pipelineArchivedAt DateTime?
@@ -3017,6 +3234,11 @@ model OrderLineItem {
   /// on sale. Never later than AppSettings.quoteHoldMaxDays from the day it was
   /// set. Read only while the order is a quote: an order commits every line.
   holdUntil DateTime? @db.Date
+
+  /// Staff's note on this line -- "legs in walnut", "customer to confirm fabric"
+  /// (GAP-07). Printed under the line on the invoice and found by the orders
+  /// search (lib/sales/lineNotesShared.ts).
+  notes String?
 
   // For configurable products: what was selected at time of sale
   selectedGrade   String?
@@ -5548,6 +5770,12 @@ model AppSettings {
   // long a store holds a piece is its own call; the default, 3, is the strict
   // end. A CHECK keeps it within 0-365.
   quoteHoldMaxDays Int @default(3)
+
+  // The share of a split sale credited to its salesperson, in whole percent;
+  // the split partner gets the rest (GAP-07, lib/commissionSplit.ts). A new
+  // split starts here and staff with "Reassign salesperson" may choose
+  // another. 50 is an even split. A CHECK keeps it within 1-99.
+  defaultSplitPercent Int @default(50)
 
   // How a landed charge on a PO is spread across its lines unless the buyer
   // picks another when entering it (GAP-02). By value, the default, gives each

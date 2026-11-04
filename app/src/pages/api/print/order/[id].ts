@@ -10,6 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { countedPaymentWhere } from "@/lib/paymentBalance";
+import { LINE_PICTURE_INCLUDE, linePictureUrl } from "@/lib/sales/linePicture";
+import { orderDisclaimersOf } from "@/lib/sales/orderDisclaimers";
 
 export async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -34,7 +36,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
         // invoice total these lines, and used to print cancelled ones in.
         lineItems: {
           where: { lineItemStatus: { notIn: ["CANCELLED", "REPLACED"] } },
-          include: { product: true },
+          include: LINE_PICTURE_INCLUDE,
         },
         invoices: { include: { lineItems: { include: { orderLineItem: true } } } },
         // Money the order actually holds (lib/paymentBalance.ts), as the order
@@ -46,6 +48,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!order) {
       return res.status(404).json({ error: "Order not found." });
     }
+    // Printed above the store-wide footer, as each read when it was added (GAP-07).
+    const disclaimers = await orderDisclaimersOf(prisma, order.id);
 
     // Look up store address from StoreLocation if the order has a storeLocation string
     let storeAddress: {
@@ -82,6 +86,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       storeLocation: order.storeLocation,
       storeAddress,
       orderNotes: order.orderNotes,
+      disclaimers: disclaimers.map((d) => d.text),
       customer: order.customer
         ? {
             firstName: order.customer.firstName,
@@ -113,6 +118,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
         listPrice: item.listPrice != null ? Number(item.listPrice) : null,
         vatRate: item.vatRate != null ? Number(item.vatRate) : null,
         vatAmount: item.vatAmount != null ? Number(item.vatAmount) : null,
+        // GAP-07: staff's note on the line, and its picture.
+        notes: item.notes,
+        imageUrl: linePictureUrl(item),
       })),
       invoices: order.invoices.map((inv) => ({
         id: inv.id,

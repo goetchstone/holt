@@ -41,12 +41,14 @@ import {
 import { type DiscountLine, largestDiscountPercent } from "@/lib/sales/discountPolicyShared";
 import { saleUnitCost } from "@/lib/purchasing/landedCostShared";
 import { quoteHoldContext } from "@/lib/sales/quoteHolds";
+import { holdDateProblem, holdDateValue, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
+import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
+import { splitPercentProblem } from "@/lib/commissionSplit";
 import {
-  holdDateProblem,
-  holdDateValue,
-  isStockedProduct,
-  lineHoldProblem,
-} from "@/lib/sales/quoteHoldsShared";
+  findOrCreateInIndex,
+  findOrCreateVendorId,
+  findVendorsByName,
+} from "@/lib/vendors/vendorByName";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -98,6 +100,8 @@ export async function handler(
     orderDiscount,
     deliveryFee,
     discountApproval,
+    splitWithId,
+    splitPercent,
   } = req.body as {
     customerId?: number | null;
     items: CartItem[];
@@ -109,10 +113,21 @@ export async function handler(
     deliveryFee?: number | null;
     /** A manager's PIN, when the sale's discount needs one (GAP-06). */
     discountApproval?: unknown;
+    /** A colleague who wrote the sale too (GAP-07): credited the rest of it. */
+    splitWithId?: number | null;
+    /** The seller's share of a split sale; the store's default when absent. */
+    splitPercent?: number;
   };
 
   const requestProblem = await cartRequestProblem({ items, deliveryMethod, deliveryFee });
   if (requestProblem) return res.status(400).json({ error: requestProblem });
+  const split = await saleSplitProblem({
+    splitWithId,
+    splitPercent,
+    sellerEmail: session.user?.email ?? null,
+    access,
+  });
+  if (split) return res.status(split.status).json({ error: split.error });
   const chargesDelivery = deliveryFee != null && deliveryFee !== 0;
 
   // Each line's list price, and the deepest discount the sale gives, judged
@@ -171,18 +186,18 @@ export async function handler(
           typeId: true,
           baseCost: true,
           landedCost: true,
+          imageUrl: true,
           ...LINE_TAX_GROUP_SELECT,
         },
       });
       const productMap = new Map(existingProducts.map((p) => [p.id, p]));
 
-      // Resolve vendor IDs for configured/custom items
+      // Resolve vendor IDs for configured/custom items, by an earlier name
+      // too (a vendor merged away). Keyed lowercased, as findOrCreateInIndex
+      // reads it.
       const vendorNames = [...new Set(items.filter((i) => i.vendor).map((i) => i.vendor!))];
-      const vendors = await tx.vendor.findMany({
-        where: { name: { in: vendorNames, mode: "insensitive" } },
-        select: { id: true, name: true },
-      });
-      const vendorMap = new Map(vendors.map((v) => [v.name.toLowerCase(), v.id]));
+      const found = await findVendorsByName(tx, vendorNames, { ignoreCase: true });
+      const vendorMap = new Map([...found].map(([name, v]) => [name.toLowerCase(), v.id]));
 
       // Resolve salesperson from session
       const staff = await tx.staffMember.findFirst({
@@ -259,13 +274,14 @@ export async function handler(
             ? vendorMap.get(item.vendor.toLowerCase()) || sourceProduct?.vendorId
             : sourceProduct?.vendorId;
 
-          // Ensure we have a vendor -- create one if the name was provided but not found
+          // Ensure we have a vendor -- create one if the name was provided but
+          // not found. It goes into the map, so a second line naming the same
+          // new vendor finds it rather than creating it again.
           let finalVendorId = resolvedVendorId || null;
           if (!finalVendorId && item.vendor) {
-            const created = await tx.vendor.create({
-              data: { name: item.vendor, createdBy: session.user?.email || null },
+            finalVendorId = await findOrCreateInIndex(tx, vendorMap, item.vendor, {
+              createdBy: session.user?.email || null,
             });
-            finalVendorId = created.id;
           }
 
           // Fall back to an "Uncategorized" department/category if source product unavailable
@@ -290,10 +306,17 @@ export async function handler(
               // follows from categoryId. This line was taxed under it above.
               taxGroupId: sourceProduct?.taxGroup?.id ?? null,
               typeId: sourceProduct?.typeId || null,
+              // The picture of what it was configured from, so its invoice
+              // line prints it (GAP-07, lib/sales/linePicture.ts). Not the
+              // vendor style itself: editing a style rewrites the name and
+              // retail of every product linked to it (pricing/styles/[id]),
+              // and this one keeps the price it was sold at.
+              imageUrl: sourceProduct?.imageUrl ?? null,
               baseCost: item.cost ?? 0,
               baseRetail: item.unitPrice,
-              // Made for this sale: never stock on hand, so nothing draws free
-              // stock for it (GAP-21). Its units come in on its PO, committed.
+              // Where it came from, nothing more (DECISIONS 34): new, so it has
+              // no stock, and its units come in on its PO committed to this
+              // sale. Once here it is stock like any other item.
               madeToOrder: true,
               createdBy: session.user?.email || null,
             },
@@ -360,6 +383,11 @@ export async function handler(
           storeLocationId,
           orderNotes: orderNotes || null,
           deliveryMethod: deliveryMethod || null,
+          // Written with a colleague (GAP-07): the seller is credited their
+          // share, the partner the rest (lib/commissionSplit.ts).
+          ...(splitWithId != null
+            ? { splitWithId, splitPercent: splitPercent ?? settings.defaultSplitPercent }
+            : {}),
           createdBy: session.user?.email || null,
           totalTax: priced.taxAmount,
           // NOTE: SalesOrder/OrderLineItem have no discount column, so the
@@ -456,9 +484,54 @@ export async function handler(
   }
 }
 
-export default requirePermission("sales.write", handler, { also: ["sales.discount"] });
+export default requirePermission("sales.write", handler, {
+  also: ["sales.discount", "sales.reassign"],
+});
 
 /** What is wrong with the cart as sent, before anything is priced or written; null when nothing. */
+/**
+ * Why a sale can't be split as asked, or null (GAP-07). Splitting moves
+ * commission, so it takes "Reassign salesperson", as changing it on the order
+ * does; the partner is someone else on the staff, still working; the share is
+ * 1-99 (lib/commissionSplit.ts).
+ */
+async function saleSplitProblem(input: {
+  splitWithId: number | null | undefined;
+  splitPercent: number | undefined;
+  sellerEmail: string | null;
+  access: CallerAccess;
+}): Promise<{ status: 400 | 403; error: string } | null> {
+  if (input.splitWithId == null) {
+    return input.splitPercent === undefined
+      ? null
+      : { status: 400, error: "A split share needs someone to split the sale with." };
+  }
+  if (!input.access.holds["sales.reassign"]) {
+    return {
+      status: 403,
+      error: "Splitting a sale takes the Reassign salesperson permission; a manager can add it.",
+    };
+  }
+  if (typeof input.splitWithId !== "number" || !Number.isInteger(input.splitWithId)) {
+    return { status: 400, error: "splitWithId must be a staff id, or null." };
+  }
+  if (input.splitPercent !== undefined) {
+    const problem = splitPercentProblem(input.splitPercent);
+    if (problem) return { status: 400, error: problem };
+  }
+  const partner = await prisma.staffMember.findUnique({
+    where: { id: input.splitWithId },
+    select: { email: true, isActive: true, displayName: true },
+  });
+  if (!partner) return { status: 400, error: "The split partner isn't on the staff." };
+  if (!partner.isActive)
+    return { status: 400, error: `${partner.displayName} no longer works here.` };
+  if (input.sellerEmail && partner.email === input.sellerEmail) {
+    return { status: 400, error: "A sale can't be split with the person selling it." };
+  }
+  return null;
+}
+
 async function cartRequestProblem(input: {
   items: CartItem[] | undefined;
   deliveryMethod: string | undefined;
@@ -489,7 +562,7 @@ async function cartHoldProblem(items: CartItem[]): Promise<string | null> {
     (
       await prisma.product.findMany({
         where: { id: { in: held.flatMap((i) => (i.productId ? [i.productId] : [])) } },
-        select: { id: true, madeToOrder: true, category: { select: { trackInventory: true } } },
+        select: { id: true, ...STOCKED_SELECT },
       })
     ).map((p) => [p.id, p]),
   );
@@ -601,8 +674,5 @@ async function getOrCreateDefault(
 async function getOrCreateDefaultVendor(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
 ): Promise<number> {
-  const existing = await tx.vendor.findFirst({ where: { name: "Custom" } });
-  if (existing) return existing.id;
-  const created = await tx.vendor.create({ data: { name: "Custom" } });
-  return created.id;
+  return findOrCreateVendorId(tx, "Custom");
 }

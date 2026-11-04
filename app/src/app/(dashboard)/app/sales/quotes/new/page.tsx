@@ -8,13 +8,19 @@
 
 import { Suspense } from "react";
 import { requirePage } from "@/lib/auth/requirePage";
+import { splitSaleSetup } from "@/lib/sales/splitSaleSetup";
 import { NewQuoteView } from "./NewQuoteView";
 
 export default async function NewQuotePage() {
-  await requirePage(undefined, { permission: "sales.write" });
+  // Splitting a sale moves commission: offered to "Reassign salesperson" (GAP-07).
+  const { userId, holds } = await requirePage(undefined, {
+    permission: "sales.write",
+    also: ["sales.reassign"],
+  });
+  const splitSetup = await splitSaleSetup(userId, holds["sales.reassign"]);
   return (
     <Suspense fallback={null}>
-      <NewQuoteView />
+      <NewQuoteView splitSetup={splitSetup} />
     </Suspense>
   );
 }

@@ -14,8 +14,10 @@
 // take the longer way and raise a transfer for a move that could have been
 // quick.
 //
-// SCANNED (tracked, with a scan at load and unload) is not built: the
-// handheld move is quick only. Tracked in ROADMAP.md, "Handheld floor".
+// SCANNED (tracked, with a scan required at load and unload) is not built.
+// The handheld's own move is quick only; a tracked move is sent from the
+// handheld as a transfer (sendFromPlace, ./transfers.ts) and received there by
+// scan, but nothing requires it. Tracked in ROADMAP.md, "Handheld floor".
 
 import { ancestry } from "./placeTree";
 import { PlaceError, type PrismaTx } from "./ledger";

@@ -90,8 +90,17 @@ function zoneOffsetMs(instant: Date, timeZone: string): number {
  * change. The second re-reads it at the corrected instant and converges.
  */
 export function businessDayStart(dateStr: string, timeZone: string): Date {
+  return businessHourStart(dateStr, 0, timeZone);
+}
+
+/**
+ * The UTC instant at which hour `hour` (0-23) of business day `dateStr` begins
+ * in `timeZone`: 9:00 on the store's clock, which is not midnight plus nine
+ * hours on a DST-transition day. Same two passes as businessDayStart.
+ */
+export function businessHourStart(dateStr: string, hour: number, timeZone: string): Date {
   const [y, m, d] = dateStr.split("-").map(Number);
-  const wallClock = Date.UTC(y, m - 1, d, 0, 0, 0);
+  const wallClock = Date.UTC(y, m - 1, d, hour, 0, 0);
   let utc = wallClock;
   for (let pass = 0; pass < 2; pass++) {
     utc = wallClock - zoneOffsetMs(new Date(utc), timeZone);

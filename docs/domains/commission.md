@@ -329,8 +329,8 @@ period) and
 `lib/commissionSales.ts:loadDesignerSaleRows` (row-level sale data: revenue,
 margin, units, and every scope dimension, per line item — the row-level
 sibling of the pre-existing `sumDesignerSales`, sharing its exact matching
-rules: FK + alias + POS-string OR, 0.5× split multiplier, the cancelled-line
-filter) — lives in `lib/runCommissionPayouts.ts`, which stays the single
+rules: FK + alias + POS-string OR, the designer's split share (see "Split
+sales" below), the cancelled-line filter) — lives in `lib/runCommissionPayouts.ts`, which stays the single
 orchestrator for preview/commit/edit.
 
 **`ytdSalesAtStart`/`ytdSalesAtEnd`/`periodSalesAmount` mean what they
@@ -419,10 +419,10 @@ Stated plainly, per the owner's request, rather than left implicit:
     today, its `CommissionPlanTier` rows must be empty (a fresh plan, or
     one whose tiers were deliberately cleared) so the sync path never
     fires.
-- **Splits, spiffs, draws, and caps are not built.** The scope/basis/
-  accumulator/tierMode axes are designed so these later stages can slot in
-  (e.g., a split could apply as a post-processing multiplier on the
-  engine's per-rule commission; a spiff as an additional PER_TRANSACTION
+- **Spiffs, draws, and caps are not built.** A split sale is credited before
+  the engine: each designer's rows already carry their share of it ("Split
+  sales" below). The scope/basis/accumulator/tierMode axes are designed so the
+  rest can slot in (e.g., a spiff as an additional PER_TRANSACTION
   rule; a draw/cap as a floor/ceiling clamp on the top-level
   `commissionAmount`) — but none of that logic exists yet. Building it is
   explicitly OUT of Stage 1 scope.
@@ -532,7 +532,7 @@ inside the DB, not a user-facing operation).
 | `app/prisma/schema.prisma`                                                                        | Each model carries its own doc comment (`model CommissionPayout` at schema.prisma:4356, `model CommissionPayoutEdit` at 4430).                                                                                                                                                                                         |
 | `app/prisma/migrations/0_init/migration.sql`                                                      | Schema + indexes (squashed baseline).                                                                                                                                                                                                                                                                                  |
 | `app/src/lib/commissionTiers.ts`                                                                  | Pre-existing. `calculateMarginalCommission()` + `resolveTier()` do the slice-by-slice math. Now reached only from the Live Calculator endpoint (and the dead `computePayoutForRange`) — payout generation goes through the rule engine. Also holds `DEFAULT_COMMISSION_TIERS`, which no request path reads.            |
-| `app/src/lib/commissionSales.ts`                                                                  | Pre-existing (extracted from the live-preview endpoint). `sumDesignerSales(staffId, matchNames, from, toExclusive)` — shared between live and locked. Aliases + FK + the POS-string OR; 0.5× for splits; ORDER/FULFILLED/RETURNED.                                                                                     |
+| `app/src/lib/commissionSales.ts`                                                                  | Pre-existing (extracted from the live-preview endpoint). `sumDesignerSales(staffId, matchNames, from, toExclusive)` — shared between live and locked. Aliases + FK + the POS-string OR; a split at the designer's share (`creditShare`); ORDER/FULFILLED/RETURNED.                                                                                     |
 | `app/src/lib/commissionPayout.ts`                                                                 | Pure snapshot builders. `computeRulePayoutForRange(input)` is the live one — preview and commit both go through it (`runCommissionPayouts.ts:244`). `computePayoutForRange(input)` is the pre-Stage-1 helper and has NO production callers; only `__tests__/commissionPayout.test.ts` still calls it.                  |
 | `app/src/lib/runCommissionPayouts.ts`                                                             | Orchestrator. Three entry points: `previewPayoutsForPeriod`, `commitPayoutsForPeriod`, `editPayout`. **Chain continuity**: when a prior LOCKED payout exists for the same designer with `periodEnd < periodStart`, this period's `ytdAtStart` reads from THAT row's frozen `ytdSalesAtEnd`, not from a live recompute. |
 | `app/src/lib/commissionDrift.ts`                                                                  | `computeLockedPayoutDrift({staffMemberId?, includeClean?})` — for each locked payout, compares the frozen `ytdSalesAtEnd` against a live recompute. Non-zero results are surfaced on the UI Drift banner so SUPER_ADMIN can decide whether to claw back via edit or accept the variance.                               |
@@ -738,6 +738,58 @@ Before changing any commission-payout code:
 - [ ] `Decimal` vs `Number` comparison: `normalizeForDiff` in the orchestrator coerces both to string before comparing, so a re-submit of the same numeric value doesn't false-positive an audit row
 - [ ] **Chain continuity**: when changing `computeDesignerYtdSums`, the integration tests under `chain continuity across locked periods` must still pass — period N+1's `ytdAtStart` MUST read from the most recent locked row, MUST fall back to live when there's no prior lock, MUST ignore DRAFT prior rows, and MUST reset at year boundary
 - [ ] **Drift**: when changing `computeLockedPayoutDrift`, the integration tests under `commissionDrift.integration.test.ts` must still pass — DRAFT rows are excluded, sub-tolerance rows are excluded by default, the year-anchor matches the orchestrator's
+
+## Split sales (GAP-07, since 2026-11-03)
+
+A sale two people write credits each their share of it. `SalesOrder.splitWithId`
+names the partner and `SalesOrder.splitPercent` the salesperson's share, a whole
+percent 1-99; the partner gets the rest. `lib/commissionSplit.ts` is the one
+rule, and every surface that credits a person for a sale takes their share from
+`creditShare(order, staffId)`:
+
+- commission's `sumDesignerSales` and `loadDesignerSaleRows` (so the tier preview,
+  the locked payout and the rule engine's baskets);
+- the designer dashboard (sales, quotes and house-call follow-ups), monthly
+  performance, salesperson detail and the pay-period statement (which now shows
+  the designer's share beside each split order, and in its CSV);
+- Sales by Salesperson, whose two rows for a split order take each side's share
+  (`primaryShare` / `partnerShare`) and whose drill-down shows the drilled
+  person's share. Retail and cost scale together (`marginMath.applyShare`), so a
+  share keeps the line's margin %.
+
+Before this, `splitWithId ? 0.5 : 1` was written into all eight places: an
+uneven split could not be represented, and the surfaces agreed with each other
+while being wrong (`docs/tenant-literal-sweep.md`, resolved).
+
+**Where the share comes from.** A new split starts at the store's
+`AppSettings.defaultSplitPercent` (Admin › Settings › Split sales; 50, even, to
+start) unless staff choose another, and the order records it. So changing the
+default moves no sale already split, and a locked payout recomputed later still
+agrees. Changing the partner keeps the share (`nextSplitPercent`). Split orders
+before the column were all 50/50, which its default gave them. A CHECK keeps
+both values within 1-99.
+
+**Who may split.** Splitting moves commission, so it takes "Reassign salesperson"
+(`sales.reassign`), as changing the salesperson always has:
+
+- at the register and on the quote builder, a split field appears only for a
+  holder (`SplitSaleField`, its partners and default built on the server by
+  `lib/sales/splitSaleSetup.ts`), and `create-from-cart` refuses a split from
+  anyone else with 403;
+- on the order page's salesperson dialog and the bulk salesperson corrections.
+
+Managers hold it by default; a store grants it to other roles in Admin › Setup ›
+Roles. The partner must be someone else on the staff, still working. A change of
+share on an order in a confirmed pay period is refused like any reassignment
+(`assertReassignAllowed`).
+
+**Not supported:** crediting both partners 100% (a split always adds up to the
+sale), and more than two people on one sale.
+
+**Tests:** `__tests__/integration/splitShare.integration.test.ts` (one 60/40 and
+one 70/30 sale through every surface above, both sides; the setting; the
+register's and the order's writes, the lock), and `__tests__/marginMath.test.ts`
+(`applyShare`).
 
 ## Known gaps
 

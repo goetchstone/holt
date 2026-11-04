@@ -198,7 +198,8 @@ export function ReceiveView() {
         text:
           `Received ${d.units}` +
           (d.incompleteSets ? `, ${d.incompleteSets} incomplete set(s) to quarantine` : "") +
-          (d.completedSets ? `, ${d.completedSets} set(s) completed` : ""),
+          (d.completedSets ? `, ${d.completedSets} set(s) completed` : "") +
+          (d.notStocked?.length ? `. Recorded only: ${d.notStocked.join(" ")}` : ""),
       });
     } catch (err) {
       // The key is kept: sending again is the same action, never a second receipt.

@@ -25,10 +25,22 @@
 //                    never takes back stock a sale has already committed. A
 //                    second run of the same file finds every place already at
 //                    its target and writes nothing (rule 63).
+//                    A product whose category keeps no stock (GAP-21,
+//                    lib/inventory/stocked.ts) can be taken down, never up:
+//                    a place the file would add to is left as it is, and
+//                    counted in `notStocked`.
 
 import type { Prisma } from "@prisma/client";
-import { lockProducts, setPlaceQuantity, withStockTx, type PrismaTx } from "./ledger";
+import {
+  lockProducts,
+  placeWhere,
+  setPlaceQuantity,
+  withStockTx,
+  type Place,
+  type PrismaTx,
+} from "./ledger";
 import { roundQty, toQty } from "./quantity";
+import { notStocked } from "./stocked";
 
 /** One stock-file row, resolved to a product and a Holt place. */
 export interface ImportStockRow {
@@ -105,6 +117,8 @@ export interface ImportSyncResult {
     physical: number;
     committed: number;
   }[];
+  /** Places the file would have added to a product whose category keeps no stock. */
+  notStocked: number;
 }
 
 /** How many products' targets one transaction applies. */
@@ -116,7 +130,7 @@ export async function applyImportSync(
   targets: ImportTarget[],
   actor: string | null,
 ): Promise<ImportSyncResult> {
-  const result: ImportSyncResult = { placesChanged: 0, shortOfCommitted: [] };
+  const result: ImportSyncResult = { placesChanged: 0, shortOfCommitted: [], notStocked: 0 };
   const byProduct = new Map<number, ImportTarget[]>();
   for (const t of targets) {
     const list = byProduct.get(t.productId) ?? [];
@@ -129,35 +143,68 @@ export async function applyImportSync(
     const batch = productIds.slice(i, i + APPLY_BATCH);
     await withStockTx(db, async (tx) => {
       await lockProducts(tx, batch);
+      const unstocked = await notStocked(tx, batch);
       for (const productId of batch) {
         for (const t of byProduct.get(productId)!) {
-          const committed = await committedAt(tx, t);
-          if (committed > t.physical) {
-            result.shortOfCommitted.push({
-              productId,
-              stockLocationId: t.stockLocationId,
-              physical: t.physical,
-              committed,
-            });
-          }
-          const changed = await setPlaceQuantity(tx, {
-            productId,
-            place: {
-              storeLocationId: t.storeLocationId,
-              stockLocationId: t.stockLocationId,
-              salesOrderId: null,
-            },
-            target: Math.max(0, roundQty(t.physical - committed)),
-            reason: "IMPORT_SYNC",
-            actor,
-            note: t.note,
-          });
-          if (changed !== 0) result.placesChanged++;
+          await applyTarget(tx, t, unstocked.has(productId), actor, result);
         }
       }
     });
   }
   return result;
+}
+
+/** One place: free stock to physical minus committed, tallied into `result`. */
+async function applyTarget(
+  tx: Prisma.TransactionClient,
+  t: ImportTarget,
+  unstocked: boolean,
+  actor: string | null,
+  result: ImportSyncResult,
+): Promise<void> {
+  const committed = await committedAt(tx, t);
+  if (committed > t.physical) {
+    result.shortOfCommitted.push({
+      productId: t.productId,
+      stockLocationId: t.stockLocationId,
+      physical: t.physical,
+      committed,
+    });
+  }
+  const place: Place = {
+    storeLocationId: t.storeLocationId,
+    stockLocationId: t.stockLocationId,
+    salesOrderId: null,
+  };
+  let target = Math.max(0, roundQty(t.physical - committed));
+  if (unstocked) {
+    const capped = await notAbove(tx, t.productId, place, target);
+    if (capped < target) result.notStocked++;
+    target = capped;
+  }
+  const changed = await setPlaceQuantity(tx, {
+    productId: t.productId,
+    place,
+    target,
+    reason: "IMPORT_SYNC",
+    actor,
+    note: t.note,
+  });
+  if (changed !== 0) result.placesChanged++;
+}
+
+/** A target no higher than the place holds now: what isn't stocked only goes down. */
+async function notAbove(
+  tx: Prisma.TransactionClient,
+  productId: number,
+  place: Place,
+  target: number,
+): Promise<number> {
+  const agg = await tx.inventoryPosition.aggregate({
+    where: placeWhere(productId, place),
+    _sum: { quantity: true },
+  });
+  return Math.min(target, toQty(agg._sum.quantity));
 }
 
 async function committedAt(tx: Prisma.TransactionClient, t: ImportTarget): Promise<number> {

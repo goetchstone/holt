@@ -13,7 +13,11 @@ import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { markHandedOver, handoverMethodFor } from "@/lib/fulfilment/handover";
 import { rerateQuoteTax } from "@/lib/tax/rerateQuoteTax";
 import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
-import { holdDateString, isStockedProduct, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
+import { holdDateString, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
+import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
+import { orderFlagsOf } from "@/lib/sales/orderFlags";
+import { orderDisclaimersOf } from "@/lib/sales/orderDisclaimers";
+import { handedOverStatusProblem } from "@/lib/fulfilment/undoHandover";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -47,6 +51,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       if (!existing) return res.status(404).json({ error: "Order not found" });
       const locked = await returnOrderEditProblem(prisma, existing.id);
       if (locked) return res.status(409).json({ error: locked });
+      const leaving = handedOverStatusProblem(existing, status);
+      if (leaving) return res.status(409).json({ error: leaving });
 
       const changedBy = session.user?.email || null;
 
@@ -132,7 +138,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         // sofas it had reserved: physically still on the floor, gone from the
         // books.
         await release(orderId, tx);
-        // Delete child records in dependency order
+        // Delete child records in dependency order. The order's history goes
+        // with it: its foreign key restricts, so any order with a row (a
+        // status change, or since GAP-07 a flag, a note, or a copy's "copied
+        // from") could not be deleted at all.
+        await tx.orderChangeLog.deleteMany({ where: { salesOrderId: orderId } });
         await tx.payment.deleteMany({ where: { salesOrderId: orderId } });
         await tx.invoiceLineItem.deleteMany({
           where: { invoice: { salesOrderId: orderId } },
@@ -164,7 +174,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           omit: { cost: true },
           include: {
             product: {
-              select: { madeToOrder: true, category: { select: { trackInventory: true } } },
+              select: STOCKED_SELECT,
             },
           },
         },
@@ -176,6 +186,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     if (!order) {
       return res.status(404).json({ error: "Order not found." });
     }
+    // The store's flags on it and the disclaimers it prints (GAP-07).
+    const [flags, disclaimers] = await Promise.all([
+      orderFlagsOf(prisma, order.id),
+      orderDisclaimersOf(prisma, order.id),
+    ]);
 
     // Cancelled lines are out of every sum (CLAUDE.md rule 33); they are still
     // listed below, struck through on the order screen.
@@ -194,13 +209,19 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       salesPersonId: order.salesPersonId,
       salesPerson: order.salesPerson,
       splitWithId: order.splitWithId,
+      splitPercent: order.splitPercent,
       splitWith: order.splitWith,
       storeLocation: order.storeLocation,
       orderNotes: order.orderNotes,
       deliveryMethod: order.deliveryMethod,
+      // When the goods reached the customer; null while still to go (GAP-07:
+      // the order screen offers Undo handover on a handed-over order).
+      deliveredAt: order.deliveredAt,
       // Which line is the delivery fee: it changes only through
       // orders/[id]/delivery-fee.ts, so the screen leaves it out of line edits.
       deliveryFeeLineItemId: order.deliveryFeeLineItemId,
+      flags,
+      disclaimers,
       totalTax,
       totalPaid: Number(order.totalPaid || 0),
       totalAmount,
@@ -230,6 +251,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         selectedGrade: item.selectedGrade,
         selectedFinish: item.selectedFinish,
         selectedOptions: item.selectedOptions,
+        notes: item.notes,
         productId: item.productId,
         // GAP-16: the day a quote holds this line's stock through, and whether
         // it could hold it (lib/sales/quoteHoldsShared.ts lineHoldProblem).

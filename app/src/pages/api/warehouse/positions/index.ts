@@ -7,6 +7,7 @@ import { freePositionWhere } from "@/lib/inventory/allocation";
 import { placeWhere, setPlaceQuantity } from "@/lib/inventory/ledger";
 import { placeAt } from "@/lib/inventory/places";
 import { toQty } from "@/lib/inventory/quantity";
+import { NotStockedError } from "@/lib/inventory/stocked";
 import { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
@@ -143,6 +144,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
       return res.status(201).json({ ...position, quantity: toQty(position.quantity) });
     } catch (error) {
+      // Its category keeps no stock (GAP-21): the editor's to know, not a 500.
+      if (error instanceof NotStockedError) return res.status(400).json({ error: error.message });
       logError("Error creating position", error);
       return res.status(500).json({ error: "Failed to create inventory position" });
     }
