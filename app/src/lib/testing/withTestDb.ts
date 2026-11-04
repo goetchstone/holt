@@ -206,6 +206,8 @@ const ALL_TABLES = [
   "ServiceEmail",
   "ServiceTask",
   "Session",
+  "SmsOptOut",
+  "SmsQueue",
   "StaffMember",
   "StaffShift",
   "StockLocation",

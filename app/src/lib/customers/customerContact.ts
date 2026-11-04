@@ -1,7 +1,8 @@
 // /app/src/lib/customers/customerContact.ts
 //
 // What a customer create or edit may set from a form: names, email and phone,
-// and whether they want automatic messages (GAP-13). Nothing else -- the referral fields are read by lib/customers/referrals.ts,
+// whether they want automatic messages (GAP-13), and whether they agreed to
+// texts and how they'd rather hear from the store (GAP-12). Nothing else -- the referral fields are read by lib/customers/referrals.ts,
 // and the rest of a customer (store credit, AR balance, trade status, tax
 // exemption, level) has its own route and its own permission.
 //
@@ -31,7 +32,12 @@ export interface CustomerContact {
   phone?: string | null;
   /** They asked for no automatic messages (lib/messages/due.ts). */
   autoMessagesOptOut?: boolean;
+  /** How they'd rather hear from the store; null clears it. */
+  preferredChannel?: string | null;
 }
+
+/** The channels a customer can prefer. */
+export const PREFERRED_CHANNELS = ["EMAIL", "TEXT", "BOTH"] as const;
 
 function readText(raw: unknown, label: string): string | null | undefined {
   if (raw === undefined) return undefined;
@@ -50,6 +56,31 @@ function readFlag(raw: unknown, label: string): boolean | undefined {
   return raw;
 }
 
+function readPreferredChannel(raw: unknown): string | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null || raw === "") return null;
+  if (!PREFERRED_CHANNELS.some((channel) => channel === raw)) {
+    throw new CustomerInputError("Choose email, text or both.");
+  }
+  return raw as string;
+}
+
+/**
+ * The columns for "they agreed to texts" (GAP-12), when a form sent it. Ticking
+ * a box already ticked keeps the original who and when, which is the record of
+ * their consent; unticking clears it.
+ */
+export function textConsentChange(
+  raw: unknown,
+  current: { smsConsentAt: Date | null } | null,
+  actor: string | null,
+): { smsConsentAt?: Date | null; smsConsentBy?: string | null } {
+  if (raw === undefined) return {};
+  const agreed = readFlag(raw, "Agreed to texts");
+  if (!agreed) return { smsConsentAt: null, smsConsentBy: null };
+  return current?.smsConsentAt ? {} : { smsConsentAt: new Date(), smsConsentBy: actor };
+}
+
 /** The contact fields of a body; absent ones are left out, blank ones cleared. */
 export function readContact(body: Record<string, unknown>): CustomerContact {
   const contact: CustomerContact = {
@@ -58,6 +89,7 @@ export function readContact(body: Record<string, unknown>): CustomerContact {
     email: readText(body.email, "Email"),
     phone: readText(body.phone, "Phone"),
     autoMessagesOptOut: readFlag(body.autoMessagesOptOut, "No automatic messages"),
+    preferredChannel: readPreferredChannel(body.preferredChannel),
   };
   if (contact.email && !/^[^\s@]+@[^\s@]+$/.test(contact.email)) {
     throw new CustomerInputError("That email doesn't look like an email address.");

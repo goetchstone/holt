@@ -15,18 +15,22 @@ import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/toastError";
 import {
   BODY_MAX,
+  CHANNEL_LABELS,
   LINK_MAX,
+  MESSAGE_CHANNELS,
   OFFSET_DAYS_MAX,
   PLACEHOLDERS,
   SUBJECT_MAX,
+  TEXT_MAX,
   messageSettingProblem,
+  type MessageChannel,
   type MessageDefaults,
   type MessageKind,
   type MessageSettingInput,
   type MessageTiming,
   type Placeholder,
 } from "@/lib/messages/catalog";
-import { fillPlaceholders } from "@/lib/messages/render";
+import { fillPlaceholders, renderTextMessage } from "@/lib/messages/render";
 
 interface MessageRow extends MessageSettingInput {
   kind: MessageKind;
@@ -43,6 +47,8 @@ interface MessageRow extends MessageSettingInput {
 interface Props {
   storeName: string;
   timeZone: string;
+  /** Whether a text provider is set up (Settings > Integrations). */
+  textingSetUp: boolean;
 }
 
 const INPUT = "w-full rounded-md border border-brand-accent-gray px-3 py-2";
@@ -55,7 +61,7 @@ function hourLabel(h: number): string {
   );
 }
 
-export function CustomerMessagesView({ storeName, timeZone }: Readonly<Props>) {
+export function CustomerMessagesView({ storeName, timeZone, textingSetUp }: Readonly<Props>) {
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -81,15 +87,23 @@ export function CustomerMessagesView({ storeName, timeZone }: Readonly<Props>) {
     <div className="py-2 font-serif">
       <div className="mb-6 max-w-2xl space-y-2 text-brand-gray">
         <p>
-          Messages Holt sends your customers by itself, by email. Each starts switched off: switch
-          on the ones you want, in your own words. Switching one on sends nothing about what had
-          already happened, only what happens from then on.
+          Messages Holt sends your customers by itself, by email or text. Each starts switched off:
+          switch on the ones you want, in your own words. Switching one on sends nothing about what
+          had already happened, only what happens from then on.
         </p>
         <p className="text-sm">
           A customer who asked for no automatic messages (on their customer record) gets none of
-          these, and neither does one with no email address; the order page shows each message, sent
-          or not. Times are your store&apos;s ({timeZone}). Mail goes out through Admin › Email.
+          these. An email needs an address. A text needs a mobile number and their agreement, ticked
+          on their customer record, and stops if the number replies STOP. The order page shows each
+          message, sent or not. Times are your store&apos;s ({timeZone}). Admin › Email shows what
+          has gone out.
         </p>
+        {!textingSetUp && (
+          <p className="text-sm">
+            Texting isn&apos;t set up, so a message can only go by email until it is, in Settings ›
+            Integrations.
+          </p>
+        )}
       </div>
       {loading && <p className="text-brand-gray">Loading...</p>}
       <ul className="max-w-3xl space-y-6">
@@ -109,7 +123,19 @@ export function CustomerMessagesView({ storeName, timeZone }: Readonly<Props>) {
 
 function inputOf(m: MessageSettingInput): MessageSettingInput {
   const { isActive, subject, body, includeOrderLink, offsetDays, sendHour, linkUrl } = m;
-  return { isActive, subject, body, includeOrderLink, offsetDays, sendHour, linkUrl };
+  const { channel, textBody, textIncludeOrderLink } = m;
+  return {
+    isActive,
+    subject,
+    body,
+    includeOrderLink,
+    offsetDays,
+    sendHour,
+    linkUrl,
+    channel,
+    textBody,
+    textIncludeOrderLink,
+  };
 }
 
 function MessageItem({
@@ -166,6 +192,24 @@ function MessageItem({
       <p className="text-sm text-brand-gray">Sent when: {message.sentWhen}</p>
 
       <div>
+        <label htmlFor={id("channel")} className="mb-1 block text-sm text-brand-gray">
+          How it goes
+        </label>
+        <select
+          id={id("channel")}
+          value={form.channel}
+          onChange={(e) => set({ channel: e.target.value as MessageChannel })}
+          className="rounded-md border border-brand-accent-gray px-3 py-2"
+        >
+          {MESSAGE_CHANNELS.map((channel) => (
+            <option key={channel} value={channel}>
+              {CHANNEL_LABELS[channel]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
         <label htmlFor={id("subject")} className="mb-1 block text-sm text-brand-gray">
           Subject
         </label>
@@ -196,6 +240,28 @@ function MessageItem({
             </li>
           ))}
         </ul>
+      </div>
+
+      <div>
+        <label htmlFor={id("text")} className="mb-1 block text-sm text-brand-gray">
+          The text&apos;s wording ({form.textBody.length} of {TEXT_MAX} characters, before its link)
+        </label>
+        <textarea
+          id={id("text")}
+          value={form.textBody}
+          maxLength={TEXT_MAX}
+          rows={3}
+          onChange={(e) => set({ textBody: e.target.value })}
+          className={INPUT}
+        />
+        <label className="mt-1 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.textIncludeOrderLink}
+            onChange={(e) => set({ textIncludeOrderLink: e.target.checked })}
+          />
+          In the text, include a link to their order (about 250 characters, so it costs more)
+        </label>
       </div>
 
       {message.timing !== "at-once" && (
@@ -263,7 +329,7 @@ function MessageItem({
           checked={form.includeOrderLink}
           onChange={(e) => set({ includeOrderLink: e.target.checked })}
         />
-        Include a &quot;View your order&quot; button (a fresh link to the customer&apos;s order)
+        In the email, include a &quot;View your order&quot; button (a fresh link to their order)
       </label>
 
       <details className="text-sm">
@@ -271,6 +337,15 @@ function MessageItem({
         <div className="mt-2 rounded bg-brand-linen/40 p-3">
           <p className="font-semibold">{fillPlaceholders(form.subject, example)}</p>
           <p className="mt-2 whitespace-pre-wrap">{fillPlaceholders(form.body, example)}</p>
+          <p className="mt-3 font-semibold">As a text</p>
+          <p className="whitespace-pre-wrap">
+            {renderTextMessage({
+              body: form.textBody,
+              values: example,
+              orderUrl: null,
+              reviewUrl: null,
+            })}
+          </p>
         </div>
       </details>
 

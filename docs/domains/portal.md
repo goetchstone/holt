@@ -74,7 +74,7 @@ The customer cannot approve, inspect, or process the refund — those are staff-
 Used by:
 
 - Order detail page → "Send Payment Link" button (manager/register)
-- Outbound SMS template (manual paste for now; future automation per ROADMAP)
+- "Text the link" on the order page (`POST /api/portal/text-link`, `sales.write`), and each automatic customer message that goes by text. Who may get a text: `sms.md`
 - Email follow-up templates
 
 ## Verification checklist (before touching portal code)
@@ -95,7 +95,6 @@ Used by:
 
 ## Known gaps
 
-- No automated SMS dispatch of the portal link (manual paste for now)
 - No "you have an open balance" reminder cron — would help collections
 - Token revocation is implicit (expire-only); no way to invalidate a leaked token before its 7-day TTL
 

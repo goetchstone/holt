@@ -149,7 +149,7 @@ Covered fully in `docs/domains/import-pipeline.md`. Service account with domain-
 - **PBX integration** — entire roadmap item (#180, pre-squash repo numbering — historical reference only)
 - **FileMaker** — no migration deadline; treat as sun-setting forever-pending
 - **No outbound webhooks** — we receive from Stripe + GitHub but don't send to anyone
-- **No SMS provider** — portal links + reminders go manually
+- **SMS** has its own runbook, `sms.md` (Twilio, GAP-12)
 - **No QuickBooks Online API** — accounting export is manual CSV/IIF to QB Desktop (per `docs/domains/accounting.md`)
 
 ---

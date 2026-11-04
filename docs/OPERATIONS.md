@@ -311,14 +311,15 @@ cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scrip
 
 Runs every 5 minutes (`scripts/install-cron.sh` installs it). It first queues
 the automatic customer messages that are due (GAP-13, Settings › Customer
-messages; `docs/domains/email.md`), then sends what is waiting in the email
-queue and retries what failed. Without it no email goes at all: invoices,
-booking and ticket confirmations, password resets, and every customer message.
+messages; `docs/domains/email.md`), then sends what is waiting in the email and
+text queues and retries what failed (`docs/domains/sms.md`). Without it no email
+goes at all: invoices, booking and ticket confirmations, password resets, and
+every customer message. A text staff send by hand still goes at once.
 
 **Verify it ran:**
 
 - `logs/auto-email-queue.log` on the host: each run answers
-  `{ summary: { processed, sent, failed, skipped }, messages }`
+  `{ summary: { processed, sent, failed, skipped }, texts, messages }`
 - Admin › Email shows nothing PENDING for longer than a few minutes once SMTP
   is set up
 

@@ -44,6 +44,22 @@ export const INTEGRATION_PROVIDERS: IntegrationProviderDef[] = [
     ],
   },
   {
+    id: "twilio",
+    name: "Twilio (text messages)",
+    description:
+      "Texts to customers who agreed to them. In the US the sending number must be registered with Twilio (A2P 10DLC or toll-free verification), or carriers block its texts.",
+    fields: [
+      { key: "accountSid", label: "Account SID", placeholder: "AC..." },
+      { key: "authToken", label: "Auth Token" },
+      { key: "fromNumber", label: "From Number", placeholder: "+15551234567" },
+      {
+        key: "messagingServiceSid",
+        label: "Messaging Service SID",
+        placeholder: "MG... (optional; used instead of the From Number)",
+      },
+    ],
+  },
+  {
     id: "axper",
     name: "Axper Traffic",
     description: "Store foot-traffic counts (entries/exits) for the dashboard.",

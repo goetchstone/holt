@@ -31,6 +31,25 @@ interface QueueRow {
   created: string;
 }
 
+interface TextRow {
+  id: number;
+  toPhone: string;
+  body: string;
+  templateKey: string | null;
+  status: EmailStatus;
+  attempts: number;
+  lastError: string | null;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  created: string;
+}
+
+interface TextsData {
+  rows: TextRow[];
+  counts: Record<string, number>;
+  configured: boolean;
+}
+
 const dateTimeFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 const STATUS_VARIANT: Record<EmailStatus, BadgeVariant> = {
@@ -43,6 +62,7 @@ export function EmailQueueView() {
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [configured, setConfigured] = useState(true);
+  const [texts, setTexts] = useState<TextsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
@@ -55,7 +75,9 @@ export function EmailQueueView() {
         rows: QueueRow[];
         counts: Record<string, number>;
         configured: boolean;
+        texts: TextsData;
       };
+      setTexts(data.texts);
       setRows(data.rows);
       setCounts(data.counts);
       setConfigured(data.configured);
@@ -159,6 +181,66 @@ export function EmailQueueView() {
           </table>
         </div>
       )}
+      {texts && <TextsSection texts={texts} />}
     </div>
+  );
+}
+
+/** The text queue (GAP-12). SENT only means the provider took it; the phone getting it is apart. */
+function TextsSection({ texts }: Readonly<{ texts: TextsData }>) {
+  const n = (status: EmailStatus) => texts.counts[status] ?? 0;
+  return (
+    <section className="mt-10">
+      <h2 className="mb-2 text-lg font-semibold text-brand-black">Texts</h2>
+      {!texts.configured && (
+        <p className="mb-3 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800">
+          Texting isn&apos;t set up, so texts stay queued and aren&apos;t sent. Add Twilio in
+          Settings → Integrations, then Process now.
+        </p>
+      )}
+      <p className="mb-3 text-sm text-brand-gray">
+        {n("PENDING")} pending · {n("SENT")} sent · {n("FAILED")} failed
+      </p>
+      {texts.rows.length === 0 ? (
+        <p className="text-brand-gray">No texts queued yet.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-md border border-black/10 bg-white">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-brand-stripe text-brand-gray">
+              <tr>
+                <th className="px-3 py-2 font-medium">To</th>
+                <th className="px-3 py-2 font-medium">Text</th>
+                <th className="px-3 py-2 font-medium">Type</th>
+                <th className="px-3 py-2 font-medium">Status</th>
+                <th className="px-3 py-2 font-medium">When</th>
+              </tr>
+            </thead>
+            <tbody>
+              {texts.rows.map((r) => (
+                <tr key={r.id} className="border-t border-black/5 align-top">
+                  <td className="whitespace-nowrap px-3 py-2 text-brand-gray">{r.toPhone}</td>
+                  <td className="px-3 py-2 text-brand-black">
+                    <span className="block max-w-md truncate">{r.body}</span>
+                    {r.lastError ? (
+                      <span className="block text-xs text-red-700">{r.lastError}</span>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-brand-gray">{r.templateKey ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    <Badge variant={STATUS_VARIANT[r.status]}>
+                      {r.deliveredAt ? "DELIVERED" : r.status}
+                      {r.attempts > 1 ? ` (${r.attempts})` : ""}
+                    </Badge>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-brand-gray">
+                    {dateTimeFmt.format(new Date(r.deliveredAt ?? r.sentAt ?? r.created))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

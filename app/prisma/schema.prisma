@@ -1205,6 +1205,15 @@ model Customer {
   autoMessagesOptOut Boolean           @default(false)
   customerMessages   CustomerMessage[]
 
+  /// When the customer agreed to get texts, and who recorded it (GAP-12). Null
+  /// means no consent: Holt texts nobody without it (lib/sms/consent.ts). A
+  /// STOP reply is on the number, not here (SmsOptOut).
+  smsConsentAt     DateTime?
+  smsConsentBy     String?
+  /// How they'd rather hear from the store: EMAIL, TEXT or BOTH. Read only by a
+  /// message the store set to go by the customer's choice; null is email.
+  preferredChannel String?
+
   addresses         CustomerAddress[]
   externalIds       CustomerExternalId[]
   salesOrders       SalesOrder[]
@@ -1320,24 +1329,33 @@ model SalesOrderDisclaimer {
 model CustomerMessageSetting {
   /// One of MESSAGE_KINDS. The kind decides what event sends it; this row only
   /// configures it (rule 62).
-  kind             String    @id
-  isActive         Boolean   @default(false)
+  kind                 String    @id
+  isActive             Boolean   @default(false)
   /// When it was last switched on. Only events after it send, so switching a
   /// message on sends nothing about what had already happened.
-  activeSince      DateTime?
-  subject          String
+  activeSince          DateTime?
+  subject              String
   /// Plain text with {placeholders} (lib/messages/render.ts); blank lines
   /// separate paragraphs.
-  body             String
-  includeOrderLink Boolean   @default(true)
+  body                 String
+  includeOrderLink     Boolean   @default(true)
   /// Days before the delivery (the reminder) or after the handover (the
   /// review invitation); null for a kind that goes at once.
-  offsetDays       Int?
+  offsetDays           Int?
   /// The hour of the store's day it goes out, 0-23; null for a kind that goes
   /// at once.
-  sendHour         Int?
+  sendHour             Int?
   /// The page the review invitation sends the customer to.
-  linkUrl          String?
+  linkUrl              String?
+  /// How it goes (GAP-12): EMAIL, TEXT, BOTH or CUSTOMER (each customer's own
+  /// preferredChannel). EMAIL to start, and what every message was before.
+  channel              String    @default("EMAIL")
+  /// The text's wording, placeholders as in body. Null is the suggested wording
+  /// (lib/messages/catalog.ts): a row saved before texts has none.
+  textBody             String?
+  /// Whether the text carries the order link, which makes it longer and so
+  /// dearer, separately from the email's includeOrderLink.
+  textIncludeOrderLink Boolean   @default(true)
 
   updated   DateTime? @updatedAt
   updatedBy String?
@@ -1361,6 +1379,11 @@ model CustomerMessage {
   emailQueueId       Int?
   /// The received lines an arrival message announced, so each is announced once.
   receivingRecordIds Int[]      @default([])
+  /// The text beside the email, when the message went by text (GAP-12): the
+  /// number, its queue row, or why it didn't go. skipReason is the email's.
+  toPhone            String?
+  smsQueueId         Int?
+  smsSkipReason      String?
   created            DateTime   @default(now())
 
   @@index([salesOrderId])
@@ -5668,6 +5691,7 @@ model Organization {
   availabilityWindows AvailabilityWindow[]
   calendarBlocks      CalendarBlock[]
   emailQueue          EmailQueue[]
+  smsQueue            SmsQueue[]
   blogComments        BlogComment[]
   paymentApplications PaymentApplication[]
   invoices            Invoice[]
@@ -6231,6 +6255,49 @@ model EmailQueue {
 
   @@index([organizationId, status])
   @@index([status, scheduledAt])
+}
+
+/// A text waiting to go, sent, or given up on (GAP-12, lib/sms/queue.ts). The
+/// same states and retries as EmailQueue, and the same cron drains it. SENT
+/// means the provider accepted it. deliveredAt is the carrier saying it arrived,
+/// and a report that it didn't turns the row FAILED: an unregistered US number
+/// is accepted, then blocked.
+model SmsQueue {
+  id             Int          @id @default(autoincrement())
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// E.164: a CHECK says so.
+  toPhone     String
+  body        String
+  templateKey String?
+
+  status            EmailStatus @default(PENDING)
+  attempts          Int         @default(0)
+  lastError         String?
+  scheduledAt       DateTime    @default(now())
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  /// The provider's id for it, which its delivery reports name.
+  providerMessageId String?     @unique
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+
+  @@index([organizationId, status])
+  @@index([status, scheduledAt])
+}
+
+/// A number that replied STOP (GAP-12). It belongs to the number, as the
+/// provider's own block does: a household's customers share it, and it holds
+/// whichever record the phone is typed on. A START reply removes the row.
+model SmsOptOut {
+  /// E.164: a CHECK says so.
+  phone      String   @id
+  optedOutAt DateTime @default(now())
+  /// REPLY (their STOP reached us) or PROVIDER (a send was refused for it).
+  source     String
 }
 
 // A file sent with a queued email (a purchase order's PDF), kept on the row so

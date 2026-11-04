@@ -7,12 +7,14 @@
 // First it queues the customer messages that are due (GAP-13,
 // lib/messages/due.ts), so they go in the same run. A failure there is logged
 // and the drain still runs: an email already queued is not held up by one
-// that couldn't be.
+// that couldn't be. Texts drain here too (GAP-12): one cron for what's waiting
+// to reach a customer.
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { processEmailQueue } from "@/lib/email/queue";
 import { queueDueMessages, type DueSummary } from "@/lib/messages/due";
+import { processSmsQueue } from "@/lib/sms/queue";
 import { logError } from "@/lib/logger";
 
 function authorizedByApiKey(req: NextApiRequest): boolean {
@@ -30,7 +32,8 @@ async function drain(_req: NextApiRequest, res: NextApiResponse) {
   }
   try {
     const summary = await processEmailQueue();
-    return res.status(200).json({ summary, messages });
+    const texts = await processSmsQueue();
+    return res.status(200).json({ summary, texts, messages });
   } catch (err: unknown) {
     logError("Email queue drain failed", err);
     return res.status(500).json({ error: "Could not process email queue" });

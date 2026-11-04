@@ -43,12 +43,45 @@ export type Placeholder = keyof typeof PLACEHOLDERS;
  */
 export type MessageTiming = "at-once" | "before-delivery" | "after-handover";
 
+/**
+ * How a message goes (GAP-12). CUSTOMER follows each customer's own
+ * preferredChannel, and email for one with none. EMAIL to start: a store sets
+ * up a text provider before anything can go by text.
+ */
+export const MESSAGE_CHANNELS = ["EMAIL", "TEXT", "BOTH", "CUSTOMER"] as const;
+export type MessageChannel = (typeof MESSAGE_CHANNELS)[number];
+
+export const CHANNEL_LABELS: Record<MessageChannel, string> = {
+  EMAIL: "Email",
+  TEXT: "Text",
+  BOTH: "Email and text",
+  CUSTOMER: "Whichever the customer prefers",
+};
+
+export function isMessageChannel(value: unknown): value is MessageChannel {
+  return typeof value === "string" && (MESSAGE_CHANNELS as readonly string[]).includes(value);
+}
+
+/** Which channels a message takes for this customer. */
+export function channelsFor(
+  channel: MessageChannel,
+  preferred: string | null | undefined,
+): { email: boolean; text: boolean } {
+  const choice = channel === "CUSTOMER" ? (preferred ?? "EMAIL") : channel;
+  return {
+    email: choice === "EMAIL" || choice === "BOTH",
+    text: choice === "TEXT" || choice === "BOTH",
+  };
+}
+
 export interface MessageDefaults {
   subject: string;
   body: string;
   includeOrderLink: boolean;
   offsetDays: number | null;
   sendHour: number | null;
+  textBody: string;
+  textIncludeOrderLink: boolean;
 }
 
 export interface KindDefinition {
@@ -78,6 +111,9 @@ export const MESSAGE_CATALOG: Record<MessageKind, KindDefinition> = {
       includeOrderLink: true,
       offsetDays: null,
       sendHour: null,
+      textBody:
+        "{store}: {pieces} from your order {order} arrived. We'll be in touch to arrange delivery or pickup.",
+      textIncludeOrderLink: true,
     },
   },
   DELIVERY_SCHEDULED: {
@@ -94,6 +130,9 @@ export const MESSAGE_CATALOG: Record<MessageKind, KindDefinition> = {
       includeOrderLink: true,
       offsetDays: null,
       sendHour: null,
+      textBody:
+        "{store}: your delivery of order {order} is scheduled for {when}. If that doesn't work for you, please call us.",
+      textIncludeOrderLink: true,
     },
   },
   DELIVERY_REMINDER: {
@@ -110,6 +149,8 @@ export const MESSAGE_CATALOG: Record<MessageKind, KindDefinition> = {
       includeOrderLink: true,
       offsetDays: 1,
       sendHour: 9,
+      textBody: "{store}: a reminder that we're delivering order {order} on {when}.",
+      textIncludeOrderLink: true,
     },
   },
   REVIEW_INVITE: {
@@ -126,6 +167,8 @@ export const MESSAGE_CATALOG: Record<MessageKind, KindDefinition> = {
       includeOrderLink: true,
       offsetDays: 3,
       sendHour: 10,
+      textBody: "{store}: thank you for your order {order}. We'd love to hear how we did.",
+      textIncludeOrderLink: false,
     },
   },
 };
@@ -133,6 +176,8 @@ export const MESSAGE_CATALOG: Record<MessageKind, KindDefinition> = {
 export const SUBJECT_MAX = 150;
 export const BODY_MAX = 4000;
 export const LINK_MAX = 500;
+/** About four text segments: each one is billed, and a longer text gets split or refused. */
+export const TEXT_MAX = 640;
 /** The range the database CHECKs too (migration 20261103220000). */
 export const OFFSET_DAYS_MAX = 90;
 
@@ -145,7 +190,19 @@ export interface MessageSettingInput {
   offsetDays: number | null;
   sendHour: number | null;
   linkUrl: string | null;
+  channel: MessageChannel;
+  textBody: string;
+  textIncludeOrderLink: boolean;
 }
+
+/**
+ * The text staff send from the order page with the customer's link (GAP-12). It
+ * isn't one of the automatic kinds: nothing sends it by itself, so it has no
+ * setting, and its history row names this kind.
+ */
+export const ORDER_LINK_KIND = "ORDER_LINK";
+export const ORDER_LINK_LABEL = "Order link, sent by staff";
+export const ORDER_LINK_TEXT = "{store}: here's your order {order}.";
 
 const PLACEHOLDER_RE = /\{([a-zA-Z]+)\}/g;
 
@@ -184,24 +241,24 @@ function timingProblem(def: KindDefinition, input: MessageSettingInput): string 
   return null;
 }
 
-/** Why a message can't be saved as given, or null. Checked on the screen and again by the route. */
-export function messageSettingProblem(
-  kind: MessageKind,
-  input: MessageSettingInput,
-): string | null {
-  const def = MESSAGE_CATALOG[kind];
+/** What's wrong with its subject and wording, in both channels. */
+function wordingProblem(kind: MessageKind, input: MessageSettingInput): string | null {
   const subject = input.subject.trim();
   const body = input.body.trim();
+  const textBody = input.textBody.trim();
   if (!subject) return "Give the message a subject.";
   if (subject.length > SUBJECT_MAX) return `Keep the subject under ${SUBJECT_MAX} characters.`;
   if (!body) return "Give the message some wording.";
   if (body.length > BODY_MAX) return `Keep the wording under ${BODY_MAX} characters.`;
-  const unknown = unknownPlaceholders(kind, `${subject}\n${body}`);
-  if (unknown.length > 0) {
-    return `This message can't fill ${unknown.join(", ")}. It can use ${def.placeholders.map((p) => `{${p}}`).join(", ")}.`;
-  }
-  const timing = timingProblem(def, input);
-  if (timing) return timing;
+  if (input.channel !== "EMAIL" && !textBody) return "Give the text some wording.";
+  if (textBody.length > TEXT_MAX) return `Keep the text under ${TEXT_MAX} characters.`;
+  const unknown = unknownPlaceholders(kind, `${subject}\n${body}\n${textBody}`);
+  if (unknown.length === 0) return null;
+  const fillable = MESSAGE_CATALOG[kind].placeholders.map((p) => `{${p}}`).join(", ");
+  return `This message can't fill ${unknown.join(", ")}. It can use ${fillable}.`;
+}
+
+function linkProblem(def: KindDefinition, input: MessageSettingInput): string | null {
   const link = input.linkUrl?.trim() ?? "";
   if (link) {
     if (link.length > LINK_MAX) return `Keep the link under ${LINK_MAX} characters.`;
@@ -211,4 +268,14 @@ export function messageSettingProblem(
     return "Add the link to your review page before switching this on.";
   }
   return null;
+}
+
+/** Why a message can't be saved as given, or null. Checked on the screen and again by the route. */
+export function messageSettingProblem(
+  kind: MessageKind,
+  input: MessageSettingInput,
+): string | null {
+  if (!isMessageChannel(input.channel)) return "Choose how the message goes.";
+  const def = MESSAGE_CATALOG[kind];
+  return wordingProblem(kind, input) ?? timingProblem(def, input) ?? linkProblem(def, input);
 }
