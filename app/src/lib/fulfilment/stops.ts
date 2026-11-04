@@ -75,6 +75,7 @@ export async function completeStop(
     method: "DELIVERY" as const,
     actor: args.actor ?? "dispatch",
     deliveryRunId: stop.deliveryRunId,
+    deliveryStopId: stopId,
   };
   if (args.delivered) {
     const delivery = await recordDelivery(tx, {

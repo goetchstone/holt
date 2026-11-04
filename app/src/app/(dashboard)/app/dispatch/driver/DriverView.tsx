@@ -26,6 +26,8 @@ import { getErrorMessage } from "@/lib/toastError";
 import { deliveredPayload, openStopLines } from "@/lib/fulfilment/deliveredLines";
 import type { StopCompletion } from "@/lib/fulfilment/stops";
 import { CouldNotForm, DeliveredCounts, PickupItems, type StopReturn } from "./StopParts";
+import { type SelectedOrderFlag, flagRefsOf } from "@/lib/sales/orderFlagsShared";
+import { OrderFlagChip } from "@/app/(dashboard)/app/sales/orders/[id]/OrderFlagsPanel";
 
 type LineItem = {
   id: number;
@@ -64,6 +66,8 @@ type ServiceAppointment = {
     id: number;
     orderno: string;
     lineItems: LineItem[];
+    /** The store's flags, as the run's query selected them (flagRefsOf). */
+    flags?: SelectedOrderFlag[];
   } | null;
 };
 
@@ -345,6 +349,15 @@ export function DriverView() {
 
               {/* Customer name */}
               <h3 className="text-lg font-semibold text-brand-navy mb-1">{customerName}</h3>
+
+              {/* The store's flags on the order (GAP-07): "Call before delivery", "Fragile". */}
+              {appt.salesOrder?.flags && appt.salesOrder.flags.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {flagRefsOf(appt.salesOrder.flags).map((f) => (
+                    <OrderFlagChip key={f.id} flag={f} />
+                  ))}
+                </div>
+              )}
 
               {/* Address as map link */}
               {fullAddress && encodedAddress && (

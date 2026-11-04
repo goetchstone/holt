@@ -6,6 +6,7 @@ import FormInput from "@/components/form/FormInput";
 import FormTextArea from "@/components/form/FormTextArea"; // Assuming you might use this for ZPL
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/Modal";
+import { isSavedRecord } from "@/lib/savedRecord";
 
 type Props = {
   template: LabelTemplate | null; // Can be null for new template
@@ -49,9 +50,10 @@ export default function LabelTemplateModal({ template, onClose, onRefresh }: Pro
 
   const handleSubmit = async () => {
     setSaving(true);
-    const method = template ? "PUT" : "POST";
+    const editing = isSavedRecord(template);
+    const method = editing ? "PUT" : "POST";
     // Use the /api/templates/[id] for PUT, and /api/labels for POST
-    const url = template ? `/api/templates/${template.id}` : "/api/labels";
+    const url = editing ? `/api/templates/${template.id}` : "/api/labels";
 
     try {
       const res = await fetch(url, {
@@ -109,7 +111,7 @@ export default function LabelTemplateModal({ template, onClose, onRefresh }: Pro
 
   return (
     <Modal
-      title={template ? "Edit Label Template" : "Add Label Template"}
+      title={isSavedRecord(template) ? "Edit Label Template" : "Add Label Template"}
       onClose={onClose}
       onSave={handleSubmit}
       saving={saving}
@@ -146,7 +148,7 @@ export default function LabelTemplateModal({ template, onClose, onRefresh }: Pro
       />
 
       <div className="flex justify-end gap-4 mt-4">
-        {template && ( // Only show delete button for existing templates
+        {isSavedRecord(template) && ( // Only show delete button for existing templates
           <Button variant="secondary" onClick={handleDelete} disabled={saving}>
             Delete
           </Button>

@@ -5,6 +5,7 @@ import { Printer } from "@prisma/client";
 import FormInput from "@/components/form/FormInput";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/Modal";
+import { isSavedRecord } from "@/lib/savedRecord";
 
 type Props = {
   printer: Printer | null; // Can be null for new printer
@@ -57,8 +58,9 @@ export default function PrinterModal({ printer, onClose, onRefresh }: Props) {
 
   const handleSubmit = async () => {
     setSaving(true);
-    const method = printer ? "PUT" : "POST";
-    const url = printer ? `/api/printers/${printer.id}` : "/api/printers"; // Use new single-printer API for PUT
+    const editing = isSavedRecord(printer);
+    const method = editing ? "PUT" : "POST";
+    const url = editing ? `/api/printers/${printer.id}` : "/api/printers"; // Use new single-printer API for PUT
 
     try {
       const res = await fetch(url, {
@@ -113,7 +115,7 @@ export default function PrinterModal({ printer, onClose, onRefresh }: Props) {
 
   return (
     <Modal
-      title={printer ? "Edit Printer" : "Add Printer"}
+      title={isSavedRecord(printer) ? "Edit Printer" : "Add Printer"}
       onClose={onClose}
       onSave={handleSubmit}
       saving={saving}
@@ -170,7 +172,7 @@ export default function PrinterModal({ printer, onClose, onRefresh }: Props) {
       />
 
       <div className="flex justify-end gap-4 mt-4">
-        {printer && ( // Only show delete button for existing printers
+        {isSavedRecord(printer) && ( // Only show delete button for existing printers
           <Button variant="secondary" onClick={handleDelete} disabled={saving}>
             Delete
           </Button>

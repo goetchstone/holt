@@ -65,6 +65,18 @@ export function assembleUnits(boxesPerUnit: number, boxes: number[]): AssembledU
   return { units, incomplete };
 }
 
+/**
+ * A handheld tally as whole units: units counted by tag plus the sets its box
+ * labels make, and the boxes left over that make no whole unit.
+ */
+export function tallyUnits(
+  boxesPerUnit: number,
+  tally: { units: number; boxes: number[] },
+): { units: number; loose: number[] } {
+  const a = assembleUnits(boxesPerUnit, tally.boxes);
+  return { units: tally.units + a.units, loose: a.incomplete.flatMap((s) => s.present) };
+}
+
 /** The boxes a set still misses once `arrived` are added to it. */
 export function stillMissing(missing: number[], arrived: number[]): number[] {
   const left = [...missing];

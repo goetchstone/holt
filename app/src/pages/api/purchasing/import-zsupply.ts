@@ -15,6 +15,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { createSecureForm } from "@/lib/secureUpload";
 import { pickFormFields } from "@/lib/importFormFields";
 import { logError } from "@/lib/logger";
+import { findOrCreateVendor } from "@/lib/vendors/vendorByName";
 export const config = { api: { bodyParser: false } };
 
 const FIELD_NAMES = ["departmentId", "categoryId", "itemCategories"] as const;
@@ -48,20 +49,12 @@ export default requirePermission(
         return res.status(400).json({ error: "No line items found in PDF" });
       }
 
-      // Find or create Z Supply vendor
-      let vendor = await prisma.vendor.findFirst({
-        where: { name: { equals: "Z Supply", mode: "insensitive" } },
+      // Find or create Z Supply vendor, by an earlier name too (a vendor
+      // merged away).
+      const vendor = await findOrCreateVendor(prisma, "Z Supply", {
+        ignoreCase: true,
+        data: { pricingModel: "FLAT", createdBy: session.user?.email || "system" },
       });
-
-      if (!vendor) {
-        vendor = await prisma.vendor.create({
-          data: {
-            name: "Z Supply",
-            pricingModel: "FLAT",
-            createdBy: session.user?.email || "system",
-          },
-        });
-      }
 
       const departmentId = Number.parseInt(fields.departmentId as string);
       const categoryId = Number.parseInt(fields.categoryId as string);
@@ -144,7 +137,7 @@ export default requirePermission(
           let product = await tx.product.findFirst({
             where: {
               productNumber: item.styleNumber,
-              vendorId: vendor!.id,
+              vendorId: vendor.id,
             },
           });
 
@@ -153,7 +146,7 @@ export default requirePermission(
               data: {
                 productNumber: item.styleNumber,
                 name: item.productName,
-                vendorId: vendor!.id,
+                vendorId: vendor.id,
                 departmentId: dept.id,
                 categoryId: itemCatId,
                 baseCost: item.unitPrice,
@@ -207,7 +200,7 @@ export default requirePermission(
         const po = await tx.purchaseOrder.create({
           data: {
             poNumber,
-            vendorId: vendor!.id,
+            vendorId: vendor.id,
             orderDate: parsed.invoiceDate
               ? (() => {
                   const parts = parsed.invoiceDate.split("/");
@@ -245,7 +238,7 @@ export default requirePermission(
         return {
           poId: po.id,
           poNumber: po.poNumber,
-          vendor: vendor!.name,
+          vendor: vendor.name,
           itemCount: po.lineItems.length,
           productsCreated,
           variantsCreated,

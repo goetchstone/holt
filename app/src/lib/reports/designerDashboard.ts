@@ -21,6 +21,7 @@ import { buildLineItemWhere } from "@/lib/salesBySalesperson";
 import { getDateRanges, type PeriodRange } from "@/lib/reports/dateRanges";
 import { getBusinessTimeZone } from "@/lib/appSettings";
 import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { type SplitOrder, creditShare } from "@/lib/commissionSplit";
 import {
   groupForDepartment,
   loadReportTaxonomy,
@@ -144,7 +145,8 @@ function variance(current: number, previous: number): number | null {
 
 // netPrice AND cost are both extended LINE totals (already multiplied by qty)
 // -- the same invariant journalEntry.ts, grossMargin.ts, and every other reader
-// relies on. Never multiply either by orderedQuantity. Split orders credit 50%.
+// relies on. Never multiply either by orderedQuantity. A split order credits the
+// designer their share of it (lib/commissionSplit.ts).
 export interface DashboardLineItem {
   netPrice: unknown;
   cost: unknown;
@@ -152,16 +154,10 @@ export interface DashboardLineItem {
   product: { department: { name: string | null } | null } | null;
 }
 
-interface DashboardOrder {
+interface DashboardOrder extends SplitOrder {
   orderDate: Date | null;
   status: string;
-  splitWithId: number | null;
   lineItems: DashboardLineItem[];
-}
-
-// Order has a split — both the primary and the split partner get 50%.
-function creditMultiplier(order: { splitWithId: number | null }): number {
-  return order.splitWithId ? 0.5 : 1;
 }
 
 function isInPeriod(orderDate: Date | null, period: PeriodRange): boolean {
@@ -205,6 +201,7 @@ function processOrders(
   orders: DashboardOrder[],
   period: PeriodRange,
   taxonomy: ReportTaxonomy,
+  staffId: number | null,
 ): Record<string, CategoryMetrics> {
   const result: Record<string, CategoryMetrics> = {};
   taxonomy.groups.forEach((c) => (result[c] = emptyMetrics()));
@@ -212,7 +209,8 @@ function processOrders(
 
   for (const order of orders) {
     if (!isInPeriod(order.orderDate, period)) continue;
-    const multiplier = creditMultiplier(order);
+    // The designer's share of a split sale (lib/commissionSplit.ts).
+    const multiplier = creditShare(order, staffId);
     for (const li of order.lineItems) {
       accumulateLineItem(result, li, multiplier, taxonomy);
     }
@@ -286,12 +284,11 @@ function buildHcWindows(hcYtdCalls: HouseCallOrder[]): HcWindow[] {
   return hcWindows;
 }
 
-interface FollowUpOrder {
+interface FollowUpOrder extends SplitOrder {
   orderDate: Date | null;
   status: string;
   customerId: number | null;
   lineItems: { netPrice: unknown }[];
-  splitWith: { id: number } | null;
 }
 
 // Sum follow-up sales that land inside a house-call window and clear the
@@ -299,6 +296,7 @@ interface FollowUpOrder {
 function attributeFollowUpSales(
   followUpOrders: FollowUpOrder[],
   hcWindows: HcWindow[],
+  staffId: number | null,
 ): { totalSalesValue: number; convertedCount: number } {
   let totalSalesValue = 0;
   let convertedCount = 0;
@@ -313,7 +311,7 @@ function attributeFollowUpSales(
     if (!inWindow) continue;
 
     const rawValue = order.lineItems.reduce((sum, li) => sum + Number(li.netPrice), 0);
-    const multiplier = order.splitWith ? 0.5 : 1;
+    const multiplier = creditShare(order, staffId);
     const orderValue = rawValue * multiplier;
     if (orderValue < HC_CONVERSION_THRESHOLD) continue;
     totalSalesValue += orderValue;
@@ -376,10 +374,10 @@ export async function getDesignerDashboard(
   });
 
   const salesOrders = allOrders.filter((o) => REVENUE_STATUSES.includes(o.status));
-  const salesMtd = processOrders(salesOrders, ranges.mtd, taxonomy);
-  const salesPrevMtd = processOrders(salesOrders, ranges.prevMtd, taxonomy);
-  const salesYtd = processOrders(salesOrders, ranges.ytd, taxonomy);
-  const salesPrevYtd = processOrders(salesOrders, ranges.prevYtd, taxonomy);
+  const salesMtd = processOrders(salesOrders, ranges.mtd, taxonomy, staffId);
+  const salesPrevMtd = processOrders(salesOrders, ranges.prevMtd, taxonomy, staffId);
+  const salesYtd = processOrders(salesOrders, ranges.ytd, taxonomy, staffId);
+  const salesPrevYtd = processOrders(salesOrders, ranges.prevYtd, taxonomy, staffId);
   const activeOrders = allOrders.filter((o) => o.status === "ORDER" || o.status === "FULFILLED");
   const orderCountYtd = countOrders(activeOrders, ranges.ytd);
 
@@ -408,10 +406,10 @@ export async function getDesignerDashboard(
   const quoteOrders = allOrders.filter(
     (o) => o.status === "QUOTE" || o.status === "ORDER" || o.status === "FULFILLED",
   );
-  const quotesMtd = processOrders(quoteOrders, ranges.mtd, taxonomy);
-  const quotesPrevMtd = processOrders(quoteOrders, ranges.prevMtd, taxonomy);
-  const quotesYtd = processOrders(quoteOrders, ranges.ytd, taxonomy);
-  const quotesPrevYtd = processOrders(quoteOrders, ranges.prevYtd, taxonomy);
+  const quotesMtd = processOrders(quoteOrders, ranges.mtd, taxonomy, staffId);
+  const quotesPrevMtd = processOrders(quoteOrders, ranges.prevMtd, taxonomy, staffId);
+  const quotesYtd = processOrders(quoteOrders, ranges.ytd, taxonomy, staffId);
+  const quotesPrevYtd = processOrders(quoteOrders, ranges.prevYtd, taxonomy, staffId);
   const quoteCountYtd = countOrders(quoteOrders, ranges.ytd);
 
   // Conversion rate: closed sales / total quote-equivalent activity. Since
@@ -426,7 +424,7 @@ export async function getDesignerDashboard(
   // designer needs to close). Computed separately so this card remains
   // meaningful even with the broader QUOTES panel above.
   const openQuoteOrders = allOrders.filter((o) => o.status === "QUOTE");
-  const openQuotesYtd = processOrders(openQuoteOrders, ranges.ytd, taxonomy);
+  const openQuotesYtd = processOrders(openQuoteOrders, ranges.ytd, taxonomy, staffId);
   const openQuoteValue = openQuotesYtd[TOTAL_KEY].revenue;
 
   // House calls: a house-call service line item on an order = one house
@@ -474,11 +472,10 @@ export async function getDesignerDashboard(
         lineItems: {
           where: buildLineItemWhere([], false),
         },
-        splitWith: { select: { id: true } },
       },
     });
 
-    const attributed = attributeFollowUpSales(followUpOrders, hcWindows);
+    const attributed = attributeFollowUpSales(followUpOrders, hcWindows, staffId);
     hcTotalSalesValue = attributed.totalSalesValue;
     hcConvertedCount = attributed.convertedCount;
   }

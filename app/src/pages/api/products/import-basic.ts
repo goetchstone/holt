@@ -6,6 +6,7 @@ import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { vendorIdByName } from "@/lib/vendors/vendorByName";
 export default requirePermission(
   "catalog.write",
   async (req: NextApiRequest, res: NextApiResponse) => {
@@ -26,9 +27,7 @@ export default requirePermission(
 
     try {
       for (const record of records) {
-        const vendor = await prisma.vendor.findUnique({
-          where: { name: record.vendorName },
-        });
+        const vendor = await vendorNamed(record.vendorName);
         if (!vendor) throw new Error(`Vendor not found: ${record.vendorName}`);
 
         const department = await prisma.department.findUnique({
@@ -151,3 +150,9 @@ export default requirePermission(
     }
   },
 );
+
+/** The vendor a name means; an earlier name (a vendor merged away) finds the vendor it went to. */
+async function vendorNamed(name: string) {
+  const id = await vendorIdByName(prisma, name);
+  return id === null ? null : prisma.vendor.findUnique({ where: { id } });
+}

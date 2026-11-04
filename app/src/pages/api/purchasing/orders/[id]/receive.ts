@@ -60,8 +60,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     );
     const { printItems } = result;
 
+    // A line whose category keeps no stock was recorded, not stocked: say so.
+    const notStocked =
+      result.notStocked.length > 0 ? ` Recorded only: ${result.notStocked.join(" ")}` : "";
     return res.status(200).json({
-      message: `${result.receivingRecords.length} item(s) received`,
+      message: `${result.receivingRecords.length} item(s) received.${notStocked}`,
       receivingRecords: result.receivingRecords,
       newStatus: result.newStatus,
       printItems,

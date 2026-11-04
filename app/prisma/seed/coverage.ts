@@ -106,6 +106,12 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   CustomerExternalId: { status: "todo", tranche: "catalog-depth" },
   CustomerInteraction: { status: "seeded", seeder: "demo" },
   CustomerLedgerEntry: { status: "todo", tranche: "money-detail" },
+  CustomerMessage: {
+    status: "skipped",
+    reason:
+      "Runtime log of automatic customer messages (GAP-13), written by the email-queue cron; the demo switches none on, so it writes to none of its invented customers.",
+  },
+  CustomerMessageSetting: { status: "seeded" },
   DailyReconciliationLog: { status: "todo", tranche: "money-detail" },
   DeliveryRun: { status: "seeded", seeder: "demo" },
   DeliveryStop: { status: "seeded", seeder: "demo" },
@@ -183,7 +189,15 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   MediaAsset: { status: "todo", tranche: "catalog-depth" },
   Menu: { status: "seeded", seeder: "cms" },
   MonthlySalesPercentage: { status: "todo", tranche: "commission-completeness" },
-  OrderChangeLog: { status: "todo", tranche: "money-detail" },
+  // Seeded by the order tools (GAP-07): adding a flag or a disclaimer writes
+  // the row staff's would. Price and line changes are still unseeded history.
+  OrderChangeLog: { status: "seeded" },
+  OrderDisclaimer: { status: "seeded" },
+  OrderFlag: { status: "seeded" },
+  // GAP-07: a handover through lib/fulfilment/handover.ts records one. The demo
+  // writes its past deliveries' deliveredAt directly, so it has none, and its
+  // delivered orders can't be undone until it hands them over properly.
+  OrderHandover: { status: "todo", tranche: "fulfilment-history" },
   OrderLineItem: { status: "seeded" },
   Organization: { status: "seeded" },
   Page: { status: "seeded", seeder: "cms" },
@@ -233,6 +247,8 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   SalesGoal: { status: "seeded", seeder: "demo" },
   SalesGoals: { status: "todo", tranche: "commission-completeness" },
   SalesOrder: { status: "seeded" },
+  SalesOrderDisclaimer: { status: "seeded" },
+  SalesOrderFlag: { status: "seeded" },
   Service: { status: "seeded", seeder: "demo" },
   ServiceAppointment: { status: "seeded", seeder: "demo" },
   ServiceCase: { status: "seeded" },
@@ -295,7 +311,8 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   User: { status: "seeded" },
   Vehicle: { status: "seeded", seeder: "demo" },
   Vendor: { status: "seeded" },
-  VendorContact: { status: "todo", tranche: "special-order-pricing" },
+  VendorAlias: { status: "seeded", seeder: "demo" },
+  VendorContact: { status: "seeded", seeder: "demo" },
   VendorOption: { status: "seeded", seeder: "demo" },
   VendorOptionGroup: { status: "seeded", seeder: "demo" },
   VendorPriceDimension: { status: "seeded", seeder: "demo" },
@@ -322,6 +339,7 @@ export const SEED_TRANCHES: readonly string[] = [
   "money-detail",
   "buying-consignment",
   "content-comms",
+  "fulfilment-history",
 ];
 
 export function modelsInTranche(tranche: string): string[] {

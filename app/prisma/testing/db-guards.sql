@@ -162,3 +162,37 @@ ALTER TABLE "ProductSource" DROP CONSTRAINT IF EXISTS "ProductSource_itemNumber_
 ALTER TABLE "ProductSource" ADD CONSTRAINT "ProductSource_itemNumber_not_blank" CHECK (
   "itemNumber" IS NULL OR btrim("itemNumber") <> ''
 );
+
+-- 20261102200000_vendor_aliases
+-- A merged vendor's old name is never blank.
+ALTER TABLE "VendorAlias" DROP CONSTRAINT IF EXISTS "VendorAlias_name_not_blank";
+ALTER TABLE "VendorAlias" ADD CONSTRAINT "VendorAlias_name_not_blank" CHECK (
+  btrim("name") <> ''
+);
+
+-- 20261103180000_split_share
+-- A split's share to the salesperson, and the store's default, are 1 to 99.
+ALTER TABLE "SalesOrder" DROP CONSTRAINT IF EXISTS "SalesOrder_splitPercent_range";
+ALTER TABLE "SalesOrder" ADD CONSTRAINT "SalesOrder_splitPercent_range" CHECK (
+  "splitPercent" >= 1 AND "splitPercent" <= 99
+);
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_defaultSplitPercent_range";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_defaultSplitPercent_range" CHECK (
+  "defaultSplitPercent" >= 1 AND "defaultSplitPercent" <= 99
+);
+
+-- 20261103220000_customer_messages
+-- A timed customer message goes out at an hour 0-23, 0-90 days from its event;
+-- a message is queued or skipped.
+ALTER TABLE "CustomerMessageSetting" DROP CONSTRAINT IF EXISTS "CustomerMessageSetting_sendHour_range";
+ALTER TABLE "CustomerMessageSetting" ADD CONSTRAINT "CustomerMessageSetting_sendHour_range" CHECK (
+  "sendHour" IS NULL OR ("sendHour" >= 0 AND "sendHour" <= 23)
+);
+ALTER TABLE "CustomerMessageSetting" DROP CONSTRAINT IF EXISTS "CustomerMessageSetting_offsetDays_range";
+ALTER TABLE "CustomerMessageSetting" ADD CONSTRAINT "CustomerMessageSetting_offsetDays_range" CHECK (
+  "offsetDays" IS NULL OR ("offsetDays" >= 0 AND "offsetDays" <= 90)
+);
+ALTER TABLE "CustomerMessage" DROP CONSTRAINT IF EXISTS "CustomerMessage_status_known";
+ALTER TABLE "CustomerMessage" ADD CONSTRAINT "CustomerMessage_status_known" CHECK (
+  "status" IN ('QUEUED', 'SKIPPED')
+);

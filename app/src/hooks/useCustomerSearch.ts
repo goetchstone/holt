@@ -2,8 +2,9 @@
 //
 // Shared hook for customer search-as-you-type. Replaces the duplicated
 // debounce + fetch pattern found in quotes/new, pos, service/cases/new,
-// and interactions/[id]. All four previously had their own 300ms setTimeout,
-// their own useState triplet, and their own error swallowing.
+// interactions/[id], service/house-calls/new and the order page's customer
+// field. Each previously had its own setTimeout, its own useState triplet, and
+// its own error swallowing.
 
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
@@ -15,6 +16,15 @@ export interface CustomerSearchResult {
   lastName: string;
   email: string | null;
   phone: string | null;
+}
+
+/**
+ * The matches in a GET /api/customers answer, which is `{ data, totalPages }`.
+ * Two screens that read `customers` instead never showed a match (2026-11-03).
+ */
+export function customerSearchRows(body: unknown): CustomerSearchResult[] {
+  const rows = (body as { data?: unknown } | null)?.data;
+  return Array.isArray(rows) ? (rows as CustomerSearchResult[]) : [];
 }
 
 interface UseCustomerSearchOptions {
@@ -54,10 +64,7 @@ export function useCustomerSearch(options?: UseCustomerSearchOptions): UseCustom
     axios
       .get("/api/customers", { params: { search: debouncedQuery, limit } })
       .then((res) => {
-        if (!cancelled) {
-          const data = res.data;
-          setResults(Array.isArray(data) ? data : data.data || data.customers || []);
-        }
+        if (!cancelled) setResults(customerSearchRows(res.data));
       })
       .catch(() => {
         if (!cancelled) setResults([]);

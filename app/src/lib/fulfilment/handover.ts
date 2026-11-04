@@ -54,6 +54,8 @@ export interface HandoverInput {
   actor?: string | null;
   /** The run whose stop this is: its truck is where the goods were. */
   deliveryRunId?: number | null;
+  /** The stop it was completed from, so an undo can put it back (GAP-07). */
+  deliveryStopId?: number | null;
 }
 
 /**
@@ -117,6 +119,30 @@ export async function markHandedOver(tx: Tx, input: HandoverInput): Promise<Hand
     return { changed: false, deliveredAt: existing.deliveredAt };
   }
 
+  // What this handover changes, recorded first, so one made by mistake can be
+  // undone exactly (GAP-07, undoHandover.ts): the dispatch status and each open
+  // line's fulfilled quantity before it, and the stock it moves (below).
+  const before = await tx.orderLineItem.findMany({
+    where: { salesOrderId: input.salesOrderId, lineItemStatus: "ACTIVE" },
+    select: { id: true, fulfilledQty: true },
+  });
+  const handover = await tx.orderHandover.create({
+    data: {
+      salesOrderId: input.salesOrderId,
+      method: input.method,
+      at: input.at,
+      deliveryRunId: input.deliveryRunId ?? null,
+      deliveryStopId: input.deliveryStopId ?? null,
+      previousDispatchStatus: existing.dispatchStatus,
+      linesBefore: before.map((l) => ({
+        lineItemId: l.id,
+        fulfilledQty: toQty(l.fulfilledQty),
+      })),
+      actor: input.actor ?? null,
+    },
+    select: { id: true },
+  });
+
   await tx.salesOrder.update({
     where: { id: input.salesOrderId },
     data: {
@@ -149,6 +175,7 @@ export async function markHandedOver(tx: Tx, input: HandoverInput): Promise<Hand
     lines,
     tx,
     input.method === "DELIVERY" ? deliveredFrom(input.deliveryRunId) : [],
+    handover.id,
   );
   const open = await tx.orderLineItem.findMany({
     where: {

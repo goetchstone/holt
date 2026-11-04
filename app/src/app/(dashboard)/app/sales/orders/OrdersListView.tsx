@@ -7,7 +7,9 @@
 // MainLayout chrome, which the (dashboard) layout supplies), reading the shared
 // /api/sales/orders REST endpoint. The status filter seeds from ?status= (e.g.
 // /sales/orders?status=QUOTE); the My/All quote scope filters QUOTEs to the
-// signed-in user.
+// signed-in user. The store's flags (GAP-07) show beside each order's number,
+// and the flag filter shows only the orders carrying one. The search also finds
+// an order by a note on one of its lines.
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -19,6 +21,8 @@ import TableWithFilters from "@/components/table/TableWithFilters";
 import { type Column } from "@/components/table/PaginatedTable";
 import { parseLocalDate } from "@/lib/dateUtils";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import type { OrderFlagRef } from "@/lib/sales/orderFlagsShared";
+import { OrderFlagChip } from "./[id]/OrderFlagsPanel";
 
 interface OrderRow {
   id: number;
@@ -30,6 +34,7 @@ interface OrderRow {
   customerName: string | null;
   totalPaid: number;
   totalAmount: number;
+  flags: OrderFlagRef[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -60,12 +65,22 @@ export function OrdersListView() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [flagFilter, setFlagFilter] = useState("");
+  const [flags, setFlags] = useState<OrderFlagRef[]>([]);
+
+  useEffect(() => {
+    axios
+      .get<OrderFlagRef[]>("/api/order-flags")
+      .then((res) => setFlags(res.data))
+      .catch(() => setFlags([]));
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string | number> = { page, search, limit: 10 };
       if (statusFilter) params.status = statusFilter;
+      if (flagFilter) params.flag = flagFilter;
       if (statusFilter === "QUOTE" && quoteScope === "mine" && session?.user?.name) {
         params.salesperson = session.user.name;
       }
@@ -77,7 +92,7 @@ export function OrdersListView() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, quoteScope, session?.user?.name]);
+  }, [page, search, statusFilter, flagFilter, quoteScope, session?.user?.name]);
 
   useEffect(() => {
     loadData();
@@ -89,7 +104,24 @@ export function OrdersListView() {
   };
 
   const columns: Column[] = [
-    { key: "orderno", label: "Order #", accessor: "orderno", width: "120px" },
+    {
+      key: "orderno",
+      label: "Order #",
+      accessor: "orderno",
+      width: "160px",
+      render: (row: OrderRow) => (
+        <div>
+          <div>{row.orderno}</div>
+          {row.flags?.length > 0 && (
+            <div className="mt-0.5 flex flex-wrap gap-1">
+              {row.flags.map((f) => (
+                <OrderFlagChip key={f.id} flag={f} />
+              ))}
+            </div>
+          )}
+        </div>
+      ),
+    },
     {
       key: "status",
       label: "Status",
@@ -171,6 +203,24 @@ export function OrdersListView() {
             {s ? STATUS_LABELS[s] : "All"}
           </button>
         ))}
+        {flags.length > 0 && (
+          <select
+            aria-label="Show orders with a flag"
+            value={flagFilter}
+            onChange={(e) => {
+              setFlagFilter(e.target.value);
+              setPage(1);
+            }}
+            className="ml-2 rounded-full border border-brand-gray/30 bg-white px-3 py-1.5 text-sm text-brand-gray"
+          >
+            <option value="">Any flag</option>
+            {flags.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
       {statusFilter === "QUOTE" && (
         <div className="flex gap-2 mb-3">

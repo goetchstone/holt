@@ -7,6 +7,7 @@ import FormInput from "@/components/form/FormInput";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/Modal";
 import { getErrorMessage } from "@/lib/toastError";
+import { isSavedRecord } from "@/lib/savedRecord";
 
 type Props = {
   type: Type | null;
@@ -54,8 +55,9 @@ export default function TypeModal({ type, onClose, onRefresh }: Props) {
 
   const handleSubmit = async () => {
     setSaving(true);
-    const method = type ? "PUT" : "POST";
-    const url = type ? `/api/types/${type.id}` : "/api/types";
+    const editing = isSavedRecord(type);
+    const method = editing ? "PUT" : "POST";
+    const url = editing ? `/api/types/${type.id}` : "/api/types";
 
     const payload = {
       ...form,
@@ -113,7 +115,7 @@ export default function TypeModal({ type, onClose, onRefresh }: Props) {
 
   return (
     <Modal
-      title={type ? "Edit Type" : "Add Type"}
+      title={isSavedRecord(type) ? "Edit Type" : "Add Type"}
       onClose={onClose}
       onSave={handleSubmit}
       saving={saving}
@@ -143,7 +145,7 @@ export default function TypeModal({ type, onClose, onRefresh }: Props) {
       </select>
 
       <div className="flex justify-end gap-4 mt-4">
-        {type && (
+        {isSavedRecord(type) && (
           <Button variant="secondary" onClick={handleDelete} disabled={saving}>
             Delete
           </Button>

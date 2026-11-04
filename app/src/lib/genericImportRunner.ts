@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { findOrCreateCustomer, safeString, safeFloat } from "@/lib/importHelpers";
 import { getImportEntity, type ColumnMapping, type GenericImportResult } from "@/lib/genericImport";
 import { logError } from "@/lib/logger";
+import { findOrCreateVendorId, findVendorByName } from "@/lib/vendors/vendorByName";
 
 type RawRow = Record<string, unknown>;
 
@@ -214,22 +215,9 @@ async function importVendors(
       result.skipped++;
       continue;
     }
-    const code = text(row, "code");
     try {
-      if (code) {
-        const clash = await prisma.vendor.findFirst({
-          where: { code, NOT: { name } },
-          select: { name: true },
-        });
-        if (clash) {
-          result.errors.push(
-            `Row ${index + 1} ("${name}"): vendor code "${code}" already belongs to "${clash.name}".`,
-          );
-          continue;
-        }
-      }
-      const optional = {
-        code,
+      const refused = await writeVendorRow(name, {
+        code: text(row, "code"),
         accountNumber: text(row, "accountNumber"),
         paymentTerms: text(row, "paymentTerms"),
         website: text(row, "website"),
@@ -239,16 +227,11 @@ async function importVendors(
         city: text(row, "city"),
         state: text(row, "state"),
         zip: text(row, "zip"),
-      };
-      // Only the keys this row actually supplied, so blanks do not overwrite.
-      const update = Object.fromEntries(
-        Object.entries(optional).filter(([, v]) => v !== undefined),
-      );
-      await prisma.vendor.upsert({
-        where: { name },
-        update,
-        create: { name, ...update },
       });
+      if (refused) {
+        result.errors.push(`Row ${index + 1} ("${name}"): ${refused}`);
+        continue;
+      }
       result.imported++;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -256,6 +239,34 @@ async function importVendors(
     }
   }
   return result;
+}
+
+/**
+ * One vendor row: update the vendor the name means, or add it. A name another
+ * vendor was merged into updates that vendor (GAP-22). Returns why the row was
+ * refused, or null.
+ */
+async function writeVendorRow(
+  name: string,
+  fields: Record<string, string | undefined>,
+): Promise<string | null> {
+  const existing = await findVendorByName(prisma, name);
+  const { code } = fields;
+  if (code) {
+    const clash = await prisma.vendor.findFirst({
+      where: { code, ...(existing ? { NOT: { id: existing.id } } : {}) },
+      select: { name: true },
+    });
+    if (clash) return `vendor code "${code}" already belongs to "${clash.name}".`;
+  }
+  // Only the keys this row actually supplied, so blanks do not overwrite.
+  const update = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+  if (existing) {
+    await prisma.vendor.update({ where: { id: existing.id }, data: update });
+  } else {
+    await prisma.vendor.create({ data: { name, ...update } });
+  }
+  return null;
 }
 
 /**
@@ -408,14 +419,10 @@ async function importProducts(
     const key = name.toLowerCase();
     const cached = vendorCache.get(key);
     if (cached) return cached;
-    const existing = await prisma.vendor.findFirst({
-      where: { name: { equals: name, mode: "insensitive" } },
-      select: { id: true },
+    const id = await findOrCreateVendorId(prisma, name, {
+      ignoreCase: true,
+      data: { createdBy: userEmail },
     });
-    const id =
-      existing?.id ??
-      (await prisma.vendor.create({ data: { name, createdBy: userEmail }, select: { id: true } }))
-        .id;
     vendorCache.set(key, id);
     return id;
   };

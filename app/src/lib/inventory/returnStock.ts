@@ -20,12 +20,17 @@
 //
 // A return received before returns places existed has no recorded place; its
 // restock adds the piece from outside the books, the old way.
+//
+// A product whose category keeps no stock (GAP-21, lib/inventory/stocked.ts)
+// comes back to no place: nothing goes into stock, so the return never enters
+// the queue, and putting it back is refused.
 
 import type { Prisma, Return } from "@prisma/client";
 import { lockProducts, postMovement } from "./ledger";
 import { isStockLocationType, LOCATION_TYPE_INFO } from "./locationTypes";
 import { landingPlaceId, placeAt } from "./places";
 import { toQty } from "./quantity";
+import { notStocked } from "./stocked";
 
 type Tx = Prisma.TransactionClient;
 
@@ -42,13 +47,17 @@ export class ReturnDispositionError extends Error {
 
 const sourceOf = (ret: Pick<Return, "id">) => ({ type: "Return", id: ret.id }) as const;
 
-/** RECEIVED: the piece into the store's returns place. Returns the place's id. */
+/**
+ * RECEIVED: the piece into the store's returns place. Returns the place's id,
+ * or null when its product keeps no stock and nothing went anywhere.
+ */
 export async function receiveReturnStock(
   tx: Tx,
   ret: Return,
   storeLocationId: number,
   actor: string | null,
 ): Promise<number | null> {
+  if (ret.productId && (await notStocked(tx, [ret.productId])).size > 0) return null;
   const place = await landingPlaceId(tx, storeLocationId, "RETURNS");
   const quantity = toQty(ret.quantity);
   if (ret.productId && quantity > 0) {
@@ -128,7 +137,9 @@ export async function putBackReturn(
     });
   } else {
     // Received before returns places existed: the piece was never put in the
-    // books, so restocking it adds it.
+    // books, so restocking it adds it -- unless its category keeps no stock.
+    const [why] = (await notStocked(tx, [ret.productId])).values();
+    if (why) throw new ReturnDispositionError(`${why} There is nothing to put back.`, 400);
     await postMovement(tx, {
       productId: ret.productId,
       quantity,

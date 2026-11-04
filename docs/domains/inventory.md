@@ -150,6 +150,39 @@ stock unchanged at 19,317 rows and 43,146 units.
 **Stock and space** (Reports › Stock and Space, `lib/reports/stockBy.ts`) reads
 this tree; see `docs/domains/reporting.md`.
 
+### What isn't stocked (GAP-21; since 2026-11-02)
+
+A store turns **Track Inventory** off on a category (Inventory › Categories) for
+what it sells but never shelves: services, fees, warranties, supplies. Its items
+never go on the books (`lib/inventory/stocked.ts`, owner 2026-11-02):
+
+- **The ledger refuses them.** `postMovement` throws `NotStockedError` for a
+  movement that brings units onto the books from outside (a destination and no
+  source: a receipt, a return, a count or import adding, an opening count). One
+  guard in the one writer covers every path (rule 42). Moving what is already
+  on the books is never refused.
+- **Receiving records it and stocks nothing** (`receivePurchaseOrder`). The
+  receipt counts toward its PO line, so the PO closes, and carries `intoStock`
+  false, no place, no landed cost and no tag. Both receive screens say which
+  lines were recorded only. Taking it back (`unreceive`) takes nothing out,
+  read from the receipt, not from the category now (rule 60). A landed charge
+  re-spread skips it (no landed cost). It can't arrive as an incomplete set.
+- **A count can take it down, never up** (`submitCount`, `postCount`: both
+  check, since the books can change between submit and post). So can a hand
+  edit (`warehouse/positions`, 400) and the stock import (`applyImportSync`
+  leaves a place it would add to as it is and counts it in `notStocked`, which
+  the import's message reports).
+- **A return comes back to no place** (`receiveReturnStock` returns null), so it
+  never enters the returned-stock queue, and putting it back is refused.
+- **Switching a category off keeps the stock it has.** Nothing removes it: it
+  stays in stock reports and counts, movable, until someone counts it out or
+  edits it to zero. A sale no longer draws it.
+
+Store-grain counts (snapshot, physical count, variance) never change the books,
+and their snapshot lists only stock on the books, so an item that isn't stocked
+and holds none never appears there. Tested in
+`unstockedItems.integration.test.ts`.
+
 ### Floor samples and stock set aside (GAP-15, GAP-16; since 2026-11-01)
 
 **A display piece stays on the floor.** A store marks the places its floor
@@ -190,16 +223,18 @@ shortfalls land in `InventoryException` (Admin → Inventory Exceptions) with
 order, product, store, requested, allocated and shortfall, resolvable once
 handled.
 
-**Made-to-order lines never allocate.** `CONFIGURED` and `CUSTOM` cart lines
-mint a brand-new `Product` during the sale, so they have no `InventoryPosition`
-by construction. Allocating them would post a full-shortfall exception on every
-custom order — for a furniture retailer, a large share of them — and a queue
-full of the normal case is a queue nobody reads. The filter is per-line, so a
-mixed cart still reports its stocked lines. Since 2026-11-01 the minted product
-is marked `Product.madeToOrder`, and `resyncOrderAllocation` never allocates it,
-nor a product in a category with `trackInventory` off (`isStockedProduct`,
-GAP-21). Its units still count as needed, so ones its PO delivered committed to
-the order are not released.
+**A made-to-order item is an item (owner, 2026-11-02).** `CONFIGURED` and
+`CUSTOM` cart lines mint a brand-new `Product` during the sale (marked
+`Product.madeToOrder`, a record of where it came from). It allocates like
+anything else: with nothing in stock it shows as short on the Oversold report
+until its PO arrives committed to the order, the same as a catalog item sold
+before it is received; a spare one (its first customer cancelled, or extra
+arrived) is free stock a sale takes. From 2026-11-01 to 2026-11-02 such lines
+never allocated, so a spare piece could never sell down; before that, the cart
+skipped them per line. **A product whose category keeps no stock never
+allocates** (`isStockedProduct`, `lib/inventory/stocked.ts`): there is nothing
+to commit, only a false shortfall. The filter is per line, so a mixed cart
+still reports its stocked lines.
 
 **A quote commits only what it holds (GAP-16, since 2026-11-01).** An order
 commits every line. A quote commits a floor-stock line only through the day the
@@ -383,7 +418,7 @@ Status changes move the stock (`pages/api/warehouse/transfers/[id]/status.ts`, t
 | IN_TRANSIT → RECEIVED | Adds the shipped units at the destination as free stock, then (best-effort) commits them to the transfer's order, if it has one. |
 | IN_TRANSIT → CANCELLED | Puts the shipped units back at the source. |
 
-Each change claims the transfer inside its transaction (an update conditioned on the status it read), so a double-submitted "Ship" returns 409 instead of taking the units twice. Return status changes are claimed the same way.
+Each change claims the transfer inside its transaction (an update conditioned on the status it read), so a double-submitted "Ship" returns 409 instead of taking the units twice. Return status changes are claimed the same way. A receipt claims through `claimAndReceive` (`lib/inventory/transfers.ts`), the one function the handheld's receipt also goes through (since 2026-11-02, GAP-19; "The handheld floor" below). It refuses a transfer that isn't on its way, which would otherwise be received from outside the books.
 
 Until 2026-10-14 the ship step looked only for a free row at exactly the chosen stock location — none, for "any" — and silently did nothing when it found none. Imported stock always carries a stock location, so the ordinary path shipped nothing and RECEIVED then created the units at the destination: stock appeared from nowhere.
 
@@ -452,6 +487,8 @@ All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can 
 - `snapshotImport.test.ts` — unit tests for `resolveSnapshotImportRow` (the POS cutover importer's per-row resolution)
 - `inventorySnapshotGenerate.integration.test.ts` — real-DB coverage for `POST /api/inventory/snapshot/generate`, including a product with no `externalId` and same-day re-run idempotency
 - The handheld floor, phases 15–20: `scanCodes.test.ts`, `labelRender.test.ts`, `boxes.test.ts`, `countDifference.test.ts`, `deliveredLines.test.ts`; real-DB `resolveScan`, `withAction`, `handheldReceive`, `stockCount`, `stockMove`, `stockPick`, `stockDelivery` and `returnPickupStop` (`*.integration.test.ts`)
+- What isn't stocked (GAP-21): `unstockedItems.integration.test.ts` (a receipt records it and stocks nothing yet closes the PO; no incomplete set; taking the receipt back takes nothing out even once the category keeps stock; a landed charge skips it; the ledger refuses it and moves what is already there; a hand edit, a count and the import take it down, never up, and a count is checked again at posting; a return comes back to no place; a spare made-to-order piece is taken by a sale)
+- Transfers and reorders on the handheld (GAP-19): `scanTransfer.integration.test.ts` (send free first and each order's own; refusals; receive an order's first; all or none; done once; one claim with the desk; the routes' gate) and `scanOrder.integration.test.ts`
 - The run's truck: `stockTruck.integration.test.ts` (loading boards the bay, a delivery draws from the truck first, a failed stop's units stay aboard until unloaded, completion refused while anything is aboard, another run's truck still to pull)
 
 ## Document flows (since 2026-10-17)
@@ -561,7 +598,9 @@ HTTPS staging is **unverified** until someone runs it on one (rule 58).
 | `/app/scan/receive` | `purchasing.receive` | goods in against a PO |
 | `/app/scan/count` | `inventory.count` | count a place; posting needs `inventory.adjust` too |
 | `/app/scan/move` | `inventory.transfer` | put away and move |
+| `/app/scan/transfer` | `inventory.transfer` | send a transfer to another store, and receive what is on its way (GAP-19) |
 | `/app/scan/pick` | `warehouse.operate` | pick a run to the loading bay, load it onto the run's truck, and unload what came back |
+| `/app/scan/order` | `purchasing.write` | scan what to reorder into draft POs (GAP-19; `docs/domains/purchasing.md`) |
 
 **What a scan is** (`lib/scan/resolveScan.ts`, one resolver for every page
 and `GET /api/scan/resolve`). Holt's own labels come first: `L-<placeId>` for
@@ -611,9 +650,48 @@ from an oversale.
 
 **Moving** (`lib/inventory/floorMove.ts`). Quick moves only: free units first,
 then committed units, each keeping its order. A move that a place's mode wants
-tracked is refused and raised as a transfer instead. A place without a mode
-takes the nearest one above it in the place tree, then its store's
-(`lib/inventory/moveModes.ts`).
+tracked is refused with `tracked: true`, and the page offers "Send as a
+transfer" with what was scanned, to the place scanned as "to" (below). A place
+without a mode takes the nearest one above it in the place tree, then its
+store's (`lib/inventory/moveModes.ts`).
+
+**Transfers** (GAP-19, since 2026-11-02; `sendFromPlace` and `receiveArrivals`
+in `lib/inventory/transfers.ts`). Until then the handheld refused a tracked move
+and sent the person to the desk.
+
+- **Sending** (`POST /api/scan/transfer/send`): scan the place it leaves, what
+  is going, then choose the store it goes to or scan a place there. It is on
+  its way at once: each product's units go into the source store's transit
+  place on an IN_TRANSIT transfer. Free units go first, then units committed to
+  orders, as a quick move takes them; each order's units go on a transfer of
+  their own, so the commitment travels as on the desk's transfer for an order.
+  The longer way is always allowed, so a move the mode would let through as
+  quick may still be sent.
+- **Refused, naming why:** more than the place holds (and nothing is sent); a
+  GROUP place; an in-transit place, whose units belong to a transfer or a run's
+  truck; a closed store; a place at another store than the one chosen; within
+  one store, no destination place; the place it is already in.
+- **Receiving** (`GET`/`POST /api/scan/transfer/receive`): the page lists what
+  is on its way to the scanner's store. Scan what arrived, and a place to put
+  it all there instead of where each transfer was sent. Each product is
+  received against its transfers to this store, an order's first, then the
+  oldest. All of it or none: a product scanned more times than it is on its
+  way, or not on its way here, is refused by name and nothing is received. A
+  transfer keeps the place it was sent to; where the units were put is in the
+  receipt's movements.
+- **One claim with the desk.** Every receipt goes through `claimAndReceive`,
+  which matches the transfer as it was read. The handheld locks the transfers
+  it receives before reading them (product order, transfer rows before the
+  stock lock, as the desk takes them), so the two can't take the same units.
+- **Boxes.** A multi-box product is sent only in whole sets; the page won't
+  send while a box is scanned without its set. On receipt, boxes that make no
+  whole unit stay on their way until the rest arrive.
+- **Done once.** Each send and receipt carries an action key, and every
+  movement records it.
+
+SCANNED, a move mode that would *require* a scan at both ends, is still not
+built (ROADMAP, "Handheld floor"): a tracked transfer can still be shipped and
+received at the desk.
 
 **Picking** (`lib/fulfilment/pick.ts`).
 
@@ -662,6 +740,15 @@ that store, coded `TRUCK-<run number>` and named after the vehicle.
   fulfilled, so a resync never commits stock again for units already gone. A
   delivery's handover draws from the truck first too, so none are left
   reading as aboard.
+- **A handover is recorded so it can be undone** (GAP-07, since 2026-11-03).
+  `markHandedOver` writes an `OrderHandover` first, recording each open line's
+  fulfilled quantity and the dispatch status before it, and its stop. Every
+  DELIVER movement it makes carries `StockMovement.orderHandoverId`. Undoing it
+  (`lib/fulfilment/undoHandover.ts`) posts each of those units back with reason
+  `UNDELIVER`, from outside the books to the place it left, committed to the
+  order. A unit that left from a finished run's truck goes to the store's
+  loading bay instead, where `unloadRun` would have put it. Handovers before
+  this have no record and are not undone.
 - **A stop that could not be done** comes off the run. The reason goes on the
   order, and the stock stays committed to it where it is: on the run's truck,
   until the truck is unloaded to a loading bay, where it waits for the order's

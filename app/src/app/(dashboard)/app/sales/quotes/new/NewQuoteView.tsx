@@ -23,6 +23,13 @@ import { RetailPriceTag } from "@/components/sales/RetailPriceTag";
 import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
 import { useQuoteHoldPolicy } from "@/components/sales/useQuoteHoldPolicy";
 import { catalogRetailPrice, noRetailPriceMessage } from "@/lib/pos/cartPricing";
+import {
+  SplitSaleField,
+  emptySplit,
+  splitBody,
+  type SplitChoice,
+} from "@/components/sales/SplitSaleField";
+import type { SplitSaleSetup } from "@/lib/commissionSplit";
 
 type ItemSource = "FLOOR" | "ORDER";
 type FulfillmentMethod = "TAKE" | "PICKUP" | "DELIVERY";
@@ -71,7 +78,7 @@ function nextLineId(): string {
   return `line-${lineCounter}`;
 }
 
-export function NewQuoteView() {
+export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | null }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fmt = useMoneyFormatter();
@@ -122,6 +129,8 @@ export function NewQuoteView() {
 
   // Notes
   const [orderNotes, setOrderNotes] = useState("");
+  // A quote written with a colleague (GAP-07), for those allowed to split one.
+  const [split, setSplit] = useState<SplitChoice>(() => emptySplit(splitSetup));
   const [submitting, setSubmitting] = useState(false);
   const { send: sendWithApproval, modal: approvalModal } = useDiscountApproval();
   const holdPolicy = useQuoteHoldPolicy();
@@ -293,6 +302,7 @@ export function NewQuoteView() {
           customerId: selectedCustomer?.id || null,
           storeLocation: activeStore?.name || null,
           orderNotes: orderNotes.trim() || null,
+          ...splitBody(split),
           items: lines.map((l) => ({
             type: l.type,
             productId: l.productId || undefined,
@@ -685,6 +695,11 @@ export function NewQuoteView() {
           placeholder="Special instructions, fabric selections, delivery notes..."
           className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-blue resize-none"
         />
+        {splitSetup && (
+          <div className="mt-3">
+            <SplitSaleField setup={splitSetup} value={split} onChange={setSplit} />
+          </div>
+        )}
       </div>
 
       {/* Actions */}

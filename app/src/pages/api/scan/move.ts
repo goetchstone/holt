@@ -2,7 +2,9 @@
 //
 // Put away and move on a handheld (lib/inventory/floorMove.ts): units from
 // one place to another now, and boxes moved on their own as stray-box notes.
-// Done once per actionKey (withAction).
+// A move the places' mode wants tracked is refused with `tracked: true`, and
+// the page sends it as a transfer instead (GAP-19). Done once per actionKey
+// (withAction).
 //
 // POST { actionKey, fromStockLocationId, toStockLocationId,
 //        items: [{ productId, units }], strayBoxes: [{ productId, boxes }] }
@@ -89,10 +91,12 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     );
     return res.status(replayed ? 200 : 201).json({ ...result, replayed });
   } catch (error) {
+    // `tracked` lets the page offer to send what was scanned as a transfer
+    // (scan/transfer/send.ts) instead of scanning it all again.
     if (error instanceof MoveModeError) {
       return res.status(400).json({
-        error:
-          "Moves between these places are tracked: start a transfer for it (Warehouse › Transfers).",
+        error: "Moves between these places are tracked: send it as a transfer.",
+        tracked: true,
       });
     }
     if (error instanceof FloorMoveError || error instanceof InsufficientStockError) {

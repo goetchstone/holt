@@ -13,14 +13,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { toast } from "react-toastify";
-
-interface Customer {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string | null;
-  phone: string | null;
-}
+import { useCustomerSearch, type CustomerSearchResult } from "@/hooks/useCustomerSearch";
 
 interface CustomerAddress {
   id: number;
@@ -59,11 +52,15 @@ export function NewHouseCallView() {
   const [submitting, setSubmitting] = useState(false);
 
   // Customer search
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const {
+    query: customerSearch,
+    setQuery: setCustomerSearch,
+    results: customerResults,
+    isSearching: searching,
+    clear: clearCustomerSearch,
+  } = useCustomerSearch({ limit: 10 });
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
   const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
-  const [searching, setSearching] = useState(false);
 
   // Order search
   const [orderSearch, setOrderSearch] = useState("");
@@ -122,28 +119,6 @@ export function NewHouseCallView() {
     loadLookups();
   }, [loadLookups]);
 
-  // Customer search with debounce
-  useEffect(() => {
-    if (customerSearch.length < 2) {
-      setCustomerResults([]);
-      return;
-    }
-    const timeout = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const res = await axios.get("/api/customers", {
-          params: { search: customerSearch, limit: 10 },
-        });
-        setCustomerResults(res.data.customers || []);
-      } catch {
-        setCustomerResults([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [customerSearch]);
-
   // Load addresses when customer is selected
   useEffect(() => {
     if (!selectedCustomer) {
@@ -183,10 +158,9 @@ export function NewHouseCallView() {
     return () => clearTimeout(timeout);
   }, [orderSearch, selectedCustomer]);
 
-  const selectCustomer = (customer: Customer) => {
+  const selectCustomer = (customer: CustomerSearchResult) => {
     setSelectedCustomer(customer);
-    setCustomerSearch("");
-    setCustomerResults([]);
+    clearCustomerSearch();
     setAddressId("");
     setUseManualAddress(false);
   };

@@ -34,6 +34,16 @@ Daily imports:
 
 **Native receiving into stock** (since 2026-10-17, `lib/inventory/receiving.ts`): Damaged and Wrong Item go to the store's quarantine place (`lib/purchasing/receiptConditions.ts`, the list the Receive PO screen offers); a line raised for an open order -- its own line, or a PO raised for the whole order -- arrives committed to the order up to what it still needs, the rest free; quantities parse as fractions. See `docs/domains/inventory.md` "Document flows".
 
+**An item whose category keeps no stock is received as a record only** (GAP-21,
+since 2026-11-02; owner's choice). A service, fee or supplies line on a PO
+counts toward its line when received, so the PO closes, but nothing goes into
+stock: the receipt carries `ReceivingRecord.intoStock` false, no place, no
+landed cost (its product has no stock to average over) and no tag. The Receive
+PO screen's message and the handheld's confirmation name each such line
+("Recorded only: Assembly isn't stocked: its category, Services, doesn't track
+inventory."). Taking it back takes nothing out of stock. See
+`docs/domains/inventory.md` "What isn't stocked".
+
 ## Vendor lead time (since 2026-10-17)
 
 `Vendor.leadTimeDays` is the vendor's standard lead time, in days from order to
@@ -296,6 +306,58 @@ Files: `lib/purchasing/productSources.ts` (the list),
 Tested by `__tests__/integration/productSources.integration.test.ts` (real
 routes, real gates, real database).
 
+## A reorder scanned on the handheld (GAP-19, since 2026-11-02)
+
+A buyer walks the floor with a scanner and scans what to reorder (Scanner ->
+Order stock, `/app/scan/order`). The owner's design (`docs/DECISIONS.md` 33):
+one draft PO per vendor, added to the vendor's open draft when there is one.
+
+- **A scan** (`GET /api/scan/order?code=`) reads the code itself through
+  `resolveScan` rather than asking `/api/scan/resolve`, so a role that writes POs
+  without reading inventory can use the page. It answers the item and the
+  vendors it can be ordered from, its own first, then the others it lists, each
+  at that vendor's number (`buyingTerms`). It refuses a discontinued or inactive
+  item, the same products the desk's picker leaves out
+  (`pages/api/purchasing/vendor-products.ts`), a place, and a code that is
+  nothing.
+- **The page** adds one per scan; the number on a line can be typed, for a roll
+  ordered by the yard. An item with other vendors has a vendor choice on its
+  line. No cost is shown or sent.
+- **Saving** (`POST /api/scan/order`, `lib/purchasing/scannedOrder.ts`) groups
+  the lines by vendor, and an item scanned twice orders the sum. Each vendor's
+  lines go on its **newest open draft shipping to the scanner's store**: a DRAFT,
+  not a vendor return, not for a sales order, with nothing received against it,
+  locked and read again before it is changed. An item already on it adds to its
+  line, which keeps its cost; a line raised for a customer's order and a
+  cancelled (zero) line are never added to. With no such draft, a new one is
+  made: ship-to the store, expected date from the vendor's lead time
+  (`lib/vendorLeadTime.ts`), numbered by `nextPoNumber`.
+- **Every line goes through `resolvePoLines`**, the checks the desk's PO editor
+  gets: the vendor must sell us the item (its own, or listed on it, GAP-22), and
+  a new line costs what the item costs from that vendor.
+- **Done once per action key** (`withAction`, kind `ORDER`): a resend gets the
+  first answer and adds nothing twice. A new draft is numbered inside that
+  transaction, so a number taken by a PO saved at the same moment runs the whole
+  action again (up to five times), as `createNumberedPurchaseOrder` does for one
+  insert.
+- **The buyer sends it from the desk.** The answer links each draft's PO page,
+  where it is reviewed, printed and emailed like any draft.
+- **Key:** `purchasing.write` for the page, the scan and the save, the key a PO
+  written at the desk takes. Classified in `lib/auth/pagePermissions.ts`.
+
+**Not built, or open:**
+
+- The PO save accepts a discontinued or inactive product sent to it directly.
+  Only the pickers (the desk's and the handheld's) leave such a product out, and
+  the desk's editor test adds one through the save on purpose. Whether a store
+  may make one last order of a discontinued item is the owner's call (ROADMAP
+  GAP-19).
+- No stock or on-order figure is shown while scanning; Look up shows where an
+  item is.
+
+Tested by `__tests__/integration/scanOrder.integration.test.ts`, which goes
+through the real route and permission gate.
+
 ## Consignment PO Integration
 
 When a consignment vendor's PO (`Vendor.isConsignment`) transitions to RECEIVED_FULL, the import runner auto-creates a `ConsignmentPaymentBatch` and marks matching ConsignmentItems as PAID. See `docs/domains/consignment.md` for matching rules.
@@ -324,6 +386,17 @@ named `constructor` shadow the object's members (CodeQL
 js/remote-property-injection, 2026-10-15). A new import route lists its
 fields the same way.
 
+## The vendor an import names (GAP-22, since 2026-11-02)
+
+The PO file imports find their vendor by the name the file carries through
+`lib/vendors/vendorByName.ts`, ignoring case as before, so a vendor merged into
+another (`docs/domains/vendors/common.md`, "Merging Duplicate Vendors") is found
+under its old spelling rather than made again: `import-nuorder.ts` (the PDF's
+vendor, else "Unknown Vendor"), `import-zsupply.ts` ("Z Supply"),
+`import-wholesale-order.ts` (the CSV's vendor column or the default). The
+wholesale-order import now makes one PO per vendor, not per spelling: two names
+for one vendor in a file used to make two POs.
+
 ## Key Files
 
 - `lib/importHelpers.ts` -- `derivePOStatus()`, `findProduct()`
@@ -335,6 +408,7 @@ fields the same way.
 - `lib/purchasing/landedCost.ts`, `landedCostShared.ts`, `unreceive.ts` -- landed charges, the average landed cost, and taking a receipt back (GAP-02, section above)
 - `app/(dashboard)/app/purchasing/orders/PurchaseOrderEditor.tsx` -- the New and Edit PO screen
 - `lib/purchasing/productSources.ts`, `productSourcesShared.ts`, `pages/api/products/[id]/sources/` -- an item's other vendors and `buyingTerms`, the rule for what a PO's vendor may order (GAP-22, section above)
+- `lib/purchasing/scannedOrder.ts`, `pages/api/scan/order.ts`, `app/(dashboard)/app/scan/order/` -- a reorder scanned on the handheld, filed on each vendor's open draft (GAP-19, section above)
 - `pages/purchasing/` -- PO list, detail, receiving UI
 - `pages/inventory/warehouse/inbound.tsx` -- Warehouse inbound dashboard
 - `scripts/reimport-invoices-direct.js` -- One-time invoice reimport with rewrite matching
@@ -353,7 +427,7 @@ Covered: `derivePOStatus`, `classifyPOReceiptStatus` in `importHelpers.test.ts`
 
 Covered: `productSources.integration.test.ts` (an item's other vendors: the list, every refusal, View cost, the gates, the product page's `canEdit`, and the picker, saving and duplicating a PO through `buyingTerms`).
 
-Covered: `handheldReceive.integration.test.ts` (the handheld receive through `receivePurchaseOrder`: whole units, box scans assembled, an incomplete set held in quarantine and completed later, a resend done once); `stockReceive.integration.test.ts` (where receipts land).
+Covered: `handheldReceive.integration.test.ts` (the handheld receive through `receivePurchaseOrder`: whole units, box scans assembled, an incomplete set held in quarantine and completed later, a resend done once); `stockReceive.integration.test.ts` (where receipts land); `unstockedItems.integration.test.ts` (an item whose category keeps no stock received as a record only, taken back, and skipped by a landed charge).
 
 Gaps: `findProduct()`, received items runner, inbound items runner (all need Prisma for integration tests)
 

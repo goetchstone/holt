@@ -1,7 +1,7 @@
 // /app/src/lib/customers/customerContact.ts
 //
-// What a customer create or edit may set from a form: names, email and phone.
-// Nothing else -- the referral fields are read by lib/customers/referrals.ts,
+// What a customer create or edit may set from a form: names, email and phone,
+// and whether they want automatic messages (GAP-13). Nothing else -- the referral fields are read by lib/customers/referrals.ts,
 // and the rest of a customer (store credit, AR balance, trade status, tax
 // exemption, level) has its own route and its own permission.
 //
@@ -29,6 +29,8 @@ export interface CustomerContact {
   lastName?: string | null;
   email?: string | null;
   phone?: string | null;
+  /** They asked for no automatic messages (lib/messages/due.ts). */
+  autoMessagesOptOut?: boolean;
 }
 
 function readText(raw: unknown, label: string): string | null | undefined {
@@ -42,6 +44,12 @@ function readText(raw: unknown, label: string): string | null | undefined {
   return text || null;
 }
 
+function readFlag(raw: unknown, label: string): boolean | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "boolean") throw new CustomerInputError(`${label} must be true or false.`);
+  return raw;
+}
+
 /** The contact fields of a body; absent ones are left out, blank ones cleared. */
 export function readContact(body: Record<string, unknown>): CustomerContact {
   const contact: CustomerContact = {
@@ -49,6 +57,7 @@ export function readContact(body: Record<string, unknown>): CustomerContact {
     lastName: readText(body.lastName, "Last name"),
     email: readText(body.email, "Email"),
     phone: readText(body.phone, "Phone"),
+    autoMessagesOptOut: readFlag(body.autoMessagesOptOut, "No automatic messages"),
   };
   if (contact.email && !/^[^\s@]+@[^\s@]+$/.test(contact.email)) {
     throw new CustomerInputError("That email doesn't look like an email address.");

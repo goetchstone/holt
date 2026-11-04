@@ -78,6 +78,8 @@ In-stock filter (default: on) requires ALL of a customer's orders to have all PO
 
 **API**: `GET /api/dispatch/orders-by-zone` (unassigned orders by zone), plus run/stop/vehicle CRUD endpoints under `api/dispatch/`.
 
+**The store's order flags (GAP-07, 2026-11-03)** show as chips beside each unassigned order on the board, under the customer on a run's page and on the driver's stop card: "Call before delivery", "Fragile" (sales-orders.md "Invoice tools"). `orders-by-zone` answers them sorted; `GET /api/dispatch/runs` and `GET /api/dispatch/runs/[id]` select them as stored, and the screens sort them with `flagRefsOf` (`lib/sales/orderFlagsShared.ts`).
+
 ## Run stop outcomes
 
 Since PR 4 of the ledger plan (`docs/domains/inventory.md` → "The handheld
@@ -112,6 +114,14 @@ floor", DECISIONS #23). `PUT /api/dispatch/stops/[id]` decides nothing itself:
   run's truck (`lib/fulfilment/truck.ts`, DECISIONS #25) until it is unloaded.
 - The driver screen's message comes from what the server did (`completion` in
   the response), never from the counts it sent.
+- **Completed by mistake** (GAP-07, since 2026-11-03). A manager undoes the
+  handover from the order page (`lib/fulfilment/undoHandover.ts`;
+  sales-orders.md "Undoing a handover"). Its stop comes off the run, deleted
+  with whatever proof was captured on it, and its appointment is PENDING again
+  in the unassigned pool, with the reason in its notes. The units come back
+  committed to the order at the store's loading bay, since a finished run's
+  truck has left service. Only the handover can be undone, not a part delivery
+  before it.
 
 **Completing a run.** `PUT /api/dispatch/runs/[id]/status` moves a run
 PLANNING → LOADED → IN_PROGRESS → COMPLETED, through

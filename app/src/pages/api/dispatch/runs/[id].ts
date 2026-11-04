@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { aboard, aboardLines } from "@/lib/fulfilment/truck";
+import { ORDER_FLAGS_SELECT } from "@/lib/sales/orderFlags";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
@@ -36,7 +37,9 @@ export async function handleGet(id: number, res: NextApiResponse) {
                 customer: true,
                 address: true,
                 salesOrder: {
-                  include: { lineItems: { omit: { cost: true } } },
+                  // The store's flags (GAP-07) for the crew, as selected:
+                  // the screens sort them with flagRefsOf.
+                  include: { lineItems: { omit: { cost: true } }, flags: ORDER_FLAGS_SELECT },
                 },
                 return: {
                   select: { returnNumber: true, productName: true, quantity: true, status: true },

@@ -10,7 +10,7 @@
 // the server page (params awaited there).
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
@@ -18,10 +18,11 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/dateUtils";
 import { Button } from "@/components/ui/button";
-import { Printer, FileText, Plus, X, RefreshCw, Clock, UserCog, Search } from "lucide-react";
+import { Printer, FileText, Plus, X, RefreshCw, Clock, UserCog, Search, Copy } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { computeTotalPaid } from "@/lib/paymentBalance";
 import { openCheckoutFrom } from "@/lib/openCheckoutPrompt";
 import { ApplyStoreCredit } from "./ApplyStoreCredit";
@@ -29,6 +30,14 @@ import { DeliveryFeePanel } from "./DeliveryFeePanel";
 import { QuoteLineHold } from "./QuoteLineHold";
 import { useQuoteHoldPolicy } from "@/components/sales/useQuoteHoldPolicy";
 import { lineSaving } from "@/lib/sales/discountPolicyShared";
+import { SPLIT_PERCENT_MAX, SPLIT_PERCENT_MIN, splitLabel } from "@/lib/commissionSplit";
+import { type OrderFlagRef, openingAlerts } from "@/lib/sales/orderFlagsShared";
+import type { OrderDisclaimerRef } from "@/lib/sales/orderDisclaimersShared";
+import { LineNote } from "./LineNote";
+import { OrderFlagChip, OrderFlagsPanel } from "./OrderFlagsPanel";
+import { OrderDisclaimersPanel } from "./OrderDisclaimersPanel";
+import { CustomerMessagesPanel } from "./CustomerMessagesPanel";
+import { UndoHandoverButton } from "./UndoHandoverButton";
 
 interface LineItem {
   id: number;
@@ -53,6 +62,8 @@ interface LineItem {
   holdUntil?: string | null;
   /** A quote's active floor-stock line, which can be held. */
   holdable?: boolean;
+  /** Staff's note on the line (GAP-07). */
+  notes?: string | null;
 }
 
 interface ChangeLogEntry {
@@ -110,10 +121,17 @@ interface OrderDetails {
   salesPerson: StaffRef | null;
   splitWithId: number | null;
   splitWith: StaffRef | null;
+  /** The salesperson's share of a split, in percent (GAP-07). */
+  splitPercent: number;
   storeLocation: string;
   deliveryMethod: string | null;
+  /** When the goods reached the customer; null while still to go. */
+  deliveredAt: string | null;
   /** The delivery fee line: changed in DeliveryFeePanel, not by line edits. */
   deliveryFeeLineItemId: number | null;
+  /** The store's flags on it, and the disclaimers it prints (GAP-07). */
+  flags: OrderFlagRef[];
+  disclaimers: OrderDisclaimerRef[];
   totalTax: number;
   totalPaid: number;
   orderNotes?: string;
@@ -123,17 +141,12 @@ interface OrderDetails {
   payments: OrderPayment[];
 }
 
-interface CustomerSearchResult {
-  id: number;
-  firstName: string;
-  lastName: string;
-}
-
 interface SalespersonUpdateResponse {
   salesPersonId: number | null;
   salesPerson: StaffRef | null;
   splitWithId: number | null;
   splitWith: StaffRef | null;
+  splitPercent: number;
   salesperson: string;
 }
 
@@ -187,6 +200,14 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
   LINE_REMOVED: "Line Removed",
   PRICE_CHANGE: "Price/Qty Changed",
   NOTE_ADDED: "Note Added",
+  LINE_NOTE: "Line Note",
+  FLAG_ADDED: "Flagged",
+  FLAG_REMOVED: "Flag Taken Off",
+  DISCLAIMER_ADDED: "Disclaimer Added",
+  DISCLAIMER_REMOVED: "Disclaimer Taken Off",
+  COPIED_FROM: "Copied From",
+  HANDED_OVER: "Handed Over",
+  HANDOVER_UNDONE: "Handover Undone",
   SALESPERSON_CHANGE: "Salesperson Changed",
   HOLD_SET: "Held for Customer",
   HOLD_ENDED: "Hold Taken Off",
@@ -208,28 +229,14 @@ function CustomerField({
   onLinked: () => void;
 }) {
   const [searching, setSearching] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<CustomerSearchResult[]>([]);
-
-  const doSearch = useCallback(async (q: string) => {
-    if (q.length < 2) {
-      setResults([]);
-      return;
-    }
-    try {
-      const res = await axios.get(`/api/customers?search=${encodeURIComponent(q)}&limit=8`);
-      setResults(res.data.customers || res.data || []);
-    } catch {
-      setResults([]);
-    }
-  }, []);
+  const { query, setQuery, results, clear } = useCustomerSearch({ limit: 8 });
 
   const linkCustomer = async (custId: number) => {
     try {
       await axios.put(`/api/sales/orders/${orderId}`, { customerId: custId });
       toast.success("Customer linked");
       setSearching(false);
-      setQuery("");
+      clear();
       onLinked();
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to link customer"));
@@ -268,10 +275,7 @@ function CustomerField({
         <input
           type="text"
           value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            doSearch(e.target.value);
-          }}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name..."
           className="rounded border border-gray-300 px-2 py-1 text-sm focus:border-brand-gold focus:outline-none"
           aria-label="Search customers by name"
@@ -301,7 +305,22 @@ function CustomerField({
   );
 }
 
-export function OrderDetailView({ id }: { id: string }) {
+/** What the salesperson dialog says a split will do, as the share is typed. */
+function splitCreditNote(typed: string): string {
+  const percent = Number(typed);
+  if (!typed.trim()) {
+    return "Sales credit is split at the store's default share for reporting and commission.";
+  }
+  if (!Number.isInteger(percent) || percent < SPLIT_PERCENT_MIN || percent > SPLIT_PERCENT_MAX) {
+    return `A share is ${SPLIT_PERCENT_MIN} to ${SPLIT_PERCENT_MAX} percent.`;
+  }
+  return `Sales credit is split ${splitLabel(percent)}: ${percent}% to the salesperson, ${100 - percent}% to the partner, in reports and commission.`;
+}
+
+export function OrderDetailView({
+  id,
+  canUndoHandover = false,
+}: Readonly<{ id: string; canUndoHandover?: boolean }>) {
   const router = useRouter();
   const { data: session } = useSession();
   const userRole = (session as { role?: string } | null)?.role || "DESIGNER";
@@ -336,17 +355,32 @@ export function OrderDetailView({ id }: { id: string }) {
   const [staffList, setStaffList] = useState<StaffRef[]>([]);
   const [editSalesPersonId, setEditSalesPersonId] = useState<number | null>(null);
   const [editSplitWithId, setEditSplitWithId] = useState<number | null>(null);
+  // The salesperson's share of a split; blank lets a new split take the
+  // store's default (GAP-07).
+  const [editSplitPercent, setEditSplitPercent] = useState("");
   const [salespersonSaving, setSalespersonSaving] = useState(false);
 
   const holdPolicy = useQuoteHoldPolicy();
+
+  // GAP-07: the flags that warn whoever opens the order, shown once per visit.
+  const [openAlerts, setOpenAlerts] = useState<OrderFlagRef[]>([]);
+  const alerted = useRef(false);
+  const [duplicating, setDuplicating] = useState(false);
 
   const fetchOrder = useCallback(() => {
     if (!id) return;
     setLoading(true);
     axios
       .get(`/api/sales/orders/${encodeURIComponent(String(id))}`)
-      .then((res) => setOrderDetails(res.data as OrderDetails))
-      .catch(() => toast.error("Failed to load order details."))
+      .then((res) => {
+        const order = res.data as OrderDetails;
+        setOrderDetails(order);
+        if (!alerted.current) {
+          alerted.current = true;
+          setOpenAlerts(openingAlerts(order.flags ?? []));
+        }
+      })
+      .catch((err: unknown) => toast.error(getErrorMessage(err, "Failed to load order details.")))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -368,6 +402,7 @@ export function OrderDetailView({ id }: { id: string }) {
     if (!orderDetails) return;
     setEditSalesPersonId(orderDetails.salesPersonId);
     setEditSplitWithId(orderDetails.splitWithId);
+    setEditSplitPercent(orderDetails.splitWithId ? String(orderDetails.splitPercent) : "");
     try {
       const res = await axios.get("/api/staff");
       const rows = res.data as { id: number; displayName: string; isActive: boolean }[];
@@ -389,6 +424,9 @@ export function OrderDetailView({ id }: { id: string }) {
         {
           salesPersonId: editSalesPersonId,
           splitWithId: editSplitWithId,
+          ...(editSplitWithId && editSplitPercent.trim()
+            ? { splitPercent: Number(editSplitPercent) }
+            : {}),
         },
       );
       const data = res.data as SalespersonUpdateResponse;
@@ -398,6 +436,7 @@ export function OrderDetailView({ id }: { id: string }) {
         salesPerson: data.salesPerson,
         splitWithId: data.splitWithId,
         splitWith: data.splitWith,
+        splitPercent: data.splitPercent,
         salesperson: data.salesperson,
       });
       setShowSalespersonModal(false);
@@ -407,7 +446,7 @@ export function OrderDetailView({ id }: { id: string }) {
     } finally {
       setSalespersonSaving(false);
     }
-  }, [orderDetails, id, editSalesPersonId, editSplitWithId]);
+  }, [orderDetails, id, editSalesPersonId, editSplitWithId, editSplitPercent]);
 
   const formatCurrency = useCallback(
     (value: number | null | undefined): string => {
@@ -429,6 +468,29 @@ export function OrderDetailView({ id }: { id: string }) {
       toast.error(getErrorMessage(err, "Failed to update status"));
     } finally {
       setStatusUpdating(false);
+    }
+  };
+
+  // GAP-07: copy the order into a new quote at today's prices
+  // (lib/sales/duplicateOrder.ts), then open the copy.
+  const handleDuplicate = async () => {
+    if (!orderDetails || duplicating) return;
+    const confirmed = confirm(
+      `Copy ${orderDetails.orderno} into a new quote at today's prices? ` +
+        "The lines, customer and delivery come across; discounts, payments, holds, flags and disclaimers don't.",
+    );
+    if (!confirmed) return;
+    setDuplicating(true);
+    try {
+      const res = await axios.post<{ id: number; orderno: string }>(
+        `/api/sales/orders/${encodeURIComponent(String(id))}/duplicate`,
+      );
+      toast.success(`Copied into ${res.data.orderno}.`);
+      router.push(`/app/sales/orders/${res.data.id}`);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Failed to copy the order"));
+    } finally {
+      setDuplicating(false);
     }
   };
 
@@ -669,7 +731,7 @@ export function OrderDetailView({ id }: { id: string }) {
 
   return (
     <div className="max-w-4xl mx-auto mt-8 font-serif">
-      <div className="flex justify-between items-start mb-6">
+      <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-brand-blue">{orderDetails.orderno}</h1>
@@ -698,8 +760,13 @@ export function OrderDetailView({ id }: { id: string }) {
               </button>
             ))}
           </div>
+          <OrderFlagsPanel
+            orderId={orderDetails.id}
+            flags={orderDetails.flags ?? []}
+            onChanged={(flags) => setOrderDetails({ ...orderDetails, flags })}
+          />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -720,6 +787,10 @@ export function OrderDetailView({ id }: { id: string }) {
             <FileText className="w-3.5 h-3.5 mr-1" />
             Invoice
           </Button>
+          <Button variant="outline" size="sm" onClick={handleDuplicate} disabled={duplicating}>
+            <Copy className="w-3.5 h-3.5 mr-1" />
+            {duplicating ? "Copying..." : "Duplicate"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -731,6 +802,14 @@ export function OrderDetailView({ id }: { id: string }) {
             <Clock className="w-3.5 h-3.5 mr-1" />
             History
           </Button>
+          {canUndoHandover && orderDetails.deliveredAt && (
+            <UndoHandoverButton
+              orderId={orderDetails.id}
+              orderno={orderDetails.orderno}
+              deliveredAt={orderDetails.deliveredAt}
+              onUndone={fetchOrder}
+            />
+          )}
           <Button variant="secondary" size="sm" onClick={handleDeleteOrder}>
             Delete
           </Button>
@@ -804,7 +883,8 @@ export function OrderDetailView({ id }: { id: string }) {
                 {orderDetails.salesPerson?.displayName || orderDetails.salesperson || "N/A"}
                 {orderDetails.splitWith && (
                   <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                    50/50 with {orderDetails.splitWith.displayName}
+                    {splitLabel(orderDetails.splitPercent)} with{" "}
+                    {orderDetails.splitWith.displayName}
                   </span>
                 )}
               </p>
@@ -1043,6 +1123,18 @@ export function OrderDetailView({ id }: { id: string }) {
                             Replaced by line #{replacedByLineNumber || "?"}
                           </p>
                         )}
+                        {item.id !== orderDetails.deliveryFeeLineItemId && (
+                          <LineNote
+                            orderId={orderDetails.id}
+                            line={{
+                              id: item.id,
+                              name: item.productName || item.partNo || "this line",
+                              notes: item.notes ?? null,
+                            }}
+                            editable={!isInactive}
+                            onChanged={fetchOrder}
+                          />
+                        )}
                         {isQuote && item.holdable && (
                           <QuoteLineHold
                             orderId={orderDetails.id}
@@ -1138,6 +1230,15 @@ export function OrderDetailView({ id }: { id: string }) {
           </table>
         </div>
       </div>
+
+      <OrderDisclaimersPanel
+        orderId={orderDetails.id}
+        status={orderDetails.status}
+        disclaimers={orderDetails.disclaimers ?? []}
+        onChanged={(disclaimers) => setOrderDetails({ ...orderDetails, disclaimers })}
+      />
+
+      <CustomerMessagesPanel orderId={orderDetails.id} />
 
       {/* Invoices */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-6">
@@ -1260,6 +1361,22 @@ export function OrderDetailView({ id }: { id: string }) {
       )}
 
       {/* Salesperson Modal */}
+      {/* GAP-07: flags set to warn whoever opens the order. */}
+      {openAlerts.length > 0 && (
+        <Modal
+          title={`${orderDetails.orderno} is flagged`}
+          onClose={() => setOpenAlerts([])}
+          onSave={() => setOpenAlerts([])}
+          saveLabel="Got it"
+        >
+          <div className="flex flex-wrap gap-2">
+            {openAlerts.map((flag) => (
+              <OrderFlagChip key={flag.id} flag={flag} />
+            ))}
+          </div>
+        </Modal>
+      )}
+
       {showSalespersonModal && (
         <Modal
           title="Change Salesperson"
@@ -1313,10 +1430,25 @@ export function OrderDetailView({ id }: { id: string }) {
           </select>
 
           {editSplitWithId && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-2">
-              Sales credit will be split 50/50 between the two salespeople for reporting and bonus
-              calculation.
-            </p>
+            <>
+              <label htmlFor="edit-split-percent" className="block text-sm font-medium mb-1">
+                Salesperson&apos;s share (%)
+              </label>
+              <input
+                id="edit-split-percent"
+                type="number"
+                min={SPLIT_PERCENT_MIN}
+                max={SPLIT_PERCENT_MAX}
+                step={1}
+                value={editSplitPercent}
+                placeholder="Store default"
+                onChange={(e) => setEditSplitPercent(e.target.value)}
+                className="w-32 border border-brand-gray/30 rounded px-3 py-2 text-sm mb-2"
+              />
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-2">
+                {splitCreditNote(editSplitPercent)}
+              </p>
+            </>
           )}
         </Modal>
       )}

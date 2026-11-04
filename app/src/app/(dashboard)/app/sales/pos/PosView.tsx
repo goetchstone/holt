@@ -34,6 +34,13 @@ import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { REFERENCE_MAX, type OfferedTender } from "@/lib/payments/tenderShared";
 import { deliveryPieces } from "@/lib/delivery/deliveryFeeShared";
 import { DeliveryFeeField } from "./DeliveryFeeField";
+import {
+  SplitSaleField,
+  emptySplit,
+  splitBody,
+  type SplitChoice,
+} from "@/components/sales/SplitSaleField";
+import type { SplitSaleSetup } from "@/lib/commissionSplit";
 import { useDiscountApproval } from "@/components/sales/useDiscountApproval";
 
 const REGISTER_STORAGE_KEY = "pos-register-id";
@@ -173,11 +180,13 @@ function onHandAt(item: CartItem, locationName: string): number {
   return here?.available ?? 0;
 }
 
-export function PosView() {
+export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | null }>) {
   const router = useRouter();
   const fmt = useMoneyFormatter();
   const scanRef = useRef<HTMLInputElement>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  // A sale written with a colleague (GAP-07), for those allowed to split one.
+  const [split, setSplit] = useState<SplitChoice>(() => emptySplit(splitSetup));
   const [scanInput, setScanInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [returnMode, setReturnMode] = useState(false);
@@ -529,6 +538,7 @@ export function PosView() {
           deliveryMethod,
           // 0 charges none (create-from-cart).
           deliveryFee: deliveryFeeAmount,
+          ...splitBody(split),
           discountApproval,
         }),
       );
@@ -746,6 +756,7 @@ export function PosView() {
   const handleNewTransaction = () => {
     setCart([]);
     setSelectedCustomer(null);
+    setSplit(emptySplit(splitSetup));
     setOrderDiscount(null);
     setReturnMode(false);
     setDeliveryMethod("TAKEN");
@@ -763,6 +774,7 @@ export function PosView() {
   const clearAll = () => {
     setCart([]);
     setSelectedCustomer(null);
+    setSplit(emptySplit(splitSetup));
     setOrderDiscount(null);
     setReturnMode(false);
     setDeliveryMethod("TAKEN");
@@ -1187,6 +1199,7 @@ export function PosView() {
                 fmt={fmt}
               />
             )}
+            <SplitSaleField setup={splitSetup} value={split} onChange={setSplit} />
           </div>
           <div className="flex gap-3">
             <Button onClick={handleCreateOrder} className="flex-1 py-3 text-base">

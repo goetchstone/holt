@@ -16,7 +16,8 @@ import { buildLocationMap } from "@/lib/storeLocationResolver";
 import { logger } from "@/lib/logger";
 import { settleShortfalls } from "@/lib/reports/oversold";
 import { getAppSettings } from "@/lib/appSettings";
-import { isStockedProduct, lineCommitsStock } from "@/lib/sales/quoteHoldsShared";
+import { lineCommitsStock } from "@/lib/sales/quoteHoldsShared";
+import { STOCKED_SELECT, isStockedProduct } from "./stocked";
 import { businessDayKey } from "@/lib/reports/businessDay";
 
 export interface OrderLineForAllocation {
@@ -78,7 +79,7 @@ export async function getActiveOrderLines(
       fulfilledQty: true,
       fulfillment: true,
       holdUntil: true,
-      product: { select: { madeToOrder: true, category: { select: { trackInventory: true } } } },
+      product: { select: STOCKED_SELECT },
       salesOrder: { select: { deliveryMethod: true } },
     },
   });
@@ -150,10 +151,10 @@ export async function recordShortfalls(
  * What the order needs is what it commits (lib/sales/quoteHoldsShared.ts): an
  * order, every active line; a quote, only the lines it holds today (GAP-16), so
  * a hold that ran out, or one taken off, releases its units here. A product
- * that isn't drawn from stock (made to order, or a category that keeps none:
- * GAP-21) is never allocated -- there is nothing free to commit, only a false
- * shortfall to raise -- but its units still count as needed, so ones its PO
- * delivered committed to the order are never released.
+ * whose category keeps no stock (GAP-21, lib/inventory/stocked.ts) is never
+ * allocated -- there is nothing to commit, only a false shortfall to raise --
+ * but its units still count as needed, so none it already holds are released.
+ * An item made to order is allocated like any other.
  *
  * Skips allocation (logging why) when the order's storeLocation string
  * can't be resolved to a StoreLocation id -- never throws, never blocks the

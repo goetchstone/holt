@@ -39,6 +39,12 @@ import {
   IDLE_LOGOFF_OFF,
 } from "@/lib/auth/idleLogoff";
 import { QUOTE_HOLD_MAX_DAYS_LIMIT } from "@/lib/sales/quoteHoldsShared";
+import {
+  SPLIT_PERCENT_MAX,
+  SPLIT_PERCENT_MIN,
+  isSplitPercent,
+  splitLabel,
+} from "@/lib/commissionSplit";
 
 // fetch() bodies are plain objects, not axios errors, so getErrorMessage can't
 // reach the server's { error } -- pull it out here, then let the outer catch
@@ -420,6 +426,46 @@ function DiscountsSection({
           onChange={(e) => onChange(Math.round(Number(e.target.value) || 0))}
           className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
         />
+      </div>
+    </section>
+  );
+}
+
+// How a split sale is credited (AppSettings.defaultSplitPercent, GAP-07): the
+// share a new split gives its salesperson; the partner gets the rest. Staff with
+// "Reassign salesperson" may choose another on each sale.
+function SplitSalesSection({
+  value,
+  onChange,
+}: Readonly<{ value: number; onChange: (percent: number) => void }>) {
+  return (
+    <section id="split-sales" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Split sales</h2>
+      <p className="text-xs text-brand-gray">
+        A sale two people write is credited to both: the salesperson gets this share and the partner
+        the rest, in every sales report and in commission. Staff whose role has &ldquo;Reassign
+        salesperson&rdquo; (Admin → Setup → Roles) may choose another share on a sale. Changing this
+        moves no sale already split.
+      </p>
+      <div className="max-w-xs">
+        <label htmlFor="default-split" className="mb-1 block text-sm text-brand-gray">
+          Salesperson&apos;s share of a split sale (%)
+        </label>
+        <input
+          id="default-split"
+          type="number"
+          min={SPLIT_PERCENT_MIN}
+          max={SPLIT_PERCENT_MAX}
+          step={1}
+          value={value}
+          onChange={(e) => onChange(Math.round(Number(e.target.value) || 0))}
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black focus:border-brand-blue focus:outline-none"
+        />
+        <p className="mt-1 text-xs text-brand-gray">
+          {isSplitPercent(value)
+            ? `Split ${splitLabel(value)}: the partner gets ${100 - value}%.`
+            : `${SPLIT_PERCENT_MIN} to ${SPLIT_PERCENT_MAX}.`}
+        </p>
       </div>
     </section>
   );
@@ -824,6 +870,7 @@ export function SettingsOverviewView() {
           defaultTaxDistrictId: settings.defaultTaxDistrictId,
           deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
           discountLimitPercent: settings.discountLimitPercent,
+          defaultSplitPercent: settings.defaultSplitPercent,
           quoteHoldMaxDays: settings.quoteHoldMaxDays,
           landedCostSplit: settings.landedCostSplit,
           idleLogoffMinutes: settings.idleLogoffMinutes,
@@ -942,6 +989,12 @@ export function SettingsOverviewView() {
         value={settings.discountLimitPercent}
         onChange={(percent) =>
           setSettings((prev) => (prev ? { ...prev, discountLimitPercent: percent } : prev))
+        }
+      />
+      <SplitSalesSection
+        value={settings.defaultSplitPercent}
+        onChange={(percent) =>
+          setSettings((prev) => (prev ? { ...prev, defaultSplitPercent: percent } : prev))
         }
       />
       <QuoteHoldsSection

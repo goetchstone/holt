@@ -43,6 +43,10 @@ interface InvoiceLineItem {
   listPrice: number | null;
   vatRate: number | null;
   vatAmount: number | null;
+  /** Staff's note on the line (GAP-07). */
+  notes: string | null;
+  /** The line's picture (lib/sales/linePicture.ts), or null. */
+  imageUrl: string | null;
 }
 
 interface OrderData {
@@ -71,6 +75,8 @@ interface OrderData {
     paymentAmount: number;
   }[];
   orderNotes: string | null;
+  /** The order's disclaimers, each as it read when added (GAP-07). */
+  disclaimers: string[];
 }
 
 const fmt = (v: number) => v.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -123,6 +129,12 @@ const INVOICE_STYLES = `
   .totals .balance { color: #A78A5A; }
   .payments th, .payments td { font-size: 9pt; }
   .notes { background: #F7F5F1; padding: 12px; border-radius: 4px; font-size: 9pt; color: #6D6D6D; }
+  .line-note { font-size: 8pt; color: #0D0D0D; font-style: italic; margin-top: 3px; white-space: pre-line; }
+  .picture { width: 0.9in; }
+  .picture img { max-width: 0.8in; max-height: 0.8in; object-fit: contain; display: block; }
+  .disclaimers { margin-top: 20px; font-size: 8pt; color: #0D0D0D; }
+  .disclaimers p { margin: 0 0 6px; white-space: pre-line; }
+  tr { page-break-inside: avoid; }
   .footer { margin-top: 40px; text-align: center; font-size: 8pt; color: #6D6D6D; border-top: 1px solid #E5E5E5; padding-top: 12px; }
 `;
 
@@ -138,6 +150,25 @@ function lineDescription(li: InvoiceLineItem) {
     );
   }
   return li.description || "";
+}
+
+const PICTURE_WAIT_MS = 3000;
+
+/** Every picture on the page loaded or failed, or `ms` gone by. */
+function picturesLoaded(doc: Document, ms: number): Promise<void> {
+  const pending = [...doc.images]
+    .filter((img) => !img.complete)
+    .map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          img.addEventListener("load", () => resolve(), { once: true });
+          img.addEventListener("error", () => resolve(), { once: true });
+        }),
+    );
+  return Promise.race([
+    Promise.all(pending).then(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, ms)),
+  ]);
 }
 
 export function InvoicePrintView({ id }: { id: string }) {
@@ -156,8 +187,18 @@ export function InvoicePrintView({ id }: { id: string }) {
   useEffect(() => {
     if (!order) return;
     document.title = `${order.status === "QUOTE" ? "Quote" : "Invoice"} ${order.orderno}`;
-    const timer = setTimeout(() => globalThis.print(), 500);
-    return () => clearTimeout(timer);
+    // Print once the line pictures have arrived (GAP-07), or after a few
+    // seconds whatever they are doing: printing first left them blank.
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void picturesLoaded(document, PICTURE_WAIT_MS).then(() => {
+        if (!cancelled) globalThis.print();
+      });
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [order]);
 
   if (!order) {
@@ -178,6 +219,8 @@ export function InvoicePrintView({ id }: { id: string }) {
     0,
   );
   const tax = order.lineItems.reduce((s, li) => s + (li.vatAmount || 0), 0);
+  // A picture column only when some line has a picture to print (GAP-07).
+  const pictures = order.lineItems.some((li) => li.imageUrl);
   const total = subtotal + tax;
   const paid = order.payments.reduce((s, p) => s + p.paymentAmount, 0);
   const balance = total - paid;
@@ -266,6 +309,7 @@ export function InvoicePrintView({ id }: { id: string }) {
         <table>
           <thead>
             <tr>
+              {pictures && <th className="picture" aria-label="Picture" />}
               <th>Item</th>
               <th>Description</th>
               <th className="right">Qty</th>
@@ -284,11 +328,28 @@ export function InvoicePrintView({ id }: { id: string }) {
                   : 0;
               return (
                 <tr key={i}>
+                  {pictures && (
+                    <td className="picture">
+                      {li.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element -- a print page: next/image loads lazily, and the page prints as soon as its pictures are in
+                        <img
+                          src={li.imageUrl}
+                          alt={li.productName || ""}
+                          // A picture since removed from disk prints nothing,
+                          // not a broken-image box.
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      )}
+                    </td>
+                  )}
                   <td>
                     {li.productName || "Item"}
                     {li.partNo && (
                       <div style={{ color: "#6D6D6D", fontSize: "8pt" }}>{li.partNo}</div>
                     )}
+                    {li.notes && <div className="line-note">{li.notes}</div>}
                   </td>
                   <td style={{ color: "#6D6D6D", fontSize: "9pt" }}>{lineDescription(li)}</td>
                   <td className="right">{li.orderedQuantity}</td>
@@ -392,6 +453,15 @@ export function InvoicePrintView({ id }: { id: string }) {
         <div className="section">
           <div className="section-title">Notes</div>
           <div className="notes">{order.orderNotes}</div>
+        </div>
+      )}
+
+      {/* The order's own disclaimers (GAP-07), above the store-wide footer. */}
+      {order.disclaimers.length > 0 && (
+        <div className="disclaimers">
+          {order.disclaimers.map((text, i) => (
+            <p key={i}>{text}</p>
+          ))}
         </div>
       )}
 

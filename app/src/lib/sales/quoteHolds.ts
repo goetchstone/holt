@@ -23,9 +23,9 @@ import {
   holdDateProblem,
   holdDateValue,
   holdDateString,
-  isStockedProduct,
   lineHoldProblem,
 } from "./quoteHoldsShared";
+import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
 import { businessDayKey } from "@/lib/reports/businessDay";
 
 type Tx = Prisma.TransactionClient;
@@ -105,7 +105,7 @@ export async function setLineHold(
       holdUntil: true,
       lineItemStatus: true,
       source: true,
-      product: { select: { madeToOrder: true, category: { select: { trackInventory: true } } } },
+      product: { select: STOCKED_SELECT },
       salesOrder: { select: { status: true, storeLocation: true } },
     },
   });

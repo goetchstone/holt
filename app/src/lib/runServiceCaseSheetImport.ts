@@ -40,6 +40,7 @@ import {
   type PersonMap,
 } from "@/lib/serviceCaseSheetImport";
 import { logError } from "@/lib/logger";
+import { vendorNameIndex } from "@/lib/vendors/vendorByName";
 
 const EXTERNAL_SOURCE = "cs-sheet";
 const NOTE_SOURCE_PREFIX = "cs-sheet-note:";
@@ -222,11 +223,12 @@ function indexStaff(staff: StaffRow[]): StaffIndex {
 }
 
 async function buildCaches(): Promise<Caches> {
-  const [statuses, types, priorities, vendors, staff] = await Promise.all([
+  const [statuses, types, priorities, vendorByName, staff] = await Promise.all([
     prisma.serviceCaseStatus.findMany({ select: { id: true, name: true } }),
     prisma.serviceCaseType.findMany({ select: { id: true, name: true } }),
     prisma.serviceCasePriority.findMany({ select: { id: true, name: true } }),
-    prisma.vendor.findMany({ select: { id: true, name: true } }),
+    // Earlier names too (a vendor merged away), after every vendor's own name.
+    vendorNameIndex(prisma),
     prisma.staffMember.findMany({
       select: { id: true, displayName: true, email: true, aliases: true },
     }),
@@ -240,7 +242,7 @@ async function buildCaches(): Promise<Caches> {
     priorityByName: new Map(priorities.map((p) => [p.name.toLowerCase(), p.id])),
     firstTypeId: types[0]?.id,
     firstPriorityId: priorities[0]?.id,
-    vendorByName: new Map(vendors.map((v) => [v.name.toLowerCase(), v.id])),
+    vendorByName,
     ...staffIndex,
   };
 }

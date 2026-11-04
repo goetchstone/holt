@@ -44,7 +44,7 @@ import type { CatalogProduct } from "./catalog";
 import type { StoreSetup } from "./locations";
 import type { StaffSetup } from "./staff";
 import { toQty } from "@/lib/inventory/quantity";
-import { receiveTransfer, shipTransfer } from "@/lib/inventory/transfers";
+import { claimAndReceive, shipTransfer } from "@/lib/inventory/transfers";
 
 const SEED_ACTOR = "seed:demo";
 
@@ -263,7 +263,12 @@ export async function seedInventoryOps(
         await shipTransfer(tx, transfer, "seed:demo");
       }
       if (status === "RECEIVED") {
-        await receiveTransfer(tx, transfer, null, "seed:demo");
+        // Received as the app receives: on its way, then claimed and moved.
+        const onWay = await tx.inventoryTransfer.update({
+          where: { id: transfer.id },
+          data: { status: "IN_TRANSIT" },
+        });
+        await claimAndReceive(tx, onWay, null, "seed:demo");
       }
       await tx.inventoryTransfer.update({
         where: { id: transfer.id },

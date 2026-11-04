@@ -28,6 +28,7 @@ import { isValidTimeZone } from "@/lib/reports/businessDay";
 import { LANDED_COST_SPLIT_KEYS, isLandedCostSplit } from "@/lib/purchasing/landedCostShared";
 import { IDLE_LOGOFF_RULE, isIdleLogoffMinutes } from "@/lib/auth/idleLogoff";
 import { QUOTE_HOLD_RULE, isQuoteHoldMaxDays } from "@/lib/sales/quoteHoldsShared";
+import { splitPercentProblem } from "@/lib/commissionSplit";
 
 const THEME_KEYS = Object.keys(DEFAULT_THEME) as ThemeKey[];
 
@@ -379,6 +380,17 @@ function parseDiscountLimit(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// A new split sale's share to its salesperson, a whole percent 1-99; the
+// partner gets the rest (GAP-07, lib/commissionSplit.ts). 50 splits evenly.
+function parseDefaultSplit(body: Body, data: SettingsData): ParseError {
+  const raw = body.defaultSplitPercent;
+  if (raw === undefined) return null;
+  const problem = splitPercentProblem(raw);
+  if (problem) return { error: `defaultSplitPercent: ${problem}` };
+  data.defaultSplitPercent = raw as number;
+  return null;
+}
+
 // The longest a quote may hold floor stock, in days from today (GAP-16,
 // lib/sales/quoteHolds.ts). How long a store holds a piece is its own call; 0
 // means quotes hold nothing.
@@ -449,6 +461,7 @@ const SETTINGS_PARSERS = [
   parseDefaultTaxDistrict,
   parseDeliveryFeeTaxGroup,
   parseDiscountLimit,
+  parseDefaultSplit,
   parseQuoteHoldMaxDays,
   parseLandedCostSplit,
   parseIdleLogoff,

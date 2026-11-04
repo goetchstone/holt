@@ -14,7 +14,9 @@
 //     status is worked out again (lib/purchasing/receiptStatus.ts).
 //
 // A receipt the POS import wrote is not taken back here: its stock came in
-// through the import, and a count corrects it.
+// through the import, and a count corrects it. A receipt that put nothing into
+// stock (`intoStock` false: its category keeps none, GAP-21) shrinks or goes
+// with nothing taken out, whatever its category says now (rule 60).
 
 import type { Prisma } from "@prisma/client";
 import { lockProducts, placeWhere, postMovement, type Place } from "@/lib/inventory/ledger";
@@ -173,7 +175,9 @@ export async function unreceive(
   }
 
   const productId = record.purchaseOrderItem.productId;
-  if (productId !== null) await takeOutOfStock(tx, record, productId, quantity, args.actor);
+  if (productId !== null && record.intoStock) {
+    await takeOutOfStock(tx, record, productId, quantity, args.actor);
+  }
 
   const remaining = roundQty(had - quantity);
   if (remaining <= QTY_EPSILON) {
