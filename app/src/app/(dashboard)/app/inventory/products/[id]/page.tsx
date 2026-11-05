@@ -15,13 +15,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const { holds } = await requirePage(undefined, {
     permission: "catalog.read",
-    also: ["catalog.write", "purchasing.write"],
+    also: ["catalog.write", "purchasing.write", "purchasing.receive", "warehouse.operate"],
   });
   return (
     <ProductDetailView
       id={id}
       canEdit={holds["catalog.write"]}
       canSetReorderPoints={holds["purchasing.write"]}
+      canPrintTags={holds["purchasing.receive"] || holds["warehouse.operate"]}
     />
   );
 }

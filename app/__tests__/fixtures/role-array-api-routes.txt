@@ -48,8 +48,6 @@ src/pages/api/dispatch/pick-lists/[id]/items.ts  roles=[MANAGER,ADMIN,WAREHOUSE]
 src/pages/api/dispatch/ready-to-deliver.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=service.write  widens: +DESIGNER,INSTALLER
 src/pages/api/goals/index.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
 src/pages/api/portal/generate-link.ts  roles=[DESIGNER,REGISTER,MANAGER,ADMIN]  proposed=(none)  no domain rule
-src/pages/api/print-label.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=(none)  no domain rule
-src/pages/api/print-label/batch.ts  roles=[MANAGER,ADMIN,WAREHOUSE]  proposed=(none)  no domain rule
 src/pages/api/products/basic.ts  roles=[MANAGER,ADMIN]  proposed=catalog.read  widens: +DESIGNER,MARKETING,REGISTER,WAREHOUSE
 src/pages/api/products/quick-create.ts  roles=[MANAGER,ADMIN]  proposed=catalog.read  widens: +DESIGNER,MARKETING,REGISTER,WAREHOUSE
 src/pages/api/proposals/[id]/convert-to-order.ts  roles=[MANAGER,ADMIN]  proposed=sales.read  widens: +DESIGNER,INSTALLER,REGISTER,WAREHOUSE

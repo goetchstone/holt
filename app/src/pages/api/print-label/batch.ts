@@ -4,17 +4,19 @@
 // 1. Auto-route: pass just { productId, copies } -- resolves template and printer
 //    from the product's category assignment and tag size matching.
 // 2. Manual: pass { productId, templateId, printerId, copies } to override.
+// A storeLocationId beside items keeps auto-routed tags to that store's printers.
 
 import { NextApiRequest, NextApiResponse } from "next";
-import { requireAuthWithRole } from "@/lib/auth/requireAuth";
-import { printLabel, autoRoutePrint, resolveRoute } from "@/lib/labelPrinter";
+import { requirePermission } from "@/lib/auth/requireAuth";
+import { printLabel, resolveRoute } from "@/lib/labelPrinter";
+import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rateLimit";
 import { logError } from "@/lib/logger";
 
 const MAX_BATCH_SIZE = 50;
 const MAX_COPIES = 10;
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+export async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -30,6 +32,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res
         .status(400)
         .json({ error: `Batch size exceeds maximum of ${MAX_BATCH_SIZE} items` });
+    }
+
+    const store = req.body.storeLocationId
+      ? await prisma.storeLocation.findUnique({
+          where: { id: Number(req.body.storeLocationId) },
+          select: { name: true },
+        })
+      : null;
+    if (req.body.storeLocationId && !store) {
+      return res.status(400).json({ error: "That store doesn't exist." });
     }
 
     const results: {
@@ -57,9 +69,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           }
           results.push({ productId, success: true });
         } else {
-          const route = await resolveRoute(productId);
+          const route = await resolveRoute(productId, store?.name);
           for (let i = 0; i < clampedCopies; i++) {
-            await autoRoutePrint(productId);
+            await printLabel(productId, route.templateId, route.printerId);
           }
           results.push({
             productId,
@@ -87,9 +99,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 }
 
 // rateLimit stays outermost: it rejects a flood of unauthenticated requests
-// before requireAuthWithRole runs, which does two DB queries per call (the
-// StaffMember lookup and the privileged-count). Auth-outermost would let
-// anyone without a session drive that DB load. Do not reorder.
+// before the permission check runs, which does DB queries on each call.
+// Auth-outermost would let anyone without a session drive that DB load. Do not
+// reorder. The same permission as the single tag (pages/api/print-label.ts).
 export default rateLimit({ windowMs: 60000, maxRequests: 10 })(
-  requireAuthWithRole(["MANAGER", "ADMIN", "WAREHOUSE"], handler),
+  requirePermission({ anyOf: ["purchasing.receive", "warehouse.operate"] }, handler),
 );

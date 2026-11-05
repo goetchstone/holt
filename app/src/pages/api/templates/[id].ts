@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { photoDotsProblem } from "@/lib/labels/photo";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const id = Number.parseInt(req.query.id as string);
@@ -17,7 +18,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === "PUT") {
-    const { name, context, tagSize, zplTemplate } = req.body;
+    const { name, context, tagSize, zplTemplate, photoDots } = req.body;
+    const photoProblem = photoDotsProblem(photoDots);
+    if (photoProblem) return res.status(400).json({ error: photoProblem });
     const updated = await prisma.labelTemplate.update({
       where: { id },
       data: {
@@ -25,6 +28,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         context,
         tagSize,
         zplTemplate,
+        photoDots,
       },
     });
     return res.status(200).json(updated);

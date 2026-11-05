@@ -6,7 +6,15 @@ import FormInput from "@/components/form/FormInput";
 import FormTextArea from "@/components/form/FormTextArea"; // Assuming you might use this for ZPL
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/Modal";
+import {
+  isLabelContext,
+  LABEL_CONTEXT_NAMES,
+  LABEL_FIELDS,
+  type LabelContext,
+} from "@/lib/labels/renderTemplate";
 import { isSavedRecord } from "@/lib/savedRecord";
+
+const CONTEXTS = Object.keys(LABEL_FIELDS) as LabelContext[];
 
 type Props = {
   template: LabelTemplate | null; // Can be null for new template
@@ -20,6 +28,7 @@ export default function LabelTemplateModal({ template, onClose, onRefresh }: Pro
     context: "",
     tagSize: "",
     zplTemplate: "", // ZPL template string
+    photoDots: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -30,6 +39,7 @@ export default function LabelTemplateModal({ template, onClose, onRefresh }: Pro
         context: template.context || "",
         tagSize: template.tagSize || "",
         zplTemplate: template.zplTemplate || "",
+        photoDots: template.photoDots?.toString() || "",
       });
     } else {
       setForm({
@@ -37,6 +47,7 @@ export default function LabelTemplateModal({ template, onClose, onRefresh }: Pro
         context: "",
         tagSize: "",
         zplTemplate: "",
+        photoDots: "",
       });
     }
   }, [template]);
@@ -59,7 +70,10 @@ export default function LabelTemplateModal({ template, onClose, onRefresh }: Pro
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          photoDots: form.photoDots ? Number(form.photoDots) : null,
+        }),
       });
 
       if (res.ok) {
@@ -123,13 +137,27 @@ export default function LabelTemplateModal({ template, onClose, onRefresh }: Pro
         onChange={(v) => handleChange("name", v)}
         required
       />
-      <FormInput
-        label="Context"
-        name="context"
-        value={form.context}
-        onChange={(v) => handleChange("context", v)}
-        required
-      />
+      <div>
+        <label htmlFor="label-context" className="block text-sm text-brand-gray mb-1">
+          Kind of label
+        </label>
+        <select
+          id="label-context"
+          value={form.context}
+          onChange={(e) => handleChange("context", e.target.value)}
+          className="w-full border border-brand-gray/30 rounded px-3 py-2 text-sm"
+        >
+          <option value="">Choose...</option>
+          {CONTEXTS.map((c) => (
+            <option key={c} value={c}>
+              {LABEL_CONTEXT_NAMES[c]}
+            </option>
+          ))}
+          {form.context && !isLabelContext(form.context) && (
+            <option value={form.context}>{form.context} (nothing prints this)</option>
+          )}
+        </select>
+      </div>
       <FormInput
         label="Tag Size"
         name="tagSize"
@@ -146,6 +174,22 @@ export default function LabelTemplateModal({ template, onClose, onRefresh }: Pro
         rows={8}
         required
       />
+      {isLabelContext(form.context) && (
+        <p className="text-xs text-brand-gray">
+          This label can use: {LABEL_FIELDS[form.context].map((f) => `{{${f}}}`).join(", ")}.
+          {(LABEL_FIELDS[form.context] as readonly string[]).includes("baseCost") &&
+            " baseCost prints the real cost. On a tag a customer can read, use costCode."}
+        </p>
+      )}
+      {(form.context === "PRODUCT" || form.context === "SALE") && (
+        <FormInput
+          label="Photo size (dots along its longest side; empty for no photo)"
+          name="photoDots"
+          type="number"
+          value={form.photoDots}
+          onChange={(v) => handleChange("photoDots", v)}
+        />
+      )}
 
       <div className="flex justify-end gap-4 mt-4">
         {isSavedRecord(template) && ( // Only show delete button for existing templates

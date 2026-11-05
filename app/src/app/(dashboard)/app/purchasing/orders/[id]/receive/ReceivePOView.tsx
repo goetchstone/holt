@@ -14,7 +14,10 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
+import type { TagPrintMode } from "@/lib/labels/tagPrintMode";
 import { RECEIPT_CONDITIONS } from "@/lib/purchasing/receiptConditions";
+import { getErrorMessage } from "@/lib/toastError";
+import { api } from "@/lib/trpc/client";
 
 interface LineItem {
   id: number;
@@ -81,6 +84,30 @@ export function ReceivePOView({ id }: { id: string }) {
 
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
   const [lineStates, setLineStates] = useState<ReceiveLineState[]>([]);
+  const [printed, setPrinted] = useState<Record<number, number>>({});
+  const [printingLine, setPrintingLine] = useState<number | null>(null);
+  const me = api.account.me.useQuery();
+  const saveMode = api.account.setTagPrintMode.useMutation();
+  const [chosenMode, setChosenMode] = useState<TagPrintMode | null>(null);
+  const printMode: TagPrintMode = chosenMode ?? me.data?.tagPrintMode ?? "ONE_AT_A_TIME";
+
+  const chooseMode = (mode: TagPrintMode) => {
+    setChosenMode(mode);
+    saveMode.mutate({ mode });
+  };
+
+  /** One tag for one line, now, so it can be matched to its piece. */
+  const printOneTag = async (itemId: number, productId: number) => {
+    setPrintingLine(itemId);
+    try {
+      await axios.post("/api/print-label", { productId, storeLocationId: selectedStoreId });
+      setPrinted((prev) => ({ ...prev, [itemId]: (prev[itemId] ?? 0) + 1 }));
+    } catch (err) {
+      toast.error(getErrorMessage(err, "The tag did not print."));
+    } finally {
+      setPrintingLine(null);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -150,7 +177,8 @@ export function ReceivePOView({ id }: { id: string }) {
           quantityReceived: ls.quantity,
           destinationStockLocationId: ls.stockLocationId,
           condition: ls.condition,
-          printTag: ls.printTag,
+          // One at a time, tags were printed line by line, before this save.
+          printTag: printMode === "BATCH" && ls.printTag,
           variantUpc: ls.upc || undefined,
         })),
       });
@@ -166,7 +194,10 @@ export function ReceivePOView({ id }: { id: string }) {
             productId: pi.productId,
             copies: pi.quantity,
           }));
-          const printRes = await axios.post("/api/print-label/batch", { items: printPayload });
+          const printRes = await axios.post("/api/print-label/batch", {
+            items: printPayload,
+            storeLocationId: selectedStoreId,
+          });
           const failed = printRes.data.results?.filter((r: { success: boolean }) => !r.success);
           if (failed?.length > 0) {
             const errors = failed.map((f: { productId: number; error: string }) => f.error);
@@ -174,8 +205,8 @@ export function ReceivePOView({ id }: { id: string }) {
           } else {
             toast.success("Tags sent to printer");
           }
-        } catch {
-          toast.error("Items received but tag printing failed");
+        } catch (err) {
+          toast.error(getErrorMessage(err, "Items received, but the tags did not print."));
         }
       }
 
@@ -237,8 +268,30 @@ export function ReceivePOView({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Config bar: receiving location */}
-      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-sm p-3">
+      {/* Config bar: receiving location, and how this person prints tags */}
+      <div className="bg-white rounded-lg border border-brand-gray/20 shadow-sm p-3 space-y-3">
+        <div>
+          <span className="block text-xs text-brand-gray mb-1">Print tags</span>
+          <div className="inline-flex overflow-hidden rounded border border-brand-gray/30">
+            {(
+              [
+                ["ONE_AT_A_TIME", "One at a time"],
+                ["BATCH", "All at once, after saving"],
+              ] as const
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => chooseMode(mode)}
+                className={`min-h-[44px] px-3 text-sm ${
+                  printMode === mode ? "bg-brand-navy text-white" : "bg-white text-brand-black"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div>
           <label className="block text-xs text-brand-gray mb-1">Receiving At</label>
           <select
@@ -357,15 +410,28 @@ export function ReceivePOView({ id }: { id: string }) {
                         </select>
                       </div>
                       <div className="flex items-end pb-1">
-                        <label className="flex items-center gap-2 text-sm text-brand-gray cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={ls.printTag}
-                            onChange={(e) => updateLine(li.id, { printTag: e.target.checked })}
-                            className="rounded w-5 h-5"
-                          />
-                          Print Tag
-                        </label>
+                        {printMode === "BATCH" ? (
+                          <label className="flex items-center gap-2 text-sm text-brand-gray cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={ls.printTag}
+                              onChange={(e) => updateLine(li.id, { printTag: e.target.checked })}
+                              className="rounded w-5 h-5"
+                            />
+                            Print Tag
+                          </label>
+                        ) : (
+                          li.productId != null && (
+                            <button
+                              type="button"
+                              disabled={printingLine === li.id}
+                              onClick={() => printOneTag(li.id, li.productId as number)}
+                              className="min-h-[44px] rounded border border-brand-gray/30 px-3 text-sm hover:bg-brand-linen disabled:opacity-50"
+                            >
+                              Print tag{printed[li.id] ? ` (${printed[li.id]} done)` : ""}
+                            </button>
+                          )
+                        )}
                       </div>
                       {ls.needsUpc && (
                         <div className="col-span-2">
