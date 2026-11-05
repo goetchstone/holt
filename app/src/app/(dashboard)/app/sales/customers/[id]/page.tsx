@@ -11,17 +11,26 @@
 import { requirePage } from "@/lib/auth/requirePage";
 import { CustomerDetailView } from "./CustomerDetailView";
 
-export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CustomerDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const { holds } = await requirePage(undefined, {
     permission: "sales.read",
     also: ["sales.lead", "customer.write"],
   });
+  const canSeeClientNotes = holds["sales.lead"] || holds["customer.write"];
   return (
     <CustomerDetailView
       id={id}
       canWorkClient={holds["sales.lead"]}
-      canSeeClientNotes={holds["sales.lead"] || holds["customer.write"]}
+      canSeeClientNotes={canSeeClientNotes}
+      openOnNotes={canSeeClientNotes && tab === "notes"}
     />
   );
 }

@@ -945,12 +945,35 @@ describe("the pages", () => {
   ])("the customer page tells %s: edit %s, notes %s", async (role, canWork, canSee) => {
     await makeStaff("viewer", role);
     signIn("viewer");
-    const element = await CustomerPage({ params: Promise.resolve({ id: "7" }) });
+    const element = await CustomerPage({
+      params: Promise.resolve({ id: "7" }),
+      searchParams: Promise.resolve({}),
+    });
     expect(element.props).toEqual({
       id: "7",
       canWorkClient: canWork,
       canSeeClientNotes: canSee,
+      openOnNotes: false,
     });
+  });
+
+  it("opens on Notes when the link asks, only for someone who can see them", async () => {
+    const opened = async (tab?: string) =>
+      (
+        await CustomerPage({
+          params: Promise.resolve({ id: "7" }),
+          searchParams: Promise.resolve({ tab }),
+        })
+      ).props.openOnNotes;
+    await makeStaff("pat", "DESIGNER");
+    signIn("pat");
+    expect(await opened("notes")).toBe(true);
+    expect(await opened("orders")).toBe(false);
+    expect(await opened()).toBe(false);
+
+    await makeStaff("wes", "WAREHOUSE");
+    signIn("wes");
+    expect(await opened("notes")).toBe(false);
   });
 
   it("My Clients is for people who work the pipeline", async () => {

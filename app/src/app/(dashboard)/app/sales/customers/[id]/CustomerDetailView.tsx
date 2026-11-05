@@ -522,10 +522,12 @@ export function CustomerDetailView({
   id,
   canWorkClient,
   canSeeClientNotes,
+  openOnNotes,
 }: {
   id: string;
   canWorkClient: boolean;
   canSeeClientNotes: boolean;
+  openOnNotes: boolean;
 }) {
   const { effectiveRole } = useEffectiveRole();
   const canSeeWealth =
@@ -843,7 +845,7 @@ export function CustomerDetailView({
 
       <EmailEngagementSummary customerId={customer.id} />
 
-      <Tabs defaultValue="contact">
+      <Tabs defaultValue={showNotes && openOnNotes ? "notes" : "contact"}>
         <TabsList>
           <TabsTrigger value="contact">Contact Info</TabsTrigger>
           <TabsTrigger value="trade">Trade & Tax</TabsTrigger>

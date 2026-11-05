@@ -5,7 +5,7 @@
 // to keep from navigating to the quote.
 
 import type { MouseEvent, ReactNode } from "react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import { Mail, Phone, UserRound } from "lucide-react";
 
 export function ClientActionChip({
