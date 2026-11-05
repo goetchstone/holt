@@ -394,6 +394,42 @@ function parseDefaultSplit(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// The morning follow-up email and who it suggests (GAP-36, lib/followUpEmail.ts). Nothing
+// goes until a store sets an hour, and nobody is suggested until it sets a lifetime spend.
+const FOLLOW_UP_WHOLE_NUMBERS = [
+  ["followUpEmailHour", 0, 23, "The morning email's hour must be from 0 to 23, or empty for off."],
+  [
+    "outreachLapsedMonths",
+    1,
+    120,
+    "Months since an order must be from 1 to 120, or empty for the default.",
+  ],
+  [
+    "outreachQuietDays",
+    1,
+    3650,
+    "Days since contact must be from 1 to 3650, or empty for the default.",
+  ],
+] as const;
+
+function parseFollowUps(body: Body, data: SettingsData): ParseError {
+  for (const [key, min, max, problem] of FOLLOW_UP_WHOLE_NUMBERS) {
+    const value = body[key];
+    if (value === undefined) continue;
+    const isWhole = typeof value === "number" && Number.isInteger(value);
+    if (value !== null && !(isWhole && value >= min && value <= max)) return { error: problem };
+    data[key] = value as number | null;
+  }
+  const spend = body.outreachMinLifetimeSpend;
+  if (spend !== undefined) {
+    if (spend !== null && !(typeof spend === "number" && Number.isFinite(spend) && spend > 0)) {
+      return { error: "Lifetime spend must be an amount above 0, or empty for no suggestions." };
+    }
+    data.outreachMinLifetimeSpend = spend;
+  }
+  return null;
+}
+
 // The choices on a client's profile form, as this store has them (GAP-36).
 function parseProfileChoices(body: Body, data: SettingsData): ParseError {
   if (body.clientProfileChoices === undefined) return null;
@@ -514,6 +550,7 @@ const SETTINGS_PARSERS = [
   parseDiscountLimit,
   parseDefaultSplit,
   parseProfileChoices,
+  parseFollowUps,
   parseCostCipherKey,
   parseLowStockAlert,
   parseQuoteHoldMaxDays,

@@ -61,6 +61,13 @@ const ITEMS: CardGridItem[] = [
     roles: ["MANAGER", "ADMIN"],
   },
   {
+    title: "Follow-Ups",
+    description:
+      "Every client's next follow-up across the team: who's due, who it belongs to, and contacts logged by each salesperson.",
+    href: "/app/reports/follow-ups",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
     title: "Aged Stock",
     description:
       "How long uncommitted stock has been here, counted from when it came onto the books, with the oldest products listed.",

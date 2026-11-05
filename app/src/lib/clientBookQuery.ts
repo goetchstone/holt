@@ -2,23 +2,31 @@
 //
 // Server-only read behind the client book. A client belongs to a salesperson's
 // book when a manager assigned them, or when an order or quote is attributed to them:
-// by id, by split credit, or by name or alias (about a quarter of sold orders only
-// carry the name). Returns are left out, since the sale they reverse already puts the
-// client in the book.
+// by id, by split credit, or, on a quote with no id, by name or alias. Returns are left
+// out, since the sale they reverse already put the client in the book.
 
 import type { Prisma } from "@prisma/client";
+import { getAppSettings } from "@/lib/appSettings";
 import { prisma } from "@/lib/prisma";
 import { buildSearchFilter } from "@/lib/buildSearchFilter";
 import {
   CLIENT_BOOK_PAGE_SIZE,
   buildWorkedWithOptions,
   filterClientBook,
+  readOutreachRules,
   sortClientBook,
+  type BookContext,
   type WorkedWithOption,
   type ClientBookEntry,
   type ClientBookOptions,
+  type OutreachRules,
 } from "@/lib/clientBook";
-import { isQuoteOwned, nameMatchesActiveStaff } from "@/lib/clientOwnership";
+import {
+  isClientTheirsToWork,
+  isQuoteOwned,
+  isStaffBuyer,
+  nameMatchesActiveStaff,
+} from "@/lib/clientOwnership";
 import { toClientProfileView, type ClientProfileView } from "@/lib/clientProfile";
 import { calculateLeadScore, leadScoreInputFromCustomer, type LeadTier } from "@/lib/leadScore";
 import {
@@ -27,7 +35,9 @@ import {
   mailableEmail,
   type PipelineClientHistory,
 } from "@/lib/pipelineClient";
-import { fetchClientBackground } from "@/lib/pipelineClientQuery";
+import { fetchClientBackground, fetchLastContactByCustomer } from "@/lib/pipelineClientQuery";
+import { getClientFollowUp, type ClientFollowUp } from "@/lib/pipelineFollowUp";
+import { businessDayKey, dbDateToDayKey } from "@/lib/reports/businessDay";
 
 const MAX_NOTES_PER_CLIENT = 25;
 const BOOK_STATUSES = ["QUOTE", "ORDER", "FULFILLED"] as const;
@@ -54,6 +64,8 @@ export interface ClientBookRow {
   openQuotes: number;
   profile: ClientProfileView | null;
   notes: ClientBookNote[];
+  lastContactAt: string | null;
+  followUp: ClientFollowUp;
   isAssigned: boolean; // a manager assigned this client to the salesperson
   lastSalesperson: string | null; // set only when listing clients no one owns
 }
@@ -277,6 +289,18 @@ async function loadBookEntries(scope: BookScope, search: string): Promise<Client
   ]);
   const withNotes = new Set(notedCustomers.map((row) => row.customerId));
 
+  const customerIds = customers.map((customer) => customer.id);
+  const [lastContact, profiles] = await Promise.all([
+    fetchLastContactByCustomer(customerIds),
+    prisma.clientProfile.findMany({
+      where: { customerId: { in: customerIds }, nextFollowUpDate: { not: null } },
+      select: { customerId: true, nextFollowUpDate: true },
+    }),
+  ]);
+  const nextFollowUp = new Map(
+    profiles.map((row) => [row.customerId, dbDateToDayKey(row.nextFollowUpDate)]),
+  );
+
   return customers
     .filter((customer) => !isCashSaleCustomer(customer))
     .map((customer) => {
@@ -290,6 +314,10 @@ async function loadBookEntries(scope: BookScope, search: string): Promise<Client
         lastOrderWithStaff: soldRow?._max.orderDate ?? null,
         openQuotes: scope.openQuotes.get(customer.id) ?? 0,
         hasNotes: withNotes.has(customer.id),
+        lastContactAt: lastContact.get(customer.id) ?? null,
+        nextFollowUpDate: nextFollowUp.get(customer.id) ?? null,
+        isOutreachCandidate: false,
+        lastOrderAnywhere: null,
       };
     });
 }
@@ -345,21 +373,90 @@ async function fetchNotesByCustomer(customerIds: number[]): Promise<Map<number, 
   return byCustomer;
 }
 
+async function loadBookContext(now: Date): Promise<BookContext> {
+  const app = await getAppSettings();
+  return { now, timeZone: app.timezone, rules: readOutreachRules(app) };
+}
+
+/** Works out who's this salesperson's to reach out to. Only clients above the store's spend
+ *  line are looked up, since the rest can't be suggested. A last purchase is a sale, so
+ *  quotes, returns and cancellations don't count. Staff buying for themselves are left out. */
+async function markOutreachCandidates(
+  entries: ClientBookEntry[],
+  staff: ClientBookStaff,
+  minLifetimeSpend: number,
+): Promise<ClientBookEntry[]> {
+  const ids = entries
+    .filter((entry) => entry.lifetimeSpend >= minLifetimeSpend)
+    .map((entry) => entry.customerId);
+
+  const [lastOrders, customers, staffMembers] = await Promise.all([
+    prisma.salesOrder.findMany({
+      where: { customerId: { in: ids }, status: { in: ["ORDER", "FULFILLED"] } },
+      orderBy: [{ customerId: "asc" }, { orderDate: { sort: "desc", nulls: "last" } }],
+      distinct: ["customerId"],
+      select: {
+        customerId: true,
+        orderDate: true,
+        salesPersonId: true,
+        splitWithId: true,
+        salesperson: true,
+      },
+    }),
+    prisma.customer.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, firstName: true, lastName: true, email: true, primaryDesignerId: true },
+    }),
+    prisma.staffMember.findMany({
+      select: { id: true, displayName: true, aliases: true, email: true, isActive: true },
+    }),
+  ]);
+
+  const activeStaff = staffMembers.filter((member) => member.isActive);
+  const lastOrderByClient = new Map(lastOrders.map((order) => [order.customerId, order]));
+  const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+
+  return entries.map((entry) => {
+    const customer = customerById.get(entry.customerId);
+    const lastOrder = lastOrderByClient.get(entry.customerId);
+    if (!customer || !lastOrder) return entry;
+    return {
+      ...entry,
+      lastOrderAnywhere: lastOrder.orderDate,
+      isOutreachCandidate:
+        !isStaffBuyer(customer, staffMembers) &&
+        isClientTheirsToWork(customer, lastOrder, staff, activeStaff),
+    };
+  });
+}
+
 export async function fetchClientBook(
   staff: ClientBookStaff,
   options: ClientBookOptions,
   now: Date,
 ): Promise<ClientBookPage> {
-  const scope = await staffBookScope(staff);
+  const [scope, context] = await Promise.all([staffBookScope(staff), loadBookContext(now)]);
   const entries = await loadBookEntries(scope, options.search);
-  const sorted = sortClientBook(filterClientBook(entries, options, now), options.sort);
-  return loadBookPage(sorted, scope, options);
+  const isSuggesting = options.followUp === "suggested" && context.rules !== null;
+  const candidates = isSuggesting
+    ? await markOutreachCandidates(
+        entries,
+        staff,
+        (context.rules as OutreachRules).minLifetimeSpend,
+      )
+    : entries;
+  const sorted = sortClientBook(
+    filterClientBook(candidates, options, context),
+    // The biggest past clients are the best calls to make first.
+    isSuggesting ? "spend" : options.sort,
+  );
+  return loadBookPage(sorted, scope, options, context);
 }
 
 /** The no-owner clients these options match, plus who they all worked with. */
-async function loadUnassignedEntries(options: ClientBookOptions, now: Date) {
+async function loadUnassignedEntries(options: ClientBookOptions, context: BookContext) {
   const scope = await unassignedBookScope();
-  const entries = filterClientBook(await loadBookEntries(scope, options.search), options, now);
+  const entries = filterClientBook(await loadBookEntries(scope, options.search), options, context);
   const workedWithOptions = buildWorkedWithOptions(
     entries.map((entry) => entry.customerId),
     scope.workedWith,
@@ -377,13 +474,14 @@ export async function fetchUnassignedClients(
   options: ClientBookOptions,
   now: Date,
 ): Promise<ClientBookPage> {
-  const { scope, matching, workedWithOptions } = await loadUnassignedEntries(options, now);
+  const context = await loadBookContext(now);
+  const { scope, matching, workedWithOptions } = await loadUnassignedEntries(options, context);
   const sorted = sortClientBook(matching, options.sort);
   const withOpenQuotesFirst = [
     ...sorted.filter((entry) => entry.openQuotes > 0),
     ...sorted.filter((entry) => entry.openQuotes === 0),
   ];
-  const page = await loadBookPage(withOpenQuotesFirst, scope, options);
+  const page = await loadBookPage(withOpenQuotesFirst, scope, options, context);
   const lastSalesperson = await fetchLastSalespersonByCustomer(page.rows.map((row) => row.id));
   return {
     ...page,
@@ -401,7 +499,7 @@ export async function fetchUnassignedClientIds(
   options: ClientBookOptions,
   now: Date,
 ): Promise<number[]> {
-  const { matching } = await loadUnassignedEntries(options, now);
+  const { matching } = await loadUnassignedEntries(options, await loadBookContext(now));
   return matching.map((entry) => entry.customerId);
 }
 
@@ -409,7 +507,9 @@ async function loadBookPage(
   sorted: ClientBookEntry[],
   scope: BookScope,
   options: ClientBookOptions,
+  context: BookContext,
 ): Promise<ClientBookPage> {
+  const today = businessDayKey(context.now, context.timeZone);
   const start = (options.page - 1) * CLIENT_BOOK_PAGE_SIZE;
   const pageEntries = sorted.slice(start, start + CLIENT_BOOK_PAGE_SIZE);
   const pageIds = pageEntries.map((entry) => entry.customerId);
@@ -471,6 +571,12 @@ async function loadBookPage(
         ordersWithStaff: entry.ordersWithStaff,
         lastOrderWithStaff: entry.lastOrderWithStaff?.toISOString() ?? null,
         openQuotes: entry.openQuotes,
+        lastContactAt: entry.lastContactAt?.toISOString() ?? null,
+        followUp: getClientFollowUp(
+          entry.nextFollowUpDate,
+          entry.lastContactAt ? businessDayKey(entry.lastContactAt, context.timeZone) : null,
+          today,
+        ),
         profile: customer.clientProfile ? toClientProfileView(customer.clientProfile) : null,
         notes: notes.get(customer.id) ?? [],
         isAssigned: scope.assignedIds.has(customer.id),

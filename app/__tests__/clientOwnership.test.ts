@@ -9,6 +9,10 @@ import {
   isQuoteOwned,
   nameMatchesActiveStaff,
   parseAssignClientsBody,
+  findFollowUpOwnerId,
+  isClientTheirsToWork,
+  isStaffBuyer,
+  type LastSale,
 } from "@/lib/clientOwnership";
 
 const activeStaff = [
@@ -193,5 +197,103 @@ describe("who a name means", () => {
   it("means no one when there's no name", () => {
     expect(findQuoteOwnerId(quote(""), [{ ...ann, aliases: [""] }])).toBeNull();
     expect(findQuoteOwnerId(quote("   "), [ann])).toBeNull();
+  });
+});
+
+describe("whose client this is to reach out to", () => {
+  const pat = { id: 20, displayName: "Pat Lund", aliases: ["P Lund"] };
+  const sam = { id: 21, displayName: "Sam Reed", aliases: [] };
+  const team = [pat, sam];
+  const sale = (over: Partial<LastSale> = {}): LastSale => ({
+    salesPersonId: null,
+    splitWithId: null,
+    salesperson: null,
+    ...over,
+  });
+
+  it("goes to the assigned designer, whoever made the last sale", () => {
+    const lastSale = sale({ salesPersonId: sam.id });
+    expect(isClientTheirsToWork({ primaryDesignerId: pat.id }, lastSale, pat, team)).toBe(true);
+    expect(isClientTheirsToWork({ primaryDesignerId: pat.id }, lastSale, sam, team)).toBe(false);
+  });
+
+  it("goes to whoever made the last sale when no one active is assigned", () => {
+    const client = { primaryDesignerId: 99 };
+    expect(isClientTheirsToWork(client, sale({ salesPersonId: sam.id }), sam, team)).toBe(true);
+    expect(isClientTheirsToWork(client, sale({ salesPersonId: sam.id }), pat, team)).toBe(false);
+    expect(isClientTheirsToWork(client, sale({ splitWithId: pat.id }), pat, team)).toBe(true);
+    expect(isClientTheirsToWork(client, sale({ salesperson: "p lund" }), pat, team)).toBe(true);
+  });
+
+  it("takes the whole name", () => {
+    const client = { primaryDesignerId: null };
+    const ann = { id: 30, displayName: "Ann", aliases: [] };
+    expect(isClientTheirsToWork(client, sale({ salesperson: "Anna Reyes" }), ann, [ann])).toBe(
+      false,
+    );
+  });
+
+  describe("whose reminder a date is", () => {
+    const withEmails = [
+      { ...pat, email: "pat@example.com" },
+      { ...sam, email: "sam@example.com" },
+    ];
+
+    it("is the assigned designer's first", () => {
+      expect(
+        findFollowUpOwnerId(
+          { primaryDesignerId: pat.id, setByEmail: "sam@example.com" },
+          sale({ salesPersonId: sam.id }),
+          withEmails,
+        ),
+      ).toBe(pat.id);
+    });
+
+    it("is whoever set it next, ignoring case", () => {
+      expect(
+        findFollowUpOwnerId(
+          { primaryDesignerId: 99, setByEmail: "SAM@example.com" },
+          sale({ salesPersonId: pat.id }),
+          withEmails,
+        ),
+      ).toBe(sam.id);
+    });
+
+    it("is whoever made the last sale after that", () => {
+      expect(
+        findFollowUpOwnerId(
+          { primaryDesignerId: null, setByEmail: "gone@example.com" },
+          sale({ salesperson: "Sam Reed" }),
+          withEmails,
+        ),
+      ).toBe(sam.id);
+    });
+
+    it("is no one's when none of those is still here", () => {
+      const client = { primaryDesignerId: null, setByEmail: null };
+      expect(findFollowUpOwnerId(client, null, withEmails)).toBeNull();
+      expect(findFollowUpOwnerId(client, sale({ salesperson: "Gone" }), withEmails)).toBeNull();
+    });
+  });
+});
+
+describe("isStaffBuyer", () => {
+  const staff = [{ displayName: "Pat Lund", email: "Pat@example.com" }];
+
+  it("spots staff by their own email or full name, ignoring case", () => {
+    const by = (firstName: string, lastName: string, email: string | null) =>
+      isStaffBuyer({ firstName, lastName, email }, staff);
+    expect(by("Someone", "Else", "pat@example.com ")).toBe(true);
+    expect(by("PAT", "lund", null)).toBe(true);
+  });
+
+  it("leaves everyone else, including a shared first name or no details at all", () => {
+    expect(isStaffBuyer({ firstName: "Pat", lastName: "Other", email: null }, staff)).toBe(false);
+    expect(isStaffBuyer({ firstName: null, lastName: null, email: null }, staff)).toBe(false);
+    expect(
+      isStaffBuyer({ firstName: null, lastName: null, email: "" }, [
+        { displayName: "", email: "" },
+      ]),
+    ).toBe(false);
   });
 });

@@ -8,6 +8,8 @@ import {
   getFollowUpState,
   needsAttention,
   nextFollowUpAfterContact,
+  getClientFollowUp,
+  isFollowUpDue,
 } from "@/lib/pipelineFollowUp";
 
 const today = "2026-11-04";
@@ -92,5 +94,28 @@ describe("nextFollowUpAfterContact", () => {
     expect(nextFollowUpAfterContact(today, today)).toBeNull();
     expect(nextFollowUpAfterContact("2026-10-01", today)).toBeNull();
     expect(nextFollowUpAfterContact(null, today)).toBeNull();
+  });
+});
+
+describe("where a client stands on their own date", () => {
+  const today = "2026-11-05";
+
+  it("is due once the date arrives, until someone reaches them on or after it", () => {
+    expect(isFollowUpDue("2026-11-05", null, today)).toBe(true);
+    expect(isFollowUpDue("2026-11-01", "2026-10-31", today)).toBe(true);
+    expect(isFollowUpDue("2026-11-01", "2026-11-01", today)).toBe(false);
+    expect(isFollowUpDue("2026-11-01", "2026-11-03", today)).toBe(false);
+  });
+
+  it("isn't due with no date, or a date still to come", () => {
+    expect(isFollowUpDue(null, null, today)).toBe(false);
+    expect(isFollowUpDue("2026-11-06", null, today)).toBe(false);
+  });
+
+  it("reads due, scheduled, or nothing", () => {
+    expect(getClientFollowUp("2026-11-05", null, today)).toBe("due");
+    expect(getClientFollowUp("2026-11-06", null, today)).toBe("scheduled");
+    expect(getClientFollowUp("2026-11-01", "2026-11-02", today)).toBeNull();
+    expect(getClientFollowUp(null, null, today)).toBeNull();
   });
 });

@@ -18,6 +18,8 @@ import {
   inventoryHealthForCaller,
 } from "@/lib/reports/inventoryHealth";
 import { agedStockForCaller, getAgedStock } from "@/lib/reports/agedStock";
+import { summarizeFollowUps } from "@/lib/followUpReport";
+import { loadFollowUpRows, loadRecentContacts } from "@/lib/followUpReportQuery";
 import {
   getInventoryValue,
   InventoryValueInputError,
@@ -449,6 +451,13 @@ export const reportsRouter = router({
     ),
   // Aged stock (GAP-17): how long uncommitted stock has been here, from the
   // journal. The same gate as Inventory Health; cost only with "View cost".
+  // Every client's follow-up date, who it belongs to, and contacts logged per salesperson.
+  followUps: permissionProcedure("sales.clients.manage").query(async () => {
+    const now = new Date();
+    const [rows, contacts] = await Promise.all([loadFollowUpRows(now), loadRecentContacts(now)]);
+    return { rows, summary: summarizeFollowUps(rows, contacts) };
+  }),
+
   agedStock: roleProcedure(MANAGER_ADMIN, WITH_COST)
     .input(agedStockInput)
     .query(async ({ input, ctx }) =>

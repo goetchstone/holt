@@ -540,6 +540,45 @@ Designers, Managers and Admins, the same list the Pipeline Opportunity report us
   `deliveryFeeLineItemId`, and any product with a `serviceType`. Cancelled lines (rule 33)
   and zero-quantity lines (rule 31) are out too.
 
+**Follow-ups (GAP-36).** `lib/pipelineFollowUp.ts`, `lib/followUpReport.ts`,
+`lib/followUpReportQuery.ts`.
+
+- **Logging a contact with no quote.** The "Log contact" button on My Clients, and the same
+  window from a pipeline card (`LogContactModal`). A contact with no quote shows on all the
+  client's quotes and counts as reaching them there, including All Staff's counts. A contact on
+  one quote stays on that quote.
+- **Whose reminder a date is** (`findFollowUpOwnerId`). The client's active primary designer,
+  else whoever set the date, else whoever made their latest sale. One person, so one reminder.
+- **Due or overdue.** All Staff now counts them apart: `dueCount` is a date that has arrived,
+  and `overdueCount` is no date and past the 7-day limit. The pipeline's filters do too.
+- **The Follow-Ups report** (`/app/reports/follow-ups`, `sales.clients.manage`). Every client
+  with a date, and per salesperson what's due, what's scheduled, the open quotes behind them,
+  and contacts logged over 30 days. A row's value is the open quotes' counted lines, not
+  archived quotes or sales. Notes aren't contacts.
+
+**Who gets suggested** (`isSuggestedOutreach`, `lib/clientBook.ts`). Big past clients who've gone
+quiet, on My Clients under "Suggested to reach out to". **Off until a store sets a lifetime
+spend** in Settings, because what counts as big is theirs to say (rule 63). No order in 12 months
+and no contact in 90 days are defaults a store can change. Someone is left out with an open
+quote, a follow-up date, no sale at all, or a purchase of their own: `isStaffBuyer` matches
+staff by email or whole name. Each client is one person's to work: their active primary designer,
+else whoever made their latest sale (`isClientTheirsToWork`). Spend comes from
+`Customer.lifetimeSpend`, which `customer-level-recalc` maintains, so **a store that doesn't run
+that job gets no suggestions**.
+
+**The morning email** (`lib/followUpEmail.ts`, `followUpEmail` in `lib/email/templates.ts`). Set
+an hour under Settings > Morning email and follow-ups. Off until then. The email-queue cron asks on
+every run, so it goes in the first run after that hour, once a store day. Claiming the day and
+queuing are one transaction, so two runs send one set and a failure tries again. It goes to active
+staff in `CLIENT_OWNER_ROLES` with an address, each with their own due follow-ups, quotes waiting
+and suggestions. Nobody gets an empty one, and anyone can turn theirs off on My Clients
+(`StaffMember.followUpEmailOff`). There's no test send, and no record per person beyond the
+email queue.
+
+**What a quote is worth.** `COUNTED_QUOTE_LINE` (`lib/pipelineClientQuery.ts`): counted line
+statuses, quantity above 0 and a price. The card, All Staff, "No owner" and the report all use it.
+Until GAP-36, the pipeline counted any line with a price, cancelled or not (rule 33).
+
 **Cash Sale.** `isCashSaleCustomer` matches the customer named exactly "Cash Sale", the shape
 a POS's history often lands register sales in. A store whose history uses another name has
 those sales read as an ordinary client, with no harm beyond a long list. It's a name match

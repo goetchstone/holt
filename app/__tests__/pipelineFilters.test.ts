@@ -4,9 +4,11 @@
 // older note. Boundary values come from the bands documented in pipelineFilters.ts.
 
 import { EMPTY_CLIENT_PROFILE, readClientProfileChoices } from "@/lib/clientProfile";
+import type { FollowUpState } from "@/lib/pipelineFollowUp";
 import {
   countActiveFilters,
   DEFAULT_PIPELINE_FILTERS,
+  FOLLOW_UP_FILTERS,
   filterPipelineQuotes,
   findMatchingNote,
   sortPipelineQuotes,
@@ -49,8 +51,10 @@ function withProfile(over: Partial<QuoteProfile>): FilterableQuote {
   });
 }
 
+const TODAY = "2026-11-05";
+
 function shown(quotes: FilterableQuote[], filters: Partial<typeof DEFAULT_PIPELINE_FILTERS>) {
-  return filterPipelineQuotes(quotes, { ...DEFAULT_PIPELINE_FILTERS, ...filters });
+  return filterPipelineQuotes(quotes, { ...DEFAULT_PIPELINE_FILTERS, ...filters }, TODAY);
 }
 
 describe("filterPipelineQuotes", () => {
@@ -239,5 +243,42 @@ describe("filters from a store's own lists", () => {
   it("words the value bands in the store's currency", () => {
     const labels = valueFilters((n) => `£${n}`).map((o) => o.label);
     expect(labels).toEqual(["Any value", "Under £2500", "£2500 to £10000", "£10000 and up"]);
+  });
+});
+
+describe("the follow-up filters", () => {
+  const today = "2026-11-05";
+  const withDate = (followUpState: FollowUpState, nextFollowUpDate: string | null) =>
+    quote({
+      followUpState,
+      customer: {
+        leadTier: null,
+        history: null,
+        profile: { ...EMPTY_CLIENT_PROFILE, nextFollowUpDate },
+      },
+    });
+  const due = withDate("due", "2026-11-05");
+  const overdue = withDate("overdue", null);
+  const inAWeek = withDate("scheduled", "2026-11-12");
+  const nextMonth = withDate("scheduled", "2026-12-12");
+  const all = [due, overdue, inAWeek, nextMonth];
+  const pick = (followUp: string) =>
+    filterPipelineQuotes(all, { ...DEFAULT_PIPELINE_FILTERS, followUp }, today);
+
+  it("tells a date that has arrived from a quote left too long", () => {
+    expect(pick("due")).toEqual([due]);
+    expect(pick("overdue")).toEqual([overdue]);
+    expect(pick("attention")).toEqual([due, overdue]);
+  });
+
+  it("counts the next seven days, up to and including the seventh", () => {
+    expect(pick("dueSoon")).toEqual([inAWeek]);
+    expect(pick("scheduled")).toEqual([inAWeek, nextMonth]);
+  });
+
+  it("offers each of them", () => {
+    expect(FOLLOW_UP_FILTERS.map((option) => option.value)).toEqual(
+      expect.arrayContaining(["due", "overdue", "dueSoon", "scheduled"]),
+    );
   });
 });

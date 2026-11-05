@@ -264,3 +264,21 @@ ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_costCipherKey_l
 ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_costCipherKey_letters" CHECK (
   "costCipherKey" IS NULL OR "costCipherKey" ~ '^[A-Z]{10}$'
 );
+
+-- The morning email's hour, and who gets suggested (lib/followUpEmail.ts, lib/clientBook.ts).
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_followUpEmailHour_range";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_followUpEmailHour_range" CHECK (
+  "followUpEmailHour" IS NULL OR "followUpEmailHour" BETWEEN 0 AND 23
+);
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_outreachMinLifetimeSpend_positive";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_outreachMinLifetimeSpend_positive" CHECK (
+  "outreachMinLifetimeSpend" IS NULL OR "outreachMinLifetimeSpend" > 0
+);
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_outreachLapsedMonths_range";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_outreachLapsedMonths_range" CHECK (
+  "outreachLapsedMonths" IS NULL OR "outreachLapsedMonths" BETWEEN 1 AND 120
+);
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_outreachQuietDays_range";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_outreachQuietDays_range" CHECK (
+  "outreachQuietDays" IS NULL OR "outreachQuietDays" BETWEEN 1 AND 3650
+);

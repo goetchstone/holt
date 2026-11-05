@@ -23,8 +23,8 @@ name roles, so the enum has not gone away.
 | Custom-role admin GUI                                              | Ships at `/app/admin/setup/roles`                                                             |
 | `StaffRole` enum                                                   | Still present, still authoritative for those 121 routes                                       |
 
-`sales.clients.manage` (GAP-36) opens other salespeople's client books and assigns clients no
-one owns. Built in for Manager and General Manager, and for admins. Seeing what a salesperson
+`sales.clients.manage` (GAP-36) opens other salespeople's client books and the Follow-Ups
+report, and assigns clients no one owns. Built in for Manager and General Manager, and for admins. Seeing what a salesperson
 keeps on a client takes `customer.write` or `sales.lead`, so Warehouse, Dispatch, Installer
 and Marketing can read a customer without it. `docs/domains/sales-orders.md` has the table.
 

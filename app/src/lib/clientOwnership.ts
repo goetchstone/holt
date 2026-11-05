@@ -76,6 +76,64 @@ export function isQuoteInStaffPipeline(
   );
 }
 
+/** Staff who can hold clients: who a client can be assigned to, and who gets the morning
+ *  email. The same list the Pipeline Opportunity report uses. */
+export const CLIENT_OWNER_ROLES = ["DESIGNER", "MANAGER", "ADMIN"] as const;
+
+export interface LastSale {
+  salesPersonId: number | null;
+  splitWithId: number | null;
+  salesperson: string | null;
+}
+
+function madeThisSale(sale: LastSale, staff: PipelineStaff): boolean {
+  return sale.splitWithId === staff.id || isAttributedTo(sale, staff);
+}
+
+/** Whose client this is to reach out to, so one person calls instead of everyone who ever
+ *  sold to them: the assigned primary designer, or else whoever made their latest sale. */
+export function isClientTheirsToWork(
+  client: { primaryDesignerId: number | null },
+  lastSale: LastSale,
+  staff: PipelineStaff,
+  activeStaff: readonly PipelineStaff[],
+): boolean {
+  const assignedToSomeoneActive = activeStaff.some((s) => s.id === client.primaryDesignerId);
+  if (assignedToSomeoneActive) return client.primaryDesignerId === staff.id;
+  return madeThisSale(lastSale, staff);
+}
+
+/** Who a client's follow-up date belongs to, so exactly one person is reminded: their active
+ *  primary designer, else whoever set it, else whoever made their latest sale. */
+export function findFollowUpOwnerId(
+  client: { primaryDesignerId: number | null; setByEmail: string | null },
+  lastSale: LastSale | null,
+  activeStaff: readonly (PipelineStaff & { email: string | null })[],
+): number | null {
+  const assigned = activeStaff.find((staff) => staff.id === client.primaryDesignerId);
+  if (assigned) return assigned.id;
+  const setBy = client.setByEmail?.toLowerCase();
+  const setter = activeStaff.find((staff) => setBy && staff.email?.toLowerCase() === setBy);
+  if (setter) return setter.id;
+  if (!lastSale) return null;
+  return activeStaff.find((staff) => madeThisSale(lastSale, staff))?.id ?? null;
+}
+
+/** Staff buying for themselves are sales but not opportunities: their own email, or their
+ *  full name, matched whole. */
+export function isStaffBuyer(
+  customer: { firstName: string | null; lastName: string | null; email: string | null },
+  staffMembers: readonly { displayName: string; email: string | null }[],
+): boolean {
+  const email = customer.email?.trim().toLowerCase() ?? "";
+  const fullName = `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim().toLowerCase();
+  return staffMembers.some(
+    (staff) =>
+      (email !== "" && staff.email?.trim().toLowerCase() === email) ||
+      (fullName !== "" && staff.displayName.trim().toLowerCase() === fullName),
+  );
+}
+
 export type ParsedAssignClients =
   | { ok: true; kind: "one"; customerId: number; toStaffId: number }
   | {

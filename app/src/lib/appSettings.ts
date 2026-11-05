@@ -119,6 +119,13 @@ export interface ResolvedAppSettings {
   /** Who gets the daily low-stock list, as typed; null is nobody (GAP-14). */
   clientProfileChoices: ClientProfileChoices;
   costCipherKey: string | null;
+  /** The hour of the store's day the morning follow-up email goes; null is off (GAP-36). */
+  followUpEmailHour: number | null;
+  /** A big client's lifetime spend, for suggesting who to reach out to; null is no
+   *  suggestions, and the other two default in lib/clientBook.ts (GAP-36). */
+  outreachMinLifetimeSpend: number | null;
+  outreachLapsedMonths: number | null;
+  outreachQuietDays: number | null;
   lowStockAlertEmails: string | null;
   /** The hour of the store's day it goes, 0-23; null is off. */
   lowStockAlertHour: number | null;
@@ -188,6 +195,10 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   defaultSplitPercent: EVEN_SPLIT_PERCENT,
   clientProfileChoices: DEFAULT_CLIENT_PROFILE_CHOICES,
   costCipherKey: null,
+  followUpEmailHour: null,
+  outreachMinLifetimeSpend: null,
+  outreachLapsedMonths: null,
+  outreachQuietDays: null,
   lowStockAlertEmails: null,
   lowStockAlertHour: null,
   quoteHoldMaxDays: QUOTE_HOLD_DEFAULT_MAX_DAYS,
@@ -226,6 +237,10 @@ interface AppSettingsRow {
   defaultSplitPercent?: number | null;
   clientProfileChoices?: unknown;
   costCipherKey?: string | null;
+  followUpEmailHour?: number | null;
+  outreachMinLifetimeSpend?: unknown;
+  outreachLapsedMonths?: number | null;
+  outreachQuietDays?: number | null;
   lowStockAlertEmails?: string | null;
   lowStockAlertHour?: number | null;
   quoteHoldMaxDays?: number | null;
@@ -312,6 +327,11 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
       : EVEN_SPLIT_PERCENT,
     clientProfileChoices: readClientProfileChoices(row.clientProfileChoices),
     costCipherKey: row.costCipherKey ?? null,
+    followUpEmailHour: row.followUpEmailHour ?? null,
+    outreachMinLifetimeSpend:
+      row.outreachMinLifetimeSpend == null ? null : Number(row.outreachMinLifetimeSpend),
+    outreachLapsedMonths: row.outreachLapsedMonths ?? null,
+    outreachQuietDays: row.outreachQuietDays ?? null,
     lowStockAlertEmails: row.lowStockAlertEmails ?? null,
     lowStockAlertHour: row.lowStockAlertHour ?? null,
     quoteHoldMaxDays: isQuoteHoldMaxDays(row.quoteHoldMaxDays)

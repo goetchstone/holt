@@ -7,15 +7,20 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
+import { getAppSettings } from "@/lib/appSettings";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { businessDayKey } from "@/lib/reports/businessDay";
 import {
   CLIENT_BOOK_PAGE_SIZE,
   parseClientBookOptions,
+  readOutreachRules,
+  type OutreachRules,
   UNASSIGNED_STAFF_ID,
   type WorkedWithOption,
 } from "@/lib/clientBook";
+import { CLIENT_OWNER_ROLES } from "@/lib/clientOwnership";
 import {
   fetchClientBook,
   fetchUnassignedClients,
@@ -42,6 +47,11 @@ export interface ClientBookResponse {
   // Also only for that list.
   workedWithOptions: WorkedWithOption[];
   ownerlessQuoteCount: number;
+  today: string;
+  // Null until the store asks for suggestions in Settings.
+  outreach: OutreachRules | null;
+  // The viewer's own morning email: null when the store doesn't send one.
+  morningEmailOn: boolean | null;
 }
 
 function findStaffOptions(where: Prisma.StaffMemberWhereInput): Promise<StaffOption[]> {
@@ -64,7 +74,7 @@ export async function handler(
   try {
     const viewer = await prisma.staffMember.findUnique({
       where: { email: session.user.email },
-      select: { id: true, displayName: true, aliases: true },
+      select: { id: true, displayName: true, aliases: true, followUpEmailOff: true },
     });
     if (!viewer) return res.status(403).json({ error: "Staff record required" });
 
@@ -89,12 +99,16 @@ export async function handler(
       loadPage(),
       canViewAll ? findStaffOptions({ isActive: true }) : Promise.resolve([]),
       listsUnassigned
-        ? findStaffOptions({ isActive: true, role: { in: ["DESIGNER", "MANAGER", "ADMIN"] } })
+        ? findStaffOptions({ isActive: true, role: { in: [...CLIENT_OWNER_ROLES] } })
         : Promise.resolve([]),
     ]);
 
+    const app = await getAppSettings();
     return res.status(200).json({
       ...page,
+      today: businessDayKey(now, app.timezone),
+      outreach: readOutreachRules(app),
+      morningEmailOn: app.followUpEmailHour === null ? null : !viewer.followUpEmailOff,
       page: options.page,
       pageSize: CLIENT_BOOK_PAGE_SIZE,
       staff: listsUnassigned ? null : { id: staff.id, displayName: staff.displayName },

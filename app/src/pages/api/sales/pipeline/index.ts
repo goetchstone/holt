@@ -10,7 +10,9 @@ import { calculateLeadScore, leadScoreInputFromCustomer, type LeadTier } from "@
 import { detectPossibleDuplicates } from "@/lib/duplicateQuotes";
 import {
   fetchClientBackground,
-  fetchClientNotesByCustomer,
+  COUNTED_QUOTE_LINE,
+  fetchClientWideEntries,
+  fetchLastContactByCustomer,
   type ClientNoteRow,
 } from "@/lib/pipelineClientQuery";
 import {
@@ -27,7 +29,7 @@ import {
   isQuoteOwned,
   type PipelineStaff,
 } from "@/lib/clientOwnership";
-import { getFollowUpState, needsAttention, type FollowUpState } from "@/lib/pipelineFollowUp";
+import { getFollowUpState, type FollowUpState } from "@/lib/pipelineFollowUp";
 import {
   toClientProfileView,
   type ClientProfileChoices,
@@ -108,7 +110,8 @@ export interface StaffSummary {
   storeLocation: string | null;
   quoteCount: number;
   totalValue: number;
-  overdueCount: number;
+  dueCount: number; // a follow-up date someone set has arrived
+  overdueCount: number; // no date set, and past the waiting limit
   leadCount: number;
 }
 
@@ -182,7 +185,7 @@ const QUOTE_SELECT = {
   },
   lineItems: {
     select: { productName: true, partNo: true, netPrice: true },
-    where: { netPrice: { gt: 0 } },
+    where: COUNTED_QUOTE_LINE,
     orderBy: { netPrice: "desc" as const },
   },
   interactions: {
@@ -210,7 +213,7 @@ interface QuoteMapContext {
   today: string;
   timeZone: string;
   visibility: RoleVisibility;
-  notesByCustomer: Map<number, ClientNoteRow[]>;
+  entriesByCustomer: Map<number, ClientNoteRow[]>;
   backgroundByCustomer: Map<number, ClientBackground>;
 }
 
@@ -252,16 +255,17 @@ function mapQuote(
   possibleDuplicateOf: { id: number; orderno: string }[],
   context: QuoteMapContext,
 ): PipelineQuote {
-  const { now, today, timeZone, notesByCustomer } = context;
+  const { now, today, timeZone, entriesByCustomer } = context;
   const totalAmount = q.lineItems.reduce((s, li) => s + Number(li.netPrice), 0);
   const lines = summarizeQuoteLines(q.lineItems);
-  // A client note written on one quote shows on all of that client's quotes. A note is
-  // something we know, not a time we reached them, so it doesn't move days-since-contact.
+  // A client note, or a contact logged about the client rather than one quote, shows on
+  // all of that client's quotes. A note is something we know, not a time we reached them,
+  // so it doesn't move days-since-contact.
   const quoteInteractionIds = new Set(q.interactions.map((i) => i.id));
-  const clientNotes = q.customer ? (notesByCustomer.get(q.customer.id) ?? []) : [];
+  const clientEntries = q.customer ? (entriesByCustomer.get(q.customer.id) ?? []) : [];
   const entries = [
     ...q.interactions,
-    ...clientNotes.filter((note) => !quoteInteractionIds.has(note.id)),
+    ...clientEntries.filter((entry) => !quoteInteractionIds.has(entry.id)),
   ].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
   const lastContactAt = entries.find((i) => !isNoteSource(i.source))?.startedAt ?? null;
   const refDate = q.quoteDate ?? q.orderDate;
@@ -322,12 +326,12 @@ async function mapQuotes(
   const customers = rawQuotes.flatMap((q) => (q.customer ? [q.customer] : []));
   // A Cash Sale customer holds unrelated people's orders, so it has no history.
   const clientIds = [...new Set(customers.filter((c) => !isCashSaleCustomer(c)).map((c) => c.id))];
-  const [notesByCustomer, backgroundByCustomer] = await Promise.all([
-    fetchClientNotesByCustomer(clientIds),
+  const [entriesByCustomer, backgroundByCustomer] = await Promise.all([
+    fetchClientWideEntries(clientIds),
     fetchClientBackground(clientIds),
   ]);
   const dupMap = detectPossibleDuplicates(rawQuotes);
-  const context = { ...base, notesByCustomer, backgroundByCustomer };
+  const context = { ...base, entriesByCustomer, backgroundByCustomer };
   return rawQuotes.map((q) => mapQuote(q, dupMap.get(q.id) ?? [], context));
 }
 
@@ -429,7 +433,7 @@ async function handler(
         select: {
           salesPersonId: true,
           salesperson: true,
-          lineItems: { select: { netPrice: true }, where: { netPrice: { gt: 0 } } },
+          lineItems: { select: { netPrice: true }, where: COUNTED_QUOTE_LINE },
           // Same rule as the cards: a note is not contact.
           interactions: {
             where: { source: { notIn: [...NOTE_SOURCES] } },
@@ -456,9 +460,14 @@ async function handler(
       }),
     ]);
 
+    const clientWideContact = await fetchLastContactByCustomer(
+      allQuotesRaw.flatMap((q) => (q.customerId === null ? [] : [q.customerId])),
+      { clientWideOnly: true },
+    );
+
     const staffMetrics = new Map<
       number,
-      { quoteCount: number; totalValue: number; overdueCount: number }
+      { quoteCount: number; totalValue: number; dueCount: number; overdueCount: number }
     >();
 
     const unassignedClientIds = new Set<number>();
@@ -483,7 +492,12 @@ async function handler(
 
       const refDate = q.quoteDate ?? q.orderDate;
       const daysSinceCreated = refDate ? daysSince(refDate, now, timeZone) : 0;
-      const lastInteraction = q.interactions[0]?.startedAt ?? null;
+      const onThisQuote = q.interactions[0]?.startedAt ?? null;
+      const aboutTheClient = clientWideContact.get(q.customerId ?? -1) ?? null;
+      const lastInteraction =
+        onThisQuote && aboutTheClient
+          ? new Date(Math.max(onThisQuote.getTime(), aboutTheClient.getTime()))
+          : (onThisQuote ?? aboutTheClient);
       const daysSinceContact = lastInteraction ? daysSince(lastInteraction, now, timeZone) : null;
       const followUpState = getFollowUpState({
         nextFollowUpDate: dbDateToDayKey(q.customer?.clientProfile?.nextFollowUpDate),
@@ -494,12 +508,13 @@ async function handler(
       });
 
       if (!staffMetrics.has(staffId)) {
-        staffMetrics.set(staffId, { quoteCount: 0, totalValue: 0, overdueCount: 0 });
+        staffMetrics.set(staffId, { quoteCount: 0, totalValue: 0, dueCount: 0, overdueCount: 0 });
       }
       const m = staffMetrics.get(staffId)!;
       m.quoteCount++;
       m.totalValue += total;
-      if (needsAttention(followUpState)) m.overdueCount++;
+      if (followUpState === "due") m.dueCount++;
+      if (followUpState === "overdue") m.overdueCount++;
     }
 
     const staffLeadCounts = new Map<number, number>();
@@ -519,6 +534,7 @@ async function handler(
           storeLocation: s.activeStoreLocation?.name ?? s.defaultStore ?? null,
           quoteCount: m?.quoteCount ?? 0,
           totalValue: Math.round((m?.totalValue ?? 0) * 100) / 100,
+          dueCount: m?.dueCount ?? 0,
           overdueCount: m?.overdueCount ?? 0,
           leadCount: staffLeadCounts.get(s.id) ?? 0,
         };

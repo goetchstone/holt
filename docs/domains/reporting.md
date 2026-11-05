@@ -538,6 +538,15 @@ interaction on the quote, not the last three, so a run of notes can't hide a con
 
 **APIs**: `GET /api/reports/pipeline-opportunity`, `GET /api/reports/pipeline-detail?salesperson=Name`, `POST /api/reports/pipeline-reassign`
 
+## Follow-Ups Report (GAP-36, since 2026-11-05)
+
+`/app/reports/follow-ups`, for `sales.clients.manage`, reading `reports.followUps` over tRPC
+(`lib/followUpReportQuery.ts`). Every client with a follow-up date, and each salesperson's due and
+scheduled counts, open quote value and contacts logged over 30 days. A date with a contact on or
+after it reads "done" and isn't counted as outstanding. A row's value is open quotes'
+`COUNTED_QUOTE_LINE` (rules 31 and 33). Archived quotes and sales aren't in it. Filters run in the
+browser. `docs/domains/sales-orders.md` has who a date belongs to.
+
 ## ReportTable Render Prop
 
 `ReportColumn<T>` now supports a `render` prop that returns JSX (links, badges). Takes priority over `format()` for display; `format()` still used for CSV export and sorting. Sorting uses raw row values, not formatted strings.

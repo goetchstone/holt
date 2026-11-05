@@ -33,15 +33,19 @@ its labels from there.
 | `NOTE` | Something we know about the client | No | All of that client's quotes, and their customer page |
 | `MANAGER_NOTE` | A manager's note on a quote | No | That quote, and the customer page |
 
+A contact logged with no quote, such as from My Clients, shows on all of that client's quotes and
+counts as reaching them there (`fetchClientWideEntries`, `fetchLastContactByCustomer`).
+
 Anything that asks "when did we last reach this client?" must skip notes, with
 `isNoteSource` or `NOTE_SOURCES`. On 2026-11-05 those readers are the pipeline's cards and
 All Staff (`pages/api/sales/pipeline/index.ts`) and the Pipeline Opportunity report
 (`lib/reports/pipelineOpportunity.ts`). That report used to read the newest of the last
-three, so three notes hid every contact. My Clients shows notes but doesn't read a last
-contact date yet.
+three, so three notes hid every contact. My Clients, the Follow-Ups report and the morning
+email read `fetchLastContactByCustomer` (`lib/pipelineClientQuery.ts`).
 
-Nothing counts rows of `CustomerInteraction` for a report, so a note can't inflate one
-(`grep -rn "customerInteraction" src`, 2026-11-05). A note also appears on the Interactions
+The only report that counts rows of `CustomerInteraction` is Follow-Ups, and it counts
+`CONTACT_SOURCES` only, so a note can't inflate it (`grep -rn "customerInteraction" src`,
+2026-11-05). A note also appears on the Interactions
 screens, labelled as a note. If a report ever counts these rows, it has to decide about
 notes (principle 2).
 

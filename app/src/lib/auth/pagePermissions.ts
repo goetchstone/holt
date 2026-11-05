@@ -213,6 +213,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
     widensFrom: "MANAGER,ADMIN,WAREHOUSE",
   },
   "/app/reports": { permission: "reporting.read" },
+  "/app/reports/follow-ups": { permission: "sales.clients.manage" },
   "/app/reports/aged-stock": { permission: "reporting.read", widensFrom: "MANAGER,ADMIN" },
   "/app/reports/balance-aging": { permission: "reporting.read", widensFrom: "ADMIN" },
   "/app/reports/buyers": { permission: "reporting.read", widensFrom: "MANAGER,ADMIN" },

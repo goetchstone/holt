@@ -80,6 +80,8 @@ All use `enqueueAndSend` (best-effort; the durable row survives an SMTP outage).
 
 - **The daily low-stock list** (`lib/purchasing/lowStockAlert.ts`, GAP-14) →
   `low-stock`, queued by the email-queue cron. See `docs/domains/purchasing.md`.
+- **The morning follow-up email** (`lib/followUpEmail.ts`, GAP-36) → `follow-up-digest`, one per
+  salesperson, queued by the email-queue cron. See `docs/domains/sales-orders.md`.
 - **Purchase order to its vendor** (`pages/api/purchasing/orders/[id]/email.ts`,
   GAP-01) → `purchase-order`, the PO's PDF attached. It is the one touchpoint
   where the sender waits: `enqueueEmail` then `deliverQueuedEmail`, because the

@@ -33,15 +33,10 @@ import { getErrorMessage } from "@/lib/toastError";
 import { usePersistentFilters } from "@/hooks/usePersistentFilters";
 import { ClientInfoModal } from "@/components/pipeline/ClientInfoModal";
 import { ClientNoteModal } from "@/components/pipeline/ClientNoteModal";
-import { NextFollowUpPicker } from "@/components/pipeline/NextFollowUpPicker";
+import { LogContactModal } from "@/components/pipeline/LogContactModal";
 import { PipelineFilterBar } from "@/components/pipeline/PipelineFilterBar";
 import { QuoteClientPanel } from "@/components/pipeline/QuoteClientPanel";
-import {
-  CONTACT_SOURCES,
-  INTERACTION_SOURCE_LABELS,
-  type ContactSource,
-  type InteractionSource,
-} from "@/lib/interactionSources";
+import { INTERACTION_SOURCE_LABELS, type InteractionSource } from "@/lib/interactionSources";
 import {
   countActiveFilters,
   DEFAULT_PIPELINE_FILTERS,
@@ -50,7 +45,7 @@ import {
   sortPipelineQuotes,
   storeFilterOptions,
 } from "@/lib/pipelineFilters";
-import { needsAttention, nextFollowUpAfterContact } from "@/lib/pipelineFollowUp";
+import { needsAttention } from "@/lib/pipelineFollowUp";
 import { DEFAULT_CLIENT_PROFILE_CHOICES } from "@/lib/clientProfile";
 
 const ON_TRACK_URGENCY = {
@@ -117,126 +112,6 @@ function formatQuoteDate(iso: string): string {
 function customerDisplayName(quote: PipelineQuote): string {
   if (!quote.customer) return "Unknown customer";
   return `${quote.customer.firstName ?? ""} ${quote.customer.lastName ?? ""}`.trim();
-}
-
-// ── Follow-up modal ──────────────────────────────────────────────────────────
-
-function FollowUpModal({
-  quote,
-  today,
-  onClose,
-  onSaved,
-}: Readonly<{
-  quote: PipelineQuote;
-  today: string;
-  onClose: () => void;
-  onSaved: () => void;
-}>) {
-  const canSchedule = Boolean(quote.customer) && !quote.customer?.isCashSale;
-  const dateOnCard = quote.customer?.profile?.nextFollowUpDate ?? null;
-  const [source, setSource] = useState<ContactSource>("PHONE");
-  const [notes, setNotes] = useState("");
-  const [nextFollowUpDate, setNextFollowUpDate] = useState<string | null>(
-    nextFollowUpAfterContact(dateOnCard, today),
-  );
-  const [saving, setSaving] = useState(false);
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await axios.post("/api/sales/interactions", {
-        salesOrderId: quote.id,
-        customerId: quote.customer?.id,
-        source,
-        notes: notes.trim() || undefined,
-        // Sent only when it changes, so an old page can't erase a colleague's newer date.
-        ...(canSchedule && nextFollowUpDate !== dateOnCard ? { nextFollowUpDate } : {}),
-      });
-      toast.success("Follow-up logged.");
-      onSaved();
-    } catch (err) {
-      toast.error(getErrorMessage(err, "Failed to log follow-up."));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    // Headless UI Dialog handles focus-trap, Escape, and click-outside
-    // a11y natively. The backdrop is a non-interactive overlay; the
-    // panel is the focusable dialog content.
-    <Dialog open onClose={onClose} className="relative z-50">
-      <DialogBackdrop className="fixed inset-0 bg-black/40" />
-      <div className="fixed inset-0 flex items-end sm:items-center justify-center p-4">
-        <DialogPanel className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 space-y-5">
-          <div>
-            <h2 className="text-lg font-semibold text-brand-black font-serif">Log Follow-Up</h2>
-            <p className="text-sm text-brand-gray mt-0.5">
-              {quote.customer ? customerDisplayName(quote) : "Unknown customer"} · {quote.orderno}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-xs text-brand-gray uppercase tracking-wide mb-2">
-              How you reached them
-            </p>
-            <div className="grid grid-cols-4 gap-2">
-              {CONTACT_SOURCES.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSource(s)}
-                  className={`py-2 px-1 rounded-lg border text-xs font-semibold transition-colors min-h-[44px] ${
-                    source === s
-                      ? "bg-brand-blue text-white border-brand-blue"
-                      : "border-brand-gray/30 text-brand-gray hover:border-brand-blue"
-                  }`}
-                >
-                  {INTERACTION_SOURCE_LABELS[s]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label
-              htmlFor="follow-up-notes"
-              className="block text-xs text-brand-gray uppercase tracking-wide mb-2"
-            >
-              Notes <span className="normal-case">(optional)</span>
-            </label>
-            <textarea
-              id="follow-up-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Left voicemail about fabric selections..."
-              className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black resize-none focus:outline-none focus:ring-1 focus:ring-brand-blue"
-            />
-          </div>
-
-          {canSchedule && (
-            <NextFollowUpPicker
-              value={nextFollowUpDate}
-              today={today}
-              onChange={setNextFollowUpDate}
-            />
-          )}
-
-          <div className="flex gap-3 pt-1">
-            <Button onClick={handleSave} disabled={saving} className="flex-1 min-h-[44px]">
-              {saving ? "Saving..." : "Log Follow-Up"}
-            </Button>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-brand-gray/30 text-brand-gray text-sm min-h-[44px]"
-            >
-              Cancel
-            </button>
-          </div>
-        </DialogPanel>
-      </div>
-    </Dialog>
-  );
 }
 
 // ── Archive modal ─────────────────────────────────────────────────────────────
@@ -716,11 +591,18 @@ function StaffSummaryCard({
             <p className="text-xs text-brand-gray mt-0.5">{summary.storeLocation}</p>
           )}
         </div>
-        {summary.overdueCount > 0 && (
-          <span className="text-xs font-semibold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
-            {summary.overdueCount} overdue
-          </span>
-        )}
+        <div className="flex flex-wrap justify-end gap-1 shrink-0">
+          {summary.dueCount > 0 && (
+            <span className="text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
+              {summary.dueCount} due
+            </span>
+          )}
+          {summary.overdueCount > 0 && (
+            <span className="text-xs font-semibold bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">
+              {summary.overdueCount} overdue
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex gap-6 mt-4">
         <div>
@@ -818,7 +700,7 @@ function computeSummaryTotals(args: {
     return {
       totalValue: summaries.reduce((s, st) => s + st.totalValue, 0),
       totalQuotes: summaries.reduce((s, st) => s + st.quoteCount, 0),
-      totalOverdue: summaries.reduce((s, st) => s + st.overdueCount, 0),
+      totalOverdue: summaries.reduce((s, st) => s + st.dueCount + st.overdueCount, 0),
       totalLeads: summaries.reduce((s, st) => s + st.leadCount, 0),
     };
   }
@@ -935,7 +817,10 @@ export function PipelineView() {
 
   // Filters narrow the active list. The archived tab and the archive modal's replacement
   // suggestions always work from every quote.
-  const visibleQuotes = sortPipelineQuotes(filterPipelineQuotes(quotes, filters), filters.sort);
+  const visibleQuotes = sortPipelineQuotes(
+    filterPipelineQuotes(quotes, filters, today),
+    filters.sort,
+  );
   const leads = hasFilters ? [] : (data?.leads ?? []);
   const allSummaries = data?.staffSummaries ?? [];
   const summaries = summariesForStore(allSummaries, filters.store);
@@ -1086,7 +971,7 @@ export function PipelineView() {
           </div>
           {totalOverdue > 0 && (
             <div>
-              <p className="text-brand-gray text-xs uppercase tracking-wide">Overdue</p>
+              <p className="text-brand-gray text-xs uppercase tracking-wide">Needs attention</p>
               <p className="text-red-600 font-semibold text-lg">{totalOverdue}</p>
             </div>
           )}
@@ -1252,8 +1137,12 @@ export function PipelineView() {
       )}
 
       {followUpTarget && (
-        <FollowUpModal
-          quote={followUpTarget}
+        <LogContactModal
+          salesOrderId={followUpTarget.id}
+          customerId={followUpTarget.customer?.id}
+          title={`${customerDisplayName(followUpTarget)} · ${followUpTarget.orderno}`}
+          dateOnFile={followUpTarget.customer?.profile?.nextFollowUpDate ?? null}
+          canSchedule={Boolean(followUpTarget.customer) && !followUpTarget.customer?.isCashSale}
           today={today}
           onClose={() => setFollowUpTarget(null)}
           onSaved={() => {

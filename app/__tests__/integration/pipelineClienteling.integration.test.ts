@@ -14,7 +14,7 @@ import { parseClientBookOptions } from "@/lib/clientBook";
 import { pipelineSearchWhere, staffPipelineWhere } from "@/lib/pipelineSearch";
 import {
   fetchClientBackground,
-  fetchClientNotesByCustomer,
+  fetchClientWideEntries,
   fetchLastPurchaseByCustomer,
 } from "@/lib/pipelineClientQuery";
 
@@ -309,11 +309,12 @@ describe("fetchClientBackground (real DB)", () => {
   });
 });
 
-describe("fetchClientNotesByCustomer (real DB)", () => {
-  it("returns only client notes, newest first, keyed by client", async () => {
+describe("fetchClientWideEntries (real DB)", () => {
+  it("returns client notes and contacts with no quote, newest first, keyed by client", async () => {
     const nora = await makeStaff("Nora");
     const ann = await makeCustomer("Ann", "Follow");
     const bea = await makeCustomer("Bea", "Note");
+    const quote = await makeOrder(ann.id);
     await makeInteraction(nora.id, {
       customerId: ann.id,
       notes: "older",
@@ -324,12 +325,33 @@ describe("fetchClientNotesByCustomer (real DB)", () => {
       notes: "newer",
       at: "2026-10-20T12:00:00.000Z",
     });
-    await makeInteraction(nora.id, { customerId: ann.id, source: "PHONE", notes: "a call" });
+    await makeInteraction(nora.id, {
+      customerId: ann.id,
+      source: "PHONE",
+      notes: "called the client",
+      at: "2026-10-10T12:00:00.000Z",
+    });
+    await makeInteraction(nora.id, {
+      customerId: ann.id,
+      salesOrderId: quote.id,
+      source: "PHONE",
+      notes: "called about one quote",
+    });
+    await makeInteraction(nora.id, {
+      customerId: ann.id,
+      salesOrderId: quote.id,
+      source: "MANAGER_NOTE",
+      notes: "a manager's note",
+    });
     await makeInteraction(nora.id, { customerId: bea.id, notes: "other client" });
 
-    const notes = await fetchClientNotesByCustomer([ann.id]);
-    expect(notes.get(ann.id)?.map((n) => n.notes)).toEqual(["newer", "older"]);
-    expect(notes.has(bea.id)).toBe(false);
+    const entries = await fetchClientWideEntries([ann.id]);
+    expect(entries.get(ann.id)?.map((n) => n.notes)).toEqual([
+      "newer",
+      "called the client",
+      "older",
+    ]);
+    expect(entries.has(bea.id)).toBe(false);
   });
 });
 
