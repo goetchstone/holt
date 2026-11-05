@@ -5,11 +5,14 @@
 
 import { pipelineSearchWhere } from "@/lib/pipelineSearch";
 
-const manager = { canViewAll: true, staffId: 1, staffName: "Mo Ames", includeArchived: false };
+const manager = {
+  canViewAll: true,
+  staff: { id: 1, displayName: "Mo Ames", aliases: [] },
+  includeArchived: false,
+};
 const salesperson = {
   canViewAll: false,
-  staffId: 7,
-  staffName: "Pat Lund",
+  staff: { id: 7, displayName: "Pat Lund", aliases: ["P Lund"] },
   includeArchived: false,
 };
 
@@ -51,10 +54,11 @@ describe("pipelineSearchWhere", () => {
     expect(pipelineSearchWhere("nora", manager).OR).toBeUndefined();
   });
 
-  it("limits a salesperson to their own, by id, by name or by owning the client", () => {
+  it("limits a salesperson to their own, by id, by whole name or alias, or by owning the client", () => {
     expect(pipelineSearchWhere("nora", salesperson).OR).toEqual([
       { salesPersonId: 7 },
-      { salesperson: { contains: "Pat Lund", mode: "insensitive" } },
+      { salesPersonId: null, salesperson: { equals: "Pat Lund", mode: "insensitive" } },
+      { salesPersonId: null, salesperson: { equals: "P Lund", mode: "insensitive" } },
       { customer: { primaryDesignerId: 7 } },
     ]);
   });

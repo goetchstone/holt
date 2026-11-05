@@ -12,6 +12,7 @@ import { parseClientBookOptions, type ClientBookOptions } from "@/lib/clientBook
 export interface PipelineStaff {
   id: number;
   displayName: string;
+  aliases: string[];
 }
 
 export interface OwnableQuote {
@@ -20,26 +21,29 @@ export interface OwnableQuote {
   customer?: { primaryDesignerId: number | null } | null;
 }
 
-function nameIncludes(salesperson: string | null, staff: PipelineStaff): boolean {
-  return salesperson?.toLowerCase().includes(staff.displayName.toLowerCase()) ?? false;
+/** Whether a quote's salesperson text is this person: their name or an alias, whole. Not
+ *  containment, which makes "Ann" also "Anna Reyes" and lets one archive the other's
+ *  quotes. A POS that writes names differently needs an alias on the staff record. */
+function isNamed(salesperson: string | null, staff: PipelineStaff): boolean {
+  const name = salesperson?.trim().toLowerCase();
+  if (!name) return false;
+  return [staff.displayName, ...staff.aliases].some(
+    (candidate) => candidate.trim().toLowerCase() === name,
+  );
 }
 
 export function nameMatchesActiveStaff(
   salesperson: string | null,
   activeStaff: readonly PipelineStaff[],
 ): boolean {
-  return activeStaff.some((staff) => nameIncludes(salesperson, staff));
+  return activeStaff.some((staff) => isNamed(salesperson, staff));
 }
 
+/** The linked id is the record of who a sale is credited to. The name only speaks for a
+ *  quote with no id yet. */
 function isAttributedTo(quote: OwnableQuote, staff: PipelineStaff): boolean {
-  return quote.salesPersonId === staff.id || nameIncludes(quote.salesperson, staff);
-}
-
-function isAttributedToActiveStaff(
-  quote: OwnableQuote,
-  activeStaff: readonly PipelineStaff[],
-): boolean {
-  return activeStaff.some((staff) => isAttributedTo(quote, staff));
+  if (quote.salesPersonId !== null) return quote.salesPersonId === staff.id;
+  return isNamed(quote.salesperson, staff);
 }
 
 /** The active salesperson whose pipeline this quote is in, or null if it's in nobody's.
@@ -48,10 +52,8 @@ export function findQuoteOwnerId(
   quote: OwnableQuote,
   activeStaff: readonly PipelineStaff[],
 ): number | null {
-  const credited = activeStaff.find((staff) => staff.id === quote.salesPersonId);
+  const credited = activeStaff.find((staff) => isAttributedTo(quote, staff));
   if (credited) return credited.id;
-  const named = activeStaff.find((staff) => nameIncludes(quote.salesperson, staff));
-  if (named) return named.id;
   const assignedId = quote.customer?.primaryDesignerId;
   return activeStaff.some((staff) => staff.id === assignedId) ? (assignedId ?? null) : null;
 }
@@ -69,7 +71,8 @@ export function isQuoteInStaffPipeline(
 ): boolean {
   if (isAttributedTo(quote, staff)) return true;
   return (
-    quote.customer?.primaryDesignerId === staff.id && !isAttributedToActiveStaff(quote, activeStaff)
+    quote.customer?.primaryDesignerId === staff.id &&
+    !activeStaff.some((other) => isAttributedTo(quote, other))
   );
 }
 

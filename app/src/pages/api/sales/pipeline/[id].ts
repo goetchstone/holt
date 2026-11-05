@@ -60,7 +60,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
   const staff = await prisma.staffMember.findUnique({
     where: { email: session.user.email },
-    select: { id: true, displayName: true, role: true },
+    select: { id: true, displayName: true, aliases: true, role: true },
   });
   // Deny when no StaffMember record exists. The earlier `|| !staff`
   // branch granted any Google account without a staff record manager-level
@@ -90,7 +90,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   if (!isManager) {
     const activeStaff = await prisma.staffMember.findMany({
       where: { isActive: true },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, aliases: true },
     });
     if (!isQuoteInStaffPipeline(order, staff, activeStaff)) {
       return res.status(403).json({ error: "Forbidden" });

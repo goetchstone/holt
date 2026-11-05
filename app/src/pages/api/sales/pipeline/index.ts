@@ -310,7 +310,7 @@ function mapQuote(
 async function keepStaffQuotes(rawQuotes: RawQuote[], staff: PipelineStaff): Promise<RawQuote[]> {
   const activeStaff = await prisma.staffMember.findMany({
     where: { isActive: true },
-    select: { id: true, displayName: true },
+    select: { id: true, displayName: true, aliases: true },
   });
   return rawQuotes.filter((quote) => isQuoteInStaffPipeline(quote, staff, activeStaff));
 }
@@ -342,7 +342,7 @@ async function handler(
 
   const staff = await prisma.staffMember.findUnique({
     where: { email: session.user.email },
-    select: { id: true, displayName: true, role: true, defaultStore: true },
+    select: { id: true, displayName: true, aliases: true, role: true, defaultStore: true },
   });
 
   // Deny when no StaffMember record exists. The earlier `|| !staff`
@@ -387,8 +387,7 @@ async function handler(
     const rawQuotes = await prisma.salesOrder.findMany({
       where: pipelineSearchWhere(searchTerm, {
         canViewAll,
-        staffId: staff.id,
-        staffName: staff.displayName,
+        staff,
         includeArchived: showingArchived,
       }),
       orderBy: { orderDate: "desc" },
@@ -419,6 +418,7 @@ async function handler(
         select: {
           id: true,
           displayName: true,
+          aliases: true,
           defaultStore: true,
           activeStoreLocation: { select: { name: true } },
         },
@@ -550,7 +550,7 @@ async function handler(
   if (rawScope === "staff" && canViewAll && !Number.isNaN(rawStaffId)) {
     const targetStaff = await prisma.staffMember.findUnique({
       where: { id: rawStaffId },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, aliases: true },
     });
     if (!targetStaff) return res.status(404).json({ error: "Staff member not found" });
 

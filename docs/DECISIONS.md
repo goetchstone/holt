@@ -1355,6 +1355,9 @@ one per customer, and in notes that follow the client.
 - **Warehouse, Dispatch, Installer and Marketing can read a customer but not this.** A
   client's budget and how likely they are to close aren't needed to deliver a sofa. It takes
   `customer.write` or `sales.lead`.
+- **A salesperson's name is matched whole.** The linked id comes first. With none, the text
+  must equal their name or an alias. Substring matching let "Ann" archive "Anna Reyes'"
+  quotes (`docs/tenant-literal-sweep.md`).
 - **Service charges are found by what they are**, the order's `deliveryFeeLineItemId` or a
   product's `serviceType`, not by a line's name.
 
@@ -1366,6 +1369,9 @@ one per customer, and in notes that follow the client.
   client's history from its own route, under its own gate.
 - **Telling service lines from goods by matching "delivery" or "labor"** in the line's name.
   That only works where a store happens to name them so, and misses the rest silently.
+- **Authorizing the archive route by `salesPersonId` alone**, as the audit first proposed.
+  A quote with no id would show in someone's pipeline and refuse to let them archive it.
+  What they see and what they can act on is one rule (rule 42).
 - **A second profile for a client's second project.** One per client for now. It's recorded as
   open in `ROADMAP.md`.
 

@@ -31,7 +31,7 @@ export async function assignClients(
     }),
     prisma.staffMember.findMany({
       where: { isActive: true },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, aliases: true },
     }),
     prisma.salesOrder.findMany({
       where: { customerId: { in: customerIds }, status: "QUOTE", pipelineArchivedAt: null },

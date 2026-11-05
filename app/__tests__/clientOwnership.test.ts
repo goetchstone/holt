@@ -12,8 +12,8 @@ import {
 } from "@/lib/clientOwnership";
 
 const activeStaff = [
-  { id: 1, displayName: "Nora" },
-  { id: 2, displayName: "Iris Fenn" },
+  { id: 1, displayName: "Nora", aliases: ["Nora D", "NORA DORN"] },
+  { id: 2, displayName: "Iris Fenn", aliases: [] },
 ];
 
 const noCustomer = { customer: null };
@@ -57,9 +57,9 @@ describe("findQuoteOwnerId", () => {
     expect(findQuoteOwnerId(quote, activeStaff)).toBe(2);
   });
 
-  it("falls through a departed id to an active name, then to the primary designer", () => {
+  it("won't let a name overrule a linked id: someone who left goes to the primary designer", () => {
     const byName = { salesPersonId: 99, salesperson: "Nora", customer: null };
-    expect(findQuoteOwnerId(byName, activeStaff)).toBe(1);
+    expect(findQuoteOwnerId(byName, activeStaff)).toBeNull();
     const assigned = { salesPersonId: 99, salesperson: "Tess", customer: { primaryDesignerId: 2 } };
     expect(findQuoteOwnerId(assigned, activeStaff)).toBe(2);
   });
@@ -155,5 +155,43 @@ describe("parseAssignClientsBody", () => {
     [{ toStaffId: 7, workedWith: "Tess", expectedCount: 0 }],
   ])("rejects %j", (body) => {
     expect(parseAssignClientsBody(body).ok).toBe(false);
+  });
+});
+
+describe("who a name means", () => {
+  const ann = { id: 10, displayName: "Ann", aliases: [] };
+  const anna = { id: 11, displayName: "Anna Reyes", aliases: ["Reyes, Anna"] };
+  const quote = (salesperson: string | null, salesPersonId: number | null = null) => ({
+    salesPersonId,
+    salesperson,
+    customer: null,
+  });
+
+  it("takes the whole name, so Ann isn't Anna Reyes, whoever comes first", () => {
+    expect(findQuoteOwnerId(quote("Anna Reyes"), [ann, anna])).toBe(anna.id);
+    expect(findQuoteOwnerId(quote("Anna Reyes"), [anna, ann])).toBe(anna.id);
+    expect(isQuoteInStaffPipeline(quote("Anna Reyes"), ann, [ann, anna])).toBe(false);
+    expect(nameMatchesActiveStaff("Annabel", [ann])).toBe(false);
+  });
+
+  it("takes an alias, for a POS that writes names its own way", () => {
+    expect(findQuoteOwnerId(quote("Reyes, Anna"), [ann, anna])).toBe(anna.id);
+    expect(isQuoteInStaffPipeline(quote("reyes, anna"), anna, [ann, anna])).toBe(true);
+    expect(nameMatchesActiveStaff("Reyes, Anna", [anna])).toBe(true);
+  });
+
+  it("ignores case and stray spaces", () => {
+    expect(findQuoteOwnerId(quote("  anna REYES "), [anna])).toBe(anna.id);
+  });
+
+  it("goes by the linked id when there is one, even if the name says otherwise", () => {
+    expect(isQuoteInStaffPipeline(quote("Ann", anna.id), ann, [ann, anna])).toBe(false);
+    expect(isQuoteInStaffPipeline(quote("Ann", anna.id), anna, [ann, anna])).toBe(true);
+    expect(findQuoteOwnerId(quote("Ann", anna.id), [ann, anna])).toBe(anna.id);
+  });
+
+  it("means no one when there's no name", () => {
+    expect(findQuoteOwnerId(quote(""), [{ ...ann, aliases: [""] }])).toBeNull();
+    expect(findQuoteOwnerId(quote("   "), [ann])).toBeNull();
   });
 });

@@ -32,6 +32,7 @@ import { getPipelineDetail } from "@/lib/reports/pipelineOpportunity";
 import clientProfileRoute from "@/pages/api/customers/[id]/client-profile";
 import interactionsRoute from "@/pages/api/sales/interactions";
 import pipelineRoute from "@/pages/api/sales/pipeline";
+import pipelineArchiveRoute from "@/pages/api/sales/pipeline/[id]";
 import clientsRoute from "@/pages/api/sales/clients";
 import assignRoute from "@/pages/api/sales/clients/assign";
 import mergeRoute from "@/pages/api/customers/merge-duplicates";
@@ -717,6 +718,95 @@ describe("the pipeline", () => {
   it("is for people who work the pipeline", async () => {
     await makeStaff("service", "CUSTOMER_SERVICE");
     expect((await call(pipelineRoute, "service")).status).toBe(403);
+  });
+});
+
+// docs/tenant-literal-sweep.md: staff matched by substring. "Ann" could see and archive
+// every quote written by "Anna Reyes", and All Staff credited them to whoever came first.
+describe("who a salesperson's name means", () => {
+  async function annAndAnna() {
+    await makeStaff("ann", "DESIGNER", "Ann");
+    await makeStaff("anna", "DESIGNER", "Anna Reyes");
+    const client = await makeClient("Nora", "Vale");
+    const quote = await makeQuote(client.id, null, { salesperson: "Anna Reyes" });
+    return { client, quote };
+  }
+  const archive = (who: string, id: number) =>
+    call(pipelineArchiveRoute, who, {
+      method: "PATCH",
+      query: { id: String(id) },
+      body: { archived: true },
+    });
+  const ids = (body: Body) => body.quotes.map((q: Body) => q.id);
+
+  it("doesn't show one person's quote to someone whose name sits inside theirs", async () => {
+    const { quote } = await annAndAnna();
+    expect(ids((await call(pipelineRoute, "ann")).body)).toEqual([]);
+    expect(ids((await call(pipelineRoute, "anna")).body)).toEqual([quote.id]);
+  });
+
+  it("won't let them archive it, but its salesperson can", async () => {
+    const { quote } = await annAndAnna();
+    expect((await archive("ann", quote.id)).status).toBe(403);
+    const untouched = await prisma.salesOrder.findUniqueOrThrow({ where: { id: quote.id } });
+    expect(untouched.pipelineArchivedAt).toBeNull();
+    expect((await archive("anna", quote.id)).status).toBe(200);
+  });
+
+  it("won't let a stale name beat the linked id", async () => {
+    await makeStaff("ann", "DESIGNER", "Ann");
+    const anna = await makeStaff("anna", "DESIGNER", "Anna Reyes");
+    const client = await makeClient("Nora", "Vale");
+    const quote = await makeQuote(client.id, anna.id, { salesperson: "Ann" });
+    expect((await archive("ann", quote.id)).status).toBe(403);
+    expect(ids((await call(pipelineRoute, "ann")).body)).toEqual([]);
+    expect(ids((await call(pipelineRoute, "anna")).body)).toEqual([quote.id]);
+  });
+
+  it("credits All Staff to the right person, not whoever comes first", async () => {
+    await annAndAnna();
+    await makeStaff("mo", "MANAGER", "Mo Ames");
+    const { body } = await call(pipelineRoute, "mo", { query: { scope: "all" } });
+    expect(body.staffSummaries.map((s: Body) => [s.displayName, s.quoteCount])).toEqual([
+      ["Anna Reyes", 1],
+    ]);
+  });
+
+  it("lists it for their book and search, and not the other's", async () => {
+    const { client } = await annAndAnna();
+    const book = async (who: string) =>
+      (await call(clientsRoute, who)).body.rows.map((r: Body) => r.id);
+    expect(await book("ann")).toEqual([]);
+    expect(await book("anna")).toEqual([client.id]);
+    const found = await call(pipelineRoute, "ann", { query: { search: "vale" } });
+    expect(ids(found.body)).toEqual([]);
+  });
+
+  it("follows an alias, which is how a POS's own spelling is handled", async () => {
+    const anna = await makeStaff("anna", "DESIGNER", "Anna Reyes");
+    await prisma.staffMember.update({
+      where: { id: anna.id },
+      data: { aliases: ["Reyes, Anna"] },
+    });
+    const client = await makeClient("Nora", "Vale");
+    const quote = await makeQuote(client.id, null, { salesperson: "Reyes, Anna" });
+
+    expect(ids((await call(pipelineRoute, "anna")).body)).toEqual([quote.id]);
+    expect((await call(clientsRoute, "anna")).body.rows.map((r: Body) => r.id)).toEqual([
+      client.id,
+    ]);
+    const found = await call(pipelineRoute, "anna", { query: { search: "vale" } });
+    expect(ids(found.body)).toEqual([quote.id]);
+    expect((await archive("anna", quote.id)).status).toBe(200);
+  });
+
+  it("lands a name no one has under No Owner, where a manager can see it", async () => {
+    await annAndAnna();
+    await makeStaff("mo", "MANAGER", "Mo Ames");
+    const client = await makeClient("Otto", "Rand");
+    await makeQuote(client.id, null, { salesperson: "Anna" });
+    const { body } = await call(pipelineRoute, "mo", { query: { scope: "all" } });
+    expect(body.unassigned).toMatchObject({ clientCount: 1, quoteCount: 1 });
   });
 });
 

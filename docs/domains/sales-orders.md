@@ -503,6 +503,14 @@ when saving; any other answer outside the list is refused.
 | Read Client Info and notes on a customer | `customer.write` or `sales.lead` | The above, plus Customer Service and Register |
 | Read a customer | `customer.read` | Also Warehouse, Dispatch, Installer, Marketing, who don't get Client Info |
 
+**Who a quote belongs to** (`lib/clientOwnership.ts`, the one match). The linked
+`salesPersonId` decides. With none, the `salesperson` text must equal the person's
+`displayName` or one of their `aliases`, ignoring case and stray spaces. It used to be
+containment, so "Ann" could see and archive every quote written by "Anna Reyes". A name that
+matches no one lands on All Staff's "No owner" card, and an alias on the staff record fixes
+a POS's own spelling. With no owner by either route, the client's primary designer gets the
+quote.
+
 **My Clients** (`/app/sales/clients`, `lib/clientBookQuery.ts`) lists a salesperson's own
 clients: those whose `primaryDesignerId` is them, or whose orders are credited to them.
 Asking for another book without `sales.clients.manage` returns your own, not a 403, and

@@ -78,7 +78,10 @@ function attributedTo(staff: ClientBookStaff): Prisma.SalesOrderWhereInput {
     OR: [
       { salesPersonId: staff.id },
       { splitWithId: staff.id },
-      ...names.map((name) => ({ salesperson: { contains: name, mode: "insensitive" as const } })),
+      ...names.map((name) => ({
+        salesPersonId: null,
+        salesperson: { equals: name, mode: "insensitive" as const },
+      })),
     ],
   };
 }
@@ -111,7 +114,7 @@ async function staffBookScope(staff: ClientBookStaff): Promise<BookScope> {
     }),
     prisma.staffMember.findMany({
       where: { isActive: true },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, aliases: true },
     }),
   ]);
 
@@ -138,7 +141,7 @@ async function staffBookScope(staff: ClientBookStaff): Promise<BookScope> {
 async function unassignedBookScope(): Promise<BookScope> {
   const activeStaff = await prisma.staffMember.findMany({
     where: { isActive: true },
-    select: { id: true, displayName: true },
+    select: { id: true, displayName: true, aliases: true },
   });
   const activeIds = activeStaff.map((staff) => staff.id);
   const hasOrder = { customerId: { not: null }, status: { in: [...BOOK_STATUSES] } };
@@ -160,7 +163,7 @@ async function unassignedBookScope(): Promise<BookScope> {
         OR: [
           { salesPersonId: { in: activeIds } },
           { splitWithId: { in: activeIds } },
-          { salesperson: { in: activeNames } },
+          { salesPersonId: null, salesperson: { in: activeNames } },
         ],
       },
     }),

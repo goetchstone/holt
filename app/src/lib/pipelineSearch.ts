@@ -15,8 +15,7 @@ import { CLIENT_NOTE_SOURCE } from "@/lib/interactionSources";
 
 export interface PipelineSearchViewer {
   canViewAll: boolean;
-  staffId: number;
-  staffName: string;
+  staff: { id: number; displayName: string; aliases: string[] };
   includeArchived: boolean;
 }
 
@@ -47,10 +46,14 @@ function clientNoteMatch(token: string): Prisma.SalesOrderWhereInput {
 export function staffPipelineWhere(staff: {
   id: number;
   displayName: string;
+  aliases: string[];
 }): Prisma.SalesOrderWhereInput[] {
   return [
     { salesPersonId: staff.id },
-    { salesperson: { contains: staff.displayName, mode: "insensitive" } },
+    ...[staff.displayName, ...staff.aliases].map((name) => ({
+      salesPersonId: null,
+      salesperson: { equals: name, mode: "insensitive" as const },
+    })),
     { customer: { primaryDesignerId: staff.id } },
   ];
 }
@@ -70,7 +73,7 @@ export function pipelineSearchWhere(
   };
 
   if (!viewer.canViewAll) {
-    where.OR = staffPipelineWhere({ id: viewer.staffId, displayName: viewer.staffName });
+    where.OR = staffPipelineWhere(viewer.staff);
   }
 
   return where;

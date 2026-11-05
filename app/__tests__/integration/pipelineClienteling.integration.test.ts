@@ -142,8 +142,7 @@ afterAll(async () => {
 describe("pipelineSearchWhere (real DB)", () => {
   const viewerFor = (staff: { id: number; displayName: string }, canViewAll: boolean) => ({
     canViewAll,
-    staffId: staff.id,
-    staffName: staff.displayName,
+    staff: { id: staff.id, displayName: staff.displayName, aliases: [] },
     includeArchived: false,
   });
 
