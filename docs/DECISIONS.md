@@ -1265,6 +1265,44 @@ least order above zero.
 
 ---
 
+## 42. How old stock is, and what it was worth, read back from the journal (2026-11-04)
+
+**Decided:** Age comes from the stock journal, assuming the oldest sold first, so
+what's still here is the newest in. It's counted from when units came onto the books,
+and a move between places doesn't restart it. An opening balance or import is reported
+as "at least" that old, and units no arrival accounts for are reported as having no
+record, in no bucket. Value on a past day is the journal's quantity at today's cost,
+labeled as that on the screen. A day before the journal gets no number.
+
+**Why:** the journal is the one record that says when stock moved, and it's already
+checked against the balance after every integration test. Nothing records which unit
+is which, or what a product cost last year, so these are the strongest claims the
+evidence supports. A confident number that's wrong by a believable margin would
+survive indefinitely (principle 2), so each report says where its claim stops.
+
+**Rejected:**
+
+- **Age from the last sale.** That's Inventory Health's dead stock, a different
+  question. It stays as it is. A sofa received last week that has never sold is dead
+  by that measure and new by this one.
+- **Age from purchase order lines.** It misses returns, counts and opening stock, and
+  it would be a second idea of what's on hand beside the ledger (rule 6).
+- **A cost history, added now to value past days.** It can only start from today, so
+  it wouldn't answer any past date yet. It's recorded in `ROADMAP.md`.
+- **Allowing `occurredAt` on `postMovement`.** A route that could date movements could
+  rewrite what the books held on any past day. The seed gets its own named function,
+  and a tripwire keeps it out of `src/`.
+
+**Enforced by:** `__tests__/integration/inventoryReports.integration.test.ts`, which
+holds Inventory Value to Inventory Health as of today, and Aged Stock plus committed
+units to the same units on hand; `AGE_EFFECT`, a `Record` over every journal reason;
+`__tests__/stockWriterTripwire.test.ts`.
+
+**Source:** [`app/src/lib/reports/agedStock.ts`](../app/src/lib/reports/agedStock.ts),
+[`app/src/lib/reports/inventoryValue.ts`](../app/src/lib/reports/inventoryValue.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

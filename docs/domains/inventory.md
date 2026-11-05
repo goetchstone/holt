@@ -311,6 +311,12 @@ enforces it.
 - **Order ids are facts, not keys.** `fromSalesOrderId`/`toSalesOrderId` are plain
   ids: an order can be deleted (its stock is released first) and the journal
   keeps that the stock was once committed to it.
+- **`occurredAt` is when Holt was told.** Application code can't set it.
+  `postBackdatedMovement` exists for the demo seed's stock history and for tests,
+  and `stockWriterTripwire.test.ts` fails if anything under `src/` calls it: a
+  route that could date movements could rewrite what the books held on any past day.
+- **What reads it.** Aged Stock and Inventory Value (`docs/domains/reporting.md`).
+  A new reason has to say what it does to age (`AGE_EFFECT`, `lib/reports/agedStock.ts`).
 
 ### Reorder points (GAP-14, since 2026-11-04)
 
@@ -416,6 +422,8 @@ Before this key, store writes needed "Transfer stock" **and** a hardcoded MANAGE
 
 `InventoryTransfer` model + `pages/warehouse/transfers/*`. Operational only — no journal entry (per master plan, stores are not separate cost centers in the JE).
 
+The Transfers report (`/app/reports/transfers`, `docs/domains/reporting.md`) reads these: what moved in a period, by route, and what is still on its way.
+
 Status changes move the stock (`pages/api/warehouse/transfers/[id]/status.ts`, through the ledger):
 
 | Transition | Stock |
@@ -462,11 +470,31 @@ The classic "where's the missing inventory" debugging path:
 
 All gated `roles: ["ADMIN"]`. No MANAGER access — variance reconciliation can affect downstream financials.
 
+## The counting schedule
+
+`StockLocation.countEveryDays` (Warehouse › Locations, "Count every (days)"), and
+the "Counting schedule" list at the top of Inventory › Counts
+(`lib/inventory/countSchedule.ts`, read by `GET /api/inventory/counts`). Off for
+every place until a store sets it. Nothing sends a reminder yet.
+
+- **What resets it:** a POSTED count of everything in the place. A quick count
+  (PRODUCTS scope) only spoke for what it listed, and a cancelled one changed
+  nothing. `countedAt`, not `postedAt`: the count happened when it was counted.
+- **Standing:** never counted is due now. Past its day it's overdue by the store's
+  days. A count of everything waiting to be posted reads as waiting once the place
+  is due, since nothing's left to do there but post it.
+- **What can't be on one:** a GROUP place, refused on save by the route that creates
+  a place and the one that edits it (`countEveryDaysProblem`), and dropped from the
+  list if a place becomes one later. A retired place drops off too. The range is
+  also a CHECK.
+- The edit form sends back what it loaded, so `/api/warehouse/locations` has to
+  select the field, or saving a place would clear it.
+- Not in presets (`lib/config/`), like `moveMode`: a preset leaves the field alone.
+
 ## Known gaps
 
 - **No real-time reserve** at quote-confirm (master plan G2 / Phase 1). Inventory is only as fresh as the daily Stock-by-Item import.
 - **No real-time deduct** at fulfillment for ERP-native orders. Same gap.
-- **Cycle counting** beyond apparel — variance report exists but cadence isn't scheduled.
 - **Transfer audit** — operational rows exist but no audit trail tying a transfer to a specific physical move.
 
 ## Verification checklist (before touching inventory code)
@@ -635,7 +663,8 @@ its PO's order still needs it, and the note clears
 (`addBoxesToIncompleteSet`). A box moved on its own leaves a STRAY note.
 
 **Counting** (`lib/inventory/count.ts`, DECISIONS #21). A count is of one place
-(never a GROUP place).
+(never a GROUP place). A store can put a place on a schedule: see "The counting
+schedule" below.
 
 - **PLACE scope:** everything at the place. A product on the books there but
   not counted is counted absent.

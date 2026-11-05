@@ -234,3 +234,9 @@ ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_lowStockAlertHo
 ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_lowStockAlertHour_range" CHECK (
   "lowStockAlertHour" IS NULL OR ("lowStockAlertHour" >= 0 AND "lowStockAlertHour" <= 23)
 );
+
+-- How often a place is counted (lib/inventory/countSchedule.ts).
+ALTER TABLE "StockLocation" DROP CONSTRAINT IF EXISTS "StockLocation_countEveryDays_range";
+ALTER TABLE "StockLocation" ADD CONSTRAINT "StockLocation_countEveryDays_range" CHECK (
+  "countEveryDays" IS NULL OR "countEveryDays" BETWEEN 1 AND 3650
+);

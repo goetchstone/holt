@@ -1900,6 +1900,10 @@ model StockLocation {
   // How stock moves in or out of this place (MOVE_MODES); null = its store's.
   moveMode String?
 
+  /// How often this place should be counted, in days (GAP-17,
+  /// lib/inventory/countSchedule.ts); null = it isn't on a schedule.
+  countEveryDays Int?
+
   /// Set on a run's truck (lib/fulfilment/truck.ts, DECISIONS #25): Holt makes
   /// the place when the run loads here and retires it when the run completes.
   /// Null on every place a person sets up.

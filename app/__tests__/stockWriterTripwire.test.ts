@@ -102,6 +102,18 @@ describe("InventoryPosition has exactly one writer", () => {
     }
   });
 
+  it("nothing in src/ dates a movement in the past: that's for the seed and tests", () => {
+    const callers = filesUnder(join(APP_DIR, "src"))
+      .map((f) => relative(APP_DIR, f))
+      .filter((f) => f !== "src/lib/inventory/ledger.ts")
+      .filter((f) =>
+        codeLines(readFileSync(join(APP_DIR, f), "utf8"))
+          .join("\n")
+          .includes("postBackdatedMovement"),
+      );
+    expect(callers).toEqual([]);
+  });
+
   it("recognises both Prisma and raw-SQL writes, and ignores comments", () => {
     expect(PRISMA_WRITE.test("await tx.inventoryPosition.upsert({")).toBe(true);
     expect(PRISMA_WRITE.test("prisma.inventoryPosition.deleteMany({ where })")).toBe(true);

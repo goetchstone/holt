@@ -69,7 +69,11 @@ export function InventoryHealthView() {
       <p className="text-sm text-brand-gray">
         What&apos;s on hand right now, what it&apos;s worth, and how much isn&apos;t moving.
         &quot;Dead stock&quot; is on-hand inventory with no sale in {staleLabel} (never-sold
-        included).
+        included). For how long stock has been here, see{" "}
+        <Link href="/app/reports/aged-stock" className="underline">
+          Aged Stock
+        </Link>
+        .
       </p>
 
       <div className="flex flex-wrap items-end gap-4">
