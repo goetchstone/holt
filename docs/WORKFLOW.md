@@ -60,8 +60,10 @@ changed, verify it.
 cd app && npm run check:local   # lint, typecheck, tests + coverage, markdown, Semgrep, OSV
 ```
 
-CodeQL runs in CI on every PR and refuses a merge with a high or critical
-alert. (A local SonarQube scan was also required until 2026-10-16.)
+CodeQL runs in CI on every PR and refuses a merge with a high or critical alert
+its check reports. The scan of `main` can raise more (`docs/CI-OPERATIONS.md`,
+"Open alerts on main"). (A local SonarQube scan was also required until
+2026-10-16.)
 
 ### 5. Push → CI runs
 
