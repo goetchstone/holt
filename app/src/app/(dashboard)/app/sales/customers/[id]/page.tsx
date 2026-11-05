@@ -13,6 +13,15 @@ import { CustomerDetailView } from "./CustomerDetailView";
 
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requirePage(undefined, { permission: "sales.read" });
-  return <CustomerDetailView id={id} />;
+  const { holds } = await requirePage(undefined, {
+    permission: "sales.read",
+    also: ["sales.lead", "customer.write"],
+  });
+  return (
+    <CustomerDetailView
+      id={id}
+      canWorkClient={holds["sales.lead"]}
+      canSeeClientNotes={holds["sales.lead"] || holds["customer.write"]}
+    />
+  );
 }

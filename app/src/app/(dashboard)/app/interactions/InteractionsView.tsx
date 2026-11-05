@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { INTERACTION_SOURCE_LABELS } from "@/lib/interactionSources";
 
 type InteractionRow = {
   id: number;
@@ -30,10 +31,15 @@ type InteractionRow = {
 type Tab = "active" | "mine" | "all" | "completed";
 
 const SOURCE_BADGE: Record<string, { bg: string; label: string }> = {
-  WALK_IN: { bg: "bg-brand-blue/10 text-brand-blue", label: "Walk-in" },
-  PHONE: { bg: "bg-brand-gold/20 text-brand-gold", label: "Phone" },
-  EMAIL: { bg: "bg-brand-gray/10 text-brand-gray", label: "Email" },
-  APPOINTMENT: { bg: "bg-green-100 text-green-800", label: "Appointment" },
+  WALK_IN: { bg: "bg-brand-blue/10 text-brand-blue", label: INTERACTION_SOURCE_LABELS.WALK_IN },
+  PHONE: { bg: "bg-brand-gold/20 text-brand-gold", label: INTERACTION_SOURCE_LABELS.PHONE },
+  EMAIL: { bg: "bg-brand-gray/10 text-brand-gray", label: INTERACTION_SOURCE_LABELS.EMAIL },
+  APPOINTMENT: { bg: "bg-green-100 text-green-800", label: INTERACTION_SOURCE_LABELS.APPOINTMENT },
+  NOTE: { bg: "bg-brand-gray/10 text-brand-gray", label: INTERACTION_SOURCE_LABELS.NOTE },
+  MANAGER_NOTE: {
+    bg: "bg-brand-gray/10 text-brand-gray",
+    label: INTERACTION_SOURCE_LABELS.MANAGER_NOTE,
+  },
 };
 
 const OUTCOME_BADGE: Record<string, { bg: string; label: string }> = {

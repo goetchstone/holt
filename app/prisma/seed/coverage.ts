@@ -56,7 +56,8 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   },
   SmsQueue: {
     status: "skipped",
-    reason: "Runtime queue of texts. The demo has no provider and texts none of its invented customers.",
+    reason:
+      "Runtime queue of texts. The demo has no provider and texts none of its invented customers.",
   },
   StockCount: {
     status: "skipped",
@@ -102,6 +103,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
     reason: "Runtime audit log. Written when config changes; seeding it invents an audit trail.",
   },
   ConsignmentItem: { status: "seeded" },
+  ClientProfile: { status: "seeded", seeder: "demo" },
   ConsignmentPaymentBatch: { status: "seeded" },
   ConsignmentReceipt: { status: "seeded" },
   ConsignmentSale: { status: "todo", tranche: "buying-consignment" },

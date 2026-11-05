@@ -40,6 +40,10 @@ import type {
   InteractionOutcome,
 } from "@prisma/client";
 import type { Rng } from "./rng";
+import { DEFAULT_CLIENT_PROFILE_CHOICES, parseClientProfileBody } from "@/lib/clientProfile";
+import { CLIENT_NOTE_SOURCE } from "@/lib/interactionSources";
+import { addDays, businessDayKey, dayKeyToDbDate } from "@/lib/reports/businessDay";
+import { SEED_TIME_ZONE } from "./config";
 import { chance, pick, randInt, round2, subRng } from "./rng";
 import type { SeededCustomer } from "./customers";
 import type { StaffSetup } from "./staff";
@@ -88,7 +92,134 @@ export interface PipelineResult {
   unassignedLeads: number;
   interactionsCreated: number;
   openInteractions: number;
+  clientsWithInfo: number;
   proposalsCreated: number;
+}
+
+/**
+ * What salespeople keep on a few clients (GAP-36), so My Clients and the pipeline's
+ * client panel have something to show, with follow-ups overdue, due today and to come.
+ * The values come from the suggested lists a new store starts with.
+ */
+const CLIENT_INFO = [
+  {
+    followUpInDays: -6,
+    note: "Asked for swatches of the blue performance fabric.",
+    profile: {
+      projectDescription: "Refreshing the living room before the holidays",
+      roomsOfInterest: ["Living Room"],
+      residenceType: "Primary",
+      projectTimeline: "1-3 months",
+      budgetRange: "10K-25K",
+      decisionMaker: "With spouse or partner",
+      closeLikelihood: 70,
+      nextSteps: ["Quoting"],
+    },
+  },
+  {
+    followUpInDays: -1,
+    note: "Wants a house call once the floors are finished.",
+    profile: {
+      projectDescription: "New floors, then furnishing the whole first floor",
+      roomsOfInterest: ["Whole Home"],
+      residenceType: "Primary",
+      projectTimeline: "3-6 months",
+      budgetRange: "25K+",
+      decisionMaker: "With spouse or partner",
+      closeLikelihood: 50,
+      nextSteps: ["Schedule house call"],
+      keywords: ["Entertaining space"],
+    },
+  },
+  {
+    followUpInDays: 0,
+    note: "Two large dogs, so durable fabrics only.",
+    profile: {
+      stylePreferences: "Warm neutrals, nothing too formal",
+      roomsOfInterest: ["Family Room", "Rugs"],
+      residenceType: "Primary",
+      projectTimeline: "Next 30 days",
+      budgetRange: "Under 10K",
+      decisionMaker: "Sole decision maker",
+      closeLikelihood: 90,
+      nextSteps: ["Order samples"],
+      keywords: ["Pets and kids"],
+    },
+  },
+  {
+    followUpInDays: 5,
+    note: "Furnishing a summer place; delivery has to wait for the spring.",
+    profile: {
+      homes: "Year-round home in town, summer house at the shore",
+      roomsOfInterest: ["Outdoor", "Primary Bedroom"],
+      residenceType: "Secondary/Vacation",
+      projectTimeline: "6+ months",
+      budgetRange: "Open",
+      decisionMaker: "With family member",
+      closeLikelihood: 30,
+      keywords: ["Outdoor living"],
+    },
+  },
+  {
+    followUpInDays: 12,
+    note: "Comparing dining tables; came back with measurements.",
+    profile: {
+      projectDescription: "Dining table and chairs for eight",
+      roomsOfInterest: ["Dining Room"],
+      residenceType: "Primary",
+      projectTimeline: "1-3 months",
+      budgetRange: "10K-25K",
+      decisionMaker: "Sole decision maker",
+      closeLikelihood: 60,
+      nextSteps: ["House call scheduled"],
+    },
+  },
+] as const;
+
+/** Draws nothing from the random stream, so nothing seeded after this moves. */
+async function seedClientInfo(
+  prisma: PrismaClient,
+  customers: readonly SeededCustomer[],
+  designers: readonly { id: number }[],
+  stores: readonly StoreSetup[],
+  today: Date,
+): Promise<number> {
+  const clients = customers.filter((c) => !c.isTradeAccount).slice(0, CLIENT_INFO.length);
+  const todayKey = businessDayKey(today, SEED_TIME_ZONE);
+  for (const [i, client] of clients.entries()) {
+    const info = CLIENT_INFO[i];
+    const designer = designers[i % designers.length];
+    const parsed = parseClientProfileBody(info.profile, DEFAULT_CLIENT_PROFILE_CHOICES);
+    if (!parsed.ok) throw new Error(`Demo client info is invalid: ${parsed.error}`);
+    await prisma.clientProfile.create({
+      data: {
+        customerId: client.id,
+        ...parsed.data,
+        nextFollowUpDate: dayKeyToDbDate(addDays(todayKey, info.followUpInDays)),
+        createdBy: SEED_ACTOR,
+        updatedBy: SEED_ACTOR,
+      },
+    });
+    await prisma.customer.update({
+      where: { id: client.id },
+      data: { primaryDesignerId: designer.id },
+    });
+    await prisma.customerInteraction.create({
+      data: {
+        staffMemberId: designer.id,
+        customerId: client.id,
+        storeLocation: stores[i % stores.length].name,
+        storeLocationId: stores[i % stores.length].id,
+        source: CLIENT_NOTE_SOURCE,
+        notes: info.note,
+        startedAt: today,
+        endedAt: today,
+        isActive: false,
+        createdBy: SEED_ACTOR,
+      },
+    });
+  }
+  return clients.length;
 }
 
 export async function seedPipeline(
@@ -108,6 +239,7 @@ export async function seedPipeline(
     unassignedLeads: 0,
     interactionsCreated: 0,
     openInteractions: 0,
+    clientsWithInfo: 0,
     proposalsCreated: 0,
   };
 
@@ -279,6 +411,8 @@ export async function seedPipeline(
     });
     result.proposalsCreated += 1;
   }
+
+  result.clientsWithInfo = await seedClientInfo(prisma, customers, staff.designers, stores, today);
 
   return result;
 }

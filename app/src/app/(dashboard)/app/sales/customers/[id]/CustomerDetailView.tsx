@@ -25,6 +25,8 @@ import PaginatedTable from "@/components/table/PaginatedTable";
 import { format } from "date-fns";
 import { parseLocalDate } from "@/lib/dateUtils";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CustomerNotesPanel } from "@/components/customer/CustomerNotesPanel";
+import { isCashSaleCustomer } from "@/lib/pipelineClient";
 import { WealthTierBadge } from "@/components/customer/WealthTierBadge";
 import { LeadScoreBadge } from "@/components/customer/LeadScoreBadge";
 import { calculateLeadScore } from "@/lib/leadScore";
@@ -516,7 +518,15 @@ function compareOrders(
 
 const ROWS_PER_PAGE = 10;
 
-export function CustomerDetailView({ id }: { id: string }) {
+export function CustomerDetailView({
+  id,
+  canWorkClient,
+  canSeeClientNotes,
+}: {
+  id: string;
+  canWorkClient: boolean;
+  canSeeClientNotes: boolean;
+}) {
   const { effectiveRole } = useEffectiveRole();
   const canSeeWealth =
     effectiveRole === "ADMIN" || effectiveRole === "SUPER_ADMIN" || effectiveRole === "MARKETING";
@@ -780,6 +790,8 @@ export function CustomerDetailView({ id }: { id: string }) {
   }
 
   const paginatedOrders = sortedOrders.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
+  const isCashSale = isCashSaleCustomer(customer);
+  const showNotes = canSeeClientNotes && !isCashSale;
 
   return (
     <div className="container mx-auto px-4 py-8 font-serif">
@@ -837,10 +849,21 @@ export function CustomerDetailView({ id }: { id: string }) {
           <TabsTrigger value="trade">Trade & Tax</TabsTrigger>
           <TabsTrigger value="addresses">Addresses</TabsTrigger>
           <TabsTrigger value="orders">Orders</TabsTrigger>
+          {showNotes && <TabsTrigger value="notes">Notes</TabsTrigger>}
           <TabsTrigger value="email">Email Activity</TabsTrigger>
           {canSeeWealth && <TabsTrigger value="wealth">Wealth Profile</TabsTrigger>}
           <TabsTrigger value="POS">the POS IDs</TabsTrigger>
         </TabsList>
+
+        {showNotes && (
+          <TabsContent tabValue="notes">
+            <CustomerNotesPanel
+              customerId={customer.id}
+              customerName={`${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim()}
+              canEdit={canWorkClient}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent tabValue="contact">
           <div className="space-y-4">

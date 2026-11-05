@@ -166,6 +166,16 @@ export function daysBetween(from: string, to: string): number {
   return Math.round(ms / 86_400_000);
 }
 
+/** A day key as a date-only (@db.Date) column holds it: UTC midnight, so it can't shift. */
+export function dayKeyToDbDate(date: string): Date {
+  return new Date(`${date}T00:00:00.000Z`);
+}
+
+/** What a date-only (@db.Date) column holds, as a day key. */
+export function dbDateToDayKey(value: Date | null | undefined): string | null {
+  return value ? value.toISOString().slice(0, 10) : null;
+}
+
 /** "YYYY-MM-DD" naming a real calendar day: a business-day key a caller sent. */
 export function isDayKey(value: unknown): value is string {
   if (typeof value !== "string") return false;

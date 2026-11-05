@@ -18,6 +18,7 @@
 //     none is added here; wealthTier is a scoring input only, never a column.
 
 import type { PrismaClient } from "@prisma/client";
+import { isNoteSource } from "@/lib/interactionSources";
 import { calculateLeadScore, type LeadTier } from "@/lib/leadScore";
 
 export interface PipelineRow {
@@ -298,7 +299,6 @@ export async function getPipelineDetail(
           staffMember: { select: { displayName: true } },
         },
         orderBy: { startedAt: "desc" },
-        take: 3,
       },
     },
     orderBy: [{ quoteDate: "desc" }, { orderDate: "desc" }],
@@ -345,9 +345,9 @@ export async function getPipelineDetail(
       leadScore = breakdown.score;
     }
 
-    const lastInteraction = q.interactions[0]?.startedAt
-      ? q.interactions[0].startedAt.toISOString().slice(0, 10)
-      : null;
+    // A note is something we know, not a time we reached them (GAP-36).
+    const lastContact = q.interactions.find((i) => !isNoteSource(i.source));
+    const lastInteraction = lastContact ? lastContact.startedAt.toISOString().slice(0, 10) : null;
 
     // Find the most recent note (any source with notes text)
     const noteInteraction = q.interactions.find((i) => i.notes);

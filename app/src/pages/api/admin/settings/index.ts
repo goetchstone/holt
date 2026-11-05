@@ -27,6 +27,7 @@ import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
 import { isValidTimeZone } from "@/lib/reports/businessDay";
 import { LANDED_COST_SPLIT_KEYS, isLandedCostSplit } from "@/lib/purchasing/landedCostShared";
 import { readAlertEmails } from "@/lib/purchasing/lowStockShared";
+import { parseClientProfileChoices } from "@/lib/clientProfile";
 import { IDLE_LOGOFF_RULE, isIdleLogoffMinutes } from "@/lib/auth/idleLogoff";
 import { QUOTE_HOLD_RULE, isQuoteHoldMaxDays } from "@/lib/sales/quoteHoldsShared";
 import { splitPercentProblem } from "@/lib/commissionSplit";
@@ -392,6 +393,15 @@ function parseDefaultSplit(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// The choices on a client's profile form, as this store has them (GAP-36).
+function parseProfileChoices(body: Body, data: SettingsData): ParseError {
+  if (body.clientProfileChoices === undefined) return null;
+  const parsed = parseClientProfileChoices(body.clientProfileChoices);
+  if (!parsed.ok) return { error: parsed.error };
+  data.clientProfileChoices = { ...parsed.choices };
+  return null;
+}
+
 // Who gets the daily low-stock list and when (GAP-14, lib/purchasing/lowStockAlert.ts).
 // Blank addresses or no hour is off.
 function parseLowStockAlert(body: Body, data: SettingsData): ParseError {
@@ -485,6 +495,7 @@ const SETTINGS_PARSERS = [
   parseDeliveryFeeTaxGroup,
   parseDiscountLimit,
   parseDefaultSplit,
+  parseProfileChoices,
   parseLowStockAlert,
   parseQuoteHoldMaxDays,
   parseLandedCostSplit,

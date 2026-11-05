@@ -45,6 +45,11 @@ import {
   isSplitPercent,
   splitLabel,
 } from "@/lib/commissionSplit";
+import {
+  CLIENT_PROFILE_CHOICE_LABELS,
+  DEFAULT_CLIENT_PROFILE_CHOICES,
+  type ClientProfileChoices,
+} from "@/lib/clientProfile";
 
 // fetch() bodies are plain objects, not axios errors, so getErrorMessage can't
 // reach the server's { error } -- pull it out here, then let the outer catch
@@ -491,6 +496,40 @@ function LowStockAlertSection({
   );
 }
 
+// The choices on a client's profile form (AppSettings.clientProfileChoices, GAP-36). Each
+// store words these its own way. An answer already on a client stays when its choice goes.
+function ClientProfileChoicesSection({
+  value,
+  onChange,
+}: Readonly<{ value: ClientProfileChoices; onChange: (next: ClientProfileChoices) => void }>) {
+  const keys = Object.keys(CLIENT_PROFILE_CHOICE_LABELS) as (keyof ClientProfileChoices)[];
+  return (
+    <section id="client-profile-choices" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Client info choices</h2>
+      <p className="text-xs text-brand-gray">
+        What salespeople pick from on a client&apos;s info form and the pipeline&apos;s filters. One
+        per line.
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {keys.map((key) => (
+          <div key={key}>
+            <label htmlFor={`profile-choice-${key}`} className="mb-1 block text-sm text-brand-gray">
+              {CLIENT_PROFILE_CHOICE_LABELS[key]}
+            </label>
+            <textarea
+              id={`profile-choice-${key}`}
+              rows={5}
+              value={value[key].join("\n")}
+              onChange={(e) => onChange({ ...value, [key]: e.target.value.split("\n") })}
+              className="w-full rounded-md border border-brand-accent-gray px-3 py-2 text-sm text-brand-black"
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // How a split sale is credited (AppSettings.defaultSplitPercent, GAP-07): the
 // share a new split gives its salesperson; the partner gets the rest. Staff with
 // "Reassign salesperson" may choose another on each sale.
@@ -931,6 +970,7 @@ export function SettingsOverviewView() {
           deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
           discountLimitPercent: settings.discountLimitPercent,
           defaultSplitPercent: settings.defaultSplitPercent,
+          clientProfileChoices: settings.clientProfileChoices,
           lowStockAlertEmails: settings.lowStockAlertEmails ?? "",
           lowStockAlertHour: settings.lowStockAlertHour ?? null,
           quoteHoldMaxDays: settings.quoteHoldMaxDays,
@@ -1057,6 +1097,12 @@ export function SettingsOverviewView() {
         value={settings.defaultSplitPercent}
         onChange={(percent) =>
           setSettings((prev) => (prev ? { ...prev, defaultSplitPercent: percent } : prev))
+        }
+      />
+      <ClientProfileChoicesSection
+        value={settings.clientProfileChoices ?? DEFAULT_CLIENT_PROFILE_CHOICES}
+        onChange={(next) =>
+          setSettings((prev) => (prev ? { ...prev, clientProfileChoices: next } : prev))
         }
       />
       <LowStockAlertSection

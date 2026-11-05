@@ -240,3 +240,9 @@ ALTER TABLE "StockLocation" DROP CONSTRAINT IF EXISTS "StockLocation_countEveryD
 ALTER TABLE "StockLocation" ADD CONSTRAINT "StockLocation_countEveryDays_range" CHECK (
   "countEveryDays" IS NULL OR "countEveryDays" BETWEEN 1 AND 3650
 );
+
+-- A client's odds of closing are 1 to 10 (lib/clientProfile.ts).
+ALTER TABLE "ClientProfile" DROP CONSTRAINT IF EXISTS "ClientProfile_closeLikelihood_range";
+ALTER TABLE "ClientProfile" ADD CONSTRAINT "ClientProfile_closeLikelihood_range" CHECK (
+  "closeLikelihood" IS NULL OR "closeLikelihood" BETWEEN 1 AND 10
+);

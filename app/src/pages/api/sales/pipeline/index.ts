@@ -1,11 +1,45 @@
 // /app/src/pages/api/sales/pipeline/index.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
+import { getAppSettings, getBusinessTimeZone } from "@/lib/appSettings";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
-import { calculateLeadScore, type LeadTier } from "@/lib/leadScore";
+import { calculateLeadScore, leadScoreInputFromCustomer, type LeadTier } from "@/lib/leadScore";
 import { detectPossibleDuplicates } from "@/lib/duplicateQuotes";
+import {
+  fetchClientBackground,
+  fetchClientNotesByCustomer,
+  type ClientNoteRow,
+} from "@/lib/pipelineClientQuery";
+import {
+  callablePhone,
+  isCashSaleCustomer,
+  mailableEmail,
+  summarizeQuoteLines,
+  type ClientBackground,
+  type PipelineClientHistory,
+} from "@/lib/pipelineClient";
+import {
+  findQuoteOwnerId,
+  isQuoteInStaffPipeline,
+  isQuoteOwned,
+  type PipelineStaff,
+} from "@/lib/clientOwnership";
+import { getFollowUpState, needsAttention, type FollowUpState } from "@/lib/pipelineFollowUp";
+import {
+  toClientProfileView,
+  type ClientProfileChoices,
+  type ClientProfileView,
+} from "@/lib/clientProfile";
+import { isNoteSource, NOTE_SOURCES } from "@/lib/interactionSources";
+import { pipelineSearchWhere, staffPipelineWhere } from "@/lib/pipelineSearch";
+import {
+  businessDayKey,
+  daysBetween as daysBetweenKeys,
+  dbDateToDayKey,
+} from "@/lib/reports/businessDay";
 
 export interface PipelineQuote {
   id: number;
@@ -21,6 +55,11 @@ export interface PipelineQuote {
     leadTier: LeadTier | null;
     // leadScore only included for ADMIN/MANAGER/MARKETING
     leadScore?: number | null;
+    phone: string | null;
+    email: string | null;
+    isCashSale: boolean;
+    history: PipelineClientHistory | null; // null for a Cash Sale placeholder
+    profile: ClientProfileView | null;
   } | null;
   salesperson: string | null;
   storeLocation: string | null;
@@ -29,6 +68,9 @@ export interface PipelineQuote {
   lastInteractionAt: string | null;
   daysSinceCreated: number;
   daysSinceContact: number | null;
+  followUpState: FollowUpState;
+  // Nothing priced on it yet.
+  isPlaceholderQuote: boolean;
   pipelineArchivedAt: string | null;
   pipelineNote: string | null;
   archiveReason: string | null;
@@ -70,7 +112,7 @@ export interface StaffSummary {
   leadCount: number;
 }
 
-export type PipelineScope = "mine" | "all" | "staff";
+export type PipelineScope = "mine" | "all" | "staff" | "search";
 
 export interface PipelineResponse {
   quotes: PipelineQuote[];
@@ -81,28 +123,21 @@ export interface PipelineResponse {
   scope: PipelineScope;
   viewingStaff: { id: number; displayName: string } | null;
   showingArchived: boolean;
+  today: string; // YYYY-MM-DD, the store's day
+  profileChoices: ClientProfileChoices;
+  // Open quotes in nobody's pipeline. Only sent on the All Staff page.
+  unassigned?: { clientCount: number; quoteCount: number; totalValue: number };
 }
 
-// Compare calendar dates in Eastern time to avoid
-// off-by-one errors from UTC midnight boundary.
-function daysBetween(date: Date | string | null, now: Date): number {
+// Whole days between two instants, on the store's calendar. Comparing timestamps instead
+// would be off by one around midnight.
+function daysSince(date: Date | string | null, now: Date, timeZone: string): number {
   if (!date) return 0;
-  const d = typeof date === "string" ? new Date(date) : date;
-  // Extract year/month/day in Eastern timezone for both dates
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const toMidnight = (dt: Date) => {
-    const parts = fmt.formatToParts(dt);
-    const y = Number(parts.find((p) => p.type === "year")!.value);
-    const m = Number(parts.find((p) => p.type === "month")!.value) - 1;
-    const day = Number(parts.find((p) => p.type === "day")!.value);
-    return new Date(y, m, day).getTime();
-  };
-  return Math.max(0, Math.floor((toMidnight(now) - toMidnight(d)) / (1000 * 60 * 60 * 24)));
+  const from = typeof date === "string" ? new Date(date) : date;
+  return Math.max(
+    0,
+    daysBetweenKeys(businessDayKey(from, timeZone), businessDayKey(now, timeZone)),
+  );
 }
 
 const QUOTE_SELECT = {
@@ -123,12 +158,16 @@ const QUOTE_SELECT = {
       id: true,
       firstName: true,
       lastName: true,
+      phone: true,
+      email: true,
       lifetimeSpend: true,
       lifetimeOrderCount: true,
       customerLevel: true,
       peakCustomerLevel: true,
       departmentCount: true,
       lastOrderDate: true,
+      primaryDesignerId: true,
+      clientProfile: true,
       windfallEnrichment: {
         select: {
           wealthTier: true,
@@ -164,109 +203,99 @@ type RoleVisibility = {
   canSeeScore: boolean;
 };
 
+type RawQuote = Prisma.SalesOrderGetPayload<{ select: typeof QUOTE_SELECT }>;
+
+interface QuoteMapContext {
+  now: Date;
+  today: string;
+  timeZone: string;
+  visibility: RoleVisibility;
+  notesByCustomer: Map<number, ClientNoteRow[]>;
+  backgroundByCustomer: Map<number, ClientBackground>;
+}
+
+function mapCustomer(
+  customer: NonNullable<RawQuote["customer"]>,
+  context: QuoteMapContext,
+): PipelineQuote["customer"] {
+  const wf = customer.windfallEnrichment;
+  const score = calculateLeadScore(leadScoreInputFromCustomer(customer));
+  const isCashSale = isCashSaleCustomer(customer);
+  return {
+    id: customer.id,
+    firstName: customer.firstName,
+    lastName: customer.lastName,
+    ...(context.visibility.canSeeWealth ? { wealthTier: wf?.wealthTier ?? null } : {}),
+    leadTier: score.tier,
+    ...(context.visibility.canSeeScore ? { leadScore: score.score } : {}),
+    phone: isCashSale ? null : callablePhone(customer.phone),
+    email: isCashSale ? null : mailableEmail(customer.email),
+    isCashSale,
+    history: isCashSale
+      ? null
+      : {
+          lifetimeSpend: Number(customer.lifetimeSpend ?? 0),
+          orderCount: customer.lifetimeOrderCount ?? 0,
+          lastOrderDate: customer.lastOrderDate?.toISOString() ?? null,
+          lastPurchase: null,
+          brands: [],
+          locations: [],
+          ...context.backgroundByCustomer.get(customer.id),
+        },
+    profile:
+      !isCashSale && customer.clientProfile ? toClientProfileView(customer.clientProfile) : null,
+  };
+}
+
 function mapQuote(
-  q: {
-    id: number;
-    orderno: string;
-    orderDate: Date | null;
-    quoteDate: Date | null;
-    salesperson: string | null;
-    storeLocation: string | null;
-    pipelineArchivedAt: Date | null;
-    pipelineNote: string | null;
-    archiveReason: string | null;
-    replacedByOrderId: number | null;
-    replacedByOrder: { id: number; orderno: string } | null;
-    customer: {
-      id: number;
-      firstName: string | null;
-      lastName: string | null;
-      lifetimeSpend: unknown;
-      lifetimeOrderCount: number | null;
-      customerLevel: number | null;
-      peakCustomerLevel: number | null;
-      departmentCount: number | null;
-      lastOrderDate: Date | null;
-      windfallEnrichment: {
-        wealthTier: string | null;
-        recentMover: boolean;
-        recentMortgage: boolean;
-        recentlyDivorced: boolean;
-        moneyInMotion: boolean;
-        liquidityTrigger: boolean;
-      } | null;
-    } | null;
-    lineItems: { productName: string | null; partNo: string | null; netPrice: unknown }[];
-    interactions: {
-      id: number;
-      source: string;
-      notes: string | null;
-      startedAt: Date;
-      staffMember: { displayName: string };
-    }[];
-  },
-  now: Date,
-  visibility: RoleVisibility,
+  q: RawQuote,
   possibleDuplicateOf: { id: number; orderno: string }[],
+  context: QuoteMapContext,
 ): PipelineQuote {
+  const { now, today, timeZone, notesByCustomer } = context;
   const totalAmount = q.lineItems.reduce((s, li) => s + Number(li.netPrice), 0);
-  const productNames = q.lineItems
-    .slice(0, 3)
-    .map((li) => li.productName)
-    .filter(Boolean)
-    .join(", ");
-  const lineItemSummary =
-    productNames + (q.lineItems.length > 3 ? ` +${q.lineItems.length - 3} more` : "");
-  const lastInteraction = q.interactions[0]?.startedAt ?? null;
+  const lines = summarizeQuoteLines(q.lineItems);
+  // A client note written on one quote shows on all of that client's quotes. A note is
+  // something we know, not a time we reached them, so it doesn't move days-since-contact.
+  const quoteInteractionIds = new Set(q.interactions.map((i) => i.id));
+  const clientNotes = q.customer ? (notesByCustomer.get(q.customer.id) ?? []) : [];
+  const entries = [
+    ...q.interactions,
+    ...clientNotes.filter((note) => !quoteInteractionIds.has(note.id)),
+  ].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+  const lastContactAt = entries.find((i) => !isNoteSource(i.source))?.startedAt ?? null;
   const refDate = q.quoteDate ?? q.orderDate;
+  const daysSinceCreated = refDate ? daysSince(refDate, now, timeZone) : 0;
+  const daysSinceContact = lastContactAt ? daysSince(lastContactAt, now, timeZone) : null;
+  const customer = q.customer ? mapCustomer(q.customer, context) : null;
   return {
     id: q.id,
     orderno: q.orderno,
     orderDate: q.orderDate?.toISOString() ?? null,
     quoteDate: q.quoteDate?.toISOString() ?? null,
-    customer: q.customer
-      ? (() => {
-          const wf = q.customer.windfallEnrichment;
-          const score = calculateLeadScore({
-            lifetimeSpend: Number(q.customer.lifetimeSpend ?? 0),
-            lifetimeOrderCount: q.customer.lifetimeOrderCount,
-            customerLevel: q.customer.customerLevel,
-            peakCustomerLevel: q.customer.peakCustomerLevel,
-            departmentCount: q.customer.departmentCount,
-            lastOrderDate: q.customer.lastOrderDate,
-            wealthTier: wf?.wealthTier,
-            recentMover: wf?.recentMover,
-            recentMortgage: wf?.recentMortgage,
-            recentlyDivorced: wf?.recentlyDivorced,
-            moneyInMotion: wf?.moneyInMotion,
-            liquidityTrigger: wf?.liquidityTrigger,
-          });
-          return {
-            id: q.customer.id,
-            firstName: q.customer.firstName,
-            lastName: q.customer.lastName,
-            ...(visibility.canSeeWealth
-              ? { wealthTier: q.customer.windfallEnrichment?.wealthTier ?? null }
-              : {}),
-            leadTier: score.tier,
-            ...(visibility.canSeeScore ? { leadScore: score.score } : {}),
-          };
-        })()
-      : null,
+    customer,
     salesperson: q.salesperson ?? null,
     storeLocation: q.storeLocation ?? null,
-    lineItemSummary: lineItemSummary || "No items",
+    lineItemSummary: lines.summary,
     totalAmount: Math.round(totalAmount * 100) / 100,
-    lastInteractionAt: lastInteraction?.toISOString() ?? null,
-    daysSinceCreated: refDate ? daysBetween(refDate, now) : 0,
-    daysSinceContact: lastInteraction ? daysBetween(lastInteraction, now) : null,
+    lastInteractionAt: lastContactAt?.toISOString() ?? null,
+    daysSinceCreated,
+    daysSinceContact,
+    followUpState: getFollowUpState({
+      nextFollowUpDate: customer?.profile?.nextFollowUpDate ?? null,
+      lastContactDate: lastContactAt ? businessDayKey(lastContactAt, timeZone) : null,
+      daysSinceContact,
+      daysSinceCreated,
+      today,
+    }),
+    isPlaceholderQuote: lines.isPlaceholder,
     pipelineArchivedAt: q.pipelineArchivedAt?.toISOString() ?? null,
     pipelineNote: q.pipelineNote ?? null,
     archiveReason: q.archiveReason ?? null,
     replacedByOrderId: q.replacedByOrderId ?? null,
     replacedByOrderno: q.replacedByOrder?.orderno ?? null,
     possibleDuplicateOf,
-    interactions: q.interactions.map((i) => ({
+    interactions: entries.map((i) => ({
       id: i.id,
       source: i.source,
       notes: i.notes,
@@ -274,6 +303,32 @@ function mapQuote(
       staffName: i.staffMember.displayName,
     })),
   };
+}
+
+/** staffPipelineWhere also matches an assigned client's other quotes, so this drops the
+ *  ones an active salesperson has. */
+async function keepStaffQuotes(rawQuotes: RawQuote[], staff: PipelineStaff): Promise<RawQuote[]> {
+  const activeStaff = await prisma.staffMember.findMany({
+    where: { isActive: true },
+    select: { id: true, displayName: true },
+  });
+  return rawQuotes.filter((quote) => isQuoteInStaffPipeline(quote, staff, activeStaff));
+}
+
+async function mapQuotes(
+  rawQuotes: RawQuote[],
+  base: Pick<QuoteMapContext, "now" | "today" | "timeZone" | "visibility">,
+): Promise<PipelineQuote[]> {
+  const customers = rawQuotes.flatMap((q) => (q.customer ? [q.customer] : []));
+  // A Cash Sale customer holds unrelated people's orders, so it has no history.
+  const clientIds = [...new Set(customers.filter((c) => !isCashSaleCustomer(c)).map((c) => c.id))];
+  const [notesByCustomer, backgroundByCustomer] = await Promise.all([
+    fetchClientNotesByCustomer(clientIds),
+    fetchClientBackground(clientIds),
+  ]);
+  const dupMap = detectPossibleDuplicates(rawQuotes);
+  const context = { ...base, notesByCustomer, backgroundByCustomer };
+  return rawQuotes.map((q) => mapQuote(q, dupMap.get(q.id) ?? [], context));
 }
 
 async function handler(
@@ -314,12 +369,46 @@ async function handler(
   const rawScope = req.query.scope as string | undefined;
   const showingArchived = req.query.archived === "true";
   const now = new Date();
+  const [timeZone, settings] = await Promise.all([getBusinessTimeZone(), getAppSettings()]);
+  const today = businessDayKey(now, timeZone);
+  const profileChoices = settings.clientProfileChoices;
+  const quoteMapBase = { now, today, timeZone, visibility };
   const openLeadStatuses = ["NEW", "ASSIGNED", "CONTACTED"] as const;
 
   // Archived filter applied to all quote queries
   const archiveFilter = showingArchived
     ? { pipelineArchivedAt: { not: null as null } }
     : { pipelineArchivedAt: null };
+
+  // ── search: open quotes by name or notes. Takes precedence over scope: a manager
+  // searches every open quote; a salesperson searches only their own.
+  const searchTerm = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  if (searchTerm) {
+    const rawQuotes = await prisma.salesOrder.findMany({
+      where: pipelineSearchWhere(searchTerm, {
+        canViewAll,
+        staffId: staff.id,
+        staffName: staff.displayName,
+        includeArchived: showingArchived,
+      }),
+      orderBy: { orderDate: "desc" },
+      take: 200,
+      select: QUOTE_SELECT,
+    });
+    const visibleQuotes = canViewAll ? rawQuotes : await keepStaffQuotes(rawQuotes, staff);
+    return res.status(200).json({
+      quotes: await mapQuotes(visibleQuotes, quoteMapBase),
+      leads: [],
+      staffSummaries: [],
+      myStaffId: staff.id,
+      canViewAll,
+      scope: "search",
+      viewingStaff: null,
+      showingArchived,
+      today,
+      profileChoices,
+    });
+  }
 
   // ── scope=all: per-staff summary metrics (active quotes only) ────────────
 
@@ -341,7 +430,22 @@ async function handler(
           salesPersonId: true,
           salesperson: true,
           lineItems: { select: { netPrice: true }, where: { netPrice: { gt: 0 } } },
-          interactions: { select: { startedAt: true }, orderBy: { startedAt: "desc" }, take: 1 },
+          // Same rule as the cards: a note is not contact.
+          interactions: {
+            where: { source: { notIn: [...NOTE_SOURCES] } },
+            select: { startedAt: true },
+            orderBy: { startedAt: "desc" },
+            take: 1,
+          },
+          customerId: true,
+          customer: {
+            select: {
+              firstName: true,
+              lastName: true,
+              primaryDesignerId: true,
+              clientProfile: { select: { nextFollowUpDate: true } },
+            },
+          },
           quoteDate: true,
           orderDate: true,
         },
@@ -357,25 +461,37 @@ async function handler(
       { quoteCount: number; totalValue: number; overdueCount: number }
     >();
 
+    const unassignedClientIds = new Set<number>();
+    let unassignedQuoteCount = 0;
+    let unassignedValue = 0;
+
     for (const q of allQuotesRaw) {
-      let staffId = q.salesPersonId;
-      if (!staffId && q.salesperson) {
-        const lower = q.salesperson.toLowerCase();
-        for (const s of allActiveStaff) {
-          if (lower.includes(s.displayName.toLowerCase())) {
-            staffId = s.id;
-            break;
-          }
+      const total = q.lineItems.reduce((sum, li) => sum + Number(li.netPrice), 0);
+
+      // In nobody's pipeline. Cash Sale isn't a client a manager can assign.
+      if (!isQuoteOwned(q, allActiveStaff)) {
+        if (q.customerId !== null && q.customer && !isCashSaleCustomer(q.customer)) {
+          unassignedClientIds.add(q.customerId);
+          unassignedQuoteCount++;
+          unassignedValue += total;
         }
+        continue;
       }
+
+      const staffId = findQuoteOwnerId(q, allActiveStaff);
       if (!staffId) continue;
 
-      const total = q.lineItems.reduce((sum, li) => sum + Number(li.netPrice), 0);
       const refDate = q.quoteDate ?? q.orderDate;
-      const daysSinceCreated = refDate ? daysBetween(refDate, now) : 0;
+      const daysSinceCreated = refDate ? daysSince(refDate, now, timeZone) : 0;
       const lastInteraction = q.interactions[0]?.startedAt ?? null;
-      const daysSinceContact = lastInteraction ? daysBetween(lastInteraction, now) : null;
-      const urgencyDays = daysSinceContact ?? daysSinceCreated;
+      const daysSinceContact = lastInteraction ? daysSince(lastInteraction, now, timeZone) : null;
+      const followUpState = getFollowUpState({
+        nextFollowUpDate: dbDateToDayKey(q.customer?.clientProfile?.nextFollowUpDate),
+        lastContactDate: lastInteraction ? businessDayKey(lastInteraction, timeZone) : null,
+        daysSinceContact,
+        daysSinceCreated,
+        today,
+      });
 
       if (!staffMetrics.has(staffId)) {
         staffMetrics.set(staffId, { quoteCount: 0, totalValue: 0, overdueCount: 0 });
@@ -383,7 +499,7 @@ async function handler(
       const m = staffMetrics.get(staffId)!;
       m.quoteCount++;
       m.totalValue += total;
-      if (urgencyDays > 7) m.overdueCount++;
+      if (needsAttention(followUpState)) m.overdueCount++;
     }
 
     const staffLeadCounts = new Map<number, number>();
@@ -418,6 +534,13 @@ async function handler(
       scope: "all",
       viewingStaff: null,
       showingArchived: false,
+      today,
+      profileChoices,
+      unassigned: {
+        clientCount: unassignedClientIds.size,
+        quoteCount: unassignedQuoteCount,
+        totalValue: Math.round(unassignedValue * 100) / 100,
+      },
     });
   }
 
@@ -433,14 +556,7 @@ async function handler(
 
     const [rawQuotes, rawLeads] = await Promise.all([
       prisma.salesOrder.findMany({
-        where: {
-          status: "QUOTE",
-          ...archiveFilter,
-          OR: [
-            { salesPersonId: targetStaff.id },
-            { salesperson: { contains: targetStaff.displayName, mode: "insensitive" } },
-          ],
-        },
+        where: { status: "QUOTE", ...archiveFilter, OR: staffPipelineWhere(targetStaff) },
         orderBy: { orderDate: "desc" },
         take: 200,
         select: QUOTE_SELECT,
@@ -465,9 +581,8 @@ async function handler(
       }),
     ]);
 
-    const dupMap = detectPossibleDuplicates(rawQuotes);
     return res.status(200).json({
-      quotes: rawQuotes.map((q) => mapQuote(q, now, visibility, dupMap.get(q.id) ?? [])),
+      quotes: await mapQuotes(await keepStaffQuotes(rawQuotes, targetStaff), quoteMapBase),
       leads: rawLeads.map((l) => ({
         id: l.id,
         source: l.source,
@@ -478,7 +593,7 @@ async function handler(
         phone: l.phone,
         notes: l.notes,
         assignedAt: l.assignedAt?.toISOString() ?? null,
-        daysSinceCreated: daysBetween(l.created, now),
+        daysSinceCreated: daysSince(l.created, now, timeZone),
         salesOrderId: l.salesOrderId,
       })),
       staffSummaries: [],
@@ -487,21 +602,14 @@ async function handler(
       scope: "staff",
       viewingStaff: { id: targetStaff.id, displayName: targetStaff.displayName },
       showingArchived,
+      today,
+      profileChoices,
     });
   }
 
   // ── scope=mine (default) ─────────────────────────────────────────────────
 
-  const quoteWhere = !staff
-    ? { status: "QUOTE" as const, ...archiveFilter }
-    : {
-        status: "QUOTE" as const,
-        ...archiveFilter,
-        OR: [
-          { salesPersonId: staff.id },
-          { salesperson: { contains: staff.displayName, mode: "insensitive" as const } },
-        ],
-      };
+  const quoteWhere = { status: "QUOTE" as const, ...archiveFilter, OR: staffPipelineWhere(staff) };
 
   const leadWhere = !staff
     ? { status: { in: [...openLeadStatuses] } }
@@ -536,9 +644,8 @@ async function handler(
         }),
   ]);
 
-  const dupMap = detectPossibleDuplicates(rawQuotes);
   return res.status(200).json({
-    quotes: rawQuotes.map((q) => mapQuote(q, now, visibility, dupMap.get(q.id) ?? [])),
+    quotes: await mapQuotes(await keepStaffQuotes(rawQuotes, staff), quoteMapBase),
     leads: rawLeads.map((l) => ({
       id: l.id,
       source: l.source,
@@ -549,7 +656,7 @@ async function handler(
       phone: l.phone,
       notes: l.notes,
       assignedAt: l.assignedAt?.toISOString() ?? null,
-      daysSinceCreated: daysBetween(l.created, now),
+      daysSinceCreated: daysSince(l.created, now, timeZone),
       salesOrderId: l.salesOrderId,
     })),
     staffSummaries: [],
@@ -558,6 +665,8 @@ async function handler(
     scope: "mine",
     viewingStaff: staff ? { id: staff.id, displayName: staff.displayName } : null,
     showingArchived,
+    today,
+    profileChoices,
   });
 }
 

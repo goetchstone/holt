@@ -470,9 +470,76 @@ Quote cards show:
 - Urgency badge (days since last contact or quote creation)
 - Line item summary and last interaction
 
-`daysBetween()` (`pages/api/sales/pipeline/index.ts:88`) uses `Intl.DateTimeFormat.formatToParts` with a hardcoded `America/New_York`. Null dates default to 0 ("Today"). There are no payment links or Customer Portal controls on these cards.
+Days are the store's days. `daysSince()` in `pages/api/sales/pipeline/index.ts` reads the
+business time zone from Settings, so a call at 22:00 reads as a day ago once it's past
+midnight at the store. Until GAP-36 this was a hardcoded `America/New_York`.
 
 Pipeline API (`api/sales/pipeline/index.ts`) computes lead score per customer and conditionally includes/omits `wealthTier` in the response based on session role (server-side enforcement — never leak wealth even if client hides it).
+
+## The client book (GAP-36, since 2026-11-05)
+
+What a salesperson keeps on a client, and the screens built on it. The decisions are in
+`docs/DECISIONS.md` 45. Interaction sources are in `docs/domains/interactions.md`.
+
+**`ClientProfile`** is one row per customer: project, style, homes, brands, keywords,
+rooms, residence, timeline, budget, decision maker, close likelihood (0-100, also a
+database CHECK), expected close, next steps and the next follow-up date. `searchText` is
+built from the free text when it's saved, so the pipeline's search can read it. Deleting a
+customer takes the profile. `lib/clientProfile.ts` validates it, and the merge route moves
+it (`fillProfileGaps`: what the kept record says stays, and the duplicate fills the blanks).
+
+**The lists are the store's.** `AppSettings.clientProfileChoices`, under Settings > Client
+profile choices. A store starts on `DEFAULT_CLIENT_PROFILE_CHOICES`, list by list, until it
+sets its own. Emptying a list takes that field's choices off the form. An answer already on
+a client stays valid after its choice is removed (`withSavedAnswer`), both in the form and
+when saving; any other answer outside the list is refused.
+
+**Who can do what:**
+
+| Action | Permission | Who, by default |
+|---|---|---|
+| Open My Clients, log a contact or note, edit Client Info | `sales.lead` | Designers, managers |
+| Open someone else's book, the clients no one owns, assign | `sales.clients.manage` | Managers, General Manager, admins |
+| Read Client Info and notes on a customer | `customer.write` or `sales.lead` | The above, plus Customer Service and Register |
+| Read a customer | `customer.read` | Also Warehouse, Dispatch, Installer, Marketing, who don't get Client Info |
+
+**My Clients** (`/app/sales/clients`, `lib/clientBookQuery.ts`) lists a salesperson's own
+clients: those whose `primaryDesignerId` is them, or whose orders are credited to them.
+Asking for another book without `sales.clients.manage` returns your own, not a 403, and
+`?staff=unassigned` is the only value the page passes through.
+
+**Assigning** (`pages/api/sales/clients/assign.ts`, `lib/clientAssign.ts`) sets
+`primaryDesignerId` and nothing else. It never rewrites who an order was credited to, so
+commission and reports don't move. Assigning everyone matching a list sends the count the
+manager saw, and a different count on the server is refused. Assign options are active
+Designers, Managers and Admins, the same list the Pipeline Opportunity report uses.
+
+**On the pipeline** (`pages/api/sales/pipeline/index.ts`):
+
+- `followUpState` (`lib/pipelineFollowUp.ts`): `scheduled` before the date, `due` from that
+  day until someone is contacted, otherwise `overdue` past 7 days with no contact, or
+  `current`. Staff summaries count `due` and `overdue` as overdue.
+- `?search=` looks across open quotes: a manager's across everyone's, a salesperson's across
+  their own (`lib/pipelineSearch.ts`). It reads names, the quote's own notes, a `NOTE` on
+  any of the client's quotes, and Client Info.
+- Filters and sorts run in the browser on what's loaded (`lib/pipelineFilters.ts`). The
+  timeline, room and residence filters come from the store's lists. The value bands
+  ($2,500 and $10,000) are fixed and shown in the store's currency.
+- All Staff shows a "No owner" card: open quotes in nobody's pipeline, counted once per
+  client, without the Cash Sale customer. It links to the assign list.
+- The client panel on a card (`lib/pipelineClientQuery.ts`) shows the last purchase and
+  brands bought. Service charges come out by what they are: the order's
+  `deliveryFeeLineItemId`, and any product with a `serviceType`. Cancelled lines (rule 33)
+  and zero-quantity lines (rule 31) are out too.
+
+**Cash Sale.** `isCashSaleCustomer` matches the customer named exactly "Cash Sale", the shape
+a POS's history often lands register sales in. A store whose history uses another name has
+those sales read as an ordinary client, with no harm beyond a long list. It's a name match
+because nothing else marks that customer yet.
+
+**Tests.** `__tests__/integration/clientBookRoutes.integration.test.ts` (routes, gates,
+pages), `__tests__/integration/pipelineClienteling.integration.test.ts` (the queries), and
+unit tests for each `lib/` file.
 
 ## MANAGER_NOTE Interactions
 

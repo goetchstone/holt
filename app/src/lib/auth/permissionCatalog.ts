@@ -133,6 +133,13 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Create and work leads and the sales pipeline, before there is an order.",
   },
   {
+    key: "sales.clients.manage",
+    domain: "sales",
+    label: "Manage client books",
+    description:
+      "Open any salesperson's client book, and assign clients nobody owns to someone. It never changes who a sale is credited to.",
+  },
+  {
     key: "sales.return",
     domain: "sales",
     label: "Take returns",
@@ -640,6 +647,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "sales.reassign",
       "sales.undo-handover",
       "sales.lead",
+      "sales.clients.manage",
       "sales.return",
       "pos.operate",
       "pos.till.manage",
@@ -798,6 +806,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "sales.reassign",
       "sales.undo-handover",
       "sales.lead",
+      "sales.clients.manage",
       "sales.return",
       "pos.operate",
       "pos.till.manage",

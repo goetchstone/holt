@@ -1233,6 +1233,7 @@ model Customer {
   serviceAppointments ServiceAppointment[]
   leads               Lead[]
   windfallEnrichment  WindfallEnrichment?
+  clientProfile       ClientProfile?
   proposals           Proposal[]
   tickets             Ticket[]
   timeEntries         TimeEntry[]
@@ -4393,6 +4394,40 @@ model ServiceEmail {
 // automatically when a designer takes a customer from the up-board, or
 // manually for phone/email interactions. Can grow into a quote or order.
 
+// ---------------------------------------------------------------------------
+// CLIENT PROFILE (what a salesperson keeps on file about a client: GAP-36,
+// lib/clientProfile.ts). One per customer, so a client with two projects shares it.
+// ---------------------------------------------------------------------------
+
+model ClientProfile {
+  id                 Int       @id @default(autoincrement())
+  customerId         Int       @unique
+  customer           Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  projectDescription String?
+  stylePreferences   String?
+  // Free text beside CustomerAddress: which homes, seasonal use, property types.
+  homes              String?
+  preferredBrands    String?
+  keywords           String[]  @default([])
+  roomsOfInterest    String[]  @default([])
+  residenceType      String?
+  projectTimeline    String?
+  budgetRange        String?
+  decisionMaker      String?
+  closeLikelihood    Int? // 1-10
+  expectedCloseDate  DateTime? @db.Date
+  nextSteps          String[]  @default([])
+  // Overrides the pipeline's 7-day clock until this date (lib/pipelineFollowUp.ts).
+  nextFollowUpDate   DateTime? @db.Date
+  // All of the profile's text, so search can match it in one place.
+  searchText         String?
+
+  created   DateTime  @default(now())
+  updated   DateTime? @updatedAt
+  createdBy String?
+  updatedBy String?
+}
+
 model CustomerInteraction {
   id              Int                 @id @default(autoincrement())
   staffMemberId   Int
@@ -5834,6 +5869,9 @@ model AppSettings {
   // Low stock (GAP-14): who gets the daily list of what's below its reorder
   // point, and at what hour of the store's day. Off until an address is set.
   // lowStockAlertedOn is the store day it last went, so it goes once a day.
+  /// The choices on a client's profile form, as this store has them (GAP-36,
+  /// lib/clientProfile.ts). Null uses the suggested ones.
+  clientProfileChoices Json?
   lowStockAlertEmails String?
   lowStockAlertHour   Int?
   lowStockAlertedOn   String?
