@@ -99,8 +99,10 @@ practice copy.
 - **Then it catches up**: `prisma migrate deploy`, the built-in roles and the settings cache,
   since a starting point may be older than the running version.
 
-Everyone is disconnected for a moment by both. The route and `lib/practiceCopyDatabase.ts`
-both refuse a database not named as practice.
+Everyone is disconnected for a moment by both. Postgres blocks new connections during the copy, so
+this fails only if someone connects in the instant before it starts and stays connected. It then
+says to try again. The route and `lib/practiceCopyDatabase.ts` both refuse a database not named as
+practice.
 
 **Needs a database user that may create databases.** That's the default in
 `docker-compose.yml`. Without it, both buttons say so.

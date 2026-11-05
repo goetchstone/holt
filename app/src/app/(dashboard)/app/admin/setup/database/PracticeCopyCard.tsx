@@ -13,6 +13,8 @@ import { getErrorMessage } from "@/lib/toastError";
 
 type Action = "save" | "start-over";
 
+const CONFIRM_LABEL: Record<Action, string> = { save: "Save it", "start-over": "Start over" };
+
 export function PracticeCopyCard({ savedOn }: Readonly<{ savedOn: string | null }>) {
   const [confirming, setConfirming] = useState<Action | null>(null);
   const [working, setWorking] = useState(false);
@@ -49,7 +51,7 @@ export function PracticeCopyCard({ savedOn }: Readonly<{ savedOn: string | null 
               : `Lose everything done since ${savedOn}?`}
           </span>
           <Button type="button" disabled={working} onClick={() => act(confirming)}>
-            {working ? "Working..." : confirming === "save" ? "Save it" : "Start over"}
+            {working ? "Working..." : CONFIRM_LABEL[confirming]}
           </Button>
           <Button
             type="button"
