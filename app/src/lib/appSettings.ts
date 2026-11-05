@@ -118,6 +118,7 @@ export interface ResolvedAppSettings {
   defaultSplitPercent: number;
   /** Who gets the daily low-stock list, as typed; null is nobody (GAP-14). */
   clientProfileChoices: ClientProfileChoices;
+  costCipherKey: string | null;
   lowStockAlertEmails: string | null;
   /** The hour of the store's day it goes, 0-23; null is off. */
   lowStockAlertHour: number | null;
@@ -186,6 +187,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   discountLimitPercent: 0,
   defaultSplitPercent: EVEN_SPLIT_PERCENT,
   clientProfileChoices: DEFAULT_CLIENT_PROFILE_CHOICES,
+  costCipherKey: null,
   lowStockAlertEmails: null,
   lowStockAlertHour: null,
   quoteHoldMaxDays: QUOTE_HOLD_DEFAULT_MAX_DAYS,
@@ -223,6 +225,7 @@ interface AppSettingsRow {
   discountLimitPercent?: number | null;
   defaultSplitPercent?: number | null;
   clientProfileChoices?: unknown;
+  costCipherKey?: string | null;
   lowStockAlertEmails?: string | null;
   lowStockAlertHour?: number | null;
   quoteHoldMaxDays?: number | null;
@@ -308,6 +311,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
       ? row.defaultSplitPercent
       : EVEN_SPLIT_PERCENT,
     clientProfileChoices: readClientProfileChoices(row.clientProfileChoices),
+    costCipherKey: row.costCipherKey ?? null,
     lowStockAlertEmails: row.lowStockAlertEmails ?? null,
     lowStockAlertHour: row.lowStockAlertHour ?? null,
     quoteHoldMaxDays: isQuoteHoldMaxDays(row.quoteHoldMaxDays)

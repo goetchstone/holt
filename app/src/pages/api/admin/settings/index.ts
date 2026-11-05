@@ -28,6 +28,7 @@ import { isValidTimeZone } from "@/lib/reports/businessDay";
 import { LANDED_COST_SPLIT_KEYS, isLandedCostSplit } from "@/lib/purchasing/landedCostShared";
 import { readAlertEmails } from "@/lib/purchasing/lowStockShared";
 import { parseClientProfileChoices } from "@/lib/clientProfile";
+import { cipherKeyProblem, normalizeCipherKey } from "@/lib/labels/costCode";
 import { IDLE_LOGOFF_RULE, isIdleLogoffMinutes } from "@/lib/auth/idleLogoff";
 import { QUOTE_HOLD_RULE, isQuoteHoldMaxDays } from "@/lib/sales/quoteHoldsShared";
 import { splitPercentProblem } from "@/lib/commissionSplit";
@@ -402,6 +403,23 @@ function parseProfileChoices(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// The letters a tag's cost is coded in (GAP-18, lib/labels/costCode.ts). Blank
+// means tags print no code.
+function parseCostCipherKey(body: Body, data: SettingsData): ParseError {
+  const raw = body.costCipherKey;
+  if (raw === undefined) return null;
+  if (raw !== null && typeof raw !== "string") return { error: "The cost code must be text." };
+  const key = normalizeCipherKey(raw ?? "");
+  if (key === "") {
+    data.costCipherKey = null;
+    return null;
+  }
+  const problem = cipherKeyProblem(key);
+  if (problem) return { error: problem };
+  data.costCipherKey = key;
+  return null;
+}
+
 // Who gets the daily low-stock list and when (GAP-14, lib/purchasing/lowStockAlert.ts).
 // Blank addresses or no hour is off.
 function parseLowStockAlert(body: Body, data: SettingsData): ParseError {
@@ -496,6 +514,7 @@ const SETTINGS_PARSERS = [
   parseDiscountLimit,
   parseDefaultSplit,
   parseProfileChoices,
+  parseCostCipherKey,
   parseLowStockAlert,
   parseQuoteHoldMaxDays,
   parseLandedCostSplit,

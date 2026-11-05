@@ -223,6 +223,19 @@ export function ReceiveView() {
     }
   };
 
+  /** One tag, as this piece is in hand. */
+  const printTag = async (line: PoLine) => {
+    try {
+      const res = await axios.post("/api/print-label", {
+        productId: line.productId,
+        storeLocationId: storeRef.current,
+      });
+      setMessage({ tone: "ok", text: res.data.message });
+    } catch (err) {
+      setMessage({ tone: "error", text: getErrorMessage(err, "The tag did not print.") });
+    }
+  };
+
   const scanned = Object.keys(tallies).length + Object.keys(completions).length > 0;
 
   return (
@@ -267,6 +280,14 @@ export function ReceiveView() {
                       <span className="text-lg font-semibold">{p.units || ""}</span>
                       <span className="block text-xs text-brand-gray">
                         {line.received}/{line.ordered}
+                      </span>
+                      <span className="flex justify-end mt-1">
+                        <button
+                          className="text-xs border border-brand-gray/30 rounded px-2 py-1"
+                          onClick={() => printTag(line)}
+                        >
+                          Tag
+                        </button>
                       </span>
                       {line.boxesPerUnit > 1 && (
                         <span className="flex gap-1 justify-end mt-1">

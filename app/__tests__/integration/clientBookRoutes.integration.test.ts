@@ -334,10 +334,10 @@ describe("a client's info and notes", () => {
   it("the database refuses a close likelihood out of range, whatever a route lets through", async () => {
     const client = await makeClient("Nora", "Vale");
     await expect(
-      prisma.clientProfile.create({ data: { customerId: client.id, closeLikelihood: 101 } }),
+      prisma.clientProfile.create({ data: { customerId: client.id, closeLikelihood: 11 } }),
     ).rejects.toThrow();
     await expect(
-      prisma.clientProfile.create({ data: { customerId: client.id, closeLikelihood: -1 } }),
+      prisma.clientProfile.create({ data: { customerId: client.id, closeLikelihood: 0 } }),
     ).rejects.toThrow();
   });
 

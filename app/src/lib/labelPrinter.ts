@@ -3,7 +3,10 @@
 import { prisma } from "@/lib/prisma";
 import { logger, logError } from "@/lib/logger";
 import net from "net";
-import { renderTemplate, type LabelContext } from "@/lib/labels/renderTemplate";
+import type { LabelContext } from "@/lib/labels/renderTemplate";
+import { LabelSetupError, renderProductTag, type ProductTagKind } from "@/lib/labels/productTag";
+
+export { LabelSetupError } from "@/lib/labels/productTag";
 
 const CONNECT_TIMEOUT_MS = 5000;
 const RETRY_DELAY_MS = 2000;
@@ -75,33 +78,12 @@ async function sendToPrinter(ipAddress: string, port: number, zpl: string): Prom
 }
 
 export async function renderLabel(productId: number, templateId: number): Promise<string> {
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-    include: {
-      vendor: true,
-      upcs: { orderBy: { sortOrder: "asc" }, take: 1, select: { upc: true } },
-    },
-  });
-  if (!product) throw new Error(`Product ${productId} not found`);
-
   const template = await prisma.labelTemplate.findUnique({
     where: { id: templateId },
+    select: { context: true, zplTemplate: true, photoDots: true },
   });
-  if (!template) throw new Error(`Template ${templateId} not found`);
-
-  return renderTemplate(template.zplTemplate, {
-    name: product.name,
-    sku: product.productNumber,
-    vendor: product.vendor.name,
-    // What a scanner reads back to this product (lib/scan/resolveScan.ts):
-    // its first UPC, else its product number.
-    barcode: product.upcs[0]?.upc ?? product.productNumber,
-    width: product.width ?? "",
-    depth: product.depth ?? "",
-    height: product.height ?? "",
-    baseCost: product.baseCost ? Number(product.baseCost).toFixed(2) : "0.00",
-    baseRetail: product.baseRetail ? Number(product.baseRetail).toFixed(2) : "0.00",
-  });
+  if (!template) throw new LabelSetupError(`Template ${templateId} not found`);
+  return renderProductTag(productId, template);
 }
 
 /**
@@ -156,8 +138,6 @@ export async function routeContextLabel(
   return { template, printerId: printer.id };
 }
 
-export class LabelSetupError extends Error {}
-
 export async function printLabel(
   productId: number,
   templateId: number,
@@ -166,7 +146,7 @@ export async function printLabel(
   const printer = await prisma.printer.findUnique({
     where: { id: printerId },
   });
-  if (!printer) throw new Error(`Printer ${printerId} not found`);
+  if (!printer) throw new LabelSetupError(`Printer ${printerId} not found`);
 
   const zpl = await renderLabel(productId, templateId);
   try {
@@ -188,7 +168,14 @@ interface AutoRouteResult {
 
 // Resolves the correct template and printer for a product based on its category.
 // Chain: product -> category -> labelTemplate (via labelTemplateId) -> printer (match tagSize to currentSize)
-export async function resolveRoute(productId: number): Promise<AutoRouteResult> {
+//
+// Given a store, only that store's printers: a tag printed to match a piece has
+// to come out where the piece is. Refuses rather than print somewhere else, as
+// routeContextLabel does. With no store named, the first printer loaded with the size.
+export async function resolveRoute(
+  productId: number,
+  storeName?: string | null,
+): Promise<AutoRouteResult> {
   const product = await prisma.product.findUnique({
     where: { id: productId },
     include: {
@@ -200,24 +187,26 @@ export async function resolveRoute(productId: number): Promise<AutoRouteResult> 
     },
   });
 
-  if (!product) throw new Error(`Product ${productId} not found`);
+  if (!product) throw new LabelSetupError(`Product ${productId} not found`);
 
   const template = product.category?.labelTemplate;
   if (!template) {
     const categoryName = product.category?.name || "none";
-    throw new Error(
+    throw new LabelSetupError(
       `No label template assigned to category "${categoryName}" for product ${product.productNumber}`,
     );
   }
 
   // Find a printer whose currentSize matches the template's tagSize
-  const printer = await prisma.printer.findFirst({
+  const printers = await prisma.printer.findMany({
     where: { currentSize: template.tagSize },
+    orderBy: { id: "asc" },
   });
+  const printer = storeName ? printers.find((p) => p.store === storeName) : printers[0];
 
   if (!printer) {
-    throw new Error(
-      `No printer configured for tag size "${template.tagSize}" (template "${template.name}")`,
+    throw new LabelSetupError(
+      `No printer${storeName ? ` at ${storeName}` : ""} is loaded with ${template.tagSize} labels for template "${template.name}"`,
     );
   }
 
@@ -229,8 +218,41 @@ export async function resolveRoute(productId: number): Promise<AutoRouteResult> 
   };
 }
 
-// Prints a label using auto-routing: product -> category -> template -> printer
-export async function autoRoutePrint(productId: number): Promise<string> {
-  const route = await resolveRoute(productId);
-  return printLabel(productId, route.templateId, route.printerId);
+/**
+ * Print a product's tag of one kind, choosing the template and printer itself: a
+ * price tag by its category, a sale or law tag by the store's template of that
+ * kind. The tag is rendered before anything prints, so one the product can't have
+ * (a sale tag with no was price) prints nothing.
+ */
+export async function printProductTag(args: {
+  productId: number;
+  kind: ProductTagKind;
+  storeName?: string | null;
+  copies: number;
+}): Promise<{ printer: string; template: string }> {
+  const { productId, kind, storeName, copies } = args;
+  const route =
+    kind === "PRODUCT"
+      ? await resolveRoute(productId, storeName)
+      : await contextRouteAsTag(kind, storeName);
+  const zpl = await renderLabel(productId, route.templateId);
+  await printZpl(route.printerId, zpl.repeat(copies));
+  return { printer: route.printerName, template: route.templateName };
+}
+
+async function contextRouteAsTag(
+  kind: ProductTagKind,
+  storeName?: string | null,
+): Promise<AutoRouteResult> {
+  const { template, printerId } = await routeContextLabel(kind, storeName);
+  const printer = await prisma.printer.findUniqueOrThrow({
+    where: { id: printerId },
+    select: { name: true },
+  });
+  return {
+    templateId: template.id,
+    printerId,
+    templateName: template.name,
+    printerName: printer.name,
+  };
 }

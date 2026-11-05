@@ -246,3 +246,21 @@ ALTER TABLE "ClientProfile" DROP CONSTRAINT IF EXISTS "ClientProfile_closeLikeli
 ALTER TABLE "ClientProfile" ADD CONSTRAINT "ClientProfile_closeLikelihood_range" CHECK (
   "closeLikelihood" IS NULL OR "closeLikelihood" BETWEEN 1 AND 10
 );
+
+-- A tag's was price, photo size, print mode and cost code (lib/labels/).
+ALTER TABLE "Product" DROP CONSTRAINT IF EXISTS "Product_wasPrice_positive";
+ALTER TABLE "Product" ADD CONSTRAINT "Product_wasPrice_positive" CHECK (
+  "wasPrice" IS NULL OR "wasPrice" > 0
+);
+ALTER TABLE "LabelTemplate" DROP CONSTRAINT IF EXISTS "LabelTemplate_photoDots_range";
+ALTER TABLE "LabelTemplate" ADD CONSTRAINT "LabelTemplate_photoDots_range" CHECK (
+  "photoDots" IS NULL OR "photoDots" BETWEEN 1 AND 2000
+);
+ALTER TABLE "StaffMember" DROP CONSTRAINT IF EXISTS "StaffMember_tagPrintMode_known";
+ALTER TABLE "StaffMember" ADD CONSTRAINT "StaffMember_tagPrintMode_known" CHECK (
+  "tagPrintMode" IS NULL OR "tagPrintMode" IN ('ONE_AT_A_TIME', 'BATCH')
+);
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_costCipherKey_letters";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_costCipherKey_letters" CHECK (
+  "costCipherKey" IS NULL OR "costCipherKey" ~ '^[A-Z]{10}$'
+);

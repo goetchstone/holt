@@ -16,7 +16,7 @@ import { randomBytes } from "node:crypto";
 
 // Root of every upload destination. All preset uploadDirs resolve
 // beneath here, and the filter rejects any resolved path that escapes.
-const UPLOAD_ROOT = path.resolve(process.cwd(), "data", "uploads");
+export const UPLOAD_ROOT = path.resolve(process.cwd(), "data", "uploads");
 
 interface UploadPreset {
   /** Subdirectory under UPLOAD_ROOT where files will land. Auto-created. */

@@ -482,7 +482,7 @@ What a salesperson keeps on a client, and the screens built on it. The decisions
 `docs/DECISIONS.md` 45. Interaction sources are in `docs/domains/interactions.md`.
 
 **`ClientProfile`** is one row per customer: project, style, homes, brands, keywords,
-rooms, residence, timeline, budget, decision maker, close likelihood (0-100, also a
+rooms, residence, timeline, budget, decision maker, close likelihood (1 to 10, also a
 database CHECK), expected close, next steps and the next follow-up date. `searchText` is
 built from the free text when it's saved, so the pipeline's search can read it. Deleting a
 customer takes the profile. `lib/clientProfile.ts` validates it, and the merge route moves

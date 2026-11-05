@@ -31,13 +31,26 @@ Every label renders through `lib/labels/renderTemplate.ts` (Mustache). Templates
 
 | Context | Fields | Rendered by |
 |---|---|---|
-| PRODUCT | name, sku, vendor, barcode (first UPC, else the product number), width, depth, height, baseCost, baseRetail | `renderLabel` in `lib/labelPrinter.ts` |
+| PRODUCT (price tag) | name, sku, vendor, barcode (first UPC, else the product number), width, depth, height, baseRetail, costCode, baseCost, photo | `renderProductTag` in `lib/labels/productTag.ts` |
+| SALE (sale tag) | as PRODUCT, plus wasPrice, saving, savingPercent | `renderProductTag` |
+| LAW (law tag) | name, sku, vendor, barcode, width, depth, height, lawText | `renderProductTag` |
+| SOLD (sold tag) | name, sku, vendor, quantity, orderNumber, customer, customerLastName, soldOn, salesperson | `lib/labels/soldTag.ts` |
 | LOCATION | locationCode, locationName, path, store, barcode (`L-<placeId>`) | `lib/labels/placeLabel.ts` |
 | BOX | name, sku, box, of, barcode (`B-<productId>-<box>-<of>`), poNumber | `lib/labels/boxLabel.ts` |
 
 A value is escaped for ZPL: `^` and `~` start ZPL commands, so they are replaced with a space. A product named "50^ off" would otherwise end its field and run the rest as a command. Test: `labelRender.test.ts`.
 
 Place and box labels choose their template and printer with `routeContextLabel(context, storeName)`: the first template of that context, and a printer at that store loaded with its tag size. A store with no such printer gets `LabelSetupError` naming what to set up, never another store's printer (it fell back to the first printer anywhere until 2026-10-16, so a warehouse place's label came out at a showroom). Test: `labelRouting.integration.test.ts`. `printZpl(printerId, zpl)` sends to the stored address of a printer chosen by id, never an address from the request.
+
+### Tags (GAP-18, DECISIONS 43)
+
+- **Coded cost.** `AppSettings.costCipherKey`, ten different letters set in Settings: the first stands for 1, the ninth for 9 and the tenth for 0 (`lib/labels/costCode.ts`). `costCode` is the landed cost, else the catalog cost, in whole dollars. With no key it prints nothing, never the real number. `baseCost` is the real number and stays for back-of-house labels, so the template screen says which is which.
+- **Photo.** A template with `photoDots` (the longest side, in dots) gets a `photo` field, placed with `^FO30,30{{photo}}^FS`. `lib/labels/photo.ts` shrinks the picture, never enlarges it, dithers it to one bit and writes a `^GFA` graphic field. Only a picture Holt holds (`/uploads/...`) is read, and a picture at another address isn't fetched. With no picture, or one that can't be read, the field is empty and the tag still prints. That includes HEIC, which the upload accepts and `sharp`'s standard build doesn't read.
+- **Sale tag.** Its price is `baseRetail`, what the register charges, so a tag and a sale can't disagree. `Product.wasPrice` is the price it started at, set on the product's page. It's refused without a was price above retail. Holt has no scheduled sale prices yet (GAP-06), so a markdown is a change to retail plus a was price.
+- **Law tag.** What it has to say depends on where the store is, so the wording is the store's template (rule 61), and `Product.lawTagText` is the product's own part. It's refused without that text. Holt doesn't know the law in a store's state: the demo's template is a sample.
+- **Sold tag.** `POST /api/sales/orders/[id]/sold-tag`, from a line on the order page. Only for a line of an ORDER or FULFILLED order that's still on it with a quantity (rules 31, 33). It prints no price or cost. `customerLastName` is there for a tag on a showroom floor.
+- **One at a time or all at once.** While receiving, one at a time gives each line a "Print tag" button that prints one tag per press, before the receipt saves, so each comes out as its piece is matched. All at once is the checkbox and the batch after saving. The choice is `StaffMember.tagPrintMode`, remembered per person (`account.setTagPrintMode`), and it's one at a time until they choose (owner, 2026-10-29). The handheld's Receive screen has a Tag button on each line.
+- **Which printer.** Given a store, only that store's printers. `resolveRoute` used to take the first printer loaded with the size, anywhere, so a tag could come out in another building. It now refuses and names what's missing, as `routeContextLabel` does. Receiving passes its store.
 
 ## API surfaces
 
@@ -46,13 +59,14 @@ Place and box labels choose their template and printer with `routeContextLabel(c
 | `GET /api/printers/list` | List configured printers | none |
 | `POST /api/printers/create`, `[id]/*` | Admin CRUD on printer rows | ADMIN-gated |
 | `GET /api/labels` | List label templates | — |
-| `POST /api/print-label/batch` | Print N labels in one call | **10 req/min**, max 50 items, 10 copies per item |
-| `POST /api/print-label/*` (single) | Print one label | **30 req/min** |
+| `POST /api/print-label/batch` | Print N price tags in one call (`storeLocationId` keeps them to that store's printers) | **10 req/min**, max 50 items, 10 copies per item; `purchasing.receive` or `warehouse.operate` |
+| `POST /api/print-label` | Print one product's tag (`kind`, `storeLocationId`, `copies` up to 10), or a named template on a named printer. Answers with what it did, never the rendered label, which can carry the real cost | **30 req/min**; `purchasing.receive` or `warehouse.operate` |
+| `POST /api/sales/orders/[id]/sold-tag` | A line's sold tag | `sales.write` or `warehouse.operate` |
 | `POST /api/print/order/*` | Generate receipt/invoice print HTML | 30 req/min |
 | `POST /api/warehouse/stock-locations/[id]/label` | A place's label (`{ copies }`), from Warehouse › Locations | `inventory.locations.manage` or `warehouse.operate` |
 | `POST /api/scan/box-labels` | A PO line's box labels, printed before a multi-box product is received | `purchasing.receive` or `warehouse.operate` |
 
-Auth: `roles: ["ADMIN", "MANAGER", "REGISTER", "WAREHOUSE"]` on user-facing endpoints. ADMIN-only for printer-config CRUD.
+ADMIN-only for printer-config CRUD.
 
 ### Batch caps
 
