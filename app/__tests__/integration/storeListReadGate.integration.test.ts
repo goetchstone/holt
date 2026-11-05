@@ -312,6 +312,7 @@ describe("the setup read answers to either setup screen's key", () => {
         "locationAliases",
         "holdsCommittedStock",
         "moveMode",
+        "countEveryDays",
       ].sort(),
     );
     expect(main).toMatchObject({ address: "1 Harbour Rd", sortOrder: 1 });

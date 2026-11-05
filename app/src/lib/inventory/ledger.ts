@@ -304,6 +304,32 @@ export async function lockProducts(db: PrismaTx, productIds: number[]): Promise<
  * - Either side may be omitted, meaning outside Holt's books.
  */
 export async function postMovement(db: PrismaTx, movement: Movement): Promise<void> {
+  await writeMovement(db, movement, {});
+}
+
+/**
+ * A movement dated in the past, for the demo seed's stock history and for tests.
+ * Application code never calls this: the journal records when Holt was told, and
+ * a route that could date stock movements could rewrite what the books held on
+ * any past day. __tests__/stockWriterTripwire.test.ts fails if anything under
+ * src/ does.
+ */
+export async function postBackdatedMovement(
+  db: PrismaTx,
+  movement: Movement,
+  occurredAt: Date,
+): Promise<void> {
+  if (!(occurredAt.getTime() <= Date.now())) {
+    throw new Error("A backdated stock movement must be dated in the past.");
+  }
+  await writeMovement(db, movement, { occurredAt });
+}
+
+async function writeMovement(
+  db: PrismaTx,
+  movement: Movement,
+  dated: { occurredAt?: Date },
+): Promise<void> {
   if (!Number.isFinite(movement.quantity)) {
     throw new Error(`A stock movement needs a numeric quantity; got ${movement.quantity}.`);
   }
@@ -390,6 +416,7 @@ export async function postMovement(db: PrismaTx, movement: Movement): Promise<vo
         note: movement.note ?? null,
         actionKey: movement.actionKey ?? null,
         orderHandoverId: movement.orderHandoverId ?? null,
+        ...dated,
       },
     });
   });

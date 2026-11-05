@@ -235,6 +235,12 @@ ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_lowStockAlertHour_range" C
   "lowStockAlertHour" IS NULL OR ("lowStockAlertHour" >= 0 AND "lowStockAlertHour" <= 23)
 );
 
+-- How often a place is counted (lib/inventory/countSchedule.ts).
+ALTER TABLE "StockLocation" DROP CONSTRAINT IF EXISTS "StockLocation_countEveryDays_range";
+ALTER TABLE "StockLocation" ADD CONSTRAINT "StockLocation_countEveryDays_range" CHECK (
+  "countEveryDays" IS NULL OR "countEveryDays" BETWEEN 1 AND 3650
+);
+
 -- A tag's was price, photo size, print mode and cost code (lib/labels/).
 ALTER TABLE "Product" DROP CONSTRAINT IF EXISTS "Product_wasPrice_positive";
 ALTER TABLE "Product" ADD CONSTRAINT "Product_wasPrice_positive" CHECK (

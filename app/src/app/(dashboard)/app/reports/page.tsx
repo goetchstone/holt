@@ -61,6 +61,20 @@ const ITEMS: CardGridItem[] = [
     roles: ["MANAGER", "ADMIN"],
   },
   {
+    title: "Aged Stock",
+    description:
+      "How long uncommitted stock has been here, counted from when it came onto the books, with the oldest products listed.",
+    href: "/app/reports/aged-stock",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
+    title: "Inventory Value",
+    description:
+      "What was on the books at the end of any past day, by department or vendor, for one store or all of them, in today's money.",
+    href: "/app/reports/inventory-value",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
     title: "PO Sell-Thru",
     description:
       "Pick purchase orders by number and see how much of what they delivered has sold — sell-through, margin, and realized retail per frame, windowed from each line's receive date.",
@@ -105,6 +119,13 @@ const ITEMS: CardGridItem[] = [
     description:
       "Everything in a store, a building or any place inside it, grouped by the places in it, place type, department, category, vendor or collection — with the units and each group's share of the measured floor.",
     href: "/app/reports/stock-by",
+    roles: ["MANAGER", "ADMIN"],
+  },
+  {
+    title: "Transfers",
+    description:
+      "What moved between stores in a period, by route and one by one, and what is still on its way.",
+    href: "/app/reports/transfers",
     roles: ["MANAGER", "ADMIN"],
   },
   {

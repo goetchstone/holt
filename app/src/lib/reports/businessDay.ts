@@ -160,6 +160,12 @@ export function addDays(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Whole days from one day key to a later one (negative if `to` comes first). */
+export function daysBetween(from: string, to: string): number {
+  const ms = Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`);
+  return Math.round(ms / 86_400_000);
+}
+
 /** "YYYY-MM-DD" naming a real calendar day: a business-day key a caller sent. */
 export function isDayKey(value: unknown): value is string {
   if (typeof value !== "string") return false;

@@ -92,6 +92,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
             locationAliases: true,
             holdsCommittedStock: true,
             moveMode: true,
+            countEveryDays: true,
           },
         },
       },
