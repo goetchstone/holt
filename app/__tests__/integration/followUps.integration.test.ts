@@ -19,6 +19,10 @@ jest.mock("@/lib/email/queue", () => {
   const actual = jest.requireActual("@/lib/email/queue");
   return { ...actual, enqueueEmail: jest.fn(actual.enqueueEmail) };
 });
+jest.mock("@/lib/followUpReportQuery", () => {
+  const actual = jest.requireActual("@/lib/followUpReportQuery");
+  return { ...actual, loadFollowUpRows: jest.fn(actual.loadFollowUpRows) };
+});
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
@@ -312,6 +316,42 @@ describe("All Staff", () => {
     const { body } = await call(pipelineRoute, "mo", { query: { scope: "all" } });
     expect(body.staffSummaries[0]).toMatchObject({ overdueCount: 1 });
   });
+
+  it("goes by whichever contact was later, on the quote or about the client", async () => {
+    const pat = await makeStaff("pat", "DESIGNER", "Pat Lund");
+    await makeStaff("mo", "MANAGER");
+    const calledSince = await makeClient("Otto", "Rand");
+    const firstQuote = await makeOrder(calledSince.id, {
+      salesPersonId: pat.id,
+      orderDate: daysAgo(30),
+    });
+    await logEntry(pat.id, calledSince.id, "PHONE", daysAgo(20), { salesOrderId: firstQuote.id });
+    await logEntry(pat.id, calledSince.id, "PHONE", new Date());
+    const calledOnQuote = await makeClient("Una", "Pike");
+    const secondQuote = await makeOrder(calledOnQuote.id, {
+      salesPersonId: pat.id,
+      orderDate: daysAgo(30),
+    });
+    await logEntry(pat.id, calledOnQuote.id, "PHONE", daysAgo(20));
+    await logEntry(pat.id, calledOnQuote.id, "PHONE", new Date(), { salesOrderId: secondQuote.id });
+
+    const { body } = await call(pipelineRoute, "mo", { query: { scope: "all" } });
+
+    expect(body.staffSummaries[0]).toMatchObject({ quoteCount: 2, overdueCount: 0 });
+  });
+
+  it("doesn't count a contact on one quote for the client's other quote", async () => {
+    const pat = await makeStaff("pat", "DESIGNER", "Pat Lund");
+    await makeStaff("mo", "MANAGER");
+    const client = await makeClient("Otto", "Rand");
+    const called = await makeOrder(client.id, { salesPersonId: pat.id, orderDate: daysAgo(30) });
+    await makeOrder(client.id, { salesPersonId: pat.id, orderDate: daysAgo(30) });
+    await logEntry(pat.id, client.id, "PHONE", new Date(), { salesOrderId: called.id });
+
+    const { body } = await call(pipelineRoute, "mo", { query: { scope: "all" } });
+
+    expect(body.staffSummaries[0]).toMatchObject({ quoteCount: 2, overdueCount: 1 });
+  });
 });
 
 describe("what a quote is worth (rules 31 and 33)", () => {
@@ -340,6 +380,15 @@ describe("what a quote is worth (rules 31 and 33)", () => {
     const card = (await call(pipelineRoute, "pat")).body.quotes[0];
     expect(card.isPlaceholderQuote).toBe(true);
     expect(card.totalAmount).toBe(0);
+  });
+
+  it("and one whose only line has no price", async () => {
+    const pat = await makeStaff("pat");
+    const client = await makeClient("Nora", "Vale");
+    const quote = await makeOrder(client.id, { salesPersonId: pat.id });
+    await addLine(quote.id, 0);
+    const card = (await call(pipelineRoute, "pat")).body.quotes[0];
+    expect(card.isPlaceholderQuote).toBe(true);
   });
 
   it("and in the no-owner card's value", async () => {
@@ -382,7 +431,12 @@ describe("the follow-up views on My Clients", () => {
 describe("who gets suggested", () => {
   const LONG_AGO = () => daysAgo(500);
 
-  async function drifted(pat: { id: number }, firstName = "Nora", spend = 6000) {
+  async function drifted(
+    pat: { id: number },
+    firstName = "Nora",
+    spend = 6000,
+    orderDate = LONG_AGO(),
+  ) {
     const client = await makeClient(firstName, "Vale", {
       primaryDesignerId: pat.id,
       lifetimeSpend: spend,
@@ -390,7 +444,7 @@ describe("who gets suggested", () => {
     await makeOrder(client.id, {
       status: "ORDER",
       salesPersonId: pat.id,
-      orderDate: LONG_AGO(),
+      orderDate,
     });
     return client;
   }
@@ -409,8 +463,9 @@ describe("who gets suggested", () => {
   it("lists a big client gone quiet, biggest first, once the store has", async () => {
     await setStore({ outreachMinLifetimeSpend: 5000 });
     const pat = await makeStaff("pat");
-    const smaller = await drifted(pat, "Smaller", 6000);
-    const bigger = await drifted(pat, "Bigger", 9000);
+    // The default sort is most recent order first, which would put the smaller one first.
+    const smaller = await drifted(pat, "Smaller", 6000, daysAgo(400));
+    const bigger = await drifted(pat, "Bigger", 9000, daysAgo(600));
     const body = await suggested("pat");
     expect(ids(body)).toEqual([bigger.id, smaller.id]);
     expect(body.outreach).toEqual({ minLifetimeSpend: 5000, lapsedMonths: 12, quietDays: 90 });
@@ -642,6 +697,12 @@ describe("quotes waiting on someone", () => {
     const noted = await makeClient("Only", "Noted");
     await makeOrder(noted.id, { salesPersonId: pat.id, orderDate: daysAgo(30) });
     await logEntry(pat.id, noted.id, "NOTE", new Date());
+    const notedOnQuote = await makeClient("Noted", "On Quote");
+    const quoteWithNote = await makeOrder(notedOnQuote.id, {
+      salesPersonId: pat.id,
+      orderDate: daysAgo(30),
+    });
+    await logEntry(pat.id, notedOnQuote.id, "NOTE", new Date(), { salesOrderId: quoteWithNote.id });
     const called = await makeClient("Called", "Client");
     await makeOrder(called.id, { salesPersonId: pat.id, orderDate: daysAgo(30) });
     await logEntry(pat.id, called.id, "PHONE", new Date());
@@ -652,8 +713,36 @@ describe("quotes waiting on someone", () => {
 
     const waiting = await countQuotesWaitingByStaff(new Date());
 
-    expect(waiting.get(pat.id)).toBe(3); // old, due, and the one with only a note
+    expect(waiting.get(pat.id)).toBe(4); // old, due, and the two with only a note
     expect(waiting.size).toBe(1);
+  });
+
+  it("doesn't count a contact on one quote for the client's other quote", async () => {
+    const pat = await makeStaff("pat");
+    const client = await makeClient("Otto", "Rand");
+    const called = await makeOrder(client.id, { salesPersonId: pat.id, orderDate: daysAgo(30) });
+    await makeOrder(client.id, { salesPersonId: pat.id, orderDate: daysAgo(30) });
+    await logEntry(pat.id, client.id, "PHONE", new Date(), { salesOrderId: called.id });
+    expect((await countQuotesWaitingByStaff(new Date())).get(pat.id)).toBe(1);
+  });
+
+  it("goes by whichever contact was later, on the quote or about the client", async () => {
+    const pat = await makeStaff("pat");
+    const calledSince = await makeClient("Otto", "Rand");
+    const firstQuote = await makeOrder(calledSince.id, {
+      salesPersonId: pat.id,
+      orderDate: daysAgo(30),
+    });
+    await logEntry(pat.id, calledSince.id, "PHONE", daysAgo(20), { salesOrderId: firstQuote.id });
+    await logEntry(pat.id, calledSince.id, "PHONE", new Date());
+    const calledOnQuote = await makeClient("Una", "Pike");
+    const secondQuote = await makeOrder(calledOnQuote.id, {
+      salesPersonId: pat.id,
+      orderDate: daysAgo(30),
+    });
+    await logEntry(pat.id, calledOnQuote.id, "PHONE", daysAgo(20));
+    await logEntry(pat.id, calledOnQuote.id, "PHONE", new Date(), { salesOrderId: secondQuote.id });
+    expect((await countQuotesWaitingByStaff(new Date())).size).toBe(0);
   });
 });
 
@@ -704,6 +793,28 @@ describe("the morning email", () => {
     expect(await queueFollowUpEmails(at(14))).toMatchObject({ queued: 1 });
   });
 
+  it("goes by the store's day, not the server's", async () => {
+    await setStore({ followUpEmailHour: 9, timezone: "America/New_York" });
+    const pat = await makeStaff("pat");
+    await clientDue(pat.id);
+    // 2am UTC on the 6th is still the evening of the 5th in New York, past that day's hour.
+    expect(await queueFollowUpEmails(at(2, "2026-11-06"))).toMatchObject({ queued: 1 });
+    const settings = await prisma.appSettings.findUniqueOrThrow({
+      where: { organizationId: DEFAULT_ORG_ID },
+    });
+    expect(settings.followUpEmailedOn).toBe("2026-11-05");
+  });
+
+  it("doesn't build the day's email again once it has gone", async () => {
+    await setStore({ followUpEmailHour: 9 });
+    const pat = await makeStaff("pat");
+    await clientDue(pat.id);
+    await queueFollowUpEmails(at(9));
+    (loadFollowUpRows as jest.Mock).mockClear();
+    expect(await queueFollowUpEmails(at(15))).toBe("already-sent");
+    expect(loadFollowUpRows).not.toHaveBeenCalled();
+  });
+
   it("tells each person their own, to their own address, in the store's money", async () => {
     await setStore({
       followUpEmailHour: 9,
@@ -725,7 +836,15 @@ describe("the morning email", () => {
       orderDate: new Date("2025-01-15T12:00:00.000Z"),
     });
     const waiting = await makeClient("Una", "Pike");
-    await makeOrder(waiting.id, { salesPersonId: pat.id, orderDate: daysAgo(30) });
+    await makeOrder(waiting.id, {
+      salesPersonId: pat.id,
+      orderDate: new Date("2026-10-01T12:00:00.000Z"),
+    });
+    const later = await makeClient("Later", "Date", { primaryDesignerId: pat.id });
+    await setFollowUp(later.id, "2026-12-01");
+    const reached = await makeClient("Already", "Reached", { primaryDesignerId: pat.id });
+    await setFollowUp(reached.id, "2026-11-04");
+    await logEntry(pat.id, reached.id, "PHONE", at(8));
 
     await queueFollowUpEmails(at(9));
 
@@ -747,6 +866,8 @@ describe("the morning email", () => {
     expect(email.html).toContain("£5,000");
     expect(email.html).toContain("Jan 2025");
     expect(email.html).toContain("no order in 12 months and no contact in 90 days");
+    expect(email.html).not.toContain("Later Date");
+    expect(email.html).not.toContain("Already Reached");
   });
 
   it("doesn't suggest anyone when the store hasn't asked", async () => {
@@ -787,9 +908,16 @@ describe("the morning email", () => {
   });
 
   it("leaves out people who've left, roles with no clients, and no address", async () => {
-    await setStore({ followUpEmailHour: 9 });
+    await setStore({ followUpEmailHour: 9, outreachMinLifetimeSpend: 5000 });
     const gone = await makeStaff("gone");
     await clientDue(gone.id);
+    // Their last sale is still theirs in the book, so only being inactive keeps this back.
+    const stillInTheirBook = await makeClient("Otto", "Rand", { lifetimeSpend: 9000 });
+    await makeOrder(stillInTheirBook.id, {
+      status: "ORDER",
+      salesPersonId: gone.id,
+      orderDate: new Date("2025-01-15T12:00:00.000Z"),
+    });
     await prisma.staffMember.update({ where: { id: gone.id }, data: { isActive: false } });
     const wes = await makeStaff("wes", "WAREHOUSE");
     const toWes = await makeClient("To", "Wes", { primaryDesignerId: wes.id });
@@ -799,8 +927,8 @@ describe("the morning email", () => {
     await setFollowUp(toNone.id, "2026-11-05");
     await prisma.staffMember.update({ where: { id: none.id }, data: { email: null } });
 
-    await queueFollowUpEmails(at(9));
-
+    // Only the owner was asked, and has nothing to say.
+    expect(await queueFollowUpEmails(at(9))).toEqual({ queued: 0, nothingToSay: 1, failed: 0 });
     expect(await prisma.emailQueue.count()).toBe(0);
   });
 
@@ -821,6 +949,20 @@ describe("the morning email", () => {
     await expect(queueFollowUpEmails(at(9))).rejects.toThrow("queue is down");
     expect(await prisma.emailQueue.count()).toBe(0);
     expect(await queueFollowUpEmails(at(10))).toMatchObject({ queued: 1 });
+  });
+
+  it("if queuing fails partway, the ones before it don't go either", async () => {
+    await setStore({ followUpEmailHour: 9 });
+    const pat = await makeStaff("pat");
+    await clientDue(pat.id);
+    const sam = await makeStaff("sam");
+    await clientDue(sam.id);
+    (enqueueEmail as jest.Mock)
+      .mockImplementationOnce(jest.requireActual("@/lib/email/queue").enqueueEmail)
+      .mockRejectedValueOnce(new Error("queue is down"));
+    await expect(queueFollowUpEmails(at(9))).rejects.toThrow("queue is down");
+    expect(await prisma.emailQueue.count()).toBe(0);
+    expect(await queueFollowUpEmails(at(10))).toMatchObject({ queued: 2 });
   });
 
   it("goes out through the email cron", async () => {

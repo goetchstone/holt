@@ -283,6 +283,20 @@ describe("the follow-up views", () => {
     expect(ids("due", "Pacific/Kiritimati")).toEqual([1, 2]);
   });
 
+  it("reads the day of a contact by the store's clock too", () => {
+    // 3am UTC on the 4th is the evening of the 3rd in New York, before the date, so it's
+    // still due there. In a UTC store the same call was on the date.
+    const called = entry({
+      customerId: 5,
+      nextFollowUpDate: "2026-11-04",
+      lastContactAt: new Date("2026-11-04T03:00:00.000Z"),
+    });
+    const dueIn = (timeZone: string) =>
+      filterClientBook([called], { ...options, followUp: "due" }, { ...context, timeZone });
+    expect(dueIn("America/New_York")).toHaveLength(1);
+    expect(dueIn("UTC")).toHaveLength(0);
+  });
+
   it("reads an unknown view as All", () => {
     expect(parseClientBookOptions({ followUp: "nonsense" }).followUp).toBe("all");
     expect(parseClientBookOptions({ followUp: "suggested" }).followUp).toBe("suggested");

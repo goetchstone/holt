@@ -7,7 +7,7 @@
 // one transaction, so two runs at once send one set, and a failure tries again next run.
 
 import { DEFAULT_ORG_ID, getAppSettings } from "@/lib/appSettings";
-import { CLIENT_BOOK_PAGE_SIZE, parseClientBookOptions, readOutreachRules } from "@/lib/clientBook";
+import { parseClientBookOptions, readOutreachRules } from "@/lib/clientBook";
 import { fetchClientBook, type ClientBookRow } from "@/lib/clientBookQuery";
 import { CLIENT_OWNER_ROLES } from "@/lib/clientOwnership";
 import { enqueueEmail } from "@/lib/email/queue";
@@ -126,7 +126,7 @@ export async function queueFollowUpEmails(now: Date = new Date()): Promise<Follo
           .map((row) => dueClient(row, formats)),
         quotesWaiting: quotesWaiting.get(staff.id) ?? 0,
         suggested: suggested.rows
-          .slice(0, Math.min(SUGGESTED_LISTED, CLIENT_BOOK_PAGE_SIZE))
+          .slice(0, SUGGESTED_LISTED)
           .map((row) => suggestedClient(row, formats)),
         suggestedCount: suggested.total,
         suggestedWhy: rules

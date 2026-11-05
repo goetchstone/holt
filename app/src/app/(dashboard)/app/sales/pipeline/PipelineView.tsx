@@ -36,10 +36,7 @@ import { ClientNoteModal } from "@/components/pipeline/ClientNoteModal";
 import { LogContactModal } from "@/components/pipeline/LogContactModal";
 import { PipelineFilterBar } from "@/components/pipeline/PipelineFilterBar";
 import { QuoteClientPanel } from "@/components/pipeline/QuoteClientPanel";
-import {
-  INTERACTION_SOURCE_LABELS,
-  type InteractionSource,
-} from "@/lib/interactionSources";
+import { INTERACTION_SOURCE_LABELS, type InteractionSource } from "@/lib/interactionSources";
 import {
   countActiveFilters,
   DEFAULT_PIPELINE_FILTERS,
