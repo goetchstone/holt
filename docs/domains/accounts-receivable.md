@@ -185,5 +185,14 @@ Real-DB proof: `__tests__/integration/invoiceLifecycle.integration.test.ts`
 (issue → balanced journal + ledger; partial + closing payments; drift
 tie-out; void reversal; missing-mapping guards).
 
+**Store credit pays an invoice too (GAP-26).** `STORE_CREDIT` is one of
+`INVOICE_PAYMENT_METHODS`, offered on "Record payment" when the invoice's customer has
+some. It's an ordinary `recordInvoicePayment`, plus `spendStoreCreditOnInvoice`
+(`lib/customerCredit.ts`) in the same transaction, so credit that isn't there writes
+nothing. The journal debits whatever "Store Credit" maps to under POS Payments, the
+liability, not cash, and with no mapping it's refused. The credit row carries the
+invoice's number and the payment, and no order, since an invoice needn't have one. As
+with every invoice payment, there's no refund path yet (below).
+
 Still open (AR slices 2-4): customer deposits as liability, progress
 invoicing, credit memos / refunds of invoice payments.

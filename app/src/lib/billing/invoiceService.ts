@@ -36,6 +36,7 @@ import type { JournalLine } from "@/lib/journalEntry";
 import { INVOICE_PAYMENT_LABELS, type InvoicePaymentMethod } from "@/lib/billing/invoiceShared";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { resolveTenderPayment, TenderError } from "@/lib/payments/tenders";
+import { spendStoreCreditOnInvoice, StoreCreditError } from "@/lib/customerCredit";
 
 type Tx = Prisma.TransactionClient;
 
@@ -80,6 +81,8 @@ export interface InvoiceSummary {
 
 export interface InvoiceDetail extends InvoiceSummary {
   notes: string | null;
+  /** The customer's store credit, which can pay this invoice. */
+  customerCredit: number;
   issuedAt: string | null;
   subtotal: number;
   lines: {
@@ -499,6 +502,19 @@ async function labelInvoicePayment(tx: Prisma.TransactionClient, input: RecordIn
   };
 }
 
+/** Spend store credit, with a refusal in the words the screen shows (rule 11). */
+async function spendCredit(
+  tx: Prisma.TransactionClient,
+  input: Parameters<typeof spendStoreCreditOnInvoice>[1],
+): Promise<void> {
+  try {
+    await spendStoreCreditOnInvoice(tx, input);
+  } catch (err) {
+    if (err instanceof StoreCreditError) throw new InvoiceValidationError(err.message);
+    throw err;
+  }
+}
+
 /**
  * Record a manual (non-Stripe) payment against an ISSUED invoice. One tx:
  * COMPLETED Payment + PAYMENT ledger entry + PaymentApplication + AR_PAYMENT
@@ -564,6 +580,17 @@ export async function recordInvoicePayment(
       },
       select: { id: true },
     });
+    // The whole transaction falls with it, so credit that isn't there writes
+    // nothing. The journal's debit retires the Store Credit liability.
+    if (method === "STORE_CREDIT") {
+      await spendCredit(tx, {
+        customerId: invoice.customerId,
+        amount,
+        paymentId: payment.id,
+        invoiceId: id,
+        createdBy: input.createdBy,
+      });
+    }
     await appendEntry(
       {
         customerId: invoice.customerId,
@@ -776,7 +803,7 @@ export async function getInvoiceDetail(id: number): Promise<InvoiceDetail> {
       taxAmount: true,
       notes: true,
       issuedAt: true,
-      customer: { select: { firstName: true, lastName: true, email: true } },
+      customer: { select: { firstName: true, lastName: true, email: true, creditBalance: true } },
       lineItems: {
         orderBy: { sortOrder: "asc" },
         select: { id: true, description: true, quantity: true, unitPrice: true, amount: true },
@@ -803,6 +830,7 @@ export async function getInvoiceDetail(id: number): Promise<InvoiceDetail> {
     customerId: r.customerId,
     customerName: customerLabel(r.customer),
     customerEmail: r.customer?.email ?? null,
+    customerCredit: Number(r.customer?.creditBalance ?? 0),
     total,
     taxAmount,
     subtotal: round2(total - taxAmount),

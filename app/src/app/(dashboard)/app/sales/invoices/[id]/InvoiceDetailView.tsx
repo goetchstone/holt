@@ -327,9 +327,13 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: number }) {
               onChange={(e) => setPayMethod(e.target.value)}
               className="min-h-[44px] rounded border border-gray-300 px-3 text-sm"
             >
-              {INVOICE_PAYMENT_METHODS.map((m) => (
+              {INVOICE_PAYMENT_METHODS.filter(
+                (m) => m !== "STORE_CREDIT" || invoice.customerCredit > 0,
+              ).map((m) => (
                 <option key={m} value={m}>
-                  {INVOICE_PAYMENT_LABELS[m]}
+                  {m === "STORE_CREDIT"
+                    ? `${INVOICE_PAYMENT_LABELS[m]} (${money(invoice.customerCredit)} available)`
+                    : INVOICE_PAYMENT_LABELS[m]}
                 </option>
               ))}
               {(storeTenders.data ?? []).map((t) => (

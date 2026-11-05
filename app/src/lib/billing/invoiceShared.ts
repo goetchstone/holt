@@ -7,7 +7,15 @@
 
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 
-export const INVOICE_PAYMENT_METHODS = ["CASH", "CARD", "CHECK", "WIRE", "ACH", "OTHER"] as const;
+export const INVOICE_PAYMENT_METHODS = [
+  "CASH",
+  "CARD",
+  "CHECK",
+  "WIRE",
+  "ACH",
+  "STORE_CREDIT",
+  "OTHER",
+] as const;
 export type InvoicePaymentMethod = (typeof INVOICE_PAYMENT_METHODS)[number];
 
 // Display labels for manual invoice payments: the same METHOD_DISPLAY labels
