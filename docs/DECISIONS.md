@@ -1410,6 +1410,42 @@ that reaches last contact past four notes and one for each role that's kept out;
 
 ---
 
+## 46. The morning email goes through Holt's queue, and a store turns it on (2026-11-05)
+
+**Decided (GAP-36):** each salesperson can get one email a morning with their follow-ups due,
+quotes waiting and past clients worth a call.
+
+- **Off until a store sets an hour.** A new store emails nobody by surprise.
+- **Holt's own email queue and cron**, the same way as the low stock alert (DECISIONS 41). A
+  store needs nothing beyond the email it has already set up.
+- **One day claimed, in one transaction with the queuing.** Two runs at once send one set. If
+  queuing fails, nothing went and the next run tries again.
+- **Each follow-up belongs to one person**, so one person is reminded: the active primary
+  designer, else whoever set the date, else whoever made the latest sale.
+- **Suggestions are off until a store sets a lifetime spend.** What counts as a big client
+  depends on the store. The other two numbers have defaults a store can change.
+- **Anyone can turn theirs off**, on My Clients, without asking a manager.
+
+**Rejected:**
+
+- **Fixed thresholds.** They were measured on one store's history (rules 41, 61).
+- **Sending from an outside job with its own mail account.** That's a second way to send email,
+  with its own credentials to set up and its own way to fail.
+- **Leaving a store's B2B orders out of a client's last purchase by a store name.** That would be
+  a deployment fact in code. If a store needs it, it's a setting, and it's recorded as open.
+- **A company-address check for staff buying for themselves.** Which domains are the store's own
+  is a deployment fact, and Holt has no setting for it. Staff are matched by their own email or
+  whole name, so a purchase under another company address reads as a client's.
+
+**Enforced by:** `__tests__/integration/followUps.integration.test.ts`, which includes two runs at
+once and a queuing failure; `__tests__/followUpEmailTemplate.test.ts`, including what people typed
+arriving as text; the CHECKs on the settings.
+
+**Source:** [`app/src/lib/followUpEmail.ts`](../app/src/lib/followUpEmail.ts),
+[`app/src/lib/clientBook.ts`](../app/src/lib/clientBook.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

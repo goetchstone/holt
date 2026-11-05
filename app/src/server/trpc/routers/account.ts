@@ -82,6 +82,21 @@ export const accountRouter = router({
   // left open is not enough to set it. Setting it also clears a lockout.
   // How this person prints tags while receiving; remembered from one receipt to
   // the next.
+  /** Whether this person gets the morning follow-up email (lib/followUpEmail.ts). */
+  setFollowUpEmail: protectedProcedure
+    .input(z.object({ on: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const staff = await staffForUser(ctx.userId);
+      if (!staff) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No staff record for this account." });
+      }
+      await prisma.staffMember.update({
+        where: { id: staff.id },
+        data: { followUpEmailOff: !input.on },
+      });
+      return { on: input.on };
+    }),
+
   setTagPrintMode: protectedProcedure
     .input(z.object({ mode: z.enum(TAG_PRINT_MODES) }))
     .mutation(async ({ ctx, input }) => {

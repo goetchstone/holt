@@ -27,7 +27,7 @@ fi
 # To override the backfill window: scripts/auto-axper-traffic.sh '{"backfillWindowDays":60}'
 BODY="${1:-{}}"
 
-curl -sf -X POST \
+curl -sSf -X POST \
   -H "Authorization: Bearer ${AUTO_IMPORT_API_KEY}" \
   -H "Content-Type: application/json" \
   -d "${BODY}" \

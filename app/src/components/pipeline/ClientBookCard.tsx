@@ -1,7 +1,7 @@
 // /app/src/components/pipeline/ClientBookCard.tsx
 
 import { useState } from "react";
-import { ChevronRight, ClipboardList, StickyNote } from "lucide-react";
+import { Calendar, ChevronRight, ClipboardList, PhoneCall, StickyNote } from "lucide-react";
 import { LeadScoreBadge } from "@/components/customer/LeadScoreBadge";
 import { ClientActionChip, ClientContactChips } from "@/components/pipeline/ClientActionChip";
 import { ClientInfoSummary } from "@/components/pipeline/ClientInfoSummary";
@@ -18,6 +18,27 @@ function clientName(client: ClientBookRow): string {
 
 function pluralize(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+function shortDate(date: string): string {
+  return parseLocalDate(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function followUpChipLabel(client: ClientBookRow): string {
+  const date = client.profile?.nextFollowUpDate;
+  if (client.followUp === "due" && date) return `Follow-up due ${shortDate(date)}`;
+  if (client.followUp === "scheduled" && date) return `Follow up ${shortDate(date)}`;
+  return "Set next follow-up";
+}
+
+function lastContactLine(lastContactAt: string | null): string {
+  if (!lastContactAt) return "No contact on record";
+  const last = new Date(lastContactAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `Last contact ${last}`;
 }
 
 function unownedLine(client: ClientBookRow): string {
@@ -79,6 +100,7 @@ export function ClientBookCard({
   onAssign,
   onAddNote,
   onClientInfo,
+  onLogContact,
 }: Readonly<{
   client: ClientBookRow;
   staffName: string | null; // null when listing clients no one owns
@@ -87,6 +109,7 @@ export function ClientBookCard({
   onAssign: (client: ClientBookRow, staffId: number) => void;
   onAddNote: (client: ClientBookRow) => void;
   onClientInfo: (client: ClientBookRow) => void;
+  onLogContact: (client: ClientBookRow) => void;
 }>) {
   const [showNotes, setShowNotes] = useState(false);
   const latestNote = client.notes[0];
@@ -108,6 +131,7 @@ export function ClientBookCard({
       <p className="text-xs text-brand-gray">
         {staffName === null ? unownedLine(client) : staffLine(client, staffName)}
       </p>
+      <p className="text-xs text-brand-gray">{lastContactLine(client.lastContactAt)}</p>
       <ClientHistoryLine history={client.history} />
 
       <div className="flex flex-wrap gap-2 pt-1">
@@ -116,8 +140,21 @@ export function ClientBookCard({
         )}
         <ClientContactChips customerId={client.id} phone={client.phone} email={client.email} />
         <ClientActionChip
+          icon={<PhoneCall className="w-3.5 h-3.5" />}
+          emphasis
+          onClick={() => onLogContact(client)}
+        >
+          Log contact
+        </ClientActionChip>
+        <ClientActionChip
+          icon={<Calendar className="w-3.5 h-3.5" />}
+          emphasis={client.followUp === "due"}
+          onClick={() => onClientInfo(client)}
+        >
+          {followUpChipLabel(client)}
+        </ClientActionChip>
+        <ClientActionChip
           icon={<ClipboardList className="w-3.5 h-3.5" />}
-          emphasis={!hasClientInfo(client.profile)}
           onClick={() => onClientInfo(client)}
         >
           {hasClientInfo(client.profile) ? "Edit client info" : "Add client info"}

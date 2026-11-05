@@ -12,6 +12,28 @@ export const OVERDUE_AFTER_DAYS = 7;
 
 export type FollowUpState = "current" | "overdue" | "scheduled" | "due";
 
+/** A date that has arrived, with nobody having reached the client since. */
+export function isFollowUpDue(
+  nextFollowUpDate: string | null,
+  lastContactDate: string | null,
+  today: string,
+): boolean {
+  if (!nextFollowUpDate || nextFollowUpDate > today) return false;
+  return lastContactDate === null || lastContactDate < nextFollowUpDate;
+}
+
+/** Where a client stands on their own date, whether or not they have an open quote. */
+export type ClientFollowUp = "due" | "scheduled" | null;
+
+export function getClientFollowUp(
+  nextFollowUpDate: string | null,
+  lastContactDate: string | null,
+  today: string,
+): ClientFollowUp {
+  if (isFollowUpDue(nextFollowUpDate, lastContactDate, today)) return "due";
+  return nextFollowUpDate && nextFollowUpDate > today ? "scheduled" : null;
+}
+
 export function getFollowUpState(input: {
   nextFollowUpDate: string | null;
   lastContactDate: string | null;
@@ -19,12 +41,12 @@ export function getFollowUpState(input: {
   daysSinceCreated: number;
   today: string;
 }): FollowUpState {
-  const { nextFollowUpDate, lastContactDate } = input;
-  if (nextFollowUpDate) {
-    if (nextFollowUpDate > input.today) return "scheduled";
-    const contactedSinceDate = lastContactDate !== null && lastContactDate >= nextFollowUpDate;
-    if (!contactedSinceDate) return "due";
-  }
+  const clientFollowUp = getClientFollowUp(
+    input.nextFollowUpDate,
+    input.lastContactDate,
+    input.today,
+  );
+  if (clientFollowUp) return clientFollowUp;
   const daysWaiting = input.daysSinceContact ?? input.daysSinceCreated;
   return daysWaiting > OVERDUE_AFTER_DAYS ? "overdue" : "current";
 }

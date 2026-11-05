@@ -264,3 +264,75 @@ export function lowStockEmail(input: LowStockEmailInput): RenderedEmail {
     <p style="margin:24px 0"><a href="${escapeHtml(input.url)}" style="background:#1c1f2e;color:#f5f4f0;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Order from Low stock</a></p>`;
   return { subject, html: layout(input.storeName, subject, body) };
 }
+
+export interface FollowUpEmailClient {
+  name: string;
+  detail: string;
+}
+
+export interface FollowUpEmailInput {
+  storeName: string;
+  staffName: string;
+  baseUrl: string;
+  due: FollowUpEmailClient[];
+  quotesWaiting: number;
+  suggested: FollowUpEmailClient[];
+  suggestedCount: number;
+  suggestedWhy: string;
+}
+
+export const FOLLOW_UP_EMAIL_MAX_DUE = 15;
+
+function followUpSubject(input: FollowUpEmailInput): string {
+  const count = (n: number, word: string) =>
+    `${n.toLocaleString("en-US")} ${word}${n === 1 ? "" : "s"}`;
+  const parts: string[] = [];
+  if (input.due.length > 0) parts.push(`${input.due.length} due`);
+  if (input.quotesWaiting > 0) parts.push(`${count(input.quotesWaiting, "quote")} waiting`);
+  if (input.suggestedCount > 0) parts.push(`${count(input.suggestedCount, "past client")} to call`);
+  return `Your follow-ups: ${parts.join(", ")}`;
+}
+
+/** Null when there's nothing to say, so nobody gets an empty email. */
+export function followUpEmail(input: FollowUpEmailInput): RenderedEmail | null {
+  const { due, quotesWaiting, suggested, suggestedCount, baseUrl } = input;
+  if (due.length === 0 && quotesWaiting === 0 && suggestedCount === 0) return null;
+
+  const clientList = (clients: FollowUpEmailClient[]) =>
+    `<ul style="margin:8px 0;padding-left:20px">${clients
+      .map(
+        (client) =>
+          `<li style="margin:4px 0"><strong>${escapeHtml(client.name)}</strong>: ${escapeHtml(client.detail)}</li>`,
+      )
+      .join("")}</ul>`;
+  const link = (path: string, label: string) =>
+    `<p style="margin:8px 0"><a href="${escapeHtml(`${baseUrl}${path}`)}">${label}</a></p>`;
+  const heading = (text: string) => `<h3 style="margin:24px 0 8px;font-size:15px">${text}</h3>`;
+
+  const sections = [`<p>Good morning ${escapeHtml(input.staffName)},</p>`];
+  if (due.length > 0) {
+    const hidden = due.length - FOLLOW_UP_EMAIL_MAX_DUE;
+    sections.push(
+      heading(`Follow-ups due (${due.length})`),
+      clientList(due.slice(0, FOLLOW_UP_EMAIL_MAX_DUE)),
+      hidden > 0 ? `<p>And ${hidden} more.</p>` : "",
+      link("/app/sales/clients?show=due", "See them all"),
+    );
+  }
+  if (quotesWaiting > 0) {
+    sections.push(
+      heading(`Open quotes waiting on you (${quotesWaiting})`),
+      link("/app/sales/pipeline", "Open your pipeline"),
+    );
+  }
+  if (suggestedCount > 0) {
+    sections.push(
+      heading(`Past clients worth a call (${suggestedCount})`),
+      `<p style="margin:8px 0">${escapeHtml(input.suggestedWhy)}</p>`,
+      clientList(suggested),
+      link("/app/sales/clients?show=suggested", "See the list"),
+    );
+  }
+  const subject = followUpSubject(input);
+  return { subject, html: layout(input.storeName, subject, sections.join("\n")) };
+}

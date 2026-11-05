@@ -219,6 +219,9 @@ async function seedClientInfo(
       },
     });
   }
+  // Suggestions are off until a store sets this; the demo shows them, at a level that fits
+  // its smaller, newer history. The morning email stays off, so a demo sends nobody anything.
+  await prisma.appSettings.updateMany({ data: { outreachMinLifetimeSpend: 200 } });
   return clients.length;
 }
 

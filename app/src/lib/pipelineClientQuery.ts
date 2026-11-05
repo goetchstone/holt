@@ -4,8 +4,10 @@
 // keeps on a client, and what that client last bought. Split from the API handler
 // so they are real-DB testable and Prisma stays out of the pure helpers.
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { CLIENT_NOTE_SOURCE } from "@/lib/interactionSources";
+import { COUNTED_LINE_STATUSES } from "@/lib/salesOrderRevenue";
+import { CLIENT_NOTE_SOURCE, CONTACT_SOURCES } from "@/lib/interactionSources";
 import {
   distinctLocations,
   topBrands,
@@ -16,7 +18,15 @@ import {
 const MAX_NOTES_PER_CLIENT = 25;
 const LAST_PURCHASE_ITEM_COUNT = 3;
 
-const CLIENT_NOTE_SELECT = {
+/** The lines a quote's value is made of: not cancelled or replaced (rule 33), not zero
+ *  quantity (rule 31), and priced. */
+export const COUNTED_QUOTE_LINE = {
+  netPrice: { gt: 0 },
+  orderedQuantity: { gt: 0 },
+  lineItemStatus: { in: [...COUNTED_LINE_STATUSES] },
+} satisfies Prisma.OrderLineItemWhereInput;
+
+const CLIENT_ENTRY_SELECT = {
   id: true,
   customerId: true,
   source: true,
@@ -35,25 +45,58 @@ export interface ClientNoteRow {
   staffMember: { displayName: string };
 }
 
-export async function fetchClientNotesByCustomer(
+/** What shows on all of a client's quotes: their notes, and contacts logged about the
+ *  client rather than one quote, such as a call from My Clients. */
+export async function fetchClientWideEntries(
   customerIds: number[],
 ): Promise<Map<number, ClientNoteRow[]>> {
   const byCustomer = new Map<number, ClientNoteRow[]>();
   if (customerIds.length === 0) return byCustomer;
 
-  const notes = await prisma.customerInteraction.findMany({
-    where: { customerId: { in: customerIds }, source: CLIENT_NOTE_SOURCE },
+  const entries = await prisma.customerInteraction.findMany({
+    where: {
+      customerId: { in: customerIds },
+      OR: [
+        { source: CLIENT_NOTE_SOURCE },
+        { salesOrderId: null, source: { in: [...CONTACT_SOURCES] } },
+      ],
+    },
     orderBy: { startedAt: "desc" },
-    select: CLIENT_NOTE_SELECT,
+    select: CLIENT_ENTRY_SELECT,
   });
 
-  for (const note of notes) {
-    if (note.customerId === null) continue;
-    const list = byCustomer.get(note.customerId) ?? [];
-    if (list.length < MAX_NOTES_PER_CLIENT) list.push(note);
-    byCustomer.set(note.customerId, list);
+  for (const entry of entries) {
+    if (entry.customerId === null) continue;
+    const list = byCustomer.get(entry.customerId) ?? [];
+    if (list.length < MAX_NOTES_PER_CLIENT) list.push(entry);
+    byCustomer.set(entry.customerId, list);
   }
   return byCustomer;
+}
+
+/** When we last reached each client. Notes aren't reaching them. clientWideOnly leaves out
+ *  contacts logged on a particular quote, which don't count for the client's other quotes. */
+export async function fetchLastContactByCustomer(
+  customerIds: number[],
+  options: { clientWideOnly?: boolean } = {},
+): Promise<Map<number, Date>> {
+  if (customerIds.length === 0) return new Map();
+  const logged = await prisma.customerInteraction.groupBy({
+    by: ["customerId"],
+    where: {
+      customerId: { in: customerIds },
+      source: { in: [...CONTACT_SOURCES] },
+      ...(options.clientWideOnly ? { salesOrderId: null } : {}),
+    },
+    _max: { startedAt: true },
+  });
+  const lastContact = new Map<number, Date>();
+  for (const row of logged) {
+    if (row.customerId !== null && row._max.startedAt) {
+      lastContact.set(row.customerId, row._max.startedAt);
+    }
+  }
+  return lastContact;
 }
 
 /** Goods only: a product with a service type (delivery, install, measure, house call)

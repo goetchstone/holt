@@ -12,9 +12,10 @@ import {
   type ClientProfileView,
 } from "@/lib/clientProfile";
 import { hasPurchased } from "@/lib/pipelineClient";
-import { needsAttention, type FollowUpState } from "@/lib/pipelineFollowUp";
+import { addDaysToCalendarDate, needsAttention, type FollowUpState } from "@/lib/pipelineFollowUp";
 
 const ALL = "all";
+const DUE_SOON_DAYS = 7;
 
 function optionsFrom(values: readonly string[], allLabel: string) {
   return [{ value: ALL, label: allLabel }, ...values.map((value) => ({ value, label: value }))];
@@ -23,7 +24,10 @@ function optionsFrom(values: readonly string[], allLabel: string) {
 export const FOLLOW_UP_FILTERS = [
   { value: ALL, label: "All follow-ups" },
   { value: "attention", label: "Needs attention" },
-  { value: "scheduled", label: "Scheduled" },
+  { value: "due", label: "Follow-up date due" },
+  { value: "overdue", label: "Overdue, no date set" },
+  { value: "dueSoon", label: "Follow-up in the next 7 days" },
+  { value: "scheduled", label: "Follow-up scheduled" },
   { value: "noContact", label: "No contact yet" },
 ];
 
@@ -120,8 +124,18 @@ export interface FilterableQuote {
   interactions: { notes: string | null }[];
 }
 
-function matchesFollowUp(quote: FilterableQuote, filter: string): boolean {
+function matchesFollowUp(quote: FilterableQuote, filter: string, today: string): boolean {
   if (filter === "attention") return needsAttention(quote.followUpState);
+  if (filter === "due") return quote.followUpState === "due";
+  if (filter === "overdue") return quote.followUpState === "overdue";
+  if (filter === "dueSoon") {
+    const date = quote.customer?.profile?.nextFollowUpDate;
+    return (
+      quote.followUpState === "scheduled" &&
+      Boolean(date) &&
+      (date as string) <= addDaysToCalendarDate(today, DUE_SOON_DAYS)
+    );
+  }
   if (filter === "scheduled") return quote.followUpState === "scheduled";
   if (filter === "noContact") return quote.lastInteractionAt === null;
   return true;
@@ -163,11 +177,12 @@ function matchesProfileChoice(actual: string | null | undefined, filter: string)
 export function filterPipelineQuotes<T extends FilterableQuote>(
   quotes: T[],
   filters: PipelineFilters,
+  today: string,
 ): T[] {
   return quotes.filter((quote) => {
     const profile = quote.customer?.profile;
     return (
-      matchesFollowUp(quote, filters.followUp) &&
+      matchesFollowUp(quote, filters.followUp, today) &&
       (filters.store === ALL || quote.storeLocation === filters.store) &&
       (filters.tier === ALL || quote.customer?.leadTier === filters.tier) &&
       matchesClient(quote, filters.client) &&

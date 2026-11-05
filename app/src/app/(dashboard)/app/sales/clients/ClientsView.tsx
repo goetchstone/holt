@@ -14,15 +14,21 @@ import { BulkAssignBar } from "@/components/pipeline/BulkAssignBar";
 import { ClientBookCard } from "@/components/pipeline/ClientBookCard";
 import { ClientInfoModal } from "@/components/pipeline/ClientInfoModal";
 import { ClientNoteModal } from "@/components/pipeline/ClientNoteModal";
+import { LogContactModal } from "@/components/pipeline/LogContactModal";
+import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
+import { api } from "@/lib/trpc/client";
 import { usePersistentFilters } from "@/hooks/usePersistentFilters";
 import {
   CLIENT_BOOK_SORTS,
+  CLIENT_FOLLOW_UP_VIEWS,
   CLIENT_NOTE_FILTERS,
   LAST_ORDER_FILTERS,
   UNASSIGNED_STAFF_ID,
   type ClientBookSort,
   type ClientNoteFilter,
+  type ClientFollowUpView,
   type LastOrderFilter,
+  type OutreachRules,
 } from "@/lib/clientBook";
 import type { ClientBookRow } from "@/lib/clientBookQuery";
 import { getErrorMessage } from "@/lib/toastError";
@@ -50,7 +56,21 @@ function clientFullName(client: ClientBookRow): string {
   return `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || "No name";
 }
 
-export function ClientsView({ linkedBook }: Readonly<{ linkedBook: string | null }>) {
+function SuggestedNote({ rules }: Readonly<{ rules: OutreachRules }>) {
+  const money = useMoneyFormatter();
+  return (
+    <>
+      . Past clients who&apos;ve spent {money(rules.minLifetimeSpend, { whole: true })} or more,
+      with no order in {rules.lapsedMonths} months, no contact in {rules.quietDays} days and no open
+      quote or follow-up date. Biggest first.
+    </>
+  );
+}
+
+export function ClientsView({
+  linkedBook,
+  linkedView,
+}: Readonly<{ linkedBook: string | null; linkedView: ClientFollowUpView }>) {
   const [data, setData] = useState<ClientBookResponse | null>(null);
   const [loadedKey, setLoadedKey] = useState("");
   const [search, setSearch] = useState("");
@@ -62,6 +82,9 @@ export function ClientsView({ linkedBook }: Readonly<{ linkedBook: string | null
   const [refreshKey, setRefreshKey] = useState(0);
   const [noteTarget, setNoteTarget] = useState<ClientBookRow | null>(null);
   const [infoTarget, setInfoTarget] = useState<ClientBookRow | null>(null);
+  const [contactTarget, setContactTarget] = useState<ClientBookRow | null>(null);
+  const [followUp, setFollowUp] = useState<ClientFollowUpView>(linkedView);
+  const setMorningEmail = api.account.setFollowUpEmail.useMutation();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -76,6 +99,7 @@ export function ClientsView({ linkedBook }: Readonly<{ linkedBook: string | null
 
   const requestParams = JSON.stringify({
     ...filters,
+    followUp,
     page,
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     ...(openBook ? { staffId: openBook } : {}),
@@ -209,6 +233,24 @@ export function ClientsView({ linkedBook }: Readonly<{ linkedBook: string | null
           {data && (
             <>
               <select
+                aria-label="Show"
+                value={followUp}
+                onChange={(e) => {
+                  setFollowUp(e.target.value as ClientFollowUpView);
+                  setPage(1);
+                }}
+                className={SELECT_CLASS}
+              >
+                {CLIENT_FOLLOW_UP_VIEWS.filter(
+                  (view) =>
+                    view.value !== "suggested" || (!listsUnassigned && data.outreach !== null),
+                ).map((view) => (
+                  <option key={view.value} value={view.value}>
+                    {view.label}
+                  </option>
+                ))}
+              </select>
+              <select
                 aria-label="Last order"
                 value={filters.lastOrder}
                 onChange={(e) => changeFilters({ lastOrder: e.target.value as LastOrderFilter })}
@@ -232,25 +274,49 @@ export function ClientsView({ linkedBook }: Readonly<{ linkedBook: string | null
                   </option>
                 ))}
               </select>
-              <select
-                aria-label="Sort clients"
-                value={filters.sort}
-                onChange={(e) => changeFilters({ sort: e.target.value as ClientBookSort })}
-                className={SELECT_CLASS}
-              >
-                {CLIENT_BOOK_SORTS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              {followUp !== "suggested" && (
+                <select
+                  aria-label="Sort clients"
+                  value={filters.sort}
+                  onChange={(e) => changeFilters({ sort: e.target.value as ClientBookSort })}
+                  className={SELECT_CLASS}
+                >
+                  {CLIENT_BOOK_SORTS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </>
           )}
         </div>
 
+        {data && data.morningEmailOn !== null && !openBook && (
+          <label className="flex items-center gap-2 text-xs text-brand-gray">
+            <input
+              type="checkbox"
+              checked={data.morningEmailOn}
+              disabled={setMorningEmail.isPending}
+              onChange={(e) =>
+                setMorningEmail.mutate(
+                  { on: e.target.checked },
+                  {
+                    onSuccess: () => refreshAfterSave(),
+                    onError: (err) =>
+                      toast.error(getErrorMessage(err, "Could not change your morning email.")),
+                  },
+                )
+              }
+            />
+            Email me my follow-ups each morning
+          </label>
+        )}
+
         {data && (
           <p className="text-xs text-brand-gray">
             {data.total.toLocaleString("en-US")} client{data.total === 1 ? "" : "s"}
+            {followUp === "suggested" && data.outreach && <SuggestedNote rules={data.outreach} />}
             {listsUnassigned &&
               ". No active salesperson owns these clients, or they have a quote in nobody's pipeline."}
           </p>
@@ -288,6 +354,7 @@ export function ClientsView({ linkedBook }: Readonly<{ linkedBook: string | null
                 onAssign={handleAssign}
                 onAddNote={setNoteTarget}
                 onClientInfo={setInfoTarget}
+                onLogContact={setContactTarget}
               />
             ))}
           </section>
@@ -323,6 +390,18 @@ export function ClientsView({ linkedBook }: Readonly<{ linkedBook: string | null
           customerId={noteTarget.id}
           title={clientFullName(noteTarget)}
           onClose={() => setNoteTarget(null)}
+          onSaved={refreshAfterSave}
+        />
+      )}
+
+      {contactTarget && data && (
+        <LogContactModal
+          customerId={contactTarget.id}
+          title={clientFullName(contactTarget)}
+          dateOnFile={contactTarget.profile?.nextFollowUpDate ?? null}
+          canSchedule
+          today={data.today}
+          onClose={() => setContactTarget(null)}
           onSaved={refreshAfterSave}
         />
       )}

@@ -15,6 +15,7 @@
 // page with Integrations and now driven by the module manifest instead of a
 // hand-maintained FEATURES list.
 
+import { DEFAULT_OUTREACH_LAPSED_MONTHS, DEFAULT_OUTREACH_QUIET_DAYS } from "@/lib/clientBook";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "react-toastify";
@@ -491,6 +492,109 @@ function LowStockAlertSection({
             </option>
           ))}
         </select>
+      </div>
+    </section>
+  );
+}
+
+// The morning follow-up email and who it suggests (GAP-36, lib/followUpEmail.ts). The hour
+// is off until set. There are no suggestions until a store says what a big client is.
+function FollowUpsSection({
+  hour,
+  spend,
+  months,
+  days,
+  onChange,
+}: Readonly<{
+  hour: number | null;
+  spend: number | null;
+  months: number | null;
+  days: number | null;
+  onChange: (next: {
+    followUpEmailHour?: number | null;
+    outreachMinLifetimeSpend?: number | null;
+    outreachLapsedMonths?: number | null;
+    outreachQuietDays?: number | null;
+  }) => void;
+}>) {
+  const numberOrNull = (text: string) => (text === "" ? null : Number(text));
+  const inputClass = "w-full rounded-md border border-brand-accent-gray px-3 py-2 text-brand-black";
+  return (
+    <section id="follow-ups" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Morning email and follow-ups</h2>
+      <p className="text-xs text-brand-gray">
+        Each salesperson gets one email a morning with their follow-ups due, quotes waiting and past
+        clients worth a call. Nobody gets an empty one, and anyone can turn theirs off on My
+        Clients. Choose &quot;Off&quot; to send none.
+      </p>
+      <div className="max-w-xs">
+        <label htmlFor="follow-up-hour" className="mb-1 block text-sm text-brand-gray">
+          Send it at this hour of your day
+        </label>
+        <select
+          id="follow-up-hour"
+          value={hour ?? ""}
+          onChange={(e) => onChange({ followUpEmailHour: numberOrNull(e.target.value) })}
+          className={inputClass}
+        >
+          <option value="">Off</option>
+          {Array.from({ length: 24 }, (_, h) => (
+            <option key={h} value={h}>
+              {new Intl.DateTimeFormat(undefined, { hour: "numeric", timeZone: "UTC" }).format(
+                new Date(Date.UTC(2000, 0, 1, h)),
+              )}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p className="text-xs text-brand-gray">
+        Who to suggest reaching out to: big past clients who have gone quiet. There are no
+        suggestions until you set a lifetime spend, since what counts as big is yours to say.
+      </p>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="outreach-spend" className="mb-1 block text-sm text-brand-gray">
+            Has spent at least
+          </label>
+          <input
+            id="outreach-spend"
+            type="number"
+            min={1}
+            value={spend ?? ""}
+            onChange={(e) => onChange({ outreachMinLifetimeSpend: numberOrNull(e.target.value) })}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label htmlFor="outreach-months" className="mb-1 block text-sm text-brand-gray">
+            No order in (months)
+          </label>
+          <input
+            id="outreach-months"
+            type="number"
+            min={1}
+            max={120}
+            placeholder={String(DEFAULT_OUTREACH_LAPSED_MONTHS)}
+            value={months ?? ""}
+            onChange={(e) => onChange({ outreachLapsedMonths: numberOrNull(e.target.value) })}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label htmlFor="outreach-days" className="mb-1 block text-sm text-brand-gray">
+            No contact in (days)
+          </label>
+          <input
+            id="outreach-days"
+            type="number"
+            min={1}
+            max={3650}
+            placeholder={String(DEFAULT_OUTREACH_QUIET_DAYS)}
+            value={days ?? ""}
+            onChange={(e) => onChange({ outreachQuietDays: numberOrNull(e.target.value) })}
+            className={inputClass}
+          />
+        </div>
       </div>
     </section>
   );
@@ -1002,6 +1106,10 @@ export function SettingsOverviewView() {
           discountLimitPercent: settings.discountLimitPercent,
           defaultSplitPercent: settings.defaultSplitPercent,
           clientProfileChoices: settings.clientProfileChoices,
+          followUpEmailHour: settings.followUpEmailHour ?? null,
+          outreachMinLifetimeSpend: settings.outreachMinLifetimeSpend ?? null,
+          outreachLapsedMonths: settings.outreachLapsedMonths ?? null,
+          outreachQuietDays: settings.outreachQuietDays ?? null,
           costCipherKey: settings.costCipherKey ?? "",
           lowStockAlertEmails: settings.lowStockAlertEmails ?? "",
           lowStockAlertHour: settings.lowStockAlertHour ?? null,
@@ -1130,6 +1238,13 @@ export function SettingsOverviewView() {
         onChange={(percent) =>
           setSettings((prev) => (prev ? { ...prev, defaultSplitPercent: percent } : prev))
         }
+      />
+      <FollowUpsSection
+        hour={settings.followUpEmailHour ?? null}
+        spend={settings.outreachMinLifetimeSpend ?? null}
+        months={settings.outreachLapsedMonths ?? null}
+        days={settings.outreachQuietDays ?? null}
+        onChange={(next) => setSettings((prev) => (prev ? { ...prev, ...next } : prev))}
       />
       <ClientProfileChoicesSection
         value={settings.clientProfileChoices ?? DEFAULT_CLIENT_PROFILE_CHOICES}

@@ -292,6 +292,10 @@ async function main(): Promise<void> {
   // Last, and with no RNG draws, so nothing above shifts.
   const sourcesResult = await seedProductSources(prisma, catalog.vendorIds, catalog.products);
   const mergeResult = await seedVendorMerge(prisma, SUPPLIER_NAME);
+  // The job a store runs on a schedule, so a client's lifetime spend and lead tier are real.
+  // Last, with no RNG draws, so nothing above shifts.
+  const { recalculateCustomerLevels } = await import("@/lib/customerLeveling");
+  await recalculateCustomerLevels();
 
   console.log(
     `Inventory: ${inventoryResult.positionsCreated} positions, ${inventoryResult.unitsOnHand} units on hand ` +

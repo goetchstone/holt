@@ -15,6 +15,6 @@ if [ -z "$AUTO_IMPORT_API_KEY" ]; then
   exit 1
 fi
 
-curl -sf -X POST \
+curl -sSf -X POST \
   -H "Authorization: Bearer ${AUTO_IMPORT_API_KEY}" \
   http://localhost:3000/api/automations/lead-housekeeping

@@ -3747,6 +3747,8 @@ model StaffMember {
   // My Account. Five wrong tries lock it for fifteen minutes.
   pinHash               String?
   pinFailedAttempts     Int                  @default(0)
+  /// True when this person has turned off their morning follow-up email (GAP-36).
+  followUpEmailOff      Boolean              @default(false)
   /// How this person prints tags while receiving (lib/labels/tagPrintMode.ts).
   tagPrintMode          String?
   pinLockedUntil        DateTime?
@@ -5889,6 +5891,16 @@ model AppSettings {
   /// means tags print no code.
   costCipherKey String?
   lowStockAlertedOn   String?
+  // The morning follow-up email (GAP-36, lib/followUpEmail.ts). Off until a store sets an
+  // hour. followUpEmailedOn is the store day it last went, so it goes once a day.
+  followUpEmailHour   Int?
+  followUpEmailedOn   String?
+  // Who's suggested to reach out to (GAP-36, lib/clientBook.ts). Off until a store sets a
+  // lifetime spend, since what counts as a big client is theirs to say. The other two
+  // default in the code when empty.
+  outreachMinLifetimeSpend Decimal? @db.Decimal(12, 2)
+  outreachLapsedMonths     Int?
+  outreachQuietDays        Int?
 
   // How a landed charge on a PO is spread across its lines unless the buyer
   // picks another when entering it (GAP-02). By value, the default, gives each
