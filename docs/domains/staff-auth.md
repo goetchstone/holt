@@ -12,7 +12,7 @@ name roles, so the enum has not gone away.
 
 | Piece                                                              | State                                                                                         |
 | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `PERMISSIONS` / `BUILT_IN_ROLES` (`lib/auth/permissionCatalog.ts`) | Complete — 52 permissions across 14 domains, 15 built-in roles                                |
+| `PERMISSIONS` / `BUILT_IN_ROLES` (`lib/auth/permissionCatalog.ts`) | Complete — 54 permissions across 14 domains, 15 built-in roles                                |
 | `Role`, `RolePermission`, `StaffMember.roleId`                     | Exist, migrated, backfilled                                                                   |
 | Built-in role seed                                                 | Runs on every deploy                                                                          |
 | `requirePermission()` (Pages Router)                               | **216 route files use it**                                                                    |
@@ -22,6 +22,11 @@ name roles, so the enum has not gone away.
 | Page-level `requirePage`, card filtering                           | Still the enum, apart from four pages (see Page-Level Auth)                                   |
 | Custom-role admin GUI                                              | Ships at `/app/admin/setup/roles`                                                             |
 | `StaffRole` enum                                                   | Still present, still authoritative for those 121 routes                                       |
+
+`sales.clients.manage` (GAP-36) opens other salespeople's client books and assigns clients no
+one owns. Built in for Manager and General Manager, and for admins. Seeing what a salesperson
+keeps on a client takes `customer.write` or `sales.lead`, so Warehouse, Dispatch, Installer
+and Marketing can read a customer without it. `docs/domains/sales-orders.md` has the table.
 
 The first route converted was `POST /api/sales/orders/[id]/refunds`, gated on
 `payment.refund`. It was chosen because the PR #67 audit found it had no

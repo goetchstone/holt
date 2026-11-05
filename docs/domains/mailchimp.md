@@ -105,6 +105,9 @@ After deploying any fix that touches revenue aggregation, run `POST /api/custome
 | `recentEngagement` (last open/click + 30-day campaign count) | All roles |
 | `suggestedAction` hint per card | All roles |
 
+The pipeline and My Clients build a score's input with `leadScoreInputFromCustomer`
+(`lib/leadScore.ts`), so both score a client the same way. My Clients shows the tier only.
+
 **Manager-only "Needs Attention" strip** at the top via `GET /api/leads/needs-attention` — counts for new-to-assign / going-stale / hot-no-contact.
 
 **Pin toggle** on any card to exempt from auto-archive.
