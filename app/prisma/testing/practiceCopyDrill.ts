@@ -156,6 +156,20 @@ async function main(): Promise<void> {
     await restoreStartingPoint(drillUrl);
     check((await markers()) === "before,newer", "saving again replaces the starting point");
 
+    // A run that died partway leaves its working copy behind. The next one clears it.
+    const leftover = () =>
+      withClient(serverUrl, (client) =>
+        client.query(`CREATE DATABASE ${client.escapeIdentifier(`${DRILL}_incoming`)}`),
+      );
+    await leftover();
+    await saveStartingPoint(drillUrl);
+    await leftover();
+    await restoreStartingPoint(drillUrl);
+    check(
+      (await markers()) === "before,newer",
+      "a working copy left behind doesn't get in the way",
+    );
+
     // Someone connecting between clearing out and copying mustn't fail the save: the
     // app's pool reconnects on its next request.
     const busy = setInterval(() => {

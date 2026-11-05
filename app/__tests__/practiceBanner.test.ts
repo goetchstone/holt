@@ -20,7 +20,7 @@ jest.mock("next/document", () => ({
 
 import { Children, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import RootLayout from "@/app/layout";
+import RootLayout, { dynamic } from "@/app/layout";
 import Document from "@/pages/_document";
 import { PracticeBanner } from "@/components/PracticeBanner";
 
@@ -41,6 +41,9 @@ const PRACTICE = "postgresql://u:p@db:5432/holt_demo_practice";
 const LIVE = "postgresql://u:p@db:5432/holt";
 
 describe("App Router: every screen goes through the root layout", () => {
+  it("renders per request, so a page built ahead of time can't miss the banner", () => {
+    expect(dynamic).toBe("force-dynamic");
+  });
   it("shows the banner on a practice copy", async () => {
     process.env.DATABASE_URL = PRACTICE;
     expect(hasBanner(await RootLayout({ children: null }))).toBe(true);

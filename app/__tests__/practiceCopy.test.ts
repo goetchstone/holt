@@ -43,6 +43,9 @@ describe("databaseNameFromUrl", () => {
   it("isn't fooled by a password or host carrying the word", () => {
     expect(databaseNameFromUrl("postgresql://practice:practice@practice:5432/holt")).toBe("holt");
   });
+  it("reads a name written with escapes as the name it is", () => {
+    expect(databaseNameFromUrl("postgresql://u:p@db:5432/holt%5Fpractice")).toBe("holt_practice");
+  });
   it("copes with a url that doesn't parse", () => {
     expect(databaseNameFromUrl("not a url/holt_practice?x=1")).toBe("holt_practice");
     expect(databaseNameFromUrl("")).toBe("");
