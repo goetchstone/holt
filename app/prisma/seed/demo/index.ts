@@ -212,6 +212,7 @@ async function main(): Promise<void> {
     locations.warehouseCommittedStockLocationId,
     locations.warehouseStoreLocationId,
     committedOrders,
+    window,
   );
 
   const serviceResult = await seedService(

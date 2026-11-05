@@ -32,8 +32,10 @@ import type { PrismaClient } from "@prisma/client";
 import type { Rng } from "./rng";
 import { pick, randInt, subRng } from "./rng";
 import type { CatalogProduct } from "./catalog";
-import { postMovement } from "@/lib/inventory/ledger";
+import { postBackdatedMovement, postMovement } from "@/lib/inventory/ledger";
+import type { MovementReason } from "@/lib/inventory/ledger";
 import type { StoreSetup } from "./locations";
+import type { SeedWindow } from "./config";
 
 const SEED_ACTOR = "seed:demo";
 
@@ -42,6 +44,72 @@ export interface InventoryResult {
   unitsOnHand: number;
   committedPositions: number;
   productsWithNoStock: number;
+}
+
+interface StockRow {
+  productId: number;
+  storeLocationId: number;
+  stockLocationId: number;
+  quantity: number;
+  salesOrderId?: number;
+  notes?: string;
+}
+
+/**
+ * When a row of free stock came in. Stock with one date would leave Aged Stock
+ * with one column and Inventory Value with nothing to say about any past day, so
+ * the spread reaches every age bucket. The oldest slice is an opening balance on
+ * the window's first day, which is also where the demo's journal starts.
+ */
+function arrivalOf(
+  ageRng: Rng,
+  window: SeedWindow,
+): {
+  reason: MovementReason;
+  occurredAt: Date;
+} {
+  const roll = randInt(ageRng, 1, 100);
+  if (roll <= 12) return { reason: "OPENING", occurredAt: window.start };
+  let daysAgo: number;
+  if (roll <= 22) daysAgo = randInt(ageRng, 366, 500);
+  else if (roll <= 40) daysAgo = randInt(ageRng, 181, 365);
+  else if (roll <= 65) daysAgo = randInt(ageRng, 91, 180);
+  else daysAgo = randInt(ageRng, 1, 90);
+  return {
+    reason: "RECEIVE",
+    occurredAt: new Date(window.now.getTime() - daysAgo * 86_400_000),
+  };
+}
+
+/**
+ * Through the single writer of InventoryPosition (lib/inventory/ledger.ts), like
+ * every other path that puts stock somewhere: seeded stock arrives from outside
+ * the books into its place. Free stock carries a history; committed stock is
+ * today's staging and doesn't need one.
+ */
+async function postSeededStock(
+  prisma: PrismaClient,
+  row: StockRow,
+  ageRng: Rng,
+  window: SeedWindow,
+): Promise<void> {
+  const movement = {
+    productId: row.productId,
+    quantity: row.quantity,
+    to: {
+      storeLocationId: row.storeLocationId,
+      stockLocationId: row.stockLocationId,
+      salesOrderId: row.salesOrderId ?? null,
+    },
+    actor: SEED_ACTOR,
+    note: row.notes,
+  };
+  if (row.salesOrderId) {
+    await postMovement(prisma, { ...movement, reason: "OPENING" });
+    return;
+  }
+  const { reason, occurredAt } = arrivalOf(ageRng, window);
+  await postBackdatedMovement(prisma, { ...movement, reason }, occurredAt);
 }
 
 export async function seedInventory(
@@ -57,6 +125,7 @@ export async function seedInventory(
     storeLocationId: number | null;
     lineItems: { productId: number | null; orderedQuantity: unknown }[];
   }[],
+  window: SeedWindow,
 ): Promise<InventoryResult> {
   const invRng = subRng(rng, "inventory");
   const result: InventoryResult = {
@@ -66,14 +135,7 @@ export async function seedInventory(
     productsWithNoStock: 0,
   };
 
-  const rows: {
-    productId: number;
-    storeLocationId: number;
-    stockLocationId: number;
-    quantity: number;
-    salesOrderId?: number;
-    notes?: string;
-  }[] = [];
+  const rows: StockRow[] = [];
 
   for (const product of products) {
     // ~15% of the catalog is never stocked: special-order or discontinued.
@@ -133,22 +195,11 @@ export async function seedInventory(
     result.committedPositions++;
   }
 
-  // Through the single writer of InventoryPosition (lib/inventory/ledger.ts),
-  // like every other path that puts stock somewhere: seeded stock arrives from
-  // outside the books into its place.
+  // A sub-stream takes one draw from its parent, so this one comes off invRng
+  // after its last use: taken from the root it would shift every later module's data.
+  const ageRng = subRng(invRng, "age");
   for (const row of rows) {
-    await postMovement(prisma, {
-      productId: row.productId,
-      quantity: row.quantity,
-      to: {
-        storeLocationId: row.storeLocationId,
-        stockLocationId: row.stockLocationId,
-        salesOrderId: row.salesOrderId ?? null,
-      },
-      reason: "OPENING",
-      actor: SEED_ACTOR,
-      note: row.notes,
-    });
+    await postSeededStock(prisma, row, ageRng, window);
     result.positionsCreated++;
     result.unitsOnHand += row.quantity;
   }

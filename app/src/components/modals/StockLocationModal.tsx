@@ -19,6 +19,7 @@ interface StockLocationData {
   isActive: boolean;
   holdsCommittedStock: boolean;
   moveMode?: string | null;
+  countEveryDays?: number | null;
 }
 
 type Props = {
@@ -53,6 +54,7 @@ export default function StockLocationModal({
     squareFootage: "",
     locationAliases: "",
     moveMode: "",
+    countEveryDays: "",
   });
   const [isActive, setIsActive] = useState(true);
   const [holdsCommittedStock, setHoldsCommittedStock] = useState(false);
@@ -67,6 +69,7 @@ export default function StockLocationModal({
         parentId: stockLocation.parentId?.toString() || "",
         locationType: stockLocation.locationType || "STOCK",
         squareFootage: stockLocation.squareFootage?.toString() || "",
+        countEveryDays: stockLocation.countEveryDays?.toString() || "",
         locationAliases: (stockLocation.locationAliases || []).join(", "),
         moveMode: stockLocation.moveMode ?? "",
       });
@@ -80,6 +83,7 @@ export default function StockLocationModal({
         parentId: "",
         locationType: "STOCK",
         squareFootage: "",
+        countEveryDays: "",
         locationAliases: "",
         moveMode: "",
       });
@@ -133,6 +137,7 @@ export default function StockLocationModal({
           isActive,
           holdsCommittedStock,
           moveMode: form.moveMode || null,
+          countEveryDays: form.countEveryDays ? Number(form.countEveryDays) : null,
         }),
       });
 
@@ -247,6 +252,14 @@ export default function StockLocationModal({
           onChange={(v) => handleChange("squareFootage", v)}
         />
       </div>
+      <FormInput
+        label="Count every (days)"
+        name="countEveryDays"
+        type="number"
+        value={form.countEveryDays}
+        onChange={(v) => handleChange("countEveryDays", v)}
+        placeholder="Leave empty for no schedule"
+      />
       <div>
         <label htmlFor="stock-location-move-mode" className="block text-sm text-brand-gray mb-1">
           Moves in and out

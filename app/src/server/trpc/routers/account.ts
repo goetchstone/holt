@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "@/lib/prisma";
 import { router, protectedProcedure } from "../trpc";
 import { hashPassword, hashPin, verifyPassword } from "@/lib/auth/password";
+import { readTagPrintMode, TAG_PRINT_MODES } from "@/lib/labels/tagPrintMode";
 import { PIN_PATTERN } from "@/lib/sales/discountPolicyShared";
 
 async function staffForUser(userId: string) {
@@ -22,6 +23,7 @@ async function staffForUser(userId: string) {
       role: true,
       passwordHash: true,
       pinHash: true,
+      tagPrintMode: true,
     },
   });
 }
@@ -38,6 +40,7 @@ export const accountRouter = router({
       role: String(staff.role),
       hasLocalPassword: staff.passwordHash !== null,
       hasPin: staff.pinHash !== null,
+      tagPrintMode: readTagPrintMode(staff.tagPrintMode),
       localAuthEnabled: Boolean(process.env.AUTH_LOCAL_ENABLED),
     };
   }),
@@ -77,6 +80,22 @@ export const accountRouter = router({
   // The register PIN. Setting one proves the account's password when it has
   // one, as changing the password does: a PIN approves discounts, so a session
   // left open is not enough to set it. Setting it also clears a lockout.
+  // How this person prints tags while receiving; remembered from one receipt to
+  // the next.
+  setTagPrintMode: protectedProcedure
+    .input(z.object({ mode: z.enum(TAG_PRINT_MODES) }))
+    .mutation(async ({ ctx, input }) => {
+      const staff = await staffForUser(ctx.userId);
+      if (!staff) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No staff record for this account." });
+      }
+      await prisma.staffMember.update({
+        where: { id: staff.id },
+        data: { tagPrintMode: input.mode },
+      });
+      return { mode: input.mode };
+    }),
+
   setPin: protectedProcedure
     .input(
       z.object({

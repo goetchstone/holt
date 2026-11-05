@@ -1265,6 +1265,78 @@ least order above zero.
 
 ---
 
+## 42. How old stock is, and what it was worth, read back from the journal (2026-11-04)
+
+**Decided:** Age comes from the stock journal, assuming the oldest sold first, so
+what's still here is the newest in. It's counted from when units came onto the books,
+and a move between places doesn't restart it. An opening balance or import is reported
+as "at least" that old, and units no arrival accounts for are reported as having no
+record, in no bucket. Value on a past day is the journal's quantity at today's cost,
+labeled as that on the screen. A day before the journal gets no number.
+
+**Why:** the journal is the one record that says when stock moved, and it's already
+checked against the balance after every integration test. Nothing records which unit
+is which, or what a product cost last year, so these are the strongest claims the
+evidence supports. A confident number that's wrong by a believable margin would
+survive indefinitely (principle 2), so each report says where its claim stops.
+
+**Rejected:**
+
+- **Age from the last sale.** That's Inventory Health's dead stock, a different
+  question. It stays as it is. A sofa received last week that has never sold is dead
+  by that measure and new by this one.
+- **Age from purchase order lines.** It misses returns, counts and opening stock, and
+  it would be a second idea of what's on hand beside the ledger (rule 6).
+- **A cost history, added now to value past days.** It can only start from today, so
+  it wouldn't answer any past date yet. It's recorded in `ROADMAP.md`.
+- **Allowing `occurredAt` on `postMovement`.** A route that could date movements could
+  rewrite what the books held on any past day. The seed gets its own named function,
+  and a tripwire keeps it out of `src/`.
+
+**Enforced by:** `__tests__/integration/inventoryReports.integration.test.ts`, which
+holds Inventory Value to Inventory Health as of today, and Aged Stock plus committed
+units to the same units on hand; `AGE_EFFECT`, a `Record` over every journal reason;
+`__tests__/stockWriterTripwire.test.ts`.
+
+**Source:** [`app/src/lib/reports/agedStock.ts`](../app/src/lib/reports/agedStock.ts),
+[`app/src/lib/reports/inventoryValue.ts`](../app/src/lib/reports/inventoryValue.ts)
+
+---
+
+## 43. A tag's price is what the register charges, and cost goes on it only in code (2026-11-04)
+
+**Decided:** A sale tag's price is the product's retail, and its was price is a field on
+the product. A tag's coded cost uses letters the store picks, and prints nothing until it
+has. A law tag's wording is the store's template, with a text field on the product for the
+part that varies. Printing while receiving is one at a time unless a person chooses
+otherwise, remembered per person. A tag named for a store prints only at that store.
+
+**Why:** a tag is a promise to a customer. If it could show a price the register doesn't
+charge, the two would disagree on the showroom floor, so there's only one price. The owner
+said to make printing one at a time or in a batch the user's choice, and that they prefer
+one at a time so they can match products (2026-10-29). What the law asks a tag to say
+depends on where the store is, so it's a deployment fact (rule 61).
+
+**Rejected:**
+
+- **Typing a sale price when printing.** The tag would promise a price the register doesn't
+  know. Scheduled sale prices that drive tags remain GAP-06.
+- **A built-in law tag.** Holt doesn't know each state's law, and would be wrong for
+  someone. The demo's template is a sample.
+- **A remembered default in the browser.** It wouldn't follow a person to the next device.
+- **Falling back to any printer loaded with the size.** The tag would come out in another
+  building, where nobody is matching it to a piece.
+- **Fetching a picture from another address.** A tag could be made to call out to one.
+
+**Enforced by:** `__tests__/integration/tags.integration.test.ts`, which reads the bytes a
+stand-in printer receives over TCP; `__tests__/tagFields.test.ts`; CHECKs on the key, the
+was price, the photo size and the print mode.
+
+**Source:** [`app/src/lib/labels/productTag.ts`](../app/src/lib/labels/productTag.ts),
+[`docs/domains/printing.md`](domains/printing.md)
+
+---
+
 ## 44. Holt doesn't store cards (2026-11-04)
 
 **Decided (owner):** Holt never saves a customer's card. If keeping a card on file ever

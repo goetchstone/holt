@@ -12,7 +12,23 @@ import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
 import { router } from "../trpc";
 import { getFactSalesDay } from "@/lib/reports/factSalesDay";
 import { getGrossMargin, grossMarginForCaller } from "@/lib/reports/grossMargin";
-import { getInventoryHealth, inventoryHealthForCaller } from "@/lib/reports/inventoryHealth";
+import {
+  getInventoryHealth,
+  INVENTORY_PIVOTS,
+  inventoryHealthForCaller,
+} from "@/lib/reports/inventoryHealth";
+import { agedStockForCaller, getAgedStock } from "@/lib/reports/agedStock";
+import {
+  getInventoryValue,
+  InventoryValueInputError,
+  inventoryValueForCaller,
+} from "@/lib/reports/inventoryValue";
+import {
+  getTransfersReport,
+  TransfersReportInputError,
+  transfersReportForCaller,
+} from "@/lib/reports/transfersReport";
+import { TRANSFER_VIEWS, type TransferView } from "@/lib/reports/transfersReportShared";
 import { getPoSellThru, poSellThruForCaller } from "@/lib/reports/poSellThru";
 import { getTopSellers, topSellersForCaller, topSellersMetricFor } from "@/lib/reports/topSellers";
 import { getReturnsAnalysis } from "@/lib/reports/returnsAnalysis";
@@ -132,6 +148,26 @@ const inventoryHealthInput = z
     staleDays: z.number().optional(),
   })
   .nullish();
+
+// Aged stock: point-in-time, by department or vendor.
+const agedStockInput = z.object({ pivot: z.enum(INVENTORY_PIVOTS).optional() }).nullish();
+
+// Inventory value: a past day (today when absent), a pivot, one store or all.
+const inventoryValueInput = z
+  .object({
+    asOf: z.string().optional(),
+    pivot: z.enum(INVENTORY_PIVOTS).optional(),
+    storeLocationId: z.number().int().positive().nullish(),
+  })
+  .nullish();
+
+// Transfers: a period, which of TRANSFER_VIEWS, one store or all.
+const transfersReportInput = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+  view: z.enum(Object.keys(TRANSFER_VIEWS) as [TransferView, ...TransferView[]]).optional(),
+  storeLocationId: z.number().int().positive().nullish(),
+});
 
 // Top & bottom sellers: required date range + metric + limit + optional dept
 // filter (names). Dates required (the UI commits before enabling the query).
@@ -411,6 +447,50 @@ export const reportsRouter = router({
         canViewCost({ holds: ctx.holds }),
       ),
     ),
+  // Aged stock (GAP-17): how long uncommitted stock has been here, from the
+  // journal. The same gate as Inventory Health; cost only with "View cost".
+  agedStock: roleProcedure(MANAGER_ADMIN, WITH_COST)
+    .input(agedStockInput)
+    .query(async ({ input, ctx }) =>
+      agedStockForCaller(
+        await getAgedStock(prisma, input ?? {}),
+        canViewCost({ holds: ctx.holds }),
+      ),
+    ),
+  // Inventory value as of a past day (GAP-17): quantities from the journal at
+  // today's cost. The same gate as Inventory Health; cost only with "View cost".
+  inventoryValue: roleProcedure(MANAGER_ADMIN, WITH_COST)
+    .input(inventoryValueInput)
+    .query(async ({ input, ctx }) => {
+      try {
+        return inventoryValueForCaller(
+          await getInventoryValue(prisma, input ?? {}),
+          canViewCost({ holds: ctx.holds }),
+        );
+      } catch (err) {
+        if (err instanceof InventoryValueInputError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
+  // Transfers (GAP-17): what moved in a period and what is still on its way.
+  // Cost only with "View cost".
+  transfersReport: permissionProcedure("reporting.read", WITH_COST)
+    .input(transfersReportInput)
+    .query(async ({ input, ctx }) => {
+      try {
+        return transfersReportForCaller(
+          await getTransfersReport(prisma, input),
+          canViewCost({ holds: ctx.holds }),
+        );
+      } catch (err) {
+        if (err instanceof TransfersReportInputError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
   // PO sell-through: pick real POs by number, see how much of what they
   // delivered has sold since each line's receive date. Management-level
   // (MANAGER_ADMIN); cost and margin only with "View cost" (frames carry only

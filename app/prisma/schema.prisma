@@ -348,6 +348,12 @@ model Product {
   baseCost   Decimal?
   baseRetail Decimal?
   mapPrice   Decimal?
+  /// The price it started at, for a sale tag (lib/labels/productTag.ts). The sale
+  /// price is baseRetail, which is what the register charges.
+  wasPrice   Decimal? @db.Decimal(10, 2)
+  /// What a law tag says about this product, such as what it's made of. The rest
+  /// of the tag's wording is the store's template.
+  lawTagText String?
   /// What a unit has cost to land, on average (GAP-02): the running average of
   /// its native receipts, each at its PO line's unit cost plus its share of the
   /// PO's landed charges (lib/purchasing/landedCost.ts). It values stock and is
@@ -1020,6 +1026,9 @@ model LabelTemplate {
   context     String
   tagSize     String
   zplTemplate String
+  /// How big a product's picture prints on this template, in dots along its
+  /// longest side (lib/labels/photo.ts); null prints no picture.
+  photoDots   Int?
   categories  Category[]
 
   created   DateTime  @default(now())
@@ -1899,6 +1908,10 @@ model StockLocation {
 
   // How stock moves in or out of this place (MOVE_MODES); null = its store's.
   moveMode String?
+
+  /// How often this place should be counted, in days (GAP-17,
+  /// lib/inventory/countSchedule.ts); null = it isn't on a schedule.
+  countEveryDays Int?
 
   /// Set on a run's truck (lib/fulfilment/truck.ts, DECISIONS #25): Holt makes
   /// the place when the run loads here and retires it when the run completes.
@@ -3733,6 +3746,8 @@ model StaffMember {
   // My Account. Five wrong tries lock it for fifteen minutes.
   pinHash               String?
   pinFailedAttempts     Int                  @default(0)
+  /// How this person prints tags while receiving (lib/labels/tagPrintMode.ts).
+  tagPrintMode          String?
   pinLockedUntil        DateTime?
   passwordResetTokens   PasswordResetToken[]
   role                  StaffRole            @default(DESIGNER)
@@ -5832,6 +5847,9 @@ model AppSettings {
   // lowStockAlertedOn is the store day it last went, so it goes once a day.
   lowStockAlertEmails String?
   lowStockAlertHour   Int?
+  /// Ten different letters a tag's cost is coded in (lib/labels/costCode.ts); null
+  /// means tags print no code.
+  costCipherKey String?
   lowStockAlertedOn   String?
 
   // How a landed charge on a PO is spread across its lines unless the buyer

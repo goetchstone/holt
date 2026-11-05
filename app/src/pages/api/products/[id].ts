@@ -6,6 +6,9 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { readTaxGroupId } from "@/lib/tax/taxGroupInput";
 import { logError } from "@/lib/logger";
 
+// Enough for what a law tag lists, and more than fits on one.
+const LAW_TAG_TEXT_MAX = 1000;
+
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
   const productId = Number.parseInt(id as string);
@@ -48,6 +51,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         landedCost: product.landedCost != null ? Number(product.landedCost) : null,
         baseRetail: product.baseRetail != null ? Number(product.baseRetail) : null,
         mapPrice: product.mapPrice != null ? Number(product.mapPrice) : null,
+        wasPrice: product.wasPrice != null ? Number(product.wasPrice) : null,
+        lawTagText: product.lawTagText,
         length: product.length,
         width: product.width,
         depth: product.depth,
@@ -101,6 +106,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         boxesPerUnit,
         serviceType,
         isDiscontinued,
+        wasPrice,
+        lawTagText,
       } = body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- same untyped shape req.body had
 
       const validServiceTypes = ["MEASURE", "INSTALL", "DELIVERY", "HOUSE_CALL"];
@@ -136,6 +143,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(400).json({ error: "isDiscontinued must be true or false." });
       }
 
+      // For a sale tag (lib/labels/productTag.ts). Absent leaves each alone.
+      const was = parseOptionalFloat(wasPrice);
+      if (was != null && !(was > 0)) {
+        return res.status(400).json({ error: "The was price must be above zero." });
+      }
+      if (wasPrice !== undefined && wasPrice !== null && wasPrice !== "" && was == null) {
+        return res.status(400).json({ error: "The was price must be a number." });
+      }
+      if (lawTagText !== undefined && lawTagText !== null && typeof lawTagText !== "string") {
+        return res.status(400).json({ error: "The law tag wording must be text." });
+      }
+      if (typeof lawTagText === "string" && lawTagText.length > LAW_TAG_TEXT_MAX) {
+        return res
+          .status(400)
+          .json({ error: `Keep the law tag wording under ${LAW_TAG_TEXT_MAX} characters.` });
+      }
+
       const taxGroup = await readTaxGroupId(prisma, (body as Record<string, unknown>).taxGroupId);
       if ("error" in taxGroup) return res.status(400).json({ error: taxGroup.error });
 
@@ -147,6 +171,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           description: description === "" ? null : description,
           season: season === "" ? null : season,
           baseRetail: parseOptionalFloat(baseRetail),
+          wasPrice: was,
+          lawTagText: lawTagText === undefined ? undefined : lawTagText?.trim() || null,
           length: parseOptionalFloat(length),
           depth: parseOptionalFloat(depth),
           height: parseOptionalFloat(height),

@@ -30,6 +30,7 @@ interface StockLocationItem {
   isActive: boolean;
   holdsCommittedStock: boolean;
   sortOrder: number;
+  countEveryDays: number | null;
 }
 
 interface StoreLocation {
@@ -546,6 +547,11 @@ export function LocationsView() {
                           {sl.squareFootage != null && sl.squareFootage > 0 && (
                             <span className="text-[10px] text-brand-gray">
                               {sl.squareFootage.toLocaleString()} sqft
+                            </span>
+                          )}
+                          {sl.countEveryDays != null && (
+                            <span className="text-[10px] text-brand-gray">
+                              count every {sl.countEveryDays} days
                             </span>
                           )}
                           <button

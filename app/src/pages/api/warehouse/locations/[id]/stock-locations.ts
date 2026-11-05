@@ -12,6 +12,7 @@ import { isMoveMode, MOVE_MODES } from "@/lib/inventory/moveModes";
 import { placeParentProblem } from "@/lib/inventory/placeTree";
 import { NOT_A_RUN_TRUCK } from "@/lib/fulfilment/truck";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { countEveryDaysProblem } from "@/lib/inventory/countSchedule";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
 
@@ -51,6 +52,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         locationAliases,
         holdsCommittedStock,
         moveMode,
+        countEveryDays,
       } = req.body;
 
       if (!code || !name) {
@@ -72,6 +74,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           error: `locationType must be one of ${STOCK_LOCATION_TYPES.join(", ")}.`,
         });
       }
+
+      const scheduleProblem = countEveryDaysProblem(countEveryDays, locationType || "STOCK");
+      if (scheduleProblem) return res.status(400).json({ error: scheduleProblem });
 
       const parentProblem = await placeParentProblem(prisma, {
         placeId: null,
@@ -98,6 +103,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           locationAliases: Array.isArray(locationAliases) ? locationAliases : [],
           holdsCommittedStock: holdsCommittedStock === true,
           moveMode: moveMode || null,
+          countEveryDays: countEveryDays ?? null,
           sortOrder: nextSort,
           createdBy: session.user?.email || null,
         },

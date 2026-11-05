@@ -491,6 +491,37 @@ function LowStockAlertSection({
   );
 }
 
+// The letters a tag's cost is coded in (AppSettings.costCipherKey, GAP-18). Anyone
+// who knows them can read cost off a tag, so it's the store's to pick.
+function CostCodeSection({
+  value,
+  onChange,
+}: Readonly<{ value: string; onChange: (key: string) => void }>) {
+  return (
+    <section id="cost-code" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Cost code on tags</h2>
+      <p className="text-xs text-brand-gray">
+        Ten different letters: the first stands for 1, the ninth for 9 and the tenth for 0. A tag
+        template prints a product&apos;s whole-dollar cost in them with {"{{costCode}}"}. Leave it
+        blank and that field prints nothing.
+      </p>
+      <div className="max-w-xs">
+        <label htmlFor="cost-cipher-key" className="mb-1 block text-sm text-brand-gray">
+          Letters
+        </label>
+        <input
+          id="cost-cipher-key"
+          value={value}
+          maxLength={10}
+          autoComplete="off"
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+          className="w-full rounded-md border border-brand-accent-gray px-3 py-2 font-mono tracking-widest text-brand-black"
+        />
+      </div>
+    </section>
+  );
+}
+
 // How a split sale is credited (AppSettings.defaultSplitPercent, GAP-07): the
 // share a new split gives its salesperson; the partner gets the rest. Staff with
 // "Reassign salesperson" may choose another on each sale.
@@ -931,6 +962,7 @@ export function SettingsOverviewView() {
           deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
           discountLimitPercent: settings.discountLimitPercent,
           defaultSplitPercent: settings.defaultSplitPercent,
+          costCipherKey: settings.costCipherKey ?? "",
           lowStockAlertEmails: settings.lowStockAlertEmails ?? "",
           lowStockAlertHour: settings.lowStockAlertHour ?? null,
           quoteHoldMaxDays: settings.quoteHoldMaxDays,
@@ -1058,6 +1090,10 @@ export function SettingsOverviewView() {
         onChange={(percent) =>
           setSettings((prev) => (prev ? { ...prev, defaultSplitPercent: percent } : prev))
         }
+      />
+      <CostCodeSection
+        value={settings.costCipherKey ?? ""}
+        onChange={(key) => setSettings((prev) => (prev ? { ...prev, costCipherKey: key } : prev))}
       />
       <LowStockAlertSection
         emails={settings.lowStockAlertEmails ?? ""}

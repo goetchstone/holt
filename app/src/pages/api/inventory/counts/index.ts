@@ -1,12 +1,14 @@
 // /app/src/pages/api/inventory/counts/index.ts
 //
 // Counts by place (lib/inventory/count.ts): those waiting to be posted, with
-// what posting each would move now, and the latest posted ones.
+// what posting each would move now, and the latest posted ones. Also the places
+// on a counting schedule (lib/inventory/countSchedule.ts).
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { previewCount } from "@/lib/inventory/count";
+import { countSchedule } from "@/lib/inventory/countSchedule";
 import { toQty } from "@/lib/inventory/quantity";
 import { logError } from "@/lib/logger";
 
@@ -65,7 +67,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
         })),
       });
     }
-    return res.status(200).json({ counts: out });
+    return res.status(200).json({ counts: out, schedule: await countSchedule(prisma) });
   } catch (error) {
     logError("Error listing counts", error);
     return res.status(500).json({ error: "Failed to list counts" });

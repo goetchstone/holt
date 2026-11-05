@@ -5,6 +5,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
+import { photoDotsProblem } from "@/lib/labels/photo";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { method } = req;
@@ -46,13 +47,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   // POST (Create) a label template
   if (method === "POST") {
-    const { name, context, tagSize, zplTemplate } = req.body;
+    const { name, context, tagSize, zplTemplate, photoDots } = req.body;
+    const photoProblem = photoDotsProblem(photoDots);
+    if (photoProblem) return res.status(400).json({ error: photoProblem });
     if (!name || !context || !tagSize || !zplTemplate) {
       return res.status(400).json({ error: "Missing required fields" });
     }
     try {
       const created = await prisma.labelTemplate.create({
-        data: { name, context, tagSize, zplTemplate },
+        data: { name, context, tagSize, zplTemplate, photoDots: photoDots ?? null },
       });
       return res.status(201).json(created);
     } catch (err: unknown) {
@@ -69,14 +72,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   // PUT (Update) a label template (will be handled by [id]/index.ts, kept here for completeness but not used by modal direct PUT)
   if (method === "PUT") {
-    const { id, name, context, tagSize, zplTemplate } = req.body;
+    const { id, name, context, tagSize, zplTemplate, photoDots } = req.body;
+    const photoProblem = photoDotsProblem(photoDots);
+    if (photoProblem) return res.status(400).json({ error: photoProblem });
     if (!id || !name || !context || !tagSize || !zplTemplate) {
       return res.status(400).json({ error: "Missing fields for update" });
     }
     try {
       const updated = await prisma.labelTemplate.update({
         where: { id: Number(id) },
-        data: { name, context, tagSize, zplTemplate },
+        data: { name, context, tagSize, zplTemplate, photoDots },
       });
       return res.status(200).json(updated);
     } catch (err) {

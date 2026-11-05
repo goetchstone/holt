@@ -355,11 +355,24 @@ due dates. It makes no RNG draws, so nothing else the seed makes shifts.
 Still dark after this: Helpdesk (`Ticket`) and Time (`TimeEntry`, `StaffShift`)
 are each their own nav section with no seeded rows.
 
+### Tags
+
+The demo has a template for each kind of tag, a price tag on every category, an invented cost code, a was price on every tenth product and law tag wording on every mattress. All of that is by id, with no random draws, so nothing else moves. The law tag's wording is a sample. Its printers are at made-up addresses, so printing from the demo says the printer can't be reached.
+
 ### On-hand stock
 
 `InventoryPosition` was empty until this was added, which left the Inventory
 Health report rendering nothing, the Buyers report with no on-hand column, and
 the committed-stock split with no rows to split.
+
+Free stock carries a history (GAP-17): about one row in eight is an opening balance
+on the seed window's first day, where the demo's journal starts, and the rest are
+receipts dated across every Aged Stock bucket. That goes through
+`postBackdatedMovement`, with a random stream taken off the inventory stream after
+its last draw. A sub-stream takes one draw from its parent, so taking it from the
+root would shift every later module's data. Without it every unit would be dated the day of the seed, and Aged Stock and
+Inventory Value would have nothing to show. Places also carry a counting schedule,
+and since the demo seeds no counts, they all read as never counted.
 
 The distribution is shaped to give those surfaces signal rather than a uniform
 pile — a uniform pile makes every report look right and tests nothing:

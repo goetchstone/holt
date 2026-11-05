@@ -161,6 +161,7 @@ async function handleGet(poId: number, res: NextApiResponse, showCost: boolean) 
           id: item.id,
           partNo: item.partNo,
           productName: item.product?.name || item.productName,
+          productId: item.productId,
           productNumber: item.product?.productNumber,
           orderedQuantity: Number(item.orderedQuantity),
           ...(showCost
