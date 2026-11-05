@@ -761,6 +761,23 @@ describe("who a salesperson's name means", () => {
     expect((await archive("ann", quote.id)).status).toBe(403);
     expect(ids((await call(pipelineRoute, "ann")).body)).toEqual([]);
     expect(ids((await call(pipelineRoute, "anna")).body)).toEqual([quote.id]);
+    const book = async (who: string) =>
+      (await call(clientsRoute, who)).body.rows.map((r: Body) => r.id);
+    expect(await book("ann")).toEqual([]);
+    expect(await book("anna")).toEqual([client.id]);
+  });
+
+  it("counts a client as ownerless when their salesperson left, whatever the name says", async () => {
+    await makeStaff("pat", "DESIGNER", "Pat Lund");
+    await makeStaff("mo", "MANAGER", "Mo Ames");
+    const gone = await makeStaff("gone", "DESIGNER", "Gone Designer");
+    await prisma.staffMember.update({ where: { id: gone.id }, data: { isActive: false } });
+    const client = await makeClient("Otto", "Rand");
+    await makeQuote(client.id, gone.id, { salesperson: "Pat Lund", status: "ORDER" });
+
+    const { body } = await call(clientsRoute, "mo", { query: { staffId: "unassigned" } });
+
+    expect(body.rows.map((r: Body) => r.id)).toEqual([client.id]);
   });
 
   it("credits All Staff to the right person, not whoever comes first", async () => {
