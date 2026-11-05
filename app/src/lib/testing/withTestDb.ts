@@ -97,6 +97,7 @@ const ALL_TABLES = [
   "Customer",
   "CustomerAddress",
   "CustomerCreditTransaction",
+  "ClientProfile",
   "CustomerInteraction",
   "CustomerLedgerEntry",
   "CustomerExternalId",

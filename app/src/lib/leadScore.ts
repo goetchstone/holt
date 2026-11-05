@@ -186,3 +186,37 @@ export function leadTierLabel(tier: LeadTier): string {
       return "New";
   }
 }
+
+/** Lead-score inputs from a customer row with its Windfall relation selected. */
+export function leadScoreInputFromCustomer(customer: {
+  lifetimeSpend: unknown;
+  lifetimeOrderCount: number | null;
+  customerLevel: number | null;
+  peakCustomerLevel: number | null;
+  departmentCount: number | null;
+  lastOrderDate: Date | null;
+  windfallEnrichment: {
+    wealthTier: string | null;
+    recentMover: boolean;
+    recentMortgage: boolean;
+    recentlyDivorced: boolean;
+    moneyInMotion: boolean;
+    liquidityTrigger: boolean;
+  } | null;
+}): LeadScoreInput {
+  const wf = customer.windfallEnrichment;
+  return {
+    lifetimeSpend: Number(customer.lifetimeSpend ?? 0),
+    lifetimeOrderCount: customer.lifetimeOrderCount,
+    customerLevel: customer.customerLevel,
+    peakCustomerLevel: customer.peakCustomerLevel,
+    departmentCount: customer.departmentCount,
+    lastOrderDate: customer.lastOrderDate,
+    wealthTier: wf?.wealthTier,
+    recentMover: wf?.recentMover,
+    recentMortgage: wf?.recentMortgage,
+    recentlyDivorced: wf?.recentlyDivorced,
+    moneyInMotion: wf?.moneyInMotion,
+    liquidityTrigger: wf?.liquidityTrigger,
+  };
+}

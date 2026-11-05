@@ -531,6 +531,11 @@ Pipeline = open quotes only (not confirmed orders). Clickable salesperson rows e
 
 **Archived Toggle**: Excludes archived quotes by default. Check "Include archived quotes" to see them.
 
+**Last contact skips notes (GAP-36, since 2026-11-05).** `lastInteraction` is the newest
+interaction that isn't a note (`isNoteSource`, `lib/interactionSources.ts`). It reads every
+interaction on the quote, not the last three, so a run of notes can't hide a contact.
+`lastNote` still shows the newest with text. `docs/domains/interactions.md` has the rule.
+
 **APIs**: `GET /api/reports/pipeline-opportunity`, `GET /api/reports/pipeline-detail?salesperson=Name`, `POST /api/reports/pipeline-reassign`
 
 ## ReportTable Render Prop

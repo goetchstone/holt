@@ -13,7 +13,7 @@ In-store customer engagement log. Captures who helped whom, where, what happened
 | `salesOrderId` | int? | Optional link to a sales order created during/from this interaction |
 | `storeLocation` | string | Free-text store name |
 | `storeLocationId` | int? | FK to `StoreLocation` |
-| `source` | string (default `WALK_IN`) | Comment in schema: `WALK_IN, PHONE, EMAIL, APPOINTMENT`. **Not an enum** — free text, but those 4 are the expected values. |
+| `source` | string (default `WALK_IN`) | Comment in schema: `WALK_IN, PHONE, EMAIL, APPOINTMENT`, and `NOTE`, `MANAGER_NOTE` (below). **Not an enum** — free text, but those 4 are the expected values. |
 | `outcome` | `InteractionOutcome?` enum | See below |
 | `notes` | string? | Free-text notes |
 | `startedAt` | DateTime (default now) | When the interaction began |
@@ -21,6 +21,35 @@ In-store customer engagement log. Captures who helped whom, where, what happened
 | `isActive` | bool (default true) | `false` = closed/ended. Indexed `[staffMemberId, isActive]`. |
 
 There is no `kind` enum, no `subject` field, no `nextActionAt`. The "active follow-ups" idea I previously described does not exist in this codebase.
+
+## A note isn't contact (GAP-36, since 2026-11-05)
+
+`lib/interactionSources.ts` is the one list of sources and their labels. Every screen reads
+its labels from there.
+
+| Source | What it is | Moves "last contact"? | Shows on |
+|---|---|---|---|
+| `WALK_IN`, `PHONE`, `EMAIL`, `APPOINTMENT` | We reached them | Yes | The quote it was logged on |
+| `NOTE` | Something we know about the client | No | All of that client's quotes, and their customer page |
+| `MANAGER_NOTE` | A manager's note on a quote | No | That quote, and the customer page |
+
+Anything that asks "when did we last reach this client?" must skip notes, with
+`isNoteSource` or `NOTE_SOURCES`. On 2026-11-05 those readers are the pipeline's cards and
+All Staff (`pages/api/sales/pipeline/index.ts`) and the Pipeline Opportunity report
+(`lib/reports/pipelineOpportunity.ts`). That report used to read the newest of the last
+three, so three notes hid every contact. My Clients shows notes but doesn't read a last
+contact date yet.
+
+Nothing counts rows of `CustomerInteraction` for a report, so a note can't inflate one
+(`grep -rn "customerInteraction" src`, 2026-11-05). A note also appears on the Interactions
+screens, labelled as a note. If a report ever counts these rows, it has to decide about
+notes (principle 2).
+
+`POST /api/sales/interactions` (`sales.lead`) logs either kind, against a quote, a client or
+both. `nextFollowUpDate` saves on the client's `ClientProfile` in the same transaction:
+leaving it out leaves the date alone, and `null` clears it. The Cash Sale customer can't have
+one. `GET /api/customers/[id]/client-profile` returns a client's history for the customer
+page's Notes tab, up to the latest 100.
 
 ## InteractionOutcome enum
 

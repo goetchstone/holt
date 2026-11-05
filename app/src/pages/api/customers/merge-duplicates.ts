@@ -4,6 +4,27 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { fillProfileGaps } from "@/lib/clientProfile";
+
+async function mergeClientProfile(duplicateId: number, masterId: number) {
+  const [duplicateProfile, masterProfile] = await Promise.all([
+    prisma.clientProfile.findUnique({ where: { customerId: duplicateId } }),
+    prisma.clientProfile.findUnique({ where: { customerId: masterId } }),
+  ]);
+  if (!duplicateProfile) return;
+  if (!masterProfile) {
+    await prisma.clientProfile.update({
+      where: { customerId: duplicateId },
+      data: { customerId: masterId },
+    });
+    return;
+  }
+  await prisma.clientProfile.update({
+    where: { customerId: masterId },
+    data: fillProfileGaps(masterProfile, duplicateProfile),
+  });
+}
+
 export default requirePermission(
   "admin.data",
   async (req: NextApiRequest, res: NextApiResponse) => {
@@ -62,6 +83,14 @@ export default requirePermission(
             where: { customerId: duplicate.id },
             data: { customerId: masterCustomer.id },
           });
+
+          // What a salesperson keeps on the client (GAP-36). Without this the notes lose
+          // their customer and the profile cascades away with the duplicate.
+          await prisma.customerInteraction.updateMany({
+            where: { customerId: duplicate.id },
+            data: { customerId: masterCustomer.id },
+          });
+          await mergeClientProfile(duplicate.id, masterCustomer.id);
 
           // Referrals (GAP-08): whoever the duplicate sent was sent by the
           // customer kept, and the kept record takes the duplicate's source and

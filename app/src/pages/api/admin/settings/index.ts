@@ -27,6 +27,7 @@ import { isSourceAdapterId, listSourceAdapters } from "@/lib/adapters";
 import { isValidTimeZone } from "@/lib/reports/businessDay";
 import { LANDED_COST_SPLIT_KEYS, isLandedCostSplit } from "@/lib/purchasing/landedCostShared";
 import { readAlertEmails } from "@/lib/purchasing/lowStockShared";
+import { parseClientProfileChoices } from "@/lib/clientProfile";
 import { cipherKeyProblem, normalizeCipherKey } from "@/lib/labels/costCode";
 import { IDLE_LOGOFF_RULE, isIdleLogoffMinutes } from "@/lib/auth/idleLogoff";
 import { QUOTE_HOLD_RULE, isQuoteHoldMaxDays } from "@/lib/sales/quoteHoldsShared";
@@ -393,6 +394,15 @@ function parseDefaultSplit(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// The choices on a client's profile form, as this store has them (GAP-36).
+function parseProfileChoices(body: Body, data: SettingsData): ParseError {
+  if (body.clientProfileChoices === undefined) return null;
+  const parsed = parseClientProfileChoices(body.clientProfileChoices);
+  if (!parsed.ok) return { error: parsed.error };
+  data.clientProfileChoices = { ...parsed.choices };
+  return null;
+}
+
 // The letters a tag's cost is coded in (GAP-18, lib/labels/costCode.ts). Blank
 // means tags print no code.
 function parseCostCipherKey(body: Body, data: SettingsData): ParseError {
@@ -503,6 +513,7 @@ const SETTINGS_PARSERS = [
   parseDeliveryFeeTaxGroup,
   parseDiscountLimit,
   parseDefaultSplit,
+  parseProfileChoices,
   parseCostCipherKey,
   parseLowStockAlert,
   parseQuoteHoldMaxDays,

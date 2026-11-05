@@ -1361,6 +1361,55 @@ pass doesn't reopen it.
 
 ---
 
+## 45. What a salesperson keeps belongs to the client, and a note isn't contact (2026-11-05)
+
+**Decided (GAP-36):** salespeople keep what they know about a client on a `ClientProfile`,
+one per customer, and in notes that follow the client.
+
+- **A note isn't contact.** Writing down "summer home on the lake" doesn't mean anyone
+  reached them. Notes never move days-since-contact or clear a due follow-up. Every reader
+  of "last contact" skips them (`lib/interactionSources.ts`).
+- **A client note follows the client; a manager's note stays on its quote.** `NOTE` shows on
+  all their quotes, and `MANAGER_NOTE` is about the quote it was written on.
+- **Assigning a client sets `primaryDesignerId` and nothing else.** Who an order was credited
+  to is history, and commission reads it.
+- **The form's lists are the store's**, in Settings, with suggestions to start from. An answer
+  already on a client survives its choice being removed, because a store tidying a list
+  shouldn't blank out or block saving a client's record.
+- **Warehouse, Dispatch, Installer and Marketing can read a customer but not this.** A
+  client's budget and how likely they are to close aren't needed to deliver a sofa. It takes
+  `customer.write` or `sales.lead`.
+- **A salesperson's name is matched whole.** The linked id comes first. With none, the text
+  must equal their name or an alias. Substring matching let "Ann" archive "Anna Reyes'"
+  quotes (`docs/tenant-literal-sweep.md`).
+- **Service charges are found by what they are**, the order's `deliveryFeeLineItemId` or a
+  product's `serviceType`, not by a line's name.
+
+**Rejected:**
+
+- **Fixed budget, room and timeline lists.** They were measured on one store (rule 61).
+- **Opening `GET /api/interactions` to `customer.read`** so the Notes tab could use it. That
+  gives every interaction in the store to roles that have no use for them. The tab reads a
+  client's history from its own route, under its own gate.
+- **Telling service lines from goods by matching "delivery" or "labor"** in the line's name.
+  That only works where a store happens to name them so, and misses the rest silently.
+- **Authorizing the archive route by `salesPersonId` alone**, as the audit first proposed.
+  A quote with no id would show in someone's pipeline and refuse to let them archive it.
+  What they see and what they can act on is one rule (rule 42).
+- **A second profile for a client's second project.** One per client for now. It's recorded as
+  open in `ROADMAP.md`.
+
+**Enforced by:** `__tests__/integration/clientBookRoutes.integration.test.ts`, with a test
+that reaches last contact past four notes and one for each role that's kept out;
+`__tests__/integration/pipelineClienteling.integration.test.ts`; the CHECK on
+`closeLikelihood`.
+
+**Source:** [`app/src/lib/clientProfile.ts`](../app/src/lib/clientProfile.ts),
+[`app/src/lib/interactionSources.ts`](../app/src/lib/interactionSources.ts),
+[`app/src/lib/clientAssign.ts`](../app/src/lib/clientAssign.ts)
+
+---
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

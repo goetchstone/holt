@@ -16,6 +16,13 @@ const ITEMS: CardGridItem[] = [
     roles: ["ADMIN", "MANAGER", "DESIGNER"],
   },
   {
+    title: "My Clients",
+    description:
+      "Everyone you've sold to or quoted, with your notes, what they've bought and when to follow up.",
+    href: "/app/sales/clients",
+    roles: ["ADMIN", "MANAGER", "DESIGNER"],
+  },
+  {
     title: "New Quote",
     description: "Build a quote with configured, catalog, or custom items.",
     href: "/app/sales/quotes/new",

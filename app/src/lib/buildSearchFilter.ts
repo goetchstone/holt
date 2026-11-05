@@ -22,6 +22,9 @@
 //
 // All string matches are case-insensitive.
 //
+// `extraTokenMatch` adds a condition a field path can't express, such as a many
+// relation narrowed by another column. It gets each token and joins that token's OR.
+//
 // The returned object is a minimal Prisma where fragment. Callers cast it to
 // the specific `Prisma.ModelWhereInput` for their model.
 
@@ -30,7 +33,7 @@ type Leaf = { contains: string; mode: "insensitive" };
 type Nested = { [key: string]: Nested | Leaf };
 
 export interface SearchFilter {
-  AND: Array<{ OR: Nested[] }>;
+  AND: Array<{ OR: Array<Nested | object> }>;
 }
 
 function buildLeaf(path: string, token: string): Nested {
@@ -47,6 +50,7 @@ function buildLeaf(path: string, token: string): Nested {
 export function buildSearchFilter(
   searchTerm: string | null | undefined,
   fieldPaths: string[],
+  extraTokenMatch?: (token: string) => object,
 ): SearchFilter | undefined {
   if (!searchTerm) return undefined;
   if (fieldPaths.length === 0) return undefined;
@@ -60,7 +64,10 @@ export function buildSearchFilter(
 
   return {
     AND: tokens.map((token) => ({
-      OR: fieldPaths.map((path) => buildLeaf(path, token)),
+      OR: [
+        ...fieldPaths.map((path) => buildLeaf(path, token)),
+        ...(extraTokenMatch ? [extraTokenMatch(token)] : []),
+      ],
     })),
   };
 }

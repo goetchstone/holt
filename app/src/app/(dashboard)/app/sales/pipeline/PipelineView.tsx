@@ -26,27 +26,62 @@ import type {
 } from "@/pages/api/sales/pipeline/index";
 import { WealthTierBadge } from "@/components/customer/WealthTierBadge";
 import { LeadScoreBadge } from "@/components/customer/LeadScoreBadge";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useEffectiveRole } from "@/lib/hooks/useEffectiveRole";
 import { ARCHIVE_REASONS, REPLACEMENT_REASONS } from "@/lib/quoteArchive";
 import { getErrorMessage } from "@/lib/toastError";
+import { usePersistentFilters } from "@/hooks/usePersistentFilters";
+import { ClientInfoModal } from "@/components/pipeline/ClientInfoModal";
+import { ClientNoteModal } from "@/components/pipeline/ClientNoteModal";
+import { NextFollowUpPicker } from "@/components/pipeline/NextFollowUpPicker";
+import { PipelineFilterBar } from "@/components/pipeline/PipelineFilterBar";
+import { QuoteClientPanel } from "@/components/pipeline/QuoteClientPanel";
+import {
+  CONTACT_SOURCES,
+  INTERACTION_SOURCE_LABELS,
+  type ContactSource,
+  type InteractionSource,
+} from "@/lib/interactionSources";
+import {
+  countActiveFilters,
+  DEFAULT_PIPELINE_FILTERS,
+  filterPipelineQuotes,
+  findMatchingNote,
+  sortPipelineQuotes,
+  storeFilterOptions,
+} from "@/lib/pipelineFilters";
+import { needsAttention, nextFollowUpAfterContact } from "@/lib/pipelineFollowUp";
+import { DEFAULT_CLIENT_PROFILE_CHOICES } from "@/lib/clientProfile";
 
-type ContactSource = "WALK_IN" | "PHONE" | "EMAIL" | "APPOINTMENT";
-
-const SOURCE_LABELS: Record<ContactSource, string> = {
-  PHONE: "Phone",
-  EMAIL: "Email",
-  WALK_IN: "In-store",
-  APPOINTMENT: "Appointment",
+const ON_TRACK_URGENCY = {
+  dot: "bg-green-500",
+  badge: "bg-green-50 text-green-700 border-green-200",
 };
+const OVERDUE_URGENCY = { dot: "bg-red-500", badge: "bg-red-50 text-red-700 border-red-200" };
 
-function urgencyClass(daysSinceContact: number | null, daysSinceCreated: number) {
-  const days = daysSinceContact ?? daysSinceCreated;
-  if (days > 14) return { dot: "bg-red-500", badge: "bg-red-50 text-red-700 border-red-200" };
+function urgencyClass(quote: PipelineQuote) {
+  if (quote.followUpState === "scheduled") return ON_TRACK_URGENCY;
+  if (quote.followUpState === "due") return OVERDUE_URGENCY;
+  const days = quote.daysSinceContact ?? quote.daysSinceCreated;
+  if (days > 14) return OVERDUE_URGENCY;
   if (days > 7)
     return { dot: "bg-amber-500", badge: "bg-amber-50 text-amber-700 border-amber-200" };
   if (days > 3)
     return { dot: "bg-yellow-400", badge: "bg-yellow-50 text-yellow-700 border-yellow-200" };
-  return { dot: "bg-green-500", badge: "bg-green-50 text-green-700 border-green-200" };
+  return ON_TRACK_URGENCY;
+}
+
+function urgencyLabel(quote: PipelineQuote): string {
+  const nextDate = quote.customer?.profile?.nextFollowUpDate;
+  if (quote.followUpState === "due") return "Due";
+  if (quote.followUpState === "scheduled" && nextDate) {
+    return parseLocalDate(nextDate).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  }
+  const days = quote.daysSinceContact ?? quote.daysSinceCreated;
+  return days === 0 ? "Today" : `${days}d`;
 }
 
 function daysLabel(n: number): string {
@@ -59,6 +94,12 @@ function lastContactLabel(daysSinceContact: number, interactionCount: number): s
   const base = `Last contact ${daysLabel(daysSinceContact)}`;
   if (interactionCount > 0) return `${base} (${interactionCount})`;
   return base;
+}
+
+function contactSummary(quote: PipelineQuote): string {
+  const count = quote.interactions.length;
+  if (quote.lastInteractionAt) return lastContactLabel(quote.daysSinceContact ?? 0, count);
+  return count > 0 ? `No follow-up yet (${count})` : "No follow-up yet";
 }
 
 function computePageTitle(viewingStaffName: string | null | undefined, scope: string): string {
@@ -82,15 +123,22 @@ function customerDisplayName(quote: PipelineQuote): string {
 
 function FollowUpModal({
   quote,
+  today,
   onClose,
   onSaved,
 }: Readonly<{
   quote: PipelineQuote;
+  today: string;
   onClose: () => void;
   onSaved: () => void;
 }>) {
+  const canSchedule = Boolean(quote.customer) && !quote.customer?.isCashSale;
+  const dateOnCard = quote.customer?.profile?.nextFollowUpDate ?? null;
   const [source, setSource] = useState<ContactSource>("PHONE");
   const [notes, setNotes] = useState("");
+  const [nextFollowUpDate, setNextFollowUpDate] = useState<string | null>(
+    nextFollowUpAfterContact(dateOnCard, today),
+  );
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -101,11 +149,13 @@ function FollowUpModal({
         customerId: quote.customer?.id,
         source,
         notes: notes.trim() || undefined,
+        // Sent only when it changes, so an old page can't erase a colleague's newer date.
+        ...(canSchedule && nextFollowUpDate !== dateOnCard ? { nextFollowUpDate } : {}),
       });
       toast.success("Follow-up logged.");
       onSaved();
-    } catch {
-      toast.error("Failed to log follow-up.");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to log follow-up."));
     } finally {
       setSaving(false);
     }
@@ -131,7 +181,7 @@ function FollowUpModal({
               How you reached them
             </p>
             <div className="grid grid-cols-4 gap-2">
-              {(Object.keys(SOURCE_LABELS) as ContactSource[]).map((s) => (
+              {CONTACT_SOURCES.map((s) => (
                 <button
                   key={s}
                   onClick={() => setSource(s)}
@@ -141,7 +191,7 @@ function FollowUpModal({
                       : "border-brand-gray/30 text-brand-gray hover:border-brand-blue"
                   }`}
                 >
-                  {SOURCE_LABELS[s]}
+                  {INTERACTION_SOURCE_LABELS[s]}
                 </button>
               ))}
             </div>
@@ -163,6 +213,14 @@ function FollowUpModal({
               className="w-full border border-brand-gray/30 rounded-lg px-3 py-2 text-sm text-brand-black resize-none focus:outline-none focus:ring-1 focus:ring-brand-blue"
             />
           </div>
+
+          {canSchedule && (
+            <NextFollowUpPicker
+              value={nextFollowUpDate}
+              today={today}
+              onChange={setNextFollowUpDate}
+            />
+          )}
 
           <div className="flex gap-3 pt-1">
             <Button onClick={handleSave} disabled={saving} className="flex-1 min-h-[44px]">
@@ -342,24 +400,33 @@ function ArchiveModal({
 function QuoteCard({
   quote,
   onFollowUp,
+  onAddNote,
+  onClientInfo,
   onArchive,
   onRestore,
   isArchived,
+  searchTerm = "",
 }: Readonly<{
   quote: PipelineQuote;
   onFollowUp?: (q: PipelineQuote) => void;
+  onAddNote?: (q: PipelineQuote) => void;
+  onClientInfo?: (q: PipelineQuote) => void;
   onArchive?: (q: PipelineQuote) => void;
   onRestore?: (q: PipelineQuote) => void;
   isArchived?: boolean;
+  searchTerm?: string;
 }>) {
   const currency = useMoneyFormatter();
   const { effectiveRole } = useEffectiveRole();
   const [showHistory, setShowHistory] = useState(false);
-  const urgency = urgencyClass(quote.daysSinceContact, quote.daysSinceCreated);
+  // Most recent note, shown on active cards so nobody has to expand the history for it.
+  const lastNote = quote.interactions.find((ix) => ix.notes)?.notes ?? null;
+  // A search can hit an older note, so show the match instead of the newest one.
+  const matchedNote = searchTerm ? findMatchingNote(quote, searchTerm) : null;
+  const urgency = urgencyClass(quote);
   const customerName = quote.customer
     ? `${quote.customer.firstName ?? ""} ${quote.customer.lastName ?? ""}`.trim() || "No name"
     : "No customer";
-  const urgencyDays = quote.daysSinceContact ?? quote.daysSinceCreated ?? 0;
   const canSeeWealth =
     effectiveRole === "ADMIN" || effectiveRole === "SUPER_ADMIN" || effectiveRole === "MARKETING";
 
@@ -406,7 +473,7 @@ function QuoteCard({
               <span
                 className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border mt-1 ${urgency.badge}`}
               >
-                {urgencyDays === 0 ? "Today" : `${urgencyDays}d`}
+                {urgencyLabel(quote)}
               </span>
             )}
           </div>
@@ -447,6 +514,10 @@ function QuoteCard({
           <p className="text-xs text-brand-gray mt-1 italic">{quote.pipelineNote}</p>
         )}
 
+        {!isArchived && onClientInfo && (
+          <QuoteClientPanel quote={quote} onClientInfo={onClientInfo} />
+        )}
+
         <div className="flex items-center justify-between mt-3 gap-2">
           {isArchived ? (
             <p className="text-xs text-brand-gray">
@@ -471,9 +542,7 @@ function QuoteCard({
               }}
               className={`text-xs text-left ${quote.lastInteractionAt ? "text-brand-gray hover:text-brand-blue" : "text-amber-600 font-medium"}`}
             >
-              {quote.lastInteractionAt
-                ? lastContactLabel(quote.daysSinceContact ?? 0, quote.interactions.length)
-                : "No follow-up yet"}
+              {contactSummary(quote)}
             </button>
           )}
           <div className="flex gap-2 shrink-0">
@@ -511,6 +580,16 @@ function QuoteCard({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    onAddNote?.(quote);
+                  }}
+                  className="text-xs font-semibold text-brand-blue border border-brand-gray/30 rounded-lg px-3 py-1.5 min-h-[44px] hover:bg-brand-linen transition-colors"
+                >
+                  Add Note
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     onFollowUp?.(quote);
                   }}
                   className="text-xs font-semibold text-brand-blue border border-brand-blue/40 rounded-lg px-3 py-1.5 hover:bg-brand-blue hover:text-white transition-colors min-h-[36px]"
@@ -521,6 +600,20 @@ function QuoteCard({
             )}
           </div>
         </div>
+
+        {matchedNote && (
+          <p className="mt-2 rounded-lg bg-brand-linen px-3 py-2 text-xs text-brand-black whitespace-pre-wrap break-words">
+            <span className="font-semibold text-brand-gray">Matches: </span>
+            {matchedNote}
+          </p>
+        )}
+
+        {!isArchived && !matchedNote && lastNote && (
+          <p className="mt-2 text-xs text-brand-black line-clamp-2" title={lastNote}>
+            <span className="text-brand-gray">Last note: </span>
+            {lastNote}
+          </p>
+        )}
 
         {showHistory && quote.interactions.length > 0 && (
           <div className="mt-3 pt-3 border-t border-brand-gray/10 space-y-2">
@@ -533,11 +626,11 @@ function QuoteCard({
                   })}
                 </span>
                 <span className="shrink-0 px-1.5 py-0.5 rounded bg-brand-linen text-brand-gray font-medium">
-                  {SOURCE_LABELS[ix.source as ContactSource] ?? ix.source}
+                  {INTERACTION_SOURCE_LABELS[ix.source as InteractionSource] ?? ix.source}
                 </span>
                 <span className="text-brand-gray shrink-0">{ix.staffName}</span>
                 {ix.notes && (
-                  <span className="text-brand-black truncate" title={ix.notes}>
+                  <span className="text-brand-black min-w-0 whitespace-pre-wrap break-words">
                     {ix.notes}
                   </span>
                 )}
@@ -656,11 +749,43 @@ function StaffSummaryCard({
  * the dispatch isn't part of the page-level fetch flow's cog
  * complexity (S3776).
  */
+function UnassignedCard({
+  unassigned,
+}: Readonly<{ unassigned: NonNullable<PipelineResponse["unassigned"]> }>) {
+  const currency = useMoneyFormatter();
+  if (unassigned.quoteCount === 0) return null;
+  return (
+    <Link
+      href="/app/sales/clients?staff=unassigned"
+      className="block bg-white rounded-xl border border-brand-gold/60 shadow-sm px-4 py-3 hover:shadow-md transition-shadow"
+    >
+      <p className="font-semibold text-brand-black text-base leading-tight">
+        No owner: {unassigned.clientCount} client{unassigned.clientCount === 1 ? "" : "s"}
+      </p>
+      <p className="text-xs text-brand-gray mt-1">
+        {unassigned.quoteCount} open quote{unassigned.quoteCount === 1 ? "" : "s"} no one is
+        working, {currency(unassigned.totalValue, { whole: true })}. Assign them →
+      </p>
+    </Link>
+  );
+}
+
+function summariesForStore(summaries: StaffSummary[], store: string): StaffSummary[] {
+  if (store === DEFAULT_PIPELINE_FILTERS.store) return summaries;
+  return summaries.filter((s) => s.storeLocation === store);
+}
+
 function buildPipelineUrl(
   scope: "mine" | "all",
   viewingStaffId: number | null,
   showArchived: boolean,
+  search: string,
 ): string {
+  // A name or note search returns matching open quotes across the pipeline (a manager
+  // sees everyone's; a salesperson sees their own), ignoring scope.
+  if (search) {
+    return `/api/sales/pipeline?search=${encodeURIComponent(search)}&archived=${showArchived}`;
+  }
   if (scope === "all" && viewingStaffId !== null) {
     return `/api/sales/pipeline?scope=staff&staffId=${viewingStaffId}&archived=${showArchived}`;
   }
@@ -741,22 +866,27 @@ export function PipelineView() {
   const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [followUpTarget, setFollowUpTarget] = useState<PipelineQuote | null>(null);
+  const [noteTarget, setNoteTarget] = useState<PipelineQuote | null>(null);
+  const [clientInfoTarget, setClientInfoTarget] = useState<PipelineQuote | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<PipelineQuote | null>(null);
+  const [filters, setFilters] = usePersistentFilters("pipeline-filters", DEFAULT_PIPELINE_FILTERS);
   const [refreshKey, setRefreshKey] = useState(0);
   const [bulkArchiving, setBulkArchiving] = useState(false);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search.trim());
 
   const fetchPipeline = useCallback(async () => {
     setLoading(true);
     try {
-      const url = buildPipelineUrl(scope, viewingStaffId, showArchived);
+      const url = buildPipelineUrl(scope, viewingStaffId, showArchived, debouncedSearch);
       const res = await axios.get<PipelineResponse>(url);
       setData(res.data);
-    } catch {
-      toast.error("Failed to load pipeline.");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to load pipeline."));
     } finally {
       setLoading(false);
     }
-  }, [scope, viewingStaffId, showArchived, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scope, viewingStaffId, showArchived, refreshKey, debouncedSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchPipeline();
@@ -796,22 +926,45 @@ export function PipelineView() {
     }
   }
 
-  const isStaffGrid = scope === "all" && viewingStaffId === null;
+  const searching = debouncedSearch.length > 0;
+  // When searching, show the flat matching-quotes list instead of the staff grid.
+  const isStaffGrid = scope === "all" && viewingStaffId === null && !searching;
   const quotes = data?.quotes ?? [];
-  const leads = data?.leads ?? [];
-  const summaries = data?.staffSummaries ?? [];
+  const today = data?.today ?? "";
+  const hasFilters = countActiveFilters(filters) > 0;
+
+  // Filters narrow the active list. The archived tab and the archive modal's replacement
+  // suggestions always work from every quote.
+  const visibleQuotes = sortPipelineQuotes(filterPipelineQuotes(quotes, filters), filters.sort);
+  const leads = hasFilters ? [] : (data?.leads ?? []);
+  const allSummaries = data?.staffSummaries ?? [];
+  const summaries = summariesForStore(allSummaries, filters.store);
 
   // Active pipeline buckets
-  const needsAttention = quotes.filter((q) => (q.daysSinceContact ?? q.daysSinceCreated) > 7);
-  const active = quotes.filter((q) => (q.daysSinceContact ?? q.daysSinceCreated) <= 7);
+  const attentionQuotes = visibleQuotes.filter((q) => needsAttention(q.followUpState));
+  const active = visibleQuotes.filter((q) => !needsAttention(q.followUpState));
 
   const { totalValue, totalQuotes, totalOverdue, totalLeads } = computeSummaryTotals({
     isStaffGrid,
     summaries,
-    quotes,
+    quotes: visibleQuotes,
     leads,
-    needsAttention,
+    needsAttention: attentionQuotes,
   });
+
+  function renderActiveCard(quote: PipelineQuote) {
+    return (
+      <QuoteCard
+        key={quote.id}
+        quote={quote}
+        searchTerm={debouncedSearch}
+        onFollowUp={setFollowUpTarget}
+        onAddNote={setNoteTarget}
+        onClientInfo={setClientInfoTarget}
+        onArchive={setArchiveTarget}
+      />
+    );
+  }
 
   const pageTitle = computePageTitle(viewingStaffName, scope);
 
@@ -833,9 +986,24 @@ export function PipelineView() {
             </button>
           )}
           <h1 className="text-2xl font-semibold text-brand-blue truncate">{pageTitle}</h1>
+          <Link
+            href="/app/sales/clients"
+            className="text-sm text-brand-blue hover:underline shrink-0"
+          >
+            My Clients →
+          </Link>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {/* Name or note search: looks up open quotes across the pipeline */}
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name or notes…"
+            aria-label="Search pipeline by customer name or notes"
+            className="w-64 max-w-full rounded-lg border border-brand-gray/30 px-3 py-2 text-sm min-h-[44px]"
+          />
           {/* Bulk archive — manager only, shown on active views */}
           {data?.canViewAll && !showArchived && !isStaffGrid && (
             <button
@@ -931,6 +1099,39 @@ export function PipelineView() {
         </div>
       )}
 
+      {/* Rendered only once data loads, so saved filters never mismatch the server's HTML. */}
+      {data && !isStaffGrid && !showArchived && (
+        <PipelineFilterBar
+          filters={filters}
+          onChange={setFilters}
+          storeOptions={storeFilterOptions(
+            quotes.map((q) => q.storeLocation),
+            filters.store,
+          )}
+          choices={data.profileChoices ?? DEFAULT_CLIENT_PROFILE_CHOICES}
+          shownCount={visibleQuotes.length}
+          totalCount={quotes.length}
+        />
+      )}
+
+      {data && isStaffGrid && (
+        <select
+          aria-label="Filter staff by store"
+          value={filters.store}
+          onChange={(e) => setFilters({ ...filters, store: e.target.value })}
+          className="w-52 rounded-lg border border-brand-gray/30 bg-white px-3 py-2 text-sm text-brand-black min-h-[44px]"
+        >
+          {storeFilterOptions(
+            allSummaries.map((s) => s.storeLocation),
+            filters.store,
+          ).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      )}
+
       {loading && (
         <div className="text-brand-gray text-sm animate-pulse py-8 text-center">
           Loading pipeline...
@@ -942,6 +1143,7 @@ export function PipelineView() {
           {/* ── All-staff grid ──────────────────────────────────────────── */}
           {isStaffGrid && (
             <section className="space-y-3">
+              {data.unassigned && <UnassignedCard unassigned={data.unassigned} />}
               {summaries.length === 0 ? (
                 <p className="text-brand-gray text-sm text-center py-16">
                   No open quotes or leads across any staff.
@@ -973,7 +1175,13 @@ export function PipelineView() {
                     return to active pipeline.
                   </p>
                   {quotes.map((q) => (
-                    <QuoteCard key={q.id} quote={q} isArchived onRestore={handleRestore} />
+                    <QuoteCard
+                      key={q.id}
+                      quote={q}
+                      isArchived
+                      searchTerm={debouncedSearch}
+                      onRestore={handleRestore}
+                    />
                   ))}
                 </>
               )}
@@ -988,31 +1196,17 @@ export function PipelineView() {
                   <h2 className="text-xs font-semibold text-brand-gray uppercase tracking-widest">
                     Active — {active.length} quote{active.length === 1 ? "" : "s"}
                   </h2>
-                  {active.map((q) => (
-                    <QuoteCard
-                      key={q.id}
-                      quote={q}
-                      onFollowUp={setFollowUpTarget}
-                      onArchive={setArchiveTarget}
-                    />
-                  ))}
+                  {active.map(renderActiveCard)}
                 </section>
               )}
 
-              {needsAttention.length > 0 && (
+              {attentionQuotes.length > 0 && (
                 <section className="space-y-3">
                   <h2 className="text-xs font-semibold text-red-600 uppercase tracking-widest">
-                    Needs Attention — {needsAttention.length} quote
-                    {needsAttention.length === 1 ? "" : "s"} overdue
+                    Needs Attention — {attentionQuotes.length} quote
+                    {attentionQuotes.length === 1 ? "" : "s"} overdue
                   </h2>
-                  {needsAttention.map((q) => (
-                    <QuoteCard
-                      key={q.id}
-                      quote={q}
-                      onFollowUp={setFollowUpTarget}
-                      onArchive={setArchiveTarget}
-                    />
-                  ))}
+                  {attentionQuotes.map(renderActiveCard)}
                 </section>
               )}
 
@@ -1025,6 +1219,18 @@ export function PipelineView() {
                     <LeadCard key={lead.id} lead={lead} />
                   ))}
                 </section>
+              )}
+
+              {quotes.length > 0 && visibleQuotes.length === 0 && (
+                <div className="text-center py-16 space-y-2">
+                  <p className="text-brand-gray">No quotes match these filters.</p>
+                  <button
+                    onClick={() => setFilters({ ...DEFAULT_PIPELINE_FILTERS, sort: filters.sort })}
+                    className="text-brand-blue hover:underline text-sm min-h-[44px] px-2"
+                  >
+                    Clear filters
+                  </button>
+                </div>
               )}
 
               {quotes.length === 0 && leads.length === 0 && (
@@ -1048,9 +1254,36 @@ export function PipelineView() {
       {followUpTarget && (
         <FollowUpModal
           quote={followUpTarget}
+          today={today}
           onClose={() => setFollowUpTarget(null)}
           onSaved={() => {
             setFollowUpTarget(null);
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
+
+      {noteTarget && (
+        <ClientNoteModal
+          customerId={noteTarget.customer?.id}
+          salesOrderId={noteTarget.id}
+          title={`${customerDisplayName(noteTarget)} · ${noteTarget.orderno}`}
+          staysOnQuote={noteTarget.customer?.isCashSale}
+          onClose={() => setNoteTarget(null)}
+          onSaved={() => {
+            setNoteTarget(null);
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
+
+      {clientInfoTarget?.customer && (
+        <ClientInfoModal
+          customerId={clientInfoTarget.customer.id}
+          customerName={customerDisplayName(clientInfoTarget)}
+          onClose={() => setClientInfoTarget(null)}
+          onSaved={() => {
+            setClientInfoTarget(null);
             setRefreshKey((k) => k + 1);
           }}
         />

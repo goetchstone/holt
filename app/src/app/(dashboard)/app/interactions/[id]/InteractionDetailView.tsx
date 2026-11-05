@@ -14,6 +14,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import Link from "next/link";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
+import { INTERACTION_SOURCE_LABELS } from "@/lib/interactionSources";
 
 type CustomerResult = {
   id: number;
@@ -55,18 +56,15 @@ const OUTCOMES: { value: string; label: string }[] = [
   { value: "RETURNED", label: "Returned" },
 ];
 
-const SOURCE_LABELS: Record<string, string> = {
-  WALK_IN: "Walk-in",
-  PHONE: "Phone",
-  EMAIL: "Email",
-  APPOINTMENT: "Appointment",
-};
+const SOURCE_LABELS: Record<string, string> = INTERACTION_SOURCE_LABELS;
 
 const SOURCE_BADGE: Record<string, string> = {
   WALK_IN: "bg-brand-blue/10 text-brand-blue",
   PHONE: "bg-brand-gold/20 text-brand-gold",
   EMAIL: "bg-brand-gray/10 text-brand-gray",
   APPOINTMENT: "bg-green-100 text-green-800",
+  NOTE: "bg-brand-gray/10 text-brand-gray",
+  MANAGER_NOTE: "bg-brand-gray/10 text-brand-gray",
 };
 
 function relativeTime(dateStr: string): string {

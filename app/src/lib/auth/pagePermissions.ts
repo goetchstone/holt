@@ -279,6 +279,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/sales/invoices/new": { permission: "sales.write", widensFrom: "MANAGER,ADMIN" },
   "/app/sales/orders": { permission: "sales.read" },
   "/app/sales/orders/[id]": { permission: "sales.read" },
+  "/app/sales/clients": { permission: "sales.lead" },
   "/app/sales/pipeline": { permission: "sales.read" },
   "/app/sales/pos": { permission: "pos.operate" },
   "/app/sales/proposals": { permission: "sales.read", widensFrom: "MANAGER,ADMIN" },

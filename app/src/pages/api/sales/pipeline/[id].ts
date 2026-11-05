@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { isQuoteInStaffPipeline } from "@/lib/clientOwnership";
 import { prisma } from "@/lib/prisma";
 import { endQuoteHolds } from "@/lib/sales/quoteHolds";
 import {
@@ -59,7 +60,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
   const staff = await prisma.staffMember.findUnique({
     where: { email: session.user.email },
-    select: { id: true, displayName: true, role: true },
+    select: { id: true, displayName: true, aliases: true, role: true },
   });
   // Deny when no StaffMember record exists. The earlier `|| !staff`
   // branch granted any Google account without a staff record manager-level
@@ -72,7 +73,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
   const order = await prisma.salesOrder.findUnique({
     where: { id },
-    select: { id: true, status: true, salesPersonId: true, salesperson: true, customerId: true },
+    select: {
+      id: true,
+      status: true,
+      salesPersonId: true,
+      salesperson: true,
+      customerId: true,
+      customer: { select: { primaryDesignerId: true } },
+    },
   });
   if (!order) return res.status(404).json({ error: "Quote not found" });
   if (order.status !== "QUOTE")
@@ -80,10 +88,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
 
   // Designers may only archive their own quotes
   if (!isManager) {
-    const isOwner =
-      order.salesPersonId === staff.id ||
-      (order.salesperson?.toLowerCase().includes(staff.displayName.toLowerCase()) ?? false);
-    if (!isOwner) return res.status(403).json({ error: "Forbidden" });
+    const activeStaff = await prisma.staffMember.findMany({
+      where: { isActive: true },
+      select: { id: true, displayName: true, aliases: true },
+    });
+    if (!isQuoteInStaffPipeline(order, staff, activeStaff)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
   }
 
   // If archiving with a replacement, verify it exists and belongs to the same customer

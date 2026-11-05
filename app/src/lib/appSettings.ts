@@ -21,6 +21,11 @@ import { isLandedCostSplit, type LandedCostSplit } from "@/lib/purchasing/landed
 import { IDLE_LOGOFF_DEFAULT_MINUTES, isIdleLogoffMinutes } from "@/lib/auth/idleLogoff";
 import { QUOTE_HOLD_DEFAULT_MAX_DAYS, isQuoteHoldMaxDays } from "@/lib/sales/quoteHoldsShared";
 import { EVEN_SPLIT_PERCENT, isSplitPercent } from "@/lib/commissionSplit";
+import {
+  DEFAULT_CLIENT_PROFILE_CHOICES,
+  readClientProfileChoices,
+  type ClientProfileChoices,
+} from "@/lib/clientProfile";
 
 export const DEFAULT_ORG_ID = 1;
 
@@ -112,6 +117,7 @@ export interface ResolvedAppSettings {
    *  partner gets the rest (lib/commissionSplit.ts). 50 = even. */
   defaultSplitPercent: number;
   /** Who gets the daily low-stock list, as typed; null is nobody (GAP-14). */
+  clientProfileChoices: ClientProfileChoices;
   costCipherKey: string | null;
   lowStockAlertEmails: string | null;
   /** The hour of the store's day it goes, 0-23; null is off. */
@@ -180,6 +186,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   deliveryFeeTaxGroupId: null,
   discountLimitPercent: 0,
   defaultSplitPercent: EVEN_SPLIT_PERCENT,
+  clientProfileChoices: DEFAULT_CLIENT_PROFILE_CHOICES,
   costCipherKey: null,
   lowStockAlertEmails: null,
   lowStockAlertHour: null,
@@ -217,6 +224,7 @@ interface AppSettingsRow {
   deliveryFeeTaxGroupId?: number | null;
   discountLimitPercent?: number | null;
   defaultSplitPercent?: number | null;
+  clientProfileChoices?: unknown;
   costCipherKey?: string | null;
   lowStockAlertEmails?: string | null;
   lowStockAlertHour?: number | null;
@@ -302,6 +310,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     defaultSplitPercent: isSplitPercent(row.defaultSplitPercent)
       ? row.defaultSplitPercent
       : EVEN_SPLIT_PERCENT,
+    clientProfileChoices: readClientProfileChoices(row.clientProfileChoices),
     costCipherKey: row.costCipherKey ?? null,
     lowStockAlertEmails: row.lowStockAlertEmails ?? null,
     lowStockAlertHour: row.lowStockAlertHour ?? null,

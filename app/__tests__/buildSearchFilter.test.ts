@@ -136,4 +136,24 @@ describe("buildSearchFilter", () => {
       firstName: { contains: "JoHn", mode: "insensitive" },
     });
   });
+
+  it("adds a caller's own condition to each word's OR", () => {
+    const extra = (token: string) => ({ notes: { some: { text: token } } });
+    expect(buildSearchFilter("nora vale", ["firstName"], extra)).toEqual({
+      AND: [
+        {
+          OR: [
+            { firstName: { contains: "nora", mode: "insensitive" } },
+            { notes: { some: { text: "nora" } } },
+          ],
+        },
+        {
+          OR: [
+            { firstName: { contains: "vale", mode: "insensitive" } },
+            { notes: { some: { text: "vale" } } },
+          ],
+        },
+      ],
+    });
+  });
 });
