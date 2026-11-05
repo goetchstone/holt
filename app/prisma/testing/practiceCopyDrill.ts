@@ -31,6 +31,8 @@ function urlFor(base: string, database: string): string {
 
 async function withClient<T>(url: string, work: (client: Client) => Promise<T>): Promise<T> {
   const client = new Client({ connectionString: url });
+  // Being disconnected is part of what's being drilled. It mustn't crash the drill.
+  client.on("error", () => undefined);
   await client.connect();
   try {
     return await work(client);
@@ -151,7 +153,12 @@ async function main(): Promise<void> {
     check((await markers()) === "before", "starting over works a second time");
 
     await mark("newer");
+    // Saving needs everyone off too, and the app's pool holds connections open.
+    const heldOverSave = new Client({ connectionString: drillUrl });
+    heldOverSave.on("error", () => undefined);
+    await heldOverSave.connect();
     await saveStartingPoint(drillUrl);
+    await heldOverSave.end().catch(() => undefined);
     await mark("later");
     await restoreStartingPoint(drillUrl);
     check((await markers()) === "before,newer", "saving again replaces the starting point");
@@ -170,8 +177,8 @@ async function main(): Promise<void> {
       "a working copy left behind doesn't get in the way",
     );
 
-    // Someone connecting between clearing out and copying mustn't fail the save: the
-    // app's pool reconnects on its next request.
+    // The app keeps answering requests while this happens. Short connections coming
+    // and going mustn't fail either one.
     const busy = setInterval(() => {
       void withClient(drillUrl, (client) => client.query("SELECT 1")).catch(() => undefined);
     }, 5);

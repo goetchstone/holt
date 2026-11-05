@@ -21,6 +21,7 @@
 // because it creates and drops databases, which rule 59 keeps out of the test suite.
 
 import { Client } from "pg";
+import { logError } from "@/lib/logger";
 import { databaseNameFromUrl, isPracticeDatabaseName } from "@/lib/practiceCopy";
 
 /** Something the person can act on. The message is safe to show them. */
@@ -32,7 +33,6 @@ const PLAIN_NAME = /^[A-Za-z0-9_]+$/;
 const OBJECT_IN_USE = "55006";
 /** Postgres: this role isn't allowed to. */
 const INSUFFICIENT_PRIVILEGE = "42501";
-const COPY_ATTEMPTS = 5;
 
 interface PracticeNames {
   copy: string;
@@ -67,6 +67,8 @@ async function onServer<T>(
   const url = new URL(databaseUrl);
   url.pathname = "/postgres";
   const client = new Client({ connectionString: url.toString() });
+  // With no listener, a connection lost mid-way would take the whole server down.
+  client.on("error", (err) => logError("Practice copy's server connection failed", err));
   await client.connect();
   try {
     return await work(client, (name) => client.escapeIdentifier(name));
@@ -83,9 +85,10 @@ async function onServer<T>(
 }
 
 /**
- * A template can't have anyone connected, and the app's own pool reconnects on its
- * next request, so someone can slip in between clearing them out and the copy. Those
- * are rare and brief: clear them out again and retry.
+ * A template can't have anyone connected. Postgres blocks new connections while it
+ * copies and waits a few seconds for the ones it finds to finish. So this fails only
+ * if someone connects in the moment between clearing them out and starting the copy,
+ * and then stays connected. Rare enough that pressing the button again is the answer.
  */
 async function copyDatabase(
   client: Client,
@@ -93,17 +96,17 @@ async function copyDatabase(
   from: string,
   to: string,
 ): Promise<void> {
-  for (let attempt = 1; ; attempt += 1) {
-    await client.query(
-      "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
-      [from],
-    );
-    try {
-      await client.query(`CREATE DATABASE ${quote(to)} TEMPLATE ${quote(from)}`);
-      return;
-    } catch (err) {
-      if (postgresCode(err) !== OBJECT_IN_USE || attempt === COPY_ATTEMPTS) throw err;
+  await client.query(
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+    [from],
+  );
+  try {
+    await client.query(`CREATE DATABASE ${quote(to)} TEMPLATE ${quote(from)}`);
+  } catch (err) {
+    if (postgresCode(err) === OBJECT_IN_USE) {
+      throw new PracticeCopyError("Someone connected at just that moment. Try again.");
     }
+    throw err;
   }
 }
 
