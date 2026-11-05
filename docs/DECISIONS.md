@@ -1337,6 +1337,30 @@ was price, the photo size and the print mode.
 
 ---
 
+## 44. Holt doesn't store cards (2026-11-04)
+
+**Decided (owner):** Holt never saves a customer's card. If keeping a card on file ever
+comes up, the processor holds it, Stripe or whichever a store uses, and Holt holds at most
+the processor's own reference.
+
+**Why:** a processor already does this job, and holding card data isn't work Holt should
+take on. This is also why `lib/payments/types.ts` models no saved cards.
+
+**Rejected:**
+
+- **A saved-card table, tokens included, as part of card readers (GAP-03).** The roadmap
+  had saved cards waiting on that item. They're off it.
+
+Recurring payments need a stored card, so they'd be the processor's job too. The owner
+hasn't ruled on them directly, so that's a reading and not a decision.
+
+**Enforced by:** nothing in code: there's no card column to guard. It's recorded so a design
+pass doesn't reopen it.
+
+**Source:** `lib/payments/types.ts`, the roadmap's GAP-26.
+
+---
+
 ## 45. What a salesperson keeps belongs to the client, and a note isn't contact (2026-11-05)
 
 **Decided (GAP-36):** salespeople keep what they know about a client on a `ClientProfile`,
