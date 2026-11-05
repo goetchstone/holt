@@ -219,9 +219,13 @@ async function seedClientInfo(
       },
     });
   }
-  // Suggestions are off until a store sets this; the demo shows them, at a level that fits
-  // its smaller, newer history. The morning email stays off, so a demo sends nobody anything.
-  await prisma.appSettings.updateMany({ data: { outreachMinLifetimeSpend: 200 } });
+  // Suggestions and the morning email are off until a store sets them. The demo has them
+  // on, so its follow-ups, suggested clients and email can be tried, at a spend level that
+  // fits its smaller, newer history. Staff addresses are @example.com, and with no SMTP
+  // set the queue holds the email rather than sending it.
+  await prisma.appSettings.updateMany({
+    data: { outreachMinLifetimeSpend: 200, followUpEmailHour: 8 },
+  });
   return clients.length;
 }
 

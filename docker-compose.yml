@@ -6,6 +6,8 @@
 #   Production (default):      docker compose up -d --build
 #   Development (hot-reload):  docker compose --profile dev up
 #   Staging:                   docker compose --profile staging up -d --build
+#   Practice copy:             docker compose --profile practice up -d --build
+#                              (see docs/domains/practice-copy.md)
 #   Database only:             docker compose up db
 
 # Project name pinned so containers/volumes stay "holt-*" regardless of the
@@ -226,12 +228,76 @@ services:
     depends_on:
       - app-staging
 
+  # --------------------------------------------------------------------------
+  # Practice copy (GAP-28): the same app on its own database in the same Postgres,
+  # where staff learn the system and nothing is real. Its database's NAME is what
+  # makes it practice (lib/practiceCopy.ts). Setup: docs/domains/practice-copy.md.
+  #
+  # NEXTAUTH_SECRET is its own on purpose. A session signed here must not be valid
+  # on the live app, since anyone may be an admin here. Left unset, the secret is
+  # empty and the app refuses to start (lib/validateEnv.ts).
+  # --------------------------------------------------------------------------
+  app-practice:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      args:
+        GIT_COMMIT: "${GIT_COMMIT:-unknown}"
+    profiles: ["practice"]
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    env_file:
+      - .env
+      - app/.env.local
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${PRACTICE_POSTGRES_DB:-holt_demo_practice}
+      - NEXTAUTH_URL=${PRACTICE_NEXTAUTH_URL:-}
+      - NEXTAUTH_SECRET=${PRACTICE_NEXTAUTH_SECRET:-}
+      - AUTH_LOCAL_ENABLED=true
+      - HOLT_CONFIG_DIR=/etc/holt/config
+    volumes:
+      - uploads-practice:/app/data/uploads
+      - ./config:/etc/holt/config:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # One-off: load the demo seed into the practice copy's database. The built image
+  # ships no seed scripts (app/Dockerfile), so this runs from the checkout, like
+  # app-dev. Run with: docker compose --profile practice-seed run --rm practice-seed
+  # --------------------------------------------------------------------------
+  practice-seed:
+    image: node:24-alpine
+    pull_policy: always
+    profiles: ["practice-seed"]
+    working_dir: /app
+    volumes:
+      - ./app:/app
+      - app_node_modules:/app/node_modules
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${PRACTICE_POSTGRES_DB:-holt_demo_practice}
+      - PRACTICE_STAFF_PASSWORD=${PRACTICE_STAFF_PASSWORD:-}
+    command: >
+      sh -c "npm ci &&
+             npx prisma generate &&
+             npx prisma migrate deploy &&
+             npm run seed:all"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:
   pgdata-staging:
   app_node_modules:
   uploads:
   uploads-staging:
+  uploads-practice:
   # TLS cert (certbot's /etc/letsencrypt) and ACME webroot, shared between
   # the nginx and certbot services. No secrets in the repo -- these are
   # empty until scripts/init-letsencrypt.sh populates them at deploy time.

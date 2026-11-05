@@ -16,6 +16,7 @@ import {
   listMaskedCredentials,
   setCredential,
 } from "@/lib/integrationCredentials";
+import { isPracticeCopy, PRACTICE_COPY_NO_CONNECTIONS } from "@/lib/practiceCopy";
 
 export default requirePermission("admin.integrations", async (req, res, session) => {
   if (req.method === "GET") return handleGet(res);
@@ -31,6 +32,10 @@ async function handleGet(res: NextApiResponse) {
 }
 
 async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Session) {
+  // resolveCredential ignores what's stored here anyway. This keeps a real key
+  // from being typed into a copy that staff practice on.
+  if (isPracticeCopy()) return res.status(409).json({ error: PRACTICE_COPY_NO_CONNECTIONS });
+
   const { provider, field, value } = (req.body ?? {}) as {
     provider?: unknown;
     field?: unknown;

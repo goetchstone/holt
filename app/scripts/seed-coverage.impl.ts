@@ -115,6 +115,24 @@ function report(rows: Row[], notRun: Set<string>): number {
   return missingTable.length + regressions.length + stale.length === 0 ? 0 : 1;
 }
 
+/**
+ * A row count can't see a setting. A store starts with these automations off, but
+ * the demo and a practice copy have them on, so that they can be tried: a table full
+ * of follow-ups with the email switched off looks seeded and shows nothing.
+ */
+async function automationsLeftOff(prisma: PrismaClient): Promise<string[]> {
+  const settings = await prisma.appSettings.findFirst();
+  const messages = await prisma.customerMessageSetting.findMany();
+  const off: string[] = [];
+  if (settings?.followUpEmailHour == null) off.push("the morning email has no hour");
+  if (settings?.outreachMinLifetimeSpend == null) off.push("suggested clients have no spend level");
+  if (settings?.lowStockAlertHour == null) off.push("the low stock alert has no hour");
+  if (!settings?.lowStockAlertEmails) off.push("the low stock alert has no recipients");
+  if (messages.length === 0) off.push("no customer messages");
+  for (const m of messages) if (!m.isActive) off.push(`customer message ${m.kind} is off`);
+  return off;
+}
+
 async function main(): Promise<void> {
   // Prisma 7 requires the pg driver adapter; a bare `new PrismaClient()`
   // throws at construction. Same shape as scripts/seed-roles.impl.ts.
@@ -129,7 +147,10 @@ async function main(): Promise<void> {
       seeder: e.seeder,
       rows: counts.get(model) ?? 0,
     }));
-    process.exitCode = report(rows, seedersNotRun(process.argv.slice(2)));
+    const automationsOff = await automationsLeftOff(prisma);
+    for (const off of automationsOff) console.error(`REGRESSION  automation off: ${off}`);
+    process.exitCode =
+      report(rows, seedersNotRun(process.argv.slice(2))) || (automationsOff.length ? 1 : 0);
   } finally {
     await prisma.$disconnect();
   }

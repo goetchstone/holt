@@ -14,6 +14,8 @@
 
 import type { PrismaClient, StaffRole } from "@prisma/client";
 import { hashPassword, hashPin } from "@/lib/auth/password";
+import { databaseNameFromUrl, isPracticeDatabaseName } from "@/lib/practiceCopy";
+import { UnsafeSeedTargetError } from "./guard";
 
 /** Every seeded staff account's local-login password. Synthetic data only —
  * documented openly in docs/domains/seed-data.md. */
@@ -161,13 +163,33 @@ interface StoreLike {
   code: string;
 }
 
+/**
+ * The password seeded staff sign in with. A practice copy holds a store's real
+ * products and costs (GAP-28), so it can't use the one this public repo documents:
+ * it refuses to seed until PRACTICE_STAFF_PASSWORD picks one.
+ */
+export function seededStaffPassword(
+  databaseUrl: string = process.env.DATABASE_URL ?? "",
+  chosen: string | undefined = process.env.PRACTICE_STAFF_PASSWORD,
+): string {
+  if (!isPracticeDatabaseName(databaseNameFromUrl(databaseUrl))) return DEMO_STAFF_PASSWORD;
+  const password = chosen?.trim();
+  if (!password) {
+    throw new UnsafeSeedTargetError(
+      "A practice copy holds real products and costs, so it can't use the demo password. " +
+        "Set PRACTICE_STAFF_PASSWORD and run this again.",
+    );
+  }
+  return password;
+}
+
 export async function seedStaff(
   prisma: PrismaClient,
   stores: readonly StoreLike[],
   warehouseStoreLocationId: number,
   designerCount: number,
 ): Promise<StaffSetup> {
-  const passwordHash = hashPassword(DEMO_STAFF_PASSWORD);
+  const passwordHash = hashPassword(seededStaffPassword());
   const pinHash = hashPin(DEMO_STAFF_PIN);
   const storeA = stores[0]?.id ?? null;
   const storeB = stores[1]?.id ?? stores[0]?.id ?? null;
