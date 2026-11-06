@@ -1,11 +1,11 @@
-// /app/src/lib/adapters/ordorite/sameDayRewriteCleanup.ts
+// /app/src/lib/adapters/legacyPos/sameDayRewriteCleanup.ts
 //
 // Pure helper for the same-day-rewrite cleanup that runSalesImport runs
 // post-import (and the backfill migrations run against history).
 //
 // THE QUIRK we're cleaning up
 // --------------------------
-// When Ordorite "rewrites" an order on the same day it was placed (e.g.
+// When the POS "rewrites" an order on the same day it was placed (e.g.
 // customer changes their mind before close-of-business), it produces a
 // three-part chain:
 //   1. Base order — still ACTIVE, full original line set
@@ -38,7 +38,7 @@
 // Detection rule (this version) — CONSERVATIVE, combined heuristic:
 // A base line is "dropped" only when ALL of the following hold:
 //   1. lineNumber > max(rewrite.lineNumber)  — outside the rewrite's
-//      footprint (protects unchanged base lines that Ordorite leaves
+//      footprint (protects unchanged base lines that the POS leaves
 //      in place, e.g. an unchanged bedding set on the base order).
 //   2. No matching RETURN line (partNo + sign-inverted orderedQuantity)
 //      that hasn't already been consumed by an earlier base line.
@@ -68,7 +68,7 @@
 // What was actually broken:
 //
 //   1. The return-orderno lookup was wrong. `swapToReturnPrefix` mapped
-//      "XXOM1001" → "XXOA1001", but Ordorite's accounting-return
+//      "XXOM1001" → "XXOA1001", but the POS's accounting-return
 //      ordernos use an INDEPENDENT numeric sequence: the return for
 //      base XXOM1001 is e.g. XXOA000045. The base's number
 //      doesn't appear in the return at all.
@@ -81,7 +81,7 @@
 //
 // Two structural fixes (2026-05-22b):
 //
-//   A. In `cleanupOneRewriteChain` (ordoriteImportRunners.ts) — look
+//   A. In `cleanupOneRewriteChain` (runners.ts) — look
 //      up the return by `(customerId, orderDate, OA-prefix-pattern)`,
 //      not by exact orderno swap. With the real return data:
 //        - the drop-shaped order: gate 2 correctly claims base lines
@@ -123,7 +123,7 @@ export interface SameDayRewriteTriple {
   rewriteLines: readonly LineItemForCleanup[];
   /** Same-day accounting-return line items (`<store>OA` matching the
    *  base order's prefix + same orderDate). May be empty if the customer
-   *  modified the order via Ordorite's no-credit path (rare but possible). */
+   *  modified the order via the POS's no-credit path (rare but possible). */
   returnLines: readonly LineItemForCleanup[];
 }
 
@@ -207,7 +207,7 @@ export function findDroppedBaseLineIds(triple: SameDayRewriteTriple): number[] {
 
     // No available return/rewrite match. Position check is the final
     // safety net — if the line is within the rewrite's footprint, treat
-    // it as a kept-base-line that Ordorite chose not to disturb
+    // it as a kept-base-line that the POS chose not to disturb
     // (unchanged item, sticky fee, etc.). Otherwise it's a drop.
     if (base.lineNumber !== null && base.lineNumber <= rewriteMaxLineNumber) {
       continue;

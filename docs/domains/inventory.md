@@ -60,9 +60,9 @@ deployment that named its holding locations differently silently counted
 committed stock as available to sell. Migration
 `20260806163000_stock_location_holds_committed_stock` added the flag and
 backfilled it from exactly that string test, which is the whole equivalence
-guarantee: an existing Ordorite-fed database classifies every position the
+guarantee: an existing POS-fed database classifies every position the
 same after the migration as before it. The prefix itself now lives in
-`ordoriteHoldsCommittedStock()` in `lib/adapters/ordorite/shared.ts`, applied
+`legacyPosHoldsCommittedStock()` in `lib/adapters/legacyPos/shared.ts`, applied
 wherever that adapter creates a stock location — one adapter's fact about its
 source, not a product assumption (CLAUDE.md rule 61/62).
 
@@ -335,7 +335,7 @@ table and still reads the raw rows on purpose.
 
 ## Stock-by-Item import (daily)
 
-CSV: `<Org>_Stock_by_Item.csv` from the POS (Gmail auto-import, e.g. 06:10 local). Runner: `runStockByItemImport` in `lib/adapters/ordorite/runners.ts`. One row per (product, POS location) with current on-hand qty. On a live site this is a one-time opening load (DECISIONS #18).
+CSV: `<Org>_Stock_by_Item.csv` from the POS (Gmail auto-import, e.g. 06:10 local). Runner: `runStockByItemImport` in `lib/adapters/legacyPos/runners.ts`. One row per (product, POS location) with current on-hand qty. On a live site this is a one-time opening load (DECISIONS #18).
 
 **The location-matching gotcha** (post-failure 2026-04-24):
 
@@ -416,7 +416,7 @@ Before this key, store writes needed "Transfer stock" **and** a hardcoded MANAGE
 
   WAREHOUSE staff can still view Warehouse → Locations but not change it; the owner can tick the switch for them in Roles.
 - **The screen:** Warehouse → Locations itself is still gated on a MANAGER/ADMIN/WAREHOUSE role list (pending in `pagePermissions.ts`). The switch decides who can **save**; who can **open** that screen moves with the page keys (PERM-01).
-- **What it does not cover:** moving stock (Transfer stock); the traffic-counter mapping on a store (a settings preset, `admin.config`); and the UNMATCHED stock location the Ordorite import creates (the import's own key).
+- **What it does not cover:** moving stock (Transfer stock); the traffic-counter mapping on a store (a settings preset, `admin.config`); and the UNMATCHED stock location the POS import creates (the import's own key).
 
 ## Transfers
 
@@ -514,7 +514,7 @@ every place until a store sets it. Nothing sends a reminder yet.
 - `stockWriterTripwire.test.ts` — only `ledger.ts` writes `InventoryPosition`; fails both ways (new writer, stale manifest)
 - `stockSetAside.integration.test.ts` — floor samples (a delivery sale goes short rather than draw one; a take-with sale draws it last; a place typed DISPLAY from Locations), damaged stock set aside into quarantine with its note and journal row, an order that loses a unit drawing another or going short, the refusals, the Set aside list, back to stock and write off, and the returns-place and incomplete-set refusals
 - `warehouseQuantities.integration.test.ts` — every response under `warehouse/positions/*` and `warehouse/transfers/*` sends a 12.625 quantity as the number 12.625, not text, through a mock `res.json` that serialises as Next does. Failed 7/7 with `"string"` before the fix.
-- `ordoriteShared.test.ts` — `ordoriteHoldsCommittedStock`, the adapter-local name convention
+- `legacyPosShared.test.ts` — `legacyPosHoldsCommittedStock`, the adapter-local name convention
 - No dedicated tests for `runStockByItemImport`'s catch-all routing — **gap, worth a tripwire**
 - No tests for the reconcile + undo-reconcile round-trip
 - `inventorySnapshot.test.ts` — unit tests for `summarizeInventoryAggregate` (the shared freeze/snapshot roll-up)

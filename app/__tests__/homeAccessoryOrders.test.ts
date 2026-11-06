@@ -6,7 +6,7 @@
 // several draft POs via each row's `reference`. Ported from
 // furniture-configurator's __tests__/homeAccessoryOrders.test.ts — the
 // normalizer logic is unchanged; only the row shape (HomeAccessoryExportRow
-// instead of FC's Ordorite-CSV-shaped ApparelExportRow) differs. The
+// instead of FC's POS-CSV-shaped ApparelExportRow) differs. The
 // fixture bundle below is synthetic, not read from any PDF — the parser
 // (kkOrderParser.ts, already ported+tested in this repo) owns fidelity to
 // the real document.

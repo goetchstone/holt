@@ -147,8 +147,8 @@ describe("freePositionWhere", () => {
     expect(SELLABLE_LOCATION_TYPES).not.toContain("QUARANTINE");
     expect(SELLABLE_LOCATION_TYPES).not.toContain("TRANSIT");
     expect(SELLABLE_LOCATION_TYPES).not.toContain("STAGING");
-    // No name matching anywhere: the Ordorite "Customer%" convention lives
-    // in the Ordorite adapter now, not in shared inventory code (rule 61).
+    // No name matching anywhere: the POS "Customer%" convention lives
+    // in the POS adapter now, not in shared inventory code (rule 61).
     expect(JSON.stringify(where)).not.toMatch(/customer/i);
     // And no bare NOT, which is what the flag replaced.
     expect(where.NOT).toBeUndefined();

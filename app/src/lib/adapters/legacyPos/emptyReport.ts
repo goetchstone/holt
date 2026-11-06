@@ -1,6 +1,6 @@
-// /app/src/lib/adapters/ordorite/emptyReport.ts
+// /app/src/lib/adapters/legacyPos/emptyReport.ts
 //
-// An Ordorite daily report with no activity (no temp POs, no receipts that day)
+// A POS daily report with no activity (no temp POs, no receipts that day)
 // arrives as an essentially-empty CSV — literally `""\n`. Papa.parse returns
 // zero rows AND an `UndetectableDelimiter` error (it can't infer a delimiter
 // from an empty file). The Gmail import orchestrator must treat that as a

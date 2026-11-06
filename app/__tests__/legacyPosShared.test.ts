@@ -1,9 +1,9 @@
-// /app/__tests__/ordoriteShared.test.ts
+// /app/__tests__/legacyPosShared.test.ts
 //
-// Pure-helper coverage of the Ordorite adapter's CSV row normalizers
-// (@/lib/adapters/ordorite/shared) plus the source-agnostic coercion +
+// Pure-helper coverage of the POS adapter's CSV row normalizers
+// (@/lib/adapters/legacyPos/shared) plus the source-agnostic coercion +
 // customer-name helpers (@/lib/importHelpers) the adapter re-exports.
-// Ported from the upstream ordoriteImport.test.ts suite. The runner
+// Ported from the upstream import test suite. The runner
 // orchestration that exercises Prisma queries lives in the integration
 // suites — the fake-Prisma block at the bottom only pins the create-call
 // SHAPE for findProduct's auto-create path.
@@ -18,14 +18,14 @@ import {
   deriveSalesOrderStatus,
   isValidEmail,
   normalizeEmail,
-  parseOrdoriteAddress,
+  parseLegacyPosAddress,
   parseDateFlexible,
   derivePOStatus,
   classifyPOReceiptStatus,
   findProduct,
   clearAutoCreateCachesForTesting,
-  ordoriteHoldsCommittedStock,
-} from "@/lib/adapters/ordorite/shared";
+  legacyPosHoldsCommittedStock,
+} from "@/lib/adapters/legacyPos/shared";
 import {
   safeString,
   safeFloat,
@@ -173,15 +173,15 @@ describe("parseTaxLabel", () => {
 // ─── resolvePaymentMode ─────────────────────────────────────────────
 
 describe("resolvePaymentMode", () => {
-  it("maps Ordorite code 5 to Cash", () => {
+  it("maps the POS code 5 to Cash", () => {
     expect(resolvePaymentMode("5")).toBe("Cash");
   });
 
-  it("maps Ordorite code 4 to Check", () => {
+  it("maps the POS code 4 to Check", () => {
     expect(resolvePaymentMode("4")).toBe("Check");
   });
 
-  it("maps Ordorite code 6 to Gift Card", () => {
+  it("maps the POS code 6 to Gift Card", () => {
     expect(resolvePaymentMode("6")).toBe("Gift Card");
   });
 
@@ -198,7 +198,7 @@ describe("resolvePaymentMode", () => {
     expect(resolvePaymentMode("99")).toBe("99");
   });
 
-  it("strips trailing decimals from Ordorite codes", () => {
+  it("strips trailing decimals from the POS codes", () => {
     expect(resolvePaymentMode("27.00")).toBe("Card Connect");
     expect(resolvePaymentMode("28.00")).toBe("Card Not Present");
     expect(resolvePaymentMode("5.00")).toBe("Cash");
@@ -258,19 +258,19 @@ describe("isValidEmail", () => {
 // ─── isUntrustedMergeEmail ──────────────────────────────────────────
 
 describe("return-order conventions are configuration", () => {
-  const P = process.env.ORDORITE_RETURN_PREFIXES;
-  const C = process.env.ORDORITE_STORE_CODES;
+  const P = process.env.LEGACY_POS_RETURN_PREFIXES;
+  const C = process.env.LEGACY_POS_STORE_CODES;
   afterEach(() => {
-    if (P === undefined) delete process.env.ORDORITE_RETURN_PREFIXES;
-    else process.env.ORDORITE_RETURN_PREFIXES = P;
-    if (C === undefined) delete process.env.ORDORITE_STORE_CODES;
-    else process.env.ORDORITE_STORE_CODES = C;
+    if (P === undefined) delete process.env.LEGACY_POS_RETURN_PREFIXES;
+    else process.env.LEGACY_POS_RETURN_PREFIXES = P;
+    if (C === undefined) delete process.env.LEGACY_POS_STORE_CODES;
+    else process.env.LEGACY_POS_STORE_CODES = C;
   });
 
   // The vendor's convention is the "A" suffix on a store code; the codes are
   // the deployment's. Both spellings must agree.
   it("reads the A-suffix return convention against configured store codes", () => {
-    process.env.ORDORITE_STORE_CODES = "AA,BB,CC";
+    process.env.LEGACY_POS_STORE_CODES = "AA,BB,CC";
     expect(isReturnOrder("AAOA1234")).toBe(true);
     expect(isReturnOrder("CCOA1")).toBe(true);
     expect(isReturnOrder("AAOM10001")).toBe(false);
@@ -283,11 +283,11 @@ describe("return-order conventions are configuration", () => {
   // silently widened it 26x, so an unrelated R-series (RA rug account, RX
   // exchange) imported as RETURNED and was subtracted from revenue.
   it("only treats a CONFIGURED R-prefix as a return", () => {
-    delete process.env.ORDORITE_RETURN_PREFIXES;
+    delete process.env.LEGACY_POS_RETURN_PREFIXES;
     for (const o of ["RT1234", "RA1234", "RX9999", "RB0001"]) {
       expect(isReturnOrder(o)).toBe(false);
     }
-    process.env.ORDORITE_RETURN_PREFIXES = "RT";
+    process.env.LEGACY_POS_RETURN_PREFIXES = "RT";
     expect(isReturnOrder("RT1234")).toBe(true);
     expect(isReturnOrder("rt1234")).toBe(true);
     expect(isReturnOrder("RA1234")).toBe(false);
@@ -297,7 +297,7 @@ describe("return-order conventions are configuration", () => {
   // "R"/"CR" followed directly by digits is the vendor's own convention and
   // stands on its own, configured or not.
   it("keeps the vendor's own R/CR-then-digits convention unconditionally", () => {
-    delete process.env.ORDORITE_RETURN_PREFIXES;
+    delete process.env.LEGACY_POS_RETURN_PREFIXES;
     expect(isReturnOrder("R12345")).toBe(true);
     expect(isReturnOrder("CR-12345")).toBe(true);
   });
@@ -307,8 +307,8 @@ describe("return-order conventions are configuration", () => {
   // zero-length store code -- broader than any default.
   it("stands the rule down when the configured list is empty", () => {
     for (const junk of [",", " , , ", "  ", undefined]) {
-      if (junk === undefined) delete process.env.ORDORITE_STORE_CODES;
-      else process.env.ORDORITE_STORE_CODES = junk;
+      if (junk === undefined) delete process.env.LEGACY_POS_STORE_CODES;
+      else process.env.LEGACY_POS_STORE_CODES = junk;
       expect(isReturnOrder("PA1234")).toBe(false);
       expect(isReturnOrder("A1")).toBe(false);
       expect(isReturnOrder("AAOA1234")).toBe(false);
@@ -320,11 +320,11 @@ describe("return-order conventions are configuration", () => {
   // as RETURNED and be subtracted from revenue. Genuine returns are still
   // caught by the negative-net-total check, so nothing is lost by declining.
   it("does not guess a store code, and never flags an ordinary A-ending word", () => {
-    delete process.env.ORDORITE_STORE_CODES;
+    delete process.env.LEGACY_POS_STORE_CODES;
     for (const o of ["SOFA1", "MEGA1234", "VIA3", "AAOA1234"]) {
       expect(isReturnOrder(o)).toBe(false);
     }
-    process.env.ORDORITE_STORE_CODES = "AA,BB,CC";
+    process.env.LEGACY_POS_STORE_CODES = "AA,BB,CC";
     expect(isReturnOrder("AAOA1234")).toBe(true);
     expect(isReturnOrder("SOFA1")).toBe(false);
     expect(isReturnOrder("MEGA1234")).toBe(false);
@@ -466,11 +466,11 @@ describe("normalizeEmail", () => {
   });
 });
 
-// ─── parseOrdoriteAddress ───────────────────────────────────────────
+// ─── parseLegacyPosAddress ───────────────────────────────────────────
 
-describe("parseOrdoriteAddress", () => {
+describe("parseLegacyPosAddress", () => {
   it("parses street, city, state, country format", () => {
-    const result = parseOrdoriteAddress("123 Main St, Hartford, CT, United States");
+    const result = parseLegacyPosAddress("123 Main St, Hartford, CT, United States");
     expect(result).toEqual({
       address1: "123 Main St",
       city: "Hartford",
@@ -479,7 +479,7 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("parses without country (3 parts)", () => {
-    const result = parseOrdoriteAddress("45 Oak Ave, Wexbridge, CT");
+    const result = parseLegacyPosAddress("45 Oak Ave, Wexbridge, CT");
     expect(result).toEqual({
       address1: "45 Oak Ave",
       city: "Wexbridge",
@@ -488,17 +488,17 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("returns null for empty input", () => {
-    expect(parseOrdoriteAddress(null)).toBeNull();
-    expect(parseOrdoriteAddress("")).toBeNull();
+    expect(parseLegacyPosAddress(null)).toBeNull();
+    expect(parseLegacyPosAddress("")).toBeNull();
   });
 
   it("returns null for fewer than 3 parts", () => {
-    expect(parseOrdoriteAddress("just a street")).toBeNull();
-    expect(parseOrdoriteAddress("street, city")).toBeNull();
+    expect(parseLegacyPosAddress("just a street")).toBeNull();
+    expect(parseLegacyPosAddress("street, city")).toBeNull();
   });
 
   it("trims whitespace from parts", () => {
-    const result = parseOrdoriteAddress("  123 Main St ,  Hartford ,  CT  ");
+    const result = parseLegacyPosAddress("  123 Main St ,  Hartford ,  CT  ");
     expect(result).toEqual({
       address1: "123 Main St",
       city: "Hartford",
@@ -507,7 +507,7 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("handles apartment/unit prefix in address", () => {
-    const result = parseOrdoriteAddress(
+    const result = parseLegacyPosAddress(
       "Apt B, 112 Ferncliff Avenue, Brookvale, CT, United States",
     );
     expect(result).toEqual({
@@ -518,7 +518,7 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("handles PO Box prefix in address", () => {
-    const result = parseOrdoriteAddress("PO Box 10, 1 Example Rd, Wexbridge, CT, USA");
+    const result = parseLegacyPosAddress("PO Box 10, 1 Example Rd, Wexbridge, CT, USA");
     expect(result).toEqual({
       address1: "PO Box 10, 1 Example Rd",
       city: "Wexbridge",
@@ -527,7 +527,7 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("handles unit prefix without country", () => {
-    const result = parseOrdoriteAddress("Unit 5, 8 Sample Circle, Brookvale, CT");
+    const result = parseLegacyPosAddress("Unit 5, 8 Sample Circle, Brookvale, CT");
     expect(result).toEqual({
       address1: "Unit 5, 8 Sample Circle",
       city: "Brookvale",
@@ -536,7 +536,7 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("handles building/suite style prefix", () => {
-    const result = parseOrdoriteAddress("D13 North, 100 Test Road, Springfield, VT, United States");
+    const result = parseLegacyPosAddress("D13 North, 100 Test Road, Springfield, VT, United States");
     expect(result).toEqual({
       address1: "D13 North, 100 Test Road",
       city: "Springfield",
@@ -545,7 +545,7 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("strips zip code merged into state field", () => {
-    const result = parseOrdoriteAddress("61 Larkfield Lane, Wexbridge, CT 99999");
+    const result = parseLegacyPosAddress("61 Larkfield Lane, Wexbridge, CT 99999");
     expect(result).toEqual({
       address1: "61 Larkfield Lane",
       city: "Wexbridge",
@@ -554,7 +554,7 @@ describe("parseOrdoriteAddress", () => {
   });
 
   it("drops trailing zip code as separate part", () => {
-    const result = parseOrdoriteAddress("61 Example Dr., Wexbridge, CT, 99999");
+    const result = parseLegacyPosAddress("61 Example Dr., Wexbridge, CT, 99999");
     expect(result).toEqual({
       address1: "61 Example Dr.",
       city: "Wexbridge",
@@ -618,11 +618,11 @@ describe("derivePOStatus", () => {
     expect(derivePOStatus("part received")).toBe("RECEIVED_PARTIAL");
   });
 
-  // Ordorite's Daily Quote Temp Purchase Orders report emits
+  // The POS's Daily Quote Temp Purchase Orders report emits
   // `Postatus = "Temporary"` for POs that exist but haven't been
   // finalized yet. Map to DRAFT so they're distinguishable from real
   // confirmed POs in reports and dispatch boards.
-  it("maps 'Temporary' to DRAFT (Ordorite temp-items Postatus)", () => {
+  it("maps 'Temporary' to DRAFT (the POS temp-items Postatus)", () => {
     expect(derivePOStatus("Temporary")).toBe("DRAFT");
   });
 
@@ -656,8 +656,8 @@ describe("isReturnOrder", () => {
   });
 
   it("detects A-suffix store codes as returns once the codes are configured", () => {
-    const prev = process.env.ORDORITE_STORE_CODES;
-    process.env.ORDORITE_STORE_CODES = "AA,BB,CC,DD,EE";
+    const prev = process.env.LEGACY_POS_STORE_CODES;
+    process.env.LEGACY_POS_STORE_CODES = "AA,BB,CC,DD,EE";
     try {
       expect(isReturnOrder("AAOA10011")).toBe(true);
       expect(isReturnOrder("BBOA10021")).toBe(true);
@@ -665,8 +665,8 @@ describe("isReturnOrder", () => {
       expect(isReturnOrder("DDOA10031")).toBe(true);
       expect(isReturnOrder("EEOA10001")).toBe(true);
     } finally {
-      if (prev === undefined) delete process.env.ORDORITE_STORE_CODES;
-      else process.env.ORDORITE_STORE_CODES = prev;
+      if (prev === undefined) delete process.env.LEGACY_POS_STORE_CODES;
+      else process.env.LEGACY_POS_STORE_CODES = prev;
     }
   });
 
@@ -815,46 +815,46 @@ describe("classifyPOReceiptStatus", () => {
   });
 });
 
-// ─── ordoriteHoldsCommittedStock ───────────────────────────────────
+// ─── legacyPosHoldsCommittedStock ───────────────────────────────────
 //
 // The one place the "Customer%" stock-location naming convention still
 // lives. It used to be a literal inside lib/inventory/allocation.ts and
 // lib/reports/buyersReport.ts, which meant every deployment inherited
-// Ordorite's naming whether or not it used it. Now it is one adapter's
+// the POS's naming whether or not it used it. Now it is one adapter's
 // fact about its own source, translated into StockLocation
 // .holdsCommittedStock at the point the adapter creates a location
 // (CLAUDE.md rule 61 / 62).
 
-describe("ordoriteHoldsCommittedStock", () => {
+describe("legacyPosHoldsCommittedStock", () => {
   it("is set for a Customer-prefixed location", () => {
-    expect(ordoriteHoldsCommittedStock("Customer Sofas")).toBe(true);
+    expect(legacyPosHoldsCommittedStock("Customer Sofas")).toBe(true);
   });
 
   it("is NOT set for an ordinary warehouse location", () => {
-    expect(ordoriteHoldsCommittedStock("Warehouse A")).toBe(false);
+    expect(legacyPosHoldsCommittedStock("Warehouse A")).toBe(false);
   });
 
   it("matches case-insensitively — the CSV is not consistent about it", () => {
-    expect(ordoriteHoldsCommittedStock("customer holds")).toBe(true);
-    expect(ordoriteHoldsCommittedStock("CUSTOMER PICKUP")).toBe(true);
-    expect(ordoriteHoldsCommittedStock("cUsToMeR misc")).toBe(true);
+    expect(legacyPosHoldsCommittedStock("customer holds")).toBe(true);
+    expect(legacyPosHoldsCommittedStock("CUSTOMER PICKUP")).toBe(true);
+    expect(legacyPosHoldsCommittedStock("cUsToMeR misc")).toBe(true);
   });
 
   it("matches the bare word and ignores surrounding whitespace", () => {
-    expect(ordoriteHoldsCommittedStock("Customer")).toBe(true);
-    expect(ordoriteHoldsCommittedStock("  Customer Sofas  ")).toBe(true);
+    expect(legacyPosHoldsCommittedStock("Customer")).toBe(true);
+    expect(legacyPosHoldsCommittedStock("  Customer Sofas  ")).toBe(true);
   });
 
   it("only matches at the START of the name", () => {
     // "Returns from Customer" is a returns bay, not committed stock.
-    expect(ordoriteHoldsCommittedStock("Returns from Customer")).toBe(false);
-    expect(ordoriteHoldsCommittedStock("West Customer Hold")).toBe(false);
+    expect(legacyPosHoldsCommittedStock("Returns from Customer")).toBe(false);
+    expect(legacyPosHoldsCommittedStock("West Customer Hold")).toBe(false);
   });
 
   it("is false for an empty or missing name rather than throwing", () => {
-    expect(ordoriteHoldsCommittedStock("")).toBe(false);
-    expect(ordoriteHoldsCommittedStock(null)).toBe(false);
-    expect(ordoriteHoldsCommittedStock(undefined)).toBe(false);
+    expect(legacyPosHoldsCommittedStock("")).toBe(false);
+    expect(legacyPosHoldsCommittedStock(null)).toBe(false);
+    expect(legacyPosHoldsCommittedStock(undefined)).toBe(false);
   });
 });
 

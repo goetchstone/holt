@@ -214,7 +214,7 @@ const LEGACY_VENDOR_CONFIGS: VendorConfig[] = [
         value: "retail-prices",
         label: "Retail MRP Price List (PDF)",
         defaultPriceListName: "American Leather Retail November 2025",
-        importEndpoint: "/api/pricing/import/american-leather",
+        importEndpoint: "/api/pricing/import/dual-grade-prices",
       },
     ],
   },

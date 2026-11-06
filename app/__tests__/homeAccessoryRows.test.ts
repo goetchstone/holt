@@ -4,7 +4,7 @@
 // BuyerDraftItems from: how a split set becomes one row per piece, and the
 // precedence that decides each row's MONEY and CLASSIFICATION. Ported from
 // furniture-configurator's __tests__/homeAccessoryRows.test.ts (which
-// pinned the same composition for Ordorite CSV export) — the split-set
+// pinned the same composition for the POS CSV export) — the split-set
 // math and precedence rules are unchanged. Dropped: the catalog-match
 // ("adopt an existing catalog split") tests, since holt's buyer drafts
 // have no catalog-match step (see homeAccessoryRows.ts header comment) —

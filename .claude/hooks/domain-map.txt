@@ -27,7 +27,7 @@ app/src/lib/homeAccessoryBuyerDraftMapping.ts|docs/domains/buyer-drafts.md
 app/src/lib/historicalPoImport*|docs/domains/buyer-drafts.md
 
 # Import pipeline (legacy/adapter ingestion)
-app/src/lib/adapters/ordorite/*|docs/domains/import-pipeline.md
+app/src/lib/adapters/legacyPos/*|docs/domains/import-pipeline.md
 app/src/pages/api/import/*|docs/domains/import-pipeline.md
 app/src/lib/automations/*|docs/domains/automations.md
 app/src/pages/api/automations/tick.ts|docs/domains/automations.md
@@ -59,7 +59,7 @@ app/src/app/(dashboard)/app/reports/returns/*|docs/domains/returns.md
 app/src/app/(dashboard)/app/reports/unclassified-returns/*|docs/domains/returns.md
 app/src/pages/api/returns/*|docs/domains/returns.md
 app/src/lib/returnService.ts|docs/domains/returns.md
-app/src/lib/adapters/ordorite/sameDayRewriteCleanup.ts|docs/domains/returns.md
+app/src/lib/adapters/legacyPos/sameDayRewriteCleanup.ts|docs/domains/returns.md
 app/src/lib/salesOrderRevenue.ts|docs/domains/returns.md
 
 # Sales orders / quotes / pipeline (generic -- catches remaining sales/*)

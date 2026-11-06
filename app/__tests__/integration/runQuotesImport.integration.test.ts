@@ -35,7 +35,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
-import { runQuotesImport } from "@/lib/adapters/ordorite/runners";
+import { runQuotesImport } from "@/lib/adapters/legacyPos/runners";
 
 const ORDERNO = "XXOM10002";
 

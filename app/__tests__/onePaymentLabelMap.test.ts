@@ -27,7 +27,7 @@ const HAND_WRITTEN_LABEL =
 
 const ACCEPTED: Record<string, string> = {
   "src/lib/paymentMethodDisplay.ts": "METHOD_DISPLAY itself: the one home.",
-  "src/lib/adapters/ordorite/shared.ts":
+  "src/lib/adapters/legacyPos/shared.ts":
     "PAYMENT_METHOD_MAP runs the other way: the source system's own tender names (one of which is spelled `ACH`) translated into holt's PaymentMethod. An adapter's vocabulary, not holt's labels.",
 };
 

@@ -141,8 +141,8 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
 - ☐ `npm run create-admin <email> <password>` for the first SUPER_ADMIN.
 - ☐ The deployment's own content: run its seed (brand + CMS pages), kept outside
   the repo (`docs/DEPLOYMENTS.md`, "A deployment's own kit"), or build the pages
-  in Admin → CMS. Retail edition migrating from Ordorite: restore the prod
-  backup + run the Ordorite import.
+  in Admin → CMS. Retail edition migrating from the POS: restore the prod
+  backup + run the POS import.
 - ☐ In Settings: set name/logo/theme, currency/locale/timezone, and toggle
   the feature modules this tenant uses (billing, clientPortal, legacyArchive,
   helpdesk, booking, cms, ...). All default OFF.

@@ -15,7 +15,7 @@ import { resetTestDb } from "@/lib/testing/withTestDb";
 import { invalidateAppSettingsCache } from "@/lib/appSettings";
 import { allocate } from "@/lib/inventory/allocation";
 import { toQty } from "@/lib/inventory/quantity";
-import { runStockByItemImport } from "@/lib/adapters/ordorite/runners";
+import { runStockByItemImport } from "@/lib/adapters/legacyPos/runners";
 import { stockAt } from "../helpers/stock";
 
 async function world(unmatchedStore: "set" | "unset" = "unset") {

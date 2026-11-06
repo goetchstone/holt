@@ -40,12 +40,12 @@ describe("registered runners", () => {
 
 describe("unknown runner keys", () => {
   test("isRegisteredRunnerKey is false for an unknown key", () => {
-    expect(isRegisteredRunnerKey("ordoriteSales")).toBe(false);
+    expect(isRegisteredRunnerKey("legacyPosSales")).toBe(false);
   });
 
   test("getImportRunner throws a readable error for an unknown key", () => {
-    expect(() => getImportRunner("ordoriteSales")).toThrow(
-      /Import runner "ordoriteSales" is not registered\. Registered runners: customer, vendor, category, type, product, department\./,
+    expect(() => getImportRunner("legacyPosSales")).toThrow(
+      /Import runner "legacyPosSales" is not registered\. Registered runners: customer, vendor, category, type, product, department\./,
     );
   });
 

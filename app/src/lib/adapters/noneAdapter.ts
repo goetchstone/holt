@@ -4,10 +4,10 @@
 //
 // This is the SHIPPED DEFAULT, and it is the whole point of the adapter seam.
 // Before it, a fresh install's only answer to "where does data come from" was
-// the Ordorite adapter -- so a deployment that had never heard of Ordorite
+// the POS adapter -- so a deployment that had never heard of the POS
 // still got its import route, its admin page, and its failure modes, and the
 // honest state "we key everything natively" was indistinguishable from
-// "Ordorite, misconfigured."
+// "the POS, misconfigured."
 //
 // Running it is a no-op that says so, rather than an error. A cron pointed at
 // a deployment that imports nothing should report nothing to do -- not fail

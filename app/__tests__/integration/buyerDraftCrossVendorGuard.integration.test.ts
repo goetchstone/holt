@@ -34,9 +34,9 @@ describe("Cross-vendor drop guard (real DB)", () => {
     await prisma.$disconnect();
   });
 
-  it("isCompatiblePoForItem against hydrated rows: blocks AL item → BY PO", async () => {
-    const al = await prisma.vendor.create({
-      data: { name: "American Leather", code: "AL" },
+  it("isCompatiblePoForItem against hydrated rows: blocks a leather vendor's item → BY PO", async () => {
+    const leather = await prisma.vendor.create({
+      data: { name: "Larkmoor Leatherworks", code: "LL" },
     });
     const by = await prisma.vendor.create({
       data: { name: "Bradington Young", code: "BY" },
@@ -44,9 +44,9 @@ describe("Cross-vendor drop guard (real DB)", () => {
 
     const item = await prisma.buyerDraftItem.create({
       data: {
-        vendorId: al.id,
-        vendorName: "American Leather",
-        partNumber: "AL-BNY-SO2",
+        vendorId: leather.id,
+        vendorName: "Larkmoor Leatherworks",
+        partNumber: "LL-BNY-SO2",
         productName: "Bentley Comfort Sleeper",
         cost: 2700,
         retail: 6299,
@@ -68,22 +68,22 @@ describe("Cross-vendor drop guard (real DB)", () => {
   });
 
   it("isCompatiblePoForItem against hydrated rows: allows same-vendor PO drop", async () => {
-    const al = await prisma.vendor.create({
-      data: { name: "American Leather", code: "AL2" },
+    const leather = await prisma.vendor.create({
+      data: { name: "Larkmoor Leatherworks", code: "LL2" },
     });
 
     const item = await prisma.buyerDraftItem.create({
       data: {
-        vendorId: al.id,
-        vendorName: "American Leather",
-        partNumber: "AL-CAA-SO2",
+        vendorId: leather.id,
+        vendorName: "Larkmoor Leatherworks",
+        partNumber: "LL-CAA-SO2",
         productName: "Clara Queen",
         cost: 2150,
         retail: 4799,
       },
     });
     const po = await prisma.buyerDraftPurchaseOrder.create({
-      data: { vendorId: al.id, vendorName: "American Leather" },
+      data: { vendorId: leather.id, vendorName: "Larkmoor Leatherworks" },
     });
 
     const compat = isCompatiblePoForItem({ vendorId: item.vendorId }, { vendorId: po.vendorId });
@@ -91,14 +91,14 @@ describe("Cross-vendor drop guard (real DB)", () => {
   });
 
   it("isCompatiblePoForItem against hydrated rows: PO with no vendor accepts any item (lenient mid-edit)", async () => {
-    const al = await prisma.vendor.create({
-      data: { name: "American Leather", code: "AL3" },
+    const leather = await prisma.vendor.create({
+      data: { name: "Larkmoor Leatherworks", code: "LL3" },
     });
     const item = await prisma.buyerDraftItem.create({
       data: {
-        vendorId: al.id,
-        vendorName: "American Leather",
-        partNumber: "AL-LYS-EO2",
+        vendorId: leather.id,
+        vendorName: "Larkmoor Leatherworks",
+        partNumber: "LL-LYS-EO2",
         productName: "Lyons Silver Queen",
         cost: 1975,
         retail: 4299,

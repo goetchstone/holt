@@ -3,7 +3,7 @@
 // WHY THIS FILE EXISTS
 //
 // Before this module, nothing in holt ever decremented on-hand inventory for
-// a sale. Every writer of InventoryPosition either added stock (Ordorite
+// a sale. Every writer of InventoryPosition either added stock (the POS
 // import, PO receiving, returns) or moved it sideways (warehouse transfers,
 // manual edits). Selling, fulfilling, and delivering had zero effect on
 // on-hand -- a store could sell the same sofa to five customers and the
@@ -30,9 +30,9 @@
 // A position is free stock only if neither signal is present.
 //
 // The flag is set by an admin (warehouse -> locations) or derived by an
-// import adapter from its own source convention -- the Ordorite adapter
+// import adapter from its own source convention -- the POS adapter
 // derives it from that deployment's "Customer%" location naming, in
-// src/lib/adapters/ordorite/shared.ts. That naming convention is real in
+// src/lib/adapters/legacyPos/shared.ts. That naming convention is real in
 // the imported data, and the migration that added the flag backfilled it
 // from exactly that string test, so imported data behaves as before. It is
 // one adapter's fact about its source, though, not something shared

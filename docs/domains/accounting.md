@@ -424,10 +424,10 @@ of the seam.
 
 `generateSalesJournal` recognises revenue and COGS for an order only when
 `order.hasInvoices` is true. `Invoice.salesOrderId` is the link that makes it
-true — and the only writers of that column were **the Ordorite importer and the
+true — and the only writers of that column were **POS importer and the
 demo seed**. `createDraftInvoice` had no parameter for it.
 
-So on any deployment not importing from Ordorite there was no way to invoice a
+So on any deployment not importing from the POS there was no way to invoice a
 sales order, revenue was never recognised, and every sale sat in Customer
 Deposits forever with nothing reporting a problem. `CreateDraftInput` now
 takes `salesOrderId`.
@@ -472,7 +472,7 @@ effect of a native refund; the reversing revenue/COGS/tax legs, when they
 exist, come from return-shaped (negative) `OrderLineItem`s via the B3 path.
 
 **The discriminator is `originalPaymentId`, never `isRefund`.** Imported POS
-returns also set `isRefund` (`adapters/ordorite/shared.ts::isRefundPayment`),
+returns also set `isRefund` (`adapters/legacyPos/shared.ts::isRefundPayment`),
 but they hang off their own return-order whose line items are negative and have
 never been booked — those must keep flowing through B3. Only `processRefund`
 sets `originalPaymentId`. Rule 60: route by recorded fact.
@@ -711,7 +711,7 @@ For changes that affect cutover readiness (any Phase 0 BLOCKER work):
   row at the original order. Regression coverage in
   `__tests__/journalEntry.test.ts`, `__tests__/dailyReconciliation.test.ts`,
   `__tests__/reconcileHandler.test.ts`, and both integration files.
-- 2026-08-01: Native-refund cash sign bug (branch `fix/refund-sign-in-journal`). The payment-mapping loop in `generateSalesJournal` (`lib/journalEntry.ts`) summed `payment.paymentAmount` with no reference to `Payment.isRefund`. `paymentService.ts::processRefund` writes the refund row with a POSITIVE `paymentAmount` and `isRefund: true`, so a native ERP refund was booked as cash RECEIVED instead of paid out — inflating the day's cash and producing unexplained daily-reconciliation drift. Imported POS refunds were unaffected (the Ordorite import already stores them negative), so production data carries both sign conventions simultaneously. Fix: normalize on the flag (`payment.isRefund ? -Math.abs(rawAmount) : rawAmount`) so a negative import isn't double-negated — the same pattern already used by `paymentService.ts` (`computeBalance`, `calculateTillExpected`) and `customerLedger.ts`. Regression coverage: `__tests__/integration/generateSalesJournal.integration.test.ts` "Payment.isRefund sign normalization" (4 scenarios, see Test coverage table above).
+- 2026-08-01: Native-refund cash sign bug (branch `fix/refund-sign-in-journal`). The payment-mapping loop in `generateSalesJournal` (`lib/journalEntry.ts`) summed `payment.paymentAmount` with no reference to `Payment.isRefund`. `paymentService.ts::processRefund` writes the refund row with a POSITIVE `paymentAmount` and `isRefund: true`, so a native ERP refund was booked as cash RECEIVED instead of paid out — inflating the day's cash and producing unexplained daily-reconciliation drift. Imported POS refunds were unaffected (the POS import already stores them negative), so production data carries both sign conventions simultaneously. Fix: normalize on the flag (`payment.isRefund ? -Math.abs(rawAmount) : rawAmount`) so a negative import isn't double-negated — the same pattern already used by `paymentService.ts` (`computeBalance`, `calculateTillExpected`) and `customerLedger.ts`. Regression coverage: `__tests__/integration/generateSalesJournal.integration.test.ts` "Payment.isRefund sign normalization" (4 scenarios, see Test coverage table above).
 - 2026-04-25 (`SKILL.md`): Sales import outage — fixed via a four-PR patch series (pre-squash repo numbering, historical reference only). The fix in that series that changed the orphan-cleanup mechanism from `deleteMany` to `updateMany SET CANCELLED` is why B1 (the cancelled-line JE filter) is needed: cancelled rows now exist in the table and would otherwise inflate the JE.
 - 2026-04-28 (`SKILL.md`): Quotes-import line-item reconciliation fix. Side-effect on accounting: imported quotes now stay in sync with the POS, so any quote that becomes a sale carries its full line-item set into the JE. Without that fix, a stale-quote-becoming-a-sale would have produced an under-recorded JE.
 

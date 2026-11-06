@@ -28,7 +28,7 @@
 //    and the qty x price == total check confirms the split, rather than
 //    trusting a greedy match.
 //
-// 3. There is NO UPC column — so barcode exports blank and Ordorite assigns its
+// 3. There is NO UPC column — so barcode exports blank and the POS assigns its
 //    own, which is the owner's intent for vendors that carry no UPC.
 
 import { parsePdf } from "./pdfUtils";

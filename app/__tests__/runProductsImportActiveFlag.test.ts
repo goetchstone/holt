@@ -10,7 +10,7 @@
 // for the manual UI upload path where older CSVs don't carry the
 // column. Only an explicit yes/no should write a flag.
 
-import { parseProductsImportActiveFlag } from "@/lib/adapters/ordorite/runners";
+import { parseProductsImportActiveFlag } from "@/lib/adapters/legacyPos/runners";
 
 describe("parseProductsImportActiveFlag", () => {
   it("returns true for 'yes' (lowercase, the item-export shape)", () => {
@@ -40,7 +40,7 @@ describe("parseProductsImportActiveFlag", () => {
     expect(parseProductsImportActiveFlag("")).toBeUndefined();
   });
 
-  it("returns undefined for whitespace-only (Ordorite occasionally exports padded cells)", () => {
+  it("returns undefined for whitespace-only (the POS occasionally exports padded cells)", () => {
     expect(parseProductsImportActiveFlag("   ")).toBeUndefined();
   });
 

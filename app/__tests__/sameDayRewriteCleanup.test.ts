@@ -13,7 +13,7 @@
 import {
   findDroppedBaseLineIds,
   type LineItemForCleanup,
-} from "@/lib/adapters/ordorite/sameDayRewriteCleanup";
+} from "@/lib/adapters/legacyPos/sameDayRewriteCleanup";
 
 function line(
   id: number,
@@ -98,7 +98,7 @@ describe("findDroppedBaseLineIds — combined heuristic with consumption", () =>
 
   it("lineNumber footprint: lines within rewrite range are auto-kept even without return/rewrite match", () => {
     // Base line at lineNumber 2 with no return/rewrite, but rewrite has
-    // up to lineNumber 3. The positional check protects it (Ordorite
+    // up to lineNumber 3. The positional check protects it (the POS
     // left an unchanged base line in place — common pattern for items
     // the customer kept identically and didn't need credit-cycled).
     const baseLines = [

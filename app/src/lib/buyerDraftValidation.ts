@@ -31,8 +31,8 @@ export interface CompatibilityCheck {
  *   - exactly one side null → OK (lenient — don't break workflows
  *     where the buyer is in the middle of filling in a vendor)
  *   - both non-null and different → BLOCK (the actual case the user
- *     was hitting: dragging an American Leather item into a
- *     Bradington Young PO)
+ *     was hitting: dragging one vendor's item into
+ *     another vendor's PO)
  *
  * The lenient handling of null mirrors how the UI lets the buyer move
  * fast — strictness gets in the way mid-edit and the rule that

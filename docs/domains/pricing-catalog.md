@@ -122,7 +122,7 @@ away from the store-wide default.
 | ---------------- | --------------------- | -------------------------------------------------- | ------------------------------------ |
 | Wesley Hall      | Grade-based + SE      | [wesley-hall.md](vendors/wesley-hall.md)           | `wesleyHallParser.ts`, `seParser.ts` |
 | CR Laine         | Grade-based           | [cr-laine.md](vendors/cr-laine.md)                 | `crLaineExtractor.ts`                |
-| American Leather | Dual grade            | [american-leather.md](vendors/american-leather.md) | `americanLeatherExtractor.ts`        |
+| American Leather | Dual grade            | [american-leather.md](vendors/american-leather.md) | `dualGradeExtractor.ts`        |
 | Ekornes          | MRP-based             | [ekornes.md](vendors/ekornes.md)                   | `ekornesParser.ts`                   |
 | Kingsley Bate    | Frame + Cushion       | [kingsley-bate.md](vendors/kingsley-bate.md)       | `kingsleyBateParser.ts`              |
 | Brown Jordan     | Retail grade          | [brown-jordan.md](vendors/brown-jordan.md)         | `brownJordanParser.ts`               |
@@ -136,7 +136,7 @@ away from the store-wide default.
 1. Determine the pricing model (see `common.md` for model descriptions)
 2. Create a parser in `lib/pricing/{vendorName}Parser.ts`
 3. Create or reuse an import endpoint in `pages/api/pricing/import/`
-4. Add vendor name aliases to `resolveVendorKey()` and `POSMapping.ts`
+4. Add vendor name aliases to `resolveVendorKey()` and `productEntryMapping.ts`
 5. Create a vendor runbook in `docs/domains/vendors/{vendor}.md`
 6. If the parser uses `pdf-parse`, ensure it is NOT imported from client-side code
 7. Key every lookup built from upload or request text (tier codes, collection
@@ -156,7 +156,7 @@ away from the store-wide default.
 - [ ] Import creates both VendorStyle and Product in a transaction
 - [ ] Grade tiers auto-extend correctly (60 for fabric, Z for leather)
 - [ ] Option seeds use upsert to preserve manual edits
-- [ ] Vendor added to `POSMapping.ts` for POS matching
+- [ ] Vendor added to `productEntryMapping.ts` for POS matching
 - [ ] Vendor runbook created or updated
 - [ ] Lookups keyed by upload text are `Map`s (step 7)
 

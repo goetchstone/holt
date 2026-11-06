@@ -62,7 +62,7 @@ routers. 73 docs. 136 commits, 127 by one author.
 - Genuine productization over the baseline: white-label at runtime (branding/creds/imports in DB),
   feature-flag modules per org, storefront + in-app block CMS (no rebuilds), demo seed (~6k orders),
   a second real deployment (the vendor's own services company) exercising the de-tenant seam.
-- Real market wedge: furniture-retail ERP + storefront vs weak incumbents (Ordorite, FileMaker).
+- Real market wedge: furniture-retail ERP + storefront vs weak incumbents (legacy POS and database systems).
 - Tempered by maturity: ROADMAP (self-audited against code) says money path only "partially" —
   inventory allocation **not wired (zero call sites)**, `release()` compound-key bug open, split
   tender single-tender; de-tenant still literal in spots (a hardcoded home-state tax district, a consignment-vendor name coupling,
@@ -72,7 +72,7 @@ routers. 73 docs. 136 commits, 127 by one author.
 
 - Plus: tRPC + zod for new surfaces; a real capability/permission system (`lib/auth/permissionCatalog`,
   `permissionResolver`, `builtInRoles`, `roleDecision`); config presets-vs-local split; a
-  source-adapter seam toward replacing Ordorite; clean storefront/back-office split via App-Router
+  source-adapter seam toward replacing the POS; clean storefront/back-office split via App-Router
   route groups `(site)`/`(dashboard)`.
 - Minus: **three API styles coexist** (450 Pages API + 245 App routes + 6 tRPC routers) — real
   migration debt; the block CMS lib is thin (2 files) relative to the marketing; known unwired
@@ -146,7 +146,7 @@ moved a score.
 | `release()` compound-key bug open | Fixed in `lib/inventory/allocation.ts:357-392` (`findFirst` + increment-or-create; the doc comment at `:344-355` explains why the upsert could never match). |
 | Split tender single-tender | Shipped `7f3f7db` (#113, 2026-08-20): `PosView.tsx:170-180, 561-633` takes any amount ≤ balance and stays on the tender screen. |
 | Home-state tax district literal | `lib/tax/resolveTaxRate.ts` (#75, 2026-08-07): customer → store → `AppSettings.defaultTaxDistrictId`. Remaining state-code hits are comments. |
-| Consignor-name coupling in `lib/consignment.ts` | `Vendor.isConsignment` + `lib/consignmentVendor.ts` (#128). One adapter literal remains: the consignor's daily-sales report name in `ordorite/reportRouter.ts` `SKIP_PATTERNS`. |
+| Consignor-name coupling in `lib/consignment.ts` | `Vendor.isConsignment` + `lib/consignmentVendor.ts` (#128). One adapter literal remains: the consignor's daily-sales report name in `legacyPos/reportRouter.ts` `SKIP_PATTERNS`. |
 | `TrafficSnapshot.axperStoreName` | Renamed `sourceStoreName` (migration `20260822120000_traffic_source_neutral`). |
 | "sonar in CI" | Not in any workflow. Sonar is a local pre-PR gate (`docker-compose.sonar.yml`, `docs/CI-OPERATIONS.md:13`). |
 | "a `backups/` dir in-repo" | Gitignored (`.gitignore:20`); `git ls-files backups` is empty. The reviewer counted the working tree. |

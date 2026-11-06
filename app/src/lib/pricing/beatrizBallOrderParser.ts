@@ -19,7 +19,7 @@
 //    "12343"+"0.00"), so it is settled by arithmetic: Wholesale x qty == Amount.
 // 2. Descriptions WRAP — a line may end "(Bordeaux and " with "White)" on the
 //    next line; continuation lines are appended until the next item or a header.
-// 3. There is NO UPC column, so barcodes export blank and Ordorite assigns them.
+// 3. There is NO UPC column, so barcodes export blank and the POS assigns them.
 // 4. The MSRP column is real, so it prefills the row's MSRP and selling price.
 // 5. A free $0 line (a "Beatriz Ball metal placard") reconciles at 0 and is kept.
 

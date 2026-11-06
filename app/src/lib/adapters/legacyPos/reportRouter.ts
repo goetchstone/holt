@@ -1,6 +1,6 @@
-// /app/src/lib/adapters/ordorite/reportRouter.ts
+// /app/src/lib/adapters/legacyPos/reportRouter.ts
 //
-// Maps Ordorite report filenames to their corresponding import runner
+// Maps the POS report filenames to their corresponding import runner
 // functions. Unknown filenames are returned as null so the orchestrator
 // can log them as skipped.
 
@@ -18,15 +18,16 @@ import {
   runTempItemsImport,
   runPOLineExportImport,
   runProductsImport,
-} from "@/lib/adapters/ordorite/runners";
+} from "@/lib/adapters/legacyPos/runners";
+import { legacyPosEnv } from "@/lib/adapters/legacyPos/storedNames";
 
 interface RouteEntry {
-  // A report Ordorite names the same way for every customer.
+  // A report the POS names the same way for every customer.
   pattern?: RegExp;
   // A report the DEPLOYING ORG named after itself: `<Org>_Stock_by_Item.csv`.
-  // Ordorite lets the owner choose export filenames, so the prefix is a
+  // The POS lets the owner choose export filenames, so the prefix is a
   // deployment fact, not a vendor constant (CLAUDE.md 61-63) -- it comes from
-  // ORDORITE_REPORT_PREFIX, which accepts a comma-separated list because one
+  // LEGACY_POS_REPORT_PREFIX, which accepts a comma-separated list because one
   // deployment routinely uses several (a full name for some reports, an
   // initialism for others).
   //
@@ -76,7 +77,7 @@ const REPORT_ROUTES: RouteEntry[] = [
   {
     // Matches both legacy `Prior_Day_Temp_Items` AND the later
     // rename to `Prior_Day_Temp_Purchase_Orders` — a deployment renamed the
-    // Ordorite report so it scopes to new (prior-day) data only.
+    // the POS report so it scopes to new (prior-day) data only.
     // Both filenames carry the same data shape (temp purchase orders);
     // runTempItemsImport handles both.
     pattern: /Prior_Day_Temp_(Items|Purchase_Orders)/i,
@@ -119,7 +120,7 @@ const REPORT_ROUTES: RouteEntry[] = [
   {
     // Matches both the legacy `<Org>_Customers` AND the later
     // rename to `<Org>_Prior_Day_Customers` — a deployment renamed the
-    // Ordorite report so it scopes to new (prior-day) data only.
+    // the POS report so it scopes to new (prior-day) data only.
     // Both filenames carry the same data shape (customer master);
     // runCustomerImport handles both.
     orgReport: "(?:Prior_Day_)?Customers",
@@ -127,10 +128,9 @@ const REPORT_ROUTES: RouteEntry[] = [
     runner: runCustomerImport,
   },
   {
-    // Daily product master from Ordorite. Replaces
-    // the historical manual upload at /admin/import/ordorite-products
-    // for routine refreshes — the manual page still exists for ad-hoc
-    // bulk imports. Filename: `<Org>_Item_Export.csv` (a large export). All
+    // Daily product master from the POS. Replaces
+    // the historical manual upload for routine refreshes. Filename:
+    // `<Org>_Item_Export.csv` (a large export). All
     // rows in the export are Active=yes; discontinued products are
     // simply absent. The runner self-chunks 500 rows per batch.
     orgReport: "Item_Export",
@@ -165,7 +165,7 @@ export interface ResolvedRoute {
  * other one.
  */
 function orgPrefixAlternation(): string | null {
-  const parts = (process.env.ORDORITE_REPORT_PREFIX ?? "")
+  const parts = (legacyPosEnv("LEGACY_POS_REPORT_PREFIX") ?? "")
     .split(",")
     .map((p) => p.trim())
     .filter(Boolean)
