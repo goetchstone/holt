@@ -17,7 +17,5 @@ export default async function AuditTrailPage({
   const filter = auditFilterFrom(await searchParams);
   const app = await getAppSettings();
   const feed = await loadAuditFeed(filter, app);
-  return (
-    <AuditTrailView feed={feed} filter={filter} timezone={app.timezone} locale={app.locale} />
-  );
+  return <AuditTrailView feed={feed} filter={filter} timezone={app.timezone} locale={app.locale} />;
 }

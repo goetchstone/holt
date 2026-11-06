@@ -20,7 +20,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 const update = jest.fn();
 
 jest.mock("@/lib/prisma", () => ({
-  prisma: { product: { update: (...args: unknown[]) => update(...args) } },
+  prisma: {
+    product: {
+      findUnique: async () => ({ baseRetail: null, wasPrice: null }),
+      update: (...args: unknown[]) => update(...args),
+    },
+  },
 }));
 
 jest.mock("@/lib/auth/requireAuth", () => ({
