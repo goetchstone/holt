@@ -14,6 +14,7 @@ import { enqueueAndSend } from "@/lib/email/queue";
 import { ticketReplyEmail } from "@/lib/email/templates";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
+import { getEmailChrome } from "@/lib/email/wordingSettings";
 
 export default requireAuthWithRole(
   ["SUPER_ADMIN", "ADMIN", "MANAGER"],
@@ -75,6 +76,7 @@ export default requireAuthWithRole(
           subject: "",
           statusUrl: `${base}/support/${ticket.publicToken}`,
           messageBody: input.body,
+          chrome: await getEmailChrome("ticket-reply"),
         });
         enqueueAndSend({
           to: ticket.submitterEmail,

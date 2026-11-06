@@ -123,6 +123,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
       "Runtime log of automatic customer messages (GAP-13), written by the email-queue cron. The demo has them switched on, but only what happens after seeding sends, so a fresh seed has none.",
   },
   CustomerMessageSetting: { status: "seeded" },
+  EmailWording: { status: "seeded" },
   DailyReconciliationLog: { status: "todo", tranche: "money-detail" },
   DeliveryRun: { status: "seeded", seeder: "demo" },
   DeliveryStop: { status: "seeded", seeder: "demo" },

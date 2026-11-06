@@ -282,3 +282,10 @@ ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_outreachQuietDa
 ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_outreachQuietDays_range" CHECK (
   "outreachQuietDays" IS NULL OR "outreachQuietDays" BETWEEN 1 AND 3650
 );
+
+-- 20261106140000_email_look
+-- An email's colour goes into a style attribute, so only a plain #rrggbb is let in.
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_emailAccentColor_hex";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_emailAccentColor_hex" CHECK (
+  "emailAccentColor" IS NULL OR "emailAccentColor" ~ '^#[0-9a-fA-F]{6}$'
+);

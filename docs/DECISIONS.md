@@ -1475,6 +1475,26 @@ is practice?", "our importers could get real products even in a seeded test data
 Rejected: an env var (above); a schema copy inside one database, which can't restore sequences and
 triggers as cleanly; a dump (above). → `docs/domains/practice-copy.md`
 
+## 49. A store shapes its emails with a look and plain words, not a template editor (2026-11-06)
+
+**Decided (GAP-37):** owner, 2026-11-05: "we probably need to be able to configure what he email looks
+like." A store sets one look for every email (colour, logo, foot) and each email's subject, heading,
+opening and closing, with a live preview.
+
+- **Not an HTML editor.** Plain text with `{placeholders}` can't carry markup or logic (rule 62), can't
+  break in a mail client, and needs no knowledge of HTML.
+- **Wording can't remove what makes an email work.** Buttons and lists stay the template's, so a store
+  can't reword a password reset out of its link.
+- **What a store didn't change stays a suggestion.** Only changed fields are stored, so an untouched email
+  follows later improvements to the catalog.
+- **The look is required by the compiler.** Every template needs it, so a new email can't quietly skip it
+  (rule 42).
+- **Only a six-digit colour reaches a style attribute,** in the route and in a database CHECK. The settings
+  theme's check also takes three digits, which the readable-text calculation can't use.
+
+Rejected: an HTML template per email (a broken email is the store's to debug, and it would be an injection
+surface); per-email colours (one store, one look). → `docs/domains/email.md`
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

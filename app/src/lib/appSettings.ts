@@ -126,6 +126,10 @@ export interface ResolvedAppSettings {
   outreachMinLifetimeSpend: number | null;
   outreachLapsedMonths: number | null;
   outreachQuietDays: number | null;
+  // How a store's emails look (GAP-37, lib/email/look.ts).
+  emailAccentColor: string | null;
+  emailShowLogo: boolean;
+  emailFooter: string | null;
   lowStockAlertEmails: string | null;
   /** The hour of the store's day it goes, 0-23; null is off. */
   lowStockAlertHour: number | null;
@@ -199,6 +203,9 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   outreachMinLifetimeSpend: null,
   outreachLapsedMonths: null,
   outreachQuietDays: null,
+  emailAccentColor: null,
+  emailShowLogo: false,
+  emailFooter: null,
   lowStockAlertEmails: null,
   lowStockAlertHour: null,
   quoteHoldMaxDays: QUOTE_HOLD_DEFAULT_MAX_DAYS,
@@ -241,6 +248,9 @@ interface AppSettingsRow {
   outreachMinLifetimeSpend?: unknown;
   outreachLapsedMonths?: number | null;
   outreachQuietDays?: number | null;
+  emailAccentColor?: string | null;
+  emailShowLogo?: boolean;
+  emailFooter?: string | null;
   lowStockAlertEmails?: string | null;
   lowStockAlertHour?: number | null;
   quoteHoldMaxDays?: number | null;
@@ -332,6 +342,9 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
       row.outreachMinLifetimeSpend == null ? null : Number(row.outreachMinLifetimeSpend),
     outreachLapsedMonths: row.outreachLapsedMonths ?? null,
     outreachQuietDays: row.outreachQuietDays ?? null,
+    emailAccentColor: row.emailAccentColor ?? null,
+    emailShowLogo: row.emailShowLogo ?? false,
+    emailFooter: row.emailFooter ?? null,
     lowStockAlertEmails: row.lowStockAlertEmails ?? null,
     lowStockAlertHour: row.lowStockAlertHour ?? null,
     quoteHoldMaxDays: isQuoteHoldMaxDays(row.quoteHoldMaxDays)

@@ -815,6 +815,21 @@ describe("the morning email", () => {
     expect(loadFollowUpRows).not.toHaveBeenCalled();
   });
 
+  it("comes out in the store's own words and look", async () => {
+    await setStore({ followUpEmailHour: 9, emailAccentColor: "#7a3e1d", emailFooter: "From us" });
+    await prisma.emailWording.create({
+      data: { key: "follow-up", subject: "{name}: {summary}", intro: "Morning {name}." },
+    });
+    const pat = await makeStaff("pat", "DESIGNER", "Pat Lund");
+    await clientDue(pat.id);
+    await queueFollowUpEmails(at(9));
+    const [mail] = (enqueueEmail as jest.Mock).mock.calls.map(([email]) => email);
+    expect(mail.subject).toBe("Pat Lund: 1 due");
+    expect(mail.html).toContain("Morning Pat Lund.");
+    expect(mail.html).toContain("#7a3e1d");
+    expect(mail.html).toContain("From us");
+  });
+
   it("tells each person their own, to their own address, in the store's money", async () => {
     await setStore({
       followUpEmailHour: 9,

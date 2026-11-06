@@ -224,6 +224,21 @@ export async function seedSetupData(
     data: { isActive: true, activeSince: new Date() },
   });
 
+  // Email look and wording (GAP-37): the demo has its own, so the screen and its emails show
+  // what a store can do. Every other email keeps the suggested wording.
+  await prisma.appSettings.updateMany({
+    data: {
+      emailAccentColor: "#7a3e1d",
+      emailFooter: "Holt Home & Rug Co. Thanks for shopping with us.",
+    },
+  });
+  await prisma.emailWording.create({
+    data: {
+      key: "follow-up",
+      intro: "Good morning {name}, here's who's waiting to hear from you.",
+    },
+  });
+
   // ---- sales goals -------------------------------------------------------
   // The commission tier ladder and the goals screen both read these. A goal
   // per designer for the current year; without them every progress bar is

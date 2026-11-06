@@ -4,6 +4,7 @@
 // Self-hosted deployments operate on the single default org. Secrets are NOT
 // handled here -- see ./integrations.ts for encrypted credentials.
 
+import { EMAIL_FOOTER_MAX, isEmailColor } from "@/lib/email/look";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { Prisma } from "@prisma/client";
@@ -456,6 +457,32 @@ function parseCostCipherKey(body: Body, data: SettingsData): ParseError {
   return null;
 }
 
+// How a store's emails look (GAP-37, lib/email/look.ts). Null or blank goes back to the default.
+function parseEmailLook(body: Body, data: SettingsData): ParseError {
+  const { emailAccentColor: accent, emailShowLogo: showLogo, emailFooter: footer } = body;
+  if (accent !== undefined) {
+    if (accent !== null && !isEmailColor(accent)) {
+      return { error: "emailAccentColor must be a colour like #1c1f2e." };
+    }
+    data.emailAccentColor = accent as string | null;
+  }
+  if (showLogo !== undefined) {
+    if (typeof showLogo !== "boolean") return { error: "emailShowLogo must be true or false." };
+    data.emailShowLogo = showLogo;
+  }
+  if (footer !== undefined) {
+    if (footer !== null && typeof footer !== "string") {
+      return { error: "emailFooter must be text." };
+    }
+    const text = typeof footer === "string" ? footer.trim() : "";
+    if (text.length > EMAIL_FOOTER_MAX) {
+      return { error: `The foot of an email can be up to ${EMAIL_FOOTER_MAX} characters.` };
+    }
+    data.emailFooter = text || null;
+  }
+  return null;
+}
+
 // Who gets the daily low-stock list and when (GAP-14, lib/purchasing/lowStockAlert.ts).
 // Blank addresses or no hour is off.
 function parseLowStockAlert(body: Body, data: SettingsData): ParseError {
@@ -552,6 +579,7 @@ const SETTINGS_PARSERS = [
   parseProfileChoices,
   parseFollowUps,
   parseCostCipherKey,
+  parseEmailLook,
   parseLowStockAlert,
   parseQuoteHoldMaxDays,
   parseLandedCostSplit,

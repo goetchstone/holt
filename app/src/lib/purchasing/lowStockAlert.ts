@@ -14,6 +14,7 @@ import { lowStockEmail } from "@/lib/email/templates";
 import { businessDayKey, businessHourStart } from "@/lib/reports/businessDay";
 import { lowStockRows } from "./lowStock";
 import { readAlertEmails } from "./lowStockShared";
+import { getEmailChrome } from "@/lib/email/wordingSettings";
 
 /** How many went, or why none did. */
 export type LowStockAlertResult = "off" | "not-yet" | "already-sent" | "nothing-low" | number;
@@ -26,6 +27,8 @@ export async function queueLowStockAlert(now: Date = new Date()): Promise<LowSto
   const today = businessDayKey(now, app.timezone);
   if (now < businessHourStart(today, app.lowStockAlertHour, app.timezone)) return "not-yet";
 
+  // Read before the transaction, which is one connection's worth of work.
+  const chrome = await getEmailChrome("low-stock");
   return prisma.$transaction(async (tx) => {
     const claimed = await tx.appSettings.updateMany({
       where: {
@@ -42,6 +45,7 @@ export async function queueLowStockAlert(now: Date = new Date()): Promise<LowSto
       storeName: app.companyName?.trim() || app.appName,
       rows,
       url: `${baseUrl}/app/purchasing/low-stock`,
+      chrome,
     });
     for (const to of read.emails) {
       await enqueueEmail({ ...email, to, templateKey: "low-stock", createdBy: "system" }, tx);
