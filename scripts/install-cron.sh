@@ -67,43 +67,13 @@ fi
 # --- Job manifest ----------------------------------------------------------
 # schedule|script|log-file|consequence-if-this-never-runs
 #
-# Schedules are taken from docs/OPERATIONS.md's "Scheduled Tasks at a
-# Glance" table (the one consolidated, chronologically-ordered reference),
-# which is what this script treats as authoritative. Three of the nine had
-# a SECOND, conflicting cadence written down elsewhere in the docs/scripts
-# (noted job-by-job below) -- flagged here rather than silently picked:
-#   - auto-customer-ar-drift-check.sh: the table says 04:45; the script's
-#     own header comment and the OPERATIONS.md prose section both say
-#     04:30. Went with the table (04:45); reconcile the other two if 04:30
-#     was actually intended.
-#   - auto-mailchimp-sync.sh: the table says 05:30 (after lead-housekeeping
-#     at 05:00); the script's own header comment says "e.g. 04:30, before
-#     lead-housekeeping" -- the opposite order. Went with the table
-#     (05:30), since the detailed OPERATIONS.md section gives an explicit
-#     ordering rationale ("after lead-housekeeping... before import") that
-#     the one-line script comment doesn't.
-#   - auto-daily-reconciliation.sh: the table says 22:30; the script's own
-#     header comment recommends 02:00 ("after the import cycle... before
-#     anyone is up to look at yesterday's JE"). These aren't a
-#     15-minute rounding difference like the other two -- they're 20+
-#     hours apart and imply different intents (previous evening's close-out
-#     vs. next morning's post-import check). Went with the table (22:30) as
-#     the more actively consolidated source, but this one most needs a
-#     human to confirm which was actually meant.
-# None of these three are invented from nothing -- every job has a stated
-# cadence somewhere in the docs. Where this script differs from an
-# in-repo doc, it's a resolved conflict, not a fabrication.
+# One line, on purpose. This wakes Holt every 5 minutes, and Holt decides what's due from
+# the store's own settings at Admin > Automations (owner, 2026-11-06: "Any automation
+# should be something the user can configure"). Whether a job runs, and when, is not a
+# server's business. A host upgrading from the old per-job lines gets them replaced the
+# next time this runs, since the whole managed block is rewritten.
 JOBS=(
-  "*/5 * * * *|auto-email-queue.sh|auto-email-queue.log|Every invoice delivery, booking confirmation, ticket reply, and password-reset email silently never sends -- queued messages sit PENDING forever -- and no automatic customer message (arrival, delivery, reminder, review) is queued at all. Highest-frequency job in the system."
-  "45 4 * * *|auto-customer-ar-drift-check.sh|auto-customer-ar-drift-check.log|Books silently drift from the source-of-truth ledger recompute -- AR discrepancies go undetected until someone stumbles on them or a customer disputes a balance."
-  "30 22 * * *|auto-daily-reconciliation.sh|auto-daily-reconciliation.log|JE-vs-source mismatches accumulate with nobody alerted -- the day's books don't tie out and it isn't caught until someone looks by hand."
-  "30 4 * * 0|auto-customer-level-recalc.sh|auto-customer-level-recalc.log|Customer.customerLevel/lifetimeSpend/customerGroup go stale -- leveling-dependent pricing and marketing logic keeps acting on outdated tiers indefinitely (weekly job, so the staleness compounds for a week at a time)."
-  "0 5 * * *|auto-lead-housekeeping.sh|auto-lead-housekeeping.log|Stale NEW/ASSIGNED leads never auto-archive -- the leads board fills with 30+ day dead leads and buries the live ones."
-  "30 5 * * *|auto-mailchimp-sync.sh|auto-mailchimp.log|Campaign/metrics/activity data goes stale and eligible engagement never converts into leads."
-  "10 6 * * *|auto-import.sh|auto-import.log|POS/ERP daily CSV reports never import -- sales/inventory data silently stops updating from the source system. Only relevant where the legacyPosImport feature flag is on."
-  "30 6 * * *|auto-mailchimp-customer-sync.sh|auto-mailchimp-customer-sync.log|New customers never get pushed to the Mailchimp audience -- the audience silently falls further behind the real customer list every day."
-  "0 2 * * *|auto-axper-traffic.sh|auto-axper-traffic.log|Door-counter traffic snapshots stop landing -- TrafficSnapshot gaps grow and traffic reporting goes blank/stale. Only relevant where a door-counter integration is configured."
-  "0 * * * *|auto-expire-stale-pending-payments.sh|auto-expire-stale-pending-payments.log|Abandoned or declined hosted-checkout payments never reach a terminal status -- they keep reading as 'in progress' forever, and staff can't tell an abandoned checkout from one still genuinely open without checking the timestamp by hand. computeBalance already stops crediting a stale PENDING row toward the balance; this only closes the row out."
+  "*/5 * * * *|auto-automations.sh|auto-automations.log|Nothing Holt automates runs by itself: no email or text goes out, invoices and password resets included, and the books and stock jobs stop"
 )
 
 # Backup jobs run the same managed block but need DATABASE/backup env rather

@@ -12,22 +12,15 @@ the POS -> email CSV -> Gmail "Automations" label
 
 Manual alternative: upload CSV via `/admin/import/POS-automation.tsx`.
 
-## Cron Automation (host scheduler)
+## Running on a schedule
 
-The pipeline runs on a schedule (e.g. daily at 06:10) via the host's task scheduler.
-
-**Script:** `scripts/auto-import.sh` -- sends a POST to `/api/automations/source-import` with a Bearer token.
-
-**Task Scheduler setup:**
-
-- Task: `the POS Daily Import`
-- User: `root`
-- Schedule: Daily at 06:10
-- Command: `cd /path/to/holt && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scripts/auto-import.sh >> logs/auto-import.log 2>&1`
+A store switches this on and chooses when at Admin → Automations ("Daily POS import", off to start,
+6 AM by default; `docs/domains/automations.md`). `lib/automations/jobs.ts` runs the active adapter.
+`POST /api/automations/source-import` runs it by hand.
 
 **Auth:** Uses `AUTO_IMPORT_API_KEY` from `app/.env.local` as a Bearer token. The endpoint also accepts NextAuth sessions for manual triggers from the admin UI.
 
-**Monitoring:** Check `/admin/import/automated` for last run results, or `logs/auto-import.log` on the host for curl output.
+**Monitoring:** Check Admin → Automations and `/admin/import/automated` for last run results.
 
 ## Report-to-Runner Map
 
@@ -289,7 +282,6 @@ The sweep runs OUTSIDE the per-batch transaction — idempotent, and a single fa
 - `lib/adapters/ordorite/runners.ts` -- all runner functions (~2000 lines)
 - `lib/importHelpers.ts` -- pure utility functions (safeString, safeFloat, deriveSalesOrderStatus, etc.)
 - `pages/api/automations/source-import.ts` -- resolves the active source adapter (docs/domains/source-adapters.md)
-- `scripts/auto-import.sh` -- cron script for the host scheduler
 
 ## Verification Checklist
 

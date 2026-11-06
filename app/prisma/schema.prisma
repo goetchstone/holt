@@ -1333,6 +1333,34 @@ model SalesOrderDisclaimer {
   @@index([orderDisclaimerId])
 }
 
+/// GAP-37: one of the things Holt does by itself (lib/automations/catalog.ts), as the
+/// store has set it up in Admin > Automations: whether it runs and when. The key decides
+/// what runs; this row only configures it (rule 62). What it last did is here too, so the
+/// screen can say so.
+model AutomationSetting {
+  key            String    @id
+  isActive       Boolean   @default(false)
+  /// When it was last switched on. It next runs at its next scheduled moment after this.
+  activeSince    DateTime?
+  /// EVERY_MINUTES, HOURLY, DAILY or WEEKLY.
+  frequency      String
+  /// EVERY_MINUTES only.
+  everyMinutes   Int?
+  /// DAILY and WEEKLY: the hour of the store's day, 0-23.
+  hour           Int?
+  /// WEEKLY only: 0 is Sunday.
+  weekday        Int?
+  lastStartedAt  DateTime?
+  lastFinishedAt DateTime?
+  /// RUNNING, OK, FAILED or SKIPPED.
+  lastStatus     String?
+  /// One line for the screen: what it did, or why it failed or was skipped.
+  lastSummary    String?
+
+  updated   DateTime? @updatedAt
+  updatedBy String?
+}
+
 /// GAP-37: a store's own wording for one of the emails in lib/email/wordingCatalog.ts, set
 /// at Admin > Setup > Email look and wording. A null field is the suggested wording.
 model EmailWording {
@@ -5904,6 +5932,9 @@ model AppSettings {
   /// means tags print no code.
   costCipherKey String?
   lowStockAlertedOn   String?
+  // When the host's scheduler last woke Holt (GAP-37, lib/automations/runner.ts), so
+  // Admin > Automations can say if nothing is waking it.
+  automationsWokenAt DateTime?
   // How a store's emails look (GAP-37, lib/email/look.ts). Null is the default colour and foot.
   emailAccentColor String?
   emailShowLogo    Boolean @default(false)

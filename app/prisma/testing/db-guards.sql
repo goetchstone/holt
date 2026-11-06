@@ -283,6 +283,20 @@ ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_outreachQuietDays_range" C
   "outreachQuietDays" IS NULL OR "outreachQuietDays" BETWEEN 1 AND 3650
 );
 
+-- 20261106120000_automation_settings
+-- How often an automation runs is one of four, each with what it needs and nothing else.
+ALTER TABLE "AutomationSetting" DROP CONSTRAINT IF EXISTS "AutomationSetting_schedule";
+ALTER TABLE "AutomationSetting" ADD CONSTRAINT "AutomationSetting_schedule" CHECK (
+  ("frequency" = 'EVERY_MINUTES' AND "everyMinutes" >= 5 AND "hour" IS NULL AND "weekday" IS NULL)
+  OR ("frequency" = 'HOURLY' AND "everyMinutes" IS NULL AND "hour" IS NULL AND "weekday" IS NULL)
+  OR ("frequency" = 'DAILY' AND "everyMinutes" IS NULL AND "hour" BETWEEN 0 AND 23 AND "weekday" IS NULL)
+  OR ("frequency" = 'WEEKLY' AND "everyMinutes" IS NULL AND "hour" BETWEEN 0 AND 23 AND "weekday" BETWEEN 0 AND 6)
+);
+ALTER TABLE "AutomationSetting" DROP CONSTRAINT IF EXISTS "AutomationSetting_lastStatus";
+ALTER TABLE "AutomationSetting" ADD CONSTRAINT "AutomationSetting_lastStatus" CHECK (
+  "lastStatus" IS NULL OR "lastStatus" IN ('RUNNING', 'OK', 'FAILED', 'SKIPPED')
+);
+
 -- 20261106140000_email_look
 -- An email's colour goes into a style attribute, so only a plain #rrggbb is let in.
 ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_emailAccentColor_hex";

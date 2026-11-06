@@ -103,6 +103,7 @@ const ALL_TABLES = [
   "CustomerExternalId",
   "CustomerMessage",
   "CustomerMessageSetting",
+  "AutomationSetting",
   "EmailWording",
   "DailyReconciliationLog",
   "DeliveryRun",

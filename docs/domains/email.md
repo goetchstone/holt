@@ -201,8 +201,8 @@ customer a quote hold is ending, and sending a message again by hand.
 - **Admin viewer** `/app/admin/email` — SMTP-configured banner, per-status
   counts, recent rows + last error, "Process now", and the same for texts. Card on
   the Admin hub.
-- **The cron** (`scripts/auto-email-queue.sh`) runs every 5 minutes, installed
-  by `scripts/install-cron.sh`. `scripts/go-live-check.sh` checks it is there.
+- **Sending** is "Send waiting emails and texts" at Admin → Automations, every 5 minutes to start
+  (`docs/domains/automations.md`). `scripts/go-live-check.sh` checks that the host wakes Holt.
 
 ## Verification checklist
 
