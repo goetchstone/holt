@@ -492,6 +492,18 @@ describe("people and access", () => {
     ]);
   });
 
+  it("records someone being switched off and back on", async () => {
+    const till = await prisma.staffMember.findFirstOrThrow({ where: { userId: "till" } });
+    const query = { id: String(till.id) };
+    await call(staffMemberRoute, "owner", { method: "PATCH", query, body: { isActive: false } });
+    await call(staffMemberRoute, "owner", { method: "PATCH", query, body: { isActive: true } });
+    const entries = await prisma.auditEntry.findMany({
+      where: { event: "STAFF_CHANGED" },
+      orderBy: { id: "asc" },
+    });
+    expect(entries.map((e) => e.summary)).toEqual(["till: deactivated", "till: reactivated"]);
+  });
+
   it("records nothing for a change that doesn't touch access", async () => {
     const till = await prisma.staffMember.findFirstOrThrow({ where: { userId: "till" } });
     await call(staffMemberRoute, "owner", {
@@ -1053,6 +1065,20 @@ describe("the one list", () => {
     expect(rows.map((r) => r.what)).toEqual(["Price/Qty Changed", "Gift card", "Store credit"]);
   });
 
+  it("keeps each history to the dates asked for", async () => {
+    await everyHistory();
+    // Three to five days back: each history above has one row on its own day.
+    const { rows } = await loadAuditFeed(
+      filter({ fromDay: "2026-11-01", toDay: "2026-11-03" }),
+      STORE,
+    );
+    expect(rows.map((r) => r.what)).toEqual([
+      "Gift card",
+      "Store credit",
+      "Commission payout edited",
+    ]);
+  });
+
   it("counts a late evening as that day, not the next", async () => {
     // 11 PM in New York on the 4th is already the 5th in UTC.
     await prisma.auditEntry.create({
@@ -1120,6 +1146,25 @@ describe("the one list", () => {
     expect(new Set(keys).size).toBe(total);
     const times = [...first.rows, ...second.rows, ...third.rows].map((r) => r.when.getTime());
     expect(times).toEqual([...times].sort((a, b) => b - a));
+  });
+
+  it("knows there's more when one history alone runs past the page", async () => {
+    const entries = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        event: "DATA_EXPORTED",
+        actor: "pat",
+        summary: `a${i}`,
+        created: ago(i),
+      }));
+    await prisma.auditEntry.createMany({ data: entries(AUDIT_PAGE_SIZE) });
+    expect((await loadAuditFeed(filter(), STORE)).hasMore).toBe(false);
+
+    await prisma.auditEntry.create({
+      data: { event: "DATA_EXPORTED", actor: "pat", summary: "one more", created: ago(100) },
+    });
+    const { rows, hasMore } = await loadAuditFeed(filter(), STORE);
+    expect(rows).toHaveLength(AUDIT_PAGE_SIZE);
+    expect(hasMore).toBe(true);
   });
 
   it("orders an unknown old event in the data group, rather than failing", async () => {
