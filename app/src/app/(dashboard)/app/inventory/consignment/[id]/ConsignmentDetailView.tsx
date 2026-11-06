@@ -16,10 +16,11 @@ import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
 import { Button } from "@/components/ui/button";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import { parseLocalDate } from "@/lib/dateUtils";
 import { CostHiddenNote } from "@/components/ui/CostHiddenNote";
 
 interface ConsignmentItem {
-  id: string;
+  id: number;
   barcode: string;
   rugNumber: string;
   customerNumber: string;
@@ -36,14 +37,13 @@ interface ConsignmentItem {
   saleDate: string | null;
   saleCustomerName: string | null;
   saleTransactionId: string | null;
-  approvalCustomerName: string | null;
-  approvalDate: string | null;
-  approvalNotes: string | null;
-  paymentBatchDate: string | null;
-  paymentCheckNumber: string | null;
+  onApprovalCustomer: string | null;
+  onApprovalDate: string | null;
+  onApprovalNotes: string | null;
+  consignmentPaymentBatch?: { batchDate: string; checkNumber: string | null } | null;
   vendor?: { name: string } | null;
   storeLocation?: { name: string } | null;
-  salesOrder?: { id: string; orderNumber: string } | null;
+  salesOrder?: { id: number; orderno: string } | null;
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -72,7 +72,7 @@ function badgeClass(status: string): string {
   return STATUS_BADGE[status] || "bg-gray-100 text-gray-600";
 }
 
-function formatDate(d: string | null): string {
+function formatDate(d: Date | string | null): string {
   if (!d) return "-";
   return new Date(d).toLocaleDateString("en-US", {
     year: "numeric",
@@ -115,10 +115,12 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
     loadItem();
   }, [loadItem]);
 
-  async function markAction(action: string, body?: Record<string, string>) {
+  // Each action sends its own request, so clientApiRoutes.test.ts can read every one
+  // of them against the route it reaches.
+  async function markAction(send: () => Promise<unknown>) {
     setSubmitting(true);
     try {
-      await axios.post(`${itemPath}/${encodeURIComponent(action)}`, body || {});
+      await send();
       toast.success("Item updated.");
       const res = await axios.get<ConsignmentItem>(itemPath);
       setItem(res.data);
@@ -184,25 +186,32 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
 
         {item.status === "SOLD" && (
           <InfoCard title="Sale Info">
-            <Row label="Sale Date" value={formatDate(item.saleDate)} />
+            {/* A sale is a calendar day, stored at UTC midnight: read it as that day. */}
+            <Row
+              label="Sale Date"
+              value={formatDate(item.saleDate && parseLocalDate(item.saleDate))}
+            />
             <Row label="Customer" value={item.saleCustomerName || "-"} />
             <Row label="Transaction ID" value={item.saleTransactionId || "-"} />
-            {item.salesOrder && <Row label="Order" value={item.salesOrder.orderNumber} />}
+            {item.salesOrder && <Row label="Order" value={item.salesOrder.orderno} />}
           </InfoCard>
         )}
 
         {item.status === "PAID" && (
           <InfoCard title="Payment Info">
-            <Row label="Batch Date" value={formatDate(item.paymentBatchDate)} />
-            <Row label="Check Number" value={item.paymentCheckNumber || "-"} />
+            <Row
+              label="Batch Date"
+              value={formatDate(item.consignmentPaymentBatch?.batchDate ?? null)}
+            />
+            <Row label="Check Number" value={item.consignmentPaymentBatch?.checkNumber || "-"} />
           </InfoCard>
         )}
 
         {item.status === "ON_APPROVAL" && (
           <InfoCard title="Approval Info">
-            <Row label="Customer" value={item.approvalCustomerName || "-"} />
-            <Row label="Date" value={formatDate(item.approvalDate)} />
-            <Row label="Notes" value={item.approvalNotes || "-"} />
+            <Row label="Customer" value={item.onApprovalCustomer || "-"} />
+            <Row label="Date" value={formatDate(item.onApprovalDate)} />
+            <Row label="Notes" value={item.onApprovalNotes || "-"} />
           </InfoCard>
         )}
       </div>
@@ -244,10 +253,13 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
             </div>
             <Button
               onClick={() =>
-                markAction("mark-approval", {
-                  customerName: approvalCustomer,
-                  notes: approvalNotes,
-                })
+                markAction(() =>
+                  axios.post("/api/consignment/items/mark-approval", {
+                    itemIds: [item.id],
+                    onApprovalCustomer: approvalCustomer,
+                    onApprovalNotes: approvalNotes,
+                  }),
+                )
               }
               disabled={submitting || !approvalCustomer}
               className="min-h-[44px]"
@@ -287,10 +299,13 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
             </div>
             <Button
               onClick={() =>
-                markAction("mark-sold", {
-                  customerName: soldCustomer,
-                  saleDate: soldDate,
-                })
+                markAction(() =>
+                  axios.post("/api/consignment/items/mark-sold", {
+                    itemIds: [item.id],
+                    saleCustomerName: soldCustomer,
+                    saleDate: soldDate,
+                  }),
+                )
               }
               disabled={submitting || !soldCustomer || !soldDate}
               className="min-h-[44px]"
@@ -307,7 +322,7 @@ export function ConsignmentDetailView({ id }: Readonly<{ id: string }>) {
 interface StatusActionsProps {
   item: ConsignmentItem;
   submitting: boolean;
-  onMark: (action: string) => void;
+  onMark: (send: () => Promise<unknown>) => void;
   onOpenApproval: () => void;
   onOpenSold: () => void;
 }
@@ -331,7 +346,11 @@ function StatusActions({
           </Button>
           <Button
             variant="outline"
-            onClick={() => onMark("mark-returned")}
+            onClick={() =>
+              onMark(() =>
+                axios.post("/api/consignment/items/mark-returned", { itemIds: [item.id] }),
+              )
+            }
             disabled={submitting}
             className="min-h-[44px]"
           >
@@ -339,7 +358,9 @@ function StatusActions({
           </Button>
           <Button
             variant="outline"
-            onClick={() => onMark("mark-missing")}
+            onClick={() =>
+              onMark(() => axios.put(`/api/consignment/items/${item.id}`, { status: "MISSING" }))
+            }
             disabled={submitting}
             className="min-h-[44px]"
           >
@@ -350,7 +371,11 @@ function StatusActions({
       {item.status === "ON_APPROVAL" && (
         <>
           <Button
-            onClick={() => onMark("return-to-floor")}
+            onClick={() =>
+              onMark(() =>
+                axios.post("/api/consignment/items/return-from-approval", { itemIds: [item.id] }),
+              )
+            }
             disabled={submitting}
             className="min-h-[44px]"
           >
@@ -361,7 +386,7 @@ function StatusActions({
           </Button>
         </>
       )}
-      {item.status === "SOLD" && item.paymentBatchDate && (
+      {item.status === "SOLD" && item.consignmentPaymentBatch && (
         <Link href="/app/inventory/consignment/payments">
           <Button variant="outline" className="min-h-[44px]">
             View Payment Batch
@@ -370,7 +395,9 @@ function StatusActions({
       )}
       {item.status === "MISSING" && (
         <Button
-          onClick={() => onMark("return-to-floor")}
+          onClick={() =>
+            onMark(() => axios.put(`/api/consignment/items/${item.id}`, { status: "ON_FLOOR" }))
+          }
           disabled={submitting}
           className="min-h-[44px]"
         >

@@ -116,6 +116,37 @@ describe("Customer search", () => {
     }
   });
 
+  it("carries each match's saved addresses, which the house call form offers", async () => {
+    const ada = await prisma.customer.create({
+      data: { firstName: "Ada", lastName: "Lovelace" },
+    });
+    const home = await prisma.customerAddress.create({
+      data: {
+        customerId: ada.id,
+        label: "Home",
+        address1: "12 Analytical Way",
+        city: "Springfield",
+        state: "IL",
+        zip: "62704",
+      },
+    });
+
+    const res = await search({ search: "lovelace", limit: "10" });
+
+    // The form called a GET the addresses route never had, then read `street`
+    // from rows whose column is `address1`: its picker could never fill.
+    expect(customerSearchRows(res.body)[0].addresses).toEqual([
+      expect.objectContaining({
+        id: home.id,
+        label: "Home",
+        address1: "12 Analytical Way",
+        city: "Springfield",
+        state: "IL",
+        zip: "62704",
+      }),
+    ]);
+  });
+
   it("finds no one in an answer that carries no matches", () => {
     expect(customerSearchRows({ error: "Failed to fetch customers" })).toEqual([]);
     expect(customerSearchRows(null)).toEqual([]);

@@ -21,7 +21,7 @@ interface DeliveryZone {
   name: string;
   description: string | null;
   baseFee: number;
-  perPieceFee: number;
+  perPieceFee: number | null;
   isThirdParty: boolean;
   carrierName: string | null;
   zipCount: number;
@@ -40,8 +40,8 @@ interface ZoneForm {
 
 interface ZipAddResult {
   added: number;
-  reassigned: { count: number; fromZone: string }[];
-  invalid: number;
+  reassigned: number;
+  invalid: string[];
 }
 
 const EMPTY_FORM: ZoneForm = {
@@ -82,7 +82,9 @@ function ZoneRow({
       <td className="px-4 py-2 text-brand-black font-medium">{zone.name}</td>
       <td className="px-4 py-2 text-brand-gray text-xs">{zone.description || "--"}</td>
       <td className="px-4 py-2 text-right text-brand-gray">${zone.baseFee.toFixed(2)}</td>
-      <td className="px-4 py-2 text-right text-brand-gray">${zone.perPieceFee.toFixed(2)}</td>
+      <td className="px-4 py-2 text-right text-brand-gray">
+        ${(zone.perPieceFee ?? 0).toFixed(2)}
+      </td>
       <td className="px-4 py-2 text-brand-gray text-xs">
         {zone.isThirdParty ? zone.carrierName || "Yes" : "No"}
       </td>
@@ -123,8 +125,10 @@ function ZipManagementPanel({
   const loadZips = useCallback(async () => {
     setZipsLoading(true);
     try {
-      const res = await axios.get(`/api/service/delivery-zones/${zone.id}/zips`);
-      setZoneZips(res.data.zips || []);
+      const res = await axios.get<{ zipCode: string }[]>(
+        `/api/service/delivery-zones/${zone.id}/zips`,
+      );
+      setZoneZips(res.data.map((row) => row.zipCode));
     } catch {
       setZoneZips([]);
     } finally {
@@ -140,20 +144,16 @@ function ZipManagementPanel({
     if (!addZipsText.trim()) return;
     setAddingZips(true);
     try {
-      const zips = addZipsText
+      const zipCodes = addZipsText
         .split(/[,\n\r]+/)
         .map((z) => z.trim())
         .filter(Boolean);
-      const res = await axios.post(`/api/service/delivery-zones/${zone.id}/zips`, { zips });
+      const res = await axios.post(`/api/service/delivery-zones/${zone.id}/zips`, { zipCodes });
       const result: ZipAddResult = res.data;
       const parts: string[] = [];
       if (result.added > 0) parts.push(`${result.added} added`);
-      if (result.reassigned?.length > 0) {
-        result.reassigned.forEach((r) => {
-          parts.push(`${r.count} reassigned from ${r.fromZone}`);
-        });
-      }
-      if (result.invalid > 0) parts.push(`${result.invalid} invalid`);
+      if (result.reassigned > 0) parts.push(`${result.reassigned} moved from another zone`);
+      if (result.invalid.length > 0) parts.push(`${result.invalid.length} invalid`);
       toast.success(parts.join(", ") || "ZIPs updated");
       setAddZipsText("");
       await loadZips();
@@ -168,7 +168,7 @@ function ZipManagementPanel({
   const removeZip = async (zip: string) => {
     try {
       await axios.delete(`/api/service/delivery-zones/${zone.id}/zips`, {
-        data: { zips: [zip] },
+        data: { zipCodes: [zip] },
       });
       setZoneZips((prev) => prev.filter((z) => z !== zip));
       onZipsChanged();
@@ -182,10 +182,10 @@ function ZipManagementPanel({
     setSearchingZip(true);
     setZipSearchResult(null);
     try {
-      const res = await axios.get("/api/service/delivery-zones", {
+      const res = await axios.get<{ name: string } | null>("/api/service/delivery-zones", {
         params: { zipCode: zipSearchQuery.trim() },
       });
-      const found = res.data.zone;
+      const found = res.data;
       setZipSearchResult(
         found
           ? `ZIP ${zipSearchQuery.trim()} belongs to: ${found.name}`
@@ -310,8 +310,10 @@ export function DeliveryZonesView() {
 
   const loadZones = useCallback(async () => {
     try {
-      const res = await axios.get("/api/service/delivery-zones");
-      setZones(res.data.zones || []);
+      const res = await axios.get<(DeliveryZone & { _count: { zipCodes: number } })[]>(
+        "/api/service/delivery-zones",
+      );
+      setZones(res.data.map((zone) => ({ ...zone, zipCount: zone._count.zipCodes })));
     } catch {
       toast.error("Failed to load delivery zones");
     } finally {
@@ -330,7 +332,7 @@ export function DeliveryZonesView() {
             name: zone.name,
             description: zone.description || "",
             baseFee: String(zone.baseFee),
-            perPieceFee: String(zone.perPieceFee),
+            perPieceFee: String(zone.perPieceFee ?? 0),
             isThirdParty: zone.isThirdParty,
             carrierName: zone.carrierName || "",
             isActive: zone.isActive,

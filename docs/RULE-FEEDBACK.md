@@ -417,3 +417,31 @@ is a change to *where* it is enforced, not to *what* it says
   `jest.no-database.setup.ts` removes `*DATABASE_URL` from the unit project (#225),
   and removing `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE` there would close this
   for every test. Proposed for the next pass.
+
+### 2026-11-06 — the screen-to-route tripwire's first run found dead screens, and its reader had two bugs of its own
+
+- **Signal:** tripwire fired, on its first run; near miss in the reader, caught by a second instrument
+- **What happened:** `__tests__/clientApiRoutes.test.ts` reads every REST call on a
+  screen against the route file it reaches. The known bug (the house call form's GET)
+  failed it, and so did a PUT in a modal nothing renders. A one-off check of the
+  manifest's rows then found the first version wrong: it filed
+  `/items/${id}/${action}` as "a runtime value picks among routes" when no route is
+  that deep, and that would have put a dead call in the manifest with a reason. Every
+  action button on the consignment item page got a 404. The reader also read
+  `if (req.method !== "GET" && locked)` as "this route answers GET". Comparing the
+  reader's methods with each route's own `Allow` declaration showed that one, and
+  also a route whose `Allow` claims a GET it doesn't have. Both reader bugs are fixed
+  and have tests; the `Allow` comparison was a one-off and doesn't ship.
+- **Principle:** 4 (a tripwire only ever seen passing is not evidence: its manifest
+  was the part nobody had checked) and 5 (a row's reason is a claim).
+- **Would a rule have caught it?** Rule 7 only where a shared contract exists. The
+  path and method half is enforced now. **The keys half is still open:** nothing checks
+  which keys a screen reads from an answer, or sends. Measured 2026-11-06, before this
+  PR's fixes: 135 `axios.get<T>` generics that assert and check nothing; 195 key reads
+  on axios GETs, 105 against an answer readable from source, 3 of them wrong, and that
+  count missed `.zones` because the route maps its rows first. Reads that accept two
+  shapes (`res.data.staff || res.data`): 17 in 15 files. Of the screens opened by hand
+  for other reasons, all three had key or body errors: the house call form, the
+  consignment item page and the delivery zones page. The last was unusable, and each
+  fix there exposed the next. Typed answers shared by route and screen would close it
+  (rule 7), which is a build of its own.

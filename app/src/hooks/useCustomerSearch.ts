@@ -10,12 +10,24 @@ import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useDebounce } from "./useDebounce";
 
+/** A saved address, as GET /api/customers includes it with each customer. */
+export interface CustomerSearchAddress {
+  id: number;
+  label: string | null;
+  address1: string;
+  address2: string | null;
+  city: string;
+  state: string;
+  zip: string;
+}
+
 export interface CustomerSearchResult {
   id: number;
   firstName: string;
   lastName: string;
   email: string | null;
   phone: string | null;
+  addresses: CustomerSearchAddress[];
 }
 
 /**
