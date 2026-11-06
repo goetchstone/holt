@@ -23,6 +23,7 @@ import { TICKET_STATUS_VALUES, isOpenTicketStatus } from "@/lib/tickets/ticketCo
 import type { TicketStatusValue } from "@/lib/tickets/ticketContract";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
+import { getEmailChrome } from "@/lib/email/wordingSettings";
 
 const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
 const OPEN_STATUSES = TICKET_STATUS_VALUES.filter((s) => isOpenTicketStatus(s));
@@ -113,6 +114,7 @@ const createTicket = limiter(async (req: NextApiRequest, res: NextApiResponse) =
       ticketNumber: ticket.ticketNumber,
       subject: input.subject,
       statusUrl: `${base}/support/${ticket.publicToken}`,
+      chrome: await getEmailChrome("ticket-received"),
     });
     enqueueAndSend({
       to: input.submitterEmail,

@@ -805,6 +805,11 @@ describe("the screen", () => {
         state: "0 of 4 on",
         href: "/app/admin/setup/customer-messages",
       },
+      {
+        name: "Email look and wording",
+        state: "All of them",
+        href: "/app/admin/setup/email-look",
+      },
     ]);
   });
 });

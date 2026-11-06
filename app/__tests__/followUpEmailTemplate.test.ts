@@ -7,6 +7,7 @@ import {
   FOLLOW_UP_EMAIL_MAX_DUE,
   followUpEmail,
   type FollowUpEmailInput,
+  DEFAULT_EMAIL_CHROME,
 } from "@/lib/email/templates";
 
 function input(over: Partial<FollowUpEmailInput> = {}): FollowUpEmailInput {
@@ -19,6 +20,7 @@ function input(over: Partial<FollowUpEmailInput> = {}): FollowUpEmailInput {
     suggested: [],
     suggestedCount: 0,
     suggestedWhy: "Past clients who've gone quiet.",
+    chrome: DEFAULT_EMAIL_CHROME,
     ...over,
   };
 }

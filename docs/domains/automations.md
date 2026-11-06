@@ -35,7 +35,8 @@ minutes.
 
 - **The morning email, low stock list and customer messages** have settings of their own, and go
   out through "Send waiting emails and texts". The screen links to them and shows their state, so
-  each fact keeps one home (rule 6).
+  each fact keeps one home (rule 6). It links to how all of them look and read too, at Admin › Setup
+  › Email look and wording (`docs/domains/email.md`).
 - **Database and upload backups** stay in the host's cron (`scripts/install-cron.sh`). They run
   outside the app, on the server's files, and shouldn't depend on the app being up.
 
@@ -93,4 +94,3 @@ the warning.
 - **Run history** is the last run only here. Jobs with a history keep it on their own pages, linked
   from the screen.
 - **Minutes** can't be chosen for a daily job, only the hour.
-- **The look and wording of emails** is the next piece of GAP-37.

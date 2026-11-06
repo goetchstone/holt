@@ -15,15 +15,6 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { useCustomerSearch, type CustomerSearchResult } from "@/hooks/useCustomerSearch";
 
-interface CustomerAddress {
-  id: number;
-  street: string;
-  city: string;
-  state: string;
-  zip: string;
-  label: string | null;
-}
-
 interface Order {
   id: number;
   orderno: string;
@@ -60,7 +51,8 @@ export function NewHouseCallView() {
     clear: clearCustomerSearch,
   } = useCustomerSearch({ limit: 10 });
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
-  const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
+  // The search answer carries each customer's saved addresses.
+  const customerAddresses = selectedCustomer?.addresses ?? [];
 
   // Order search
   const [orderSearch, setOrderSearch] = useState("");
@@ -118,23 +110,6 @@ export function NewHouseCallView() {
   useEffect(() => {
     loadLookups();
   }, [loadLookups]);
-
-  // Load addresses when customer is selected
-  useEffect(() => {
-    if (!selectedCustomer) {
-      setCustomerAddresses([]);
-      return;
-    }
-    const loadAddresses = async () => {
-      try {
-        const res = await axios.get(`/api/customers/${selectedCustomer.id}/addresses`);
-        setCustomerAddresses(res.data.addresses || []);
-      } catch {
-        setCustomerAddresses([]);
-      }
-    };
-    loadAddresses();
-  }, [selectedCustomer]);
 
   // Order search with debounce
   useEffect(() => {
@@ -245,7 +220,6 @@ export function NewHouseCallView() {
               size="sm"
               onClick={() => {
                 setSelectedCustomer(null);
-                setCustomerAddresses([]);
                 setAddressId("");
               }}
             >
@@ -337,7 +311,7 @@ export function NewHouseCallView() {
               {customerAddresses.map((addr) => (
                 <option key={addr.id} value={addr.id}>
                   {addr.label ? `${addr.label}: ` : ""}
-                  {addr.street}, {addr.city}, {addr.state} {addr.zip}
+                  {addr.address1}, {addr.city}, {addr.state} {addr.zip}
                 </option>
               ))}
             </select>

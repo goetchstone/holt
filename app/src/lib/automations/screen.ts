@@ -86,6 +86,11 @@ export async function loadAutomationsScreen(now: Date = new Date()): Promise<Aut
         state: `${on} of ${customerMessages.length} on`,
         href: "/app/admin/setup/customer-messages",
       },
+      {
+        name: "Email look and wording",
+        state: "All of them",
+        href: "/app/admin/setup/email-look",
+      },
     ],
   };
 }

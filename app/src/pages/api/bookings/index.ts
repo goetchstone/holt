@@ -23,6 +23,7 @@ import { enqueueAndSend } from "@/lib/email/queue";
 import { bookingConfirmationEmail } from "@/lib/email/templates";
 import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
+import { getEmailChrome } from "@/lib/email/wordingSettings";
 
 // Booking submissions should be infrequent per visitor.
 const limiter = rateLimit({ windowMs: 60_000, maxRequests: 10 });
@@ -123,6 +124,7 @@ const createBooking = limiter(async (req: NextApiRequest, res: NextApiResponse) 
       serviceName: serviceType,
       startsAt: input.startsAt,
       timezone: settings.timezone,
+      chrome: await getEmailChrome("booking"),
     });
     enqueueAndSend({
       to: input.customerEmail,

@@ -124,6 +124,7 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   },
   CustomerMessageSetting: { status: "seeded" },
   AutomationSetting: { status: "seeded" },
+  EmailWording: { status: "seeded" },
   AuditEntry: { status: "seeded" },
   DailyReconciliationLog: { status: "todo", tranche: "money-detail" },
   DeliveryRun: { status: "seeded", seeder: "demo" },

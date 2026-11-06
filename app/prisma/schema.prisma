@@ -1381,6 +1381,19 @@ model AutomationSetting {
   updatedBy String?
 }
 
+/// GAP-37: a store's own wording for one of the emails in lib/email/wordingCatalog.ts, set
+/// at Admin > Setup > Email look and wording. A null field is the suggested wording.
+model EmailWording {
+  key     String  @id
+  subject String?
+  heading String?
+  intro   String?
+  closing String?
+
+  updated   DateTime? @updatedAt
+  updatedBy String?
+}
+
 /// GAP-13: one of the automatic customer messages (lib/messages/catalog.ts),
 /// as the store has set it up in Settings > Customer messages. Every choice is
 /// the store's: whether it goes at all (off until switched on), what it says,
@@ -5944,6 +5957,10 @@ model AppSettings {
   // When the host's scheduler last woke Holt (GAP-37, lib/automations/runner.ts), so
   // Admin > Automations can say if nothing is waking it.
   automationsWokenAt DateTime?
+  // How a store's emails look (GAP-37, lib/email/look.ts). Null is the default colour and foot.
+  emailAccentColor String?
+  emailShowLogo    Boolean @default(false)
+  emailFooter      String?
   // The morning follow-up email (GAP-36, lib/followUpEmail.ts). Off until a store sets an
   // hour. followUpEmailedOn is the store day it last went, so it goes once a day.
   followUpEmailHour   Int?

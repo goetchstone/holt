@@ -121,6 +121,9 @@ follow-ups with the email switched off looks seeded and shows nothing.
 - **Customer messages:** all switched on as of seeding, so only what happens after that sends
   (`setupData.ts`).
 
+- **How its emails look:** its own colour and foot, and its own opening on the morning email
+  (`setupData.ts`), so the Email look and wording screen has something to show.
+
 Nothing leaves a seeded demo with no SMTP or Twilio set, and every address is `@example.com`.
 The queue holds what it would have sent. Set up real email on a demo and these would be attempted.
 A row count can't see a setting, so `npm run seed:coverage` fails if any of these is off.

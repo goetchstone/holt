@@ -37,6 +37,8 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/appSettings";
+import type { EmailLook } from "@/lib/email/look";
+import { getEmailLook } from "@/lib/email/wordingSettings";
 import { enqueueEmail } from "@/lib/email/queue";
 import { enqueueSms } from "@/lib/sms/queue";
 import { textableNumber } from "@/lib/sms/consent";
@@ -100,6 +102,7 @@ interface Context {
   locale: string;
   storeName: string;
   ttlHours: number | null;
+  look: EmailLook;
 }
 
 /** An active kind's setting, with the moment it was switched on. */
@@ -161,6 +164,7 @@ async function queueEmail(
       ? portalOrderUrl(m.order.id, customer.id, ctx.ttlHours)
       : null,
     reviewUrl: setting.kind === "REVIEW_INVITE" ? setting.linkUrl : null,
+    look: ctx.look,
   });
   const emailQueueId = await enqueueEmail(
     {
@@ -521,6 +525,7 @@ export async function queueDueMessages(now: Date = new Date()): Promise<DueSumma
     locale: app.locale,
     storeName: app.companyName?.trim() || app.appName,
     ttlHours: app.portalTokenTtlHours,
+    look: await getEmailLook(),
   };
   const settings = await getMessageSettings();
   const summary = Object.fromEntries(

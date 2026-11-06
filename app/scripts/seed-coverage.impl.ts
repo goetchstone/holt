@@ -127,6 +127,7 @@ async function automationsLeftOff(prisma: PrismaClient): Promise<string[]> {
   if (settings?.followUpEmailHour == null) off.push("the morning email has no hour");
   if (settings?.outreachMinLifetimeSpend == null) off.push("suggested clients have no spend level");
   if (settings?.lowStockAlertHour == null) off.push("the low stock alert has no hour");
+  if (!settings?.emailAccentColor) off.push("emails have no colour of their own");
   if (!settings?.lowStockAlertEmails) off.push("the low stock alert has no recipients");
   if (messages.length === 0) off.push("no customer messages");
   for (const m of messages) if (!m.isActive) off.push(`customer message ${m.kind} is off`);

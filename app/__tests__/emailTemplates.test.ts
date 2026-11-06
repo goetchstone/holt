@@ -6,6 +6,7 @@ import {
   ticketReplyEmail,
   invoiceIssuedEmail,
   purchaseOrderEmail,
+  DEFAULT_EMAIL_CHROME as chrome,
 } from "@/lib/email/templates";
 
 describe("email templates", () => {
@@ -16,6 +17,7 @@ describe("email templates", () => {
       serviceName: "Consult",
       startsAt: new Date("2026-06-10T15:00:00Z"),
       timezone: "UTC",
+      chrome,
     });
     expect(subject).toContain("Example Co");
     expect(subject).toContain("Consult");
@@ -26,6 +28,7 @@ describe("email templates", () => {
   it("ticket received includes the number + status link", () => {
     const { subject, html } = ticketReceivedEmail({
       appName: "Example Co",
+      chrome,
       submitterName: "Dana",
       ticketNumber: "TKT-260604-001",
       subject: "Help me",
@@ -38,6 +41,7 @@ describe("email templates", () => {
   it("escapes HTML in interpolated values so content can't inject markup", () => {
     const { html } = ticketReplyEmail({
       appName: "Example Co",
+      chrome,
       submitterName: "Dana",
       ticketNumber: "TKT-1",
       subject: "x",
@@ -51,6 +55,7 @@ describe("email templates", () => {
 
 describe("invoiceIssuedEmail", () => {
   const base = {
+    chrome,
     appName: "Acme Co",
     customerName: "Dana Test",
     invoiceNo: "INV-260610-001",
@@ -97,6 +102,7 @@ describe("invoiceIssuedEmail", () => {
 describe("purchaseOrderEmail", () => {
   it("names the PO and the store, and carries the sender's note with its line breaks", () => {
     const { subject, html } = purchaseOrderEmail({
+      chrome,
       companyName: "Linden Row Home",
       vendorName: "Fernbrook Upholstery",
       poNumber: "PO-261030-004",
@@ -104,12 +110,13 @@ describe("purchaseOrderEmail", () => {
     });
     expect(subject).toBe("Purchase order PO-261030-004 from Linden Row Home");
     expect(html).toContain("Hello Fernbrook Upholstery,");
-    expect(html).toContain("<strong>PO-261030-004</strong> is attached");
+    expect(html).toContain("PO-261030-004 is attached");
     expect(html).toContain("Please ship together.<br>Dock door 2.");
   });
 
   it("escapes the vendor's name and the note, and leaves out an empty note", () => {
     const { html } = purchaseOrderEmail({
+      chrome,
       companyName: "Linden Row Home",
       vendorName: "<b>Fern</b>",
       poNumber: "PO-1",
@@ -118,6 +125,7 @@ describe("purchaseOrderEmail", () => {
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;b&gt;Fern&lt;/b&gt;");
     const plain = purchaseOrderEmail({
+      chrome,
       companyName: "S",
       vendorName: "V",
       poNumber: "PO-1",

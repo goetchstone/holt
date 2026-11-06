@@ -86,6 +86,23 @@ A rug's cost is behind "View cost" (`catalog.cost`; see Cost Visibility in
 - Dedicated consignment-only POs started partway through the imported history. Before that, consignment items were mixed into regular purchase POs.
 - `ConsignmentVendorReturn` model groups return shipments. The return scanner UI and the CSV import both create these records.
 
+## The Item Page's Actions
+
+`inventory/consignment/[id]/ConsignmentDetailView.tsx`. Each button sends its own request, written out where `__tests__/clientApiRoutes.test.ts` can read it against the route it reaches.
+
+| Button | Request | From |
+|---|---|---|
+| Send on Approval | `POST items/mark-approval` with `itemIds`, `onApprovalCustomer`, `onApprovalNotes` | ON_FLOOR |
+| Mark Sold | `POST items/mark-sold` with `itemIds`, `saleCustomerName`, `saleDate` | ON_FLOOR, ON_APPROVAL |
+| Return to Vendor | `POST items/mark-returned` with `itemIds` | ON_FLOOR |
+| Return to Floor | `POST items/return-from-approval` with `itemIds`; clears who had it | ON_APPROVAL |
+| Mark Missing | `PUT items/[id]` with `status: "MISSING"` | ON_FLOOR |
+| Found - Return to Floor | `PUT items/[id]` with `status: "ON_FLOOR"` | MISSING |
+
+The `items/*` actions take a list because they are batch routes. The `PUT` holds the transition rules (`isValidConsignmentTransition`). A sale date is a calendar day stored at UTC midnight, so the page reads it through `parseLocalDate`.
+
+Until 2026-11-06 every button posted to `items/<id>/<action>`, which is no route, with other names for the fields. Real routes and bodies: `__tests__/integration/consignmentItemActions.integration.test.ts`.
+
 ## PO Management (Manual Workflow)
 
 The PO management page at `/inventory/consignment/po-management` provides a manual workflow for linking SOLD rugs to payment batches, preparing for post-the POS handoff.

@@ -26,7 +26,7 @@ import { parseBookingInput } from "@/lib/booking/requestBody";
 import { parseBlockCreateInput } from "@/lib/booking/serviceRequestBody";
 import { bookingToIcsEvent } from "@/lib/booking/event";
 import { buildIcsEvent } from "@/lib/booking/ics";
-import { bookingConfirmationEmail } from "@/lib/email/templates";
+import { bookingConfirmationEmail, DEFAULT_EMAIL_CHROME } from "@/lib/email/templates";
 import {
   anyString,
   jsonObjectWithProtoKeys,
@@ -225,6 +225,7 @@ describe("bookingConfirmationEmail (lib/email/templates.ts)", () => {
   it("customer text never adds markup to the email", () => {
     const tags = (html: string): string[] => html.match(/<\/?[a-zA-Z][^>]*>/g) ?? [];
     const base = bookingConfirmationEmail({
+      chrome: DEFAULT_EMAIL_CHROME,
       appName: "Holt",
       customerName: "Pat",
       serviceName: "Design consult",
@@ -234,6 +235,7 @@ describe("bookingConfirmationEmail (lib/email/templates.ts)", () => {
     fc.assert(
       fc.property(freeText, freeText, (customerName, serviceName) => {
         const email = bookingConfirmationEmail({
+          chrome: DEFAULT_EMAIL_CHROME,
           appName: "Holt",
           customerName,
           serviceName: serviceName || "x",

@@ -1,0 +1,38 @@
+# What __tests__/clientApiRoutes.test.ts can't judge from source, each with why.
+#
+# Every row is a blind spot: nothing checks that its reason stays true, so keep the
+# list short and prefer a literal URL at the call. The test fails on a new blind
+# spot, on a row that no longer describes anything, and on a row with no reason.
+#
+#   call   :: <file> :: <METHOD, or ?> :: <the URL argument's source> :: <reason>
+#   route  :: <file> :: <reason>
+#   string :: <file> :: <the string> :: <reason>
+
+# Calls whose URL arrives from somewhere else. The literals behind each one are
+# still path-checked: the test's "/api string" check reads every string in these files.
+call :: src/app/(dashboard)/app/admin/export/windfall/WindfallExportView.tsx :: GET :: url :: downloadCsvExport's parameter; its two callers in this file pass literal paths under /api/exports.
+call :: src/app/(dashboard)/app/admin/import/consignment/ConsignmentImportView.tsx :: POST :: section.endpoint :: A table of four import routes at the top of this file, rendered with .map.
+call :: src/app/(dashboard)/app/admin/pricing/import/PricingImportView.tsx :: POST :: importUrl :: Comes from the chosen import type's importEndpoint in lib/pricing/importVendorConfigs.ts, or a literal fallback.
+call :: src/app/(dashboard)/app/inventory/products/[id]/ReorderPointsSection.tsx :: DELETE :: url :: A prop from the parent in this file, /api/products/${id}/reorder-points.
+call :: src/app/(dashboard)/app/inventory/products/[id]/ReorderPointsSection.tsx :: PUT :: url :: A prop from the parent in this file, /api/products/${id}/reorder-points.
+call :: src/app/(dashboard)/app/purchasing/import-apparel/ImportApparelView.tsx :: POST :: FORMAT_ENDPOINTS[vendorFormat].preview :: A table of literal routes at the top of this file, keyed by the vendor format.
+call :: src/app/(dashboard)/app/purchasing/import-apparel/ImportApparelView.tsx :: POST :: FORMAT_ENDPOINTS[vendorFormat].import :: A table of literal routes at the top of this file, keyed by the vendor format.
+call :: src/app/(dashboard)/app/purchasing/import-order/ImportOrderView.tsx :: POST :: PDF_ENDPOINTS[pdfFormat].preview :: A table of literal routes at the top of this file, keyed by the PDF format.
+call :: src/app/(dashboard)/app/purchasing/import-order/ImportOrderView.tsx :: POST :: PDF_ENDPOINTS[pdfFormat].import :: A table of literal routes at the top of this file, keyed by the PDF format.
+call :: src/app/(dashboard)/app/reports/mailchimp/MailchimpView.tsx :: POST :: path :: handleSync's parameter; its callers in this file pass /api/mailchimp/sync and /api/mailchimp/sync-metrics.
+call :: src/hooks/useFetchOptions.ts :: GET :: apiUrl :: The hook's own argument. Each caller's useFetchOptions(url) is judged as a GET at its own call site.
+
+# Routes with no method check. Any verb gets the same answer, so a call can't be refused.
+route :: src/pages/api/admin/buyer-drafts/lookups.ts :: Reads dropdown lists and writes nothing; any verb gets the same answer.
+route :: src/pages/api/admin/customer-ledger/customer-ids.ts :: Reads customer ids and writes nothing; any verb gets the same answer.
+route :: src/pages/api/automations/gmail-import.ts :: Deprecated alias that hands the request to source-import.ts, where the method check lives. A cron calls it; no screen does.
+route :: src/pages/api/dashboard/weekly.ts :: Reads the weekly dashboard and writes nothing; any verb gets the same answer.
+route :: src/pages/api/departments/[id]/categories.ts :: Reads a department's categories and writes nothing; any verb gets the same answer.
+route :: src/pages/api/health.ts :: The container's readiness probe; reads only and answers any verb. No screen calls it.
+route :: src/pages/api/mailchimp/campaigns/[id]/customers.ts :: Reads a campaign's customers and writes nothing; any verb gets the same answer.
+route :: src/pages/api/mailchimp/campaigns/index.ts :: Reads campaigns from Mailchimp and writes nothing; any verb gets the same answer.
+route :: src/pages/api/types/by-category/[id].ts :: Reads a category's types and writes nothing; any verb gets the same answer.
+
+# Strings that name a prefix, not a route.
+string :: src/app/providers.tsx :: /api/trpc :: tRPC's base URL; the client appends the procedure, and that reaches /api/trpc/[trpc].
+string :: src/app/robots.ts :: /api/ :: The robots.txt prefix that disallows the whole API tree.
