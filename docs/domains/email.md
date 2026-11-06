@@ -94,6 +94,28 @@ Status links use `NEXTAUTH_URL` as the base.
 A practice copy sends none of this: its SMTP settings resolve to nothing, so what's queued stays
 `PENDING` (`docs/domains/practice-copy.md`).
 
+## A store's look and wording (GAP-37)
+
+**Admin › Setup › Email look and wording** (`admin.settings`) sets how every email looks and what each
+says, with a live preview that runs the real template on invented details.
+
+- **The look** is one setting for all of them: a colour for headings, links, buttons and table rules,
+  whether the logo heads them, and what the foot says (`AppSettings.emailAccentColor`, `emailShowLogo`,
+  `emailFooter`; `lib/email/look.ts`). A button's text goes dark or light to stay readable on the colour.
+- **The wording** is per email: subject, heading, opening and closing, with `{placeholders}`
+  (`EmailWording`, `lib/email/wordingCatalog.ts`). A blank field is the suggested wording, so an email a
+  store never touched follows the catalog. Refused on save: a placeholder that email doesn't have, or an
+  empty subject.
+- **What a store can't change:** what goes between the opening and closing, like a list of follow-ups or
+  an invoice's lines, and any button. Wording can't drop a password reset's link.
+- **Plain text only.** Wording and values are escaped, and a value stays on one line, so neither a store
+  nor a customer's name can add markup (rule 62).
+- **Every email takes it.** Each template in `lib/email/templates.ts` requires its chrome, so a new one
+  that skips it won't compile. `getEmailChrome(kind)` reads it. `__tests__/emailLook.test.ts` renders each
+  with a custom look, and checks each sender asks for its own email's wording.
+- **Customer messages** take the look but keep their wording on their own screen, since they also choose
+  when they go.
+
 ## Customer messages (GAP-13)
 
 Messages Holt sends a customer by itself. Owner, 2026-11-03: each one on or off
