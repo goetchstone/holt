@@ -13,11 +13,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { processEmailQueue } from "@/lib/email/queue";
-import { queueDueMessages, type DueSummary } from "@/lib/messages/due";
-import { queueFollowUpEmails, type FollowUpEmailResult } from "@/lib/followUpEmail";
-import { queueLowStockAlert, type LowStockAlertResult } from "@/lib/purchasing/lowStockAlert";
-import { processSmsQueue } from "@/lib/sms/queue";
+import { runEmailQueueCycle } from "@/lib/email/queueCycle";
 import { logError } from "@/lib/logger";
 
 function authorizedByApiKey(req: NextApiRequest): boolean {
@@ -27,28 +23,8 @@ function authorizedByApiKey(req: NextApiRequest): boolean {
 }
 
 async function drain(_req: NextApiRequest, res: NextApiResponse) {
-  let messages: DueSummary | null = null;
   try {
-    messages = await queueDueMessages();
-  } catch (err: unknown) {
-    logError("Customer messages could not be queued", err);
-  }
-  let lowStock: LowStockAlertResult | null = null;
-  try {
-    lowStock = await queueLowStockAlert();
-  } catch (err: unknown) {
-    logError("Low stock alert could not be queued", err);
-  }
-  let followUps: FollowUpEmailResult | null = null;
-  try {
-    followUps = await queueFollowUpEmails();
-  } catch (err: unknown) {
-    logError("Morning follow-up emails could not be queued", err);
-  }
-  try {
-    const summary = await processEmailQueue();
-    const texts = await processSmsQueue();
-    return res.status(200).json({ summary, texts, messages, lowStock, followUps });
+    return res.status(200).json(await runEmailQueueCycle());
   } catch (err: unknown) {
     logError("Email queue drain failed", err);
     return res.status(500).json({ error: "Could not process email queue" });

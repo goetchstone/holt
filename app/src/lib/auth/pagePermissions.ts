@@ -41,6 +41,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/account": { permission: "staff.self" },
   "/app/admin": { permission: "admin.settings" },
   "/app/admin/accounting/journal-entries": { permission: "accounting.read" },
+  "/app/admin/automations": { permission: "admin.automations" },
   "/app/admin/automations/axper-traffic": { permission: "admin.settings" },
   "/app/admin/automations/customer-ar-drift-check": { permission: "admin.settings" },
   "/app/admin/automations/daily-reconciliation": { permission: "admin.settings" },
