@@ -26,10 +26,15 @@ const ENDPOINT_PATH = path.resolve(
   "../src/pages/api/automations/daily-reconciliation.ts",
 );
 const ENDPOINT_SRC = readFileSync(ENDPOINT_PATH, "utf8");
+// What a run does moved here so Admin > Automations runs the same thing (GAP-37).
+const RUN_SRC = readFileSync(
+  path.resolve(__dirname, "../src/lib/dailyReconciliationRun.ts"),
+  "utf8",
+);
 
 describe("daily-reconciliation endpoint guards", () => {
   it("imports computeDailyReconciliation from the canonical helper", () => {
-    expect(ENDPOINT_SRC).toMatch(
+    expect(RUN_SRC).toMatch(
       /import\s*\{[\s\S]{0,200}?computeDailyReconciliation[\s\S]{0,100}?\}\s*from\s*"@\/lib\/dailyReconciliation"/,
     );
   });
@@ -51,7 +56,7 @@ describe("daily-reconciliation endpoint guards", () => {
   });
 
   it("writes a DailyReconciliationLog row per reconciled day", () => {
-    expect(ENDPOINT_SRC).toMatch(/prisma\.dailyReconciliationLog\.create/);
+    expect(RUN_SRC).toMatch(/prisma\.dailyReconciliationLog\.create/);
   });
 
   it("returns the response under POST only (rejects other methods with 405)", () => {

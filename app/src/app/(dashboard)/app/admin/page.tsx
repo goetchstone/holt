@@ -103,6 +103,12 @@ const ITEMS: CardGridItem[] = [
     roles: ["ADMIN"],
   },
   {
+    title: "Automations",
+    description:
+      "What Holt does by itself: turn each on or off, choose when it runs, see how it went.",
+    href: "/app/admin/automations",
+  },
+  {
     title: "Mailchimp Sync",
     description: "Run the automated Mailchimp pull and see sync history.",
     href: "/app/admin/automations/mailchimp-sync",
