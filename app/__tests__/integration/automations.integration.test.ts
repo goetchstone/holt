@@ -304,6 +304,16 @@ describe("waking up", () => {
     expect(row.lastSummary).toBe("0 quotes released stock.");
   });
 
+  it("comes round again when its minutes are up", async () => {
+    await allOff();
+    await onAndDue("send-queue");
+    const first = await runDueAutomations(NOW);
+    expect(first.map((r) => [r.key, r.status])).toEqual([["send-queue", "OK"]]);
+    expect(await runDueAutomations(new Date(NOW.getTime() + 2 * 60_000))).toEqual([]);
+    const again = await runDueAutomations(new Date(NOW.getTime() + 5 * 60_000));
+    expect(again.map((r) => r.key)).toEqual(["send-queue"]);
+  });
+
   it("leaves alone what a store switched off, however overdue", async () => {
     await allOff();
     const spy = jest.spyOn(AUTOMATION_JOBS["quote-holds"], "run");
