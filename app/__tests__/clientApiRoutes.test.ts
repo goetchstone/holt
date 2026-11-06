@@ -39,6 +39,7 @@ const CLIENT_CODE = [
   "src/lib/hooks",
   "src/pages/auth",
   "src/lib/pricing/importVendorConfigs.ts",
+  "src/lib/automations/catalog.ts",
 ];
 
 // ---------------------------------------------------------------------------
