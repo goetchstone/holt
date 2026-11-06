@@ -142,8 +142,14 @@ listed.
       isn't is a regression. Something covered that the manifest still lists as
       outstanding is a stale manifest, and it lies about how much work is left.
       Both must fail, or the manifest drifts in whichever direction is unwatched.
-    - **A gate that runs unattended.** In CI, on a real artifact. A check nobody
-      runs is a comment.
+    - **A gate that runs unattended, and whose failure reaches someone.** In CI,
+      on a real artifact, with its red carried to where the next person looks: a
+      required check, or the session-start report
+      (`.claude/hooks/session-start-check.sh`, on stdout; a SessionStart hook's
+      stderr reaches no one). A check nobody runs is a comment, and so is one that
+      fails into a log or a Security tab: Dependabot's update job failed 16 of its
+      42 runs on main, and three PRs' CodeQL checks passed while 11 high alerts
+      landed on main.
 
     Prove the tripwire in both directions before trusting it: reintroduce the
     problem, watch it fail, restore, watch it pass. A tripwire only ever seen
