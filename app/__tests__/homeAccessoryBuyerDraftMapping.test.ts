@@ -2,7 +2,7 @@
 //
 // Pins the Home Accessory Order Import tool's KEY adaptation from FC: how
 // composed EffectiveRows become BuyerDraftPurchaseOrder / BuyerDraftItem
-// create payloads, instead of Ordorite CSV rows. Pure — no Prisma, no I/O
+// create payloads, instead of the POS CSV rows. Pure — no Prisma, no I/O
 // (the commit API route hydrates + writes; these functions only shape the
 // payloads it hands to buildPoCreateData / buildItemCreateData).
 

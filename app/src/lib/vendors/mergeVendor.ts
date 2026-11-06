@@ -73,7 +73,7 @@ type Tx = Prisma.TransactionClient;
 let merges = 0;
 
 /**
- * How many merges this process has made. A cache of vendor ids (the Ordorite
+ * How many merges this process has made. A cache of vendor ids (the POS
  * import's Unknown Vendor) is stale once this changes: its vendor may be the
  * one merged away.
  */

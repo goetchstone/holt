@@ -344,9 +344,9 @@ absent configuration — a null adapter id, a disabled module, an unreachable
 route.
 
 **Why:** before the seam, the only answer to "where does data come from" was
-the Ordorite adapter. A deployment that had never heard of Ordorite still got
+the POS adapter. A deployment that had never heard of the POS still got
 its import route, its admin page and its failure modes, and the honest state
-"we key everything natively" was indistinguishable from "Ordorite,
+"we key everything natively" was indistinguishable from "the POS,
 misconfigured." A cron pointed at such a deployment failed nightly and paged
 whoever owned the alert, for working exactly as intended.
 

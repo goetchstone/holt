@@ -2,7 +2,7 @@
 //
 // A core table may not carry one source system's vocabulary.
 //
-// SalesOrder held `skipSameDayRewriteCleanup` -- a boolean only the Ordorite
+// SalesOrder held `skipSameDayRewriteCleanup` -- a boolean only the POS
 // importer ever read, describing that source's rewrite quirks rather than
 // anything about the sale, on the highest-traffic table in the product. It was
 // almost never set. Adapter state now lives in

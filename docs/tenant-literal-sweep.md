@@ -23,7 +23,7 @@ wrong before: an earlier version said 67 at the top and 52 in the worklist.
 | Total | 67 |
 
 Resolved so far cluster in three PRs: #75 (tax district → `resolveTaxRate`), #128 (consignor name →
-`Vendor.isConsignment` / `consignmentVendor.ts`), #144 (Ordorite store codes, return prefixes,
+`Vendor.isConsignment` / `consignmentVendor.ts`), #144 (the POS store codes, return prefixes,
 report prefix, buyer identity → env/config), plus #123 (rewrite flag off `SalesOrder`), the
 `sourceStoreName` rename, #183 (Google project ids → `AppSettings.google`), #192 (order-number
 and barcode prefixes → `AppSettings`) and #86 (the 50/50 split credit → `SalesOrder.splitPercent`
@@ -76,7 +76,7 @@ history; not before one opens its doors.
 
 ## money (18)
 
-### `app/src/lib/adapters/ordorite/runners.ts:1500`
+### `app/src/lib/adapters/legacyPos/runners.ts:1500`
 
 **Status: RESOLVED** — consignor-name cache-key replaced by `Vendor.isConsignment` (#128). (verified 2026-09-17 against main @ 8298bae)
 
@@ -89,22 +89,22 @@ const vendorEntry = [...vendorCache.entries()].find(([, id]) => id === vendorId)
 
 **Fix:** Add Vendor.isConsignment boolean; both runners gate on `vendor.isConsignment` fetched with the vendor rather than substring-testing the cache key. Config (a preset or an admin toggle) selects which vendor is the consignor; the batch-creation behaviour stays in the runner per rule 62.
 
-### `app/src/lib/adapters/ordorite/shared.ts:159`
+### `app/src/lib/adapters/legacyPos/shared.ts:159`
 
-**Status: RESOLVED** — `RETURN_STORE_SUFFIX` store alphabet now comes from `ORDORITE_STORE_CODES`; unconfigured returns null (#144). (verified 2026-09-17 against main @ 8298bae)
+**Status: RESOLVED** — `RETURN_STORE_SUFFIX` store alphabet now comes from `LEGACY_POS_STORE_CODES`; unconfigured returns null (#144). (verified 2026-09-17 against main @ 8298bae)
 
 ```
 const RETURN_STORE_SUFFIX = /^(AB|CD|EF)[A-Z]*A\d/i;
 
 ```
 
-**Breaks:** Another Ordorite tenant's store codes (e.g. `DALA0123`) match none of the listed prefixes, so isReturnOrder returns false and every accounting return imports as a normal sale. Returns add to revenue instead of subtracting — daily sales, commissions and the sales journal all overstated by twice the return volume.
+**Breaks:** Another the POS tenant's store codes (e.g. `DALA0123`) match none of the listed prefixes, so isReturnOrder returns false and every accounting return imports as a normal sale. Returns add to revenue instead of subtracting — daily sales, commissions and the sales journal all overstated by twice the return volume.
 
-**Fix:** Keep the *shape* in code (an 'A' suffix on the store code is the Ordorite convention) and take the store-code alphabet from data: build the alternation from StoreLocation codes at call time, or add an `order-number-conventions` preset carrying `returnStoreCodes: [..]` and `returnPrefixes: [..]`. Config supplies the token list; the matching logic stays in the runner.
+**Fix:** Keep the *shape* in code (an 'A' suffix on the store code is the POS convention) and take the store-code alphabet from data: build the alternation from StoreLocation codes at call time, or add an `order-number-conventions` preset carrying `returnStoreCodes: [..]` and `returnPrefixes: [..]`. Config supplies the token list; the matching logic stays in the runner.
 
-### `app/src/lib/adapters/ordorite/shared.ts:210`
+### `app/src/lib/adapters/legacyPos/shared.ts:210`
 
-**Status: RESOLVED** — `/^ZR\d/` replaced by `returnPrefixFragment()` reading `ORDORITE_RETURN_PREFIXES` (`shared.ts:248-312`, #144). (verified 2026-09-17 against main @ 8298bae)
+**Status: RESOLVED** — `/^ZR\d/` replaced by `returnPrefixFragment()` reading `LEGACY_POS_RETURN_PREFIXES` (`shared.ts:248-312`, #144). (verified 2026-09-17 against main @ 8298bae)
 
 ```
 if (/^ZR\d/i.test(orderno)) return true;
@@ -115,7 +115,7 @@ if (/^ZR\d/i.test(orderno)) return true;
 
 **Fix:** Delete the line and fold `ZR` into the data-driven return-prefix list from the fix above — one source for return-prefix tokens, none in source.
 
-### `app/src/lib/adapters/ordorite/shared.ts:117`
+### `app/src/lib/adapters/legacyPos/shared.ts:117`
 
 **Status: OPEN** (verified 2026-09-17 against main @ 8298bae)
 
@@ -124,9 +124,9 @@ const PAYMENT_MODE_MAP: Record<string, string> = { "1": "Finance", ..., "NN": "<
 
 ```
 
-**Breaks:** Another Ordorite tenant numbering its modes differently gets that code labeled with another tenant's card-processor name; the label lands verbatim in the free-text Payment.paymentType, and journalEntry.ts's paymentGlMap then fails to recognise it — payments that never reach a journal entry. runners.ts:2256 also gates phantom gift-card skipping on `resolvePaymentMode(...) === "Gift Card"`, so that safeguard silently stops working too.
+**Breaks:** Another the POS tenant numbering its modes differently gets that code labeled with another tenant's card-processor name; the label lands verbatim in the free-text Payment.paymentType, and journalEntry.ts's paymentGlMap then fails to recognise it — payments that never reach a journal entry. runners.ts:2256 also gates phantom gift-card skipping on `resolvePaymentMode(...) === "Gift Card"`, so that safeguard silently stops working too.
 
-**Fix:** Finish the preset that already exists: give `payment` an IMPORT_ENTITIES entry so the ordorite-payment-modes import-definition becomes live, have resolvePaymentMode read the active definition's valueMappings, and keep only 'Unknown'/passthrough behaviour in code. Ship the current table as the default preset, not as a literal.
+**Fix:** Finish the preset that already exists: give `payment` an IMPORT_ENTITIES entry so the POS payment-mode import-definition becomes live, have resolvePaymentMode read the active definition's valueMappings, and keep only 'Unknown'/passthrough behaviour in code. Ship the current table as the default preset, not as a literal.
 
 ### `app/src/lib/commissionSales.ts:67`
 
@@ -328,9 +328,9 @@ vatRate: isTaxExempt ? 0 : <one state's rate>,
 
 ```
 
-**Breaks:** The model's only idempotency key is a pair of vendor-named nullable columns. Any other source adapter (AppSettings.sourceAdapterId is designed to be pluggable, lib/adapters/ has noneAdapter.ts + ordorite) has no re-import safety at all: NULLs compare distinct in a Postgres unique index, so a re-run appends duplicate receiving rows, which the buyersReport `received` CTE (lib/reports/buyersReport.ts:293-296) sums straight into allocated stock.
+**Breaks:** The model's only idempotency key is a pair of vendor-named nullable columns. Any other source adapter (AppSettings.sourceAdapterId is designed to be pluggable, lib/adapters/ has noneAdapter.ts + legacyPos) has no re-import safety at all: NULLs compare distinct in a Postgres unique index, so a re-run appends duplicate receiving rows, which the buyersReport `received` CTE (lib/reports/buyersReport.ts:293-296) sums straight into allocated stock.
 
-**Fix:** Replace the pair with the provenance shape this schema already uses twice — ServiceCase.externalSource/externalSourceId (schema.prisma:3378-3380) and InventorySnapshot.source/externalId (1324-1330): add `externalSource String?` + `externalRef String?` with @@unique([externalSource, externalRef]), and have the Ordorite runner write source="ordorite" and its composed key there. The adapter id (already config) SELECTS the namespace; no adapter-specific column stays on the core model.
+**Fix:** Replace the pair with the provenance shape this schema already uses twice — ServiceCase.externalSource/externalSourceId (schema.prisma:3378-3380) and InventorySnapshot.source/externalId (1324-1330): add `externalSource String?` + `externalRef String?` with @@unique([externalSource, externalRef]), and have the POS runner write source=<the adapter id> and its composed key there. The adapter id (already config) SELECTS the namespace; no adapter-specific column stays on the core model.
 
 ### `app/src/components/sales/DenominationCountTable.tsx:15`
 
@@ -345,16 +345,16 @@ export const DENOMINATIONS: DenominationDef[] = [
 
 **Fix:** Ship a denomination table keyed by ISO currency code and select the row with AppSettings.currency; the component keeps taking its list as a prop exactly as it does today (the parent already owns state), and the `$` in fmt becomes the locale/currency formatter. Config selects which existing denomination set is used; it never supplies denominations as free-form data.
 
-### `app/src/lib/adapters/ordorite/reportRouter.ts:74`
+### `app/src/lib/adapters/legacyPos/reportRouter.ts:74`
 
-**Status: RESOLVED** — `<Org>_` patterns now `orgReport:` entries matched against `ORDORITE_REPORT_PREFIX` (`reportRouter.ts:29-38`, #144). (verified 2026-09-17 against main @ 8298bae)
+**Status: RESOLVED** — `<Org>_` patterns now `orgReport:` entries matched against `LEGACY_POS_REPORT_PREFIX` (`reportRouter.ts:29-38`, #144). (verified 2026-09-17 against main @ 8298bae)
 
 ```
 pattern: /<Org>_Inbound_Items/i,
 
 ```
 
-**Breaks:** Another tenant's Ordorite export named `Acme_Furniture_Inbound_Items` never matches line 74, falls to line 79 and is fed to runPurchaseOrdersImport instead of runInboundItemsImport (wrong entity written). `Acme_Customers` matches nothing, resolveImportRoute returns null, and the customer master import is silently logged as skipped forever.
+**Breaks:** Another tenant's POS export named `Acme_Furniture_Inbound_Items` never matches line 74, falls to line 79 and is fed to runPurchaseOrdersImport instead of runInboundItemsImport (wrong entity written). `Acme_Customers` matches nothing, resolveImportRoute returns null, and the customer master import is silently logged as skipped forever.
 
 **Fix:** Move REPORT_ROUTES out of source into a `report-routing` preset kind: each row carries a filename `pattern` plus a `runnerKey` naming an entry in a compile-time RUNNERS registry (rule 62 — config selects the runner, never supplies the logic). Ship the current patterns as the default preset with the tenant tokens replaced by generic ones (`Inbound_Items`, `Customers`); config/local overrides the pattern list by name.
 
@@ -447,9 +447,9 @@ if (s === "" || s === "@") return undefined;
 
 ```
 
-**Breaks:** safeString is imported by lib/fmSafeMapper.ts, lib/genericImportRunner.ts, pages/api/purchasing/import-wholesale-order.ts and all five consignment import routes (pages/api/consignment/import/{sales,sales-lines,payment-lines,consignment-items,manifest}.ts) — none of which are Ordorite-fed. Any import whose cell legitimately holds a bare '@' has it coerced to undefined: a required field then fails validation with a message that does not explain why, and an optional field is dropped with no error at all.
+**Breaks:** safeString is imported by lib/fmSafeMapper.ts, lib/genericImportRunner.ts, pages/api/purchasing/import-wholesale-order.ts and all five consignment import routes (pages/api/consignment/import/{sales,sales-lines,payment-lines,consignment-items,manifest}.ts) — none of which are POS-fed. Any import whose cell legitimately holds a bare '@' has it coerced to undefined: a required field then fails validation with a message that does not explain why, and an optional field is dropped with no error at all.
 
-**Fix:** Delete the `|| s === "@"` clause from safeString so it means only 'blank is blank'. If Ordorite genuinely needs it, express it where it belongs: either a small wrapper in lib/adapters/ordorite/shared.ts, or an optional `nullPlaceholders: string[]` on the import-definition preset schema (a list of literal sentinels — data, not an expression, so rule 62 holds) applied by the engine before coercion.
+**Fix:** Delete the `|| s === "@"` clause from safeString so it means only 'blank is blank'. If the POS genuinely needs it, express it where it belongs: either a small wrapper in lib/adapters/legacyPos/shared.ts, or an optional `nullPlaceholders: string[]` on the import-definition preset schema (a list of literal sentinels — data, not an expression, so rule 62 holds) applied by the engine before coercion.
 
 ### `app/src/lib/pricing/beatrizBallOrderParser.ts:64`
 
@@ -501,7 +501,7 @@ const SALES_ORDER_PATTERNS: RegExp[] = [/\b([A-Z]{2,5}\d{1,7}(?:\s*-\s*[A-Z])?)\
 
 **Breaks:** The suffix strip is a fallback that fires only after the exact orderno lookup misses, so its failure mode is silent: a deployment whose order numbers legitimately end in ' - A' as a distinct order (suite/variant marker, location letter, revision that is a different order rather than the same one rewritten) has the service case attached to the base order instead. matchSalesOrder returns customerId so the caller can use it as a customer fallback when phone/email matching fails (doc-comment at lines 293-297), so the wrong customer propagates onto the case too. Separately the base pattern [A-Z]{2,5}\d{1,7} assumes letters-then-digits, so deployments numbering orders '2024-0031' or '10425' extract no token at all.
 
-**Fix:** Route it through the adapter registry that already exists. AppSettings.sourceAdapterId (schema.prisma:4822, default 'none') selects a SourceAdapter; give that interface an optional `orderNumberBase(orderno): string | null` capability and have matchSalesOrder call it, with 'none' returning null (no strip). Ordorite's implementation reuses REWRITE_SUFFIX_RE where it already lives. The token-extraction shape itself becomes an import-definition setting selecting from a small compile-time catalog of order-number shapes rather than a literal regex in source.
+**Fix:** Route it through the adapter registry that already exists. AppSettings.sourceAdapterId (schema.prisma:4822, default 'none') selects a SourceAdapter; give that interface an optional `orderNumberBase(orderno): string | null` capability and have matchSalesOrder call it, with 'none' returning null (no strip). The POS's implementation reuses REWRITE_SUFFIX_RE where it already lives. The token-extraction shape itself becomes an import-definition setting selecting from a small compile-time catalog of order-number shapes rather than a literal regex in source.
 
 ### `app/src/pages/api/inventory/export-variance.ts:11`
 
@@ -741,7 +741,7 @@ const widthDim = useMemo(() => dimensions.find((d) => d.name === "Table Width"),
 
 **Fix:** Extend the dimension `type` vocabulary the file already relies on — TABLE_WIDTH / TABLE_LENGTH / TABLE_DIAMETER alongside WOOD_SPECIES — and match on `d.type`. The tenant keeps naming its dimensions whatever it likes; the type selects the role.
 
-### `app/src/lib/adapters/ordorite/reportRouter.ts:49`
+### `app/src/lib/adapters/legacyPos/reportRouter.ts:49`
 
 **Status: RESOLVED** — Same fix as `reportRouter.ts:74` — `orgReport:` + configured prefix (#144). (verified 2026-09-17 against main @ 8298bae)
 
@@ -750,7 +750,7 @@ pattern: /<Org>_Stock_by_Item/i,
 
 ```
 
-**Breaks:** A deployment whose Ordorite exports carry its own initials matches none of the three; resolveImportRoute returns null and the orchestrator logs 'skipped'. Stock-on-hand, PO-line reconciliation and the product catalog never populate, with no error surfaced.
+**Breaks:** A deployment whose POS exports carry its own initials matches none of the three; resolveImportRoute returns null and the orchestrator logs 'skipped'. Stock-on-hand, PO-line reconciliation and the product catalog never populate, with no error surfaced.
 
 **Fix:** Same fix as the <Org> routes — one preset-driven route table keyed pattern -> runnerKey. Do not fix by loosening the regex; the whole table is deployment data.
 
@@ -927,7 +927,7 @@ HD_PROPOSAL // imported from Hunter Douglas Direct Connect proposal
 
 **Fix:** Already on the backlog: rename to trafficSourceName and repoint the unique key, leaving the preset-populated StoreLocation.trafficSourceNames as the mapping surface.
 
-### `app/src/lib/adapters/ordorite/reportRouter.ts:125`
+### `app/src/lib/adapters/legacyPos/reportRouter.ts:125`
 
 **Status: OPEN** (verified 2026-09-17 against main @ 8298bae)
 
@@ -999,8 +999,8 @@ Persisted onto every `OrderLineItem`, so it flows into journal-entry tax lines, 
 
 ---
 
-### 2. Ordorite return detection keyed to fixed store codes + a return-prefix literal — NEW, money
-`app/src/lib/adapters/ordorite/shared.ts:159` and `:210`
+### 2. The POS return detection keyed to fixed store codes + a return-prefix literal — NEW, money
+`app/src/lib/adapters/legacyPos/shared.ts:159` and `:210`
 
 ```
 const RETURN_STORE_SUFFIX = /^(AB|CD|EF)[A-Z]*A\d/i;
@@ -1011,9 +1011,9 @@ if (/^ZR\d/i.test(orderno)) return true;   // "ZR-prefixed orders are a return b
 
 Another tenant's store codes match nothing → `isReturnOrder` false → every accounting return imports as a normal sale. Revenue, commissions and the sales journal overstate by **twice** the return volume (return not subtracted, and counted as a sale). Line 210 is wrong in both directions: a `ZR` series that is not a return gets dropped out of revenue.
 
-**Fix.** Keep the *shape* in code — the trailing `A` on the store code is the Ordorite convention, that's logic. Take the token alphabet from data: build the alternation from `StoreLocation` codes at call time, or add an `order-number-conventions` preset carrying `returnStoreCodes: []` and `returnPrefixes: []`. Fold `ZR` into `returnPrefixes` and delete line 210 so there is exactly one source of return-prefix tokens. Ship no store codes by default; the existing deployment's codes go in its gitignored local preset.
+**Fix.** Keep the *shape* in code — the trailing `A` on the store code is the POS convention, that's logic. Take the token alphabet from data: build the alternation from `StoreLocation` codes at call time, or add an `order-number-conventions` preset carrying `returnStoreCodes: []` and `returnPrefixes: []`. Fold `ZR` into `returnPrefixes` and delete line 210 so there is exactly one source of return-prefix tokens. Ship no store codes by default; the existing deployment's codes go in its gitignored local preset.
 
-**Test (equivalence).** Run `isReturnOrder` over every distinct `SalesOrder.orderno` in production (single query, no import needed) old vs new — the classified sets must be identical. Then re-run the last 90 days of Ordorite imports into a scratch DB and compare daily net sales by store and the sales-journal debit/credit totals. Add a unit case for `DALA0123` proving it classifies as a return once `returnStoreCodes` includes `DAL`.
+**Test (equivalence).** Run `isReturnOrder` over every distinct `SalesOrder.orderno` in production (single query, no import needed) old vs new — the classified sets must be identical. Then re-run the last 90 days of the POS imports into a scratch DB and compare daily net sales by store and the sales-journal debit/credit totals. Add a unit case for `DALA0123` proving it classifies as a return once `returnStoreCodes` includes `DAL`.
 
 **Pairs with #19** (`poNumberPrefix` lands in the same preset kind).
 
@@ -1033,11 +1033,11 @@ Every business-day boundary is Eastern: daily sales, daily reconciliation, pay-p
 ### 4. `safeString` swallows a bare `@` for every importer — NEW, data-correctness
 `app/src/lib/importHelpers.ts:20` — `if (s === "" || s === "@") return undefined;`
 
-Imported by `lib/fmSafeMapper.ts`, `lib/genericImportRunner.ts`, `pages/api/purchasing/import-wholesale-order.ts` and all five `pages/api/consignment/import/*` routes — none of which are Ordorite-fed. A cell legitimately holding `@` becomes `undefined`: required fields fail validation with an unexplained message, optional fields drop silently.
+Imported by `lib/fmSafeMapper.ts`, `lib/genericImportRunner.ts`, `pages/api/purchasing/import-wholesale-order.ts` and all five `pages/api/consignment/import/*` routes — none of which are POS-fed. A cell legitimately holding `@` becomes `undefined`: required fields fail validation with an unexplained message, optional fields drop silently.
 
-**Fix.** Delete `|| s === "@"`. If Ordorite genuinely needs the sentinel, express it as a small wrapper in `lib/adapters/ordorite/shared.ts`, or an optional `nullPlaceholders: string[]` on the import-definition preset schema (a literal list is data, not an expression — rule 62 holds).
+**Fix.** Delete `|| s === "@"`. If the POS genuinely needs the sentinel, express it as a small wrapper in `lib/adapters/legacyPos/shared.ts`, or an optional `nullPlaceholders: string[]` on the import-definition preset schema (a literal list is data, not an expression — rule 62 holds).
 
-**Test.** Unit: `safeString("@") === "@"`. Then re-run one Ordorite import of each entity old vs new and diff row counts and null counts per column — expect zero diff unless Ordorite really does emit `@` as a null, in which case the wrapper is required and CI will show it.
+**Test.** Unit: `safeString("@") === "@"`. Then re-run one POS import of each entity old vs new and diff row counts and null counts per column — expect zero diff unless the POS really does emit `@` as a null, in which case the wrapper is required and CI will show it.
 
 ---
 
@@ -1069,27 +1069,27 @@ An `updateMany` driven by a string shape. Any style under that vendor whose numb
 
 ---
 
-### 7. Ordorite report routing table is one deployment's filenames — NEW, data-correctness + feature-dead
-`app/src/lib/adapters/ordorite/reportRouter.ts:74` — `pattern: /<Org>_Inbound_Items/i`
-`app/src/lib/adapters/ordorite/reportRouter.ts:49` — `pattern: /<Org>_Stock_by_Item/i`
-`app/src/lib/adapters/ordorite/reportRouter.ts:125` — `/<Consignor>_Daily_Sales/i` in `SKIP_PATTERNS` (cosmetic; free once the table moves)
+### 7. The POS report routing table is one deployment's filenames — NEW, data-correctness + feature-dead
+`app/src/lib/adapters/legacyPos/reportRouter.ts:74` — `pattern: /<Org>_Inbound_Items/i`
+`app/src/lib/adapters/legacyPos/reportRouter.ts:49` — `pattern: /<Org>_Stock_by_Item/i`
+`app/src/lib/adapters/legacyPos/reportRouter.ts:125` — `/<Consignor>_Daily_Sales/i` in `SKIP_PATTERNS` (cosmetic; free once the table moves)
 
 `Acme_Furniture_Inbound_Items` falls past line 74 to line 79 and is fed to `runPurchaseOrdersImport` instead of `runInboundItemsImport` — **wrong entity written**. `Acme_Customers` matches nothing, `resolveImportRoute` returns null, and the customer master import logs as "skipped" forever. Same for the org-prefixed stock/PO-line/catalog routes: stock-on-hand and the product catalog never populate, no error surfaced.
 
 **Fix.** Move `REPORT_ROUTES` and `SKIP_PATTERNS` out of source into one `report-routing` preset kind: each row = filename `pattern` + `runnerKey` naming an entry in a compile-time `RUNNERS` registry, plus a `skip: true` route kind for the skip list (rule 62 — config selects the runner, never supplies it). Ship the current patterns as the default preset with tenant tokens genericized (`Inbound_Items`, `Customers`). Do **not** fix by loosening the regexes; the whole table is deployment data.
 
-**Test (equivalence).** Replay the last 90 days of received Ordorite filenames through `resolveImportRoute` old vs new; the (filename → runner | skip | null) mapping must be identical for all of them. Add a case asserting `Acme_Furniture_Inbound_Items` routes to the inbound-items runner under an overridden preset, and one asserting an unmatched filename returns a *loud* unknown rather than a silent skip.
+**Test (equivalence).** Replay the last 90 days of received the POS filenames through `resolveImportRoute` old vs new; the (filename → runner | skip | null) mapping must be identical for all of them. Add a case asserting `Acme_Furniture_Inbound_Items` routes to the inbound-items runner under an overridden preset, and one asserting an unmatched filename returns a *loud* unknown rather than a silent skip.
 
 **Blocks second-tenant onboarding.** Nothing else can be verified end-to-end on a second-tenant export until this lands.
 
 ---
 
-### 8. Ordorite payment-mode code table — NEW, money
-`app/src/lib/adapters/ordorite/shared.ts:117` — `PAYMENT_MODE_MAP: { "1": "Finance", ..., "NN": "<card processor>", ... }`
+### 8. The POS payment-mode code table — NEW, money
+`app/src/lib/adapters/legacyPos/shared.ts:117` — `PAYMENT_MODE_MAP: { "1": "Finance", ..., "NN": "<card processor>", ... }`
 
-Labels land verbatim in the free-text `Payment.paymentType`; `journalEntry.ts`'s `paymentGlMap` then fails to recognise them, so **payments never reach a journal entry**. `lib/adapters/ordorite/runners.ts:2256` also gates phantom gift-card skipping on `resolvePaymentMode(...) === "Gift Card"`, so that safeguard silently stops working too.
+Labels land verbatim in the free-text `Payment.paymentType`; `journalEntry.ts`'s `paymentGlMap` then fails to recognise them, so **payments never reach a journal entry**. `lib/adapters/legacyPos/runners.ts:2256` also gates phantom gift-card skipping on `resolvePaymentMode(...) === "Gift Card"`, so that safeguard silently stops working too.
 
-**Fix.** Finish the preset that already half-exists: give `payment` an `IMPORT_ENTITIES` entry so the `ordorite-payment-modes` import-definition becomes live, have `resolvePaymentMode` read the active definition's `valueMappings`, and keep only `Unknown`/passthrough in code. Ship the current table as the default preset value.
+**Fix.** Finish the preset that already half-exists: give `payment` an `IMPORT_ENTITIES` entry so the POS payment-mode import-definition becomes live, have `resolvePaymentMode` read the active definition's `valueMappings`, and keep only `Unknown`/passthrough in code. Ship the current table as the default preset value.
 
 **Test (equivalence).** Map every distinct raw mode code in production through old and new `resolvePaymentMode` — identical labels. Then diff the journal-entry lines by GL account for the last 90 days and the count of payments with no journal line (must not increase; ideally unchanged at whatever it is today). Assert the gift-card skip in `runners.ts:2256` still fires on the same order set.
 
@@ -1111,7 +1111,7 @@ On a fresh deployment with no assigned plan, no `isDefault` plan and an empty `C
 | site | what |
 |---|---|
 | `app/src/lib/orderLineItemLinker.ts:200` | NEW — `AND NOT (v_old.name ILIKE '<consignor>%' AND v_new.name ILIKE '<consignor>%')` guard in `fixWrongLinks` |
-| `app/src/lib/adapters/ordorite/runners.ts:1500` | NEW — `!vendorEntry[0].includes("<consignor>")` → `continue`, no payment batch on PO receipt |
+| `app/src/lib/adapters/legacyPos/runners.ts:1500` | NEW — `!vendorEntry[0].includes("<consignor>")` → `continue`, no payment batch on PO receipt |
 | `app/src/pages/api/consignment/return-items.ts:49` | NEW — `name: { contains: "<consignor>" }` (plus the sibling PO-management, vendor-return-import and POS-backfill routes) |
 | `app/src/pages/api/consignment/import/manifest.ts:21` | KNOWN — `CONSIGNOR_NAME_VARIANTS`, falls back to a hardcoded vendor code, else **creates** a vendor |
 | `lib/consignment.ts` (the consignor-specific rug check, its number-prefix regex and its vendor-name list) | KNOWN — backlog |
@@ -1251,7 +1251,7 @@ A tenant naming statuses "Active"/"Working"/"On Hold"/"Pending Parts" — or run
 
 Tabs: another workbook's names match zero sheets and the import **reports success with zero cases**. PO grammar: a tenant numbering POs `PO-12345` extracts no tokens, so cases never link to a PO and the vendor-claim workflow has nothing to attach to — and worse, their real PO tokens then satisfy the sales-order pattern at 661 and are looked up as sales orders, attaching cases to the **wrong record**. The `- A` suffix strip is a silent fallback: a tenant whose order numbers legitimately end in `" - A"` as a distinct order gets the case attached to the base order, and since `matchSalesOrder` returns `customerId` as a fallback when phone/email matching fails (doc-comment lines 293-297), the **wrong customer propagates onto the case**. The `[A-Z]{2,5}\d{1,7}` shape also assumes letters-then-digits, so `2024-0031` or `10425` extract nothing.
 
-**Fix.** (a) Sheet names: caller-supplied (the upload UI lists the workbook's tabs and the operator ticks them), current three ship as the default preset value, and **fail loudly** — if no configured tab is present, return an error naming the tabs found. (b) PO grammar: derive the prefix from data — read the distinct leading alpha prefix of existing `PurchaseOrder.poNumber`, or carry `poNumberPrefix` + pad width in the same `order-number-conventions` preset as #2 — and build `PO_PATTERNS` and `PO_PREFIX_RE` from that one token so they cannot drift. (c) The suffix strip goes through the adapter registry that already exists: `AppSettings.sourceAdapterId` (`schema.prisma:4822`, default `none`) selects a `SourceAdapter`; give that interface an optional `orderNumberBase(orderno)` and have `matchSalesOrder` call it, with `none` returning null (no strip) and Ordorite reusing `REWRITE_SUFFIX_RE` where it already lives. The token shape becomes an import-definition setting selecting from a small compile-time catalog of order-number shapes.
+**Fix.** (a) Sheet names: caller-supplied (the upload UI lists the workbook's tabs and the operator ticks them), current three ship as the default preset value, and **fail loudly** — if no configured tab is present, return an error naming the tabs found. (b) PO grammar: derive the prefix from data — read the distinct leading alpha prefix of existing `PurchaseOrder.poNumber`, or carry `poNumberPrefix` + pad width in the same `order-number-conventions` preset as #2 — and build `PO_PATTERNS` and `PO_PREFIX_RE` from that one token so they cannot drift. (c) The suffix strip goes through the adapter registry that already exists: `AppSettings.sourceAdapterId` (`schema.prisma:4822`, default `none`) selects a `SourceAdapter`; give that interface an optional `orderNumberBase(orderno)` and have `matchSalesOrder` call it, with `none` returning null (no strip) and the POS reusing `REWRITE_SUFFIX_RE` where it already lives. The token shape becomes an import-definition setting selecting from a small compile-time catalog of order-number shapes.
 
 **Test (equivalence).** Re-import the same production workbook old vs new and diff: case count per tab, the `(case → purchaseOrderId)` set, the `(case → salesOrderId)` set, and the `(case → customerId)` set. All identical. Then a scratch run with `PO-12345`-style numbers asserting non-empty PO links and no PO token captured as a sales order; and an assertion that a workbook with no matching tabs returns an error naming the tabs found.
 
@@ -1355,13 +1355,13 @@ Each of these needs its own migration + backfill and a mechanical rename across 
 ### 27. `GoodsInward` idempotency key is vendor-named — NEW, data-correctness (money-adjacent)
 `app/prisma/schema.prisma:1764` — `@@unique([externalGipNo, externalPorNo])`
 
-The model's only idempotency key is a pair of **nullable** vendor-named columns. Any other source adapter (`AppSettings.sourceAdapterId` is designed to be pluggable; `lib/adapters/` already has `noneAdapter.ts` alongside ordorite) has **no re-import safety at all** — NULLs compare distinct in a Postgres unique index, so a re-run appends duplicate receiving rows, which `lib/reports/buyersReport.ts:293-296`'s `received` CTE sums straight into allocated stock.
+The model's only idempotency key is a pair of **nullable** vendor-named columns. Any other source adapter (`AppSettings.sourceAdapterId` is designed to be pluggable; `lib/adapters/` already has `noneAdapter.ts` alongside `legacyPos/`) has **no re-import safety at all** — NULLs compare distinct in a Postgres unique index, so a re-run appends duplicate receiving rows, which `lib/reports/buyersReport.ts:293-296`'s `received` CTE sums straight into allocated stock.
 
-**Fix.** Use the provenance shape this schema already uses twice — `ServiceCase.externalSource`/`externalSourceId` (`schema.prisma:3378-3380`) and `InventorySnapshot.source`/`externalId` (`1324-1330`): add `externalSource String?` + `externalRef String?` with `@@unique([externalSource, externalRef])`, and have the Ordorite runner write `source = "ordorite"` and its composed key there. The adapter id (already config) selects the namespace; no adapter-specific column stays on the core model.
+**Fix.** Use the provenance shape this schema already uses twice — `ServiceCase.externalSource`/`externalSourceId` (`schema.prisma:3378-3380`) and `InventorySnapshot.source`/`externalId` (`1324-1330`): add `externalSource String?` + `externalRef String?` with `@@unique([externalSource, externalRef])`, and have the POS runner write `source = <the adapter id>` and its composed key there. The adapter id (already config) selects the namespace; no adapter-specific column stays on the core model.
 
 **Migration risk.** Backfill must compose `externalRef` from the existing pair and **prove uniqueness before adding the constraint** — if production already holds duplicate/NULL pairs the migration fails mid-deploy. Run the uniqueness check as a read-only query first and put the result in the PR body. Keep the old columns nullable and unused for one release before dropping.
 
-**Test (equivalence).** After backfill, diff `buyersReport`'s `received` quantities per PO line before vs after — identical. Then re-run a completed Ordorite inbound import twice and assert zero new `GoodsInward` rows on the second run (today, with NULLs, it appends).
+**Test (equivalence).** After backfill, diff `buyersReport`'s `received` quantities per PO line before vs after — identical. Then re-run a completed the POS inbound import twice and assert zero new `GoodsInward` rows on the second run (today, with NULLs, it appends).
 
 ### 28. Vendor-branded models, relations and enums — NEW (5) + KNOWN (1)
 All rename-only; the columns themselves are reasonable retail signals.
@@ -1388,7 +1388,7 @@ Worth recording why this mattered more than it looked: **none of the hardcoded n
 ### Also on the backlog, unchanged (KNOWN)
 ### Vendor number prefixes — DONE (migration `20260822140000_vendor_number_prefix`)
 
-`lib/consignment.ts` hardcoded one consignment vendor's numbering: a POS prefix and a tag prefix, across 26 call sites in `paymentService`, the Ordorite runners and three consignment import routes. A second vendor matched nothing, **silently** — no error, just items that never linked.
+`lib/consignment.ts` hardcoded one consignment vendor's numbering: a POS prefix and a tag prefix, across 26 call sites in `paymentService`, the POS runners and three consignment import routes. A second vendor matched nothing, **silently** — no error, just items that never linked.
 
 **The note that used to be here was wrong**, and worth recording as a lesson: it said this was "retired by #10's `Vendor.isConsignment`". That column does not exist and the PR never landed, so the entry sat behind a false "already handled" claim.
 

@@ -42,7 +42,7 @@ function codeOf(src: string): string {
  * that file after the vendor. It is matching its own export's name, not deciding
  * which vendor consigns -- and the pattern list is the adapter's business.
  */
-const ALLOWED = new Set(["src/lib/adapters/ordorite/reportRouter.ts"]);
+const ALLOWED = new Set(["src/lib/adapters/legacyPos/reportRouter.ts"]);
 
 describe("no route resolves the consignment vendor by name", () => {
   const files = walk(SRC);

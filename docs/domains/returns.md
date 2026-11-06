@@ -6,7 +6,7 @@ Customer returns processing. **Two parallel realities** must be understood befor
 
 | Path                         | Where the data lives                                                                                                                                                                                                                        | Completeness                                                                         |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| **Imported the POS returns** | Negative line items on a `SalesOrder` with status `RETURNED` (e.g. orderno `ABOA001234` — the store-code + `A` shape matched by `isReturnOrder()` in `lib/adapters/ordorite/shared.ts`) PLUS a negative `Payment` row for the refund tender | **Gappy** — no return reason, no link to the original sale, no restock/writeoff flag |
+| **Imported POS returns** | Negative line items on a `SalesOrder` with status `RETURNED` (e.g. orderno `ABOA001234` — the store-code + `A` shape matched by `isReturnOrder()` in `lib/adapters/legacyPos/shared.ts`) PLUS a negative `Payment` row for the refund tender | **Gappy** — no return reason, no link to the original sale, no restock/writeoff flag |
 | **ERP-native returns**       | Populated `Return` model with reason, condition, pickup address, inspection notes, restock/write-off disposition                                                                                                                            | **Complete**                                                                         |
 
 Reports must understand both. The `Return` table is empty for every historical POS return; data lives on the SalesOrder side instead.
@@ -111,7 +111,7 @@ What we can't get from any current the POS export:
 
 Per `docs/domains/import-pipeline.md` "Same-day rewrites — the dropped-line edge case" (post-failure 2026-05-12, recalibrated 2026-05-15):
 
-When the POS same-day-rewrites an order, dropped lines get left ACTIVE on the base order with no offsetting return. Detection is `findDroppedBaseLineIds` in `lib/adapters/ordorite/sameDayRewriteCleanup.ts` (combined 3-axis heuristic); the cancellation runs post-import inside `runSalesImport` (`lib/adapters/ordorite/runners.ts`), stamping `lineItemStatus = CANCELLED` plus `SAME_DAY_REWRITE_DROP_CANCEL_REASON`. See that section for the full pattern.
+When the POS same-day-rewrites an order, dropped lines get left ACTIVE on the base order with no offsetting return. Detection is `findDroppedBaseLineIds` in `lib/adapters/legacyPos/sameDayRewriteCleanup.ts` (combined 3-axis heuristic); the cancellation runs post-import inside `runSalesImport` (`lib/adapters/legacyPos/runners.ts`), stamping `lineItemStatus = CANCELLED` plus `SAME_DAY_REWRITE_DROP_CANCEL_REASON`. See that section for the full pattern.
 
 ## Exchange orders
 

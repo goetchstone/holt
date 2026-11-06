@@ -1,7 +1,7 @@
 // /app/src/lib/homeAccessoryBuyerDraftMapping.ts
 //
 // THE key adaptation for the Home Accessory Order Import tool: FC's version
-// of this tool built Ordorite import CSVs (files-only — Ordorite is FC's
+// of this tool built the POS import CSVs (files-only — the POS is FC's
 // system of record). Holt IS its own system of record, so this file maps
 // the composed `EffectiveRow[]` (from homeAccessoryRows.ts) into holt's
 // native Buyer Drafts create payloads instead:

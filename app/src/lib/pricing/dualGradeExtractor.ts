@@ -1,9 +1,9 @@
-// /app/src/lib/pricing/americanLeatherExtractor.ts
+// /app/src/lib/pricing/dualGradeExtractor.ts
 //
-// Server-only PDF parser for American Leather retail and wholesale price lists.
+// Server-only PDF parser for dual-grade (leather + fabric) retail and wholesale price lists.
 // Uses pdf-parse with columnAwarePageRenderer to extract tabular pricing data.
 //
-// American Leather PDFs have a consistent per-page layout:
+// These PDFs have a consistent per-page layout:
 //   Header: collection name, program type, standard features, options
 //   Table:  Description | Frame | C.O.M. Usage | C | D/F | G | H | J | I | II | III | V
 //
@@ -15,7 +15,7 @@ import { parseCurrency } from "./pricingUtils";
 
 // ─── Types ────────────────────────────────────────────────────────
 
-export interface ALParsedProduct {
+export interface DualGradeParsedProduct {
   collectionName: string;
   programType: string;
   description: string;
@@ -25,18 +25,18 @@ export interface ALParsedProduct {
   pageNumber: number;
 }
 
-export interface ALParsedPage {
+export interface DualGradeParsedPage {
   collectionName: string;
   programType: string;
   optionsText: string;
   standardFeaturesText: string;
-  products: ALParsedProduct[];
+  products: DualGradeParsedProduct[];
   pageNumber: number;
 }
 
-export interface ALExtractionResult {
-  pages: ALParsedPage[];
-  products: ALParsedProduct[];
+export interface DualGradeExtractionResult {
+  pages: DualGradeParsedPage[];
+  products: DualGradeParsedProduct[];
   effectiveDate: string | null;
   isRetail: boolean;
 }
@@ -75,7 +75,9 @@ const PROGRAM_PATTERNS: [RegExp, string][] = [
 
 // ─── Main extraction ──────────────────────────────────────────────
 
-export async function extractAmericanLeather(pdfBuffer: Buffer): Promise<ALExtractionResult> {
+export async function extractDualGradePriceList(
+  pdfBuffer: Buffer,
+): Promise<DualGradeExtractionResult> {
   const data = await parsePdf(pdfBuffer, {
     pagerender: (pageData: any) =>
       columnAwarePageRenderer(pageData).then(
@@ -90,8 +92,8 @@ export async function extractAmericanLeather(pdfBuffer: Buffer): Promise<ALExtra
   const dateMatch = fullText.match(/EFFECTIVE\s+([\w\s,]+\d{4})/i);
   const effectiveDate = dateMatch ? dateMatch[1].trim() : null;
 
-  const allPages: ALParsedPage[] = [];
-  const allProducts: ALParsedProduct[] = [];
+  const allPages: DualGradeParsedPage[] = [];
+  const allProducts: DualGradeParsedProduct[] = [];
 
   // Split by page markers
   const segments = fullText.split(/<<PAGE:(\d+)>>\n/);
@@ -112,7 +114,7 @@ export async function extractAmericanLeather(pdfBuffer: Buffer): Promise<ALExtra
 
 // ─── Page parsing ─────────────────────────────────────────────────
 
-function parsePage(pageText: string, pageNumber: number): ALParsedPage | null {
+function parsePage(pageText: string, pageNumber: number): DualGradeParsedPage | null {
   const lines = pageText.split("\n").map((l) => l.trim());
 
   // Skip table-of-contents pages, blank pages, and cover pages
@@ -256,7 +258,7 @@ function extractStandardFeatures(lines: string[]): string {
 
 // ─── Standard features parsing ──────────────────────────────────
 
-export interface ALStandardFeatures {
+export interface DualGradeStandardFeatures {
   standardSeat: string | null;
   standardBack: string | null;
   standardPillows: string | null;
@@ -268,8 +270,8 @@ export interface ALStandardFeatures {
  * AL standard features vary by program but typically include cushion type,
  * back construction, included pillows, and leg/base finish.
  */
-export function parseStandardFeatures(text: string): ALStandardFeatures {
-  const result: ALStandardFeatures = {
+export function parseStandardFeatures(text: string): DualGradeStandardFeatures {
+  const result: DualGradeStandardFeatures = {
     standardSeat: null,
     standardBack: null,
     standardPillows: null,
@@ -314,8 +316,8 @@ function parseProductRows(
   collectionName: string,
   programType: string,
   pageNumber: number,
-): ALParsedProduct[] {
-  const products: ALParsedProduct[] = [];
+): DualGradeParsedProduct[] {
+  const products: DualGradeParsedProduct[] = [];
 
   for (const line of lines) {
     const cells = line.split("\t").map((c) => c.trim());
@@ -383,7 +385,7 @@ function parseProductRows(
 
 // ─── Option price extraction ──────────────────────────────────────
 
-export interface ALOptionPrice {
+export interface DualGradeOptionPrice {
   optionName: string;
   retailPrice: number | null;
   wholesalePrice: number | null;
@@ -393,7 +395,7 @@ export interface ALOptionPrice {
 /**
  * Asterisk-marked cushion options in an OPTIONS block (`*Dwn = $150`,
  * `*Tufted = $100`), in text order, names trimmed. The one home for this
- * pattern: parseOptionPrices() and the American Leather import route both use it.
+ * pattern: parseOptionPrices() and the dual-grade import route both use it.
  *
  * The name run is capped at 200 characters. Uncapped, `[^=\n]+` let every `*`
  * on a line with no `=` rescan to the end of that line before failing, which
@@ -414,8 +416,8 @@ export function extractCushionOptions(optionsText: string): { name: string; pric
  * Parse option prices from the OPTIONS text block of a page.
  * Returns structured option prices for cushion, mattress, power, battery, etc.
  */
-export function parseOptionPrices(optionsText: string): ALOptionPrice[] {
-  const options: ALOptionPrice[] = [];
+export function parseOptionPrices(optionsText: string): DualGradeOptionPrice[] {
+  const options: DualGradeOptionPrice[] = [];
   const seen = new Set<string>();
 
   const perSeat = /cushion\s+options\s+are\s+calculated\s+per\s+seat/i.test(optionsText);
@@ -462,14 +464,14 @@ export function parseOptionPrices(optionsText: string): ALOptionPrice[] {
  * Parse mattress option prices from the OPTIONS text block.
  * Returns a map of size → { gel, tempurPedic } prices.
  */
-export interface ALMattressPrice {
+export interface DualGradeMattressPrice {
   size: string;
   gelPrice: number | null;
   tempurPedicPrice: number | null;
 }
 
-export function parseMattressPrices(optionsText: string): ALMattressPrice[] {
-  const prices: ALMattressPrice[] = [];
+export function parseMattressPrices(optionsText: string): DualGradeMattressPrice[] {
+  const prices: DualGradeMattressPrice[] = [];
 
   // Look for "MATTRESS OPTIONS" section and parse the size/price rows.
   // Bounded {1,16} prevents polynomial-redos on adversarial input
@@ -535,8 +537,8 @@ function normalizeSize(size: string): string {
  * OPTIONS text block. These use "Option = $N" or "Option=$N" format
  * (without the leading asterisk that cushion options use).
  */
-export function extractPowerBatteryOptions(optionsText: string): ALOptionPrice[] {
-  const options: ALOptionPrice[] = [];
+export function extractPowerBatteryOptions(optionsText: string): DualGradeOptionPrice[] {
+  const options: DualGradeOptionPrice[] = [];
   // Match patterns like "Power = $300", "Battery=$150", "Lumbar = $225/seat"
   // Bounded \s{...} prevents polynomial-redos on whitespace runs around
   // the optional `=` and `/`.

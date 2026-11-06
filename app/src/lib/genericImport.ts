@@ -46,7 +46,7 @@ export const IMPORT_ENTITIES: readonly ImportEntityDef[] = [
         type: "string",
         aliases: ["code", "vendor code", "abbreviation", "abbr", "short code", "supplier code"],
         required: false,
-        help: "Short code used on POs and part numbers, e.g. AL for American Leather. Must be unique; a row whose code is already taken by a different vendor is reported rather than silently renamed.",
+        help: "Short code used on POs and part numbers, e.g. LL for Larkmoor Leatherworks. Must be unique; a row whose code is already taken by a different vendor is reported rather than silently renamed.",
       },
       {
         key: "accountNumber",

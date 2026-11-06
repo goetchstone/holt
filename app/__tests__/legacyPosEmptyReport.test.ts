@@ -1,6 +1,6 @@
-// /app/__tests__/ordoriteEmptyReport.test.ts
+// /app/__tests__/legacyPosEmptyReport.test.ts
 
-import { isSkippableEmptyReport } from "@/lib/adapters/ordorite/emptyReport";
+import { isSkippableEmptyReport } from "@/lib/adapters/legacyPos/emptyReport";
 
 describe("isSkippableEmptyReport", () => {
   it('skips an empty file that only triggered UndetectableDelimiter (the `""\\n` case)', () => {

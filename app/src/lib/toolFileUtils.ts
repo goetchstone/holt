@@ -6,12 +6,12 @@
 // (xlsx + csv), and safe server-error reads.
 //
 // Ported from furniture-configurator's src/lib/toolFileUtils.ts. FC's tools
-// download Ordorite import CSVs/XLSX as their end product (Ordorite is
+// download the POS import CSVs/XLSX as their end product (the POS is
 // FC's system of record); holt's Home Accessory Order Import tool instead
 // creates BuyerDraftPurchaseOrder + BuyerDraftItem rows directly (holt IS
 // its own system of record — see homeAccessoryBuyerDraftMapping.ts), so it
 // doesn't call downloadCsv/downloadXlsx itself. They're kept here anyway:
-// they're generic (no Ordorite-specific shape baked in beyond the
+// they're generic (no POS-specific shape baked in beyond the
 // ExportCell type below), and any future tool that DOES need a
 // spreadsheet/CSV download (or the buyer-drafts workbench's own export
 // buttons, which currently duplicate a Blob-download one-liner inline) can
@@ -20,7 +20,7 @@
 import * as XLSX from "xlsx";
 
 /** A single spreadsheet cell value — kept generic rather than importing
- *  FC's Ordorite-specific row types, since holt has no Ordorite export. */
+ *  FC's POS-specific row types, since holt has no POS export. */
 export type ExportCell = string | number;
 
 export function formatUsd(n: number): string {

@@ -1,23 +1,22 @@
-// app/scripts/migrate-simplerms.mjs
+// app/scripts/migrate-services-system.mjs
 //
-// One-time data migration: a simplerms database -> this Holt deployment.
-// Built for one deployment's cutover from simplerms ("Rebasing simplerms
-// onto Holt"); dry-run it against a copy of the production dump BEFORE the
+// One-time data migration: a services system's database -> this Holt deployment.
+// Built for one deployment's cutover from that system; dry-run it against a copy of the production dump BEFORE the
 // real run. Idempotent: every entity matches on a natural key (invoice
 // number, ticket number, service slug, customer email) and updates instead
 // of duplicating, so a re-run after a partial failure converges.
 //
 // Usage:
-//   SOURCE_DATABASE_URL=postgres://.../simplerms \
+//   SOURCE_DATABASE_URL=postgres://.../source \
 //   DATABASE_URL=postgres://.../holt \
-//   node scripts/migrate-simplerms.mjs [--dry-run]
+//   node scripts/migrate-services-system.mjs [--dry-run]
 //
-// Reads the SOURCE with raw SQL (pg) — its schema is simplerms's, not ours.
+// Reads the SOURCE with raw SQL (pg) — its schema is that system's, not ours.
 // Writes the TARGET through Holt's Prisma client so defaults/validation
 // apply. Never lossy: fields with no Holt home (Client.company, invoice
 // publicToken, ...) land in migration-exceptions.json next to this script.
 //
-// Entity map (simplerms -> Holt):
+// Entity map (source -> Holt):
 //   Client                -> Customer (name split first/last; email natural key)
 //   Invoice + InvoiceLine -> Invoice (authored path: organizationId=1,
 //                            freeform InvoiceLineItem) + status map
@@ -47,6 +46,10 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const ORG_ID = 1;
+// Stored as createdBy on what this script writes, and read back by backfillLedger().
+// A re-run has to find the invoices an earlier run wrote, or their ledger rows go
+// missing, so the value stays even though the script was renamed.
+const MIGRATION_ACTOR = "migrate-simplerms";
 
 const sourceUrl = process.env.SOURCE_DATABASE_URL;
 const targetUrl = process.env.DATABASE_URL;
@@ -202,7 +205,7 @@ async function migrateInvoices() {
       notes: inv.notes ?? null,
       organizationId: ORG_ID,
       customerId,
-      createdBy: "migrate-simplerms",
+      createdBy: MIGRATION_ACTOR,
     };
     let invoiceId;
     if (existing) {
@@ -254,7 +257,7 @@ async function migrateInvoices() {
           processorTxnId: ref,
           processorType: p.method === "STRIPE" ? "STRIPE" : null,
           checkNumber: p.method === "CHECK" ? (p.reference ?? null) : null,
-          createdBy: "migrate-simplerms",
+          createdBy: MIGRATION_ACTOR,
         },
         select: { id: true },
       });
@@ -264,7 +267,7 @@ async function migrateInvoices() {
           paymentId: payment.id,
           invoiceId,
           amountApplied: p.amount,
-          createdBy: "migrate-simplerms",
+          createdBy: MIGRATION_ACTOR,
         },
       });
       bump("Payment", "created");
@@ -278,7 +281,7 @@ async function migrateInvoices() {
 async function backfillLedger() {
   if (DRY_RUN) return;
   const invoices = await prisma.invoice.findMany({
-    where: { organizationId: ORG_ID, createdBy: "migrate-simplerms" },
+    where: { organizationId: ORG_ID, createdBy: MIGRATION_ACTOR },
     select: {
       id: true,
       invoiceNo: true,
@@ -305,7 +308,7 @@ async function backfillLedger() {
           amount: total,
           invoiceId: inv.id,
           reference: inv.invoiceNo,
-          createdBy: "migrate-simplerms",
+          createdBy: MIGRATION_ACTOR,
         },
       });
       bump("LedgerEntry", "sale");
@@ -327,7 +330,7 @@ async function backfillLedger() {
             paymentId: p.id,
             invoiceId: inv.id,
             reference: inv.invoiceNo,
-            createdBy: "migrate-simplerms",
+            createdBy: MIGRATION_ACTOR,
           },
         });
         bump("LedgerEntry", "payment");
@@ -458,7 +461,7 @@ async function migrateTimeEntries() {
         minutes: te.minutes,
         date: te.date,
         isBillable: te.isBillable,
-        createdBy: "migrate-simplerms",
+        createdBy: MIGRATION_ACTOR,
       },
     });
     bump("TimeEntry", "created");
@@ -487,7 +490,7 @@ async function migrateLeads() {
     await prisma.lead.create({
       data: {
         source: "WEBSITE",
-        sourceDetail: `simplerms:${l.source ?? "unknown"}`,
+        sourceDetail: `migrated:${l.source ?? "unknown"}`,
         email,
         firstName,
         lastName,
@@ -500,7 +503,7 @@ async function migrateLeads() {
 
 async function main() {
   await source.connect();
-  console.log(`simplerms -> Holt migration ${DRY_RUN ? "(DRY RUN — no writes)" : ""}`);
+  console.log(`Services system -> Holt migration ${DRY_RUN ? "(DRY RUN — no writes)" : ""}`);
 
   await migrateCustomers();
   await migrateServices();

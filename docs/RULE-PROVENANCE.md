@@ -94,7 +94,7 @@ Rules evidenced only in Holt:
 |---|---|
 | 31 | `historicalPoImport.ts` + tests, `docs/domains/buyer-drafts.md` |
 | 37 | `src/lib/opportunityTiles.ts`, `docs/domains/reporting.md` |
-| 39 | `adapters/ordorite/runners.ts`, `shared.ts`, `docs/domains/purchasing.md` |
+| 39 | `adapters/legacyPos/runners.ts`, `shared.ts`, `docs/domains/purchasing.md` |
 | 42 | `payPeriodLockGuard.ts`, `docs/domains/commission.md` |
 | 47 | `frameSalesHistory.ts`, `reports.salesRevenueStatusFilter.test.ts` |
 

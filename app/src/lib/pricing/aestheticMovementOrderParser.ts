@@ -18,7 +18,7 @@
 // 1. The money line HAS dollar signs — "2$10.00$20.00" (qty $price $total),
 //    the split is unambiguous, but qty x price == total is still checked.
 // 2. The UPC is OPTIONAL — an out-of-stock item ("Reverra - Mahjong",
-//    OOS) prints no UPC, so its barcode exports blank and Ordorite assigns one.
+//    OOS) prints no UPC, so its barcode exports blank and the POS assigns one.
 // 3. The vendor prints on a "Vendor: <name>" line, read like MarketTime's MFR.
 
 import { parsePdf } from "./pdfUtils";

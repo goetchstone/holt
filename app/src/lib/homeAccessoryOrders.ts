@@ -3,17 +3,17 @@
 // Vendor-format registry + pure normalizer for the Home Accessory Order
 // Import tool. Ported from furniture-configurator's
 // src/lib/homeAccessoryOrders.ts and ADAPTED to holt's Buyer Drafts pipeline:
-// FC's version fed the Ordorite CSV builders (files-only, no DB writes)
-// because Ordorite is FC's system of record. Holt IS its own system of
+// FC's version fed the POS CSV builders (files-only, no DB writes)
+// because the POS is FC's system of record. Holt IS its own system of
 // record, so this tool's output is `BuyerDraftPurchaseOrder` +
 // `BuyerDraftItem` rows (see `homeAccessoryBuyerDraftMapping.ts`) instead of
-// an Ordorite import CSV.
+// a POS import CSV.
 //
 // The only real adaptation in THIS file is the row shape: FC's normalizers
-// produced `ApparelExportRow` (an Ordorite-CSV-shaped type shared with the
+// produced `ApparelExportRow` (a POS-CSV-shaped type shared with the
 // apparel tool). Holt has no such type, so this file defines its own
 // `HomeAccessoryExportRow` — same fields, same precedence rules, just not
-// tied to Ordorite's CSV columns. Every normalizer function, the split-set
+// tied to the POS's CSV columns. Every normalizer function, the split-set
 // math, and the markup/rounding rules are otherwise unchanged from FC.
 //
 // Client-safe: the vendor-order types (KKOrderBundle, WendoverOrder, etc.)
@@ -382,7 +382,7 @@ export function applyMarkup(cost: number, markup: number): number | null {
  * One parsed + normalized order line, before split/markup/classification
  * edits are applied. Holt-native replacement for FC's `ApparelExportRow` —
  * same fields (minus the couple that only ever meant anything for
- * apparel), not tied to any Ordorite CSV column shape. `homeAccessoryRows.ts`
+ * apparel), not tied to any POS CSV column shape. `homeAccessoryRows.ts`
  * expands this into `EffectiveRow`s (plain line -> 1 row; split set -> 1 row
  * per piece), and `homeAccessoryBuyerDraftMapping.ts` maps THOSE into the
  * `BuyerDraftItem` / `BuyerDraftPurchaseOrder` create payloads.
@@ -422,7 +422,7 @@ export interface HomeAccessoryExportRow {
    * `BuyerDraftPurchaseOrder`.
    */
   reference?: string;
-  /** Run-level Ordorite-style stocking-program label, written onto the row
+  /** Run-level POS-style stocking-program label, written onto the row
    *  by `composeHomeAccessoryRows` (not parsed from any vendor document —
    *  no home-accessory vendor prints one). Maps to `BuyerDraftItem.
    *  stockFamily`. */

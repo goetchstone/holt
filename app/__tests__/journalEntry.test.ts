@@ -580,7 +580,7 @@ describe("buildJournalLines — a native refund does not re-book the original sa
       memo: "Cash",
       glAccountId: GL.CASH,
       glCode: "1-1006",
-      // Ordorite import sets isRefund but never originalPaymentId.
+      // the POS import sets isRefund but never originalPaymentId.
       order: {
         id: 99,
         hasInvoices: true,

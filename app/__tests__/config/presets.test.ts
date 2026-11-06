@@ -667,16 +667,16 @@ describe("the presets this repo actually ships", () => {
     expect(result.bundle.presets.length).toBeGreaterThan(0);
   });
 
-  it("keeps the ordorite preset and the TS data module in agreement", async () => {
+  it("keeps the POS payment-mode preset and the TS data module in agreement", async () => {
     // Two representations of one mapping now exist: the shipped YAML preset
-    // and lib/imports/data/ordoritePaymentMode.ts (which prisma/seed and
+    // and lib/imports/data/legacyPosPaymentMode.ts (which prisma/seed and
     // __tests__/imports both consume). That is exactly the duplication this
     // system is meant to remove, and the consolidation is a follow-up — until
     // then this tripwire is what stops them drifting silently, which for a
     // payment-type-to-GL mapping means money quietly landing in the wrong
     // account.
-    const { ORDORITE_PAYMENT_MODE_FIELD_MAPPING, ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS } =
-      await import("@/lib/imports/data/ordoritePaymentMode");
+    const { LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING, LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS } =
+      await import("@/lib/imports/data/legacyPosPaymentMode");
 
     const report = await loadAllPresets(repoConfigRoot, { shippedOnly: true });
     const found = report.presets.find((p) => p.preset.name === "ordorite-payment-modes");
@@ -685,17 +685,17 @@ describe("the presets this repo actually ships", () => {
 
     expect(found.preset.fieldMappings).toHaveLength(1);
     expect(found.preset.fieldMappings[0].sourceColumn).toBe(
-      ORDORITE_PAYMENT_MODE_FIELD_MAPPING.sourceColumn,
+      LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING.sourceColumn,
     );
     expect(found.preset.fieldMappings[0].targetField).toBe(
-      ORDORITE_PAYMENT_MODE_FIELD_MAPPING.targetField,
+      LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING.targetField,
     );
 
     const fromPreset = flattenValueMappings(found.preset.valueMappings);
     const key = (r: { targetField: string; sourceValue: string; targetValue: string }) =>
       `${r.targetField}|${r.sourceValue}|${r.targetValue}`;
     expect(fromPreset.map(key).sort()).toEqual(
-      ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS.map(key).sort(),
+      LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS.map(key).sort(),
     );
   });
 

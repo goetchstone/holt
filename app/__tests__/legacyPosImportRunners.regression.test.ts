@@ -1,6 +1,6 @@
-// /app/__tests__/ordoriteImportRunners.regression.test.ts
+// /app/__tests__/legacyPosImportRunners.regression.test.ts
 //
-// Tripwire tests for the Ordorite-adapter import runners. Each `it`
+// Tripwire tests for the POS-adapter import runners. Each `it`
 // block guards a specific bug pattern that has shipped to prod and
 // silently failed before (in the upstream codebase this adapter
 // was ported from). The tests deliberately READ THE SOURCE FILE, not
@@ -19,26 +19,26 @@
 // until then these tripwires are the contract.
 //
 // Layout note (Holt port): the runner lives at
-// src/lib/adapters/ordorite/runners.ts; Ordorite-specific helpers
-// (incl. findProduct autoCreate) at src/lib/adapters/ordorite/shared.ts;
+// src/lib/adapters/legacyPos/runners.ts; POS-specific helpers
+// (incl. findProduct autoCreate) at src/lib/adapters/legacyPos/shared.ts;
 // source-agnostic customer dedup at src/lib/importHelpers.ts (re-exported
-// by shared.ts). Prisma fields were de-branded: ordoriteCuscode →
-// externalCustomerCode, CustomerOrdoriteId → CustomerExternalId, etc.
+// by shared.ts). Prisma fields were de-branded to neutral names:
+// externalCustomerCode, CustomerExternalId, etc.
 
 import { readFileSync } from "fs";
 import path from "path";
 
-const RUNNER_PATH = path.resolve(__dirname, "../src/lib/adapters/ordorite/runners.ts");
-const SHARED_PATH = path.resolve(__dirname, "../src/lib/adapters/ordorite/shared.ts");
+const RUNNER_PATH = path.resolve(__dirname, "../src/lib/adapters/legacyPos/runners.ts");
+const SHARED_PATH = path.resolve(__dirname, "../src/lib/adapters/legacyPos/shared.ts");
 const IMPORT_HELPERS_PATH = path.resolve(__dirname, "../src/lib/importHelpers.ts");
-const ORCHESTRATOR_PATH = path.resolve(__dirname, "../src/lib/adapters/ordorite/orchestrator.ts");
+const ORCHESTRATOR_PATH = path.resolve(__dirname, "../src/lib/adapters/legacyPos/orchestrator.ts");
 
 const RUNNER_SRC = readFileSync(RUNNER_PATH, "utf8");
 const SHARED_SRC = readFileSync(SHARED_PATH, "utf8");
 const HELPERS_SRC = readFileSync(IMPORT_HELPERS_PATH, "utf8");
 const ORCHESTRATOR_SRC = readFileSync(ORCHESTRATOR_PATH, "utf8");
 
-describe("ordorite adapter runners regression guards", () => {
+describe("legacy POS adapter runners regression guards", () => {
   // An order had OrderLineItem rows that were referenced by
   // InvoiceLineItem (FK orderLineItemId). Sales runner's orphan-cleanup
   // tried `deleteMany` on those lines when today's CSV had fewer rows
@@ -68,7 +68,7 @@ describe("ordorite adapter runners regression guards", () => {
   // relation isn't fully provided. The error was misleading: "Argument
   // `vendor` is missing" even with vendorId set. Fix in FC PR #120: use
   // the connect form for vendor + department + category. Lives in
-  // adapters/ordorite/shared.ts in the Holt layout.
+  // adapters/legacyPos/shared.ts in the Holt layout.
   it("findProduct.autoCreate uses connect form for vendor relation", () => {
     // Find the autoCreate block and assert it references the relation form
     const autoCreateBlock = SHARED_SRC.match(/if \(opts\.autoCreate.*?\)[\s\S]{0,2000}\}/);
@@ -159,7 +159,7 @@ describe("ordorite adapter runners regression guards", () => {
   // alone. One order came out right by coincidence; another didn't.
   //
   // Fix: look up the return by (customerId, orderDate, prefix), not by
-  // exact orderno swap. Ordorite return ordernos use a separate numeric
+  // exact orderno swap. The POS return ordernos use a separate numeric
   // sequence from the base orders.
   //
   // Tripwires below: the runner MUST query for the return by
@@ -252,7 +252,7 @@ describe("ordorite adapter runners regression guards", () => {
   });
 
   // runTempItemsImport previously hardcoded `status:
-  // "CONFIRMED"` when creating new PurchaseOrders, ignoring Ordorite's
+  // "CONFIRMED"` when creating new PurchaseOrders, ignoring the POS's
   // `Postatus` column. The runner had never delivered data (router
   // mismatch on Prior_Day_Temp_Items → renamed Temp_Purchase_Orders,
   // fixed in FC PR #314) so no real history was affected,
@@ -297,7 +297,7 @@ describe("ordorite adapter runners regression guards", () => {
   });
 
   // runCustomerImport's email-enrichment update could fail
-  // with `Unique constraint failed on (email)` when two Ordorite
+  // with `Unique constraint failed on (email)` when two the POS
   // customers shared an email or a customer was merged upstream. Fix in
   // FC PR #120: check for collision first, log to errors[], skip rather
   // than crash the batch.
@@ -314,7 +314,7 @@ describe("ordorite adapter runners regression guards", () => {
     }
   });
 
-  // Ordorite CSV exports can carry a UTF-8 BOM on the first
+  // The POS CSV exports can carry a UTF-8 BOM on the first
   // column header. Without stripping it, the first column key comes back
   // as `﻿Cuscode` / `﻿Active` and every lookup of that header
   // misses — in FC this spawned duplicate Customer records for
@@ -458,10 +458,10 @@ describe("ordorite adapter runners regression guards", () => {
   // runQuotesImport had an early-exit `continue` on the
   // existing-order branch -- only updated quoteCode/quoteDate, then
   // skipped the line-item create loop entirely. So any line-item edit
-  // made in Ordorite after the first import never propagated. Bug
+  // made in the POS after the first import never propagated. Bug
   // existed since the first commit of the runner and surfaced
   // when a designer's quote was reported missing line
-  // items vs Ordorite. Fix: replace the early-exit with the same line-
+  // items vs the POS. Fix: replace the early-exit with the same line-
   // item upsert + orphan-CANCELLED reconciliation pattern that
   // runSalesImport already uses.
   it("runQuotesImport reconciles line items on existing QUOTE orders (no early continue)", () => {
@@ -505,12 +505,12 @@ describe("ordorite adapter runners regression guards", () => {
   });
 
   // One large order had line counts oscillate across
-  // re-imports — Ordorite re-exported the CSV multiple times with
+  // re-imports — the POS re-exported the CSV multiple times with
   // different row counts, shrinking and growing. Each shrink triggered
   // orphan-cleanup that set lineItemStatus to CANCELLED. Each subsequent
   // grow updated the now-cancelled lines' other fields but DID NOT reset
   // lineItemStatus back to ACTIVE. Net effect: a dozen lines stranded
-  // as CANCELLED in our DB while the latest CSV (and Ordorite's report)
+  // as CANCELLED in our DB while the latest CSV (and the POS's report)
   // had them as real sales. That store's Detailed Sales for the day fell
   // short of the POS's own report by the same amount.
   //
@@ -549,7 +549,7 @@ describe("ordorite adapter runners regression guards", () => {
 
   // The same order hit the same gap a SECOND time, this time
   // through a different mechanism than the line-count oscillation above.
-  // After its rewrite (<base> - A) was created the next day, Ordorite's
+  // After its rewrite (<base> - A) was created the next day, the POS's
   // daily CSV permanently exports only the base's kept rows (the items
   // that "stayed" — the rest live on the rewrite). Our orphan-cleanup
   // interpreted "DB has more lines than the CSV" as "user removed lines"
@@ -557,7 +557,7 @@ describe("ordorite adapter runners regression guards", () => {
   // ran several times and on every run silently re-cancelled them.
   //
   // The cancelled-line filter then dropped them from every salesperson +
-  // daily report, but Ordorite's own daily-by-store total for the order
+  // daily report, but the POS's own daily-by-store total for the order
   // date still includes the full base value (the rewrite's accounting
   // return nets the chain — rewrites keep the whole chain active).
   // Result: our store total for the day fell short of the POS's by
@@ -567,7 +567,7 @@ describe("ordorite adapter runners regression guards", () => {
   // Fix: when running orphan-cleanup, FIRST check whether a sibling
   // rewrite (`<orderno> - A`/`B`/`C`/`D`) exists. If yes, skip the
   // orphan-cancel entirely. The base order is "frozen" at its original
-  // line set so daily-by-store totals reconcile against Ordorite. Per-
+  // line set so daily-by-store totals reconcile against the POS. Per-
   // line UPDATEs still run, so a manual re-import of a corrected CSV
   // can refresh values, and the reactivation guard still brings back
   // any line the new CSV provides.
@@ -600,12 +600,12 @@ describe("ordorite adapter runners regression guards", () => {
   // (`cancelSameDayRewriteDroppedLines`) detects same-day rewrites and
   // cancels base lines whose lineNumber exceeds the rewrite's max
   // lineNumber. Pure detection lives in
-  // `lib/adapters/ordorite/sameDayRewriteCleanup.ts`
+  // `lib/adapters/legacyPos/sameDayRewriteCleanup.ts`
   // (`findDroppedBaseLineIds`).
 
   it("imports findDroppedBaseLineIds from sameDayRewriteCleanup", () => {
     expect(RUNNER_SRC).toMatch(
-      /import\s*\{\s*findDroppedBaseLineIds\s*\}\s*from\s*["']@\/lib\/adapters\/ordorite\/sameDayRewriteCleanup["']/,
+      /import\s*\{\s*findDroppedBaseLineIds\s*\}\s*from\s*["']@\/lib\/adapters\/legacyPos\/sameDayRewriteCleanup["']/,
     );
   });
 
@@ -660,8 +660,8 @@ describe("ordorite adapter runners regression guards", () => {
   // (a PO kept a months-stale ESD in our DB while the export sent the
   // rescheduled date). runInboundItemsImport gated the ESD update on
   // `!existingPO.expectedDelivery`, so it set the ESD once and then froze
-  // it — never honoring Ordorite's reschedules. The import must ALWAYS
-  // refresh expectedDelivery from the export (Ordorite is authoritative).
+  // it — never honoring the POS's reschedules. The import must ALWAYS
+  // refresh expectedDelivery from the export (the POS is authoritative).
   it("runInboundItemsImport refreshes expectedDelivery on every import (no first-write freeze)", () => {
     expect(RUNNER_SRC).not.toMatch(
       /if\s*\(\s*expectedDate\s*&&\s*!existingPO\.expectedDelivery\s*\)/,
@@ -669,7 +669,7 @@ describe("ordorite adapter runners regression guards", () => {
   });
 
   // Received/cancelled POs stayed on the inbound report because
-  // Ordorite drops them from the inbound export but we never updated status
+  // the POS drops them from the inbound export but we never updated status
   // (export gap). Fix: stamp every PO in the export with the run time
   // (`lastSeenInInboundExport`); the report shows only POs from the latest
   // run, so dropped POs fall off. Must stamp on BOTH create + update paths.

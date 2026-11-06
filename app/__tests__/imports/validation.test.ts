@@ -21,7 +21,7 @@ describe("RECONCILE requires a runnerKey", () => {
   });
 
   test("RECONCILE with a runnerKey passes", () => {
-    expect(isValidImportDefinition({ importMode: "RECONCILE", runnerKey: "ordoriteSales" })).toBe(
+    expect(isValidImportDefinition({ importMode: "RECONCILE", runnerKey: "legacyPosSales" })).toBe(
       true,
     );
   });

@@ -1,7 +1,7 @@
-// /app/src/lib/adapters/ordorite/shared.ts
+// /app/src/lib/adapters/legacyPos/shared.ts
 //
-// Ordorite-adapter shared helpers: everything the report runners need that is
-// SPECIFIC to Ordorite's CSV conventions (status derivation, order-number
+// POS-adapter shared helpers: everything the report runners need that is
+// SPECIFIC to the POS's CSV conventions (status derivation, order-number
 // grammar, tax labels, payment modes, address shape, product lookup).
 // Source-agnostic coercion + customer dedup live in @/lib/importHelpers and
 // are re-exported here so the runners import one module.
@@ -20,8 +20,9 @@ import { safeString, safeFloat } from "@/lib/importHelpers";
 import type { PaymentMethod } from "@prisma/client";
 import { findOrCreateVendorId } from "@/lib/vendors/vendorByName";
 import { vendorMergeCount } from "@/lib/vendors/mergeVendor";
+import { legacyPosEnv } from "@/lib/adapters/legacyPos/storedNames";
 // ---------------------------------------------------------------------------
-// Tax label parsing (Ordorite "Tax Amount" column values)
+// Tax label parsing (the POS "Tax Amount" column values)
 // ---------------------------------------------------------------------------
 
 export interface ParsedTaxLabel {
@@ -31,7 +32,7 @@ export interface ParsedTaxLabel {
 }
 
 /**
- * Parses Ordorite's "Tax Amount" column which contains labels like:
+ * Parses the POS's "Tax Amount" column which contains labels like:
  *   "ST 6.00%"              -> { districtShortName: "ST", taxRate: 0.06, exemptReasonName: null }
  *   "Tax Exempt - Resale"   -> { districtShortName: null, taxRate: 0, exemptReasonName: "Resale" }
  *   "Tax Exempt - Out of State" -> { districtShortName: null, taxRate: 0, exemptReasonName: "Out of State" }
@@ -42,7 +43,7 @@ export function parseTaxLabel(label: unknown): ParsedTaxLabel {
 
   // Bounded quantifiers prevent polynomial-redos on attacker-controlled
   // strings starting with 'tax exempt-' followed by many repetitions of
-  // ' '. {0,16} covers every legitimate Ordorite tax-exempt label.
+  // ' '. {0,16} covers every legitimate POS tax-exempt label.
   // exec() preferred over .match() per Sonar S6594.
   const exemptMatch = /^Tax\s{1,16}Exempt\s{0,16}-\s{0,16}([^\n]+)$/i.exec(s);
   if (exemptMatch) {
@@ -114,7 +115,7 @@ export async function resolveTaxExemptReasonId(
 }
 
 // ---------------------------------------------------------------------------
-// Payment mode mapping (Ordorite numeric codes to readable names)
+// Payment mode mapping (the POS numeric codes to readable names)
 // ---------------------------------------------------------------------------
 
 const PAYMENT_MODE_MAP: Record<string, string> = {
@@ -136,10 +137,10 @@ const PAYMENT_MODE_MAP: Record<string, string> = {
 };
 
 /**
- * Ordorite's tender vocabulary translated into holt's bounded `PaymentMethod`.
+ * The POS's tender vocabulary translated into holt's bounded `PaymentMethod`.
  *
  * This is the adapter doing its job, not a tenant literal. `PAYMENT_MODE_MAP`
- * above already decodes Ordorite's numeric codes into Ordorite's own display
+ * above already decodes the POS's numeric codes into the POS's own display
  * strings; those strings then landed verbatim in `Payment.paymentType` and
  * `Payment.method` was left NULL — on effectively every row of a restored
  * dataset. A bounded enum nothing populates is not a vocabulary, it is a column.
@@ -149,12 +150,12 @@ const PAYMENT_MODE_MAP: Record<string, string> = {
  * adapter with its own map; holt's side of the contract stays this enum.
  *
  * The target values are the ones reviewed in
- * `config/presets/ordorite-payment-modes.yaml`, kept identical on purpose so
+ * `config/presets/legacy-pos-payment-modes.yaml`, kept identical on purpose so
  * the shipped preset and this map cannot disagree about what a tender means.
  * Two of those decisions are worth repeating here because they look wrong at a
  * glance:
  *
- *   - All three card rails collapse to CARD. Ordorite distinguishes the
+ *   - All three card rails collapse to CARD. The POS distinguishes the
  *     processor and the card-present split; holt's ledger does not, and they
  *     settle to the same GL account.
  *   - Marketing / Charity / Refund / Other are deliberately OTHER rather than
@@ -185,7 +186,7 @@ const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
 };
 
 /**
- * The bounded `PaymentMethod` for an Ordorite payment mode, or null when this
+ * The bounded `PaymentMethod` for a POS payment mode, or null when this
  * adapter cannot classify it. Takes the RESOLVED display string (what
  * `resolvePaymentMode` returns and what lands in `Payment.paymentType`), so the
  * two columns are always derived from the same value.
@@ -197,7 +198,7 @@ export function resolvePaymentMethod(paymentType: string): PaymentMethod | null 
 export function resolvePaymentMode(mode: unknown): string {
   const s = safeString(mode);
   if (!s) return "Unknown";
-  // Ordorite exports numeric codes with decimals (e.g., "27.00" instead of "27")
+  // The POS exports numeric codes with decimals (e.g., "27.00" instead of "27")
   const normalized = s.replace(/\.0+$/, "");
   return PAYMENT_MODE_MAP[normalized] || PAYMENT_MODE_MAP[s] || s;
 }
@@ -215,7 +216,7 @@ export function isRefundPayment(paymentType: string, amount: number): boolean {
 
 const RETURN_ORDER_PREFIX = /^(R|CR)-?\d/i;
 
-// Ordorite uses an "A" suffix on the store code for return/credit transactions
+// The POS uses an "A" suffix on the store code for return/credit transactions
 // and an "M" suffix for regular merchandise -- e.g. a store coded "AB" writes
 // ABxxA1234 for a return and ABxxM1234 for an order. The A/M suffix is the
 // vendor's convention; the STORE CODES are a deployment fact (CLAUDE.md 61-63),
@@ -227,12 +228,12 @@ function storeCodeFragment(): string | null {
   // never widen a match.
   //
   // And there is no safe universal default here, for the same reason as
-  // ORDORITE_RETURN_PREFIXES below. `[A-Z]{2,}` in front of `[A-Z]*A\d` matches
+  // LEGACY_POS_RETURN_PREFIXES below. `[A-Z]{2,}` in front of `[A-Z]*A\d` matches
   // ANY letter run whose last letter before the first digit is "A": SOFA1,
   // MEGA1234, VIA3 all classify as RETURNED and get subtracted from revenue.
   // Unconfigured, this rule stands down -- genuine returns are still caught by
   // the negative-net-total check in deriveSalesOrderStatus.
-  const codes = splitConfiguredCodes(process.env.ORDORITE_STORE_CODES);
+  const codes = splitConfiguredCodes(legacyPosEnv("LEGACY_POS_STORE_CODES"));
   return codes.length ? codes.join("|") : null;
 }
 
@@ -248,7 +249,7 @@ function storeCodeFragment(): string | null {
  * a deployment that uses such a series must name it.
  */
 function returnPrefixFragment(): string | null {
-  const codes = splitConfiguredCodes(process.env.ORDORITE_RETURN_PREFIXES);
+  const codes = splitConfiguredCodes(legacyPosEnv("LEGACY_POS_RETURN_PREFIXES"));
   return codes.length ? codes.join("|") : null;
 }
 
@@ -260,11 +261,11 @@ function splitConfiguredCodes(raw: string | undefined): string[] {
     .map((code) => code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 }
 
-// Rewrite-suffix matching. Ordorite rewrites replace the original order; the
+// Rewrite-suffix matching. The POS rewrites replace the original order; the
 // new order number is "<base> - A" (or B/C/D up to D). Everything that was on
 // the base belongs to the rewrite going forward.
 // Bounded quantifiers prevent polynomial-redos on inputs that are mostly
-// whitespace (e.g. a CSV cell that is just spaces). Real Ordorite order
+// whitespace (e.g. a CSV cell that is just spaces). Real POS order
 // numbers like "ABOM1001 - A" use exactly " - " (one space each side);
 // {0,8} is generous.
 const REWRITE_SUFFIX_RE = /\s{0,8}-\s{0,8}([A-D])$/;
@@ -306,7 +307,7 @@ export function rewriteBaseOrderno(orderno: string): string | null {
   return orderno.replace(REWRITE_SUFFIX_RE, "").trim();
 }
 
-/** True when the order number follows Ordorite's return/credit convention. */
+/** True when the order number follows the POS's return/credit convention. */
 export function isReturnOrder(orderno: string): boolean {
   // A configured whole-number return prefix (RQ1234) -- distinct from
   // RETURN_ORDER_PREFIX, which is "R"/"CR" followed directly by digits.
@@ -319,14 +320,14 @@ export function isReturnOrder(orderno: string): boolean {
 }
 
 /**
- * Derives the SalesOrderStatus from Ordorite CSV data.
+ * Derives the SalesOrderStatus from the POS CSV data.
  *
  * Returns are identified by:
  *   - Order numbers prefixed with R or CR (e.g. R12345, CR-12345)
  *   - Negative net total across all line items
  *   - An explicit "Cancelled" or "Return" value in the Status column
  *
- * Orders that are not returns get ORDER status (Ordorite only exports
+ * Orders that are not returns get ORDER status (the POS only exports
  * confirmed orders, never drafts/quotes).
  */
 export function deriveSalesOrderStatus(
@@ -334,7 +335,7 @@ export function deriveSalesOrderStatus(
   lineItems: Record<string, unknown>[],
   statusField?: string,
 ): SalesOrderStatus {
-  // Explicit "cancelled" status from Ordorite means a voided quote — not a return
+  // Explicit "cancelled" status from the POS means a voided quote — not a return
   if (statusField) {
     const lower = statusField.toLowerCase().trim();
     if (lower === "cancelled") {
@@ -361,7 +362,7 @@ export function deriveSalesOrderStatus(
     return "RETURNED";
   }
 
-  // Ordorite exports are confirmed orders, not quotes
+  // The POS exports are confirmed orders, not quotes
   return "ORDER";
 }
 
@@ -370,9 +371,9 @@ export function deriveSalesOrderStatus(
 // ---------------------------------------------------------------------------
 
 /**
- * ORDORITE'S convention, not holt's.
+ * THE POS'S convention, not holt's.
  *
- * In an Ordorite-fed deployment, stock that is already committed to a
+ * In a POS-fed deployment, stock that is already committed to a
  * customer is moved to a stock location whose name begins with "Customer"
  * ("Customer Sofas", "Customer Holds"). holt does not know that. holt's own
  * signal is the `StockLocation.holdsCommittedStock` boolean, read by
@@ -389,9 +390,9 @@ export function deriveSalesOrderStatus(
  */
 const COMMITTED_STOCK_LOCATION_NAME_PREFIX = "customer";
 
-/** True when an Ordorite stock-location name marks committed customer stock.
+/** True when a POS stock-location name marks committed customer stock.
  *  Case-insensitive; `safeString` has already trimmed the name. */
-export function ordoriteHoldsCommittedStock(name: unknown): boolean {
+export function legacyPosHoldsCommittedStock(name: unknown): boolean {
   const s = safeString(name);
   if (!s) return false;
   return s.toLowerCase().startsWith(COMMITTED_STOCK_LOCATION_NAME_PREFIX);
@@ -419,7 +420,7 @@ export function normalizeEmail(raw: unknown): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Address parsing (Ordorite CSV format: "street, city, state, country")
+// Address parsing (the POS CSV format: "street, city, state, country")
 // ---------------------------------------------------------------------------
 
 export interface ParsedAddress {
@@ -428,7 +429,7 @@ export interface ParsedAddress {
   state: string;
 }
 
-export function parseOrdoriteAddress(raw: unknown): ParsedAddress | null {
+export function parseLegacyPosAddress(raw: unknown): ParsedAddress | null {
   const s = safeString(raw);
   if (!s) return null;
 
@@ -630,7 +631,7 @@ export async function findProduct(
 }
 
 // ---------------------------------------------------------------------------
-// Flexible date parsing for Ordorite exports
+// Flexible date parsing for the POS exports
 // ---------------------------------------------------------------------------
 
 export function parseDateFlexible(v: unknown): Date | undefined {
@@ -665,20 +666,20 @@ export function parseDateFlexible(v: unknown): Date | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// PO status mapping from Ordorite status strings
+// PO status mapping from the POS status strings
 // ---------------------------------------------------------------------------
 
 const PO_STATUS_MAP: Record<string, PurchaseOrderStatus> = {
   received: "RECEIVED_FULL",
   cancelled: "CANCELLED",
   "part received": "RECEIVED_PARTIAL",
-  // Ordorite's "Temporary" Postatus means a PO exists but hasn't been
+  // the POS's "Temporary" Postatus means a PO exists but hasn't been
   // finalized / submitted to a vendor yet. Maps to DRAFT in our enum
   // so reports / dispatch boards can filter temps out of "ready to
   // receive" surfaces. Added 2026-05-21 after PR #314 wired the
   // renamed Daily Quote Temp Purchase Orders report — the runner had
   // been hardcoding CONFIRMED, but had never received data until the
-  // rename landed. See docs/domains/purchasing.md + ordorite-import.md.
+  // rename landed. See docs/domains/purchasing.md + import-pipeline.md.
   temporary: "DRAFT",
 };
 
@@ -690,7 +691,7 @@ export function derivePOStatus(statusString: unknown): PurchaseOrderStatus {
 
 // Decide a PO's status from a receipt tally. Callers must pre-filter both
 // counts to lines with `orderedQuantity > 0` -- 0-qty lines are cancelled
-// lines from Ordorite and must never count toward either total. Returns
+// lines from the POS and must never count toward either total. Returns
 // `null` when the status should stay as-is (nothing to receive, or
 // nothing received yet). GitHub #113, CLAUDE.md rule 39.
 export function classifyPOReceiptStatus(

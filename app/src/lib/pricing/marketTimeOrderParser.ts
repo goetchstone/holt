@@ -179,7 +179,7 @@ function flush(scan: Scan, parts: PriceParts, order: MarketTimeOrder): void {
   order.items.push({
     itemNumber: scan.pendingItem as string,
     // The availability marker is order information, not part of the product's
-    // name — it would otherwise ship to Ordorite inside every item name.
+    // name — it would otherwise ship to the POS inside every item name.
     name: rawName.replace(AVAIL, "").replaceAll(/\s+/g, " ").trim(),
     upc: parts.upc,
     qty: scan.pendingQty as number,

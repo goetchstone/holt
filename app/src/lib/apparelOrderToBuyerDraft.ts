@@ -6,8 +6,8 @@
 // API contract accepts (lib/buyerDraftRequestBody.ts: BuyerDraftPoCreateBody
 // / BuyerDraftItemCreateBody).
 //
-// FC's equivalent (apparelOrdoriteExport.ts) built CSV rows for direct
-// download into Ordorite -- holt is its own system of record for buyer
+// FC's equivalent built CSV rows for direct
+// download into the POS -- holt is its own system of record for buyer
 // drafts, so this tool creates DB rows instead: one BuyerDraftPurchaseOrder
 // per import run, and one BuyerDraftItem per ApparelOrderRow (each row is
 // already exploded to one size/part-number by the normalizers in
