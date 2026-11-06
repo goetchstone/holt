@@ -14,6 +14,7 @@ import type { ParsedSEProduct } from "@/lib/pricing/wesleyHallParser";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { auditActor, auditLog } from "@/lib/audit";
 export const config = {
   api: { bodyParser: { sizeLimit: "20mb" } },
 };
@@ -106,7 +107,7 @@ const SE_COMPONENT_SEEDS: {
 
 export default requirePermission(
   "catalog.pricing",
-  async (req: NextApiRequest, res: NextApiResponse) => {
+  async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
@@ -465,6 +466,11 @@ export default requirePermission(
           },
         });
       }
+
+      await auditLog("PRICES_IMPORTED", auditActor(session), {
+        summary: `Price list "${priceListName}" imported`,
+        details: { vendorId, priceListName },
+      });
 
       return res.status(200).json({
         success: true,

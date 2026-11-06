@@ -29,6 +29,10 @@ app/src/lib/historicalPoImport*|docs/domains/buyer-drafts.md
 # Import pipeline (legacy/adapter ingestion)
 app/src/lib/adapters/legacyPos/*|docs/domains/import-pipeline.md
 app/src/pages/api/import/*|docs/domains/import-pipeline.md
+app/src/lib/audit.ts|docs/domains/audit.md
+app/src/lib/auditCatalog.ts|docs/domains/audit.md
+app/src/lib/auditFeed.ts|docs/domains/audit.md
+app/src/app/(dashboard)/app/admin/audit/*|docs/domains/audit.md
 app/src/lib/automations/*|docs/domains/automations.md
 app/src/pages/api/automations/tick.ts|docs/domains/automations.md
 app/src/pages/api/admin/automations/*|docs/domains/automations.md

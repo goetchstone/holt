@@ -4,16 +4,21 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 export default requirePermission(
   "admin.data",
-  async (req: NextApiRequest, res: NextApiResponse) => {
+  async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "DELETE") {
       return res.status(405).json({ error: "Method not allowed" });
     }
 
     try {
-      await prisma.customer.deleteMany({});
+      const { count } = await prisma.customer.deleteMany({});
+      await auditLog("BULK_DELETED", auditActor(session), {
+        summary: `All ${count} customers deleted`,
+        details: { table: "Customer", deleted: count },
+      });
 
       return res.status(200).json({ message: "All customer data cleared successfully." });
     } catch (error: unknown) {

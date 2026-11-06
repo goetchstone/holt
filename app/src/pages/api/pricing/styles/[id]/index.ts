@@ -4,11 +4,13 @@
 // PUT  — Update VendorStyle fields and upsert StyleOptionOverrides.
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog, changedFieldNames } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid style ID" });
 
@@ -17,7 +19,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === "PUT") {
-    return handlePut(req, res, id);
+    return handlePut(req, res, id, session);
   }
 
   return res.status(405).json({ error: "Method not allowed" });
@@ -55,7 +57,7 @@ async function handleGet(res: NextApiResponse, id: number) {
   return res.json({ style, vendorOptionGroups });
 }
 
-async function handlePut(req: NextApiRequest, res: NextApiResponse, id: number) {
+async function handlePut(req: NextApiRequest, res: NextApiResponse, id: number, session: Session) {
   const style = await prisma.vendorStyle.findUnique({
     where: { id },
     select: { id: true, vendorId: true },
@@ -111,7 +113,24 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, id: number) 
         }
 
         if (Object.keys(data).length > 0) {
+          const before = await tx.vendorStyle.findUniqueOrThrow({
+            where: { id },
+            select: { name: true, baseCost: true, baseRetail: true, mapPrice: true },
+          });
           await tx.vendorStyle.update({ where: { id }, data });
+          const { baseCost, baseRetail, mapPrice } = data;
+          const moved = changedFieldNames(before, { baseCost, baseRetail, mapPrice });
+          if (moved.length > 0) {
+            await auditLog(
+              "STYLE_PRICE_CHANGED",
+              auditActor(session),
+              {
+                summary: `${before.name}: ${moved.join(", ")} changed`,
+                details: { styleId: id, fields: moved },
+              },
+              tx,
+            );
+          }
 
           // Mirror to Product record if one exists for this style
           const productData: Record<string, unknown> = {};

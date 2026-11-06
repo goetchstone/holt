@@ -390,7 +390,9 @@ describe("the customer email list", () => {
 
   async function list(query: Record<string, string>) {
     const res = makeRes();
-    await emailListRoute(request("GET", query), res);
+    await emailListRoute(request("GET", query), res, {
+      user: { email: "owner@example.com" },
+    } as Session);
     return res;
   }
 

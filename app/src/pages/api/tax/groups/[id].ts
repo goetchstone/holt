@@ -2,11 +2,13 @@
 
 import { getErrorCode } from "@/lib/errorCode";
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
 
@@ -38,6 +40,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           miscTaxable: !!miscTaxable,
           exempt: !!exempt,
         },
+      });
+      await auditLog("TAX_CHANGED", auditActor(session), {
+        summary: `Tax group ${id} changed`,
       });
       return res.status(200).json(updated);
     } catch (err: unknown) {
@@ -84,6 +89,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
 
       await prisma.taxGroup.delete({ where: { id } });
+      await auditLog("TAX_CHANGED", auditActor(session), {
+        summary: `Tax group ${id} deleted`,
+      });
       return res.status(200).json({ success: true });
     } catch (err: unknown) {
       if (getErrorCode(err) === "P2025") {

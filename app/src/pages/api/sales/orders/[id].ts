@@ -1,5 +1,6 @@
 // /app/src/pages/api/sales/orders/[id].ts
 
+import { auditActor, auditLog } from "@/lib/audit";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { Prisma } from "@prisma/client";
@@ -124,6 +125,32 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       const locked = await returnOrderEditProblem(prisma, orderId);
       if (locked) return res.status(409).json({ error: locked });
       await prisma.$transaction(async (tx) => {
+        // Every payment row goes with the order, whatever its status, so all of them
+        // are counted. The entry has no foreign key: it's what's left of this order.
+        const order = await tx.salesOrder.findUniqueOrThrow({
+          where: { id: orderId },
+          select: { orderno: true, customerId: true },
+        });
+        const payments = await tx.payment.aggregate({
+          where: { salesOrderId: orderId },
+          _count: true,
+          _sum: { paymentAmount: true },
+        });
+        await auditLog(
+          "ORDER_DELETED",
+          auditActor(session),
+          {
+            summary: `Order ${order.orderno} deleted, with ${payments._count} payment records`,
+            details: {
+              orderId,
+              orderno: order.orderno,
+              customerId: order.customerId,
+              paymentRecords: payments._count,
+              paymentsTotal: Number(payments._sum.paymentAmount ?? 0),
+            },
+          },
+          tx,
+        );
         // Nullify references that don't cascade
         await tx.customerInteraction.updateMany({
           where: { salesOrderId: orderId },

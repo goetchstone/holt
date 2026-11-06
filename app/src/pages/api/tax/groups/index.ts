@@ -2,8 +2,10 @@
 
 import { getErrorCode } from "@/lib/errorCode";
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import {
   success,
   created,
@@ -13,7 +15,7 @@ import {
   handleError,
 } from "@/lib/apiResponse";
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     try {
       const groups = await prisma.taxGroup.findMany({
@@ -41,6 +43,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           miscTaxable: !!miscTaxable,
           exempt: !!exempt,
         },
+      });
+      await auditLog("TAX_CHANGED", auditActor(session), {
+        summary: `Tax group ${group.id} added`,
       });
       return created(res, group);
     } catch (err: unknown) {

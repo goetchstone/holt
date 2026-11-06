@@ -1,12 +1,14 @@
 // /app/src/pages/api/exports/windfall-customers.ts
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { AsyncParser } from "@json2csv/node";
 import { logger, logError } from "@/lib/logger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   try {
@@ -89,6 +91,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     logger.info(`Windfall customer export: ${rows.length} customers`);
 
+    await auditLog("DATA_EXPORTED", auditActor(session), {
+      summary: `${filename} exported: customer list`,
+    });
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     return res.status(200).send(csv);

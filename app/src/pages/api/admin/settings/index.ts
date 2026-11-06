@@ -8,6 +8,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog, changedFieldNames } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
@@ -585,6 +586,9 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
   const actor = session.user?.email ?? null;
 
   try {
+    const before = await prisma.appSettings.findUnique({
+      where: { organizationId: DEFAULT_ORG_ID },
+    });
     await prisma.appSettings.upsert({
       where: { organizationId: DEFAULT_ORG_ID },
       create: {
@@ -595,6 +599,13 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
       },
       update: { ...data, updatedBy: actor },
     });
+    const changed = changedFieldNames(before ?? {}, data);
+    if (changed.length > 0) {
+      await auditLog("SETTINGS_SAVED", auditActor(session), {
+        summary: `Changed: ${changed.join(", ")}`,
+        details: { fields: changed },
+      });
+    }
   } catch (err) {
     if (getErrorCode(err) === "P2003") {
       return res.status(400).json({ error: missingReferenceMessage(data) });

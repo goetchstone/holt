@@ -51,11 +51,15 @@ export default requirePermission("admin.data", async (req, res, session) => {
   try {
     if (action === "save") {
       await saveStartingPoint(databaseUrl);
-      auditLog("PRACTICE_STARTING_POINT_SAVED", actor);
+      await auditLog("PRACTICE_STARTING_POINT_SAVED", actor, {
+        summary: "This practice copy was saved as the starting point",
+      });
     } else {
       await restoreStartingPoint(databaseUrl);
       await bringUpToDate();
-      auditLog("PRACTICE_STARTED_OVER", actor);
+      await auditLog("PRACTICE_STARTED_OVER", actor, {
+        summary: "This practice copy started over from its starting point",
+      });
     }
     return res.json({ ok: true });
   } catch (err) {

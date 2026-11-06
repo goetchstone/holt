@@ -16,6 +16,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
@@ -71,6 +72,9 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
     tiers: Array.isArray(body.tiers) ? body.tiers : undefined,
     createdBy: sessionEmail(session),
   });
+  await auditLog("COMMISSION_PLAN_CHANGED", auditActor(session), {
+    summary: `Commission plan ${created.id} added`,
+  });
   return res.status(201).json({ id: created.id });
 }
 
@@ -82,6 +86,10 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
     return res.status(400).json({ error: "Body must include non-empty `tiers` array" });
   }
   await replacePlanTiers(planId, body.tiers, sessionEmail(session));
+  await auditLog("COMMISSION_PLAN_CHANGED", auditActor(session), {
+    summary: `Commission plan ${planId}: tiers replaced`,
+    details: { tiers: body.tiers as unknown as Prisma.InputJsonValue },
+  });
   return res.status(200).json({ plans: await listPlans() });
 }
 
@@ -92,6 +100,9 @@ async function handlePatch(req: NextApiRequest, res: NextApiResponse, session: S
 
   if (body.action === "setDefault") {
     await setDefaultPlan(planId);
+    await auditLog("COMMISSION_PLAN_CHANGED", auditActor(session), {
+      summary: `Commission plan ${planId} made the default`,
+    });
     return res.status(200).json({ plans: await listPlans() });
   }
 
@@ -119,11 +130,14 @@ async function handlePatch(req: NextApiRequest, res: NextApiResponse, session: S
   return res.status(200).json({ plans: await listPlans() });
 }
 
-async function handleDelete(req: NextApiRequest, res: NextApiResponse) {
+async function handleDelete(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const body = (req.body ?? {}) as Partial<DeleteBody>;
   const planId = parsePlanId(body.planId);
   if (planId === null) return res.status(400).json({ error: "planId is required" });
   await deletePlan(planId);
+  await auditLog("COMMISSION_PLAN_CHANGED", auditActor(session), {
+    summary: `Commission plan ${planId} deleted`,
+  });
   return res.status(200).json({ plans: await listPlans() });
 }
 
@@ -141,7 +155,7 @@ export default requireAuthWithRole(
         case "PATCH":
           return await handlePatch(req, res, session);
         case "DELETE":
-          return await handleDelete(req, res);
+          return await handleDelete(req, res, session);
         default:
           res.setHeader("Allow", ["GET", "POST", "PUT", "PATCH", "DELETE"]);
           return res.status(405).json({ error: "Method not allowed" });

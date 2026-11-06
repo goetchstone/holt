@@ -84,9 +84,9 @@ export async function handlePost(req: NextApiRequest, res: NextApiResponse, sess
     });
     // This resets the baseline a whole physical count is judged against --
     // belongs in the audit stream same as the bulk-mutation imports.
-    auditLog("INVENTORY_SNAPSHOT_GENERATE", createdBy || "unknown", {
-      ...summary,
-      snapshotDate: snapshotDate.toISOString(),
+    await auditLog("SNAPSHOT_GENERATED", createdBy || "unknown", {
+      summary: `Stock snapshot of ${summary.productCount} products`,
+      details: { ...summary, snapshotDate: snapshotDate.toISOString() },
     });
 
     return res.status(201).json({

@@ -14,6 +14,7 @@
 // users this export exists for).
 
 import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
@@ -195,6 +196,9 @@ async function handler(
     }
 
     const filename = buildFilename(level, groupBy, startDate, endDate);
+    await auditLog("DATA_EXPORTED", auditActor(session), {
+      summary: `${filename} exported: sales by salesperson`,
+    });
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     return res.status(200).send(csv);

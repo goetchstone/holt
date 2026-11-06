@@ -5,6 +5,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getErrorCode } from "@/lib/errorCode";
 import {
@@ -144,11 +145,22 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
     }
 
     try {
+      const before = await prisma.staffMember.findUnique({
+        where: { id },
+        select: { role: true, roleId: true, isActive: true, email: true },
+      });
       const member = await prisma.staffMember.update({
         where: { id },
         data,
         include: { user: { select: { email: true, name: true, image: true } } },
       });
+      const accessChanges = before ? staffAccessChanges(before, member) : [];
+      if (accessChanges.length > 0) {
+        await auditLog("STAFF_CHANGED", auditActor(session), {
+          summary: `${member.displayName}: ${accessChanges.join(", ")}`,
+          target: { type: "staff", id },
+        });
+      }
       return res.json(member);
     } catch (err: unknown) {
       if (getErrorCode(err) === "P2002") {
@@ -167,8 +179,28 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
       where: { id },
       data: { isActive: false },
     });
+    await auditLog("STAFF_CHANGED", auditActor(session), {
+      summary: `${member.displayName}: deactivated`,
+      target: { type: "staff", id },
+    });
     return res.json(member);
   }
 
   return res.status(405).json({ error: "Method not allowed" });
 });
+
+/** What changed about what this person can get into. A name or a store isn't that. */
+function staffAccessChanges(
+  before: { role: string; roleId: number | null; isActive: boolean; email: string | null },
+  after: { role: string; roleId: number | null; isActive: boolean; email: string | null },
+): string[] {
+  const changes: string[] = [];
+  if (before.role !== after.role || before.roleId !== after.roleId) {
+    changes.push(`role ${before.role} → ${after.role}`);
+  }
+  if (before.isActive !== after.isActive) {
+    changes.push(after.isActive ? "reactivated" : "deactivated");
+  }
+  if (before.email !== after.email) changes.push("login email changed");
+  return changes;
+}

@@ -19,6 +19,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { auditLog } from "@/lib/audit";
 import {
   previewPayoutsForPeriod,
   commitPayoutsForPeriod,
@@ -153,6 +154,9 @@ async function handleCommit(req: NextApiRequest, res: NextApiResponse, actorEmai
     const result = await commitPayoutsForPeriod(range.startDate, range.endDate, overrides, {
       lockNow,
       actorEmail,
+    });
+    await auditLog("COMMISSION_PAYOUT_RUN", actorEmail, {
+      summary: `Commission payouts ${lockNow ? "committed and locked" : "committed"} for ${range.startDate.toISOString().slice(0, 10)} to ${range.endDate.toISOString().slice(0, 10)}`,
     });
     return res.status(200).json(result);
   } catch (err) {
