@@ -178,7 +178,9 @@ export function EmailLookView({
                 checked={look.showLogo}
                 onChange={(e) => setLook({ ...look, showLogo: e.target.checked })}
               />
-              {hasLogo ? "Put your logo at the top" : "Put your logo at the top (set one in Settings first)"}
+              {hasLogo
+                ? "Put your logo at the top"
+                : "Put your logo at the top (set one in Settings first)"}
             </label>
             <div>
               <label htmlFor="email-footer" className="mb-1 block text-sm text-brand-gray">
