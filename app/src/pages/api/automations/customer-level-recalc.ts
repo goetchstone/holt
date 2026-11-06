@@ -10,10 +10,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import { activeStaffRole } from "@/lib/auth/requireAuth";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
-import { prisma } from "@/lib/prisma";
-import { randomUUID } from "node:crypto";
-import { logError, logger } from "@/lib/logger";
-import { recalculateCustomerLevels } from "@/lib/customerLeveling";
+import { runCustomerLevelRecalc } from "@/lib/automations/loggedRuns";
 
 async function isAuthorized(
   req: NextApiRequest,
@@ -38,46 +35,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const runId = randomUUID();
-  const startedAt = new Date();
-  const errors: string[] = [];
-  let customersUpdated = 0;
-
-  try {
-    const result = await recalculateCustomerLevels();
-    customersUpdated = result.customersUpdated;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    errors.push(`recalculate: ${msg}`);
-    logError("customer-level-recalc failed", err);
-  }
-
-  const finishedAt = new Date();
-  const status = errors.length === 0 ? "SUCCESS" : "FAILED";
-
-  const log = await prisma.mailchimpSyncLog.create({
-    data: {
-      runId,
-      kind: "customer-level-recalc",
-      status,
-      errors,
-      startedAt,
-      finishedAt,
-    },
-  });
-
-  logger.info("customer-level-recalc complete", {
-    runId,
-    status,
-    customersUpdated,
-    durationMs: finishedAt.getTime() - startedAt.getTime(),
-  });
-
-  return res.status(status === "FAILED" ? 500 : 200).json({
-    runId,
-    status,
-    customersUpdated,
-    errors,
-    logId: log.id,
-  });
+  const result = await runCustomerLevelRecalc();
+  return res.status(result.status === "FAILED" ? 500 : 200).json(result);
 }

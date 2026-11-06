@@ -25,7 +25,7 @@ The two share the same `lib/axperClient.ts` for the actual HTTP call. The on-dem
 **Cron**:
 
 - Endpoint: `POST /api/automations/axper-traffic-sync` (Bearer `AUTO_IMPORT_API_KEY` OR NextAuth session).
-- The host scheduler runs `scripts/auto-axper-traffic.sh` daily (e.g. 02:00 local, after Axper closes the previous day).
+- "Door counter traffic" at Admin → Automations runs it, off to start and 2 AM by default, after Axper closes the previous day.
 - Behavior: pull yesterday + auto-backfill any day in the last 30 with zero existing rows. Configurable via `{"backfillWindowDays": N}` body (max 800).
 - **Async by design** (2026-05-28): the POST creates a `TrafficSyncLog` row with `finishedAt = null` and returns `202 { logId, status: "running", backfillWindowDays }` IMMEDIATELY. The Axper fan-out runs in the background after the response is sent. The admin UI polls `/api/admin/automations/axper-traffic/recent` every 5s for the matching log row's `finishedAt`. Without this the 2-year backfill (730 days × ~1s/call) hit nginx's 300s upstream timeout and 504'd. Cron `curl -sf` accepts the new 202 the same as 200 — script logs now show the `{logId,status}` payload instead of the full result; the actual result lives on the `TrafficSyncLog` row.
 - **Crash-recovery gap**: if the Node process dies mid-job, the log row stays with `finishedAt = null` forever. A janitor sweep (spawned task chip; will live on `lib/abandonedTrafficSyncSweep.ts`) marks rows with `startedAt > 1h ago AND finishedAt IS NULL` as abandoned on the next admin-page load.

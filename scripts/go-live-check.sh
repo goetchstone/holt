@@ -3,7 +3,7 @@
 #
 # Verify the docs/PRODUCTION.md "is it safe to take money?" nine-condition
 # gate: "TLS on · backups scheduled + one restore drilled · uploads backed
-# up · auto-email-queue.sh running · ops alert channel set · live Stripe
+# up · auto-automations.sh running · ops alert channel set · live Stripe
 # keys + webhook secret + AR GL mappings configured · create-admin done."
 #
 # Checks what's actually machine-checkable from this host and reports
@@ -283,17 +283,17 @@ else
   fi
 fi
 
-# [5/9] auto-email-queue.sh running (cron)
+# [5/9] auto-automations.sh running (cron)
 if ! command -v crontab >/dev/null 2>&1; then
-  manual "[5/9] auto-email-queue.sh running -- 'crontab' isn't available on this host to inspect. Verify by hand."
+  manual "[5/9] auto-automations.sh running -- 'crontab' isn't available on this host to inspect. Verify by hand."
 else
   CRONTAB_OUT=$(crontab -l 2>/dev/null || true)
   if [ -z "$CRONTAB_OUT" ]; then
-    fail "[5/9] auto-email-queue.sh running -- no crontab installed for this user. Run ./scripts/install-cron.sh."
-  elif printf '%s' "$CRONTAB_OUT" | grep -q '# >>> holt cron >>>' && printf '%s' "$CRONTAB_OUT" | grep -q 'auto-email-queue.sh'; then
-    pass "[5/9] auto-email-queue.sh running -- managed cron block present and contains the job"
+    fail "[5/9] auto-automations.sh running -- no crontab installed for this user. Run ./scripts/install-cron.sh."
+  elif printf '%s' "$CRONTAB_OUT" | grep -q '# >>> holt cron >>>' && printf '%s' "$CRONTAB_OUT" | grep -q 'auto-automations.sh'; then
+    pass "[5/9] auto-automations.sh running -- managed cron block present and contains the job"
   else
-    fail "[5/9] auto-email-queue.sh running -- managed holt cron block missing or doesn't contain auto-email-queue.sh. Run ./scripts/install-cron.sh."
+    fail "[5/9] auto-automations.sh running -- managed holt cron block missing or doesn't contain auto-automations.sh. Run ./scripts/install-cron.sh."
   fi
 fi
 

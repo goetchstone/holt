@@ -34,52 +34,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { guardAutomation } from "@/lib/automations/guardAutomation";
-import { prisma } from "@/lib/prisma";
-import { runTrafficImportWithBackfill } from "@/lib/runTrafficImport";
+import { runAndStampTrafficLog, startTrafficSyncLog } from "@/lib/trafficSyncRun";
 import { logError, logger } from "@/lib/logger";
-
-/**
- * Run the backfill in the background and stamp the log row when done.
- * Fire-and-forget — never throws to the outer handler (the response
- * has already been sent). All failures land on the log row's
- * `errors` field so the admin UI can surface them.
- */
-async function runAndStampLog(logId: number, backfillWindowDays: number): Promise<void> {
-  try {
-    const result = await runTrafficImportWithBackfill({ backfillWindowDays });
-    await prisma.trafficSyncLog.update({
-      where: { id: logId },
-      data: {
-        finishedAt: new Date(),
-        dayFrom: new Date(result.dayFrom),
-        dayTo: new Date(result.dayTo),
-        rowsFetched: result.rowsFetched,
-        rowsInserted: result.rowsInserted,
-        rowsUpdated: result.rowsUpdated,
-        daysScanned: result.daysScanned,
-        daysBackfilled: result.daysBackfilled,
-        errors: result.errors,
-      },
-    });
-    logger.info(
-      `axper-traffic-sync: logId=${logId} done (fetched=${result.rowsFetched}, inserted=${result.rowsInserted}, updated=${result.rowsUpdated}, days=${result.daysScanned})`,
-    );
-  } catch (err) {
-    logError(`axper-traffic-sync: logId=${logId} failed`, err);
-    try {
-      await prisma.trafficSyncLog.update({
-        where: { id: logId },
-        data: {
-          finishedAt: new Date(),
-          errors: [err instanceof Error ? err.message : String(err)],
-        },
-      });
-    } catch (stampErr) {
-      // Last-resort: even the error-stamp failed. Log + give up.
-      logError(`axper-traffic-sync: logId=${logId} could not stamp error`, stampErr);
-    }
-  }
-}
 
 async function run(req: NextApiRequest, res: NextApiResponse, session: Session | null) {
   if (req.method !== "POST") {
@@ -101,24 +57,9 @@ async function run(req: NextApiRequest, res: NextApiResponse, session: Session |
       ? Math.min(body.backfillWindowDays!, 800)
       : 30;
 
-  // Create the log row UP FRONT so the client gets an id to poll
-  // against immediately. `finishedAt = null` marks it as "running"
-  // for the admin UI's indicator + the recent-runs table. `dayFrom`
-  // / `dayTo` are placeholders for now (overwritten with the real
-  // window when the job completes).
-  const startedAt = new Date();
   let log;
   try {
-    log = await prisma.trafficSyncLog.create({
-      data: {
-        startedAt,
-        finishedAt: null,
-        kind: "axper-traffic-sync",
-        dayFrom: startedAt,
-        dayTo: startedAt,
-        triggeredBy: actor,
-      },
-    });
+    log = await startTrafficSyncLog(actor);
   } catch (err) {
     logError("axper-traffic-sync: failed to create log row", err);
     return res.status(500).json({ error: "Failed to start traffic sync" });
@@ -133,7 +74,7 @@ async function run(req: NextApiRequest, res: NextApiResponse, session: Session |
     backfillWindowDays,
   });
 
-  void runAndStampLog(log.id, backfillWindowDays);
+  void runAndStampTrafficLog(log.id, backfillWindowDays);
 }
 
 export default guardAutomation(run);

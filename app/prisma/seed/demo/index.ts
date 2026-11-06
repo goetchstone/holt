@@ -276,6 +276,9 @@ async function main(): Promise<void> {
 
   const setupResult = await seedSetupData(prisma, rng, staff, locations.stores, window.now);
   const reorderResult = await seedReorderPoints(prisma);
+  // Admin > Automations (GAP-37): each as it starts for a store.
+  const { getAutomationSettings } = await import("@/lib/automations/settings");
+  await getAutomationSettings(prisma);
 
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 
