@@ -54,6 +54,7 @@ import impersonateRoute from "@/pages/api/admin/impersonate";
 import settingsRoute from "@/pages/api/admin/settings/index";
 import integrationsRoute from "@/pages/api/admin/settings/integrations";
 import automationRoute from "@/pages/api/admin/automations/[key]";
+import emailLookRoute from "@/pages/api/admin/email-look/[kind]";
 import tendersRoute from "@/pages/api/tenders/index";
 import tenderRoute from "@/pages/api/tenders/[id]";
 import taxDistrictsRoute from "@/pages/api/tax/districts/index";
@@ -601,6 +602,29 @@ describe("settings", () => {
       ]);
       expect(JSON.stringify(entries)).not.toContain(secret);
     });
+  });
+
+  it("records an email's wording saved, and put back, but not a preview", async () => {
+    const query = { kind: "follow-up" };
+    const preview = await call(emailLookRoute, "owner", { query, body: {} });
+    expect(preview.status).toBe(200);
+    expect(await prisma.auditEntry.count()).toBe(0);
+
+    const saved = await call(emailLookRoute, "owner", {
+      method: "PUT",
+      query,
+      body: { subject: "Today's follow-ups" },
+    });
+    expect(saved.status).toBe(200);
+    await call(emailLookRoute, "owner", { method: "DELETE", query });
+    const entries = await prisma.auditEntry.findMany({
+      where: { event: "EMAIL_WORDING_CHANGED" },
+      orderBy: { id: "asc" },
+    });
+    expect(entries.map((e) => e.summary)).toEqual([
+      "follow-up: wording saved",
+      "follow-up: back to the suggested wording",
+    ]);
   });
 
   it("records an automation changed", async () => {

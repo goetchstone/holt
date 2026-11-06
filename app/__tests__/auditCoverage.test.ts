@@ -45,6 +45,7 @@ const SENSITIVE: RegExp[] = [
   /^src\/pages\/api\/admin\/settings\/(index|integrations)\.ts$/,
   /^src\/pages\/api\/admin\/impersonate\.ts$/,
   /^src\/pages\/api\/admin\/automations\/\[key\]\.ts$/,
+  /^src\/pages\/api\/admin\/email-look\//,
   /^src\/pages\/api\/admin\/reports\/commission-tiers\/tiers\.ts$/,
 ];
 

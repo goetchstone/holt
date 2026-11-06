@@ -50,6 +50,7 @@ export const AUDIT_EVENTS = {
   AUTOMATION_CHANGED: { label: "Automation changed", group: "settings" },
   TENDER_CHANGED: { label: "Payment type changed", group: "settings" },
   TAX_CHANGED: { label: "Tax setup changed", group: "settings" },
+  EMAIL_WORDING_CHANGED: { label: "An email's wording changed", group: "settings" },
 
   STOCK_CLEARED: { label: "Stock cleared", group: "stock" },
   STOCK_RECONCILED: { label: "Stock reconciled", group: "stock" },

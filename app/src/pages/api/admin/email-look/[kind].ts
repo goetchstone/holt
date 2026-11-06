@@ -10,6 +10,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/appSettings";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 import { readEmailLook } from "@/lib/email/look";
 import { sampleEmail } from "@/lib/email/samples";
@@ -45,10 +46,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   try {
     if (req.method === "PUT") {
       const actor = session.user?.email ?? null;
-      return res.status(200).json(await saveEmailWording(prisma, kind, req.body, actor));
+      const saved = await saveEmailWording(prisma, kind, req.body, actor);
+      await auditLog("EMAIL_WORDING_CHANGED", auditActor(session), {
+        summary: `${String(kind)}: wording saved`,
+      });
+      return res.status(200).json(saved);
     }
     if (req.method === "DELETE") {
       await resetEmailWording(prisma, kind);
+      await auditLog("EMAIL_WORDING_CHANGED", auditActor(session), {
+        summary: `${String(kind)}: back to the suggested wording`,
+      });
       return res.status(200).json({ ok: true });
     }
     if (req.method === "POST") {

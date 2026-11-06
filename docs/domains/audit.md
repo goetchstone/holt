@@ -43,7 +43,8 @@ the order's own history with it, and its entry is what's left.
 - a stated reason that's gone stale
 
 The shapes are bulk deletes and clears, merges, price imports, roles, staff, tax, payment types, database
-operations, exports, settings, integration keys, impersonation, automations and commission plans.
+operations, exports, settings, integration keys, impersonation, automations, email wording and commission
+plans.
 
 ## What it never holds
 
