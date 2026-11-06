@@ -16,7 +16,9 @@ export type AuditEvent =
   | "INVENTORY_CLEAR"
   | "INVENTORY_SNAPSHOT_GENERATE"
   | "INVENTORY_SNAPSHOT_CLEAR"
-  | "CONFIG_PRESET_APPLY";
+  | "CONFIG_PRESET_APPLY"
+  | "PRACTICE_STARTING_POINT_SAVED"
+  | "PRACTICE_STARTED_OVER";
 
 /**
  * Log a structured audit event. All audit entries include `audit: true`

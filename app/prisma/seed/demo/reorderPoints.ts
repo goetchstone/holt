@@ -36,5 +36,10 @@ export async function seedReorderPoints(prisma: PrismaClient): Promise<{ points:
     });
     points += 1;
   }
+  // The alert is off until a store sets it (GAP-14). The demo has it on, for the same
+  // reason as the morning email (pipeline.ts).
+  await prisma.appSettings.updateMany({
+    data: { lowStockAlertEmails: "warehouse1@example.com", lowStockAlertHour: 7 },
+  });
   return { points };
 }

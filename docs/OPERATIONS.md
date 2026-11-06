@@ -91,6 +91,13 @@ In production, the logger outputs newline-delimited JSON for machine parsing.
 docker compose logs db --tail 50
 ```
 
+## A Practice Copy
+
+A second app container on its own database, for training: `docs/domains/practice-copy.md`. It
+needs no scheduled tasks, and sends nothing if they run. `scripts/backup-db.sh` dumps only
+`POSTGRES_DB`, so its backups leave the practice copy out, which is fine: it holds no real customers
+or orders, and can be seeded and imported again.
+
 ## Scheduled Tasks
 
 Cron-driven jobs are wired into the host's task scheduler (any cron or NAS task

@@ -11,11 +11,13 @@ import {
   startHostedCheckout,
 } from "@/lib/paymentService";
 import { logError } from "@/lib/logger";
+import { isPracticeCopy, PRACTICE_COPY_NO_PAYMENT_LINKS } from "@/lib/practiceCopy";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
+  if (isPracticeCopy()) return res.status(409).json({ error: PRACTICE_COPY_NO_PAYMENT_LINKS });
 
   const {
     orderId,
