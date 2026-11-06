@@ -10,11 +10,11 @@ Leather and upholstery vendor. Dual grade dimensions (leather grade + fabric gra
 
 | File | Purpose | Server-only? |
 |------|---------|-------------|
-| `lib/pricing/americanLeatherExtractor.ts` | PDF parser for retail/wholesale price lists | No |
+| `lib/pricing/dualGradeExtractor.ts` | PDF parser for retail/wholesale price lists | No |
 
 ## Import Endpoint
 
-`api/pricing/import/american-leather.ts` -- dedicated endpoint. Handles the dual grade dimension structure that the shared wholesale endpoint doesn't support.
+`api/pricing/import/dual-grade-prices.ts` -- dedicated endpoint. Handles the dual grade dimension structure that the shared wholesale endpoint doesn't support.
 
 ## Grade System
 
@@ -39,8 +39,8 @@ This means a product can be priced at the intersection of a leather grade AND a 
 
 ## Key Files
 
-- `lib/pricing/americanLeatherExtractor.ts` -- PDF parser
-- `pages/api/pricing/import/american-leather.ts` -- dedicated import endpoint
+- `lib/pricing/dualGradeExtractor.ts` -- PDF parser
+- `pages/api/pricing/import/dual-grade-prices.ts` -- dedicated import endpoint
 
 ---
 Last verified: 2026-04-07

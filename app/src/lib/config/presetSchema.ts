@@ -149,7 +149,7 @@ export const importDefinitionPresetSchema = z
      *  at APPLY time, where applyPreset() saves the definition but forces
      *  `isActive: false` and records the reason — that is how a preset
      *  documents an intended mapping before its entity exists (the shipped
-     *  `ordorite-payment-modes` preset does exactly this). Contrast
+     *  POS payment-mode preset does exactly this). Contrast
      *  `runnerKey` below, where an unknown value is a hard failure. */
     targetEntity: z.string().min(1).max(100),
     sourceFormat: importSourceFormatSchema.default("CSV"),

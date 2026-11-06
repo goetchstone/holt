@@ -80,7 +80,7 @@ export default requirePermission(
 
       // An INACTIVE definition previews the same as an active one, on purpose.
       // A definition ships inactive precisely while its mappings are still
-      // being worked out -- config/presets/ordorite-payment-modes.yaml is the
+      // being worked out -- config/presets/legacy-pos-payment-modes.yaml is the
       // motivating case -- so refusing to preview it would withhold the tool
       // exactly when it is most needed.
       const result = runImportEngine({

@@ -173,15 +173,15 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   Lead: { status: "seeded", seeder: "demo" },
   LegacyImportLog: {
     status: "skipped",
-    reason: "Ordorite import staging — a source system's history, not this product's data.",
+    reason: "POS import staging — a source system's history, not this product's data.",
   },
   LegacyOrder: {
     status: "skipped",
-    reason: "Ordorite import staging — a source system's history, not this product's data.",
+    reason: "POS import staging — a source system's history, not this product's data.",
   },
   LegacyOrderLine: {
     status: "skipped",
-    reason: "Ordorite import staging — a source system's history, not this product's data.",
+    reason: "POS import staging — a source system's history, not this product's data.",
   },
   MailchimpActivity: {
     status: "skipped",

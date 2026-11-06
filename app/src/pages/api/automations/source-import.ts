@@ -3,7 +3,7 @@
 // POST -- run this deployment's source import.
 //
 // Replaces /api/automations/gmail-import, which named ONE adapter's transport
-// in the URL. Gmail is how Ordorite ships its reports; it is not what an
+// in the URL. Gmail is how the POS ships its reports; it is not what an
 // import is. That route still works and forwards here (see its header) so an
 // existing deployment's already-installed cron keeps running -- renaming a URL a
 // cron calls is how a nightly job dies silently.
@@ -13,7 +13,7 @@
 // session path is not "any signed-in user".
 //
 // The module gate moved onto the adapter. `legacyPosImport` gated this route
-// when Ordorite was the only possible answer; now each adapter names the flag
+// when the POS was the only possible answer; now each adapter names the flag
 // it needs (or none), and resolution returns the no-op adapter when the flag
 // is off. A deployment with no source system gets 200 and "nothing to import"
 // instead of 404 -- which is the truth, and keeps a cron from alerting nightly

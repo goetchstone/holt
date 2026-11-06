@@ -53,8 +53,8 @@ export interface CreateDraftInput {
    *
    * Not optional decoration. `generateSalesJournal()` recognises revenue and
    * COGS for an order only when `order.hasInvoices` is true; until this field
-   * existed the ONLY writers of `Invoice.salesOrderId` were the Ordorite
-   * importer and the demo seed, so a deployment not importing from Ordorite
+   * existed the ONLY writers of `Invoice.salesOrderId` were the POS
+   * importer and the demo seed, so a deployment not importing from the POS
    * could never invoice an order, and every sale sat in Customer Deposits
    * forever without anything reporting a problem.
    */

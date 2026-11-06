@@ -1,4 +1,4 @@
-// /app/src/lib/adapters/ordorite/orchestrator.ts
+// /app/src/lib/adapters/legacyPos/orchestrator.ts
 //
 // The legacy-POS auto-import run: list unprocessed emails -> download CSV
 // attachments -> route by filename -> parse -> run the matching import runner

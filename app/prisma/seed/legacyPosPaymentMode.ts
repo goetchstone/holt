@@ -1,23 +1,23 @@
-// /app/prisma/seed/ordoritePaymentMode.ts
+// /app/prisma/seed/legacyPosPaymentMode.ts
 //
-// Persists the Stage 1 "Ordorite Payment Mode" demonstration
-// ImportDefinition -- see src/lib/imports/data/ordoritePaymentMode.ts for
+// Persists the Stage 1 "POS Payment Mode" demonstration
+// ImportDefinition -- see src/lib/imports/data/legacyPosPaymentMode.ts for
 // what it proves and docs/domains/imports-configurable.md for the full
 // writeup. Created inactive (isActive: false): targetEntity "payment" has
 // no live entry in genericImport.ts's IMPORT_ENTITIES yet and no runner, so
 // this row is data proving the value-mapping mechanism, not a definition
 // anything can run today. NOT referenced by any runtime import path -- the
-// live Ordorite payments runner still calls resolvePaymentMode() unchanged.
+// live POS payments runner still calls resolvePaymentMode() unchanged.
 //
 // Idempotent (upsert by name). Run with:
-//   npx ts-node prisma/seed/ordoritePaymentMode.ts
+//   npx ts-node prisma/seed/legacyPosPaymentMode.ts
 
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
-  ORDORITE_PAYMENT_MODE_FIELD_MAPPING,
-  ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS,
-} from "../../src/lib/imports/data/ordoritePaymentMode";
+  LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING,
+  LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS,
+} from "../../src/lib/imports/data/legacyPosPaymentMode";
 
 // Prisma 7 requires a driver adapter -- a bare `new PrismaClient()`
 // throws at construction. Mirrors src/lib/prisma.ts and the scripts/*.mjs
@@ -28,9 +28,9 @@ if (!process.env.DATABASE_URL) {
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
-const DEFINITION_NAME = "Ordorite Payment Mode (Stage 1 demonstration)";
+const DEFINITION_NAME = "POS Payment Mode (Stage 1 demonstration)";
 const DEFINITION_DESCRIPTION =
-  "Demonstrates the value-mapping mechanism for Ordorite's free-text payment " +
+  "Demonstrates the value-mapping mechanism for the POS's free-text payment " +
   "modes (Card Connect -> CARD, Credit Note -> STORE_CREDIT, etc). Not wired " +
   "to the live import path -- see docs/domains/imports-configurable.md.";
 
@@ -61,20 +61,20 @@ async function main() {
     where: {
       definitionId_targetField: {
         definitionId: definition.id,
-        targetField: ORDORITE_PAYMENT_MODE_FIELD_MAPPING.targetField,
+        targetField: LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING.targetField,
       },
     },
-    update: { sourceColumn: ORDORITE_PAYMENT_MODE_FIELD_MAPPING.sourceColumn },
+    update: { sourceColumn: LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING.sourceColumn },
     create: {
       definitionId: definition.id,
-      sourceColumn: ORDORITE_PAYMENT_MODE_FIELD_MAPPING.sourceColumn,
-      targetField: ORDORITE_PAYMENT_MODE_FIELD_MAPPING.targetField,
-      required: ORDORITE_PAYMENT_MODE_FIELD_MAPPING.required ?? false,
-      sortOrder: ORDORITE_PAYMENT_MODE_FIELD_MAPPING.sortOrder ?? 0,
+      sourceColumn: LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING.sourceColumn,
+      targetField: LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING.targetField,
+      required: LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING.required ?? false,
+      sortOrder: LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING.sortOrder ?? 0,
     },
   });
 
-  for (const vm of ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS) {
+  for (const vm of LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS) {
     await prisma.importValueMapping.upsert({
       where: {
         definitionId_targetField_sourceValue: {

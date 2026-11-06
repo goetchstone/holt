@@ -32,7 +32,7 @@ const OUTBOUND: Record<string, Stopped> = {
   "src/lib/githubApp.ts": { by: "credentials" },
   "src/pages/api/notifications/issues.ts": { by: "through", module: "@/lib/githubApp" },
   "src/lib/axperClient.ts": { by: "credentials" },
-  "src/lib/adapters/ordorite/gmailClient.ts": { by: "credentials" },
+  "src/lib/adapters/legacyPos/gmailClient.ts": { by: "credentials" },
   "src/lib/mailchimpSyncRunners.ts": { by: "credentials" },
   "src/lib/mailchimpAudienceSync.ts": { by: "credentials" },
   "src/lib/integrationTest.ts": { by: "credentials" },

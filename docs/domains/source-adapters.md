@@ -10,15 +10,15 @@ that keys everything in holt imports nothing.
 
 ## Why the seam exists
 
-`lib/adapters/ordorite/` was swappable in *practice*: one entry point, one
+`lib/adapters/legacyPos/` was swappable in *practice*: one entry point, one
 production call site. But there was no type saying so, no registry, and nothing
 a second adapter could implement. "Replaceable" was a property you could verify
 only by reading 5,000 lines and noticing nothing else imported them. That is a
 coincidence, not a seam.
 
 Worse, "no source system" was unrepresentable. A deployment that had never
-heard of Ordorite still got its import route, its admin page and its failure
-modes, and "we key everything natively" looked exactly like "Ordorite,
+heard of the POS still got its import route, its admin page and its failure
+modes, and "we key everything natively" looked exactly like "the POS,
 misconfigured."
 
 ## The interface
@@ -96,12 +96,34 @@ is not ready, instead of a 500 from four frames inside a Google auth client.
 | Id | What it connects to |
 | --- | --- |
 | `none` | Nothing. Scheduled imports are a no-op that says so. |
-| `ordorite` | Polls a Gmail mailbox for the CSV reports Ordorite emails, routes each attachment by filename, imports it. Needs the `legacyPosImport` module. |
+| `LEGACY_POS_ADAPTER_ID` | Polls a Gmail mailbox for the CSV reports the POS emails, routes each attachment by filename, imports it. Needs the `legacyPosImport` module. |
 
 ## Migration note
 
-`20260806180000_app_settings_source_adapter` backfills `sourceAdapterId =
-'ordorite'` wherever the `legacyPosImport` module is enabled. That flag is what
+`20260806180000_app_settings_source_adapter` backfills `sourceAdapterId` to
+the POS adapter's id wherever the `legacyPosImport` module is enabled. That flag is what
 gated the old import route, so carrying it across is the guarantee an existing
 deployment's nightly import keeps running — without it, the cron would start
 reporting "nothing to import" and every report would quietly go stale.
+
+## Names that stay
+
+The POS adapter's code uses neutral names, but three kinds of name live outside
+this repo and keep the POS's own spelling. All of them are in
+`lib/adapters/legacyPos/storedNames.ts`, with the reason beside each, and
+`__tests__/integration/legacyPosStoredNames.integration.test.ts` and
+`__tests__/legacyPosStoredNames.test.ts` fail if one changes.
+
+- **The adapter id** (`LEGACY_POS_ADAPTER_ID`). `AppSettings.sourceAdapterId`
+  selects the adapter by it and `AdapterOrderFlag.adapter` keys operators'
+  overrides by it. Changing it needs a data migration: `getSourceAdapter()` throws
+  on an id it doesn't know, and existing overrides would silently stop being found.
+- **A CSV header** (`POS_ITEM_ID_COLUMN`). The id column in the POS's item export.
+- **Earlier setting names.** `legacyPosEnv()` reads `LEGACY_POS_REPORT_PREFIX`,
+  `LEGACY_POS_STORE_CODES` and `LEGACY_POS_RETURN_PREFIXES`, then the name each
+  had before, because a deployment's environment isn't in this repo.
+
+Two more sit nearby for the same reason. The shipped payment-mode preset's `name:`
+(`config/presets/legacy-pos-payment-modes.yaml`) is how an applied row and a
+deployment's local override find it. Applied migrations under `prisma/migrations/`
+are never edited.

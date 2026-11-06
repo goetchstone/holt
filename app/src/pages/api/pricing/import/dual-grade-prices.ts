@@ -1,6 +1,6 @@
-// /app/src/pages/api/pricing/import/american-leather.ts
+// /app/src/pages/api/pricing/import/dual-grade-prices.ts
 //
-// Imports American Leather retail (MRP) and optional wholesale pricing.
+// Imports dual-grade retail (MRP) and optional wholesale pricing.
 // Creates VendorStyles, Collections, dual grade dimensions (Leather Grade
 // + Fabric Grade), StyleGradePrice rows, and option groups.
 //
@@ -12,7 +12,7 @@ import { getErrorMessage } from "@/lib/toastError";
 import { logError } from "@/lib/logger";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
-import type { ALParsedProduct, ALParsedPage } from "@/lib/pricing/americanLeatherExtractor";
+import type { DualGradeParsedProduct, DualGradeParsedPage } from "@/lib/pricing/dualGradeExtractor";
 import {
   extractCushionOptions,
   parseOptionPrices,
@@ -20,8 +20,8 @@ import {
   extractPowerBatteryOptions,
   frameSizeFromNumber,
   parseStandardFeatures,
-} from "@/lib/pricing/americanLeatherExtractor";
-import type { ALStandardFeatures } from "@/lib/pricing/americanLeatherExtractor";
+} from "@/lib/pricing/dualGradeExtractor";
+import type { DualGradeStandardFeatures } from "@/lib/pricing/dualGradeExtractor";
 import { upsertCollectionIds } from "@/lib/pricing/upsertCollectionIds";
 import type { SurchargeType } from "@prisma/client";
 
@@ -141,8 +141,8 @@ interface ImportBody {
   priceListName: string;
   effectiveDate: string;
   products: {
-    products: ALParsedProduct[];
-    pages?: ALParsedPage[];
+    products: DualGradeParsedProduct[];
+    pages?: DualGradeParsedPage[];
     collections: string[];
     effectiveDate: string | null;
     isRetail: boolean;
@@ -178,12 +178,12 @@ export default requirePermission(
       }
 
       // costMultiplier is used when importing a retail PDF to derive wholesale cost.
-      // For American Leather, this varies by program, so we use the program-level
+      // For this format it varies by program, so we use the program-level
       // multipliers instead. The vendor.costMultiplier is a fallback.
       const vendorMultiplier = vendor.costMultiplier ? Number(vendor.costMultiplier) : null;
 
       // Deduplicate by frameNumber -- multi-page PDFs can produce duplicates
-      const deduped = new Map<string, ALParsedProduct>();
+      const deduped = new Map<string, DualGradeParsedProduct>();
       for (const p of alProducts) {
         if (p.frameNumber) {
           deduped.set(p.frameNumber, p);
@@ -318,7 +318,7 @@ export default requirePermission(
           generalOptions: { name: string; price: number; perSeat: boolean }[];
         }
         const pageOptionsCache = new Map<string, ParsedPageOptions>();
-        const stdFeaturesCache = new Map<string, ALStandardFeatures>();
+        const stdFeaturesCache = new Map<string, DualGradeStandardFeatures>();
 
         if (alPages && alPages.length > 0) {
           for (const page of alPages) {
@@ -674,7 +674,7 @@ export default requirePermission(
         ...result,
       });
     } catch (error: unknown) {
-      logError("American Leather import failed", error);
+      logError("Dual-grade price import failed", error);
       return res.status(500).json({ error: "Import failed" });
     }
   },

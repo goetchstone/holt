@@ -1,4 +1,4 @@
-// /app/__tests__/ordoriteImportRunners.quotesReconcile.test.ts
+// /app/__tests__/legacyPosImportRunners.quotesReconcile.test.ts
 //
 // Pure-helper tests for buildQuoteLineData — a stateless
 // CSV-row-to-Prisma-shape mapper, no I/O.
@@ -13,7 +13,7 @@
 // stickiness on re-import) that the mocked tests structurally could
 // not assert.
 
-import { buildQuoteLineData } from "@/lib/adapters/ordorite/runners";
+import { buildQuoteLineData } from "@/lib/adapters/legacyPos/runners";
 
 describe("buildQuoteLineData (pure helper)", () => {
   test("maps a typical CSV row to the OrderLineItem shape", () => {

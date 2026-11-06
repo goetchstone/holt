@@ -7,14 +7,14 @@
 //
 // Ported from furniture-configurator's apparelOrderVendors.ts (2026-07-18
 // state). ADAPTED for holt: FC's version fed a catalog-matching flow
-// (Ordorite NEW-vs-UPDATE detection against existing Product rows via
-// ordoriteId / UPC / style-candidate grouping). Holt's Buyer Drafts domain
+// (the POS NEW-vs-UPDATE detection against existing Product rows via
+// POS id / UPC / style-candidate grouping). Holt's Buyer Drafts domain
 // has no such concept -- every parsed row becomes a brand-new DRAFT
 // BuyerDraftItem regardless of whether a similar catalog Product already
 // exists (the buyer curates/links afterward via the existing barcode-lookup
 // or Vendor Style picker flows). So the catalog-matching-only helpers
 // (`pickBestCatalogRows`, `groupStyleCandidates`, `rankColorSuggestions`,
-// `StyleCandidateRow`/`StyleCandidateMatch`, the `ordoriteId` field) were
+// `StyleCandidateRow`/`StyleCandidateMatch`, the POS id field) were
 // DROPPED. Everything else -- the format registry, part-number schemes,
 // and the four normalizers -- is ported near-verbatim.
 //
@@ -405,9 +405,9 @@ export const CSV_COLUMN_ALIASES: Record<string, string[]> = {
 //
 // One row per size-variant -- this is the unit the Buyer Drafts mapping
 // (lib/apparelOrderToBuyerDraft.ts) turns 1:1 into a BuyerDraftItem create
-// body. NOT the same shape as FC's ApparelExportRow: no `ordoriteId`
+// body. NOT the same shape as FC's ApparelExportRow: no POS id
 // (holt doesn't catalog-match), no `oversell` / `reference` /
-// `excludeFromPo` (those were Ordorite CSV-export-only concerns; holt's PO
+// `excludeFromPo` (those were the POS CSV-export-only concerns; holt's PO
 // export already exists in lib/buyerDraftExport.ts and works off the DB
 // rows this tool creates).
 export interface ApparelOrderRow {

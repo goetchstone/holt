@@ -283,7 +283,7 @@ export function CaseDetailView({ id }: { id: string }) {
         const res = await axios.get("/api/sales/orders", {
           params: { search: linkSearch.trim(), limit: 10 },
         });
-        const orders = (res.data.salesOrders || []).map(
+        const orders = (res.data.orders || []).map(
           (o: {
             id: number;
             orderno: string;

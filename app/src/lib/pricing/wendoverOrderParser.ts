@@ -27,7 +27,7 @@
 //    qty x price overshoots it roughly threefold. The catalog agrees
 //    independently: the largest printed figures are impossible as unit costs,
 //    while every derived unit price lands inside the vendor's real range.
-//    Ordorite's PO import wants a UNIT cost, so unitPrice = lineTotal / qty
+//    The POS's PO import wants a UNIT cost, so unitPrice = lineTotal / qty
 //    is derived here.
 //
 // 2. A page break can emit an item's qty+price BEFORE its own "SKU:" line,
@@ -46,7 +46,7 @@ export interface WendoverOrderItem {
   /** Printed line total, verbatim. Kept so the preview can show what the
    *  document said next to the unit cost we derived from it. */
   lineTotal: number;
-  /** lineTotal / qty -- what Ordorite's PO import calls Cost Price. */
+  /** lineTotal / qty -- what the POS's PO import calls Cost Price. */
   unitPrice: number;
   qty: number;
   medium: string;

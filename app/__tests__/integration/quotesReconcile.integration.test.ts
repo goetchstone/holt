@@ -2,7 +2,7 @@
 //
 // PHASE 0.6.3 — first conversion of a mocked-Prisma placeholder test
 // to a real-DB integration test. This file replaces the orchestration
-// portion of __tests__/ordoriteImportRunners.quotesReconcile.test.ts;
+// portion of __tests__/legacyPosImportRunners.quotesReconcile.test.ts;
 // the pure-helper buildQuoteLineData tests in that file have no I/O
 // and stay where they are.
 //
@@ -27,7 +27,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
-import { runQuotesImport } from "@/lib/adapters/ordorite/runners";
+import { runQuotesImport } from "@/lib/adapters/legacyPos/runners";
 
 const ORDERNO = "XXOM10001";
 

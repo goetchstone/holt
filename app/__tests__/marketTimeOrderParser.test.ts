@@ -125,7 +125,7 @@ describe("parseMarketTimeOrderText", () => {
 
   it("lifts the availability marker out of the product name", () => {
     // "(Avail:08/01/26)" is order information; it would otherwise ship to
-    // Ordorite inside every item name.
+    // the POS inside every item name.
     expect(order.items[0].name).toBe("Merino Wool Large Bin - Feather");
     expect(order.items[0].availability).toBe("08/01/26");
     expect(order.items.every((i) => !i.name.includes("Avail"))).toBe(true);

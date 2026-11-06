@@ -21,7 +21,7 @@ const AXPER_TO_STORE_LOCATION: Record<string, string> = {
 Those were honest placeholders, not leaked tenant data — but the shape is the
 problem, not the values. Adding a store meant editing TypeScript and shipping a
 release. Every deployment that added a store forked that file. And the same
-pattern recurred: Ordorite payment codes, department translations, vendor
+pattern recurred: the POS payment codes, department translations, vendor
 category maps. Each one a fact about _a_ deployment, compiled into _the_
 product.
 
@@ -228,7 +228,7 @@ depend on server-side catalogs:
 
 - An unknown `targetEntity` is **saved but forced inactive**, with the reason
   recorded. This is not sloppiness — it is how a preset documents an intended
-  mapping before the entity exists. `ordorite-payment-modes` ships exactly this
+  mapping before the entity exists. The POS payment-mode preset ships exactly this
   way: `targetEntity: payment` has no entry in `IMPORT_ENTITIES` yet. One
   exception: if the definition already exists and is currently active, the
   apply is a hard failure instead, because forcing it inactive would switch off

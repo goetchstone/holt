@@ -35,7 +35,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
-import { runProductsImport } from "@/lib/adapters/ordorite/runners";
+import { runProductsImport } from "@/lib/adapters/legacyPos/runners";
 
 interface ShItemRow extends Record<string, unknown> {
   Active: string;
@@ -383,7 +383,7 @@ describe("runProductsImport — real-DB scenarios", () => {
   it("returns productsCreated + productsUpdated keys for the orchestrator", async () => {
     const result = await runProductsImport([shItemRow({ Id: "600001", "Part No": "KEYS-001" })]);
     // Match the orchestrator's expectation
-    // (lib/adapters/ordorite/orchestrator.ts).
+    // (lib/adapters/legacyPos/orchestrator.ts).
     expect(result).toHaveProperty("productsCreated");
     expect(result).toHaveProperty("productsUpdated");
     expect(result.productsCreated + result.productsUpdated).toBeGreaterThan(0);

@@ -69,7 +69,7 @@ describe("parseSuperCatOrderText", () => {
     expect(order.items.some((i) => i.itemNumber.startsWith("ATLS"))).toBe(false);
   });
 
-  it("carries no UPC — barcode is Ordorite's to assign", () => {
+  it("carries no UPC — barcode is the POS's to assign", () => {
     expect(order.items.every((i) => !("upc" in i))).toBe(true);
   });
 

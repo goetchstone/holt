@@ -3,8 +3,8 @@
 Everything that flows data INTO our DB from the POS (or any other source). Read this first; the per-import domain runbooks have the details for each path.
 
 > **Where the code lives (2026-06-10):** the entire legacy-POS pipeline is the
-> **Ordorite adapter** — a self-contained edition module under
-> `app/src/lib/adapters/ordorite/` (gmailClient, reportRouter, shared helpers,
+> **POS adapter** — a self-contained edition module under
+> `app/src/lib/adapters/legacyPos/` (gmailClient, reportRouter, shared helpers,
 > all 13 runners, sameDayRewriteCleanup, emptyReport, orchestrator), gated by
 > the `legacyPosImport` feature flag (default OFF; the retail edition turns it
 > on). Source-agnostic pieces stay in core: `lib/importHelpers.ts` (coercion +
@@ -13,7 +13,7 @@ Everything that flows data INTO our DB from the POS (or any other source). Read 
 > libs, consignment sync. Gmail credentials resolve DB-first
 > (Settings → Integrations → Gmail: paste the service-account JSON + delegate
 > email) with `GMAIL_SERVICE_ACCOUNT_PATH` / `GMAIL_DELEGATE_EMAIL` env fallback.
-> Holt-vs-predecessor field renames (`ordorite*` → `external*`) are mapped in
+> Holt-vs-predecessor field renames (POS-named fields → `external*`) are mapped in
 > `CLIENT-MIGRATION-PLAN.md`; order-number grammar (store code + series + M/A suffix, rewrite suffixes)
 > is unchanged — it is data, not branding.
 
@@ -23,14 +23,14 @@ This doc exists because 2026-05-20 was the day we discovered we had **3 import-r
 
 | Path | Cadence | Trigger | Surface |
 |---|---|---|---|
-| **Gmail → automated daily orchestrator** | "Daily POS import" at Admin → Automations, off to start, 6 AM by default | `POST /api/automations/source-import` by hand (Bearer auth or a session) | 13 routes in `lib/adapters/ordorite/reportRouter.ts` |
-| **Manual products import** | Ad-hoc, owner-triggered | `/admin/import/POS-products` UI upload | `runthe POSProductsImport` |
+| **Gmail → automated daily orchestrator** | "Daily POS import" at Admin → Automations, off to start, 6 AM by default | `POST /api/automations/source-import` by hand (Bearer auth or a session) | 13 routes in `lib/adapters/legacyPos/reportRouter.ts` |
+| **Manual products import** | Ad-hoc, owner-triggered | No screen in this repo today | `runProductsImport` |
 
 Plus a few one-off / legacy paths (FileMaker `lib/fmApiClient.ts`, Windfall weekly CSV via `/admin/import/windfall`, HD Proposal PDF) — covered in `integrations.md`.
 
 ## The 14 daily-import routes
 
-Configured in `lib/adapters/ordorite/reportRouter.ts`. Each filename regex maps to one runner.
+Configured in `lib/adapters/legacyPos/reportRouter.ts`. Each filename regex maps to one runner.
 
 | the POS filename pattern (regex) | Route → runner | Domain runbook |
 |---|---|---|
@@ -51,7 +51,7 @@ Configured in `lib/adapters/ordorite/reportRouter.ts`. Each filename regex maps 
 
 **Route order matters.** First match wins. The specific `<Org>_Inbound_Items` pattern is listed BEFORE the generic `Inbound_Items` fallback so the more-specific runner is preferred.
 
-**BOM stripping**: the gmail orchestrator (`lib/adapters/ordorite/orchestrator.ts`) passes a `transformHeader` to Papa.parse that strips the U+FEFF byte-order mark and trims surrounding whitespace from header names. the POS ships some CSVs (including `<Org>_Item_Export`) with a UTF-8 BOM that would otherwise become part of the first column key (the first column header would parse as `U+FEFF` + `Active` rather than `Active`) and silently break alias matching. Added 2026-05-26 with the <Org> Item Export wiring.
+**BOM stripping**: the gmail orchestrator (`lib/adapters/legacyPos/orchestrator.ts`) passes a `transformHeader` to Papa.parse that strips the U+FEFF byte-order mark and trims surrounding whitespace from header names. The POS ships some CSVs (including `<Org>_Item_Export`) with a UTF-8 BOM that would otherwise become part of the first column key (the first column header would parse as `U+FEFF` + `Active` rather than `Active`) and silently break alias matching. Added 2026-05-26 with the <Org> Item Export wiring.
 
 ## 2026-05-20 renames (owner-side the POS changes)
 
@@ -62,11 +62,11 @@ The owner renamed two reports on the POS's side to scope them to prior-day-only 
 | `<Org>_Customers.csv` | `<Org>_Prior_Day_Customers.csv` | Scope to prior-day-only data (not the entire historical customer master) |
 | `Prior_Day_Temp_Items.csv` | `Prior_Day_Temp_Purchase_Orders.csv` | Clearer semantic name on the POS's side |
 
-Both renames are documented in `docs/domains/import-pipeline.md` and pinned by tests in `__tests__/ordoriteReportRouter.test.ts` (legacy regression + post-rename coverage both present).
+Both renames are documented in `docs/domains/import-pipeline.md` and pinned by tests in `__tests__/legacyPosReportRouter.test.ts` (legacy regression + post-rename coverage both present).
 
 ## Products import (catalog refresh)
 
-**Two entry points, ONE runner.** Both call `runProductsImport` in `lib/adapters/ordorite/runners.ts`.
+**Two entry points, ONE runner.** Both call `runProductsImport` in `lib/adapters/legacyPos/runners.ts`.
 
 ### Daily auto-import — `<Org>_Item_Export.csv` (2026-05-26+)
 
@@ -78,7 +78,7 @@ Owner direction 2026-05-22: *"ensure this file gets imported too during the auto
 - **Weight is NOT in the export** — the POS doesn't capture weight on their product master. Manual uploads can still set it.
 - **`Supplier Cost` is parsed but not currently used.** Consignment rugs show `Purchasing Cost = 0` (we don't pay until sold) and `Supplier Cost = $X` (what we owe on sale). The actual consignment accounting lives in the `ConsignmentItem` model; the product-table `baseCost` continues to read from `Purchasing Cost` for the manual-upload-compatible behavior.
 
-### Manual upload — `/admin/import/POS-products`
+### Manual upload (no screen in this repo today)
 
 Triggered ad-hoc by an admin uploading the POS "Items / Products" CSV (older filename pattern `upload_templatereport*.csv`).
 
@@ -93,7 +93,7 @@ Triggered ad-hoc by an admin uploading the POS "Items / Products" CSV (older fil
 4. **Active column handling** — `Active = yes` (case-insensitive, also `y` / `true` / `1`) flips `isActive=true, isDiscontinued=false` on the product. Since 2026-11-01 staff can mark a product discontinued in Holt (GAP-16), so re-running this import with `Active = yes` clears a flag staff set; the import is onboarding, not a daily sync, on a live site. `Active = no` flips `isActive=false`. Absent or blank `Active` leaves the flags untouched (legacy manual-upload behavior — preserves operator overrides).
 5. **Barcode placeholder**: `Barcode No = "0"` (the POS's "no barcode" sentinel) is ignored — no `Upc` row written.
 6. **Auto-links historical line items** scoped to imported part numbers + barcodes via `backfillLineItemProductLinks` — runs ONCE at the end of the run (not per chunk).
-7. **Upc table linkage**: barcodes are upserted; if a barcode is already in `Upc` pointing at a different product, the import RE-ASSIGNS it to the latest product (silent — see "Barcode collision behavior" below). the POS-side barcode uniqueness is NOT enforced; see CLAUDE.md gotcha rule 13.
+7. **Upc table linkage**: barcodes are upserted; if a barcode is already in `Upc` pointing at a different product, the import RE-ASSIGNS it to the latest product (silent — see "Barcode collision behavior" below). The POS-side barcode uniqueness is NOT enforced; see CLAUDE.md gotcha rule 13.
 
 ### Active=yes is INFORMATIONAL, not normative
 
@@ -114,8 +114,8 @@ the POS's customer code (the `Cuscode` column) is the canonical the POS-side cus
 Cuscode round-trip:
 
 - `findOrCreateCustomer` (in `lib/importHelpers.ts`) — looks up by cuscode first, then email+name, then name. If no match, creates a placeholder Customer with the cuscode link.
-- `Customerthe POSId` table — `POSId @unique` mapping cuscode → Customer.id
-- `SalesOrder.POSCuscode` — the cuscode value at import time, persisted on the order for downstream linkage even if `customerId` changes later
+- `CustomerExternalId` table — `externalId @unique` mapping cuscode → Customer.id
+- `SalesOrder.externalCustomerCode` — the cuscode value at import time, persisted on the order for downstream linkage even if `customerId` changes later
 
 ## Postatus → PurchaseOrderStatus mapping
 
@@ -154,7 +154,7 @@ Most of the affected products landed in our DB during the bulk products import �
 When a CSV row has a barcode that already exists in `Upc` pointing at a different product, the manual products-import runner **re-assigns the barcode to the latest product**:
 
 ```ts
-// pages/api/import/POS-products.ts:403-405
+// lib/adapters/legacyPos/runners.ts
 } else if (currentProductId !== productId) {
   upcUpdates.push({ upc: p.barcode!, productId });  // Re-assigns!
 }
@@ -202,7 +202,7 @@ The 2026-05-21 placeholder-merge migration (`20260521_merge_POS_placeholders`) i
 
 | File | Tests | Type |
 |---|---|---|
-| `__tests__/ordoriteReportRouter.test.ts` | 22 | Unit — exact-name + post-rename + skip-pattern routing |
+| `__tests__/legacyPosReportRouter.test.ts` | 22 | Unit — exact-name + post-rename + skip-pattern routing |
 | `__tests__/importHelpers.test.ts` | 79 | Unit — derivePOStatus, splitCustomerName, isReturnOrder, etc. |
 | `__tests__/importRunners.regression.test.ts` | 21 | Source-text tripwires for every prod failure that's hit a runner |
 | `__tests__/integration/runSalesImport.integration.test.ts` | 5+ | Real-DB |
@@ -215,7 +215,7 @@ Gaps acknowledged: no real-DB tests for the manual products-import path (the ups
 
 - `docs/domains/imports-configurable.md` — Stage 1 of the declarative,
   no-code importer effort (models, the pure execution engine, the
-  code-backed escape hatch, the Ordorite payment-mode value-mapping proof).
+  code-backed escape hatch, the POS payment-mode value-mapping proof).
   Nothing on this page is migrated to it yet — every path below is still
   the live, hand-coded pipeline.
 - `docs/domains/config-presets.md` — how those definitions are authored: a

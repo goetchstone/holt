@@ -1,4 +1,4 @@
-// /app/src/lib/adapters/ordorite/runners.ts
+// /app/src/lib/adapters/legacyPos/runners.ts
 //
 // Standalone import runner functions extracted from the API handlers.
 // Each function accepts a parsed data array and a createdBy identifier,
@@ -9,7 +9,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { findWashedRugCustomerNumbers } from "@/lib/consignment";
 import { getVendorPrefixRules } from "@/lib/vendorPrefixService";
 import { isVendorNumber, toBarcode, toVendorNumber } from "@/lib/vendorNumbering";
-import { hasOrderFlag, SKIP_SAME_DAY_REWRITE_CLEANUP } from "@/lib/adapters/ordorite/orderFlags";
+import { hasOrderFlag, SKIP_SAME_DAY_REWRITE_CLEANUP } from "@/lib/adapters/legacyPos/orderFlags";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/appSettings";
 import {
@@ -19,7 +19,7 @@ import {
   findOrCreateCustomer,
   isUntrustedMergeEmail,
   normalizeEmail,
-  parseOrdoriteAddress,
+  parseLegacyPosAddress,
   parseTaxLabel,
   resolveTaxDistrictId,
   resolveTaxExemptReasonId,
@@ -33,13 +33,14 @@ import {
   rewriteBaseOrderno,
   classifyPOReceiptStatus,
   ensureUnknownVendorId,
-  ordoriteHoldsCommittedStock,
+  legacyPosHoldsCommittedStock,
   SAME_DAY_REWRITE_DROP_CANCEL_REASON,
   resolvePaymentMethod,
-} from "@/lib/adapters/ordorite/shared";
+} from "@/lib/adapters/legacyPos/shared";
 import { buildLocationMap } from "@/lib/storeLocationResolver";
 import { syncConsignmentReturns } from "@/lib/paymentService";
-import { findDroppedBaseLineIds } from "@/lib/adapters/ordorite/sameDayRewriteCleanup";
+import { findDroppedBaseLineIds } from "@/lib/adapters/legacyPos/sameDayRewriteCleanup";
+import { POS_ITEM_ID_COLUMN } from "@/lib/adapters/legacyPos/storedNames";
 import { backfillLineItemProductLinks } from "@/lib/orderLineItemLinker";
 import { getCellValue } from "@/lib/excelUtils";
 import { backfillSalesPersonFk } from "@/lib/salesPersonFkBackfill";
@@ -121,7 +122,7 @@ export interface SalesImportResult {
   lineItemsLinked?: number;
   /**
    * Lines RE-linked because their existing (wrong) productId differed
-   * from what the UPC says. Optional. Marjan-to-Marjan dups are excluded.
+   * from what the UPC says. Optional. Consignment-rug dups are excluded.
    */
   lineItemsRelinked?: number;
   /**
@@ -233,7 +234,7 @@ export async function runSalesImport(
     // module-level prisma client, not tx).
     const returnedLineItems: { productNumber: string }[] = [];
 
-    // Collect sold Marjan rug info so consignment items can be marked SOLD.
+    // Collect sold consignment rug info so consignment items can be marked SOLD.
     const soldRugOrders: {
       salesOrderId: number;
       rugMatches: { barcode: string | null; customerNumber: string | null }[];
@@ -289,7 +290,7 @@ export async function runSalesImport(
               const bc = safeString(row["Barcode No"]);
               const product = bc ? barcodeProductMap.get(bc.toLowerCase()) : null;
               // Use product number if available, otherwise fall back to the raw barcode.
-              // Marjan rugs may not be imported as products but their barcode is sufficient.
+              // Consignment rugs may not be imported as products but their barcode is sufficient.
               const rugCandidate = product?.productNumber ?? bc;
               if (isVendorNumber(rugCandidate, prefixRules)) {
                 returnedLineItems.push({ productNumber: toBarcode(rugCandidate!, prefixRules) });
@@ -297,7 +298,7 @@ export async function runSalesImport(
             }
           }
 
-          const ordoriteSalesperson = safeString(firstRow.Salesperson);
+          const posSalesperson = safeString(firstRow.Salesperson);
 
           // Don't downgrade status: if an order is already FULFILLED or RETURNED,
           // the daily sales CSV doesn't know that — it would revert to ORDER.
@@ -320,7 +321,7 @@ export async function runSalesImport(
             status: effectiveStatus,
             customerId: customer?.id,
             externalCustomerCode: cuscode || undefined,
-            salesperson: ordoriteSalesperson,
+            salesperson: posSalesperson,
             storeLocation: storeLocationStr,
             storeLocationId: locationMap.get(storeLocationStr?.toLowerCase() ?? "") ?? undefined,
             orderNotes: combinedNotes,
@@ -328,7 +329,7 @@ export async function runSalesImport(
           };
 
           // If the order has a salesPersonId, its salesperson attribution has
-          // been manually corrected (split import, reassignment, etc.). Ordorite
+          // been manually corrected (split import, reassignment, etc.). The POS
           // does not track splits, so its salesperson field would overwrite the
           // corrected value. Preserve the correction by omitting salesperson
           // from the update.
@@ -371,7 +372,7 @@ export async function runSalesImport(
 
             const product = barcode ? barcodeProductMap.get(barcode.toLowerCase()) : null;
             const csvPartNo = safeString(row["Part No"]);
-            // Ordorite's "Product Name" column is the canonical product name.
+            // The POS's "Product Name" column is the canonical product name.
             // The `ordernotes` column is the salesperson's freeform note
             // (delivery address, courtesy memo, etc.) -- it belongs on
             // SalesOrder.orderNotes, never on a line item's productName.
@@ -500,13 +501,13 @@ export async function runSalesImport(
           //
           // EXCEPTION (post-failure log, rewrite orphan-cancel):
           // If this order has been REWRITTEN (a sibling `<orderno> - A/B/C/D`
-          // exists in the DB), do NOT orphan-cancel. Once Ordorite creates a
+          // exists in the DB), do NOT orphan-cancel. Once the POS creates a
           // rewrite, its CSV permanently exports only the "kept" lines on the
           // base — the items that "moved" to the rewrite no longer appear in
           // the base order's CSV section, even though the base's daily-sales
-          // total per Ordorite still reflects the FULL pre-rewrite line set.
+          // total per the POS still reflects the FULL pre-rewrite line set.
           // Orphan-cleanup would silently drop those lines and the base's
-          // historical date no longer matches Ordorite's daily report. The
+          // historical date no longer matches the POS's daily report. The
           // rewrite-chain accounting (CLAUDE.md gotcha "Order rewrites keep
           // the whole chain active") relies on the base keeping its original
           // line items so daily-by-store totals reconcile. The matching `<store>OA`
@@ -542,7 +543,7 @@ export async function runSalesImport(
             });
           }
 
-          // Collect Marjan rug identifiers for consignment SOLD sync.
+          // Collect consignment rug identifiers for consignment SOLD sync.
           // Physical barcode (M-format UPC on the product) is primary; customerNumber is fallback.
           if (status !== "RETURNED" && status !== "CANCELLED") {
             const rugMatches: { barcode: string | null; customerNumber: string | null }[] = [];
@@ -551,7 +552,7 @@ export async function runSalesImport(
               const product = csvBarcode ? barcodeProductMap.get(csvBarcode.toLowerCase()) : null;
               const pn = product?.productNumber;
               if (pn && isVendorNumber(pn, prefixRules)) {
-                // The CSV barcode is Ordorite's internal number, not the physical rug.
+                // The CSV barcode is the POS's internal number, not the physical rug.
                 // The physical barcode starts with M and is the UPC that matched this product.
                 // If the CSV barcode itself starts with M, it IS the physical barcode.
                 const physicalBarcode = csvBarcode && /^M\d/.test(csvBarcode) ? csvBarcode : null;
@@ -580,9 +581,9 @@ export async function runSalesImport(
       await syncConsignmentReturns(returnedLineItems);
     }
 
-    // Mark consignment items as SOLD for any Marjan rugs on non-returned orders.
+    // Mark consignment items as SOLD for any consignment rugs on non-returned orders.
     // Match by physical barcode first (M-format, never changes), customerNumber as fallback.
-    // Include RETURNED_VENDOR in matchable statuses — rugs can come back from Marjan
+    // Include RETURNED_VENDOR in matchable statuses — rugs can come back from the consignor
     // and sell again without being re-received through the manifest import.
     const matchableStatuses: ("ON_FLOOR" | "ON_APPROVAL" | "RETURNED_VENDOR")[] = [
       "ON_FLOOR",
@@ -669,15 +670,15 @@ export async function runSalesImport(
   // Same-day rewrite cleanup. The "rewrite chain keeps all
   // three orders active, daily totals reconcile naturally" guidance above
   // is true for CROSS-DAY rewrites where the base + return + rewrite each
-  // land on their own date. But for SAME-DAY rewrites, Ordorite's
+  // land on their own date. But for SAME-DAY rewrites, the POS's
   // accounting return only covers items the customer KEPT (the rewrite
   // amount), not the items they DROPPED. The dropped items dangle in the
   // base as ACTIVE-but-uncanceled lines and double-count daily sales.
   //
   // Worked example (synthetic numbers): Base $5,000 (5 lines) + Return
   // -$3,000 (3 lines) + Rewrite $3,000 (3 lines) -> naive sum is $5,000
-  // vs. Ordorite's $3,000 (a $2,000 delta = the 2 dropped lines + extra
-  // delivery line that the customer dropped same-day, which Ordorite never
+  // vs. the POS's $3,000 (a $2,000 delta = the 2 dropped lines + extra
+  // delivery line that the customer dropped same-day, which the POS never
   // returned). User-reported.
   //
   // Cleanup rule: for any rewrite whose orderDate matches its base's
@@ -695,7 +696,7 @@ export async function runSalesImport(
   //     in yet) get linked once the UPC arrives — strategy 1/2/3.
   //   - Lines that are wrongly linked to a different product (UPC says
   //     X but line points to Y) get re-linked, syncing productName too.
-  //     Marjan-to-Marjan dups are skipped because Ordorite intentionally
+  //     Consignment-rug dups are skipped because the POS intentionally
   //     creates multiple Product records for the same physical rug as
   //     it's returned and re-consigned.
   // Scoped by the import's order numbers so the scan is cheap (Postgres
@@ -709,7 +710,7 @@ export async function runSalesImport(
     results.errors.push(`post-import relink: ${msg}`);
   }
 
-  // salesPersonId FK self-heal — Ordorite imports only populate the
+  // salesPersonId FK self-heal — the POS imports only populate the
   // `salesperson` STRING. This sweep resolves it to a StaffMember via
   // displayName + aliases match, so reports that filter by FK still
   // catch every order whose attribution can be unambiguously resolved.
@@ -763,7 +764,7 @@ async function cancelSameDayRewriteDroppedLines(
  *
  * Updated 2026-05-22 (failure-log: return-lookup bug + structural lookup fix):
  * Returns are now looked up by `(customerId, orderDate, prefix-pattern)`
- * — NOT by orderno-swap. Ordorite's accounting-return ordernos use an
+ * — NOT by orderno-swap. The POS's accounting-return ordernos use an
  * independent numeric sequence: e.g. base XXOM1001's matching return is
  * XXOA000045. The earlier `swapToReturnPrefix` produced e.g. "XXOA1001"
  * which never exists. That bug meant the runner ran against
@@ -845,12 +846,12 @@ async function cleanupOneRewriteChain(rewriteOrderno: string): Promise<number> {
   //
   // Was SalesOrder.skipSameDayRewriteCleanup until 2026-08-22: a column on the
   // product's highest-traffic table that only this importer ever read, set on
-  // exactly one order in the whole order table. It is a fact about Ordorite's
+  // exactly one order in the whole order table. It is a fact about the POS's
   // rewrite shapes, not about the sale.
   if (await hasOrderFlag(prisma, base.id, SKIP_SAME_DAY_REWRITE_CLEANUP)) return 0;
 
   // Find the matching same-day accounting return by
-  // (customerId, orderDate, prefix-pattern). Per Ordorite's
+  // (customerId, orderDate, prefix-pattern). Per the POS's
   // numbering: `<store>OA` prefixes are accounting-return
   // prefixes that use a separate numeric sequence from the base
   // `<store>OM` orders. A customer typically has at most one same-day
@@ -898,14 +899,14 @@ function sameDayReturnPrefixFor(baseOrderno: string): string | null {
 }
 
 // Load all line items from same-day accounting-return orders for a
-// given customer + date + prefix. Per CLAUDE.md gotcha 13, Ordorite's
+// given customer + date + prefix. Per CLAUDE.md gotcha 13, the POS's
 // return ordernos do NOT mirror the base orderno; the only reliable
 // match is (customer, date, status, prefix-pattern).
 async function loadSameDayReturnLines(args: {
   customerId: number;
   orderDate: Date;
   prefix: string;
-}): Promise<import("@/lib/adapters/ordorite/sameDayRewriteCleanup").LineItemForCleanup[]> {
+}): Promise<import("@/lib/adapters/legacyPos/sameDayRewriteCleanup").LineItemForCleanup[]> {
   const returns = await prisma.salesOrder.findMany({
     where: {
       customerId: args.customerId,
@@ -936,7 +937,7 @@ function toCleanupLine(li: {
   lineItemStatus: string;
   partNo: string | null;
   orderedQuantity: Prisma.Decimal | number;
-}): import("@/lib/adapters/ordorite/sameDayRewriteCleanup").LineItemForCleanup {
+}): import("@/lib/adapters/legacyPos/sameDayRewriteCleanup").LineItemForCleanup {
   return {
     id: li.id,
     lineNumber: li.lineNumber,
@@ -965,7 +966,7 @@ export interface QuotesImportResult {
 function mapQuoteStatus(row: Record<string, unknown>): "QUOTE" | "CANCELLED" {
   const status = safeString(row.Status)?.toLowerCase();
   if (status === "declined") return "CANCELLED";
-  // Ordorite marks quotes as "converted" when a deposit is taken, but the
+  // The POS marks quotes as "converted" when a deposit is taken, but the
   // back office still treats them as quotes until invoiced. Only the sales import
   // (which pulls actual invoiced orders) should create ORDER-status records.
   return "QUOTE";
@@ -989,7 +990,7 @@ export function buildQuoteLineData(row: Record<string, unknown>) {
 // Reconciles an existing quote's line items against what's now in the CSV.
 // Mirrors runSalesImport's pattern (this same file, ~line 280). Without
 // this, line-item changes after the first import are silently dropped --
-// the bug that left a quote with 1 line item when Ordorite had more
+// the bug that left a quote with 1 line item when the POS had more
 // (CLAUDE.md gotcha + post-failure log entry).
 //
 // Extracted from runQuotesImport's main loop to keep the loop's cognitive
@@ -1009,7 +1010,7 @@ async function reconcileExistingQuoteOrder(
   const firstRow = orderLines[0];
 
   // Cuscode reconciliation for existing quotes (post-2026-05-20 fix).
-  // When Ordorite adds Cuscode to the Daily Quote Report, the next
+  // When the POS adds Cuscode to the Daily Quote Report, the next
   // import of an existing quote that previously shipped without it
   // hydrates the customer link + populates SalesOrder.externalCustomerCode.
   // findOrCreateCustomer's cuscode upsert at the end of its body writes
@@ -1085,10 +1086,10 @@ async function reconcileExistingQuoteOrder(
   // already gates this function behind `existing.status === "QUOTE"`, so
   // a promoted ORDER never reaches here today. But if a future change
   // re-allows this code path for a non-QUOTE order, the freeze still
-  // protects the base. Once a sibling rewrite exists, Ordorite's CSVs
+  // protects the base. Once a sibling rewrite exists, the POS's CSVs
   // permanently export only the "kept" subset on the base — orphan-
   // cancelling here would silently drop lines that legitimately stayed
-  // on the base. See `lib/ordoriteImportRunners.ts:430` for the same
+  // on the base. See `lib/adapters/legacyPos/runners.ts` for the same
   // shape on the sales runner.
   const baseHasRewrite =
     !isRewriteOrder(orderno) &&
@@ -1585,7 +1586,7 @@ export async function runPurchaseOrdersImport(
 
   // Slice 6.14 (2026-05-22) — auto-link newly-imported real POs to the
   // buyer's existing draft POs by vendor + item overlap. The forward-
-  // flow workflow: buyer drafts items + POs → exports → Ordorite imports
+  // flow workflow: buyer drafts items + POs → exports → the POS imports
   // create real POs → THIS SWEEP attaches each real PO to the matching
   // draft PO via BuyerDraftPoRealPoLink. After this, Slice 6.7's panel
   // shows precisely the buyer's PONs, no empirical-join noise.
@@ -1659,13 +1660,13 @@ async function ensureCatchallStockLocation(): Promise<{
       name: CATCHALL_NAME,
       storeLocationId,
       locationType: "STOCK",
-      // Derive holt's committed-stock flag from Ordorite's location-naming
+      // Derive holt's committed-stock flag from the POS's location-naming
       // convention -- this adapter is the only place in the codebase that
       // knows that convention (rule 61). The catch-all's own name never
       // matches, so this is false today; deriving it at the creation site
       // rather than hardcoding `false` means the next location this adapter
       // creates gets it right instead of quietly defaulting to sellable.
-      holdsCommittedStock: ordoriteHoldsCommittedStock(CATCHALL_NAME),
+      holdsCommittedStock: legacyPosHoldsCommittedStock(CATCHALL_NAME),
     },
     update: {},
     select: { id: true, storeLocationId: true },
@@ -1708,12 +1709,12 @@ export async function runStockByItemImport(
     catMap.set(`${c.departmentId}:${c.name.toLowerCase()}`, c.id);
   }
 
-  const existingByOrdorite = await prisma.product.findMany({
+  const existingByExternalId = await prisma.product.findMany({
     where: { externalId: { not: null } },
     select: { id: true, externalId: true },
   });
   const productByExternalId = new Map<number, number>();
-  for (const p of existingByOrdorite) {
+  for (const p of existingByExternalId) {
     if (p.externalId) productByExternalId.set(p.externalId, p.id);
   }
 
@@ -1987,7 +1988,7 @@ async function autoLinkBuyerDrafts(updatedBy: string | null): Promise<number> {
   if (drafts.length === 0) return 0;
 
   // Build the candidate barcode set, then look up Products via the Upc
-  // table (one Product can have multiple UPCs — Marjan rugs especially).
+  // table (one Product can have multiple UPCs — consignment rugs especially).
   const candidateBarcodes = drafts
     .map((d) => d.barcode)
     .filter((b): b is string => b !== null && b.trim() !== "");
@@ -2251,15 +2252,15 @@ export async function runPaymentsImport(
         continue;
       }
 
-      // Ordorite's rewrite flow: base order gets a real card payment, then
-      // Ordorite creates a credit note for the return and "applies" it to the
+      // The POS's rewrite flow: base order gets a real card payment, then
+      // the POS creates a credit note for the return and "applies" it to the
       // rewrite. The application shows up in the payments CSV as a
       // paymentType="Gift Card" row on the rewrite order -- with NO gift card
-      // barcode or id -- because Ordorite uses that paymentType label for its
+      // barcode or id -- because the POS uses that paymentType label for its
       // internal credit-note transfers. It is not a real gift card redemption
       // and the money already lives on the base's card payment. Importing it
       // double-counts the tender and breaks customer balance math. Skip it.
-      // See docs/domains/ordorite-import.md "Rewrites -- what the payments
+      // See import-pipeline.md "Rewrites -- what the payments
       // really mean" and CLAUDE.md Key Gotchas.
       if (
         orderno &&
@@ -2368,7 +2369,7 @@ export async function runInvoicesImport(
   };
 
   // Pre-group rows by invoiceNo so we can sum per-line tax across all lines before
-  // upserting. Ordorite's invoice export allocates tax per line item, so we must
+  // upserting. The POS's invoice export allocates tax per line item, so we must
   // accumulate across all rows for a given invoice to get the correct total.
   type InvoiceGroup = {
     invoiceDate: Date;
@@ -2522,7 +2523,7 @@ export async function runInvoicesImport(
       status: { in: ["QUOTE", "ORDER"] },
       invoices: { some: {} },
     },
-    data: { status: "FULFILLED", updatedBy: "ordorite-invoice-import" },
+    data: { status: "FULFILLED", updatedBy: "legacy-pos-invoice-import" },
   });
   results.ordersPromoted = promoted.count;
 
@@ -2591,13 +2592,13 @@ export async function runCustomerImport(
       // Enrich email if the customer record is missing one. Skip the
       // update when the email is already attached to a different
       // customer (Customer.email is @unique) -- happens when two
-      // Ordorite customers share an email or a customer was merged
+      // the POS customers share an email or a customer was merged
       // upstream. Logging the conflict lets us reconcile manually
       // rather than crashing the whole batch.
       //
       // Skip untrusted-domain emails entirely (failure log).
       // Salespeople sometimes typed their own staff email when entering
-      // customers in Ordorite. Those values aren't actually the
+      // customers in the POS. Those values aren't actually the
       // customer's email and propagating them caused wrongly-
       // merged customers. isUntrustedMergeEmail
       // covers the deployment's own domain, known typos of it, and any future
@@ -2620,7 +2621,7 @@ export async function runCustomerImport(
       }
 
       // Parse and upsert address
-      const parsed = parseOrdoriteAddress(row.Address);
+      const parsed = parseLegacyPosAddress(row.Address);
       if (parsed) {
         const zip = safeString(row.Zip) || "";
         const existing = await prisma.customerAddress.findFirst({
@@ -2893,7 +2894,7 @@ export async function runReceivedItemsImport(
   }
 
   // Recalculate PO status: if all line items now have receiving records,
-  // mark the PO as RECEIVED_FULL even if Ordorite's CSV didn't say "received."
+  // mark the PO as RECEIVED_FULL even if the POS's CSV didn't say "received."
   // This catches POs where items trickle in across multiple import batches.
   const touchedPOIds = new Set<number>();
   for (const row of records) {
@@ -2915,7 +2916,7 @@ export async function runReceivedItemsImport(
   // out-of-band receipt, a historical backfill, migration 20260408) would
   // otherwise stay CONFIRMED forever -- present on the received list but never
   // flipped to RECEIVED_FULL, so its status drifts out of sync with reality.
-  // The candidate set is small (tens of POs). Marjan flips still route through
+  // The candidate set is small (tens of POs). Consignor flips still route through
   // newlyReceivedPOs below, so the consignment PAID sync fires for them.
   const stragglerPOs = await prisma.purchaseOrder.findMany({
     where: {
@@ -2927,7 +2928,7 @@ export async function runReceivedItemsImport(
   for (const po of stragglerPOs) touchedPOIds.add(po.id);
 
   for (const poId of touchedPOIds) {
-    // Zero-qty PO lines from Ordorite are effectively cancelled lines --
+    // Zero-qty PO lines from the POS are effectively cancelled lines --
     // exclude them from both the denominator and numerator so they can't
     // trap the PO at RECEIVED_PARTIAL forever (GitHub #113, CLAUDE.md rule 39).
     const lines = await prisma.purchaseOrderItem.findMany({
@@ -3108,13 +3109,13 @@ export async function runInboundItemsImport(
           updatedBy: userEmail,
           // Stamp every PO present in this export. The inbound report shows
           // only POs from the latest run, so received/cancelled POs (which
-          // drop off Ordorite's inbound snapshot) fall off automatically.
+          // drop off the POS's inbound snapshot) fall off automatically.
           lastSeenInInboundExport: importRunAt,
         };
         if (vendorId) updateData.vendorId = vendorId;
-        // Always refresh the ESD from the export — Ordorite is authoritative
+        // Always refresh the ESD from the export — the POS is authoritative
         // and reschedules it. The old `&& !existingPO.expectedDelivery` guard
-        // froze the first ESD forever, so rescheduled POs (Ordorite ESD moved
+        // froze the first ESD forever, so rescheduled POs (the POS ESD moved
         // to a later month) kept the stale past date and showed as falsely
         // overdue on the inbound report. Origin: a PO-aging report review.
         if (expectedDate) {
@@ -3258,7 +3259,7 @@ export async function runTempItemsImport(
         poId = existingPO.id;
         results.purchaseOrdersUpdated++;
       } else {
-        // Status from Ordorite's Postatus column. The temp report
+        // Status from the POS's Postatus column. The temp report
         // typically sends `Postatus = "Temporary"` which maps to
         // DRAFT via PO_STATUS_MAP. Pre-2026-05-21 this was hardcoded
         // to CONFIRMED — the runner had never delivered (router
@@ -3442,10 +3443,10 @@ export async function runPOLineExportImport(
 }
 
 // ---------------------------------------------------------------------------
-// Products import (`<Org>` Item Export / manual Ordorite products CSV)
+// Products import (`<Org>` Item Export / manual POS products CSV)
 // ---------------------------------------------------------------------------
 // The same runner backs the daily Gmail auto-import (`<Org>_Item_Export` —
-// a large export) AND the manual admin upload at /admin/import/ordorite-products
+// a large export) AND the manual admin upload
 // (any chunk size the UI feeds it). Column aliases cover both shapes:
 //
 //   manual CSV historical: id, part_no, Product_name, description,
@@ -3486,7 +3487,7 @@ export interface ProductsImportOptions {
    * Manual UI checkbox — when true, products already marked inactive or
    * discontinued in the DB are skipped on update so operator overrides
    * survive re-import. The Gmail auto-import passes false because every
-   * row in the item export is by definition active (Ordorite omits
+   * row in the item export is by definition active (the POS omits
    * discontinued products from the export).
    */
   skipInactive?: boolean;
@@ -3785,7 +3786,7 @@ async function syncProductUpcs(
         upc: u.upc,
         productId: u.productId,
         sortOrder: 0,
-        source: "ORDORITE",
+        source: "IMPORT",
       })),
       skipDuplicates: true,
     });
@@ -3794,7 +3795,7 @@ async function syncProductUpcs(
     const updateOps = upcUpdates.map((u) =>
       prisma.upc.update({
         where: { upc: u.upc },
-        data: { productId: u.productId, source: "ORDORITE" },
+        data: { productId: u.productId, source: "IMPORT" },
       }),
     );
     await prisma.$transaction(updateOps);
@@ -3815,13 +3816,13 @@ async function prepareProductRow(
   row: Record<string, unknown>,
   taxonomy: ProductsImportTaxonomyCache,
 ): Promise<PreparedProductRow | { error: string }> {
-  const externalIdRaw = safeString(getCellValue(row, ["id", "Id", "OrdoriteID"])) ?? "";
+  const externalIdRaw = safeString(getCellValue(row, ["id", "Id", POS_ITEM_ID_COLUMN])) ?? "";
   const externalId = Number.parseInt(externalIdRaw);
   const partNo =
     safeString(getCellValue(row, ["part_no", "partNo", "Part No", "ProductNumber"])) ?? "";
 
   if (!externalIdRaw || Number.isNaN(externalId)) {
-    return { error: `[${partNo || "unknown"}]: Missing or invalid Ordorite ID` };
+    return { error: `[${partNo || "unknown"}]: Missing or invalid POS ID` };
   }
   if (!partNo) {
     return { error: `[id:${externalId}]: Missing product number` };
@@ -3858,7 +3859,7 @@ async function prepareProductRow(
     ? await ensureProductsImportType(typeName, categoryId, taxonomy.typeCache)
     : null;
 
-  // "0" is an Ordorite placeholder for "no barcode" — treat as blank.
+  // "0" is a POS placeholder for "no barcode" — treat as blank.
   const barcodeRaw = safeString(
     getCellValue(row, ["Barcode No", "Barcode", "barcode", "BARCODE", "UPC"]),
   );
@@ -3884,7 +3885,7 @@ async function prepareProductRow(
     length: safeFloat(getCellValue(row, ["length", "Length", "Item Length"])) || undefined,
     width: safeFloat(getCellValue(row, ["width", "Width", "Item Width"])) || undefined,
     height: safeFloat(getCellValue(row, ["height", "Height", "Item Height"])) || undefined,
-    // Weight is NOT in the item export — Ordorite doesn't capture
+    // Weight is NOT in the item export — the POS doesn't capture
     // it on their product master. Manual imports may still set it.
     weight: safeFloat(getCellValue(row, ["weight", "Weight"])) || undefined,
     barcode,

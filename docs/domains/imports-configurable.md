@@ -3,7 +3,7 @@
 Declarative, no-code CSV/XLSX importer definitions — the mechanism behind
 the README's promise ("CSV column mappings; vendor/POS formats ship as
 reusable presets"), which did not exist before this stage. This doc covers
-what Stage 1 actually built. For the existing hand-coded Ordorite/POS
+what Stage 1 actually built. For the existing hand-coded POS
 pipeline (still the live path for every production import today), see
 `imports-overview.md` and `import-pipeline.md` — this doc doesn't replace
 either of those yet.
@@ -75,8 +75,8 @@ Before Stage 1, every new data source meant a new hand-coded admin page plus
 a new server-side runner (14 of them under
 `app/src/app/(dashboard)/app/admin/import/`, plus a handful more for
 pricing/gift-cards/pos-import). Adding a source required writing code. The
-motivating symptom: `lib/adapters/ordorite/shared.ts::resolvePaymentMode`
-hardcodes Ordorite's numeric payment codes to display strings (the card
+motivating symptom: `lib/adapters/legacyPos/shared.ts::resolvePaymentMode`
+hardcodes the POS's numeric payment codes to display strings (the card
 processor's name, "Credit Note", ...), which then land **verbatim** in
 `Payment.paymentType` — a free-text column. Native payments instead derive
 `paymentType` from the bounded `PaymentMethod` enum via `METHOD_DISPLAY`
@@ -102,7 +102,7 @@ source's export semantics**, not how the CSV happens to be shaped:
   zero. **This requires reconciliation logic that declarative config cannot
   express.**
 
-Ordorite is the full-state kind, and that single fact — not "sales data is
+The POS is the full-state kind, and that single fact — not "sales data is
 special" — explains every quirk documented in `import-pipeline.md`:
 same-day rewrite chains, orphan line cleanup, zero-quantity-means-cancelled,
 the consignment wash. None of those are inherent to sales data; a vendor
@@ -298,13 +298,13 @@ translate. A future runner whose fields _do_ need value-mapping should call
 `lib/imports/engine.ts`'s value-mapping step explicitly rather than
 skipping it the way these two do.
 
-## Proof on the motivating case: Ordorite payment modes
+## Proof on the motivating case: the POS payment modes
 
-`app/src/lib/imports/data/ordoritePaymentMode.ts` is **data, not code** —
+`app/src/lib/imports/data/legacyPosPaymentMode.ts` is **data, not code** —
 the value-mapping set for the eight payment modes named in the Stage 1
 brief:
 
-| Ordorite display string (`resolvePaymentMode` output) | → holt `PaymentMethod` |
+| The POS display string (`resolvePaymentMode` output) | → holt `PaymentMethod` |
 | ----------------------------------------------------- | ---------------------- |
 | (the card processor's name)                           | `CARD`                 |
 | Card Not Present                                      | `CARD`                 |
@@ -315,23 +315,23 @@ brief:
 | Charity                                               | `OTHER`                |
 | Other                                                 | `OTHER`                |
 
-`__tests__/imports/ordoritePaymentMode.test.ts` runs this exact data
+`__tests__/imports/legacyPosPaymentMode.test.ts` runs this exact data
 through `runImportEngine` and asserts every one of the eight rows lands on
 holt's bounded `PaymentMethod` vocabulary, and that a ninth, unseeded value
 ("Cryptocurrency") is reported as an unmapped-value error rather than
-passed through. `prisma/seed/ordoritePaymentMode.ts` persists the same data
+passed through. `prisma/seed/legacyPosPaymentMode.ts` persists the same data
 as a real (but `isActive: false`) `ImportDefinition` row, following the
 existing `prisma/seed/*.ts` convention — idempotent, not executed as part
 of this stage's verification.
 
-**What Stage 1 does NOT do, stated plainly:** the live Ordorite
-sales/payments runner (`lib/adapters/ordorite/runners.ts`) and
-`resolvePaymentMode` (`lib/adapters/ordorite/shared.ts`) are **completely
+**What Stage 1 does NOT do, stated plainly:** the live POS
+sales/payments runner (`lib/adapters/legacyPos/runners.ts`) and
+`resolvePaymentMode` (`lib/adapters/legacyPos/shared.ts`) are **completely
 unchanged**. `Payment.paymentType` on every existing and newly-imported row
 still comes from the hardcoded `PAYMENT_MODE_MAP`. This section exists to
 prove the mechanism works, not to ship it — wiring it into the live path,
 and by extension migrating any of the 14 hand-coded importers, is Stage 3
-territory. Ordorite is also `RECONCILE`-shaped (full-state re-export), so
+territory. The POS is also `RECONCILE`-shaped (full-state re-export), so
 that migration is not "point the sales runner at a value-mapping table" —
 it needs `runnerKey`-backed reconciliation logic that still consumes the
 definition's mappings, exactly the pattern customer/product already prove.
@@ -419,7 +419,7 @@ the six transforms + a natural key) can express:
 - Renaming/reshaping arbitrary CSV columns onto a fixed entity's fields
 - Coercing types (trim, case, number, date, currency)
 - Translating a source system's vocabulary onto holt's bounded vocabulary
-  (the Ordorite payment-mode case)
+  (the POS payment-mode case)
 - Insert-vs-update classification by a natural key, for sources where "the
   same row reappearing" means "this is the current state of that record"
 
@@ -461,12 +461,12 @@ secretly insufficient.
 - `app/src/lib/imports/runners/customerRunner.ts`,
   `.../productRunner.ts`, `.../adaptColumnMapping.ts` — the two registered
   runners proving the seam
-- `app/src/lib/imports/data/ordoritePaymentMode.ts` — the Ordorite
+- `app/src/lib/imports/data/legacyPosPaymentMode.ts` — the POS
   value-mapping proof data
-- `app/prisma/seed/ordoritePaymentMode.ts` — persists that data as a real
+- `app/prisma/seed/legacyPosPaymentMode.ts` — persists that data as a real
   (inactive) `ImportDefinition`
 - `app/__tests__/imports/` — `transforms.test.ts`, `engine.test.ts`,
-  `validation.test.ts`, `runnerRegistry.test.ts`, `ordoritePaymentMode.test.ts`
+  `validation.test.ts`, `runnerRegistry.test.ts`, `legacyPosPaymentMode.test.ts`
 
 ## Cross-references
 
@@ -475,7 +475,7 @@ secretly insufficient.
   every apply writes.
 
 - `imports-overview.md` — the canonical map of the live, hand-coded
-  Ordorite/POS import pipeline this stage does not yet touch
+  POS import pipeline this stage does not yet touch
 - `import-pipeline.md` — same-day rewrite cleanup, orphan line cleanup,
   and the other `RECONCILE`-shaped logic that motivates the escape hatch
 - `docs/domains/consignment.md` — the consignment wash (another

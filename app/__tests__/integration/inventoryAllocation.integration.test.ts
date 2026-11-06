@@ -268,7 +268,7 @@ describe("inventory allocation (real DB)", () => {
     // The inversion that proves the string literal is really gone. Until
     // 2026-08 this exact row was excluded from free stock by
     // `sl.name ILIKE 'customer%'` hardcoded in shared inventory code -- an
-    // Ordorite naming convention every deployment inherited whether or not
+    // the POS naming convention every deployment inherited whether or not
     // it used it (CLAUDE.md rule 61).
     const { store, decoy, product, order } = await seed();
     await stockAt({

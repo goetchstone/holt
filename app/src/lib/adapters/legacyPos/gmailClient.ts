@@ -1,4 +1,4 @@
-// /app/src/lib/adapters/ordorite/gmailClient.ts
+// /app/src/lib/adapters/legacyPos/gmailClient.ts
 //
 // Server-only Gmail API client using a service account with domain-wide
 // delegation, used by the legacy-POS report-import orchestrator. Credentials

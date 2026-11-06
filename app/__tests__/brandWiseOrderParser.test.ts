@@ -58,7 +58,7 @@ describe("parseBrandWiseOrderText", () => {
     expect(box?.name).toBe('Chevron Wood Box- 13"x 6.5"x 3.25"');
   });
 
-  it("carries no UPC — barcode is Ordorite's to assign", () => {
+  it("carries no UPC — barcode is the POS's to assign", () => {
     // The document has no UPC column; the parser exposes only the SKU.
     expect(order.items.every((i) => !("upc" in i))).toBe(true);
   });

@@ -4,7 +4,7 @@
 // Postgres, because the split IS raw SQL (`getBuyersSummary` query 1 and
 // `getBuyersPositions`) and nothing short of a database exercises it.
 //
-// Until 2026-08 that SQL asked `sl.name ILIKE 'customer%'` -- an Ordorite /
+// Until 2026-08 that SQL asked `sl.name ILIKE 'customer%'` -- a POS /
 // one deployment's location-naming convention hardcoded into shared reporting code.
 // Any deployment that named its holding locations anything else had its
 // committed stock counted as available to sell (CLAUDE.md rule 61). It now
@@ -148,7 +148,7 @@ describe("Buyers Report committed-stock split (real DB)", () => {
 
   it("flipping the flag moves the stock between the two columns", async () => {
     // The admin-facing behaviour the flag exists for: a deployment that
-    // doesn't use Ordorite naming can now classify its own locations.
+    // doesn't use the POS naming can now classify its own locations.
     const { store, decoy, product } = await seed();
     await stockAt({
       productId: product.id,

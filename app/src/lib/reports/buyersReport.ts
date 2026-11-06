@@ -16,7 +16,7 @@
 // weeks-of-supply, or sell-through math here.
 //
 // The one thing that HAS changed: the customer-hold split used to test
-// `sl.name ILIKE 'customer%'` — an Ordorite naming convention hardcoded into
+// `sl.name ILIKE 'customer%'` — a POS naming convention hardcoded into
 // shared reporting code (rule 61). It now reads
 // `StockLocation.holdsCommittedStock`, which migration
 // 20260806163000_stock_location_holds_committed_stock backfilled from
@@ -267,7 +267,7 @@ export async function getBuyersSummary(
     // 1) Floor stock per product, AND stock-at-a-customer-hold-location.
     //    Splits InventoryPosition on StockLocation.holdsCommittedStock:
     //    stock sitting in a flagged location is already spoken for and
-    //    should NOT count as available-to-sell. In Ordorite-fed data
+    //    should NOT count as available-to-sell. In POS-fed data
     //    those are the locations named "Customer ..." (the adapter sets
     //    the flag from that name); a deployment with different naming
     //    sets the flag from the admin UI instead.
@@ -668,7 +668,7 @@ export async function getBuyersPositions(
             AND poi."orderLineItemId" IS NULL
             -- Issue #168 hardening (2026-05-15): the POR-chain exclusion
             -- below now requires the open-order line to match THIS poi's
-            -- productId. the POS reuses POR strings across totally
+            -- productId. The POS reuses POR strings across totally
             -- unrelated products (especially in apparel — see
             -- buyersReport.ts getBuyersSummary comment block); without the
             -- productId gate, legit floor-stock POs were being wrongly

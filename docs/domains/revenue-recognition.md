@@ -65,7 +65,7 @@ verified by an adversarial check.
 There is **no code path** that creates or issues an `Invoice` as a consequence
 of any delivery, dispatch, stop completion, run completion or appointment
 completion. Every `Invoice` writer is one of three: the billing UI
-(`invoiceService.ts:234`), the Ordorite CSV importer (`runners.ts:2468`), or the
+(`invoiceService.ts:234`), the POS CSV importer (`runners.ts:2468`), or the
 demo seed (`salesOrders.ts:278`).
 
 A signed, photographed, physically completed delivery leaves the `SalesOrder`
@@ -161,8 +161,8 @@ revenue **drift**, permanently, on every deployment that takes special orders.
 
 ## Imported history expresses the same policy
 
-An Ordorite-fed deployment's invoicing comes from a **report downloaded out of
-Ordorite**, and that report already encodes the policy exactly:
+A POS-fed deployment's invoicing comes from a **report downloaded out of
+the POS**, and that report already encodes the policy exactly:
 
 | In the downloaded report | Means | Accounting |
 | --- | --- | --- |
@@ -429,7 +429,7 @@ Two things in the reporting layer that **should** change, both cheap:
    is written by nothing. There is no reversal path anywhere today.
 3. **Should the two `FULFILLED` status endpoints keep working as they do**, or
    start refusing to move an order to FULFILLED without a completed stop?
-4. **The Ordorite promotion** at `runners.ts:2529-2536` sets invoice ⇒ FULFILLED
+4. **The POS promotion** at `runners.ts:2529-2536` sets invoice ⇒ FULFILLED
    for *every* order in the database carrying any invoice, not just the rows in
    the import run. Correct as a reconstruction rule, too broad as a live one —
    Step 0 scopes it.

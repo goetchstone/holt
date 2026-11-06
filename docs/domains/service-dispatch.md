@@ -22,6 +22,8 @@ ZIP-based delivery zone pricing. `DeliveryZone` has `DeliveryZoneZip` children m
 
 **Zones are deployment data**: zones and their ZIP lists are entered per deployment. (An early zone-seeding migration is not part of this repository's migration history.)
 
+**The settings page and what it reads** (`admin/service/delivery-zones/DeliveryZonesView.tsx`): `GET /api/service/delivery-zones` answers a bare list, each zone counting its ZIPs in `_count.zipCodes`, and `perPieceFee` can be null. With `?zipCode=` it answers that ZIP's zone, or null. `[id]/zips` answers a bare list of rows on GET, and takes `zipCodes` on POST and DELETE. POST answers `{ added, reassigned, invalid }`: two counts and a list. Until 2026-11-06 the page read `.zones`, `.zips` and `.zone` and sent `zips`, so it listed no zones whatever was saved. Held to the real routes by `__tests__/integration/deliveryZoneZips.integration.test.ts`.
+
 **ZIP+4 handling**: the POS customer addresses include ZIP+4 format (e.g., `12345-6789`). All dispatch APIs strip ZIP to 5 digits before zone lookup. Any new zone-matching code must do the same (`zip.substring(0, 5)`).
 
 **One lookup for one ZIP (2026-10-29).** `zoneForZip()` in `lib/delivery/deliveryFee.ts` is the zone that delivers to an address. It matches by the first five digits, skips a switched-off zone (`isActive: false`), and picks the first zone by `sortOrder` when a ZIP is listed in two. `orderDeliveryZip()` beside it is the address chain below (the order's delivery address, else the customer's first address by id). Both the delivery fee and run assignment (`lib/deliveryService.ts`, which stamps `ServiceAppointment.deliveryZoneId`) use them. The dispatch boards still build their own ZIP-to-zone maps in bulk (`ready-to-deliver.ts`, `orders-by-zone.ts`, `delivery-planner.ts`). Those maps don't skip switched-off zones, and a ZIP in two zones goes to whichever row came last. That is in ROADMAP, not fixed. The old `resolveDeliveryZone()` had no callers and is gone.
@@ -234,6 +236,7 @@ Left open (ROADMAP GAP-11):
 - `pages/api/service/` -- service appointment API endpoints
 - `pages/api/service/house-calls/index.ts` -- books a house call and the order line that charges for it; the line's cost is the house-call product's cost through `productCost` (landed, else catalog: `docs/domains/sales-orders.md`, "A new line's cost")
 - `pages/api/service/purchase-order-lookup.ts` -- the "Link PO" search on a case task: PO number and vendor name only (no totals, cost or notes), gated on `service.write` like the task save it serves. The purchasing list (`purchasing.read`) stays with purchasing
+- `app/service/house-calls/new/NewHouseCallView.tsx` -- the form offers the saved addresses the customer search already returned (`useCustomerSearch`, `addresses`). `GET /api/customers/[id]/addresses` does not exist; that route writes only
 - `pages/service/` -- service pages (dispatch queue, house calls)
 - `lib/service/checklists.ts` -- service checklists: Settings writes and `applyChecklist` (GAP-11); `lib/service/checklistsShared.ts` -- their limits and shapes, shared with the screens
 - `pages/api/service/checklists/` -- the store's checklists (GET active: `service.write` or `admin.config`; GET ?all, POST, PUT, DELETE: `admin.config`); `pages/api/service/cases/[id]/checklist.ts` -- give a case one

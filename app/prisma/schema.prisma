@@ -175,7 +175,7 @@ model Vendor {
 enum VendorPricingModel {
   FLAT // Hooker, Currey, INET, Jellycat, Matouk, SMEG, etc.
   GRADE_BASED // Wesley Hall, HF Custom, Lee, MT Company, CR Laine
-  FRAME_PLUS_CUSHION // Jensen, Kingsley Bate, American Leather
+  FRAME_PLUS_CUSHION // Jensen, Kingsley Bate
   SPECIES_MATRIX // Simply Amish
   MULTI_AXIS // Zimmerman Chair (species x finish x upholstery)
   AREA_BASED // Fibreworks (per sq ft / sq yd)
@@ -313,7 +313,7 @@ model VendorStyle {
 // Products come from the POS imports (flat items) or are created when
 // a VendorStyle is configured and ordered. Products are NOT unique by
 // (productNumber, vendorId) — the same part number from the same vendor
-// can appear multiple times. the POS records deduplicate by externalId.
+// can appear multiple times. The POS records deduplicate by externalId.
 // ---------------------------------------------------------------------------
 
 model Product {
@@ -898,7 +898,7 @@ model StyleOptionOverride {
 // VENDOR PROGRAMS
 //
 // Some vendors offer named programs with different pricing rules:
-// American Leather Preferred, CR Laine Simplicity, Pom Pom Elite tiers, etc.
+// CR Laine Simplicity, Pom Pom Elite tiers, etc.
 // ---------------------------------------------------------------------------
 
 model VendorProgram {
@@ -1965,7 +1965,7 @@ model StockLocation {
   /// ON HAND but NOT available to sell. The free-stock predicate
   /// (lib/inventory/allocation.ts) and the Buyers Report's floor-vs-customer
   /// split both read this flag. An admin sets it per location; an import
-  /// adapter may derive it from its own source convention (the Ordorite
+  /// adapter may derive it from its own source convention (the POS
   /// adapter derives it from its "Customer%" location naming).
   holdsCommittedStock Boolean @default(false)
 
@@ -3162,7 +3162,7 @@ model AdapterOrderFlag {
   salesOrderId Int
   salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
 
-  /// Adapter key from lib/adapters/index.ts, e.g. "ordorite".
+  /// Adapter key from lib/adapters/index.ts (its stored id).
   adapter String
   /// The adapter's own name for the flag, e.g. "skipSameDayRewriteCleanup".
   flag    String
@@ -6631,7 +6631,7 @@ model TicketAttachment {
 // config or needs a code-backed runner:
 //   INSERT_ONLY / UPSERT -- the source is a delta or one-time dump; every row
 //     is a fact to land. Fully engine-driven, no runnerKey required.
-//   RECONCILE -- the source is a full-state re-export (e.g. Ordorite); the
+//   RECONCILE -- the source is a full-state re-export (e.g. the POS); the
 //     importer must diff against existing data (dropped lines, rewrites,
 //     zero-qty-means-cancelled). That diffing is inherently code, so
 //     RECONCILE definitions MUST name a registered runnerKey — enforced by

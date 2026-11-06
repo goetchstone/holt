@@ -14,7 +14,7 @@
 // getActiveSourceAdapter() -- and adding a second later would be a smell.
 
 import { noneAdapter } from "@/lib/adapters/noneAdapter";
-import { ordoriteAdapter } from "@/lib/adapters/ordorite/adapter";
+import { legacyPosAdapter } from "@/lib/adapters/legacyPos/adapter";
 import type { SourceAdapter } from "@/lib/adapters/types";
 import { getAppSettings } from "@/lib/appSettings";
 import { isFeatureEnabled } from "@/lib/featureCatalog";
@@ -26,7 +26,7 @@ export type { ImportRunSummary, SourceAdapter, SourceAdapterReadiness } from "@/
  * SourceAdapter, add one line here, ship. That is the entire cost, and it is
  * the claim this module exists to make true.
  */
-const ADAPTERS: SourceAdapter[] = [noneAdapter, ordoriteAdapter];
+const ADAPTERS: SourceAdapter[] = [noneAdapter, legacyPosAdapter];
 
 const BY_ID = new Map(ADAPTERS.map((a) => [a.id, a]));
 

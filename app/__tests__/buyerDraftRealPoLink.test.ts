@@ -31,17 +31,17 @@ describe("computeLinkedPos", () => {
         id: 1,
         partNumber: "AL-BNY",
         productName: "Bentley",
-        vendorName: "American Leather",
+        vendorName: "Larkmoor Leatherworks",
         fulfilledProductId: 1543,
         draftPoId: 100,
       },
     ];
-    const draftPos: DraftPoInput[] = [{ id: 100, vendorName: "American Leather" }];
+    const draftPos: DraftPoInput[] = [{ id: 100, vendorName: "Larkmoor Leatherworks" }];
     const realPos: RealPoInput[] = [
       {
         id: 200,
         poNumber: "PON90001",
-        vendor: "American Leather",
+        vendor: "Larkmoor Leatherworks",
         vendorId: 2,
         orderDate: new Date("2025-11-01"),
         status: "RECEIVED_FULL",
@@ -575,8 +575,8 @@ describe("detectVendorMismatches", () => {
       detectVendorMismatches([
         {
           draftPoId: 1,
-          draftVendorName: "American Leather",
-          realVendorNames: ["American Leather"],
+          draftVendorName: "Larkmoor Leatherworks",
+          realVendorNames: ["Larkmoor Leatherworks"],
         },
       ]),
     ).toEqual([]);

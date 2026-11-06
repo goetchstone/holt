@@ -5,7 +5,7 @@
 // ApparelOrderRow[] for the Apparel Order Import tool. Ported from
 // furniture-configurator's apparelOrderVendors.test.ts, with the
 // catalog-matching-only tests (pickBestCatalogRows / groupStyleCandidates
-// / rankColorSuggestions / ordoriteId) dropped -- holt's Buyer Drafts
+// / rankColorSuggestions / POS id) dropped -- holt's Buyer Drafts
 // domain has no catalog-matching step (see lib/apparelOrderVendors.ts
 // header comment).
 

@@ -38,10 +38,10 @@
 //      upsert, orphan-freeze, AND the post-import
 //      cancelSameDayRewriteDroppedLines sweep that calls
 //      findDroppedBaseLineIds). This is the highest-consequence path
-//      in the importer — it's what the Ordorite parallel-run drift
+//      in the importer — it's what the POS parallel-run drift
 //      checker's trustworthiness rests on — and until now only the
 //      pure helper (`__tests__/sameDayRewriteCleanup.test.ts`) and
-//      source-text tripwires (`__tests__/ordoriteImportRunners.
+//      source-text tripwires (`__tests__/legacyPosImportRunners.
 //      regression.test.ts`) exercised this logic; neither goes
 //      through Prisma/Postgres. See "Same-day rewrites — the
 //      dropped-line edge case" in the domain doc for the full
@@ -60,8 +60,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
-import { runSalesImport } from "@/lib/adapters/ordorite/runners";
-import { SAME_DAY_REWRITE_DROP_CANCEL_REASON } from "@/lib/adapters/ordorite/shared";
+import { runSalesImport } from "@/lib/adapters/legacyPos/runners";
+import { SAME_DAY_REWRITE_DROP_CANCEL_REASON } from "@/lib/adapters/legacyPos/shared";
 
 const ORDERNO = "AAOM38000";
 
@@ -713,7 +713,7 @@ describe("runSalesImport — real-DB scenarios", () => {
   //
   // Fixture shape mirrors the canonical same-day-rewrite case pinned by the
   // pure-helper unit tests (__tests__/sameDayRewriteCleanup.test.ts),
-  // adapted to real Ordorite order-number grammar so the WHOLE chain
+  // adapted to real POS order-number grammar so the WHOLE chain
   // — grouping, upsert, the rewrite-freeze on orphan-cleanup, AND the
   // post-import cancelSameDayRewriteDroppedLines sweep — runs through
   // Prisma/Postgres, not just the pure helper in isolation:
@@ -728,7 +728,7 @@ describe("runSalesImport — real-DB scenarios", () => {
   //   "kept" items: present on base, negated on the return, re-billed
   //   on the rewrite. Lines 4-5 (LOUNGE-A, extra DELIVERY) are
   //   DROPPED — the customer removed them before close-of-business,
-  //   Ordorite's accounting return never covers them (the exact
+  //   the POS's accounting return never covers them (the exact
   //   post-failure-log 2026-05-12 quirk), and they must end up
   //   CANCELLED so daily-sales reports (which filter lineItemStatus
   //   != CANCELLED) don't double-count them.
@@ -767,7 +767,7 @@ describe("runSalesImport — real-DB scenarios", () => {
         tripleCsvRow(BASE_ORDERNO, "DELIVERY", 1, 99),
         tripleCsvRow(BASE_ORDERNO, "LOUNGE-A", 2, 1600), // dropped
         tripleCsvRow(BASE_ORDERNO, "DELIVERY", 1, 99), // dropped (extra)
-        // Accounting return — negates only the KEPT lines. Ordorite
+        // Accounting return — negates only the KEPT lines. The POS
         // never returns the dropped lounges/extra-delivery — that's
         // the whole quirk this cleanup exists to correct for.
         tripleCsvRow(RETURN_ORDERNO, "CUSHION-A", -3, -300),
@@ -828,7 +828,7 @@ describe("runSalesImport — real-DB scenarios", () => {
       // explicitly asked for ("asserting the cancellations match the
       // helper's output").
       const { findDroppedBaseLineIds } =
-        await import("@/lib/adapters/ordorite/sameDayRewriteCleanup");
+        await import("@/lib/adapters/legacyPos/sameDayRewriteCleanup");
       const rewrite = await prisma.salesOrder.findUnique({
         where: { orderno: REWRITE_ORDERNO },
         include: { lineItems: true },
@@ -888,7 +888,7 @@ describe("runSalesImport — real-DB scenarios", () => {
       // ACTIVE line revenue across the WHOLE base+return+rewrite chain
       // must equal the rewrite's total exactly — not the base's total,
       // not base+rewrite double-counted. This is the actual dollar
-      // assertion the Ordorite parallel-run drift checker depends on.
+      // assertion the POS parallel-run drift checker depends on.
       const [base, rewrite] = await Promise.all([
         prisma.salesOrder.findUnique({
           where: { orderno: BASE_ORDERNO },

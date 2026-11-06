@@ -1,25 +1,24 @@
-// /app/src/lib/adapters/ordorite/adapter.ts
+// /app/src/lib/adapters/legacyPos/adapter.ts
 //
-// The Ordorite source adapter: the SourceAdapter face of everything else in
+// The POS source adapter: the SourceAdapter face of everything else in
 // this folder. Deliberately thin -- it wires the existing orchestrator to the
 // seam and adds the one thing the orchestrator never had, a readiness check
 // that does not require attempting an import to discover that Gmail was never
 // configured.
 //
-// Ordorite delivers by emailing CSV reports to a mailbox holt polls. That is a
-// fact about Ordorite, which is why it lives here and not in the route.
+// The POS delivers by emailing CSV reports to a mailbox holt polls. That is a
+// fact about the POS, which is why it lives here and not in the route.
 
 import type { ImportRunSummary, SourceAdapter, SourceAdapterReadiness } from "@/lib/adapters/types";
 import { resolveCredential } from "@/lib/integrationCredentials";
 import { runGmailImport } from "./orchestrator";
+import { LEGACY_POS_ADAPTER_ID } from "./storedNames";
 
-export const ORDORITE_ADAPTER_ID = "ordorite";
-
-export const ordoriteAdapter: SourceAdapter = {
-  id: ORDORITE_ADAPTER_ID,
-  label: "Ordorite",
+export const legacyPosAdapter: SourceAdapter = {
+  id: LEGACY_POS_ADAPTER_ID,
+  label: "Legacy POS",
   description:
-    "Polls a Gmail mailbox for the CSV reports Ordorite emails on a schedule, routes each attachment by filename, and imports it.",
+    "Polls a Gmail mailbox for the CSV reports the POS emails on a schedule, routes each attachment by filename, and imports it.",
   moduleFlag: "legacyPosImport",
 
   // Mirrors exactly what gmailClient.buildGmailService() demands, so "ready"
