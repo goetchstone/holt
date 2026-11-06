@@ -18,6 +18,23 @@ jest.mock("next/navigation", () => ({
   }),
 }));
 jest.mock("@/lib/opsAlert", () => ({ reportOpsAlert: jest.fn().mockResolvedValue(undefined) }));
+jest.mock("nodemailer", () => ({
+  __esModule: true,
+  default: { createTransport: jest.fn(() => ({ sendMail: jest.fn().mockResolvedValue({}) })) },
+}));
+// Real, until a test makes one fail: a job has to read a failed run as failed.
+jest.mock("@/lib/dailyReconciliation", () => {
+  const actual = jest.requireActual("@/lib/dailyReconciliation");
+  return { ...actual, computeDailyReconciliation: jest.fn(actual.computeDailyReconciliation) };
+});
+jest.mock("@/lib/customerLeveling", () => {
+  const actual = jest.requireActual("@/lib/customerLeveling");
+  return { ...actual, recalculateCustomerLevels: jest.fn(actual.recalculateCustomerLevels) };
+});
+jest.mock("@/lib/leadHousekeeping", () => {
+  const actual = jest.requireActual("@/lib/leadHousekeeping");
+  return { ...actual, autoArchiveStaleLeads: jest.fn(actual.autoArchiveStaleLeads) };
+});
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
@@ -30,6 +47,10 @@ import { DEFAULT_ORG_ID, invalidateAppSettingsCache } from "@/lib/appSettings";
 import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import { reportOpsAlert } from "@/lib/opsAlert";
+import { computeDailyReconciliation } from "@/lib/dailyReconciliation";
+import { recalculateCustomerLevels } from "@/lib/customerLeveling";
+import { autoArchiveStaleLeads } from "@/lib/leadHousekeeping";
+import { enqueueEmail } from "@/lib/email/queue";
 import { addDays, businessDayKey } from "@/lib/reports/businessDay";
 import { AUTOMATION_CATALOG, AUTOMATION_KEYS } from "@/lib/automations/catalog";
 import { AUTOMATION_JOBS } from "@/lib/automations/jobs";
@@ -597,6 +618,64 @@ describe("every job, run for real on an empty store", () => {
     const app = await prisma.appSettings.findFirstOrThrow();
     const today = businessDayKey(new Date(), app.timezone);
     expect(logs[0].date.toISOString().slice(0, 10)).toBe(addDays(today, -1));
+  });
+});
+
+describe("what a job says it did", () => {
+  beforeEach(async () => {
+    process.env.APP_ENCRYPTION_KEY = "test-only-encryption-key-0000";
+    delete process.env.SMTP_HOST;
+    await getAutomationSettings();
+  });
+
+  const waiting = { to: "someone@example.com", subject: "Hello", html: "<p>Hi</p>" };
+
+  it("the email queue says what's waiting when email isn't set up, and leaves it waiting", async () => {
+    await enqueueEmail(waiting);
+    const post = await call(keyRoute, "owner", { query: { key: "send-queue" } });
+    expect(post.body.lastStatus).toBe("OK");
+    expect(post.body.lastSummary).toMatch(/waiting for email to be set up/);
+    expect(await prisma.emailQueue.count({ where: { status: "PENDING" } })).toBe(1);
+  });
+
+  it("the email queue really sends, and counts what it sent", async () => {
+    process.env.SMTP_HOST = "smtp.example.com";
+    process.env.EMAIL_FROM = "store@example.com";
+    await enqueueEmail(waiting);
+    await enqueueEmail({ ...waiting, to: "another@example.com" });
+    const post = await call(keyRoute, "owner", { query: { key: "send-queue" } });
+    expect(post.body.lastSummary).toMatch(/^2 emails sent, 0 failed\./);
+    expect(await prisma.emailQueue.count({ where: { status: "SENT" } })).toBe(2);
+  });
+
+  it("a reconciliation with a failed day reads as failed, and alerts", async () => {
+    (computeDailyReconciliation as jest.Mock).mockRejectedValueOnce(new Error("books broke"));
+    const post = await call(keyRoute, "owner", { query: { key: "reconciliation" } });
+    expect(post.status).toBe(200);
+    expect(post.body.lastStatus).toBe("FAILED");
+    expect(post.body.lastSummary).toBe("0 days balanced, 0 with drift, 1 failed.");
+    const titles = (reportOpsAlert as jest.Mock).mock.calls.map(([alert]) => alert.title);
+    expect(titles).toContain("Automation failed: Daily reconciliation");
+  });
+
+  it("a day with drift finished, so it isn't a failure", async () => {
+    const post = await call(keyRoute, "owner", { query: { key: "reconciliation" } });
+    expect(post.body.lastStatus).toBe("OK");
+    expect(post.body.lastSummary).toMatch(/1 with drift/);
+  });
+
+  it("a failed level recalculation reads as failed, with its reason", async () => {
+    (recalculateCustomerLevels as jest.Mock).mockRejectedValueOnce(new Error("levels broke"));
+    const post = await call(keyRoute, "owner", { query: { key: "customer-levels" } });
+    expect(post.body.lastStatus).toBe("FAILED");
+    expect(post.body.lastSummary).toBe("recalculate: levels broke");
+  });
+
+  it("a failed lead archive reads as failed, with its reason", async () => {
+    (autoArchiveStaleLeads as jest.Mock).mockRejectedValueOnce(new Error("leads broke"));
+    const post = await call(keyRoute, "owner", { query: { key: "lead-housekeeping" } });
+    expect(post.body.lastStatus).toBe("FAILED");
+    expect(post.body.lastSummary).toBe("auto-archive: leads broke");
   });
 });
 
