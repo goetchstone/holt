@@ -35,7 +35,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { guardAutomation } from "@/lib/automations/guardAutomation";
 import { runAndStampTrafficLog, startTrafficSyncLog } from "@/lib/trafficSyncRun";
-import { logError, logger } from "@/lib/logger";
+import { logError } from "@/lib/logger";
 
 async function run(req: NextApiRequest, res: NextApiResponse, session: Session | null) {
   if (req.method !== "POST") {
