@@ -17,7 +17,7 @@
 // 1. The item number ends in letters OR digits and the qty is a bare digit run
 //    right after it ("9KAYABLD71CL4$..." -> item 9KAYABLD71CL, qty 4). The two
 //    "$" amounts anchor the split, and qty x price == ext confirms it.
-// 2. There is NO UPC column, so barcodes export blank and Ordorite assigns them.
+// 2. There is NO UPC column, so barcodes export blank and the POS assigns them.
 // 3. An order-level discount ("Order Discount -$X") is NOT applied to the
 //    printed unit costs -- it is surfaced as a warning so the buyer applies it
 //    deliberately (the costs stay editable in the preview).

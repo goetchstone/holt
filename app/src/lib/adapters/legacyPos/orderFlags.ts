@@ -1,6 +1,6 @@
-// /app/src/lib/adapters/ordorite/orderFlags.ts
+// /app/src/lib/adapters/legacyPos/orderFlags.ts
 //
-// The Ordorite adapter's own per-order memory.
+// The POS adapter's own per-order memory.
 //
 // This used to be SalesOrder.skipSameDayRewriteCleanup -- a boolean on the
 // highest-traffic table in the product that only this importer ever read, set on
@@ -12,9 +12,7 @@
 // per-order state by writing a different `adapter` key, with no schema change.
 
 import type { PrismaClient, Prisma } from "@prisma/client";
-
-/** This adapter's key in lib/adapters/index.ts. */
-export const ORDORITE_ADAPTER = "ordorite";
+import { LEGACY_POS_ADAPTER_ID } from "./storedNames";
 
 /**
  * Operator override for the same-day rewrite cleanup heuristic.
@@ -35,7 +33,7 @@ export async function hasOrderFlag(
 ): Promise<boolean> {
   const row = await prisma.adapterOrderFlag.findUnique({
     where: {
-      salesOrderId_adapter_flag: { salesOrderId, adapter: ORDORITE_ADAPTER, flag },
+      salesOrderId_adapter_flag: { salesOrderId, adapter: LEGACY_POS_ADAPTER_ID, flag },
     },
     select: { value: true },
   });
@@ -55,12 +53,12 @@ export async function setOrderFlag(
 ): Promise<void> {
   await prisma.adapterOrderFlag.upsert({
     where: {
-      salesOrderId_adapter_flag: { salesOrderId, adapter: ORDORITE_ADAPTER, flag },
+      salesOrderId_adapter_flag: { salesOrderId, adapter: LEGACY_POS_ADAPTER_ID, flag },
     },
     update: { value, note: opts?.note, updatedBy: opts?.actor },
     create: {
       salesOrderId,
-      adapter: ORDORITE_ADAPTER,
+      adapter: LEGACY_POS_ADAPTER_ID,
       flag,
       value,
       note: opts?.note,

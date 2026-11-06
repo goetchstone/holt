@@ -24,7 +24,7 @@ Without it, 9 of 10 simultaneous orders failed on the unique `orderno`
 
 The order number encodes the store and transaction type:
 
-Store codes are deployment data (`ORDORITE_STORE_CODES`, `ORDORITE_RETURN_PREFIXES`); the codes
+Store codes are deployment data (`LEGACY_POS_STORE_CODES`, `LEGACY_POS_RETURN_PREFIXES`); the codes
 below are placeholders showing the shape.
 
 | Prefix | Store                | Suffix | Meaning                                                                           |
@@ -47,7 +47,7 @@ Orders with `- A`, `- B` after the number (e.g., `SO-10008 - A`) are **order rew
 
 **Invoice matching**: Invoice Memo references the base order number, not the rewrite. The invoice import tries suffixes `- D` through `- A` before falling back to the base. This is necessary because the active order in the system is the latest rewrite.
 
-**All three orders in a rewrite chain stay ACTIVE.** When the POS creates a rewrite it also records an accounting RETURN under the store's A-suffix prefix (`<store>OA` -- the base's `<store>OM` prefix with `M` swapped for `A`, `sameDayReturnPrefixFor()` at `lib/adapters/ordorite/runners.ts:886`) that negates the base, plus a payment row on the rewrite with `paymentType = "Gift Card"` representing the internal credit-note transfer of the base's deposit. The base, the return, and the rewrite all remain in ACTIVE statuses (ORDER/FULFILLED/RETURNED) in our DB -- daily sales totals then match the POS on every date:
+**All three orders in a rewrite chain stay ACTIVE.** When the POS creates a rewrite it also records an accounting RETURN under the store's A-suffix prefix (`<store>OA` -- the base's `<store>OM` prefix with `M` swapped for `A`, `sameDayReturnPrefixFor()` at `lib/adapters/legacyPos/runners.ts:886`) that negates the base, plus a payment row on the rewrite with `paymentType = "Gift Card"` representing the internal credit-note transfer of the base's deposit. The base, the return, and the rewrite all remain in ACTIVE statuses (ORDER/FULFILLED/RETURNED) in our DB -- daily sales totals then match the POS on every date:
 
 - Base: +$base_total on its original date
 - Return: −$base_total on its own date (nets on same-period reports)
@@ -57,14 +57,14 @@ For balance/payment math, the "Gift Card" row on the rewrite is phantom (it's th
 
 Detection helpers:
 
-- Rewrite pattern: `isRewriteOrder()` matches `/\s{0,8}-\s{0,8}([A-D])$/` (`lib/adapters/ordorite/shared.ts:168`)
+- Rewrite pattern: `isRewriteOrder()` matches `/\s{0,8}-\s{0,8}([A-D])$/` (`lib/adapters/legacyPos/shared.ts:168`)
 - Base extraction: `rewriteBaseOrderno()` strips the suffix
 
 **Do NOT cancel rewrite bases or returns.** The 2026-04-21 `cancelSupersededBases()` approach (and the `20260421_cancel_rewrite_bases` migration) were REVERTED on 2026-04-23 via `20260423_uncancel_rewrite_bases` -- the cancellation was fixing the phantom-payment symptom at the wrong layer and broke daily-sales date distribution across all store reports. CLAUDE.md rule 40 captures the general principle: status is a broad hammer; fix imports at the import boundary, not by mutating data after the fact.
 
 ## Status Derivation
 
-`deriveSalesOrderStatus()` in `lib/adapters/ordorite/shared.ts` determines status using these checks in order:
+`deriveSalesOrderStatus()` in `lib/adapters/legacyPos/shared.ts` determines status using these checks in order:
 
 1. Explicit "cancelled" in Status CSV field -> CANCELLED
 2. Explicit "return"/"returned" in Status CSV field -> RETURNED
@@ -72,7 +72,7 @@ Detection helpers:
 4. Negative net total across all line items -> RETURNED
 5. Default -> ORDER
 
-**The status field in steps 1-2 is real but optional.** The runner reads `safeString(firstRow.Status) || safeString(firstRow.Orderstatus)` (`lib/adapters/ordorite/runners.ts:273`). Only "cancelled" and "return"/"returned" mean anything; every other value, and its absence, falls through to the order-number and net-total heuristics.
+**The status field in steps 1-2 is real but optional.** The runner reads `safeString(firstRow.Status) || safeString(firstRow.Orderstatus)` (`lib/adapters/legacyPos/runners.ts:273`). Only "cancelled" and "return"/"returned" mean anything; every other value, and its absence, falls through to the order-number and net-total heuristics.
 
 **The derived status does not always win.** The runner refuses to downgrade an existing order (`runners.ts:300-311`): an existing FULFILLED or CANCELLED order keeps its status outright, and an existing RETURNED order keeps RETURNED whenever the derivation says ORDER. In every other case the derived value is written.
 
@@ -82,7 +82,7 @@ When an order is reimported with fewer line items than a prior import, the sales
 
 **Reactivation** (2026-05-02): When a CSV provides a row at a `lineNumber` that already has an existing CANCELLED line with NULL `cancelReason` (= orphan-cancelled, not user-cancelled), the runner resets it to ACTIVE. This handles line-count oscillation across re-imports where a CSV temporarily shrinks then grows back to its real size.
 
-**Gap: same-day-rewrite drops also read as "orphan-cancelled" — found + fixed 2026-07-24.** The `!cancelReason` test above can't distinguish this section's genuine orphan-cancel from a deliberate same-day-rewrite-drop cancellation (`cleanupOneRewriteChain` in `docs/domains/import-pipeline.md` "Same-day rewrites"), because both used to write `lineItemStatus = CANCELLED` with no `cancelReason`. A base-only re-import (rewrite not in the same batch) silently reactivated dropped lines, reintroducing a double-count. Fixed by stamping `cancelReason = SAME_DAY_REWRITE_DROP_CANCEL_REASON` (`lib/adapters/ordorite/shared.ts`) on rewrite-drops so this reactivation guard treats them as deliberate, same as a user-cancel. This section's own orphan-cleanup (above) and the quote-runner's orphan-cleanup were audited and correctly left `cancelReason`-less — see `docs/domains/import-pipeline.md` "Same-day rewrites — the dropped-line edge case" for the full incident and the backfill decision (none — historical NULL-reason cancellations aren't blindly reclassified).
+**Gap: same-day-rewrite drops also read as "orphan-cancelled" — found + fixed 2026-07-24.** The `!cancelReason` test above can't distinguish this section's genuine orphan-cancel from a deliberate same-day-rewrite-drop cancellation (`cleanupOneRewriteChain` in `docs/domains/import-pipeline.md` "Same-day rewrites"), because both used to write `lineItemStatus = CANCELLED` with no `cancelReason`. A base-only re-import (rewrite not in the same batch) silently reactivated dropped lines, reintroducing a double-count. Fixed by stamping `cancelReason = SAME_DAY_REWRITE_DROP_CANCEL_REASON` (`lib/adapters/legacyPos/shared.ts`) on rewrite-drops so this reactivation guard treats them as deliberate, same as a user-cancel. This section's own orphan-cleanup (above) and the quote-runner's orphan-cleanup were audited and correctly left `cancelReason`-less — see `docs/domains/import-pipeline.md` "Same-day rewrites — the dropped-line edge case" for the full incident and the backfill decision (none — historical NULL-reason cancellations aren't blindly reclassified).
 
 **Rewrite-freeze exception** (2026-05-05; tightened 2026-05-07): Orphan-cleanup is **skipped entirely** for any order whose sibling rewrite (`<orderno> - A` / `- B` / `- C` / `- D`) already exists in the DB. After the POS splits an order into base + rewrite, the daily CSV permanently exports only the lines that "stayed" on the base — the items that "moved" now appear in the rewrite's CSV section. Without the freeze, every subsequent re-import would silently re-cancel the moved lines, dropping the base order's value from daily-by-store reports (the POS's own daily report still attributes the full pre-rewrite value to the original date because the rewrite chain is netted on the rewrite's date by the A-suffix accounting return). The check: `!isRewriteOrder(orderno) && (await tx.salesOrder.findFirst({ where: { orderno: { startsWith: \`${orderno} - \` } } })) !== null`. Per-line UPDATE still runs, so a manual re-import of a corrected CSV refreshes values; the reactivation guard from the 2026-05-02 fix still brings back any line the new CSV provides. See failure-log entries 2026-05-05 and 2026-05-07 (the rewrite-cleanup incident's first and second hits — the second was caused by the QUOTE runner having its own un-frozen orphan-cleanup; both runners now have the freeze).
 
@@ -101,7 +101,7 @@ The status derivation logic handles the daily feed going forward. The one-time r
 
 ## Salesperson Correction Preservation
 
-If `SalesOrder.salesPersonId` is set (manual correction from split import or reassignment), the daily sales import skips updating the `salesperson` string field to avoid overwriting the correction. Detected via the `correctedOrders` set in `runSalesImport()` (`lib/adapters/ordorite/runners.ts:177`). A second set, `lockedOrders` (`runners.ts:190`), suppresses the same write for existing orders dated inside a confirmed (not reopened) commission period, matched by salesperson NAME or FK; either set is enough (`runners.ts:330`).
+If `SalesOrder.salesPersonId` is set (manual correction from split import or reassignment), the daily sales import skips updating the `salesperson` string field to avoid overwriting the correction. Detected via the `correctedOrders` set in `runSalesImport()` (`lib/adapters/legacyPos/runners.ts:177`). A second set, `lockedOrders` (`runners.ts:190`), suppresses the same write for existing orders dated inside a confirmed (not reopened) commission period, matched by salesperson NAME or FK; either set is enough (`runners.ts:330`).
 
 ## Per-line-item salesperson splits — NOT SUPPORTED (manual workaround required)
 
@@ -115,9 +115,9 @@ If `SalesOrder.salesPersonId` is set (manual correction from split import or rea
 
 Line items inherit the order's salesperson(s). A single order is owned by one person OR split 50/50 between two — that's the whole envelope, not per-line.
 
-### The Ordorite case that broke this assumption
+### The POS case that broke this assumption
 
-SO-10009: managers in the POS have started splitting **a single line item** within an order (e.g. "only the live edge table is split between Designer A and Designer B, the rest of the order is Designer A's"). the POS allows this. Our schema does not.
+SO-10009: managers in the POS have started splitting **a single line item** within an order (e.g. "only the live edge table is split between Designer A and Designer B, the rest of the order is Designer A's"). The POS allows this. Our schema does not.
 
 **No code or schema change for this** — owner direction 2026-05-22: _"we are not making changes for nonsense, they would need to write the one order into two different ones for us to split it in the ERP."_ The split-per-line workflow on the POS's side is operational nonsense from the ERP's perspective, and the salespeople were directed to use the POS — so the workaround is on the operator/manager.
 
@@ -443,8 +443,8 @@ may get a text do. It's listed in the panel above.
 
 ## Key Files
 
-- `lib/adapters/ordorite/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`
-- `lib/adapters/ordorite/runners.ts` lines 134-723 -- `runSalesImport()`
+- `lib/adapters/legacyPos/shared.ts` -- `deriveSalesOrderStatus()`, `isReturnOrder()`, `RETURN_STORE_SUFFIX`, `isRewriteOrder()`, `rewriteBaseOrderno()`, `SAME_DAY_REWRITE_DROP_CANCEL_REASON`
+- `lib/adapters/legacyPos/runners.ts` lines 134-723 -- `runSalesImport()`
 - `lib/importHelpers.ts` -- source-agnostic helpers only (`safeString`/`safeFloat`/`safeDate`, `splitCustomerName`, `findOrCreateCustomer`). The sales-order logic above is no longer here
 - `lib/paymentService.ts` -- `computeBalance()`, `recordPayment()`, `processRefund()` (there is no `postPayment()`), `voidPendingPayment()` (a payment that is no longer PENDING throws `VoidError`, which the void route answers with 409; `docs/ARCHITECTURE.md`, "API errors"), and `startHostedCheckout()`, the one way an order or invoice starts an online card payment (see `docs/domains/pos.md`). A payment taken with one of the store's own payment types (`tenderId`) is labelled by `lib/payments/tenders.ts`, and its refund goes back to the same tender (pos.md, "Payment types a store sets up")
 - `pages/api/sales/` -- 19 API endpoints
@@ -663,7 +663,7 @@ Landed cost itself is in `docs/domains/purchasing.md`. Tested in
 
 ## Verification Checklist
 
-- [ ] `npm test -- ordoriteShared` passes (no test file matches `importHelpers`; the status/return/rewrite helpers moved to `ordoriteShared.test.ts`, which also covers the `lib/importHelpers.ts` coercion helpers)
+- [ ] `npm test -- legacyPosShared` passes (no test file matches `importHelpers`; the status/return/rewrite helpers moved to `legacyPosShared.test.ts`, which also covers the `lib/importHelpers.ts` coercion helpers)
 - [ ] Any line item aggregation filters `lineItemStatus: { not: "CANCELLED" }`
 - [ ] Return detection handles return-prefixed patterns (not just R/CR prefix)
 - [ ] Order rewrite suffixes (`- A`, `- B`) are not mistakenly treated as returns
@@ -676,7 +676,7 @@ Invoice tools: `__tests__/integration/invoiceTools.integration.test.ts` (real ro
 
 Quote holds: `__tests__/integration/quoteHolds.integration.test.ts` (real routes and database: what a quote and an order commit, every way out of a quote, the sweep, archiving, the On hold report, the setting, and made-to-order lines raising no shortfall) and `__tests__/lib/sales/quoteHoldsShared.test.ts` (the day arithmetic and the rule).
 
-Covered in `__tests__/ordoriteShared.test.ts`: `deriveSalesOrderStatus`, `isReturnOrder` (R/CR prefix AND the A-suffix forms of the configured store codes, plus negative cases for M-suffix codes and rewrite suffixes), `isRewriteOrder`, `rewriteBaseOrderno`, `isRefundPayment`
+Covered in `__tests__/legacyPosShared.test.ts`: `deriveSalesOrderStatus`, `isReturnOrder` (R/CR prefix AND the A-suffix forms of the configured store codes, plus negative cases for M-suffix codes and rewrite suffixes), `isRewriteOrder`, `rewriteBaseOrderno`, `isRefundPayment`
 
 Gaps: no returns-store-prefixed order number is tested at all, so neither the `RETURN_STORE_SUFFIX` returns-store branch nor the bare return-prefix check in `isReturnOrder` has coverage
 

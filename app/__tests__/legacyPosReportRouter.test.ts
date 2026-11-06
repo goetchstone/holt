@@ -1,19 +1,19 @@
-// /app/__tests__/ordoriteReportRouter.test.ts
+// /app/__tests__/legacyPosReportRouter.test.ts
 
-import { resolveImportRoute } from "@/lib/adapters/ordorite/reportRouter";
+import { resolveImportRoute } from "@/lib/adapters/legacyPos/reportRouter";
 
 describe("resolveImportRoute", () => {
   // Two prefixes, because that is what a real deployment looks like: a full
   // name on some exports and an initialism on others. Every org-report case
   // below therefore also proves the alternation works -- a single-value knob
   // would route one family and silently drop the other.
-  const ORIGINAL_PREFIX = process.env.ORDORITE_REPORT_PREFIX;
+  const ORIGINAL_PREFIX = process.env.LEGACY_POS_REPORT_PREFIX;
   beforeAll(() => {
-    process.env.ORDORITE_REPORT_PREFIX = "Riverbend_Home,RH";
+    process.env.LEGACY_POS_REPORT_PREFIX = "Riverbend_Home,RH";
   });
   afterAll(() => {
-    if (ORIGINAL_PREFIX === undefined) delete process.env.ORDORITE_REPORT_PREFIX;
-    else process.env.ORDORITE_REPORT_PREFIX = ORIGINAL_PREFIX;
+    if (ORIGINAL_PREFIX === undefined) delete process.env.LEGACY_POS_REPORT_PREFIX;
+    else process.env.LEGACY_POS_REPORT_PREFIX = ORIGINAL_PREFIX;
   });
 
   describe("sales and customer reports", () => {
@@ -43,7 +43,7 @@ describe("resolveImportRoute", () => {
       expect((result as { importType: string }).importType).toBe("customers");
     });
 
-    // Some deployments rename the Ordorite customer export to include
+    // Some deployments rename the POS customer export to include
     // "Prior_Day_" so it scopes to new data only. Router accepts
     // both old + new names — the org prefix is a config, so any prefix routes.
     it("routes Riverbend_Home_Prior_Day_Customers to customers (post-rename)", () => {
@@ -66,7 +66,7 @@ describe("resolveImportRoute", () => {
       expect((result as { importType: string }).importType).toBe("temp-items");
     });
 
-    // Some deployments rename the Ordorite temp export from
+    // Some deployments rename the POS temp export from
     // "Temp_Items" to "Temp_Purchase_Orders". Router accepts both —
     // regex is /Prior_Day_Temp_(Items|Purchase_Orders)/i.
     it("routes Prior_Day_Temp_Purchase_Orders to temp-items (post-rename)", () => {
@@ -107,7 +107,7 @@ describe("resolveImportRoute", () => {
       expect((result as { importType: string }).importType).toBe("stock");
     });
 
-    // Daily product master from Ordorite — wires the item-export CSV
+    // Daily product master from the POS — wires the item-export CSV
     // through to runProductsImport so the scheduled email import refreshes
     // the product catalog automatically.
     it("routes RH_Item_Export to products", () => {
@@ -177,7 +177,7 @@ describe("resolveImportRoute", () => {
     // beforeAll has already set it, and clearing it here instead would leave
     // every later describe running unconfigured.
     afterEach(() => {
-      process.env.ORDORITE_REPORT_PREFIX = "Riverbend_Home,RH";
+      process.env.LEGACY_POS_REPORT_PREFIX = "Riverbend_Home,RH";
     });
     const typeOf = (f: string) => {
       const r = resolveImportRoute(f);
@@ -185,7 +185,7 @@ describe("resolveImportRoute", () => {
     };
 
     it("routes a different org's prefix identically", () => {
-      process.env.ORDORITE_REPORT_PREFIX = "Acme_Furniture,ACME";
+      process.env.LEGACY_POS_REPORT_PREFIX = "Acme_Furniture,ACME";
       expect(typeOf("Acme_Furniture_Inbound_Items.csv")).toBe("inbound-items");
       expect(typeOf("Acme_Furniture_Prior_Day_Customers.csv")).toBe("customers");
       expect(typeOf("ACME_Item_Export.csv")).toBe("products");
@@ -196,11 +196,11 @@ describe("resolveImportRoute", () => {
     // say so, and escaping meant "A|B" could not be smuggled in either -- so
     // pinning the prefix unrouted every report filed under the other one.
     it("accepts a list, and needs one when the org uses two prefixes", () => {
-      process.env.ORDORITE_REPORT_PREFIX = "Riverbend_Home";
+      process.env.LEGACY_POS_REPORT_PREFIX = "Riverbend_Home";
       expect(typeOf("Riverbend_Home_Inbound_Items.csv")).toBe("inbound-items");
       expect(typeOf("RH_Stock_by_Item.csv")).toBeNull();
 
-      process.env.ORDORITE_REPORT_PREFIX = "Riverbend_Home,RH";
+      process.env.LEGACY_POS_REPORT_PREFIX = "Riverbend_Home,RH";
       expect(typeOf("Riverbend_Home_Inbound_Items.csv")).toBe("inbound-items");
       expect(typeOf("RH_Stock_by_Item.csv")).toBe("stock");
       expect(typeOf("RH_Item_Export.csv")).toBe("products");
@@ -208,7 +208,7 @@ describe("resolveImportRoute", () => {
     });
 
     it("narrows to the pinned prefix -- another org's file is not an org report", () => {
-      process.env.ORDORITE_REPORT_PREFIX = "Acme_Furniture";
+      process.env.LEGACY_POS_REPORT_PREFIX = "Acme_Furniture";
       expect(typeOf("Other_Co_Inbound_Items.csv")).toBe("purchase-orders");
       expect(typeOf("Other_Co_Customers.csv")).toBeNull();
     });
@@ -218,8 +218,8 @@ describe("resolveImportRoute", () => {
     // before it returned null and an operator saw an unrouted file.
     it("refuses a look-alike rather than guessing it is an org report", () => {
       for (const prefix of ["Riverbend_Home,RH", undefined]) {
-        if (prefix === undefined) delete process.env.ORDORITE_REPORT_PREFIX;
-        else process.env.ORDORITE_REPORT_PREFIX = prefix;
+        if (prefix === undefined) delete process.env.LEGACY_POS_REPORT_PREFIX;
+        else process.env.LEGACY_POS_REPORT_PREFIX = prefix;
         for (const f of [
           "Deleted_Customers.csv",
           "Inactive_Customers.csv",
@@ -237,7 +237,7 @@ describe("resolveImportRoute", () => {
     // Unconfigured, an org that does not prefix its exports still works, and
     // the prefix-required route stands down so the bare route keeps its meaning.
     it("falls back to bare report names when nothing is configured", () => {
-      delete process.env.ORDORITE_REPORT_PREFIX;
+      delete process.env.LEGACY_POS_REPORT_PREFIX;
       expect(typeOf("Customers.csv")).toBe("customers");
       expect(typeOf("Stock_by_Item.csv")).toBe("stock");
       expect(typeOf("Item_Export.csv")).toBe("products");

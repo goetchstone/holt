@@ -1,7 +1,7 @@
-// /app/__tests__/americanLeatherOptions.test.ts
+// /app/__tests__/dualGradeOptions.test.ts
 //
-// The OPTIONS-block parsers in americanLeatherExtractor run on the server
-// against `optionsText` posted to /api/pricing/import/american-leather (body
+// The OPTIONS-block parsers in dualGradeExtractor run on the server
+// against `optionsText` posted to /api/pricing/import/dual-grade-prices (body
 // limit 20 MB). Two of their patterns were unanchored with an unbounded
 // `[^=\n]+` before a required `=`: every start position on a line with no `=`
 // rescanned to the end of the line, so the scan was quadratic in line length
@@ -9,7 +9,7 @@
 // it linear. These tests pin the parse of an ordinary block, then run the
 // adversarial input CodeQL describes against a generous time budget.
 
-import { extractCushionOptions, parseOptionPrices } from "@/lib/pricing/americanLeatherExtractor";
+import { extractCushionOptions, parseOptionPrices } from "@/lib/pricing/dualGradeExtractor";
 
 const OPTIONS_BLOCK = [
   "OPTIONS",

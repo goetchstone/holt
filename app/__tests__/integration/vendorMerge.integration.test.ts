@@ -10,7 +10,7 @@
 //
 // Every lookup of a vendor by name (lib/vendors/vendorByName.ts) finds the kept
 // vendor through an earlier name, so an import that still spells it doesn't
-// make the duplicate again: the vendor screen, the generic and Ordorite imports,
+// make the duplicate again: the vendor screen, the generic and the POS imports,
 // the POS cart.
 //
 // Real routes, real permission gates, real database; the session readers are
@@ -47,8 +47,8 @@ import {
   vendorNameIndex,
 } from "@/lib/vendors/vendorByName";
 import { runGenericImport } from "@/lib/genericImportRunner";
-import { runPurchaseOrdersImport } from "@/lib/adapters/ordorite/runners";
-import { ensureUnknownVendorId } from "@/lib/adapters/ordorite/shared";
+import { runPurchaseOrdersImport } from "@/lib/adapters/legacyPos/runners";
+import { ensureUnknownVendorId } from "@/lib/adapters/legacyPos/shared";
 import { clearVendorPrefixCacheForTesting } from "@/lib/vendorPrefixService";
 import mergeRoute from "@/pages/api/vendors/[id]/merge";
 import aliasesRoute from "@/pages/api/vendors/[id]/aliases";
@@ -729,7 +729,7 @@ describe("imports find a merged vendor by its earlier name", () => {
     expect(await prisma.vendor.count()).toBe(1);
   });
 
-  it("the Ordorite PO import orders from the kept vendor and still pays its consignment", async () => {
+  it("the POS PO import orders from the kept vendor and still pays its consignment", async () => {
     const kept = await merged({ isConsignment: true });
     await prisma.vendorNumberPrefix.create({ data: { vendorId: kept.id, prefix: "AMF-" } });
     clearVendorPrefixCacheForTesting();
@@ -762,7 +762,7 @@ describe("imports find a merged vendor by its earlier name", () => {
     expect(result.consignmentBatchesCreated).toBe(1);
   });
 
-  it("the Ordorite Unknown Vendor follows a merge rather than pointing at a deleted vendor", async () => {
+  it("the POS Unknown Vendor follows a merge rather than pointing at a deleted vendor", async () => {
     const first = await ensureUnknownVendorId(prisma);
     const unknown = await vendor("Unknown");
     await mergeVendor(prisma, first, unknown.id, null);

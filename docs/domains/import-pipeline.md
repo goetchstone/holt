@@ -49,7 +49,7 @@ The pipeline runs on a schedule (e.g. daily at 06:10) via the host's task schedu
 | `<Org>_Item_Export`                                        | products        | `runProductsImport`       | Daily product master (large daily file, Active=yes only) |
 
 **`<Org>_` is configuration, not a constant.** The prefix comes from
-`ORDORITE_REPORT_PREFIX`, which takes a comma-separated list because one
+`LEGACY_POS_REPORT_PREFIX`, which takes a comma-separated list because one
 deployment normally uses more than one (a full name on some exports, an
 initialism on others). Unset, the router matches the BARE report names only --
 `Customers.csv`, `Stock_by_Item.csv` -- and refuses a look-alike such as
@@ -58,7 +58,7 @@ initialism on others). Unset, the router matches the BARE report names only --
 **Route order matters.** `<Org>_Inbound_Items` is the one route that REQUIRES a
 configured prefix, because a bare `Inbound_Items` is a different report with a
 different runner. Unconfigured, the org route stands down and the bare route
-keeps its meaning. See `src/lib/adapters/ordorite/reportRouter.ts`.
+keeps its meaning. See `src/lib/adapters/legacyPos/reportRouter.ts`.
 
 **2026-05-20 renames** (owner-side the POS export config change):
 
@@ -80,11 +80,11 @@ the POS lets a store "rewrite" an existing order to correct line items, swap pro
 ### Tender vocabulary: `paymentType` and `method`
 
 An imported payment carries both, derived from the same value.
-`resolvePaymentMode()` decodes Ordorite's numeric mode into its own display
+`resolvePaymentMode()` decodes the POS's numeric mode into its own display
 string, which lands verbatim in `Payment.paymentType`;
 `resolvePaymentMethod()` translates that string into holt's bounded
 `PaymentMethod` enum for `Payment.method`. Both live in
-`lib/adapters/ordorite/shared.ts`, because translating a source's vocabulary
+`lib/adapters/legacyPos/shared.ts`, because translating a source's vocabulary
 into holt's is what a source adapter is for — a different POS brings a
 different adapter and the same enum.
 
@@ -99,10 +99,10 @@ than guessing. It stays visible in the Unmapped Payments report
 `SystemGLMapping` row shows up — a separate gap with the same symptom, money
 missing from the journal.
 
-The target values match `config/presets/ordorite-payment-modes.yaml`, where
+The target values match `config/presets/legacy-pos-payment-modes.yaml`, where
 they were reviewed, and a test asserts the two cannot drift.
 
-The one place this goes wrong is **payments**. the POS's payment CSV includes a row on the rewrite with `paymentType = "Gift Card"` for the exact amount of the base's original card deposit, and **no `Gift Card Barcode` / `Gift Card Code` fields**. That row is the POS's export of an _internal credit-note transfer_ -- the base's deposit becoming a credit note on the return, then applied to the rewrite. We do not import credit notes as their own record; the transfer shows up only through the rewrite's "Gift Card" row.
+The one place this goes wrong is **payments**. The POS's payment CSV includes a row on the rewrite with `paymentType = "Gift Card"` for the exact amount of the base's original card deposit, and **no `Gift Card Barcode` / `Gift Card Code` fields**. That row is the POS's export of an _internal credit-note transfer_ -- the base's deposit becoming a credit note on the return, then applied to the rewrite. We do not import credit notes as their own record; the transfer shows up only through the rewrite's "Gift Card" row.
 
 **`runPaymentsImport` skips that phantom row.** Detection: `isRewriteOrder(orderno)` + `paymentType === "Gift Card"` + no gift-card barcode/code. Real POS gift-card redemptions always carry a barcode or code, so they are unaffected. The `phantomTransfersSkipped` counter on the result surfaces how many were skipped per import.
 
@@ -147,11 +147,11 @@ Naive sum: `5000 + (-3000) + 3000 = 5000`. Store A's total that day: $5,000 (bas
 
 the POS shows: rewrite only, $3,000 + $100 = **$3,100**.
 
-The $2,000 delta = lounges + extra delivery (base lines 4 & 5). the POS never returned them.
+The $2,000 delta = lounges + extra delivery (base lines 4 & 5). The POS never returned them.
 
-**Fix** (`lib/adapters/ordorite/sameDayRewriteCleanup.ts` + post-import sweep in `runSalesImport`):
+**Fix** (`lib/adapters/legacyPos/sameDayRewriteCleanup.ts` + post-import sweep in `runSalesImport`):
 
-After every sales import, find every rewrite whose `orderDate` matches its base's `orderDate`. For each such pair, **also look up the same-day accounting return** for the same customer. A return's order number is the sale's store code carrying the return marker — the `RETURN_STORE_SUFFIX` pattern in `lib/adapters/ordorite/shared.ts`, which is where the store codes themselves live. Apply the combined heuristic below to decide which base lines to cancel.
+After every sales import, find every rewrite whose `orderDate` matches its base's `orderDate`. For each such pair, **also look up the same-day accounting return** for the same customer. A return's order number is the sale's store code carrying the return marker — the `RETURN_STORE_SUFFIX` pattern in `lib/adapters/legacyPos/shared.ts`, which is where the store codes themselves live. Apply the combined heuristic below to decide which base lines to cancel.
 
 **Combined heuristic** (recalibrated 2026-05-15 after the SO-10004 over-cancellation incident — single-axis lineNumber-only was too aggressive):
 
@@ -184,7 +184,7 @@ Post-import wiring (per rewrite imported):
 
 **Hotfix**: migration `20260515_restore_over_cancelled_lines` uncancels the four lines on SO-10004 that the 5/12 single-axis heuristic wrongly cancelled. The affected store-day total was restored to an exact POS match. Idempotent (second run = 0 rows).
 
-**Return-lookup structural fix** (added 2026-05-22 after SO-10006, supersedes the broken `swapToReturnPrefix` lookup). The companion **50% safety guard** that originally shipped with this fix was **REMOVED later the same day** — it produced a dozen false-positive uncancellations at the exact 50% boundary (1-of-2 drops misclassified as price-tweaks). Migration `20260522d_recancel_wrongly_restored_drops` reversed those cases. Going forward, the operator flag `SalesOrder.skipSameDayRewriteCleanup` is the sole escape hatch for price-tweak shapes. See post-failure log 2026-05-22 (afternoon) for the full story. Root cause of SO-10006 + dozens of similar historical incidents: `cleanupOneRewriteChain` looked up the same-day accounting return by `swapToReturnPrefix(baseOrderno)` (e.g. `"SO-10006"` → `"SR-10006"`). the POS's accounting-return ordernos use an INDEPENDENT numeric sequence: SO-10003's return is `SR-020001`, SO-10006's is `SR-020002`, SO-10010's is `SR-020003`. The numbers don't mirror the base order's number. Audit query 2026-05-22: nearly all same-day rewrites have a matching same-day return when looked up by `(customerId, orderDate, prefix-pattern)`; the broken swap found almost none. The runner ran with `returnLines = []` in nearly all same-day rewrites, so gate 2 of `findDroppedBaseLineIds` was perpetually trivially satisfied and cancellation decisions fell back to position + rewrite-partNo alone. SO-10003 came out right by coincidence (dropped items were at high lineNumbers AND had partNos absent from the rewrite); SO-10006 didn't. Fix: (1) replace the orderno-swap lookup with `loadSameDayReturnLines({customerId, orderDate, prefix})` — proper join by customer and date with `orderno startsWith` the store's return prefix. (2) Add a 50%-safety guard: if the heuristic would cancel `>=50%` of the base's ACTIVE lines, log a warning and skip. SO-10003 (drop) cancels 2 of 5 (40%) → passes. SO-10006 (price-tweak) would cancel 2 of 4 (50%) → skipped. Backfill migration `20260522b_restore_over_cancelled_price_tweak_rewrites` runs the new heuristic against historical data, restoring the over-cancelled lines (a material amount) across a handful of historical days. True-drop SO-10003-shape cancellations are NOT touched (those lines stay cancelled).
+**Return-lookup structural fix** (added 2026-05-22 after SO-10006, supersedes the broken `swapToReturnPrefix` lookup). The companion **50% safety guard** that originally shipped with this fix was **REMOVED later the same day** — it produced a dozen false-positive uncancellations at the exact 50% boundary (1-of-2 drops misclassified as price-tweaks). Migration `20260522d_recancel_wrongly_restored_drops` reversed those cases. Going forward, the operator flag `SalesOrder.skipSameDayRewriteCleanup` is the sole escape hatch for price-tweak shapes. See post-failure log 2026-05-22 (afternoon) for the full story. Root cause of SO-10006 + dozens of similar historical incidents: `cleanupOneRewriteChain` looked up the same-day accounting return by `swapToReturnPrefix(baseOrderno)` (e.g. `"SO-10006"` → `"SR-10006"`). The POS's accounting-return ordernos use an INDEPENDENT numeric sequence: SO-10003's return is `SR-020001`, SO-10006's is `SR-020002`, SO-10010's is `SR-020003`. The numbers don't mirror the base order's number. Audit query 2026-05-22: nearly all same-day rewrites have a matching same-day return when looked up by `(customerId, orderDate, prefix-pattern)`; the broken swap found almost none. The runner ran with `returnLines = []` in nearly all same-day rewrites, so gate 2 of `findDroppedBaseLineIds` was perpetually trivially satisfied and cancellation decisions fell back to position + rewrite-partNo alone. SO-10003 came out right by coincidence (dropped items were at high lineNumbers AND had partNos absent from the rewrite); SO-10006 didn't. Fix: (1) replace the orderno-swap lookup with `loadSameDayReturnLines({customerId, orderDate, prefix})` — proper join by customer and date with `orderno startsWith` the store's return prefix. (2) Add a 50%-safety guard: if the heuristic would cancel `>=50%` of the base's ACTIVE lines, log a warning and skip. SO-10003 (drop) cancels 2 of 5 (40%) → passes. SO-10006 (price-tweak) would cancel 2 of 4 (50%) → skipped. Backfill migration `20260522b_restore_over_cancelled_price_tweak_rewrites` runs the new heuristic against historical data, restoring the over-cancelled lines (a material amount) across a handful of historical days. True-drop SO-10003-shape cancellations are NOT touched (those lines stay cancelled).
 
 **Operator override — `SalesOrder.skipSameDayRewriteCleanup`** is the SOLE escape hatch for the rare price-tweak rewrite shape after the 50% guard was removed (2026-05-22 afternoon). When TRUE on a base order, `cleanupOneRewriteChain` short-circuits entirely. The migration `20260522_skip_same_day_rewrite_cleanup_flag` adds the column and sets it TRUE on the incident's base order. Going-forward UI: a future admin button on the sales order page can flip the flag without SQL. For now, set the flag via migration on a per-incident basis when the heuristic over-cancels.
 
@@ -224,7 +224,7 @@ WHERE bli."salesOrderId" = :base_id
 
 Consequence: `cancelSameDayRewriteDroppedLines` only re-examines orders whose orderno is a REWRITE _and is present in the current import batch_ (`importedOrdernos.filter(isRewriteOrder)`). Re-importing a base order WITHOUT its paired rewrite in the same batch — a manual single-day re-upload via `/admin/import/POS-automation.tsx`, or any path matching the "Rewrite-truncated CSVs" quirk below — silently reactivated the previously-dropped lines. No error, no counter change, no signal anywhere in the result. This directly re-introduces the double-count the cleanup exists to prevent, and corrupts the totals `scripts/parallel-run-compare.cjs` diffs against the POS — the same zero-drift comparison this whole subsystem's cutover criterion rests on.
 
-**Fix**: `cleanupOneRewriteChain` now stamps `cancelReason = SAME_DAY_REWRITE_DROP_CANCEL_REASON` (exported constant, `lib/adapters/ordorite/shared.ts`) on every line it drops, so the reactivation guard reads it exactly like a deliberate user-cancel and never flips it back. The orphan-cleanup site (this section, above) and the quotes-reconciliation orphan-cleanup (`runQuotesImport`) were audited in the same pass and deliberately left `cancelReason`-less — both are the genuine orphan case the reactivation guard is designed for, and stamping a reason there would permanently block a legitimate reactivation instead.
+**Fix**: `cleanupOneRewriteChain` now stamps `cancelReason = SAME_DAY_REWRITE_DROP_CANCEL_REASON` (exported constant, `lib/adapters/legacyPos/shared.ts`) on every line it drops, so the reactivation guard reads it exactly like a deliberate user-cancel and never flips it back. The orphan-cleanup site (this section, above) and the quotes-reconciliation orphan-cleanup (`runQuotesImport`) were audited in the same pass and deliberately left `cancelReason`-less — both are the genuine orphan case the reactivation guard is designed for, and stamping a reason there would permanently block a legitimate reactivation instead.
 
 **Historical data is NOT backfilled.** Every currently-CANCELLED line in production has `cancelReason = NULL` — including historical rewrite-drops from before this fix — so they remain exposed to this reactivation gap until the next time their chain goes through `cleanupOneRewriteChain` again (which re-cancels them correctly, now with the reason stamped). No blind migration was written: there is no reliable after-the-fact signal to distinguish a historical rewrite-drop from a genuine orphan-cancel among the NULL-reason `CANCELLED` rows, and wrongly stamping a genuine orphan would permanently prevent a legitimate future reactivation — a worse failure mode than the narrow window this fix closes going forward. If this exposure needs closing sooner than the next natural re-import, a manual audit query joining `CANCELLED` lines against their chain's rewrite/return siblings (same shape as the "Audit SQL pattern" above) could identify high-confidence candidates, but that is a future exercise, not shipped here.
 
@@ -270,7 +270,7 @@ The sweep runs OUTSIDE the per-batch transaction — idempotent, and a single fa
 - **Multiline CSV fields.** Product descriptions in `grove_purchaseinvoicelines` wrap across multiple lines. Standard CSV parsers handle this but grep/awk do not.
 - **BATCH_SIZE = 50.** Sales import processes 50 orders per transaction to avoid timeout.
 - **Invoice Memo references base order.** Invoice Memo field contains the base order number (e.g., `SO-10008`), not the rewrite suffix (`SO-10008 - A`). The invoice import tries rewrite suffixes `- D` through `- A` before falling back to the base order number.
-- **Return-prefix returns.** `isReturnOrder()` now detects orders carrying a configured return prefix (`ORDORITE_RETURN_PREFIXES`) as returns in addition to A-suffix store codes.
+- **Return-prefix returns.** `isReturnOrder()` now detects orders carrying a configured return prefix (`LEGACY_POS_RETURN_PREFIXES`) as returns in addition to A-suffix store codes.
 - **Auto-create products from imports.** the POS does not export a daily product file, but `findProduct()` in `importHelpers.ts` accepts `{ autoCreate: true }` to create a minimal Product record when a part number is not found. Applied to 5 runners: sales, PO import, received items, inbound items, PO line export. The auto-created product uses part number, name, vendor, and cost from the CSV row.
 - **Supplier names resolve through earlier names — since 2026-11-02 (GAP-22).** Every runner that turns the file's `Supplier` into a vendor (PO import, received items, inbound items, stock by item, products) builds its map with `vendorNameIndex` and makes a missing vendor with `findOrCreateInIndex` (`lib/vendors/vendorByName.ts`), so a vendor merged into another is found under its old spelling instead of being made again. The PO and received-items imports used to decide a consignment PO by matching the supplier's NAME against the consignors' names; they now compare the vendor id with `getConsignmentVendorIds` (`lib/consignmentVendor.ts`). `ensureUnknownVendorId` re-reads its cached id after any vendor merge in the process (`vendorMergeCount`). Runbook: `docs/domains/vendors/common.md` "Merging Duplicate Vendors".
 - **Stock by item never adds to an item that isn't stocked — since 2026-11-02 (GAP-21).** For an item whose category has Track Inventory off, `applyImportSync` (`lib/inventory/importSync.ts`) takes a place down to what the file says but never up: a place the file would add to is left as it is, counted in `notStocked` and reported in the run's message ("N places not added to: their item's category doesn't track inventory"). A category the import itself creates tracks inventory. Runbook: `docs/domains/inventory.md` "What isn't stocked".
@@ -284,9 +284,9 @@ The sweep runs OUTSIDE the per-batch transaction — idempotent, and a single fa
 
 ## Key Files
 
-- `lib/adapters/ordorite/gmailClient.ts` -- Gmail API client
-- `lib/adapters/ordorite/reportRouter.ts` -- filename-to-runner dispatch
-- `lib/adapters/ordorite/runners.ts` -- all runner functions (~2000 lines)
+- `lib/adapters/legacyPos/gmailClient.ts` -- Gmail API client
+- `lib/adapters/legacyPos/reportRouter.ts` -- filename-to-runner dispatch
+- `lib/adapters/legacyPos/runners.ts` -- all runner functions (~2000 lines)
 - `lib/importHelpers.ts` -- pure utility functions (safeString, safeFloat, deriveSalesOrderStatus, etc.)
 - `pages/api/automations/source-import.ts` -- resolves the active source adapter (docs/domains/source-adapters.md)
 - `scripts/auto-import.sh` -- cron script for the host scheduler

@@ -701,7 +701,7 @@ describe("generateSalesJournal (real DB)", () => {
   // paid out, inflating the day's cash and producing unexplained daily-
   // reconciliation drift.
   //
-  // Imported POS refunds were NOT affected -- the Ordorite import stores
+  // Imported POS refunds were NOT affected -- the POS import stores
   // them already negative. A deployment's data can contain BOTH conventions
   // at once, so the fix normalizes on the flag
   // (`isRefund ? -Math.abs(raw) : raw`) rather than assuming either sign,
@@ -759,7 +759,7 @@ describe("generateSalesJournal (real DB)", () => {
 
     it("an IMPORTED refund (negative paymentAmount, isRefund: true) reduces cash by the same magnitude and is NOT double-negated", async () => {
       await seedAccountingFixtures();
-      // Ordorite import shape: already negative. -Math.abs(-150) must land
+      // The POS import shape: already negative. -Math.abs(-150) must land
       // on -150, not flip back to +150 (the double-negation failure mode).
       await seedStandalonePayment({ paymentAmount: -150, isRefund: true });
 
@@ -804,7 +804,7 @@ describe("generateSalesJournal (real DB)", () => {
       });
       // Native refund (processRefund shape): positive amount, isRefund true.
       await seedStandalonePayment({ paymentAmount: 200, isRefund: true });
-      // Imported refund (Ordorite shape): already-negative amount, isRefund true.
+      // Imported refund (the POS shape): already-negative amount, isRefund true.
       await seedStandalonePayment({ paymentAmount: -100, isRefund: true });
 
       const result = await generateSalesJournal(DAY);
@@ -947,7 +947,7 @@ describe("generateSalesJournal (real DB)", () => {
         netPrice: -500,
         cost: -200,
         vatAmount: -30,
-        paymentAmount: -530, // Ordorite shape: already negative
+        paymentAmount: -530, // the POS shape: already negative
         withInvoice: true,
       });
       // isRefund, but no originalPaymentId -- the import never sets one.

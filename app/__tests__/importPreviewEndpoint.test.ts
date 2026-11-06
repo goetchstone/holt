@@ -8,7 +8,7 @@
 // silently truncates reports a sample's summary as the file's, and a preview
 // that refuses inactive definitions withholds the tool exactly when it is most
 // needed — a definition ships inactive precisely while its mappings are still
-// being worked out (config/presets/ordorite-payment-modes.yaml is the
+// being worked out (config/presets/legacy-pos-payment-modes.yaml is the
 // motivating case).
 
 import { readFileSync } from "node:fs";

@@ -91,7 +91,7 @@ export class UnsupportedTypeError extends Error {
 /** What the route returns and the coverage script records. */
 export interface PriceBookParse {
   vendor: string;
-  /** The effective type -- American Leather flips to retail-prices when the book is the retail copy. */
+  /** The effective type -- the dual-grade parser flips to retail-prices when the book is the retail copy. */
   type: string;
   count: number;
   /** An array of rows, or the vendor's own shape (Brown Jordan, Kingsley Bate, ...). The UI knows which by vendor. */
@@ -202,8 +202,8 @@ export async function parsePriceBook(
       });
     }
     case "american-leather": {
-      const { extractAmericanLeather } = await import("./americanLeatherExtractor");
-      const d = await extractAmericanLeather(buffer);
+      const { extractDualGradePriceList } = await import("./dualGradeExtractor");
+      const d = await extractDualGradePriceList(buffer);
       const collections = [...new Set(d.products.map((p) => p.collectionName))];
       return finalizeParse({
         vendor,

@@ -67,7 +67,7 @@ export interface RunImportEngineOptions {
 /** Stringify a raw cell value the same way every mapped field starts out:
  *  null/undefined/blank become undefined, everything else is trimmed to a
  *  string. Deliberately simpler than importHelpers.safeString, which also
- *  treats a bare "@" as empty — that's an Ordorite-specific placeholder
+ *  treats a bare "@" as empty — that's a POS-specific placeholder
  *  convention, not a generic-CSV one, and doesn't belong in a source-
  *  agnostic engine. */
 function rawToString(v: unknown): string | undefined {

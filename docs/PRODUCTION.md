@@ -104,7 +104,7 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
 - ☐ `auto-daily-reconciliation.sh` — nightly (retail edition).
 - ☐ `auto-lead-housekeeping.sh`, `auto-mailchimp-sync.sh`,
   `auto-customer-level-recalc.sh`, `auto-axper-traffic.sh` — per their cadence.
-- ☐ Retail edition only: `auto-import.sh` (06:10) for the daily Ordorite reports +
+- ☐ Retail edition only: `auto-import.sh` (06:10) for the daily POS reports +
   the Gmail service-account JSON mounted at `config/service-account.json`.
 
 ## 5. Observability & alerting
@@ -143,8 +143,8 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
 - ☐ `npm run create-admin <email> <password>` for the first SUPER_ADMIN.
 - ☐ The deployment's own content: run its seed (brand + CMS pages), kept outside
   the repo (`docs/DEPLOYMENTS.md`, "A deployment's own kit"), or build the pages
-  in Admin → CMS. Retail edition migrating from Ordorite: restore the prod
-  backup + run the Ordorite import.
+  in Admin → CMS. Retail edition migrating from the POS: restore the prod
+  backup + run the POS import.
 - ☐ In Settings: set name/logo/theme, currency/locale/timezone, and toggle
   the feature modules this tenant uses (billing, clientPortal, legacyArchive,
   helpdesk, booking, cms, ...). All default OFF.

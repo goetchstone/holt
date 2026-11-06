@@ -40,7 +40,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
     // route used to write the user's EMAIL there ("system" when absent), which
     // can never match a User.id, so every native receipt failed with a foreign
     // key violation. The POS import path resolves the id for the same reason
-    // (lib/adapters/ordorite/runners.ts, resolveImportUserId).
+    // (lib/adapters/legacyPos/runners.ts, resolveImportUserId).
     const receiverUserId = session.user?.id;
     if (!receiverUserId) {
       return res.status(401).json({ error: "Sign in again: your session has no user id." });

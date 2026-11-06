@@ -9,7 +9,7 @@
 //
 // WHY THIS INTERFACE EXISTS
 //
-// The Ordorite adapter (lib/adapters/ordorite/) was swappable in *practice* --
+// The POS adapter (lib/adapters/legacyPos/) was swappable in *practice* --
 // one entry point, one call site -- but there was no TYPE saying so, no
 // registry, and nothing a second adapter could implement. "Replaceable" was a
 // property you could verify only by reading 5,000 lines and noticing that
@@ -31,7 +31,7 @@
 // fix is to move the fact behind this line, not to widen the interface.
 
 /**
- * Result of one import run. Shaped by the Ordorite orchestrator because it was
+ * Result of one import run. Shaped by the POS orchestrator because it was
  * the first implementation, and kept general enough that a second adapter does
  * not have to lie: an adapter that has no notion of "emails" reports zero and
  * describes what it did in `message`.

@@ -10,7 +10,7 @@
 // than a restrictive <select>:
 //   - targetEntity: IMPORT_ENTITIES is a server-side catalog that grows, and
 //     a definition can validly name an entity that does not exist YET (see
-//     ordorite-payment-modes.yaml -- targetEntity "payment" -- which ships
+//     legacy-pos-payment-modes.yaml -- targetEntity "payment" -- which ships
 //     forced inactive rather than rejected). A <select> would silently drop
 //     that value.
 //   - fieldMappings[].targetField: same reasoning, scoped to the chosen

@@ -23,7 +23,7 @@
 //     failure. The definition is still saved, but isActive is forced to
 //     false regardless of what the preset asked for, and the reason is
 //     recorded in the result and the ConfigChangeLog summary. This mirrors
-//     prisma/seed/ordoritePaymentMode.ts, which seeds a targetEntity:
+//     prisma/seed/legacyPosPaymentMode.ts, which seeds a targetEntity:
 //     "payment" definition (isActive: false) as a shape proof for an entity
 //     that does not exist yet — a preset naming a not-yet-built entity is
 //     useful as documented intent, not an error to reject.
@@ -537,7 +537,7 @@ async function applyImportDefinition(
     const known = IMPORT_ENTITIES.map((e) => e.key).join(", ") || "(none)";
     // "Saved but forced inactive" is the right answer for a NEW definition —
     // that's how a preset documents an intended mapping before its entity
-    // exists (ordorite-payment-modes ships exactly this way). It is the
+    // exists (the shipped POS payment-mode preset does exactly this). It is the
     // WRONG answer for an EXISTING, currently-active definition: a
     // one-character typo in targetEntity would silently switch off a live
     // importer while this function still reports APPLIED and the CLI exits

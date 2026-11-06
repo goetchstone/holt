@@ -26,7 +26,7 @@ import type {
   ParsedEkornesData,
   ParsedEkornesFabric,
 } from "@/lib/pricing/ekornesParser";
-import type { ALParsedProduct, ALParsedPage } from "@/lib/pricing/americanLeatherExtractor";
+import type { DualGradeParsedProduct, DualGradeParsedPage } from "@/lib/pricing/dualGradeExtractor";
 
 interface FabricRow {
   fabricName: string;
@@ -65,9 +65,9 @@ interface EkornesData {
   fabrics: ParsedEkornesFabric[];
 }
 
-interface ALData {
-  products: ALParsedProduct[];
-  pages?: ALParsedPage[];
+interface DualGradeData {
+  products: DualGradeParsedProduct[];
+  pages?: DualGradeParsedPage[];
   collections: string[];
   effectiveDate: string | null;
   isRetail: boolean;
@@ -115,7 +115,7 @@ function isEkornesData(data: any): data is EkornesData {
 }
 
 /** Type guard: is the kbData prop AL-shaped? Distinguishes from SC by isRetail field. */
-function isALData(data: any): data is ALData {
+function isALData(data: any): data is DualGradeData {
   return (
     Array.isArray(data?.products) &&
     Array.isArray(data?.collections) &&
@@ -158,7 +158,7 @@ export default function ImportPreview({ products, importType, kbData }: Props) {
   }
 
   if (kbData && isALData(kbData)) {
-    return <ALPreview alData={kbData} />;
+    return <DualGradePreview dualGradeData={kbData} />;
   }
 
   if (kbData && isSCData(kbData)) {
@@ -1792,10 +1792,10 @@ function SCPreview({ scData }: { scData: SCData }) {
   );
 }
 
-// ─── American Leather preview ────────────────────────────────────
+// ─── Dual-grade preview ──────────────────────────────────────────────────────────────────────────────
 
-function ALPreview({ alData }: { alData: ALData }) {
-  const { products, pages, collections, isRetail } = alData;
+function DualGradePreview({ dualGradeData }: { dualGradeData: DualGradeData }) {
+  const { products, pages, collections, isRetail } = dualGradeData;
 
   const allGrades = new Set<string>();
   for (const p of products) {

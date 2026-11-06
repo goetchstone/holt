@@ -22,7 +22,7 @@ The designer-facing tools (Configurator, Create Project) are role-gated separate
 
 App Router tool (`app/(dashboard)/app/tools/apparel-order/`) that ports the predecessor ERP's
 apparel-order tool to feed holt's own Buyer Drafts domain (`buyer-drafts.md`) instead of downloading
-Ordorite CSVs directly — holt is its own system of record, so the tool writes DB rows.
+the POS CSVs directly — holt is its own system of record, so the tool writes DB rows.
 
 **Flow**: pick a vendor format → upload a PDF (parsed server-side by the same vendor parsers
 `lib/pricing/{nuorderParser,nuorderPrintoutParser,zSupplyParser,frankEileenParser}.ts` use for
@@ -33,8 +33,8 @@ single transaction (`pages/api/tools/apparel-order/commit.ts`). From there the b
 exports exactly like any other draft via the existing Buyer Drafts workbench.
 
 **No catalog matching**: the predecessor's version ran a second pass matching parsed rows against existing
-Ordorite `Product` rows (NEW vs UPDATE, style/color candidate suggestions) because its output was a
-CSV headed straight into Ordorite. Holt's Buyer Drafts domain has no such step — every row becomes a
+the POS `Product` rows (NEW vs UPDATE, style/color candidate suggestions) because its output was a
+CSV headed straight into the POS. Holt's Buyer Drafts domain has no such step — every row becomes a
 brand-new DRAFT item regardless of whether a similar catalog Product exists; the buyer links to the
 real catalog afterward via the existing barcode-lookup or Vendor Style picker flows in the workbench.
 
@@ -137,13 +137,13 @@ Use when:
 
 ## Home Accessory Order Import (2026-07-22)
 
-Ported from the predecessor ERP's `pages/tools/home-accessory-order.tsx` and adapted to write into holt's own Buyer Drafts pipeline instead of downloading Ordorite CSVs — holt is its own system of record (see `docs/domains/buyer-drafts.md`), unlike the predecessor, where Ordorite is the system of record.
+Ported from the predecessor ERP's `pages/tools/home-accessory-order.tsx` and adapted to write into holt's own Buyer Drafts pipeline instead of downloading the POS CSVs — holt is its own system of record (see `docs/domains/buyer-drafts.md`), unlike the predecessor, where the POS is the system of record.
 
 **Flow**: upload a home-accessory vendor order file (K&K Interiors, Wendover Art Group, MarketTime/Graf & Lantz, BrandWise/Zodax, Aesthetic Movement, SuperCatSolutions, Simblist Group CSV, or Beatriz Ball) → `POST /api/tools/home-accessory-order/preview` parses it (vendor parsers already live at `lib/pricing/*OrderParser.ts`) → the buyer reviews a one-card-per-item preview (classify department/category per item, optionally split a "Set of N" line into its priced pieces, optionally apply a markup to fill Selling + MSRP) → `POST /api/tools/home-accessory-order/commit` creates the rows.
 
 **Output mapping** (the adaptation): the composed rows group by their effective order reference — one `BuyerDraftPurchaseOrder` per distinct reference, so a vendor bundle carrying several orders (a K&K PDF can hold two) creates several draft POs in one commit ("multi-PO bundles"). Every composed row becomes exactly one `BuyerDraftItem` regardless of PO assignment; a row the buyer takes "off PO" (already ordered elsewhere) still gets created, just with `draftPoId: null`. Field mapping and the full rationale live in `lib/homeAccessoryBuyerDraftMapping.ts`. `BuyerDraftItem.source` is stamped `HOME_ACCESSORY_ORDER_IMPORT` (migration `20260722134701_home_accessory_order_source`, additive `ALTER TYPE ... ADD VALUE`).
 
-**Dropped relative to the predecessor** (see `lib/homeAccessoryRows.ts` header comment): the Ordorite catalog-match / "adopt the catalog's existing split" flow has no holt analog — buyer drafts are pre-catalog negotiation records, not reconciled against `Product` rows at import time (a buyer who wants to link a draft to an existing catalog Product already has the barcode-lookup quick-add flow, `lib/buyerDraftFromProduct.ts`, for that). The Oversell field is also dropped — no `BuyerDraftItem` column for it.
+**Dropped relative to the predecessor** (see `lib/homeAccessoryRows.ts` header comment): the POS catalog-match / "adopt the catalog's existing split" flow has no holt analog — buyer drafts are pre-catalog negotiation records, not reconciled against `Product` rows at import time (a buyer who wants to link a draft to an existing catalog Product already has the barcode-lookup quick-add flow, `lib/buyerDraftFromProduct.ts`, for that). The Oversell field is also dropped — no `BuyerDraftItem` column for it.
 
 **Files**: `lib/homeAccessoryOrders.ts` (vendor registry + normalizers + split-cost math), `lib/homeAccessoryRows.ts` (row composition + split-set grouping), `lib/homeAccessoryBuyerDraftMapping.ts` (the buyer-drafts field mapping), `pages/api/tools/home-accessory-order/{preview,commit}.ts`, `app/(dashboard)/app/tools/home-accessory-order/{page.tsx,HomeAccessoryOrderView.tsx}`.
 

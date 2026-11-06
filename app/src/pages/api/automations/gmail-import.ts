@@ -2,7 +2,7 @@
 //
 // DEPRECATED ALIAS for POST /api/automations/source-import.
 //
-// "Gmail" is how ONE adapter (Ordorite) receives its reports. Naming a
+// "Gmail" is how ONE adapter (the POS) receives its reports. Naming a
 // transport in the URL was the same mistake as hardcoding one state's
 // tax-district short name in the tax lookup: one deployment's fact,
 // hardcoded where the general thing belongs (CLAUDE.md rule 61).

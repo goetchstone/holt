@@ -8,15 +8,15 @@
 // Ported from furniture-configurator's src/lib/homeAccessoryRows.ts. The
 // split-set math, precedence rules, and render-grouping are unchanged.
 // Dropped relative to FC's version, because they have no holt analog:
-//   - Ordorite catalog match (`CatalogMatch` / `ChildMatch` / adopting an
+//   - the POS catalog match (`CatalogMatch` / `ChildMatch` / adopting an
 //     existing split) — holt's buyer drafts are pre-catalog negotiation
 //     records, not reconciled against `Product` rows at import time. A
 //     buyer who wants to link a draft to an existing catalog Product
 //     already has the barcode-lookup quick-add flow
 //     (`lib/buyerDraftFromProduct.ts`) for that.
-//   - `oversell` — an Ordorite PO-import column with no `BuyerDraftItem`
+//   - `oversell` — a POS PO-import column with no `BuyerDraftItem`
 //     field.
-//   - `ordoriteId` on the row — no analog; `BuyerDraftItem` has no
+//   - The POS id on the row — no analog; `BuyerDraftItem` has no
 //     "already in the catalog" concept at draft time.
 //
 // Lifted out of the page so the precedence rules that decide MONEY and

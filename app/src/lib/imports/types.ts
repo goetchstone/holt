@@ -18,7 +18,7 @@ import type { GenericImportResult } from "@/lib/genericImport";
  * INSERT_ONLY / UPSERT -- the source is a delta or one-time dump; every row
  * is a fact to insert or upsert. Fully engine-driven, no runnerKey required.
  *
- * RECONCILE -- the source is a full-state re-export (e.g. Ordorite: every
+ * RECONCILE -- the source is a full-state re-export (e.g. the POS: every
  * file asserts "this is everything as of now"). The importer must diff
  * against existing data — dropped lines, rewrites, zero-qty-means-cancelled
  * — which is inherently code. RECONCILE definitions MUST name a registered

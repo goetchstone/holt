@@ -1,7 +1,7 @@
-// /app/__tests__/ordoritePaymentMethod.test.ts
+// /app/__tests__/legacyPosPaymentMethod.test.ts
 //
 // `Payment.method` is holt's bounded tender vocabulary. Before this, the
-// Ordorite importer wrote `paymentType` (the source's own display string) and
+// the POS importer wrote `paymentType` (the source's own display string) and
 // left `method` NULL — on every imported payment row. A bounded enum nothing
 // populates is not a vocabulary, it is a column, and every query written
 // against it silently returns nothing.
@@ -11,16 +11,16 @@
 //   1. Every mode the adapter can decode resolves to a method. A gap between
 //      PAYMENT_MODE_MAP and PAYMENT_METHOD_MAP is a tender that imports with a
 //      NULL method forever, which is how this started.
-//   2. The map agrees with config/presets/ordorite-payment-modes.yaml. That
+//   2. The map agrees with config/presets/legacy-pos-payment-modes.yaml. That
 //      preset is where these decisions were reviewed; two sources for the same
 //      decision is how they drift.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { resolvePaymentMode, resolvePaymentMethod } from "@/lib/adapters/ordorite/shared";
+import { resolvePaymentMode, resolvePaymentMethod } from "@/lib/adapters/legacyPos/shared";
 
-// The numeric codes Ordorite exports, from PAYMENT_MODE_MAP.
-const ORDORITE_CODES = [
+// The numeric codes the POS exports, from PAYMENT_MODE_MAP.
+const POS_CODES = [
   "1",
   "2",
   "4",
@@ -39,7 +39,7 @@ const ORDORITE_CODES = [
 
 describe("resolvePaymentMethod", () => {
   it("classifies every mode the adapter can decode", () => {
-    const unclassified = ORDORITE_CODES.map((c) => resolvePaymentMode(c)).filter(
+    const unclassified = POS_CODES.map((c) => resolvePaymentMode(c)).filter(
       (t) => resolvePaymentMethod(t) === null,
     );
     // A decoded tender with no method imports as NULL forever.
@@ -47,7 +47,7 @@ describe("resolvePaymentMethod", () => {
   });
 
   it("collapses all three card rails to CARD", () => {
-    // Ordorite splits processor and card-present; holt's ledger does not, and
+    // the POS splits processor and card-present; holt's ledger does not, and
     // they settle to the same GL account.
     expect(resolvePaymentMethod("Card Connect")).toBe("CARD");
     expect(resolvePaymentMethod("Card Not Present")).toBe("CARD");
@@ -75,7 +75,7 @@ describe("resolvePaymentMethod", () => {
 
   it("agrees with the shipped preset, which is where these were reviewed", () => {
     const yaml = readFileSync(
-      join(__dirname, "..", "..", "config", "presets", "ordorite-payment-modes.yaml"),
+      join(__dirname, "..", "..", "config", "presets", "legacy-pos-payment-modes.yaml"),
       "utf8",
     );
     // The preset's value block is `paymentType:` followed by `  Source: TARGET`

@@ -2,7 +2,7 @@
 //
 // Source-text tripwire: the seam is only real while nothing routes around it.
 //
-// The Ordorite folder was already swappable in practice -- one production call
+// The POS folder was already swappable in practice -- one production call
 // site -- but nothing enforced that, so it stayed true by luck. The first
 // route that imports `runGmailImport` directly for a "quick fix" makes
 // "replace the source system with anything" false again, and nothing would
@@ -66,12 +66,12 @@ describe("source adapter seam", () => {
     );
     expect(route).toContain("getActiveSourceAdapter");
     // Imports only. The route's header explains WHY the seam exists and names
-    // Ordorite as the motivating case — that provenance is worth keeping, and
+    // the POS as the motivating case — that provenance is worth keeping, and
     // a comment is not a coupling.
     const importLines = route
       .split("\n")
       .filter((l) => /^\s*import\s/.test(l))
       .join("\n");
-    expect(importLines).not.toMatch(/runGmailImport|ordorite/i);
+    expect(importLines).not.toMatch(/runGmailImport|legacyPos/i);
   });
 });

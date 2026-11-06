@@ -2,7 +2,7 @@
 # scripts/auto-import.sh
 #
 # Trigger this deployment's source import -- whichever SourceAdapter is
-# selected in Settings -> Configuration -> Source System. For an Ordorite
+# selected in Settings -> Configuration -> Source System. For a POS
 # deployment that is Gmail -> CSV reports -> import runners; for a deployment
 # with no source system it is a no-op that reports so, rather than a failure.
 # Configure in cron (or your host's task scheduler) as a recurring task —
@@ -10,7 +10,7 @@
 # (several import quirks assume a full day's sales+returns arrive in one
 # batch, so run once per day, never split a day's files).
 #
-# An adapter that names a module flag (Ordorite names `legacyPosImport`)
+# An adapter that names a module flag (the POS names `legacyPosImport`)
 # still needs that flag ON; with it off, the run reports nothing to import
 # instead of failing.
 # Required env: AUTO_IMPORT_API_KEY (matches app/.env.local).

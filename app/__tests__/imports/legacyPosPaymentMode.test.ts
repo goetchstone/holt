@@ -1,24 +1,24 @@
-// /app/__tests__/imports/ordoritePaymentMode.test.ts
+// /app/__tests__/imports/legacyPosPaymentMode.test.ts
 //
 // Stage 1's proof for the motivating case in
-// docs/domains/imports-configurable.md: Ordorite's resolvePaymentMode()
-// (lib/adapters/ordorite/shared.ts) decodes payment-mode codes into display
+// docs/domains/imports-configurable.md: the POS's resolvePaymentMode()
+// (lib/adapters/legacyPos/shared.ts) decodes payment-mode codes into display
 // strings that land verbatim in Payment.paymentType, a free-text column
 // outside holt's bounded PaymentMethod vocabulary. This runs the exact
-// seeded value-mapping DATA (lib/imports/data/ordoritePaymentMode.ts --
-// the same module prisma/seed/ordoritePaymentMode.ts persists) through the
+// seeded value-mapping DATA (lib/imports/data/legacyPosPaymentMode.ts --
+// the same module prisma/seed/legacyPosPaymentMode.ts persists) through the
 // pure engine and asserts every one of the eight modes named in the Stage 1
 // brief lands on holt's bounded vocabulary.
 //
-// This does NOT exercise the live Ordorite sales/payments runner --
-// resolvePaymentMode() and lib/adapters/ordorite/runners.ts are untouched.
+// This does NOT exercise the live POS sales/payments runner --
+// resolvePaymentMode() and lib/adapters/legacyPos/runners.ts are untouched.
 // It proves the mechanism only.
 
 import { runImportEngine } from "@/lib/imports/engine";
 import {
-  ORDORITE_PAYMENT_MODE_FIELD_MAPPING,
-  ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS,
-} from "@/lib/imports/data/ordoritePaymentMode";
+  LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING,
+  LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS,
+} from "@/lib/imports/data/legacyPosPaymentMode";
 
 // holt's bounded PaymentMethod enum (prisma/schema.prisma) -- what every
 // translated value must land on.
@@ -34,13 +34,13 @@ const BOUNDED_PAYMENT_METHODS = new Set([
   "OTHER",
 ]);
 
-describe("Ordorite payment-mode value mapping", () => {
+describe("the POS payment-mode value mapping", () => {
   test("every Card Connect/Card Not Present/Debit mode translates to CARD", () => {
     for (const sourceValue of ["Card Connect", "Card Not Present", "Debit"]) {
       const result = runImportEngine({
         importMode: "INSERT_ONLY",
-        fieldMappings: [ORDORITE_PAYMENT_MODE_FIELD_MAPPING],
-        valueMappings: ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS,
+        fieldMappings: [LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING],
+        valueMappings: LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS,
         rows: [{ Modeofpayment: sourceValue }],
       });
       expect(result.rows[0]).toMatchObject({
@@ -53,8 +53,8 @@ describe("Ordorite payment-mode value mapping", () => {
   test("Credit Note translates to STORE_CREDIT", () => {
     const result = runImportEngine({
       importMode: "INSERT_ONLY",
-      fieldMappings: [ORDORITE_PAYMENT_MODE_FIELD_MAPPING],
-      valueMappings: ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS,
+      fieldMappings: [LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING],
+      valueMappings: LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS,
       rows: [{ Modeofpayment: "Credit Note" }],
     });
     expect(result.rows[0].record.paymentType).toBe("STORE_CREDIT");
@@ -64,8 +64,8 @@ describe("Ordorite payment-mode value mapping", () => {
     for (const sourceValue of ["Marketing", "Refund", "Charity", "Other"]) {
       const result = runImportEngine({
         importMode: "INSERT_ONLY",
-        fieldMappings: [ORDORITE_PAYMENT_MODE_FIELD_MAPPING],
-        valueMappings: ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS,
+        fieldMappings: [LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING],
+        valueMappings: LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS,
         rows: [{ Modeofpayment: sourceValue }],
       });
       expect(result.rows[0].record.paymentType).toBe("OTHER");
@@ -73,13 +73,13 @@ describe("Ordorite payment-mode value mapping", () => {
   });
 
   test("running the full eight-row batch at once: every row lands on a bounded PaymentMethod value", () => {
-    const rows = ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS.map((vm) => ({
+    const rows = LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS.map((vm) => ({
       Modeofpayment: vm.sourceValue,
     }));
     const result = runImportEngine({
       importMode: "INSERT_ONLY",
-      fieldMappings: [ORDORITE_PAYMENT_MODE_FIELD_MAPPING],
-      valueMappings: ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS,
+      fieldMappings: [LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING],
+      valueMappings: LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS,
       rows,
     });
 
@@ -95,11 +95,11 @@ describe("Ordorite payment-mode value mapping", () => {
     }
   });
 
-  test("a payment mode not in the seeded set (e.g. a future Ordorite code) is reported, not silently passed through", () => {
+  test("a payment mode not in the seeded set (e.g. a future the POS code) is reported, not silently passed through", () => {
     const result = runImportEngine({
       importMode: "INSERT_ONLY",
-      fieldMappings: [ORDORITE_PAYMENT_MODE_FIELD_MAPPING],
-      valueMappings: ORDORITE_PAYMENT_MODE_VALUE_MAPPINGS,
+      fieldMappings: [LEGACY_POS_PAYMENT_MODE_FIELD_MAPPING],
+      valueMappings: LEGACY_POS_PAYMENT_MODE_VALUE_MAPPINGS,
       rows: [{ Modeofpayment: "Cryptocurrency" }],
     });
     expect(result.rows[0].outcome).toBe("error");

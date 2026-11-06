@@ -52,15 +52,15 @@ core repo stays a single product so improvements flow to every deployment.
   posts, at the live site's slugs so indexing carries over, and it must ride
   every environment move (it is data, not code).
 - **Riverbend** (retail edition) — a retail feature preset (POS, inventory,
-  warehousing, dispatch, purchasing, commissions) plus the **Ordorite adapter**:
+  warehousing, dispatch, purchasing, commissions) plus the **POS adapter**:
   a self-contained import package (report runners, status derivation, rewrite /
-  dedup quirk handling) that translates Ordorite's daily exports into Holt's
-  models. Ordorite-specific logic lives only in the adapter — never in core
+  dedup quirk handling) that translates the POS's daily exports into Holt's
+  models. POS-specific logic lives only in the adapter — never in core
   reports or services. The adapter is the bridge that lets Holt run in parallel
   with the legacy system (daily reconciliation compares totals) until it becomes
   the system of record.
 
-  **The adapter shipped 2026-06-10** at `app/src/lib/adapters/ordorite/`
+  **The adapter shipped 2026-06-10** at `app/src/lib/adapters/legacyPos/`
   (gmailClient → reportRouter → 13 runners + every legacy-ERP quirk: phantom Gift-Card
   skip, orphan-cancel + rewrite-freeze + reactivation, same-day-rewrite
   three-gate sweep, pay-period attribution-lock preserve, consignment lifecycle
@@ -104,17 +104,16 @@ To revert any instance to the generic white-box demo: `npm run seed:cms`.
 ## Moving a deployment onto Holt from another system
 
 A deployment that runs on another system first brings its history in through an
-importer for that system, then cuts over. Two exist today, each named for the
-system it reads, never for a deployment:
+importer for that system, then cuts over. Two exist today, each named for what it reads, never for a deployment:
 
-- **Ordorite** (retail): the adapter in `app/src/lib/adapters/ordorite/`, above.
-- **simplerms** (services): `app/scripts/migrate-simplerms.mjs`, a one-time
+- **A POS** (retail): the adapter in `app/src/lib/adapters/legacyPos/`, above.
+- **A services system**: `app/scripts/migrate-services-system.mjs`, a one-time
   migration. Dry-run it into a scratch database first:
 
   ```
-  SOURCE_DATABASE_URL=postgres://.../simplerms_copy \
+  SOURCE_DATABASE_URL=postgres://.../source_copy \
   DATABASE_URL=postgres://.../holt_staging \
-  node scripts/migrate-simplerms.mjs --dry-run
+  node scripts/migrate-services-system.mjs --dry-run
   ```
 
   Review the per-entity counts and `scripts/migration-exceptions.json`

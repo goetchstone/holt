@@ -108,7 +108,7 @@ the POS vendor mapping in `productEntryMapping.ts` bridges vendor names to POS s
 - **Adding a vendor** on the vendors screen refuses a name a vendor or earlier
   name already has, ignoring case (409), where it used to fail with a 500 on an
   exact duplicate and accept a case twin.
-- **Caches:** the Ordorite import's cached Unknown Vendor id is re-read after
+- **Caches:** the POS import's cached Unknown Vendor id is re-read after
   any merge in the process (`vendorMergeCount`). `lib/vendorPrefixService.ts`
   caches prefixes with their vendor ids until restart; only the prefixes are
   read (`vendorIdForNumber` has no callers), so a merge leaves nothing stale
