@@ -104,6 +104,24 @@ Where the product already has a mechanism, use it instead of writing rows
 directly — the journal seed calls `generateSalesJournal`, so its entries are
 produced by the same code production uses and balance for the same reason.
 
+## Automations are switched on
+
+A store starts with its automations off. The demo has them on, so they can be tried: a table of
+follow-ups with the email switched off looks seeded and shows nothing.
+
+- **The morning email:** `followUpEmailHour` 8 (`pipeline.ts`).
+- **Suggested clients:** `outreachMinLifetimeSpend` 200 (`pipeline.ts`).
+- **The low stock alert:** `lowStockAlertHour` 7, to `warehouse1@example.com` (`reorderPoints.ts`).
+- **Customer messages:** all switched on as of seeding, so only what happens after that sends
+  (`setupData.ts`).
+
+Nothing leaves a seeded demo with no SMTP or Twilio set, and every address is `@example.com`.
+The queue holds what it would have sent. Set up real email on a demo and these would be attempted.
+A row count can't see a setting, so `npm run seed:coverage` fails if any of these is off.
+
+Run on a fresh practice copy (2026-11-05), the email cron's steps queued 7 morning emails and one
+low-stock list, and a stand-in mail server saw no connection.
+
 ## Why this exists
 
 1. **holt is open-source.** A real customer's orders and payments cannot ship in a public
@@ -489,6 +507,9 @@ enforces:
   `holt_seed_demo`, and the `ci` database the smoke workflow creates).
 - **Everything else needs `--force-unsafe-db` / `HOLT_SEED_FORCE_UNSAFE_DB=1`**, on the
   assumption it holds real dev, restored or curated data.
+- **A practice copy's database** (`holt_demo_practice`) passes as `demo`, but the seed also
+  refuses it until `PRACTICE_STAFF_PASSWORD` is set: it will hold real products and costs, and
+  the demo password is public (`docs/domains/practice-copy.md`).
 
 This is an allowlist on purpose. It replaced a blocklist of specific database names,
 which failed open: a name nobody had listed seeded silently, and the list only ever

@@ -14,7 +14,7 @@ Every PR runs through this gate:
 | npm advisory audit | GitHub Actions (`security.yml`) | Every PR | **Yes** |
 | Dependency CVE scan (OSV) | GitHub Actions (`security.yml`) | Every PR + weekly (it scans the whole lockfile every time; nothing skips it on a PR) | **Yes** |
 | Markdown lint | GitHub Actions (`markdownlint.yml`) | Every PR | **Yes** |
-| CodeQL (default setup, extended suite) | GitHub-managed | Every PR + weekly | **Yes**: the ruleset refuses a merge with a high-or-critical alert |
+| CodeQL (default setup, extended suite) | GitHub-managed | Every PR + weekly | **Yes**: the ruleset refuses a merge with a high-or-critical alert the PR's own check reports. The scan of `main` can raise more with that check green; the session-start report counts those |
 | Client-data tripwire | Inside the unit tests | Every PR; patterns from the `CLIENT_DATA_PATTERNS` secret | **Yes** (fails without the secret) |
 | Screen-to-route tripwire (`clientApiRoutes.test.ts`) | Inside the unit tests | Every PR: every REST call on a screen reaches a route that answers its method | **Yes** |
 | Secret scanning push protection | GitHub | Every push | **Yes**: a push carrying a recognised credential is refused |
@@ -223,9 +223,15 @@ lints with: markdownlint-cli2's version lives in `app/package.json` and
 
 ## Open alerts on main: triage of 2026-11-03
 
-CodeQL only refuses a merge for an alert the pull request adds, so alerts
-already on `main` sit in the Security tab until someone resolves them (rule 48:
-fixed, tripwire-tested, or won't-fix with a reason). On 2026-11-03 there were
+CodeQL only refuses a merge for an alert the pull request's own check reports,
+and that check sees less than the scan of `main` does. #68, #75 and #85 each
+passed ("No new alerts in code changed by this pull request"), and the scans of
+their merges then raised 11 high alerts: nine on lines #68 hadn't changed, and
+one each on lines #75 and #85 had. Why those last two passed isn't known. So an
+alert on `main` sits in the Security tab until someone resolves it (rule 48:
+fixed, tripwire-tested, or won't-fix with a reason), whether it was already
+there or just arrived. Since 2026-11-05, `.claude/hooks/session-start-check.sh`
+counts what is open at every session start (rule 65). On 2026-11-03 there were
 17 open CodeQL alerts, all high, and 2 Dependabot alerts.
 
 **Fixed in code** (each closes when CodeQL next scans `main`):

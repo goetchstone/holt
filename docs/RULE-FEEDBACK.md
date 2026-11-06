@@ -244,6 +244,180 @@ is a change to *where* it is enforced, not to *what* it says
   for a gate that runs unattended, not for its failure to reach someone.
   Proposed for the next pass (`ROADMAP.md`, "Learning loop", item 5).
 
+### 2026-11-05 — three PRs' CodeQL checks passed while 11 high alerts landed on main
+
+- **Signal:** improver pass, reading #89 and the code-scanning API
+- **What happened:** #89 found 17 high CodeQL alerts open on main. Six dated from
+  2026-10-07 with no recorded state (rule 48). Three of those six were real (#17,
+  #21, #24), and of the three only #17 was in the roadmap. The other eleven
+  arrived with every gate green. The scan of #68's merge went from 6 results to
+  15, while #68's own CodeQL check read "No new alerts in code changed by this
+  pull request"; `git blame` puts all nine flagged lines in the repository's first
+  commit. #75 and #85 each added one more with the same check green, and those two
+  lines are ones the PRs did change, so "only changed code" doesn't fully explain
+  it. Why they passed isn't known. All eleven were false positives, dismissed with
+  reasons on 2026-11-03. Nobody was told about them for up to four days, or about
+  the older six for 27. `docs/CI-OPERATIONS.md` said the gate refuses "an alert the
+  pull request adds".
+- **Principle:** 5 for that sentence; rule 48 and rule 65's third part for the
+  rest.
+- **Would a rule have caught it?** Only if enforced differently: rule 48 says every
+  finding ends in a state, and nothing brought the finding to anyone. The
+  2026-11-05 pass sharpened rule 65, and the session-start report now counts open
+  alerts.
+
+### 2026-11-05 — Dependabot's job is still failing, and its last run reads green
+
+- **Signal:** CI failure, runs 41460112540 and 41314489881
+- **What happened:** 16 of 42 "Dependabot Updates" runs on main have failed since
+  2026-10-07 (API count today; the 2026-10-27 entry said 15 of 42). On 2026-11-02
+  the npm job failed with EOVERRIDE on `nodemailer@10.3.1` and `postcss@8.5.32`, so
+  neither update can land, and the docker and GitHub Actions jobs passed beside it.
+  The workflow's latest conclusion therefore reads success. `ROADMAP.md`, "Learning
+  loop", item 4 is still open.
+- **Principle:** rule 65's third part.
+- **Would a rule have caught it?** Only if enforced differently. A check of "the
+  latest run" would have read green too, so the session-start report reads dynamic
+  workflows as a count over a week.
+
+### 2026-11-05 — a SessionStart hook's stderr reaches no session
+
+- **Signal:** near miss (improver pass)
+- **What happened:** `session-start-check.sh` wrote everything to stderr. In all 23
+  transcripts of the last 30 days, that hook's record has `stderr` filled and the
+  delivered `content` empty, while `rules-improver-check.sh`, on stdout, is
+  delivered. So the ORIENT checklist the hook exists to surface has reached no
+  session, and neither would rule 54's expired-suppression warning. No suppression
+  has expired since, so that warning has missed nothing yet. The improver's banner
+  did arrive, and this pass ran because of it.
+- **Principle:** 4 (an instrument that can disagree), rule 65.
+- **Would a rule have caught it?** Only if enforced differently. The warning and
+  the gate report now go to stdout. ORIENT stays on stderr: moving it adds about 30
+  lines to every session's context, so that is left to the next pass to weigh.
+
+### 2026-11-05 — pre-commit's failure-log block can't fire
+
+- **Signal:** near miss (improver pass)
+- **What happened:** `pre-commit-check.sh` hard-blocks a commit whose message
+  carries `fix(` or `fix:` unless `post-failure/SKILL.md` changed in the last hour.
+  None of the 44 commit messages on main since 2026-10-27 matches its pattern. The
+  post-failure log's last entry is 2026-10-15, and this ledger had no entry between
+  2026-10-27 and today, across ten fix PRs. #52 moved the improver's trigger off
+  the same dead commit style and didn't sweep this sibling (rule 49). The block
+  also reads a file's mtime, which in a fresh worktree is the checkout's time, so
+  it would pass for a worktree's first hour anyway. `docs/FRAMEWORK.md` §7 still
+  describes it as live.
+- **Principle:** 3 (a guard on one path is no guard) and 4.
+- **Would a rule have caught it?** Only if enforced differently: key it on the
+  branch (`fix/`, `security/`, `sec/`, `revert/`) and the branch's own diff, or
+  retire it. This pass found plenty in PR bodies without it, so the ledger's
+  silence cost less than it looks. Proposed for the next pass.
+
+### 2026-11-05 — the improver's stamp lives in each checkout
+
+- **Signal:** near miss (improver pass)
+- **What happened:** `.claude/.rules-last-run` is gitignored, and this pass's
+  worktree held a copy of the main checkout's, made when the worktree was created.
+  The skill's `date > .claude/.rules-last-run` stamps that copy, so a pass run in a
+  worktree doesn't reach the main checkout, and new sessions keep counting from the
+  old date.
+- **Principle:** 6 (one home per fact).
+- **Would a rule have caught it?** No. The skill or the hook should resolve the
+  main checkout (`git rev-parse --git-common-dir`). Proposed for the next pass.
+
+### 2026-11-05 — a screen and its route disagree, and no gate can see it
+
+- **Signal:** fix PR #90, and fixes riding inside #76, #77, #78, #80 and #94
+  (improver pass)
+- **What happened:** in ten days, these turned up by accident, while reading code
+  or checking something else in a browser:
+  - #78: three service lookup routes answered a bare list where four screens read
+    `{ types }`, `{ statuses }` or `{ priorities }`, so no case could be opened from
+    the new-case form. `/api/staff` answers a bare list and four more screens read
+    `.staff`, so they listed nobody.
+  - #90: two customer searches read `customers` from `{ data, totalPages }` and
+    never showed a match. The house call form's address picker calls a GET its route
+    doesn't have (recorded, not fixed).
+  - #77: the customer edit form called a PUT its route didn't answer, so no name,
+    email or phone could be changed.
+  - #76: the product list's Edit saved every field on the form, and the list never
+    sent two of them, so an edit cleared them.
+  - #94: the product form's Print button sent a blank template and got a 400.
+  - #80: a vendor row opened a page that doesn't exist.
+
+  All of it compiled. A REST answer reaches a screen as `any`, and a generic only
+  asserts: `SalesGoalsView` reads `/api/staff` as `.get<{ staff: StaffOption[] }>`
+  while the route answers a bare list. At least eleven reads in nine files still
+  guess between shapes (`res.data.staff || res.data`), which is how #90's order
+  page failed.
+- **Principle:** 6 (one home per fact), rule 7.
+- **Would a rule have caught it?** Only if enforced differently: rule 7's "contract
+  drift is a compile error" holds only where a shared contract file exists. A rule
+  65 tripwire could check that every client call resolves to a route and a method it
+  answers; keys read from an answer are harder. That is a build, not a text change,
+  so the 2026-11-05 pass proposed it as its own session.
+
+### 2026-11-05 — the rest of the pass's evidence, not rules problems
+
+- **Signal:** fix PRs and CI failures since 2026-10-27
+- **What happened:**
+  - #55, #56, #61: a guard or writer on some paths and not others (principle 3), in
+    code that predates the rule. Found by audit and fixed with one shared function,
+    as rules 42 and 49 ask; #55 also added a tripwire (rule 65).
+  - #59: the seed printed `balanced=` from totals taken after the plug (principle
+    4). It is a gate now.
+  - #64: two columns answered one question (principle 6), found when the feature
+    was built.
+  - #70: `api500Bodies.test.ts` sees only inline bodies, so the shared helper got
+    past it. The helper is fixed, and the roadmap holds about 25 local-variable
+    sites with the tripwire step named.
+  - #63: a line total read as a unit price.
+  - #74: a seed read UTC dates where the journal reads the business day. CI's smoke
+    job caught it the morning the clocks went back.
+  - CI: a merge left a statement open in `db-guards.sql` on #92's branch, and #93
+    reports the same conflict on its closing line. `errorRecorder` (on #51) and
+    `idleLogoff` (on #83) each failed one test once; whether they are flaky wasn't
+    checked. The Markdown job failed once on a 503 from the SheetJS CDN (#59's
+    branch).
+- **Principle:** as listed.
+- **Would a rule have caught it?** The rules were right in each; no change.
+
+### 2026-11-05 — guards that fired, for the next retirement argument
+
+- **Signal:** tripwire fired
+- **What happened:** between 2026-10-27 and today:
+  - the CVE gate, for `qs` (#54), `deepmerge` (#57), `re2js` (#64) and
+    `follow-redirects`, `glob` and `minimatch` (#73);
+  - CI's smoke job, on the clock change (#74);
+  - `dbGuardsCoverage`, a CHECK missing from `db-guards.sql` (#68);
+  - `clientDataTripwire`, real names in a working copy with nothing committed (#96);
+  - the seed check, dotenv lines in generated SQL (#80);
+  - the pre-push hook, an unformatted paragraph (#86).
+- **Principle:** 3, 4 and 10.
+- **Would a rule have caught it?** Yes, and each did: rules 55 and 65.
+
+### 2026-11-05 — a test's `git init` set core.bare in the shared .git/config during a pre-push
+
+- **Signal:** user-visible breakage from this pass's own work, caught by the
+  pre-push hook failing and `git status` then refusing
+- **What happened:** the first version of `sessionStartHook.test.ts` ran `git init`
+  in a temp directory. Under a git hook the environment carries `GIT_DIR`, and from
+  a linked worktree it points at `.git/worktrees/<name>`. `git init` took that
+  repository as its target, guessed "bare" because the path doesn't end in `/.git`,
+  and wrote `core.bare = true` to the shared `.git/config`. From 14:04:06 to
+  14:05:42, git refused work-tree commands in the main checkout and all nine other
+  worktrees ("this operation must be run in a work tree"). The test had passed on
+  every run outside the hook. Setting the value back to `false` restored all ten.
+  A scratch linked worktree reproduced it afterwards, false to true, with the same
+  test failing. The test now uses a stub `git`, and no real git runs in that file.
+- **Principle:** 3 (a guard on one path is no guard): rule 59's guards keep tests
+  out of the wrong database, and nothing keeps them out of the surrounding
+  repository. Also 4: a test run outside the hook is not the run the hook makes.
+- **Would a rule have caught it?** Only if enforced differently:
+  `jest.no-database.setup.ts` removes `*DATABASE_URL` from the unit project (#225),
+  and removing `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE` there would close this
+  for every test. Proposed for the next pass.
+
 ### 2026-11-06 — the screen-to-route tripwire's first run found dead screens, and its reader had two bugs of its own
 
 - **Signal:** tripwire fired, on its first run; near miss in the reader, caught by a second instrument

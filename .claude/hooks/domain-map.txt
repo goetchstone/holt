@@ -193,6 +193,13 @@ app/src/app/(dashboard)/app/tools/legacy-archive/*|docs/domains/legacy-archive.m
 app/src/pages/api/pricing/*|docs/domains/pricing-catalog.md
 app/src/app/(dashboard)/app/admin/pricing/*|docs/domains/pricing-catalog.md
 
+# The practice copy (training mode), before the integrations and database lines below
+app/src/lib/practiceCopy*|docs/domains/practice-copy.md
+app/src/components/PracticeBanner.tsx|docs/domains/practice-copy.md
+app/src/pages/api/admin/database/practice.ts|docs/domains/practice-copy.md
+app/src/app/(dashboard)/app/admin/setup/database/*|docs/domains/practice-copy.md
+app/prisma/testing/practiceCopyDrill.ts|docs/domains/practice-copy.md
+
 # External integrations: Axper traffic, Google, FileMaker-style mappers, Windfall
 app/src/lib/integrationCatalog.ts|docs/domains/integrations.md
 app/src/lib/integrationCredentials.ts|docs/domains/integrations.md
