@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/appSettings";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
-import { DEFAULT_EMAIL_ACCENT, isEmailColor, readEmailLook } from "@/lib/email/look";
+import { readEmailLook } from "@/lib/email/look";
 import { sampleEmail } from "@/lib/email/samples";
 import { isEmailKind, emailWordingProblem } from "@/lib/email/wordingCatalog";
 import {
@@ -30,7 +30,7 @@ async function preview(kind: unknown, body: Record<string, unknown>) {
   const draft = (body.look ?? {}) as Record<string, unknown>;
   const look = readEmailLook(
     {
-      emailAccentColor: isEmailColor(draft.accent) ? draft.accent : DEFAULT_EMAIL_ACCENT,
+      emailAccentColor: typeof draft.accent === "string" ? draft.accent : null,
       emailShowLogo: draft.showLogo === true,
       emailFooter: typeof draft.footer === "string" ? draft.footer : null,
       logoUrl: app.logoUrl,

@@ -72,6 +72,19 @@ describe("every email takes the store's look", () => {
     expect(sampleEmail(kind, STORE, chromeWith()).html).toContain("#7a3e1d");
   });
 
+  it("colours the store's name when there's no logo", () => {
+    const look = { ...LOOK, logoUrl: null };
+    const { html } = sampleEmail("invoice", STORE, { look, wording: {} });
+    expect(html).toMatch(/<h1 style="[^"]*color:#7a3e1d[^"]*">A&amp;B Home<\/h1>/);
+  });
+
+  it("can't be broken out of by a logo's address", () => {
+    const look = { ...LOOK, logoUrl: 'https://x.example.com/a.png" onerror="alert(1)' };
+    const { html } = sampleEmail("invoice", STORE, { look, wording: {} });
+    expect(html).not.toContain('" onerror="');
+    expect(html).toContain("&quot; onerror=&quot;");
+  });
+
   it("with the default look, names the store at the top and says who sent it", () => {
     const { html } = sampleEmail("invoice", STORE, DEFAULT_EMAIL_CHROME);
     expect(html).toContain(">A&amp;B Home</h1>");

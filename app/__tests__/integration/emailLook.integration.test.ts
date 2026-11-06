@@ -121,10 +121,12 @@ describe("the look, through Settings", () => {
       emailShowLogo: true,
       emailFooter: "Thanks!",
     });
+    await prisma.appSettings.updateMany({ data: { logoUrl: "https://cdn.example.com/l.png" } });
     invalidateAppSettingsCache();
     const { look } = await getEmailChrome("invoice");
     expect(look.accent).toBe("#7a3e1d");
     expect(look.footer).toBe("Thanks!");
+    expect(look.logoUrl).toBe("https://cdn.example.com/l.png");
   });
 
   it("refuses a colour that isn't a plain six-digit one, saying why", async () => {

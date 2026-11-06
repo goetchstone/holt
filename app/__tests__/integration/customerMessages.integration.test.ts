@@ -25,7 +25,7 @@ import type { Session } from "next-auth";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { resetTestDb } from "@/lib/testing/withTestDb";
-import { invalidateAppSettingsCache } from "@/lib/appSettings";
+import { DEFAULT_ORG_ID, invalidateAppSettingsCache } from "@/lib/appSettings";
 import { syncBuiltInRoles } from "@/lib/auth/builtInRoles";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
 import { receivePurchaseOrder } from "@/lib/purchasing/receivePurchaseOrder";
@@ -419,6 +419,24 @@ describe("Your furniture has arrived", () => {
     const recorded = await prisma.customerMessage.findMany({ orderBy: { id: "asc" } });
     expect(recorded.map((m) => m.status)).toEqual(["QUEUED", "QUEUED"]);
     expect(recorded[1].emailQueueId).toBe(emails[1].id);
+  });
+
+  it("goes out in the store's look", async () => {
+    const look = { emailAccentColor: "#7a3e1d", emailFooter: "Linden Row, Main Street" };
+    await prisma.appSettings.upsert({
+      where: { organizationId: DEFAULT_ORG_ID },
+      create: { organizationId: DEFAULT_ORG_ID, orderNumberPrefix: "TST", ...look },
+      update: look,
+    });
+    invalidateAppSettingsCache();
+    await switchOn("ARRIVED");
+    const sale = await w.order();
+    await w.receive(sale, 0, 1);
+    await queueDueMessages();
+    const [email] = await emailsTo(sale.customer.email!);
+    expect(email.html).toContain("#7a3e1d");
+    expect(email.html).toContain("Linden Row, Main Street");
+    expect(email.html).not.toContain("Sent by");
   });
 
   it("announces nothing received before it was switched on, quarantined, imported, on a cancelled line, or already delivered", async () => {
