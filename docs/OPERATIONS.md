@@ -91,12 +91,22 @@ In production, the logger outputs newline-delimited JSON for machine parsing.
 docker compose logs db --tail 50
 ```
 
+## A Practice Copy
+
+A second app container on its own database, for training: `docs/domains/practice-copy.md`. It
+needs no scheduled tasks, and sends nothing if they run. `scripts/backup-db.sh` dumps only
+`POSTGRES_DB`, so its backups leave the practice copy out, which is fine: it holds no real customers
+or orders, and can be seeded and imported again.
+
 ## Scheduled Tasks
 
-Cron-driven jobs are wired into the host's task scheduler (any cron or NAS task
-scheduler will do). Each one calls an authenticated `/api/automations/*`
-endpoint via a Bearer token (`AUTO_IMPORT_API_KEY` in `app/.env.local`). The
-shell wrappers live in `scripts/auto-*.sh` and log to `logs/`.
+A store controls these itself, at **Admin → Automations**: whether each runs, when, and how it
+last went (`docs/domains/automations.md`). A host's scheduler does one thing: every 5 minutes,
+`scripts/auto-automations.sh` wakes Holt with a Bearer token (`AUTO_IMPORT_API_KEY` in
+`app/.env.local`), and Holt decides what's due. `scripts/install-cron.sh` installs that line and the
+backups. The screen warns if nothing has woken Holt in 15 minutes.
+
+Each section below says what a job does, and any time given is what it starts with.
 
 Some tasks below describe optional integrations (door-counter traffic, the
 POS/ERP import, Mailchimp). They run only when the corresponding integration is
@@ -104,22 +114,11 @@ configured at **Admin → Settings → Integrations**.
 
 ### Traffic Sync
 
-Runs daily at 02:00 (deployment local time) via the host scheduler. Snapshots yesterday's per-store
+Starts off, at 2 AM store time, and needs the door counter set up. Snapshots yesterday's per-store
 door-counter traffic into `TrafficSnapshot`, and auto-backfills any day in the
 last 30 with zero existing rows (gap-healing). Today's traffic is still pulled
 live by the dashboard widgets (the counter closes the day at midnight, so the
 cron runs against the previous day's final data). Reference integration: Axper.
-
-**Scheduler config:**
-
-- Task name: `Traffic Sync`
-- User: `root`
-- Schedule: Daily at 02:00 (deployment local time)
-- Command:
-
-```bash
-cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scripts/auto-axper-traffic.sh >> logs/auto-axper-traffic.log 2>&1
-```
 
 **One-time historical backfill (when seeding new reports):**
 
@@ -127,109 +126,65 @@ The admin page at `/admin/automations/axper-traffic` exposes a "Set 2-year backf
 
 **Verify it ran:**
 
-- `logs/auto-axper-traffic.log` on the host
+- Admin → Automations: when it last ran and how it went
 - `/admin/automations/axper-traffic` — last 20 runs with row counts + errors per run
 - `TrafficSyncLog` table for the audit trail
 
 **If it stops working:**
 
-1. Check the scheduler shows the task as enabled and last result is 0
-2. Check `logs/auto-axper-traffic.log` for curl errors or "401 Unauthorized" (means `AUTO_IMPORT_API_KEY` is wrong)
+1. Check Admin → Automations: is it on, is Holt being woken, and how did it last go?
+2. Check `logs/auto-automations.log` on the host for curl errors or "401 Unauthorized" (`AUTO_IMPORT_API_KEY` wrong or missing)
 3. Confirm the door-counter API key is set under Integrations (separate from the Bearer token)
 4. Hit the dashboard's live-traffic widget — if it shows today's data, the counter is reachable and the issue is on our side
 
 ### Daily Import (POS/ERP)
 
-Runs daily at 06:10 via the host scheduler. Fetches POS/ERP CSV reports from the
+Starts off, at 6 AM, and needs the import set up. Fetches POS/ERP CSV reports from the
 configured mailbox and processes them through the import pipeline. Reference
 preset: the POS (CSV reports delivered to a labeled Gmail inbox).
 
-**Scheduler config:**
-
-- Task name: `Daily Import`
-- User: `root`
-- Schedule: Daily at 06:10
-- Command:
-
-```bash
-cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scripts/auto-import.sh >> logs/auto-import.log 2>&1
-```
-
 **Verify it ran:**
 
-- Check `logs/auto-import.log` on the host
+- Admin → Automations: when it last ran and how it went
 - Check `/admin/import/automated` in the app for last run results
 - Import health cards show hours since last successful import per type
 
 **If imports stop working:**
 
-1. Check the scheduler shows the task as enabled and last result is 0
-2. Check `logs/auto-import.log` for curl errors
+1. Check Admin → Automations: is it on, is Holt being woken, and how did it last go?
+2. Check `logs/auto-automations.log` on the host for curl errors or "401 Unauthorized" (`AUTO_IMPORT_API_KEY` wrong or missing)
 3. Check the source mailbox -- are reports arriving in the "Automations" label?
 4. Check `AUTO_IMPORT_API_KEY` in `app/.env.local` matches what the script uses
 5. Check the app container is running: `docker compose ps`
 
 ### Mailchimp Sync
 
-Runs daily via the host scheduler. Orchestrates campaigns → metrics (30-day window) → activity (14-day window) → auto lead ingestion. All four phases run in one pass; individual phases can be triggered via `?phase=campaigns|metrics|activity|ingest-leads`.
-
-**Scheduler config:**
-
-- Task name: `Mailchimp Sync`
-- User: `root`
-- Schedule: Daily (recommended 05:30 so it lands after lead-housekeeping at 05:00 and before import at 06:10)
-- Command:
-
-```bash
-cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scripts/auto-mailchimp-sync.sh >> logs/auto-mailchimp.log 2>&1
-```
+Starts off, at 5 AM, and needs Mailchimp set up. Orchestrates campaigns → metrics (30-day window) → activity (14-day window) → auto lead ingestion. All four phases run in one pass; individual phases can be triggered via `?phase=campaigns|metrics|activity|ingest-leads`.
 
 **Verify it ran:**
 
-- `logs/auto-mailchimp.log` on the host
+- Admin → Automations: when it last ran and how it went
 - `/admin/automations/mailchimp-sync` shows last run + per-phase history
 - `MailchimpSyncLog` table rows with `kind = 'mailchimp-sync'` (or `mailchimp-sync:<phase>`)
 - Health endpoint `/api/automations/mailchimp-health` flags stale after 36 hours
 
 ### Lead Housekeeping
 
-Runs daily via the host scheduler. Auto-archives NEW/ASSIGNED leads that have been silent for 30 days (`ARCHIVE_AFTER_DAYS` in `lib/leadHousekeeping.ts`). Pinned leads and leads whose customer has an active QUOTE are exempt.
-
-**Scheduler config:**
-
-- Task name: `Lead Housekeeping`
-- User: `root`
-- Schedule: Daily at 05:00 (before import)
-- Command:
-
-```bash
-cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scripts/auto-lead-housekeeping.sh >> logs/auto-lead-housekeeping.log 2>&1
-```
+Starts off, at 5 AM. Auto-archives NEW/ASSIGNED leads that have been silent for 30 days (`ARCHIVE_AFTER_DAYS` in `lib/leadHousekeeping.ts`). Pinned leads and leads whose customer has an active QUOTE are exempt.
 
 **Verify it ran:**
 
-- `logs/auto-lead-housekeeping.log` on the host
+- Admin → Automations: when it last ran and how it went
 - `MailchimpSyncLog` rows with `kind = 'lead-housekeeping'`
 - `/leads` board — aged leads get `status = LOST` and `archivedBy = "auto"`
 
 ### Customer AR Drift Check
 
-Runs daily via the host scheduler. Walks every customer that had payment or ledger activity in the last 26 hours, recomputes their source-of-truth balance (line items + payments — cancelled lines excluded), and compares to `Customer.openArBalance`. Drift > $0.005 (`LEDGER_TOLERANCE`) gets flagged in the response.
-
-**Scheduler config:**
-
-- Task name: `Customer AR Drift Check`
-- User: `root`
-- Schedule: Daily at 04:30 (before mailchimp-sync and lead-housekeeping at 05:00, after the system is quiet from overnight activity)
-- Command:
-
-```bash
-cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scripts/auto-customer-ar-drift-check.sh >> logs/auto-customer-ar-drift-check.log 2>&1
-```
+Starts on, at 4 AM. Walks every customer that had payment or ledger activity in the last 26 hours, recomputes their source-of-truth balance (line items + payments — cancelled lines excluded), and compares to `Customer.openArBalance`. Drift > $0.005 (`LEDGER_TOLERANCE`) gets flagged in the response.
 
 **Verify it ran:**
 
-- `logs/auto-customer-ar-drift-check.log` on the host — JSON response with `checked`, `ok`, `drifted[]`, `totalAbsoluteDrift`
+- Admin → Automations: when it last ran and how it went
 - App logs (`logger.warn` when drift detected, `logger.info` otherwise)
 - Admin page at `/admin/automations/customer-ar-drift-check` — two modes (ADMIN/MANAGER only):
   - **By recent activity** (default): replays the cron-style check on-demand. Default 26h lookback; widen to 7d / 30d to investigate older drift.
@@ -239,50 +194,28 @@ cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scrip
 
 ### Customer Level Recalculation
 
-Runs weekly via the host scheduler. Refreshes `Customer.customerLevel` / `lifetimeSpend` / `lifetimeOrderCount` / `customerGroup` / `peakCustomerLevel` using department-group-aware windows (see `lib/customerLeveling.ts`). Weekly cadence aligns with the wealth-enrichment refresh so leveling and wealth data move together.
-
-**Scheduler config:**
-
-- Task name: `Customer Level Recalculation`
-- User: `root`
-- Schedule: Weekly Sunday at 04:30 (before lead-housekeeping at 05:00 so downstream jobs see fresh levels)
-- Command:
-
-```bash
-cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scripts/auto-customer-level-recalc.sh >> logs/auto-customer-level-recalc.log 2>&1
-```
+Starts on, Sundays at 4 AM. Refreshes `Customer.customerLevel` / `lifetimeSpend` / `lifetimeOrderCount` / `customerGroup` / `peakCustomerLevel` using department-group-aware windows (see `lib/customerLeveling.ts`). Weekly cadence aligns with the wealth-enrichment refresh so leveling and wealth data move together.
 
 **Verify it ran:**
 
-- `logs/auto-customer-level-recalc.log` on the host
+- Admin → Automations: when it last ran and how it went
 - `MailchimpSyncLog` rows with `kind = 'customer-level-recalc'`
 - `/admin/tools/recalculate-levels` still works for ad-hoc triggers (the manual button calls the same pure helper).
 
 ### Mailchimp New Customer Sync
 
-Runs daily via the host scheduler. Pushes new customers (with email, created on/after the import-handoff cutoff in `lib/mailchimpAudienceSync.ts`, not yet synced) into your Mailchimp audience as PENDING (Mailchimp sends them a double opt-in confirmation). Idempotent: existing subscribed members keep their status; only genuinely new contacts get the confirmation. Per-run cap of 200 contacts to stay under Mailchimp's rate limits.
-
-**Scheduler config:**
-
-- Task name: `Mailchimp New Customer Sync`
-- User: `root`
-- Schedule: Daily at 06:30 (after the daily import at 06:10 so newly-imported customers from yesterday land before the push)
-- Command:
-
-```bash
-cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scripts/auto-mailchimp-customer-sync.sh >> logs/auto-mailchimp-customer-sync.log 2>&1
-```
+Starts off, at 6 AM, and needs Mailchimp set up. Pushes new customers (with email, created on/after the import-handoff cutoff in `lib/mailchimpAudienceSync.ts`, not yet synced) into your Mailchimp audience as PENDING (Mailchimp sends them a double opt-in confirmation). Idempotent: existing subscribed members keep their status; only genuinely new contacts get the confirmation. Per-run cap of 200 contacts to stay under Mailchimp's rate limits.
 
 **Verify it ran:**
 
-- `logs/auto-mailchimp-customer-sync.log` on the host
+- Admin → Automations: when it last ran and how it went
 - `/admin/automations/mailchimp-sync` (the "Push new customers" panel) shows last run + per-customer push results
 - `Customer.mailchimpSyncedAt` populated on the rows just pushed
 - Spot-check a sample customer in Mailchimp's audience UI — should have `pending` status
 
 ### Expire Quote Holds
 
-Runs hourly via the host scheduler. A quote can hold a floor-stock line for its
+Starts on, hourly. A quote can hold a floor-stock line for its
 customer through a chosen day (GAP-16; `docs/domains/sales-orders.md`, "Quote
 holds"). After that day the piece should be back on sale, but a quote nobody
 touches again has no edit to release it, so this sweep does: it resyncs every
@@ -290,26 +223,15 @@ quote still committing stock, which lets go of any line whose hold has ended.
 It also releases what quotes written before holds existed still commit (every
 quote used to commit every line). Idempotent: a second run releases nothing.
 
-**Scheduler config:**
-
-- Task name: `Expire Quote Holds`
-- User: `root`
-- Schedule: Hourly
-- Command:
-
-```bash
-cd <deploy-path> && export $(grep AUTO_IMPORT_API_KEY app/.env.local) && ./scripts/auto-expire-quote-holds.sh >> logs/auto-expire-quote-holds.log 2>&1
-```
-
 **Verify it ran:**
 
-- `logs/auto-expire-quote-holds.log` on the host: each run answers
+- Admin → Automations: when it last ran and how it went
   `{ checked, released, units }`
 - Reports › On hold no longer lists a hold the day after its last day
 
 ### Email Queue
 
-Runs every 5 minutes (`scripts/install-cron.sh` installs it). It first queues
+Starts every 5 minutes. It first queues
 the automatic customer messages that are due (GAP-13, Settings › Customer
 messages; `docs/domains/email.md`), the daily low-stock list (GAP-14) and the morning follow-up
 emails (GAP-36), then
@@ -320,42 +242,39 @@ list. A text staff send by hand still goes at once.
 
 **Verify it ran:**
 
-- `logs/auto-email-queue.log` on the host: each run answers
-  `{ summary: { processed, sent, failed, skipped }, texts, messages, lowStock, followUps }`
+- Admin → Automations: when it last ran and how many went
 - Admin › Email shows nothing PENDING for longer than a few minutes once SMTP
   is set up
 
 ### Database Backup
 
-Runs daily via the host scheduler using `scripts/backup-db.sh`.
+Stays in the host's cron, using `scripts/backup-db.sh`: it runs outside the app, and shouldn't depend on the app being up.
 
 ### Scheduled Tasks at a Glance
 
-| Task | Schedule | Script | Endpoint |
-|---|---|---|---|
-| Traffic Sync | Daily 02:00 | `auto-axper-traffic.sh` | `/api/automations/axper-traffic-sync` |
-| Customer Level Recalculation | Weekly Sunday 04:30 | `auto-customer-level-recalc.sh` | `/api/automations/customer-level-recalc` |
-| Customer AR Drift Check | Daily 04:45 | `auto-customer-ar-drift-check.sh` | `/api/automations/customer-ar-drift-check` |
-| Lead Housekeeping | Daily 05:00 | `auto-lead-housekeeping.sh` | `/api/automations/lead-housekeeping` |
-| Mailchimp Sync | Daily 05:30 | `auto-mailchimp-sync.sh` | `/api/automations/mailchimp-sync` |
-| Daily Import | Daily 06:10 | `auto-import.sh` | `/api/automations/source-import` |
-| Mailchimp New Customer Sync | Daily 06:30 | `auto-mailchimp-customer-sync.sh` | `/api/automations/mailchimp-customer-sync` |
-| Daily Reconciliation | Daily 22:30 | `auto-daily-reconciliation.sh` | `/api/automations/daily-reconciliation` |
-| Expire Quote Holds | Hourly | `auto-expire-quote-holds.sh` | `/api/automations/expire-quote-holds` |
-| Email Queue | Every 5 minutes | `auto-email-queue.sh` | `/api/automations/email-queue` |
-| Database Backup | Daily | `backup-db.sh` | n/a |
+What each starts as. A store changes these at Admin → Automations.
+
+| Automation | Starts as | Route for a manual run |
+|---|---|---|
+| Send waiting emails and texts | On, every 5 minutes | `/api/automations/email-queue` |
+| Release expired quote holds | On, hourly | `/api/automations/expire-quote-holds` |
+| Clear abandoned card checkouts | On, hourly | `/api/automations/expire-stale-pending-payments` |
+| Daily reconciliation | On, 10 PM | `/api/automations/daily-reconciliation` |
+| Customer balance check | On, 4 AM | `/api/automations/customer-ar-drift-check` |
+| Customer levels and lifetime spend | On, Sundays 4 AM | `/api/automations/customer-level-recalc` |
+| Archive stale leads | Off, 5 AM | `/api/automations/lead-housekeeping` |
+| Daily POS import | Off, 6 AM | `/api/automations/source-import` |
+| Door counter traffic | Off, 2 AM | `/api/automations/axper-traffic-sync` |
+| Mailchimp campaign results | Off, 5 AM | `/api/automations/mailchimp-sync` |
+| Add new customers to Mailchimp | Off, 6 AM | `/api/automations/mailchimp-customer-sync` |
+| Database and upload backups | In the host's cron, 1:15 and 1:45 AM | n/a |
 
 Per-run audit lives in the appropriate `*SyncLog` table — `TrafficSyncLog`, `MailchimpSyncLog`, `AutoImportLog`, `CustomerArDriftLog`, `DailyReconciliationLog`. The admin pages under `/admin/automations/*` surface the latest run + Run Now button for each.
 
-### Adding a new scheduled task — checklist
+### Adding a new scheduled task
 
-When you add a new cron-driven script, do all of the following in the same PR so the inventory above stays the source of truth:
-
-1. **Create the script** in `scripts/auto-{name}.sh`. Mark executable (`chmod +x`).
-2. **Wire the API endpoint** under `/api/automations/{name}` with bearer auth via `AUTO_IMPORT_API_KEY` (matches the pattern of every existing cron script).
-3. **Add a section above** with: what it does, when it runs, the scheduler config block, and the "Verify it ran" steps.
-4. **Add a row to the at-a-glance table** so a quick scan reveals everything the host needs to be running.
-5. **Wire it into the host's task scheduler** as part of the deploy — the script existing in the repo doesn't make it run.
+Add it to the catalog, not to cron: `docs/domains/automations.md`, "Adding one". A store has to be
+able to switch it on and off and choose when it runs from its first PR.
 
 ## Code Quality
 

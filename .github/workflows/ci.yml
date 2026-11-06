@@ -177,6 +177,11 @@ jobs:
       - name: Seed coverage
         run: npm run seed:coverage -- --without cms
 
+      # Starting a practice copy over creates and drops databases, which rule 59
+      # keeps out of the test suite. This runs it for real on throwaway ones (GAP-28).
+      - name: Practice copy start over
+        run: npm run practice:drill
+
       - name: Build
         run: npm run build
 

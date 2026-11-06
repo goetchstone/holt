@@ -50,7 +50,8 @@ async function main(): Promise<void> {
   const { seedAccounting } = await import("./accounting");
   const { seedTenders } = await import("./tenders");
   const { seedLocations } = await import("./locations");
-  const { seedStaff } = await import("./staff");
+  const { seedStaff, seededStaffPassword } = await import("./staff");
+  const { hashPassword } = await import("@/lib/auth/password");
   const { seedCatalog } = await import("./catalog");
   const { seedCustomers } = await import("./customers");
   const { seedReferrals } = await import("./referrals");
@@ -75,6 +76,10 @@ async function main(): Promise<void> {
   const { seedJournalEntries } = await import("./journal");
   const { seedPriceBooks } = await import("./priceBooks");
   const { ORG_SLUG } = await import("./org");
+
+  // Hashed here only to fail before --reset wipes anything: no password chosen for
+  // a practice copy, or one too short.
+  hashPassword(seededStaffPassword(databaseUrl));
 
   const scale = resolveScale(argv);
   const volume = resolveVolume(argv);
@@ -276,6 +281,9 @@ async function main(): Promise<void> {
 
   const setupResult = await seedSetupData(prisma, rng, staff, locations.stores, window.now);
   const reorderResult = await seedReorderPoints(prisma);
+  // Admin > Automations (GAP-37): each as it starts for a store.
+  const { getAutomationSettings } = await import("@/lib/automations/settings");
+  await getAutomationSettings(prisma);
 
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 

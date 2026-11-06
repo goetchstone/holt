@@ -120,9 +120,10 @@ export const SEED_COVERAGE: Record<string, SeedCoverageEntry> = {
   CustomerMessage: {
     status: "skipped",
     reason:
-      "Runtime log of automatic customer messages (GAP-13), written by the email-queue cron; the demo switches none on, so it writes to none of its invented customers.",
+      "Runtime log of automatic customer messages (GAP-13), written by the email-queue cron. The demo has them switched on, but only what happens after seeding sends, so a fresh seed has none.",
   },
   CustomerMessageSetting: { status: "seeded" },
+  AutomationSetting: { status: "seeded" },
   DailyReconciliationLog: { status: "todo", tranche: "money-detail" },
   DeliveryRun: { status: "seeded", seeder: "demo" },
   DeliveryStop: { status: "seeded", seeder: "demo" },

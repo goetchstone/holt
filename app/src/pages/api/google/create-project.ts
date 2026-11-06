@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { isPracticeCopy, PRACTICE_COPY_NO_CONNECTIONS } from "@/lib/practiceCopy";
 import { google } from "googleapis";
 import { getAppSettings } from "@/lib/appSettings";
 import { logError } from "@/lib/logger";
@@ -11,6 +12,10 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  // This call uses the person's own Google sign-in, not a stored credential, so
+  // resolveCredential can't stop it. It would make real folders in a real Drive.
+  if (isPracticeCopy()) return res.status(409).json({ error: PRACTICE_COPY_NO_CONNECTIONS });
 
   // Extra check beyond role: the Google Drive call needs an OAuth
   // accessToken on the session, not just staff membership.

@@ -3,13 +3,16 @@
 import { Html, Head, Main, NextScript } from "next/document";
 import type { DocumentContext, DocumentInitialProps } from "next/document";
 import { getAppSettings, themeToCssVars } from "@/lib/appSettings";
+import { isPracticeCopy } from "@/lib/practiceCopy";
+import { PracticeBanner } from "@/components/PracticeBanner";
 
 interface HoltDocumentProps extends DocumentInitialProps {
   themeCss: string;
   faviconUrl: string | null;
+  practice: boolean;
 }
 
-export default function Document({ themeCss, faviconUrl }: HoltDocumentProps) {
+export default function Document({ themeCss, faviconUrl, practice }: HoltDocumentProps) {
   return (
     <Html>
       <Head>
@@ -20,6 +23,7 @@ export default function Document({ themeCss, faviconUrl }: HoltDocumentProps) {
         {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
       </Head>
       <body>
+        {practice ? <PracticeBanner /> : null}
         <Main />
         <NextScript />
       </body>
@@ -34,5 +38,6 @@ Document.getInitialProps = async (ctx: DocumentContext): Promise<HoltDocumentPro
     ...initialProps,
     themeCss: themeToCssVars(settings.theme),
     faviconUrl: settings.faviconUrl,
+    practice: isPracticeCopy(),
   };
 };

@@ -97,15 +97,13 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
   top of that script for the schedule and the consequence of each job not
   running. It refuses to run if `AUTO_IMPORT_API_KEY` isn't set.
 
-- ☐ **`auto-email-queue.sh`** — drains the email queue. **Without it, every
-  invoice / booking confirmation / ticket reply / password-reset email
-  silently never sends.** Every ~5 min.
-- ☐ `auto-customer-ar-drift-check.sh` — nightly; flags books that don't tie out.
-- ☐ `auto-daily-reconciliation.sh` — nightly (retail edition).
-- ☐ `auto-lead-housekeeping.sh`, `auto-mailchimp-sync.sh`,
-  `auto-customer-level-recalc.sh`, `auto-axper-traffic.sh` — per their cadence.
-- ☐ Retail edition only: `auto-import.sh` (06:10) for the daily POS reports +
-  the Gmail service-account JSON mounted at `config/service-account.json`.
+- ☐ **`auto-automations.sh`** — wakes Holt every 5 minutes. **Without it nothing runs by itself,
+  and every invoice / booking confirmation / ticket reply / password-reset email silently never
+  sends.** Admin → Automations warns if it stops.
+- ☐ At **Admin → Automations**, check what's switched on and when. Books, stock and email jobs start
+  on. The POS import, door counter and Mailchimp start off, since they need setting up first.
+- ☐ Retail edition only: switch on the Daily POS import, with the Gmail service-account JSON mounted
+  at `config/service-account.json`.
 
 ## 5. Observability & alerting
 
@@ -135,7 +133,7 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
 
 - ☑ The app degrades cleanly when SMTP is unconfigured (queues, no crash).
 - ☐ Enter SMTP host/port/user/pass + from-address in Settings → Integrations,
-  send a test, and confirm `auto-email-queue.sh` is scheduled (§4).
+  send a test, and confirm `auto-automations.sh` is scheduled (§4).
 
 ## 8. First-boot bootstrap (every new deployment)
 
@@ -156,7 +154,7 @@ Bearer `AUTO_IMPORT_API_KEY`. The cron wrapper (PR2) alerts on failure.
 ## Quick "is it safe to take money?" gate
 
 TLS on · backups scheduled + one restore drilled · uploads backed up ·
-`auto-email-queue.sh` running · ops alert channel set · live Stripe keys +
+`auto-automations.sh` running · ops alert channel set · live Stripe keys +
 webhook secret + AR GL mappings configured · `create-admin` done. When all
 nine are true, you can issue real invoices.
 

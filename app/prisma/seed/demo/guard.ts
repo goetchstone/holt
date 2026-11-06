@@ -16,6 +16,8 @@
 // script must never land on a database that holds real restored or curated
 // data, or on the integration test database it doesn't own.
 
+import { databaseNameFromUrl } from "../../../src/lib/practiceCopy";
+
 /**
  * Never allowed, no override. `fbc_test_db` is owned exclusively by the
  * Jest integration harness (jest.integration.setup.ts truncates and
@@ -37,18 +39,6 @@ const HARD_BLOCKED_DB_NAMES = ["fbc_test_db"];
 const SCRATCH_DB_NAME = /(^|_)(seed|demo|scratch|sandbox|sample|ci)(_|$)/i;
 
 export class UnsafeSeedTargetError extends Error {}
-
-function extractDbName(databaseUrl: string): string {
-  try {
-    const u = new URL(databaseUrl);
-    return u.pathname.replace(/^\//, "").split("?")[0];
-  } catch {
-    // Fall back to a manual parse if the URL constructor chokes on
-    // something (shouldn't happen with a well-formed postgres:// URL).
-    const afterSlash = databaseUrl.split("/").pop() ?? "";
-    return afterSlash.split("?")[0];
-  }
-}
 
 /** Strip credentials for safe logging -- same convention as
  * `withTestDb.ts`'s maskUrl(). */
@@ -75,7 +65,7 @@ export function assertSafeSeedTarget(databaseUrl: string, opts: SafetyCheckOptio
         "(e.g. holt_seed_demo) before running.",
     );
   }
-  const dbName = extractDbName(databaseUrl);
+  const dbName = databaseNameFromUrl(databaseUrl);
   const masked = maskDatabaseUrl(databaseUrl);
 
   if (HARD_BLOCKED_DB_NAMES.includes(dbName)) {

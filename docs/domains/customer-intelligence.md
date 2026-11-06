@@ -270,7 +270,7 @@ Audit trail: every new Customer is stamped with `createdBy = <admin-email>`; the
 - **Match confidence ignored** — we weight every Windfall record equally regardless of match certainty.
 - **Asset signals unused in score** — boatOwner, planeOwner, etc. might be worth incorporating if we want to target luxury-furniture campaigns to known luxury-asset owners.
 - **Philanthropy signals untapped** — donors often have disposable income; could be another life-event-like bonus.
-- ~~**No customer-level recalc cron yet**~~ — resolved: `scripts/auto-customer-level-recalc.sh` runs weekly (Sunday 04:30) via the host scheduler; `scripts/install-cron.sh` installs it (see `docs/OPERATIONS.md`).
+- ~~**No customer-level recalc cron yet**~~ — resolved: "Customer levels and lifetime spend" at Admin → Automations, on to start, Sundays at 4 AM (`docs/domains/automations.md`).
 
 ---
 

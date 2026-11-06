@@ -4,7 +4,7 @@ Email campaign sync, attribution, lead ingestion, housekeeping. This split out f
 
 ## Daily orchestrator
 
-Single entry point: `POST /api/automations/mailchimp-sync` (runs 4 phases). Cron: `scripts/auto-mailchimp-sync.sh` daily (host task scheduler, Bearer `AUTO_IMPORT_API_KEY`).
+Single entry point: `POST /api/automations/mailchimp-sync` (runs 4 phases). Scheduled by "Mailchimp campaign results" at Admin → Automations, off to start (`docs/domains/automations.md`). By hand: Bearer `AUTO_IMPORT_API_KEY` or a session.
 
 Phases:
 
@@ -53,7 +53,7 @@ Real-DB integration: `__tests__/integration/mailchimpLeadIngestor.integration.te
 
 ## Lead aging + housekeeping
 
-`lib/leadHousekeeping.ts`. Nightly job (`/api/automations/lead-housekeeping`, cron `scripts/auto-lead-housekeeping.sh` daily at 05:00):
+`lib/leadHousekeeping.ts`. "Archive stale leads" at Admin → Automations, off to start, 5 AM by default (`/api/automations/lead-housekeeping`):
 
 - **Auto-archive** NEW/ASSIGNED leads untouched for 30 days (`ARCHIVE_AFTER_DAYS`). Sets status=LOST + archivedBy="auto".
 - **Exemptions**: `pinned=true` (manager-set), OR the lead's customer has an active QUOTE.

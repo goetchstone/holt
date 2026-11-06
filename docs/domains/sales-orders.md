@@ -298,8 +298,12 @@ allowed" (`docs/DECISIONS.md` 28).
   resync (an edit, or the sweep) frees them where they are: a quote owns only
   what it holds. Hold the line first, or raise the transfer once it's an order.
 - **Not built** (ROADMAP GAP-16): a hold at the register, since a sale there is
-  paid on the spot; a deposit or layaway that holds past the store's longest
-  (GAP-25); telling the customer when a hold is about to end (GAP-13).
+  paid on the spot; telling the customer when a hold is about to end (GAP-13).
+- **A layaway is an ordinary order, not a hold** (owner, 2026-11-05: "Just make payments until
+  it is paid"). An order keeps its stock allocated with no end date, and each payment reduces its
+  balance (`pages/api/sales/orders/[id]/payments.ts`). Run through on a seeded copy on 2026-11-05:
+  one unit stayed against the order across two payments. Nothing stops an unpaid order being
+  delivered. That's true of every order, and dispatch shows the balance.
 
 ## Invoice tools (GAP-07, since 2026-11-03)
 

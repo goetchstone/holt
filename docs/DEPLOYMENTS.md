@@ -72,8 +72,8 @@ core repo stays a single product so improvements flow to every deployment.
      Settings → Integrations → Gmail (or mount the file and set
      `GMAIL_SERVICE_ACCOUNT_PATH` + `GMAIL_DELEGATE_EMAIL`). The mailbox needs
      the `Automations` label and domain-wide delegation with `gmail.modify`.
-  3. Schedule `scripts/auto-import.sh` daily ~06:10 (it sources
-     `_cron-run.sh`, so failures alert via `OPS_ALERT_WEBHOOK`).
+  3. Switch on **Daily POS import** at Admin → Automations, and choose its hour. A failure alerts
+     via `OPS_ALERT_WEBHOOK`.
   4. Watch Admin → Legacy POS Auto-Import for per-file history + staleness.
   5. **Parallel-run trust gate:** while both systems ingest the same daily
      exports, run `scripts/parallel-run-compare.cjs` (read-only) with

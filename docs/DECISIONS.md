@@ -1446,6 +1446,63 @@ arriving as text; the CHECKs on the settings.
 
 ---
 
+## 47. Training is a separate practice copy, and its database's name is what makes it one (2026-11-05)
+
+**Decided (GAP-28):** staff practise on a separate Holt with its own database, not a mode in
+the live one. It starts from the demo seed, the store's importers load its real products, and
+it never has real customers or orders. Owner's direction, 2026-11-05: "I guess the seeded copy
+is practice?", "our importers could get real products even in a seeded test database".
+
+- **Not a mode that reverts.** Reverting the live database would erase real sales made while
+  someone practised, and can't unsend a charge or a text.
+- **The database's name decides, not an env var or a setting** (`lib/practiceCopy.ts`). A flag
+  can disagree with the data. On a live deployment it would hide payments and let Start over
+  destroy real data. Lost from a practice deployment, the copy would start sending. A name can't
+  drift from the database it names. It's the same doctrine as the seed's guard (rule 59).
+- **Credentials are the choke point.** `resolveCredential` returns nothing on a practice copy,
+  because nearly everything external already refuses when unconfigured. What bypasses it has its
+  own stop, and `__tests__/practiceOutbound.test.ts` fails on anything new (rules 42, 65).
+- **The starting point is a second database, not a dump file.** A dump would put the store's
+  real costs in a file needing its own protection and volume. Copying a template either finishes
+  or leaves nothing, and Start over builds the new copy before dropping the old one.
+- **Real products mean real costs, so two things are required.** The seed refuses the demo's
+  public password, and the copy needs its own session secret, since a session signed where anyone
+  may be an admin must not work on the live app.
+- **Label printers stay on.** They only print paper on the store's own network.
+- **Tested by a drill, not Jest.** It creates and drops databases, which rule 59 keeps out of
+  the test suite, so `npm run practice:drill` runs in CI on throwaway ones.
+
+Rejected: an env var (above); a schema copy inside one database, which can't restore sequences and
+triggers as cleanly; a dump (above). → `docs/domains/practice-copy.md`
+## 48. A store decides what runs and when, and cron only wakes Holt (2026-11-06)
+
+**Decided (GAP-37):** owner, 2026-11-06: "Any automation should be something the user can
+configure." A host's scheduler calls one route every 5 minutes, and Holt decides what's due from
+each store's settings at Admin → Automations.
+
+- **Not a cron line per job, as it was.** A store can't edit a server's crontab, and the schedule
+  lived in three places that disagreed. The installer's own comments recorded a 20-hour conflict
+  over when reconciliation was meant to run.
+- **Not a timer inside the app.** It would need no host setup, but every copy of Holt would start
+  running jobs by itself, including a local one restored from a live backup. Installing the wake-up
+  is a deliberate step, and the screen warns when it's missing.
+- **What it starts as:** on if skipping it would quietly hurt the books, stock or email. Off if it
+  changes data a store may want left alone, or needs an outside system.
+- **Each job offers only the frequencies it can honestly do.** Reconciliation only looks at
+  yesterday, so weekly would leave six days unchecked. Email waits for the queue, so daily would hold
+  a password reset until tomorrow.
+- **Switching one on waits for its next scheduled moment**, so a 4 AM job doesn't run at 2 PM because
+  someone ticked a box. A server that was down catches up once when it next wakes.
+- **The morning email, low stock list and customer messages keep their settings where they are.** The
+  screen lists and links them, so each fact has one home (rule 6).
+- **Backups stay in cron.** They run outside the app and shouldn't depend on it being up.
+- **Failure reaches someone (rule 65):** the screen and ops alerts both say. The tick answers 200,
+  since a retry from cron would only run the job again.
+
+Rejected: an env var per job (a store can't set it); a timer inside the app (above); calling the routes
+over HTTP from the tick, which would hit fetch's 5-minute limit on a long import.
+→ `docs/domains/automations.md`
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

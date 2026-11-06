@@ -8,7 +8,15 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
 import { getAppSettings, getPublicBranding, themeToCssVars } from "@/lib/appSettings";
+import { isPracticeCopy } from "@/lib/practiceCopy";
+import { PracticeBanner } from "@/components/PracticeBanner";
 import { Providers } from "./providers";
+
+// Every screen renders per request, so a page built ahead of time can't miss the
+// practice banner, which depends on the database this server runs on rather than
+// the one the build saw. Almost every page was already dynamic; this adds the two
+// that weren't, /portal/order and the not-found page.
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getPublicBranding();
@@ -34,6 +42,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         </head>
       ) : null}
       <body>
+        {isPracticeCopy() ? <PracticeBanner /> : null}
         <Providers branding={branding}>{children}</Providers>
       </body>
     </html>

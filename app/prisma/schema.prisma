@@ -1333,6 +1333,34 @@ model SalesOrderDisclaimer {
   @@index([orderDisclaimerId])
 }
 
+/// GAP-37: one of the things Holt does by itself (lib/automations/catalog.ts), as the
+/// store has set it up in Admin > Automations: whether it runs and when. The key decides
+/// what runs; this row only configures it (rule 62). What it last did is here too, so the
+/// screen can say so.
+model AutomationSetting {
+  key            String    @id
+  isActive       Boolean   @default(false)
+  /// When it was last switched on. It next runs at its next scheduled moment after this.
+  activeSince    DateTime?
+  /// EVERY_MINUTES, HOURLY, DAILY or WEEKLY.
+  frequency      String
+  /// EVERY_MINUTES only.
+  everyMinutes   Int?
+  /// DAILY and WEEKLY: the hour of the store's day, 0-23.
+  hour           Int?
+  /// WEEKLY only: 0 is Sunday.
+  weekday        Int?
+  lastStartedAt  DateTime?
+  lastFinishedAt DateTime?
+  /// RUNNING, OK, FAILED or SKIPPED.
+  lastStatus     String?
+  /// One line for the screen: what it did, or why it failed or was skipped.
+  lastSummary    String?
+
+  updated   DateTime? @updatedAt
+  updatedBy String?
+}
+
 /// GAP-13: one of the automatic customer messages (lib/messages/catalog.ts),
 /// as the store has set it up in Settings > Customer messages. Every choice is
 /// the store's: whether it goes at all (off until switched on), what it says,
@@ -5891,6 +5919,9 @@ model AppSettings {
   /// means tags print no code.
   costCipherKey String?
   lowStockAlertedOn   String?
+  // When the host's scheduler last woke Holt (GAP-37, lib/automations/runner.ts), so
+  // Admin > Automations can say if nothing is waking it.
+  automationsWokenAt DateTime?
   // The morning follow-up email (GAP-36, lib/followUpEmail.ts). Off until a store sets an
   // hour. followUpEmailedOn is the store day it last went, so it goes once a day.
   followUpEmailHour   Int?

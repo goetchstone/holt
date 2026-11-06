@@ -91,6 +91,9 @@ All use `enqueueAndSend` (best-effort; the durable row survives an SMTP outage).
   See `docs/domains/purchasing.md`.
 Status links use `NEXTAUTH_URL` as the base.
 
+A practice copy sends none of this: its SMTP settings resolve to nothing, so what's queued stays
+`PENDING` (`docs/domains/practice-copy.md`).
+
 ## Customer messages (GAP-13)
 
 Messages Holt sends a customer by itself. Owner, 2026-11-03: each one on or off
@@ -176,8 +179,8 @@ customer a quote hold is ending, and sending a message again by hand.
 - **Admin viewer** `/app/admin/email` — SMTP-configured banner, per-status
   counts, recent rows + last error, "Process now", and the same for texts. Card on
   the Admin hub.
-- **The cron** (`scripts/auto-email-queue.sh`) runs every 5 minutes, installed
-  by `scripts/install-cron.sh`. `scripts/go-live-check.sh` checks it is there.
+- **Sending** is "Send waiting emails and texts" at Admin → Automations, every 5 minutes to start
+  (`docs/domains/automations.md`). `scripts/go-live-check.sh` checks that the host wakes Holt.
 
 ## Verification checklist
 
