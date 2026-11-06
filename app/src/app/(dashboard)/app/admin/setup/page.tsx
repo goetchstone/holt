@@ -80,6 +80,11 @@ const ITEMS: CardGridItem[] = [
     href: "/app/admin/setup/customer-messages",
   },
   {
+    title: "Email look and wording",
+    description: "How every email Holt sends looks, and what each one says.",
+    href: "/app/admin/setup/email-look",
+  },
+  {
     title: "Gift Card Presets",
     description: "Configure quick codes for gift card sales (GC, GC25, GC50).",
     href: "/app/admin/setup/gift-cards",

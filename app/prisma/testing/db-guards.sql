@@ -296,3 +296,10 @@ ALTER TABLE "AutomationSetting" DROP CONSTRAINT IF EXISTS "AutomationSetting_las
 ALTER TABLE "AutomationSetting" ADD CONSTRAINT "AutomationSetting_lastStatus" CHECK (
   "lastStatus" IS NULL OR "lastStatus" IN ('RUNNING', 'OK', 'FAILED', 'SKIPPED')
 );
+
+-- 20261106140000_email_look
+-- An email's colour goes into a style attribute, so only a plain #rrggbb is let in.
+ALTER TABLE "AppSettings" DROP CONSTRAINT IF EXISTS "AppSettings_emailAccentColor_hex";
+ALTER TABLE "AppSettings" ADD CONSTRAINT "AppSettings_emailAccentColor_hex" CHECK (
+  "emailAccentColor" IS NULL OR "emailAccentColor" ~ '^#[0-9a-fA-F]{6}$'
+);

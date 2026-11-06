@@ -225,6 +225,8 @@ app/src/pages/api/customer-messages/*|docs/domains/email.md
 app/src/lib/sms/*|docs/domains/sms.md
 app/src/pages/api/sms/*|docs/domains/sms.md
 app/src/pages/api/templates/*|docs/domains/email.md
+app/src/pages/api/admin/email-look/*|docs/domains/email.md
+app/src/app/(dashboard)/app/admin/setup/email-look/*|docs/domains/email.md
 
 # Auth + staff
 app/src/lib/auth/*|docs/domains/staff-auth.md

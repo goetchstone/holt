@@ -5,6 +5,7 @@
 // (render.ts, email/templates.ts), and when a timed one is due on the store's
 // clock (timing.ts).
 
+import { DEFAULT_EMAIL_LOOK } from "@/lib/email/look";
 import {
   MESSAGE_CATALOG,
   messageSettingProblem,
@@ -133,6 +134,7 @@ describe("filling and escaping", () => {
 
   it("escapes the store's wording and the customer's name, keeps paragraphs, and adds the buttons", () => {
     const email = renderCustomerMessage({
+      look: DEFAULT_EMAIL_LOOK,
       subject: "Order {order}\r\nBcc: x@example.com",
       body: "Hi {customer},\n\nLine one\nline <b>two</b>",
       storeName: "A&B Home",
@@ -153,6 +155,7 @@ describe("filling and escaping", () => {
 
   it("signs with one full stop when the store's name ends in one", () => {
     const email = renderCustomerMessage({
+      look: DEFAULT_EMAIL_LOOK,
       subject: "s",
       body: "b",
       storeName: "Holt Home & Rug Co.",
@@ -165,6 +168,7 @@ describe("filling and escaping", () => {
 
   it("has no buttons when the message carries no links", () => {
     const email = renderCustomerMessage({
+      look: DEFAULT_EMAIL_LOOK,
       subject: "s",
       body: "b",
       storeName: "S",

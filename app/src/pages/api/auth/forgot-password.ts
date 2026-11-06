@@ -13,6 +13,7 @@ import { passwordResetEmail } from "@/lib/email/templates";
 import { enqueueAndSend } from "@/lib/email/queue";
 import { getAppSettings, DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { logError } from "@/lib/logger";
+import { getEmailChrome } from "@/lib/email/wordingSettings";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -36,6 +37,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         appName: settings.companyName?.trim() || settings.appName,
         displayName: result.displayName,
         resetUrl: `${baseUrl}/auth/reset-password?token=${result.rawToken}`,
+        chrome: await getEmailChrome("password-reset"),
       });
       await enqueueAndSend({
         organizationId: DEFAULT_ORG_ID,

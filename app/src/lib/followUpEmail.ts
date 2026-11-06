@@ -18,6 +18,7 @@ import { countQuotesWaitingByStaff, loadFollowUpRows } from "@/lib/followUpRepor
 import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { businessDayKey, businessHourStart, dayKeyToDbDate } from "@/lib/reports/businessDay";
+import { getEmailChrome } from "@/lib/email/wordingSettings";
 
 const SUGGESTED_LISTED = 5;
 const NOTE_LENGTH = 100;
@@ -92,6 +93,7 @@ export async function queueFollowUpEmails(now: Date = new Date()): Promise<Follo
 
   const rules = readOutreachRules(app);
   const formats = formatsFor(app);
+  const chrome = await getEmailChrome("follow-up");
   const baseUrl = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/+$/, "");
   const [staffMembers, followUps, quotesWaiting] = await Promise.all([
     prisma.staffMember.findMany({
@@ -118,6 +120,7 @@ export async function queueFollowUpEmails(now: Date = new Date()): Promise<Follo
         ? await fetchClientBook(staff, parseClientBookOptions({ followUp: "suggested" }), now)
         : { rows: [], total: 0 };
       const email = followUpEmail({
+        chrome,
         storeName: app.companyName?.trim() || app.appName,
         staffName: staff.displayName,
         baseUrl,

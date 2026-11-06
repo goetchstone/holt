@@ -58,20 +58,6 @@ interface StoreLocationOption {
   type: string;
 }
 
-interface CustomerAddress {
-  id: number;
-  address1: string;
-  address2: string | null;
-  city: string;
-  state: string;
-  zip: string;
-}
-
-// Extends the base search result with address data returned by the API.
-interface CustomerWithAddresses extends CustomerSearchResult {
-  addresses: CustomerAddress[];
-}
-
 let lineCounter = 0;
 function nextLineId(): string {
   lineCounter += 1;
@@ -92,7 +78,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
     results: customerResults,
     clear: clearCustomerSearch,
   } = useCustomerSearch({ limit: 5 });
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithAddresses | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null);
 
   // Product search
   const {
@@ -147,7 +133,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
         if (!r.ok) throw new Error("not found");
         return r.json();
       })
-      .then((c) => setSelectedCustomer(c as CustomerWithAddresses))
+      .then((c) => setSelectedCustomer(c as CustomerSearchResult))
       .catch(() => {});
     // Only run when query params become available
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -407,7 +393,7 @@ export function NewQuoteView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSet
             />
             {customerResults.length > 0 && (
               <div className="absolute z-10 top-full left-0 right-0 bg-white border border-brand-gray/20 rounded shadow-lg mt-1 max-h-40 overflow-y-auto">
-                {(customerResults as CustomerWithAddresses[]).map((c) => (
+                {customerResults.map((c) => (
                   <button
                     key={c.id}
                     onClick={() => {

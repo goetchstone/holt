@@ -21,6 +21,7 @@ import { deliverQueuedEmail, enqueueEmail } from "@/lib/email/queue";
 import { purchaseOrderEmail } from "@/lib/email/templates";
 import { purchaseOrderDocument } from "@/lib/purchasing/purchaseOrderDocument";
 import { PurchaseOrderError } from "@/lib/purchasing/stockPurchaseOrder";
+import { getEmailChrome } from "@/lib/email/wordingSettings";
 
 const Body = z.object({
   to: z.email("Enter the vendor's email address.").max(254),
@@ -59,6 +60,7 @@ export async function handler(
       vendorName: doc.vendorName,
       poNumber: doc.poNumber,
       message: body.data.message,
+      chrome: await getEmailChrome("purchase-order"),
     });
     const queued = await enqueueEmail({
       to: body.data.to,

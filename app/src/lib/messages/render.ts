@@ -6,17 +6,15 @@
 // Filling is one pass over the store's text, so a value is never read again
 // for placeholders: a customer named "{order}" is printed as typed.
 
+import { fillPlaceholders as fillText } from "@/lib/email/fill";
+import type { EmailLook } from "@/lib/email/look";
 import { customerMessageEmail, type RenderedEmail } from "@/lib/email/templates";
 import type { Placeholder } from "./catalog";
-
-const PLACEHOLDER_RE = /\{([a-zA-Z]+)\}/g;
 
 export type PlaceholderValues = Partial<Record<Placeholder, string>>;
 
 export function fillPlaceholders(text: string, values: PlaceholderValues): string {
-  return text.replace(PLACEHOLDER_RE, (whole, key: string) =>
-    key in values ? (values[key as Placeholder] ?? "") : whole,
-  );
+  return fillText(text, values as Record<string, string>);
 }
 
 /** {customer}: the first name, else the full name, else "there" ("Hi there,"). */
@@ -89,6 +87,7 @@ export interface MessageToRender {
   orderUrl: string | null;
   /** The store's review page, for the review invitation. */
   reviewUrl: string | null;
+  look: EmailLook;
 }
 
 export function renderCustomerMessage(m: MessageToRender): RenderedEmail {
@@ -100,5 +99,6 @@ export function renderCustomerMessage(m: MessageToRender): RenderedEmail {
     subject: fillPlaceholders(m.subject, m.values),
     text: fillPlaceholders(m.body, m.values),
     links,
+    look: m.look,
   });
 }

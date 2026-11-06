@@ -16,6 +16,7 @@ Every PR runs through this gate:
 | Markdown lint | GitHub Actions (`markdownlint.yml`) | Every PR | **Yes** |
 | CodeQL (default setup, extended suite) | GitHub-managed | Every PR + weekly | **Yes**: the ruleset refuses a merge with a high-or-critical alert the PR's own check reports. The scan of `main` can raise more with that check green; the session-start report counts those |
 | Client-data tripwire | Inside the unit tests | Every PR; patterns from the `CLIENT_DATA_PATTERNS` secret | **Yes** (fails without the secret) |
+| Screen-to-route tripwire (`clientApiRoutes.test.ts`) | Inside the unit tests | Every PR: every REST call on a screen reaches a route that answers its method | **Yes** |
 | Secret scanning push protection | GitHub | Every push | **Yes**: a push carrying a recognised credential is refused |
 | Docker image CVE scan (Trivy) | GitHub Actions (`security.yml`) | **Weekly Monday + manual `workflow_dispatch`** | No |
 | OpenSSF Scorecard | GitHub Actions (`scorecard.yml`) | Every push to `main` + weekly (Tuesday) | No: publishes the README badge and the report at [scorecard.dev](https://scorecard.dev/viewer/?uri=github.com/goetchstone/holt) |

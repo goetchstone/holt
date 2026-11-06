@@ -13,6 +13,7 @@ import { InvoiceValidationError, invoiceActionError } from "@/lib/billing/invoic
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { CheckoutAlreadyOpenError } from "@/lib/paymentService";
 import { logError, logger } from "@/lib/logger";
+import { getEmailChrome } from "@/lib/email/wordingSettings";
 
 export interface SendInvoiceEmailInput {
   includePaymentLink?: boolean;
@@ -63,6 +64,7 @@ export async function sendInvoiceEmail(
   }
 
   const rendered = invoiceIssuedEmail({
+    chrome: await getEmailChrome("invoice"),
     appName: settings.companyName?.trim() || settings.appName,
     customerName: invoice.customerName,
     invoiceNo: invoice.invoiceNo,

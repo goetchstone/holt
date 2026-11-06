@@ -3,6 +3,21 @@
 // Pure transactional email templates -> { subject, html }. Inline styles only
 // (email clients drop <style>/external CSS). All interpolated values are
 // HTML-escaped so author/customer text can never inject markup. No I/O.
+//
+// Every email takes the store's look, and all but a customer message its wording
+// (GAP-37). Both are required, so a new email can't skip them without a compile error:
+// getEmailChrome in lib/email/wordingSettings.ts reads them.
+
+import { DEFAULT_EMAIL_LOOK, textOn, type EmailLook } from "./look";
+import { emailText, type EmailWordingOverride, type EmailWordingText } from "./wordingCatalog";
+
+export interface EmailChrome {
+  look: EmailLook;
+  wording: EmailWordingOverride;
+}
+
+/** The default look and the suggested wording. */
+export const DEFAULT_EMAIL_CHROME: EmailChrome = { look: DEFAULT_EMAIL_LOOK, wording: {} };
 
 function escapeHtml(value: string): string {
   return value.replace(
@@ -23,17 +38,46 @@ function formatDateTime(date: Date, timezone?: string): string {
   }
 }
 
-function layout(appName: string, heading: string, bodyHtml: string): string {
+/** A store's text as paragraphs: a blank line starts one, a line break stays one. Escaped. */
+function paragraphs(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  return trimmed
+    .split(/\r?\n\s*\r?\n/)
+    .map((p) => `<p>${escapeHtml(p.trim()).replace(/\r?\n/g, "<br>")}</p>`)
+    .join("\n    ");
+}
+
+function button(url: string, label: string, look: EmailLook): string {
+  return `<p style="margin:24px 0"><a href="${escapeHtml(url)}" style="background:${look.accent};color:${textOn(look.accent)};padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">${escapeHtml(label)}</a></p>`;
+}
+
+function layout(appName: string, heading: string, bodyHtml: string, look: EmailLook): string {
   const safeApp = escapeHtml(appName);
   // "Sent by Holt Home & Rug Co." -- a name that ends in a full stop gets one, not two.
   const signedBy = escapeHtml(appName.trim().replace(/\.+$/, ""));
+  const head = look.logoUrl
+    ? `<img src="${escapeHtml(look.logoUrl)}" alt="${safeApp}" style="max-height:48px;max-width:240px;margin:0 0 16px;display:block">`
+    : `<h1 style="font-size:20px;color:${look.accent};margin:0 0 16px">${safeApp}</h1>`;
+  const foot = look.footer
+    ? escapeHtml(look.footer.trim()).replace(/\r?\n/g, "<br>")
+    : `Sent by ${signedBy}.`;
   return `<!doctype html><html><body style="margin:0;background:#f5f4f0;font-family:Helvetica,Arial,sans-serif;color:#14161f">
   <div style="max-width:560px;margin:0 auto;padding:32px 24px">
-    <h1 style="font-size:20px;color:#1c1f2e;margin:0 0 16px">${safeApp}</h1>
+    ${head}
     <h2 style="font-size:18px;margin:0 0 12px">${escapeHtml(heading)}</h2>
     ${bodyHtml}
-    <p style="font-size:12px;color:#9a968d;margin-top:32px">Sent by ${signedBy}.</p>
+    <p style="font-size:12px;color:#9a968d;margin-top:32px">${foot}</p>
   </div></body></html>`;
+}
+
+function rendered(
+  store: string,
+  text: EmailWordingText,
+  bodyHtml: string,
+  look: EmailLook,
+): RenderedEmail {
+  return { subject: text.subject, html: layout(store, text.heading, bodyHtml, look) };
 }
 
 export interface RenderedEmail {
@@ -47,17 +91,21 @@ export interface BookingEmailInput {
   serviceName?: string | null;
   startsAt: Date;
   timezone?: string;
+  chrome: EmailChrome;
 }
 
 export function bookingConfirmationEmail(input: BookingEmailInput): RenderedEmail {
+  const { look, wording } = input.chrome;
   const when = formatDateTime(input.startsAt, input.timezone);
-  const svc = input.serviceName ? `${input.serviceName} ` : "";
-  const subject = `Your ${svc}booking with ${input.appName} is confirmed`;
-  const body = `<p>Hi ${escapeHtml(input.customerName)},</p>
-    <p>Your ${input.serviceName ? `<strong>${escapeHtml(input.serviceName)}</strong> ` : ""}appointment is confirmed for:</p>
+  const text = emailText("booking", wording, {
+    customer: input.customerName,
+    service: input.serviceName || "booking",
+    store: input.appName,
+  });
+  const body = `${paragraphs(text.intro)}
     <p style="font-size:16px"><strong>${escapeHtml(when)}</strong></p>
-    <p>We look forward to seeing you. Reply to this email if you need to make a change.</p>`;
-  return { subject, html: layout(input.appName, "Booking confirmed", body) };
+    ${paragraphs(text.closing)}`;
+  return rendered(input.appName, text, body, look);
 }
 
 export interface TicketEmailInput {
@@ -66,16 +114,21 @@ export interface TicketEmailInput {
   ticketNumber: string;
   subject: string;
   statusUrl: string;
+  chrome: EmailChrome;
 }
 
 export function ticketReceivedEmail(input: TicketEmailInput): RenderedEmail {
-  const subject = `[${input.ticketNumber}] We received your request`;
-  const body = `<p>Hi ${escapeHtml(input.submitterName ?? "there")},</p>
-    <p>Thanks for reaching out — we've logged your request <strong>${escapeHtml(input.ticketNumber)}</strong>:</p>
+  const { look, wording } = input.chrome;
+  const text = emailText("ticket-received", wording, {
+    name: input.submitterName ?? "there",
+    ticket: input.ticketNumber,
+    store: input.appName,
+  });
+  const body = `${paragraphs(text.intro)}
     <p style="padding:12px;background:#e8e4dc;border-radius:6px">${escapeHtml(input.subject)}</p>
-    <p>You can check its status and reply any time:</p>
-    <p><a href="${escapeHtml(input.statusUrl)}" style="color:#1c1f2e">${escapeHtml(input.statusUrl)}</a></p>`;
-  return { subject, html: layout(input.appName, "Request received", body) };
+    ${paragraphs(text.closing)}
+    <p><a href="${escapeHtml(input.statusUrl)}" style="color:${look.accent}">${escapeHtml(input.statusUrl)}</a></p>`;
+  return rendered(input.appName, text, body, look);
 }
 
 export interface TicketReplyEmailInput extends TicketEmailInput {
@@ -83,12 +136,17 @@ export interface TicketReplyEmailInput extends TicketEmailInput {
 }
 
 export function ticketReplyEmail(input: TicketReplyEmailInput): RenderedEmail {
-  const subject = `[${input.ticketNumber}] New reply to your request`;
-  const body = `<p>Hi ${escapeHtml(input.submitterName ?? "there")},</p>
-    <p>There's a new reply on your request <strong>${escapeHtml(input.ticketNumber)}</strong>:</p>
+  const { look, wording } = input.chrome;
+  const text = emailText("ticket-reply", wording, {
+    name: input.submitterName ?? "there",
+    ticket: input.ticketNumber,
+    store: input.appName,
+  });
+  const body = `${paragraphs(text.intro)}
     <p style="padding:12px;background:#e8e4dc;border-radius:6px;white-space:pre-wrap">${escapeHtml(input.messageBody)}</p>
-    <p><a href="${escapeHtml(input.statusUrl)}" style="color:#1c1f2e">View &amp; reply</a></p>`;
-  return { subject, html: layout(input.appName, "New reply", body) };
+    ${paragraphs(text.closing)}
+    <p><a href="${escapeHtml(input.statusUrl)}" style="color:${look.accent}">View &amp; reply</a></p>`;
+  return rendered(input.appName, text, body, look);
 }
 
 export interface InvoiceEmailInput {
@@ -102,10 +160,17 @@ export interface InvoiceEmailInput {
   /** Stripe checkout URL when a payment link was generated alongside. */
   paymentUrl?: string | null;
   lines: { description: string; quantity: number; amountFormatted: string }[];
+  chrome: EmailChrome;
 }
 
 export function invoiceIssuedEmail(input: InvoiceEmailInput): RenderedEmail {
-  const subject = `Invoice ${input.invoiceNo} from ${input.appName}`;
+  const { look, wording } = input.chrome;
+  const text = emailText("invoice", wording, {
+    customer: input.customerName,
+    invoice: input.invoiceNo,
+    total: input.totalFormatted,
+    store: input.appName,
+  });
   const due = input.dueDate
     ? `<p>Due by <strong>${escapeHtml(
         new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(input.dueDate),
@@ -121,37 +186,41 @@ export function invoiceIssuedEmail(input: InvoiceEmailInput): RenderedEmail {
     )
     .join("");
   const pay = input.paymentUrl
-    ? `<p style="margin:24px 0"><a href="${escapeHtml(input.paymentUrl)}" style="background:#1c1f2e;color:#f5f4f0;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Pay ${escapeHtml(input.openBalanceFormatted)} now</a></p>`
+    ? button(input.paymentUrl, `Pay ${input.openBalanceFormatted} now`, look)
     : "";
-  const body = `<p>Hi ${escapeHtml(input.customerName)},</p>
-    <p>Invoice <strong>${escapeHtml(input.invoiceNo)}</strong> for <strong>${escapeHtml(input.totalFormatted)}</strong> is ready.</p>
+  const rule = `border-bottom:2px solid ${look.accent}`;
+  const body = `${paragraphs(text.intro)}
     ${due}
     <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0">
       <thead><tr>
-        <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #1c1f2e">Description</th>
-        <th style="padding:6px 8px;text-align:right;border-bottom:2px solid #1c1f2e">Qty</th>
-        <th style="padding:6px 8px;text-align:right;border-bottom:2px solid #1c1f2e">Amount</th>
+        <th style="padding:6px 8px;text-align:left;${rule}">Description</th>
+        <th style="padding:6px 8px;text-align:right;${rule}">Qty</th>
+        <th style="padding:6px 8px;text-align:right;${rule}">Amount</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
     ${pay}
-    <p>Reply to this email with any questions.</p>`;
-  return { subject, html: layout(input.appName, `Invoice ${input.invoiceNo}`, body) };
+    ${paragraphs(text.closing)}`;
+  return rendered(input.appName, text, body, look);
 }
 
 export interface PasswordResetEmailInput {
   appName: string;
   displayName: string;
   resetUrl: string;
+  chrome: EmailChrome;
 }
 
 export function passwordResetEmail(input: PasswordResetEmailInput): RenderedEmail {
-  const subject = `Reset your ${input.appName} password`;
-  const body = `<p>Hi ${escapeHtml(input.displayName)},</p>
-    <p>Someone (hopefully you) asked to reset your ${escapeHtml(input.appName)} password.</p>
-    <p style="margin:24px 0"><a href="${escapeHtml(input.resetUrl)}" style="background:#1c1f2e;color:#f5f4f0;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Choose a new password</a></p>
-    <p>The link works once and expires in 1 hour. If you didn't ask for this, ignore this email — your password is unchanged.</p>`;
-  return { subject, html: layout(input.appName, "Password reset", body) };
+  const { look, wording } = input.chrome;
+  const text = emailText("password-reset", wording, {
+    name: input.displayName,
+    store: input.appName,
+  });
+  const body = `${paragraphs(text.intro)}
+    ${button(input.resetUrl, "Choose a new password", look)}
+    ${paragraphs(text.closing)}`;
+  return rendered(input.appName, text, body, look);
 }
 
 export interface PurchaseOrderEmailInput {
@@ -161,21 +230,23 @@ export interface PurchaseOrderEmailInput {
   poNumber: string;
   /** The sender's own note, if they wrote one. */
   message?: string | null;
+  chrome: EmailChrome;
 }
 
 export function purchaseOrderEmail(input: PurchaseOrderEmailInput): RenderedEmail {
-  const subject = `Purchase order ${input.poNumber} from ${input.companyName}`;
+  const { look, wording } = input.chrome;
+  const text = emailText("purchase-order", wording, {
+    vendor: input.vendorName,
+    po: input.poNumber,
+    store: input.companyName,
+  });
   const note = input.message?.trim()
     ? `<p>${escapeHtml(input.message.trim()).replace(/\r?\n/g, "<br>")}</p>`
     : "";
-  const body = `<p>Hello ${escapeHtml(input.vendorName)},</p>
-    <p>Our purchase order <strong>${escapeHtml(input.poNumber)}</strong> is attached.</p>
+  const body = `${paragraphs(text.intro)}
     ${note}
-    <p>Please reply to confirm it and the date it will ship.</p>`;
-  return {
-    subject,
-    html: layout(input.companyName, `Purchase order ${input.poNumber}`, body),
-  };
+    ${paragraphs(text.closing)}`;
+  return rendered(input.companyName, text, body, look);
 }
 
 export interface CustomerMessageEmailInput {
@@ -186,6 +257,7 @@ export interface CustomerMessageEmailInput {
   text: string;
   /** Buttons under the wording: the order link, the review page. */
   links: { label: string; url: string }[];
+  look: EmailLook;
 }
 
 /**
@@ -195,19 +267,12 @@ export interface CustomerMessageEmailInput {
  * markup.
  */
 export function customerMessageEmail(input: CustomerMessageEmailInput): RenderedEmail {
-  const paragraphs = input.text
-    .trim()
-    .split(/\r?\n\s*\r?\n/)
-    .map((p) => `<p>${escapeHtml(p.trim()).replace(/\r?\n/g, "<br>")}</p>`)
-    .join("\n    ");
-  const buttons = input.links
-    .map(
-      (l) =>
-        `<p style="margin:24px 0"><a href="${escapeHtml(l.url)}" style="background:#1c1f2e;color:#f5f4f0;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">${escapeHtml(l.label)}</a></p>`,
-    )
-    .join("\n    ");
+  const buttons = input.links.map((l) => button(l.url, l.label, input.look)).join("\n    ");
   const subject = input.subject.replace(/\s*[\r\n]+\s*/g, " ").trim();
-  return { subject, html: layout(input.storeName, subject, `${paragraphs}\n    ${buttons}`) };
+  return {
+    subject,
+    html: layout(input.storeName, subject, `${paragraphs(input.text)}\n    ${buttons}`, input.look),
+  };
 }
 
 export interface LowStockEmailInput {
@@ -222,6 +287,7 @@ export interface LowStockEmailInput {
   }[];
   /** Purchasing > Low stock. */
   url: string;
+  chrome: EmailChrome;
 }
 
 /** How many a list in an email shows; the screen has them all. */
@@ -230,7 +296,11 @@ const LOW_STOCK_EMAIL_MAX_ROWS = 100;
 /** The daily list of what's below its reorder point (GAP-14). */
 export function lowStockEmail(input: LowStockEmailInput): RenderedEmail {
   const count = input.rows.length;
-  const subject = `${count} item${count === 1 ? "" : "s"} below their reorder point`;
+  const { look, wording } = input.chrome;
+  const text = emailText("low-stock", wording, {
+    items: `${count} item${count === 1 ? "" : "s"}`,
+    store: input.storeName,
+  });
   const cell = "padding:6px 8px;border-bottom:1px solid #e8e4dc";
   const num = `${cell};text-align:right`;
   const rows = input.rows
@@ -248,8 +318,9 @@ export function lowStockEmail(input: LowStockEmailInput): RenderedEmail {
     .join("");
   const more =
     count > LOW_STOCK_EMAIL_MAX_ROWS ? `<p>And ${count - LOW_STOCK_EMAIL_MAX_ROWS} more.</p>` : "";
-  const th = "padding:6px 8px;border-bottom:2px solid #1c1f2e";
-  const body = `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0">
+  const th = `padding:6px 8px;border-bottom:2px solid ${look.accent}`;
+  const body = `${paragraphs(text.intro)}
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0">
       <thead><tr>
         <th style="${th};text-align:left">Store</th>
         <th style="${th};text-align:left">Item</th>
@@ -261,8 +332,9 @@ export function lowStockEmail(input: LowStockEmailInput): RenderedEmail {
       <tbody>${rows}</tbody>
     </table>
     ${more}
-    <p style="margin:24px 0"><a href="${escapeHtml(input.url)}" style="background:#1c1f2e;color:#f5f4f0;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Order from Low stock</a></p>`;
-  return { subject, html: layout(input.storeName, subject, body) };
+    ${button(input.url, "Order from Low stock", look)}
+    ${paragraphs(text.closing)}`;
+  return rendered(input.storeName, text, body, look);
 }
 
 export interface FollowUpEmailClient {
@@ -279,24 +351,31 @@ export interface FollowUpEmailInput {
   suggested: FollowUpEmailClient[];
   suggestedCount: number;
   suggestedWhy: string;
+  chrome: EmailChrome;
 }
 
 export const FOLLOW_UP_EMAIL_MAX_DUE = 15;
 
-function followUpSubject(input: FollowUpEmailInput): string {
+function followUpSummary(input: FollowUpEmailInput): string {
   const count = (n: number, word: string) =>
     `${n.toLocaleString("en-US")} ${word}${n === 1 ? "" : "s"}`;
   const parts: string[] = [];
   if (input.due.length > 0) parts.push(`${input.due.length} due`);
   if (input.quotesWaiting > 0) parts.push(`${count(input.quotesWaiting, "quote")} waiting`);
   if (input.suggestedCount > 0) parts.push(`${count(input.suggestedCount, "past client")} to call`);
-  return `Your follow-ups: ${parts.join(", ")}`;
+  return parts.join(", ");
 }
 
 /** Null when there's nothing to say, so nobody gets an empty email. */
 export function followUpEmail(input: FollowUpEmailInput): RenderedEmail | null {
   const { due, quotesWaiting, suggested, suggestedCount, baseUrl } = input;
   if (due.length === 0 && quotesWaiting === 0 && suggestedCount === 0) return null;
+  const { look, wording } = input.chrome;
+  const text = emailText("follow-up", wording, {
+    name: input.staffName,
+    summary: followUpSummary(input),
+    store: input.storeName,
+  });
 
   const clientList = (clients: FollowUpEmailClient[]) =>
     `<ul style="margin:8px 0;padding-left:20px">${clients
@@ -306,10 +385,10 @@ export function followUpEmail(input: FollowUpEmailInput): RenderedEmail | null {
       )
       .join("")}</ul>`;
   const link = (path: string, label: string) =>
-    `<p style="margin:8px 0"><a href="${escapeHtml(`${baseUrl}${path}`)}">${label}</a></p>`;
+    `<p style="margin:8px 0"><a href="${escapeHtml(`${baseUrl}${path}`)}" style="color:${look.accent}">${label}</a></p>`;
   const heading = (text: string) => `<h3 style="margin:24px 0 8px;font-size:15px">${text}</h3>`;
 
-  const sections = [`<p>Good morning ${escapeHtml(input.staffName)},</p>`];
+  const sections = [paragraphs(text.intro)];
   if (due.length > 0) {
     const hidden = due.length - FOLLOW_UP_EMAIL_MAX_DUE;
     sections.push(
@@ -333,6 +412,6 @@ export function followUpEmail(input: FollowUpEmailInput): RenderedEmail | null {
       link("/app/sales/clients?show=suggested", "See the list"),
     );
   }
-  const subject = followUpSubject(input);
-  return { subject, html: layout(input.storeName, subject, sections.join("\n")) };
+  sections.push(paragraphs(text.closing));
+  return rendered(input.storeName, text, sections.join("\n"), look);
 }
