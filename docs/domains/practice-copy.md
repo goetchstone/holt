@@ -51,8 +51,9 @@ practice copy and the live app on the same host would keep signing each other ou
 
 - **`PRACTICE_NEXTAUTH_SECRET` must differ from the live secret.** Anyone may be an admin on
   a practice copy. With the same secret, a session signed there is valid on the live app.
-  Left unset, the app refuses to start (`lib/validateEnv.ts`). Holt can't compare it with the
-  live one, so choosing a different value is on whoever sets this up.
+  Left unset, the app logs "Refusing to start" (`lib/validateEnv.ts`) and every page answers 500,
+  though the container stays up, so check its logs. Holt can't compare it with the live one, so
+  choosing a different value is on whoever sets this up.
 - **The seed refuses the demo password.** A practice copy holds real products and costs, and
   the demo password is in this public repo, so seeding stops before writing anything until
   `PRACTICE_STAFF_PASSWORD` is set. The seeded manager PIN stays the demo's, since it's only

@@ -235,7 +235,8 @@ services:
   #
   # NEXTAUTH_SECRET is its own on purpose. A session signed here must not be valid
   # on the live app, since anyone may be an admin here. Left unset, the secret is
-  # empty and the app refuses to start (lib/validateEnv.ts).
+  # empty, the app logs "Refusing to start" (lib/validateEnv.ts) and every page
+  # answers 500, though the container stays up.
   # --------------------------------------------------------------------------
   app-practice:
     build:
