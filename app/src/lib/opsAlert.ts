@@ -11,6 +11,7 @@
 // neither set this is a no-op beyond the log line, never a crash.
 
 import { logger } from "@/lib/logger";
+import { isPracticeCopy } from "@/lib/practiceCopy";
 
 export interface OpsAlert {
   title: string;
@@ -81,6 +82,10 @@ export async function reportOpsAlert(alert: OpsAlert): Promise<void> {
     ...alert.context,
     detail: alert.detail,
   });
+
+  // A practice copy's errors are nobody's emergency, and its env may be the live
+  // one's. The log above still has them.
+  if (isPracticeCopy()) return;
 
   const channels = resolveOpsAlertChannels(process.env);
 

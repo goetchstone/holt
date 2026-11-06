@@ -215,10 +215,14 @@ export async function seedSetupData(
   });
 
   // Settings › Customer messages (GAP-13): each kind with its suggested wording
-  // and timing, as a store finds them on first opening the screen. Switched
-  // off, as every store starts; the demo's customers are invented, and nothing
-  // should write to them.
+  // and timing, as a store finds them on first opening the screen. A store starts
+  // with them off. The demo has them on, so they can be tried: only what happens
+  // after now sends, its customers are @example.com, and with no SMTP or Twilio set
+  // nothing leaves.
   result.customerMessages = (await getMessageSettings(prisma)).length;
+  await prisma.customerMessageSetting.updateMany({
+    data: { isActive: true, activeSince: new Date() },
+  });
 
   // ---- sales goals -------------------------------------------------------
   // The commission tier ladder and the goals screen both read these. A goal

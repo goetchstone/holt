@@ -91,6 +91,9 @@ All use `enqueueAndSend` (best-effort; the durable row survives an SMTP outage).
   See `docs/domains/purchasing.md`.
 Status links use `NEXTAUTH_URL` as the base.
 
+A practice copy sends none of this: its SMTP settings resolve to nothing, so what's queued stays
+`PENDING` (`docs/domains/practice-copy.md`).
+
 ## Customer messages (GAP-13)
 
 Messages Holt sends a customer by itself. Owner, 2026-11-03: each one on or off

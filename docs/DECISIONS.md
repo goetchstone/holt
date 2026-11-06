@@ -1446,6 +1446,34 @@ arriving as text; the CHECKs on the settings.
 
 ---
 
+## 47. Training is a separate practice copy, and its database's name is what makes it one (2026-11-05)
+
+**Decided (GAP-28):** staff practise on a separate Holt with its own database, not a mode in
+the live one. It starts from the demo seed, the store's importers load its real products, and
+it never has real customers or orders. Owner's direction, 2026-11-05: "I guess the seeded copy
+is practice?", "our importers could get real products even in a seeded test database".
+
+- **Not a mode that reverts.** Reverting the live database would erase real sales made while
+  someone practised, and can't unsend a charge or a text.
+- **The database's name decides, not an env var or a setting** (`lib/practiceCopy.ts`). A flag
+  can disagree with the data. On a live deployment it would hide payments and let Start over
+  destroy real data. Lost from a practice deployment, the copy would start sending. A name can't
+  drift from the database it names. It's the same doctrine as the seed's guard (rule 59).
+- **Credentials are the choke point.** `resolveCredential` returns nothing on a practice copy,
+  because nearly everything external already refuses when unconfigured. What bypasses it has its
+  own stop, and `__tests__/practiceOutbound.test.ts` fails on anything new (rules 42, 65).
+- **The starting point is a second database, not a dump file.** A dump would put the store's
+  real costs in a file needing its own protection and volume. Copying a template either finishes
+  or leaves nothing, and Start over builds the new copy before dropping the old one.
+- **Real products mean real costs, so two things are required.** The seed refuses the demo's
+  public password, and the copy needs its own session secret, since a session signed where anyone
+  may be an admin must not work on the live app.
+- **Label printers stay on.** They only print paper on the store's own network.
+- **Tested by a drill, not Jest.** It creates and drops databases, which rule 59 keeps out of
+  the test suite, so `npm run practice:drill` runs in CI on throwaway ones.
+
+Rejected: an env var (above); a schema copy inside one database, which can't restore sequences and
+triggers as cleanly; a dump (above). → `docs/domains/practice-copy.md`
 ## 48. A store decides what runs and when, and cron only wakes Holt (2026-11-06)
 
 **Decided (GAP-37):** owner, 2026-11-06: "Any automation should be something the user can

@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { decryptSecret, encryptSecret, lastFour } from "@/lib/secretCrypto";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { logError } from "@/lib/logger";
+import { isPracticeCopy } from "@/lib/practiceCopy";
 
 export interface MaskedCredential {
   provider: string;
@@ -100,6 +101,11 @@ export async function deleteCredential(
  *
  * Never throws on a DB miss -- a transient DB error during credential lookup
  * falls back to env rather than taking the integration down.
+ *
+ * A practice copy has no credentials, whatever its database or env hold: Stripe,
+ * Square, Twilio, SMTP and the rest all come through here, and each already
+ * refuses when it isn't configured (GAP-28). An env file copied from the live
+ * deployment stays harmless. See __tests__/practiceOutbound.test.ts.
  */
 export async function resolveCredential(
   provider: string,
@@ -107,6 +113,7 @@ export async function resolveCredential(
   envVar: string,
   organizationId: number = DEFAULT_ORG_ID,
 ): Promise<string | undefined> {
+  if (isPracticeCopy()) return undefined;
   try {
     const fromDb = await getCredential(organizationId, provider, field);
     if (fromDb && fromDb.trim()) return fromDb;

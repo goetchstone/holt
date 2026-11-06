@@ -2,6 +2,12 @@
 
 Catch-all runbook for external integrations not covered by their own domain doc. The major ones — the POS (`import-pipeline.md`), Mailchimp (`mailchimp.md`), Google Gmail (in `import-pipeline.md`), Stripe (in `pos.md`), GitHub Issues (`feedback.md`) — have their own runbooks. This is the rest.
 
+## A practice copy has no integrations
+
+`resolveCredential` returns nothing on a practice copy, so everything here behaves as unconfigured,
+even with keys in its database or env. A new outbound integration has to be added to
+`__tests__/practiceOutbound.test.ts`. → `docs/domains/practice-copy.md`
+
 ## Axper — store traffic data
 
 **Purpose**: count of people walking into each store, per 15-minute interval, per day. Feeds the manager dashboard's traffic widgets AND (since 2026-05-28) persists into `TrafficSnapshot` so reports can roll up date ranges without re-pulling from Axper on every page load.

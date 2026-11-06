@@ -7,6 +7,8 @@
 // host (SSRF). The credential is admin-set, so this is defense in depth, but cheap.
 // Returns null when the key is missing or the datacenter is malformed.
 
+import { isPracticeCopy } from "@/lib/practiceCopy";
+
 const DATACENTER_RE = /^[a-z]{2,4}\d{1,3}$/;
 
 export function mailchimpDatacenter(apiKey: string | undefined | null): string | null {
@@ -16,5 +18,9 @@ export function mailchimpDatacenter(apiKey: string | undefined | null): string |
 }
 
 export function mailchimpBaseUrl(datacenter: string): string {
+  // Five Mailchimp routes read their key straight from the env, so resolveCredential
+  // can't stop them. Every Mailchimp request is built from this, and .invalid never
+  // resolves (RFC 2606), so a practice copy's request fails before leaving the box.
+  if (isPracticeCopy()) return "https://practice-copy.invalid/3.0";
   return `https://${datacenter}.api.mailchimp.com/3.0`;
 }
