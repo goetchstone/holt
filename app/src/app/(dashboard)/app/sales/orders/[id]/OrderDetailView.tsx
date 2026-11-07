@@ -40,6 +40,9 @@ import { CustomerMessagesPanel } from "./CustomerMessagesPanel";
 import { UndoHandoverButton } from "./UndoHandoverButton";
 import { CancelOrderModal } from "./CancelOrderModal";
 import { poStanding, type PoDecision } from "@/lib/sales/salePosShared";
+import { SettleOverpayment } from "./SettleOverpayment";
+import type { Overpayment } from "@/lib/sales/cancelOrder";
+import type { RefundDestination } from "@/lib/returns/refundReturn";
 import { orderChangeLabel } from "@/lib/sales/orderChangeLabels";
 
 interface LineItem {
@@ -339,6 +342,8 @@ export function OrderDetailView({
   const [showCancelOrder, setShowCancelOrder] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [linePoDecision, setLinePoDecision] = useState<PoDecision | null>(null);
+  const [lineOverpaid, setLineOverpaid] = useState<Overpayment | null>(null);
+  const [lineRefundTo, setLineRefundTo] = useState<RefundDestination>("ORIGINAL_PAYMENT");
   const [replaceModalItem, setReplaceModalItem] = useState<LineItem | null>(null);
   const [replacementName, setReplacementName] = useState("");
   const [replacementPartNo, setReplacementPartNo] = useState("");
@@ -504,6 +509,15 @@ export function OrderDetailView({
     }
   };
 
+  /** True when a line change came back asking where the extra money goes. */
+  const askWhereTheRestGoes = (err: unknown): boolean => {
+    const overpaid = axios.isAxiosError(err) ? err.response?.data?.overpaid : null;
+    if (!overpaid) return false;
+    setLineOverpaid(overpaid);
+    setLineRefundTo("ORIGINAL_PAYMENT");
+    return true;
+  };
+
   const handleCancelLineItem = async () => {
     if (!cancelModalItem || !cancelReason.trim()) {
       toast.error("Please provide a reason for cancellation.");
@@ -516,15 +530,20 @@ export function OrderDetailView({
           action: "cancel",
           reason: cancelReason,
           ...(linePoDecision ? { poDecision: linePoDecision } : {}),
+          ...(lineOverpaid ? { destination: lineRefundTo } : {}),
         },
       );
       toast.success(`${cancelModalItem.productName} cancelled.`);
       setCancelModalItem(null);
       setCancelReason("");
       setLinePoDecision(null);
+      setLineOverpaid(null);
       fetchOrder();
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Failed to cancel line item"));
+      // It would leave the customer overpaid: the modal now asks where that goes.
+      if (!askWhereTheRestGoes(err)) {
+        toast.error(getErrorMessage(err, "Failed to cancel line item"));
+      }
     }
   };
 
@@ -544,17 +563,21 @@ export function OrderDetailView({
             partNo: replacementPartNo || undefined,
             selectedGrade: replacementGrade || undefined,
           },
+          ...(lineOverpaid ? { destination: lineRefundTo } : {}),
         },
       );
       toast.success(`${replaceModalItem.productName} replaced with ${replacementName}.`);
       setReplaceModalItem(null);
+      setLineOverpaid(null);
       setReplacementName("");
       setReplacementPartNo("");
       setReplacementGrade("");
       setReplaceReason("");
       fetchOrder();
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Failed to replace line item"));
+      if (!askWhereTheRestGoes(err)) {
+        toast.error(getErrorMessage(err, "Failed to replace line item"));
+      }
     }
   };
 
@@ -1381,7 +1404,10 @@ export function OrderDetailView({
       {cancelModalItem && (
         <Modal
           title={`Cancel: ${cancelModalItem.productName}`}
-          onClose={() => setCancelModalItem(null)}
+          onClose={() => {
+            setCancelModalItem(null);
+            setLineOverpaid(null);
+          }}
           onSave={handleCancelLineItem}
           saveLabel="Cancel Item"
         >
@@ -1447,6 +1473,13 @@ export function OrderDetailView({
                 </label>
               </fieldset>
             ))}
+          {lineOverpaid && (
+            <SettleOverpayment
+              overpaid={lineOverpaid}
+              refundTo={lineRefundTo}
+              onChange={setLineRefundTo}
+            />
+          )}
         </Modal>
       )}
 
@@ -1547,7 +1580,10 @@ export function OrderDetailView({
       {replaceModalItem && (
         <Modal
           title={`Replace: ${replaceModalItem.productName}`}
-          onClose={() => setReplaceModalItem(null)}
+          onClose={() => {
+            setReplaceModalItem(null);
+            setLineOverpaid(null);
+          }}
           onSave={handleReplaceLineItem}
           saveLabel="Replace Item"
         >
@@ -1607,6 +1643,13 @@ export function OrderDetailView({
               />
             </div>
           </div>
+          {lineOverpaid && (
+            <SettleOverpayment
+              overpaid={lineOverpaid}
+              refundTo={lineRefundTo}
+              onChange={setLineRefundTo}
+            />
+          )}
         </Modal>
       )}
     </div>
