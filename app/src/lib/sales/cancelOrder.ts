@@ -333,6 +333,17 @@ export async function cancelOrder(orderId: number, input: CancelInput): Promise<
   };
 }
 
+function poChangeReason(
+  po: SalePo,
+  outcome: "DROP" | "KEEP",
+  decision: PoDecision | undefined,
+): string | null {
+  if (outcome === "KEEP") {
+    return `${po.vendor} acknowledged it, and the store keeps the piece to sell off the floor`;
+  }
+  return decision === "VENDOR_AGREED" ? `${po.vendor} agreed to cancel it` : null;
+}
+
 async function closeTheSale(
   tx: Db,
   orderId: number,
@@ -380,12 +391,7 @@ async function closeTheSale(
         salesOrderId: orderId,
         changeType: outcome === "DROP" ? "PO_CANCELLED" : "PO_KEPT",
         newValue: po.poNumber,
-        reason:
-          outcome === "KEEP"
-            ? `${po.vendor} acknowledged it, and the store keeps the piece to sell off the floor`
-            : decision === "VENDOR_AGREED"
-              ? `${po.vendor} agreed to cancel it`
-              : null,
+        reason: poChangeReason(po, outcome, decision),
         changedBy: actor,
       },
     });

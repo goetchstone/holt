@@ -2,7 +2,6 @@
 
 Sales orders are imported from the POS daily via `Prior_Day_Sales_Data_Export`. Status is derived during import -- but the CSV's optional `Status`/`Orderstatus` column IS read first, and two of its values are load-bearing (see Status Derivation).
 
-
 ## Order Number Convention
 
 ### Orders holt creates
@@ -305,7 +304,6 @@ allowed" (`docs/DECISIONS.md` 28).
   balance (`pages/api/sales/orders/[id]/payments.ts`). Run through on a seeded copy on 2026-11-05:
   one unit stayed against the order across two payments. Nothing stops an unpaid order being
   delivered. That's true of every order, and dispatch shows the balance.
-
 
 ## Cancelling, changing and deleting a sale (DECISIONS 51)
 
