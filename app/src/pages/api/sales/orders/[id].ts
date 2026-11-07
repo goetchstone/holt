@@ -14,6 +14,10 @@ import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import { markHandedOver, handoverMethodFor } from "@/lib/fulfilment/handover";
 import { rerateQuoteTax } from "@/lib/tax/rerateQuoteTax";
 import { promoteQuoteToOrder } from "@/lib/sales/quoteHolds";
+import { deleteProblem, saleWithoutPaymentProblem } from "@/lib/sales/cancelOrder";
+import { readSalePos } from "@/lib/sales/salePos";
+import { onSaleWentAhead } from "@/lib/paymentService";
+import { getAppSettings } from "@/lib/appSettings";
 import { holdDateString, lineHoldProblem } from "@/lib/sales/quoteHoldsShared";
 import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
 import { orderFlagsOf } from "@/lib/sales/orderFlags";
@@ -54,6 +58,10 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       if (locked) return res.status(409).json({ error: locked });
       const leaving = handedOverStatusProblem(existing, status);
       if (leaving) return res.status(409).json({ error: leaving });
+      if (status && status !== existing.status) {
+        const refused = await statusChangeProblem(existing, status);
+        if (refused) return res.status(409).json({ error: refused });
+      }
 
       const changedBy = session.user?.email || null;
 
@@ -105,6 +113,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         });
       });
 
+      // It went ahead with nothing paid: what a first payment would have started.
+      if (existing.status === "QUOTE" && updated.status === "ORDER") {
+        await onSaleWentAhead(updated.id);
+      }
+
       return res.status(200).json({ id: updated.id, status: updated.status });
     } catch (error) {
       logError("Error updating order", error);
@@ -113,41 +126,40 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
   }
 
   if (req.method === "DELETE") {
-    // Deleting a whole order is narrower than the general sales-order gate
-    // this file is wrapped in -- MANAGER/ADMIN only, not DESIGNER/REGISTER.
+    // Deleting is narrower than the general sales-order gate this file is wrapped
+    // in -- MANAGER/ADMIN only, not DESIGNER/REGISTER -- and only for a quote with no
+    // money on it (lib/sales/cancelOrder.ts). Everything else gets cancelled.
     const role = await activeStaffRole(session as { user?: { id?: string | null } | null });
     if (role !== "MANAGER" && role !== "ADMIN") {
-      return res.status(403).json({ error: "Manager role required to delete orders" });
+      return res.status(403).json({ error: "Manager role required to delete a quote" });
     }
 
     try {
       const orderId = Number.parseInt(id);
-      const locked = await returnOrderEditProblem(prisma, orderId);
-      if (locked) return res.status(409).json({ error: locked });
+      const order = await prisma.salesOrder.findUnique({
+        where: { id: orderId },
+        select: {
+          status: true,
+          orderno: true,
+          customerId: true,
+          _count: { select: { payments: true, invoices: true } },
+        },
+      });
+      if (!order) return res.status(404).json({ error: "Order not found" });
+      const refused = deleteProblem({
+        status: order.status,
+        paymentCount: order._count.payments,
+        invoiceCount: order._count.invoices,
+      });
+      if (refused) return res.status(409).json({ error: refused });
+
       await prisma.$transaction(async (tx) => {
-        // Every payment row goes with the order, whatever its status, so all of them
-        // are counted. The entry has no foreign key: it's what's left of this order.
-        const order = await tx.salesOrder.findUniqueOrThrow({
-          where: { id: orderId },
-          select: { orderno: true, customerId: true },
-        });
-        const payments = await tx.payment.aggregate({
-          where: { salesOrderId: orderId },
-          _count: true,
-          _sum: { paymentAmount: true },
-        });
         await auditLog(
-          "ORDER_DELETED",
+          "QUOTE_DELETED",
           auditActor(session),
           {
-            summary: `Order ${order.orderno} deleted, with ${payments._count} payment records`,
-            details: {
-              orderId,
-              orderno: order.orderno,
-              customerId: order.customerId,
-              paymentRecords: payments._count,
-              paymentsTotal: Number(payments._sum.paymentAmount ?? 0),
-            },
+            summary: `Quote ${order.orderno} deleted`,
+            details: { orderId, orderno: order.orderno, customerId: order.customerId },
           },
           tx,
         );
@@ -156,32 +168,18 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           where: { salesOrderId: orderId },
           data: { salesOrderId: null },
         });
-        await tx.customerCreditTransaction.updateMany({
-          where: { salesOrderId: orderId },
-          data: { salesOrderId: null },
-        });
-        // The order's committed stock goes back to free stock where it sits.
-        // This used to delete those rows, so deleting an order destroyed the
-        // sofas it had reserved: physically still on the floor, gone from the
-        // books.
+        // Whatever it held goes back to free stock where it sits.
         await release(orderId, tx);
-        // Delete child records in dependency order. The order's history goes
-        // with it: its foreign key restricts, so any order with a row (a
-        // status change, or since GAP-07 a flag, a note, or a copy's "copied
-        // from") could not be deleted at all.
+        // The quote's history goes with it: its foreign key restricts, and the entry
+        // above is what's left of it.
         await tx.orderChangeLog.deleteMany({ where: { salesOrderId: orderId } });
-        await tx.payment.deleteMany({ where: { salesOrderId: orderId } });
-        await tx.invoiceLineItem.deleteMany({
-          where: { invoice: { salesOrderId: orderId } },
-        });
-        await tx.invoice.deleteMany({ where: { salesOrderId: orderId } });
         await tx.orderLineItem.deleteMany({ where: { salesOrderId: orderId } });
         await tx.salesOrder.delete({ where: { id: orderId } });
       });
       return res.status(204).end();
     } catch (error) {
       logError("Error deleting order", error);
-      return res.status(500).json({ error: "Failed to delete order" });
+      return res.status(500).json({ error: "Failed to delete this quote" });
     }
   }
 
@@ -202,6 +200,13 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
           include: {
             product: {
               select: STOCKED_SELECT,
+            },
+            purchaseOrderItems: {
+              select: {
+                purchaseOrder: {
+                  select: { poNumber: true, status: true, vendor: { select: { name: true } } },
+                },
+              },
             },
           },
         },
@@ -261,6 +266,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         : null,
       lineItems: order.lineItems.map((item) => ({
         id: item.id,
+        purchaseOrders: item.purchaseOrderItems.map(({ purchaseOrder: po }) => ({
+          poNumber: po.poNumber,
+          status: po.status,
+          vendor: po.vendor.name,
+        })),
         lineNumber: item.lineNumber,
         productName: item.productName,
         partNo: item.partNo,
@@ -332,6 +342,33 @@ export default requirePermission("sales.write", handler);
  * (e.g. a CANCELLED after FULFILLED already consumed it), which is correct, not
  * a bug -- see allocation.ts's consume()/release() headers.
  */
+/**
+ * Whether a status button may do this. Cancelling has its own route, because the money
+ * has to be settled, and a cancelled sale stays cancelled: its money has gone back, so
+ * selling it again is a copy. A quote going ahead without a payment is the store's call.
+ */
+async function statusChangeProblem(
+  existing: { id: number; status: string },
+  to: string,
+): Promise<string | null> {
+  if (to === "CANCELLED") {
+    return "Use Cancel order, so what's been paid gets settled.";
+  }
+  if (existing.status === "CANCELLED") {
+    return "This order is cancelled. To sell it again, copy it.";
+  }
+  if (existing.status === "QUOTE" && (to === "ORDER" || to === "FULFILLED")) {
+    const { allowSaleWithoutPayment } = await getAppSettings();
+    return saleWithoutPaymentProblem(existing.id, allowSaleWithoutPayment);
+  }
+  if (existing.status === "ORDER" && to === "QUOTE") {
+    const sent = (await readSalePos(prisma, existing.id)).find((po) => po.sentToVendor);
+    if (sent)
+      return `${sent.poNumber} has gone to ${sent.vendor}, so this can't go back to a quote.`;
+  }
+  return null;
+}
+
 async function applyStatusChange(
   tx: Prisma.TransactionClient,
   args: {
@@ -369,8 +406,6 @@ async function applyStatusChange(
       method: handoverMethodFor(order.deliveryMethod),
       actor,
     });
-  } else if (to === "CANCELLED") {
-    await release(order.id, tx);
   } else if (to === "QUOTE" && from === "ORDER") {
     // Back to a quote: only the lines it holds stay committed (GAP-16).
     await resyncOrderAllocation(order.id, order.storeLocation, tx);

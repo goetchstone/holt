@@ -13,6 +13,8 @@ interface Props {
   saveLabel?: string;
   /** Shown on the save button while saving; "Saving..." unless the act is another. */
   savingLabel?: string;
+  /** The button that closes without saving. "Cancel" unless cancelling is the act. */
+  closeLabel?: string;
 }
 
 export default function Modal({
@@ -23,6 +25,7 @@ export default function Modal({
   saving = false,
   saveLabel,
   savingLabel = "Saving...",
+  closeLabel = "Cancel",
 }: Props) {
   return (
     <Dialog open={true} onClose={onClose} className="relative z-50">
@@ -45,7 +48,7 @@ export default function Modal({
             <div className="mt-2 space-y-4">{children}</div>
             <div className="mt-6 flex justify-end space-x-2">
               <Button variant="secondary" onClick={onClose}>
-                Cancel
+                {closeLabel}
               </Button>
               <Button variant="primary" onClick={onSave} disabled={saving}>
                 {saving ? savingLabel : saveLabel || "Save"}

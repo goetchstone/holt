@@ -509,6 +509,15 @@ function parseLowStockAlert(body: Body, data: SettingsData): ParseError {
 // The longest a quote may hold floor stock, in days from today (GAP-16,
 // lib/sales/quoteHolds.ts). How long a store holds a piece is its own call; 0
 // means quotes hold nothing.
+// Whether a sale may go ahead with nothing paid (DECISIONS 51).
+function parseSaleWithoutPayment(body: Body, data: SettingsData): ParseError {
+  const raw = body.allowSaleWithoutPayment;
+  if (raw === undefined) return null;
+  if (typeof raw !== "boolean") return { error: "allowSaleWithoutPayment must be true or false." };
+  data.allowSaleWithoutPayment = raw;
+  return null;
+}
+
 function parseQuoteHoldMaxDays(body: Body, data: SettingsData): ParseError {
   const raw = body.quoteHoldMaxDays;
   if (raw === undefined) return null;
@@ -562,6 +571,7 @@ function parseAcknowledgements(body: Body, data: SettingsData): ParseError {
 
 const SETTINGS_PARSERS = [
   parseAppName,
+  parseSaleWithoutPayment,
   parseTextFields,
   parseUrlFields,
   parseLocaleFields,

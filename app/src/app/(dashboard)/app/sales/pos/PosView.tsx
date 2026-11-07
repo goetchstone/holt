@@ -105,6 +105,7 @@ interface CreatedOrder {
   deliveryFee: number;
   taxAmount: number;
   total: number;
+  allowSaleWithoutPayment: boolean;
 }
 
 interface PaymentSummary {
@@ -552,6 +553,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
         taxAmount?: number;
         orderDiscountAmount?: number;
         deliveryFee?: number;
+        allowSaleWithoutPayment?: boolean;
       };
 
       // The server prices the order; tendering anything else -- including
@@ -576,6 +578,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
         deliveryFee: data.deliveryFee ?? 0,
         taxAmount: data.taxAmount ?? 0,
         total: data.total,
+        allowSaleWithoutPayment: data.allowSaleWithoutPayment === true,
       });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to create order"));
@@ -786,6 +789,17 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
   // Show register selection screen if no register is chosen or user is changing
   const needsRegisterSelection = !registersLoading && (!selectedRegister || showRegisterSelect);
 
+  // The store allows a sale with nothing paid: the quote becomes an order now.
+  const handleProcessUnpaid = async () => {
+    if (!createdOrder) return;
+    try {
+      await axios.put(`/api/sales/orders/${createdOrder.id}`, { status: "ORDER" });
+      router.push(`/app/sales/orders/${createdOrder.id}`);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Couldn't go ahead with this sale."));
+    }
+  };
+
   // Render payment confirmation after successful payment
   if (paymentComplete && paymentSummary) {
     return (
@@ -834,6 +848,7 @@ export function PosView({ splitSetup }: Readonly<{ splitSetup: SplitSaleSetup | 
         onRecordPayment={handleRecordPayment}
         onResetFlow={resetPaymentFlow}
         onSkip={() => router.push(`/app/sales/orders/${createdOrder.id}`)}
+        onProcessUnpaid={handleProcessUnpaid}
       />
     );
   }
@@ -1357,6 +1372,7 @@ function TakePaymentPanel({
   onRecordPayment,
   onResetFlow,
   onSkip,
+  onProcessUnpaid,
 }: Readonly<{
   order: CreatedOrder;
   fmt: MoneyFmt;
@@ -1389,6 +1405,7 @@ function TakePaymentPanel({
   onRecordPayment: () => void;
   onResetFlow: () => void;
   onSkip: () => void;
+  onProcessUnpaid: () => void;
 }>) {
   // Everything on this panel is against the amount being tendered NOW, which
   // is the balance due unless the operator is taking a deposit.
@@ -1661,6 +1678,14 @@ function TakePaymentPanel({
             {paymentProcessing
               ? "Processing..."
               : `Record ${choiceLabel} Payment -- ${fmt(payingNow)}`}
+          </Button>
+        </div>
+      )}
+
+      {order.allowSaleWithoutPayment && (
+        <div className="mt-6">
+          <Button variant="secondary" fullWidth onClick={onProcessUnpaid}>
+            Go ahead with no payment
           </Button>
         </div>
       )}

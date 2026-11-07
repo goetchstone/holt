@@ -25,8 +25,8 @@ first, filtered by who, what kind of thing, and dates in the store's time. Nothi
 | Configuration presets | `ConfigChangeLog` |
 | Everything else in `lib/auditCatalog.ts` | `AuditEntry` |
 
-**`AuditEntry` holds no foreign keys**, so an entry outlives what it describes. Deleting an order removes
-the order's own history with it, and its entry is what's left.
+**`AuditEntry` holds no foreign keys**, so an entry outlives what it describes. Deleting a quote removes
+its own history with it, and its entry is what's left.
 
 ## Recording something new
 
@@ -60,5 +60,3 @@ are recorded by field name, not value, and integration keys by provider and fiel
 - **A database restore replaces the trail** with the one in the backup, then records the restore itself.
   The log line for its start is in the application log.
 - **Keeping it forever is the only option.** There's no retention setting.
-- **Deleting an order with a taken payment answers a generic "Failed to delete order".** A database trigger
-  refuses it, and nothing is deleted or recorded. In `ROADMAP.md`.

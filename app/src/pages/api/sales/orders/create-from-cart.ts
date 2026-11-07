@@ -474,7 +474,10 @@ export async function handler(
       };
     });
 
-    return res.status(201).json(order);
+    // The register offers to go ahead with nothing paid only where the store allows it.
+    return res
+      .status(201)
+      .json({ ...order, allowSaleWithoutPayment: settings.allowSaleWithoutPayment });
   } catch (error) {
     if (error instanceof DeliveryFeeError) {
       return res.status(error.status).json({ error: error.message });

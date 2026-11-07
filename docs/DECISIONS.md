@@ -1533,7 +1533,7 @@ screen, Admin › Audit Trail.
   `GiftCardTransaction` and so on, and `lib/auditFeed.ts` reads them all and merges them. `AuditEntry` holds
   only what had no history of its own (rule 6).
 - **An order's refunds and voids go in the order's own history**, so they show on the order too.
-- **An entry has no foreign keys**, so it outlives a deleted order, which takes its own history with it.
+- **An entry has no foreign keys**, so it outlives a deleted quote, which takes its own history with it.
 - **Inside a transaction, an entry stands or falls with the action.** Outside one, a failed write is logged
   and doesn't fail what has already happened.
 - **Secrets stay out by construction.** Settings by field name, integration keys by provider and field, gift
@@ -1546,6 +1546,43 @@ it can't say what changed, a request body can hold a password, and most of what 
 every history into one table: two homes for each fact, and nothing compares them.
 
 Coverage is enforced by `__tests__/auditCoverage.test.ts` (rule 65). → `docs/domains/audit.md`
+
+## 51. A sale is cancelled with its money settled and its PO decided, and only an unpaid quote can be deleted (2026-11-07)
+
+**Decided (owner, 2026-11-06):** "I don't think we should be deleting things... if an order has a payment,
+then we would be cancelling the order and either returning the payment or leaving a credit on account. If an
+order has no payment but was processed, again it would need to be cancelled, the only thing that might be
+deletable is a quote." And: "a sale can be processed without a payment if the store is configured to allow it."
+
+- **Cancelling settles the money first.** Back the way each payment was taken, or all of it as credit on the
+  customer's account. A card goes through its processor outside any transaction, so a failure leaves the order
+  open, and cancelling again refunds only what's left. Credit happens in one transaction with the cancel.
+- **`POST /api/sales/orders/[id]/cancel` is the only way in.** The status route refuses CANCELLED, so the money
+  can't be skipped (rule 42).
+- **A cancelled sale stays cancelled.** Its money has gone back, so selling it again is a copy, which the order
+  screen already does.
+- **Only a quote with no payment and no invoice can be deleted.** Everything else keeps its record.
+- **Giving money back needs `payment.refund`,** the same key as the refund route, so cancelling isn't a way
+  round it. Cancelling with nothing paid needs only `sales.cancel`.
+- **Whether a sale can go ahead with nothing paid is the store's call,** `AppSettings.allowSaleWithoutPayment`,
+  off by default. A sale with nothing to pay can always go ahead. A payment still going through doesn't count
+  as paid.
+- **Part of an order gone to the customer can't be cancelled whole.** Its other lines are cancelled, and the
+  rest is a return. A payment still going through has to finish or be voided first.
+- **A special order has a PO, and the PO decides what can change** (owner, 2026-11-07): "the PO can't be
+  acknowledged in order to be able to cancel or change the order. If the po is acknowledged, then we still may be
+  able to cancel the order or we may decide to keep the piece and sell it off the floor." Before acknowledgement
+  the PO follows the sale. After it, someone with `sales.cancel-acknowledged` decides, and a line's product and
+  quantity stay put.
+- **A live invoice has to be voided first.** Revenue and sales tax are booked from invoices, and the reversal entry
+  for voided orders was dropped, so this is what keeps a cancel from leaving the books wrong.
+- **Cancelling also cancels the lines**, so nothing is owed: balances are worked out from lines, and without this a
+  refunded order shows its whole total as owed, payable in the portal.
+
+Rejected: voiding a pending payment automatically on cancel. A customer may be paying at that moment, so a
+person decides. A reopen button: the money would have to come back too, and that's a new sale.
+
+→ `docs/domains/sales-orders.md`
 
 ## Adding an entry
 

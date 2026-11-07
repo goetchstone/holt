@@ -1,5 +1,7 @@
 // /app/src/pages/api/sales/orders/[id]/create-po.ts
 
+import { getAppSettings } from "@/lib/appSettings";
+import { saleWithoutPaymentProblem } from "@/lib/sales/cancelOrder";
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
@@ -20,8 +22,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     if (!order) return notFound(res, "Sales order");
 
+    if (order.status === "CANCELLED") return badRequest(res, "This order is cancelled.");
     if (order.purchaseOrders.length > 0) {
       return badRequest(res, "Purchase orders already exist for this sales order");
+    }
+    if (order.status === "QUOTE") {
+      const { allowSaleWithoutPayment } = await getAppSettings();
+      const unpaid = await saleWithoutPaymentProblem(orderId, allowSaleWithoutPayment);
+      if (unpaid) return badRequest(res, unpaid);
     }
 
     await onPaymentReceived(orderId);

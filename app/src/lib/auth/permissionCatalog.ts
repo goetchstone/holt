@@ -111,6 +111,14 @@ export const PERMISSIONS: PermissionDef[] = [
     sensitive: true,
   },
   {
+    key: "sales.cancel-acknowledged",
+    domain: "sales",
+    label: "Cancel with an acknowledged PO",
+    description:
+      "Cancel a sale or line a vendor has acknowledged: say the vendor agreed, or keep the piece as stock.",
+    sensitive: true,
+  },
+  {
     key: "sales.reassign",
     domain: "sales",
     label: "Reassign salesperson",
@@ -651,6 +659,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "sales.write",
       "sales.discount",
       "sales.cancel",
+      "sales.cancel-acknowledged",
       "sales.reassign",
       "sales.undo-handover",
       "sales.lead",
@@ -810,6 +819,7 @@ export const BUILT_IN_ROLES: BuiltInRoleDef[] = [
       "sales.write",
       "sales.discount",
       "sales.cancel",
+      "sales.cancel-acknowledged",
       "sales.reassign",
       "sales.undo-handover",
       "sales.lead",

@@ -1,5 +1,7 @@
 // /app/src/pages/api/sales/orders/[id]/line-items/[lineItemId].ts
 
+import { dropPoLines, poOutcome, raiseSpecialOrderPos, readLinePos } from "@/lib/sales/salePos";
+import { isPoDecision, poLineChangeProblem, poStanding } from "@/lib/sales/salePosShared";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
@@ -52,7 +54,8 @@ export async function handler(
   // PUT: Update line item (cancel, replace, relink, or modify)
   if (req.method === "PUT") {
     try {
-      const { action, reason, replacement, quantity, unitPrice, productId, partNo } = req.body;
+      const { action, reason, replacement, quantity, unitPrice, productId, partNo, poDecision } =
+        req.body;
 
       const order = await prisma.salesOrder.findUnique({ where: { id: orderId } });
       if (!order) return res.status(404).json({ error: "Order not found." });
@@ -61,6 +64,27 @@ export async function handler(
         where: { id: itemId, salesOrderId: orderId },
       });
       if (!lineItem) return res.status(404).json({ error: "Line item not found." });
+
+      // Nothing on a cancelled sale changes: its money and stock have gone back. A note
+      // can still go on, and a relink only fixes how a line reports.
+      if (order.status === "CANCELLED" && action !== "note" && action !== "relink") {
+        return res
+          .status(409)
+          .json({ error: "This order is cancelled. To sell it again, copy it." });
+      }
+
+      // A line the vendor has acknowledged keeps its product and quantity (DECISIONS 51).
+      const linePos = await readLinePos(prisma, itemId);
+      const changesWhatIsOrdered =
+        action === "replace" ||
+        action === "relink" ||
+        (action === "update" &&
+          quantity !== undefined &&
+          Number(quantity) !== Number(lineItem.orderedQuantity));
+      if (changesWhatIsOrdered) {
+        const stuck = linePos.map(poLineChangeProblem).find(Boolean);
+        if (stuck) return res.status(409).json({ error: stuck });
+      }
 
       // Allow "relink" on cancelled items too — a misclassified cancelled line
       // shouldn't block recategorization for reporting purposes.
@@ -178,11 +202,46 @@ export async function handler(
           return res.status(400).json({ error: "Cancel reason is required." });
         }
 
+        // An acknowledged PO needs a decision, from someone who may make it. A line that's
+        // kept leaves its PO alone: its goods arrive free now the line is cancelled.
+        const acknowledged = linePos.filter((po) => poStanding(po.status) === "ACKNOWLEDGED");
+        const poCalled = linePos.some((po) => poStanding(po.status) !== "OPEN");
+        if (poCalled && !access.holds["sales.cancel-acknowledged"]) {
+          return res.status(403).json({
+            error:
+              "A vendor has acknowledged this line's PO, and your role can't make that call. Ask a manager.",
+          });
+        }
+        if (acknowledged.length > 0 && !isPoDecision(poDecision)) {
+          return res.status(400).json({
+            error: `${acknowledged[0].poNumber} is acknowledged by ${acknowledged[0].vendor}. Say whether they agreed to cancel it, or the store keeps the piece.`,
+          });
+        }
+
         const result = await prisma.$transaction(async (tx) => {
           const updated = await tx.orderLineItem.update({
             where: { id: itemId },
             data: { lineItemStatus: "CANCELLED", cancelReason: reason },
           });
+
+          for (const po of linePos) {
+            const outcome = poOutcome(po, isPoDecision(poDecision) ? poDecision : undefined);
+            if (outcome === "NONE") continue;
+            if (outcome === "DROP") await dropPoLines(tx, po, changedBy);
+            await tx.orderChangeLog.create({
+              data: {
+                salesOrderId: orderId,
+                lineItemId: itemId,
+                changeType: outcome === "DROP" ? "PO_CANCELLED" : "PO_KEPT",
+                newValue: po.poNumber,
+                reason:
+                  outcome === "KEEP"
+                    ? `${po.vendor} acknowledged it, and the store keeps the piece to sell off the floor`
+                    : null,
+                changedBy,
+              },
+            });
+          }
 
           await tx.orderChangeLog.create({
             data: {
@@ -325,8 +384,12 @@ export async function handler(
           // is ACTIVE -- full resync rather than delta math.
           await resyncOrderAllocation(orderId, order.storeLocation, tx);
 
+          for (const po of linePos) await dropPoLines(tx, po, changedBy);
+
           return newItem;
         });
+
+        if (order.status === "ORDER") await raiseSpecialOrderPos(orderId);
 
         return res.status(200).json({
           originalId: itemId,
@@ -435,6 +498,17 @@ export async function handler(
           // resync rather than delta math.
           await resyncOrderAllocation(orderId, order.storeLocation, tx);
 
+          if (changesWhatIsOrdered) {
+            for (const po of linePos) {
+              for (const line of po.lines) {
+                await tx.purchaseOrderItem.update({
+                  where: { id: line.id },
+                  data: { orderedQuantity: quantity },
+                });
+              }
+            }
+          }
+
           return updated;
         });
 
@@ -509,4 +583,6 @@ export async function handler(
   return res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
-export default requirePermission("sales.write", handler, { also: ["sales.discount"] });
+export default requirePermission("sales.write", handler, {
+  also: ["sales.discount", "sales.cancel-acknowledged"],
+});

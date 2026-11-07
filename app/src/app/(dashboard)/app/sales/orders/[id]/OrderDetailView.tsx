@@ -38,9 +38,12 @@ import { OrderFlagChip, OrderFlagsPanel } from "./OrderFlagsPanel";
 import { OrderDisclaimersPanel } from "./OrderDisclaimersPanel";
 import { CustomerMessagesPanel } from "./CustomerMessagesPanel";
 import { UndoHandoverButton } from "./UndoHandoverButton";
+import { CancelOrderModal } from "./CancelOrderModal";
+import { poStanding, type PoDecision } from "@/lib/sales/salePosShared";
 import { orderChangeLabel } from "@/lib/sales/orderChangeLabels";
 
 interface LineItem {
+  purchaseOrders: { poNumber: string; status: string; vendor: string }[];
   id: number;
   lineNumber?: number;
   productName?: string;
@@ -333,7 +336,9 @@ export function OrderDetailView({
 
   // Line item management state
   const [cancelModalItem, setCancelModalItem] = useState<LineItem | null>(null);
+  const [showCancelOrder, setShowCancelOrder] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [linePoDecision, setLinePoDecision] = useState<PoDecision | null>(null);
   const [replaceModalItem, setReplaceModalItem] = useState<LineItem | null>(null);
   const [replacementName, setReplacementName] = useState("");
   const [replacementPartNo, setReplacementPartNo] = useState("");
@@ -488,16 +493,14 @@ export function OrderDetailView({
 
   const handleDeleteOrder = async () => {
     if (!orderDetails) return;
-    const confirmed = confirm(
-      `Delete order ${orderDetails.orderno}? This will remove all line items, payments, and invoices. This cannot be undone.`,
-    );
+    const confirmed = confirm(`Delete quote ${orderDetails.orderno}? This can't be undone.`);
     if (!confirmed) return;
     try {
       await axios.delete(`/api/sales/orders/${encodeURIComponent(String(id))}`);
-      toast.success(`Order ${orderDetails.orderno} deleted`);
+      toast.success(`Quote ${orderDetails.orderno} deleted`);
       router.push("/app/sales/orders");
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Failed to delete order"));
+      toast.error(getErrorMessage(err, "Failed to delete this quote"));
     }
   };
 
@@ -512,11 +515,13 @@ export function OrderDetailView({
         {
           action: "cancel",
           reason: cancelReason,
+          ...(linePoDecision ? { poDecision: linePoDecision } : {}),
         },
       );
       toast.success(`${cancelModalItem.productName} cancelled.`);
       setCancelModalItem(null);
       setCancelReason("");
+      setLinePoDecision(null);
       fetchOrder();
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Failed to cancel line item"));
@@ -759,7 +764,10 @@ export function OrderDetailView({
             {format(parseLocalDate(orderDetails.orderDate), "PPP")}
           </p>
           <div className="flex gap-1.5 mt-2">
-            {["QUOTE", "ORDER", "FULFILLED", "CANCELLED"].map((s) => (
+            {(orderDetails.status === "CANCELLED"
+              ? ["CANCELLED"]
+              : ["QUOTE", "ORDER", "FULFILLED"]
+            ).map((s) => (
               <button
                 key={s}
                 disabled={orderDetails.status === s || statusUpdating}
@@ -824,9 +832,16 @@ export function OrderDetailView({
               onUndone={fetchOrder}
             />
           )}
-          <Button variant="secondary" size="sm" onClick={handleDeleteOrder}>
-            Delete
-          </Button>
+          {orderDetails.status !== "CANCELLED" && !orderDetails.deliveredAt && (
+            <Button variant="secondary" size="sm" onClick={() => setShowCancelOrder(true)}>
+              {isQuote ? "Cancel quote" : "Cancel order"}
+            </Button>
+          )}
+          {isQuote && orderDetails.payments.length === 0 && (
+            <Button variant="secondary" size="sm" onClick={handleDeleteOrder}>
+              Delete
+            </Button>
+          )}
           <Link href="/app/sales/orders">
             <Button variant="outline" size="sm">
               Back
@@ -1349,6 +1364,20 @@ export function OrderDetailView({
       </div>
 
       {/* Cancel Line Item Modal */}
+      {showCancelOrder && (
+        <CancelOrderModal
+          orderId={String(id)}
+          orderno={orderDetails.orderno}
+          isQuote={isQuote}
+          formatCurrency={formatCurrency}
+          onClose={() => setShowCancelOrder(false)}
+          onCancelled={() => {
+            setShowCancelOrder(false);
+            fetchOrder();
+          }}
+        />
+      )}
+
       {cancelModalItem && (
         <Modal
           title={`Cancel: ${cancelModalItem.productName}`}
@@ -1388,6 +1417,36 @@ export function OrderDetailView({
               className="w-full border border-brand-gray/30 rounded px-3 py-2.5 text-sm"
             />
           )}
+          {cancelModalItem.purchaseOrders
+            .filter((po) => poStanding(po.status) === "ACKNOWLEDGED")
+            .slice(0, 1)
+            .map((po) => (
+              <fieldset key={po.poNumber} className="mt-3 space-y-2">
+                <legend className="text-sm font-medium">
+                  {po.vendor} has acknowledged {po.poNumber}. What happens to this line on it?
+                </legend>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="line-po-decision"
+                    className="mt-1"
+                    checked={linePoDecision === "VENDOR_AGREED"}
+                    onChange={() => setLinePoDecision("VENDOR_AGREED")}
+                  />
+                  <span>They agreed to cancel it, so take it off the PO</span>
+                </label>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="line-po-decision"
+                    className="mt-1"
+                    checked={linePoDecision === "KEEP_THE_PIECE"}
+                    onChange={() => setLinePoDecision("KEEP_THE_PIECE")}
+                  />
+                  <span>Keep the piece: it arrives as stock to sell off the floor</span>
+                </label>
+              </fieldset>
+            ))}
         </Modal>
       )}
 

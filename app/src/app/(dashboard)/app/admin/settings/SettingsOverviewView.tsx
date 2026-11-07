@@ -401,6 +401,33 @@ const PREFIX_FIELDS: { key: PrefixKey; label: string; format: string }[] = [
 
 // Blank means "use the company's initials" and is saved as blank, not as the
 // initials: pinning them here would freeze whatever name was on screen at load.
+// Whether a sale may go ahead with nothing paid (DECISIONS 51). Off to start.
+function SalesWithoutPaymentSection({
+  value,
+  onChange,
+}: Readonly<{ value: boolean; onChange: (allowed: boolean) => void }>) {
+  return (
+    <section id="sales-without-payment" className="scroll-mt-6 space-y-4">
+      <h2 className="font-serif text-lg text-brand-blue">Sales with no payment</h2>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={value}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span>
+          Allow a sale to go ahead with nothing paid
+          <span className="block text-xs text-brand-gray">
+            When this is off, a quote stays a quote until a payment is taken. A sale with nothing to
+            pay can always go ahead.
+          </span>
+        </span>
+      </label>
+    </section>
+  );
+}
+
 // Who may discount without a manager (AppSettings.discountLimitPercent, GAP-06).
 // A role holding "Apply discounts" may give any discount; everyone else up to
 // this, and above it a manager approves with their PIN. 0 locks it down.
@@ -1104,6 +1131,7 @@ export function SettingsOverviewView() {
           defaultTaxDistrictId: settings.defaultTaxDistrictId,
           deliveryFeeTaxGroupId: settings.deliveryFeeTaxGroupId,
           discountLimitPercent: settings.discountLimitPercent,
+          allowSaleWithoutPayment: settings.allowSaleWithoutPayment,
           defaultSplitPercent: settings.defaultSplitPercent,
           clientProfileChoices: settings.clientProfileChoices,
           followUpEmailHour: settings.followUpEmailHour ?? null,
@@ -1225,6 +1253,12 @@ export function SettingsOverviewView() {
         groups={taxGroups}
         onDeliveryGroupChange={(id) =>
           setSettings((prev) => (prev ? { ...prev, deliveryFeeTaxGroupId: id } : prev))
+        }
+      />
+      <SalesWithoutPaymentSection
+        value={settings.allowSaleWithoutPayment}
+        onChange={(allowed) =>
+          setSettings((prev) => (prev ? { ...prev, allowSaleWithoutPayment: allowed } : prev))
         }
       />
       <DiscountsSection

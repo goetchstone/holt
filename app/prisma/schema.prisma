@@ -5960,6 +5960,8 @@ model AppSettings {
   // How a store's emails look (GAP-37, lib/email/look.ts). Null is the default colour and foot.
   emailAccentColor String?
   emailShowLogo    Boolean @default(false)
+  // Whether a sale may go ahead with nothing paid (DECISIONS 51). Off is the strict default.
+  allowSaleWithoutPayment Boolean @default(false)
   emailFooter      String?
   // The morning follow-up email (GAP-36, lib/followUpEmail.ts). Off until a store sets an
   // hour. followUpEmailedOn is the store day it last went, so it goes once a day.
