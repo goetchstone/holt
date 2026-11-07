@@ -13,10 +13,14 @@
 // Neither failure is visible by reading package.json. Both are trivial to see
 // from the lockfile, so we look.
 //
-// Two checks, both hard failures:
-//   DEAD   -- the package is not in the resolved tree. Delete the override.
-//   PIN    -- an exact pin (no ^ / ~) with no justification in
-//             dependency-overrides.json. Either loosen it or write down why not.
+// Three checks, all hard failures:
+//   DEAD    -- the package is not in the resolved tree. Delete the override.
+//   PIN     -- an exact pin (no ^ / ~) with no justification in
+//              dependency-overrides.json. Either loosen it or write down why not.
+//   LITERAL -- an override on a direct dependency that isn't `$name`. Dependabot
+//              bumps the direct one, npm finds the two disagree and refuses
+//              (EOVERRIDE), and the update never reaches anyone: 15 of 42 runs
+//              failed that way, into a log. `$name` follows the direct one.
 //
 // Reported but not failed: an override pinned below the newest release already
 // permitted by its own range. That is a nudge to run `npm update <pkg>`, not a
@@ -53,15 +57,21 @@ function baseName(key) {
   return at > 0 ? key.slice(0, at) : key;
 }
 
-export function auditOverrides() {
-  const pkg = JSON.parse(readFileSync(join(appDir, "package.json"), "utf8"));
-  const lock = JSON.parse(readFileSync(join(appDir, "package-lock.json"), "utf8"));
-  const justified = JSON.parse(
-    readFileSync(join(appDir, "dependency-overrides.json"), "utf8"),
-  ).exactPins;
+function readRepoFiles() {
+  return {
+    pkg: JSON.parse(readFileSync(join(appDir, "package.json"), "utf8")),
+    lock: JSON.parse(readFileSync(join(appDir, "package-lock.json"), "utf8")),
+    justified: JSON.parse(readFileSync(join(appDir, "dependency-overrides.json"), "utf8"))
+      .exactPins,
+  };
+}
+
+export function auditOverrides({ pkg, lock, justified } = readRepoFiles()) {
+  const direct = { ...pkg.dependencies, ...pkg.devDependencies };
 
   const dead = [];
   const unjustifiedPins = [];
+  const literalOnDirect = [];
 
   for (const [key, spec] of Object.entries(pkg.overrides ?? {})) {
     // A nested override ({ parent: { child: version } }) constrains a child
@@ -72,16 +82,20 @@ export function auditOverrides() {
     const name = baseName(key);
     if (resolvedVersions(lock, name).length === 0) dead.push(key);
 
-    const isExact = !/^[\^~]/.test(spec);
-    if (isExact && !justified[name]) unjustifiedPins.push(`${key}: ${spec}`);
+    if (key in direct && spec !== `$${key}`) literalOnDirect.push(`${key}: ${spec}`);
+
+    // A reference is exactly as loose as the direct dependency it names.
+    const effective = spec.startsWith("$") ? (direct[spec.slice(1)] ?? spec) : spec;
+    const isExact = !/^[\^~]/.test(effective);
+    if (isExact && !justified[name]) unjustifiedPins.push(`${key}: ${effective}`);
   }
 
-  return { dead, unjustifiedPins };
+  return { dead, unjustifiedPins, literalOnDirect };
 }
 
 // Only run as a CLI when invoked directly, so the test can import it.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { dead, unjustifiedPins } = auditOverrides();
+  const { dead, unjustifiedPins, literalOnDirect } = auditOverrides();
   let bad = false;
 
   if (dead.length) {
@@ -96,6 +110,18 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error("\nAn exact pin blocks its own security updates. Loosen it to a caret");
     console.error("range, or add an entry saying which newer release breaks what.");
   }
-  if (!bad) console.log("overrides: clean — nothing dead, every exact pin justified.");
+  if (literalOnDirect.length) {
+    bad = true;
+    console.error("\nOverrides on a direct dependency that don't reference it:");
+    for (const l of literalOnDirect) console.error(`  ${l}`);
+    console.error(
+      '\nWrite "name": "$name". A literal makes every update of it fail with EOVERRIDE.',
+    );
+  }
+  if (!bad) {
+    console.log(
+      "overrides: clean — nothing dead, every exact pin justified, direct ones referenced.",
+    );
+  }
   process.exit(bad ? 1 : 0);
 }

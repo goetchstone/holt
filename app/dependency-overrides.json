@@ -4,7 +4,7 @@
     "and cannot carry comments, so the reasoning lives here and scripts/audit-overrides.mjs",
     "enforces that it exists.",
     "",
-    "Two rules, both checked mechanically:",
+    "Three rules, all checked mechanically:",
     "",
     "  1. An override whose package is absent from the resolved tree is DEAD and must",
     "     be deleted. A dead override protects nothing and outlives the reason it was",
@@ -14,6 +14,9 @@
     "     dangerous kind: an override added to fix one CVE becomes the thing blocking",
     "     the fix for the next one. `semver` sat pinned at 7.6.3 while 7.8.5 shipped \u2014",
     "     nine releases of fixes we had opted out of without deciding to.",
+    "",
+    "  3. An override on a direct dependency is written \"name\": \"$name\", which follows",
+    "     the direct one. A literal makes every Dependabot update of it fail with EOVERRIDE.",
     "",
     "Default to a caret range. Reach for an exact pin only when a newer in-major",
     "release is known to break something, and say what."
