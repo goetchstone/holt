@@ -38,6 +38,7 @@ import { handler as dispatchHandler } from "@/pages/api/sales/orders/[id]/dispat
 import { handler as lineItemsHandler } from "@/pages/api/sales/orders/[id]/line-items";
 import { handler as lineItemHandler } from "@/pages/api/sales/orders/[id]/line-items/[lineItemId]";
 import { onPaymentReceived } from "@/lib/paymentService";
+import { cancelOrder } from "@/lib/sales/cancelOrder";
 
 // An exception's three quantities are Decimal (a part roll can be short), so
 // they are read as numbers to compare.
@@ -304,15 +305,11 @@ describe("inventory order wiring (real DB)", () => {
     ]);
     const orderId = (createRes.body as { id: number }).id;
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(3);
+    // The register only offers to go ahead with no payment where the store allows it.
+    expect(createRes.body).toMatchObject({ allowSaleWithoutPayment: false });
 
-    const res = makeRes();
-    await orderHandler(
-      makeReq({ method: "PUT", query: { id: String(orderId) }, body: { status: "CANCELLED" } }),
-      res,
-      registerSession,
-    );
+    await cancelOrder(orderId, { reason: "Changed their mind", actor: "test" });
 
-    expect(res.statusCode).toBe(200);
     expect(await prisma.inventoryPosition.count({ where: { salesOrderId: orderId } })).toBe(0);
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(5);
   });

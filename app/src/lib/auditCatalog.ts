@@ -32,7 +32,7 @@ interface AuditEventInfo {
 }
 
 export const AUDIT_EVENTS = {
-  ORDER_DELETED: { label: "Order deleted", group: "sales" },
+  QUOTE_DELETED: { label: "Quote deleted", group: "sales" },
 
   PRODUCT_PRICE_CHANGED: { label: "Product price changed", group: "prices" },
   PRODUCT_COST_CHANGED: { label: "Vendor cost changed", group: "prices" },

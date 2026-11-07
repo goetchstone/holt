@@ -1,5 +1,6 @@
 // /app/src/pages/api/sales/orders/[id]/line-items.ts
 
+import { raiseSpecialOrderPos } from "@/lib/sales/salePos";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
@@ -182,6 +183,9 @@ export async function handler(
 
         return lineItem;
       });
+
+      // A special order line added to a sale that's going ahead needs its PO now.
+      if (order.status === "ORDER") await raiseSpecialOrderPos(orderId);
 
       return res.status(201).json({
         id: result.id,

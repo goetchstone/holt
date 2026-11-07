@@ -328,7 +328,7 @@ describe("InventoryPosition's single writer", () => {
     });
     const managerSession = { user: { email: user.email, id: user.id } } as unknown as Session;
     const order = await prisma.salesOrder.create({
-      data: { orderno: "SO-D", status: "ORDER", storeLocation: storeA.name },
+      data: { orderno: "SO-D", status: "QUOTE", storeLocation: storeA.name },
     });
     await stockAt({
       productId: product.id,

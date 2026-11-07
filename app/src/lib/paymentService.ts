@@ -18,6 +18,7 @@ import { countedPaymentWhere, isPaymentExcludedFromBalance } from "@/lib/payment
 import { isCountedLine } from "@/lib/salesOrderRevenue";
 import { issueStoreCredit, spendStoreCredit } from "@/lib/customerCredit";
 import { refundCounts } from "@/lib/returns/returnMoney";
+import { raiseSpecialOrderPos } from "@/lib/sales/salePos";
 import type { Payment, Prisma } from "@prisma/client";
 import { expectedArrival } from "@/lib/vendorLeadTime";
 import { createNumberedPurchaseOrder } from "@/lib/purchasing/poNumber";
@@ -266,8 +267,11 @@ export async function recordPaymentTx(
   // for the ledger reference field below.
   const order = await tx.salesOrder.findUniqueOrThrow({
     where: { id: orderId },
-    select: { id: true, orderno: true, customerId: true },
+    select: { id: true, orderno: true, customerId: true, status: true },
   });
+  if (order.status === "CANCELLED") {
+    throw new Error("This order is cancelled, so it can't take a payment.");
+  }
 
   if (input.tillId) {
     const till = await tx.till.findUniqueOrThrow({ where: { id: input.tillId } });
@@ -1164,88 +1168,24 @@ export async function onPaymentReceived(orderId: number): Promise<void> {
     await syncConsignmentSales(orderId, order.lineItems, order.orderDate ?? new Date());
   }
 
-  // Create draft POs grouped by vendor for items that need ordering
-  const vendorItems = new Map<
-    number,
-    {
-      orderLineItemId: number;
-      productId: number;
-      partNo: string;
-      name: string;
-      qty: number;
-      cost: number;
-    }[]
-  >();
+  // A special order has a PO from the moment it goes ahead.
+  await raiseSpecialOrderPos(orderId);
+}
 
-  for (const li of order.lineItems) {
-    // Only create POs for special-order items (skip floor stock)
-    if (li.source === "FLOOR") continue;
-    if (!li.product?.vendorId) continue;
-    const vendorId = li.product.vendorId;
-    if (!vendorItems.has(vendorId)) vendorItems.set(vendorId, []);
-    // Use the line item's configured cost if available, otherwise fall back to
-    // the product's baseCost from the catalog (populated by the pricing import)
-    const lineCost = Number(li.cost || 0);
-    const productCost = Number(li.product.baseCost || 0);
-    vendorItems.get(vendorId)!.push({
-      orderLineItemId: li.id,
-      productId: li.product.id,
-      partNo: li.product.productNumber,
-      name: li.product.name,
-      qty: Number(li.orderedQuantity),
-      cost: lineCost > 0 ? lineCost : productCost,
-    });
-  }
-
-  // Only create POs if there are vendor items and none exist yet for this order
-  if (vendorItems.size > 0) {
-    const existingPOs = await prisma.purchaseOrder.findMany({
-      where: { salesOrderId: orderId },
-      select: { id: true },
-    });
-
-    if (existingPOs.length === 0) {
-      const now = new Date();
-      // Each vendor's standard lead time dates its PO; a vendor without one
-      // gets no date rather than a guessed one (lib/vendorLeadTime.ts).
-      const leadTimes = new Map(
-        (
-          await prisma.vendor.findMany({
-            where: { id: { in: [...vendorItems.keys()] } },
-            select: { id: true, leadTimeDays: true },
-          })
-        ).map((v) => [v.id, v.leadTimeDays]),
-      );
-
-      for (const [vendorId, items] of vendorItems) {
-        await createNumberedPurchaseOrder(
-          prisma,
-          {
-            vendorId,
-            salesOrderId: orderId,
-            status: "DRAFT",
-            orderDate: now,
-            expectedDelivery: expectedArrival(now, leadTimes.get(vendorId)),
-            createdBy: order.salesperson || null,
-            lineItems: {
-              // Each PO line names the order line it was raised for (GAP-02):
-              // its goods arrive committed to that line while it is active,
-              // and free when the customer's line is cancelled.
-              create: items.map((item) => ({
-                orderLineItemId: item.orderLineItemId,
-                productId: item.productId,
-                partNo: item.partNo,
-                productName: item.name,
-                orderedQuantity: item.qty,
-                unitCost: item.cost,
-              })),
-            },
-          },
-          now,
-        );
-      }
-    }
-  }
+/**
+ * The follow-ups for a sale that went ahead some other way than a first payment: the
+ * status route promotes it itself, when the store allows a sale with nothing paid.
+ */
+export async function onSaleWentAhead(orderId: number): Promise<void> {
+  const order = await prisma.salesOrder.findUniqueOrThrow({
+    where: { id: orderId },
+    include: {
+      lineItems: { include: { product: { select: { id: true, productNumber: true } } } },
+    },
+  });
+  await syncServiceAppointments(orderId);
+  await syncConsignmentSales(orderId, order.lineItems, order.orderDate ?? new Date());
+  await raiseSpecialOrderPos(orderId);
 }
 
 // When a return is processed, revert any consignment rugs back to ON_FLOOR.

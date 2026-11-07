@@ -129,6 +129,8 @@ export interface ResolvedAppSettings {
   // How a store's emails look (GAP-37, lib/email/look.ts).
   emailAccentColor: string | null;
   emailShowLogo: boolean;
+  /** Whether a sale may go ahead with nothing paid (DECISIONS 51). Off is the strict default. */
+  allowSaleWithoutPayment: boolean;
   emailFooter: string | null;
   lowStockAlertEmails: string | null;
   /** The hour of the store's day it goes, 0-23; null is off. */
@@ -205,6 +207,7 @@ export const DEFAULT_APP_SETTINGS: ResolvedAppSettings = {
   outreachQuietDays: null,
   emailAccentColor: null,
   emailShowLogo: false,
+  allowSaleWithoutPayment: false,
   emailFooter: null,
   lowStockAlertEmails: null,
   lowStockAlertHour: null,
@@ -250,6 +253,7 @@ interface AppSettingsRow {
   outreachQuietDays?: number | null;
   emailAccentColor?: string | null;
   emailShowLogo?: boolean;
+  allowSaleWithoutPayment?: boolean;
   emailFooter?: string | null;
   lowStockAlertEmails?: string | null;
   lowStockAlertHour?: number | null;
@@ -344,6 +348,7 @@ export function resolveAppSettings(row: AppSettingsRow | null): ResolvedAppSetti
     outreachQuietDays: row.outreachQuietDays ?? null,
     emailAccentColor: row.emailAccentColor ?? null,
     emailShowLogo: row.emailShowLogo ?? false,
+    allowSaleWithoutPayment: row.allowSaleWithoutPayment ?? false,
     emailFooter: row.emailFooter ?? null,
     lowStockAlertEmails: row.lowStockAlertEmails ?? null,
     lowStockAlertHour: row.lowStockAlertHour ?? null,

@@ -115,6 +115,9 @@ export async function markHandedOver(tx: Tx, input: HandoverInput): Promise<Hand
     },
   });
 
+  if (existing.status === "CANCELLED") {
+    throw new Error("This order is cancelled, so it can't be handed over.");
+  }
   if (existing.deliveredAt) {
     return { changed: false, deliveredAt: existing.deliveredAt };
   }

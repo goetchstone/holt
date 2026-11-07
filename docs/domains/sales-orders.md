@@ -200,7 +200,7 @@ the register's sale (`create-from-cart`, body `deliveryFee`) and the order scree
   leave it out (`buildLineItemWhere`, `lib/salesBySalesperson.ts`), unless the report
   is asked to include delivery and freight.
 - **Not goods.** The line takes no stock and isn't picked or handed over. The generic
-  line routes (`line-items/[lineItemId].ts`, `delete-line-item.ts`) and a new return
+  line route (`line-items/[lineItemId].ts`) and a new return
   (`POST /api/returns`) refuse it through `deliveryFeeLineEditProblem()`. Refunding a
   delivery fee after the order is handed over is not built (ROADMAP GAP-09).
 
@@ -304,6 +304,65 @@ allowed" (`docs/DECISIONS.md` 28).
   balance (`pages/api/sales/orders/[id]/payments.ts`). Run through on a seeded copy on 2026-11-05:
   one unit stayed against the order across two payments. Nothing stops an unpaid order being
   delivered. That's true of every order, and dispatch shows the balance.
+
+## Cancelling, changing and deleting a sale (DECISIONS 51)
+
+Source read for this section: `lib/sales/cancelOrder.ts`, `salePos.ts`, `salePosShared.ts`,
+`pages/api/sales/orders/[id]/cancel.ts`, `pages/api/sales/orders/[id].ts`,
+`line-items/[lineItemId].ts` (2026-11-07).
+
+**A special order has a PO** from the moment it goes ahead, however it goes ahead: a first payment, a store that
+allows a sale with nothing paid, or a line added later. Floor stock doesn't, nor a cancelled or zero line
+(`raiseSpecialOrderPos`). An imported PO whose lines don't name their order lines leaves that order alone.
+
+**What the PO allows.** Acknowledged means the PO's status is Confirmed, which needs the vendor's number.
+
+| The PO | Cancelling or changing the sale |
+|---|---|
+| Draft | Allowed. The PO is cancelled or follows the change |
+| Sent, not acknowledged | Allowed. The PO is cancelled or follows the change, and the screen says to tell the vendor |
+| Acknowledged | Someone decides: **the vendor agreed** (the PO is cancelled, or short-closed if some has arrived), or **keep the piece** (it comes in as stock to sell off the floor) |
+| All here | The sale can cancel, and the piece goes back to stock |
+
+- **That call needs `sales.cancel-acknowledged`**, which owners, administrators and managers start with.
+- **A line's product and quantity** can't change once it's acknowledged: cancel the line and add what's wanted. Its
+  price can, since the vendor's order is the same.
+- **Keeping the piece:** a whole sale's PO becomes an ordinary stock order, so it counts as on order. A single kept
+  line stays on its PO, and arrives free because its line is cancelled.
+
+**What a cancel refuses, with the reason:** already cancelled; any of it handed over; a payment still going
+through; a live invoice, because revenue and sales tax are booked from invoices, so void it first; a return or
+exchange tied to it; stock moving between stores for it; out for delivery or a visit under way.
+
+**What a cancel does:** settles the money (`payment.refund` if there is any), back the way it was paid or as credit
+on the account. Then its lines are cancelled so nothing is owed, stock goes back, POs follow the table above, it
+comes off the schedule and the pickup queue, draft transfers are cancelled, consignment pieces go back on the floor
+(with credit owed if the vendor was paid), and open stock exceptions close. Its reason and who did it go in its
+history. The status buttons can't cancel, and a cancelled sale can't be reopened: to sell it again, copy it.
+
+**What it says, without stopping:** a locked commission payout covers its date; service cases are open; a pick list
+is open.
+
+**Around it:** a cancelled sale can't take a payment or be handed over, and its lines can't change.
+
+**Deleting.** Only a quote with no payment and no invoice can be deleted, by a manager. An audit entry is what's
+left.
+
+**A sale with nothing paid** only goes ahead where the store allows it (Settings, Sales with no payment,
+`AppSettings.allowSaleWithoutPayment`, off by default). That covers the status buttons, raising a PO by hand and
+handing a quote over at the counter. The register offers "Go ahead with no payment" only when it's on. Taking a
+payment promotes a quote whatever the setting, and a sale with nothing to pay can always go ahead.
+
+**Not done:**
+
+- **Holt doesn't email the vendor** when a sent PO is cancelled or changed. The screen says to tell them.
+- **Cancelling a line doesn't settle money.** A line cancelled on a fully paid order leaves the customer overpaid,
+  and that's handled by hand today.
+- **A single kept line isn't counted as on order**, since its PO still belongs to the sale.
+- **A commission payout isn't corrected** by a cancel, and stays the owner's by hand.
+- **A cash refund from cancelling** isn't tied to a till, the same as a return's refund on its screen today.
+- **A delivery stop on a quote.** `completeStop` doesn't check the no-payment setting.
+- **Setting a dispatch status to cancelled** (`dispatch.ts`) still only frees the stock. It doesn't cancel the sale.
 
 ## Invoice tools (GAP-07, since 2026-11-03)
 

@@ -27,6 +27,8 @@ const ORDER_CHANGE_LABELS: Record<string, string> = {
   PRODUCT_RELINKED: "Product Relinked",
   REFUND_ISSUED: "Refund Issued",
   PAYMENT_VOIDED: "Payment Voided",
+  PO_CANCELLED: "PO Cancelled",
+  PO_KEPT: "PO Kept for Stock",
   RETURN_INITIATED: "Return Started",
   RETURN_BOOKED: "Return Booked",
   RETURN_REFUND_ISSUED: "Return Refunded",

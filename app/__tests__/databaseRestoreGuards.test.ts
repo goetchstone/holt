@@ -40,6 +40,10 @@ jest.mock("@/lib/privateTempFile", () => {
   };
 });
 
+// Recording it goes to the database, and this suite has none: left real, the failed
+// write logged after the suite ended, and Jest failed a run whose tests all passed.
+jest.mock("@/lib/audit", () => ({ auditLog: jest.fn().mockResolvedValue(undefined) }));
+
 jest.mock("child_process", () => ({
   spawn: jest.fn((_cmd: string, args: string[]) => {
     const record = { args, stdinChunks: [] as string[] };
@@ -144,6 +148,22 @@ describe("admin database restore guards", () => {
     expect(res.statusCode).toBe(400);
     expect(String((res.payload as { error: string }).error)).toMatch(/truncated/i);
     expect(schemaWasDropped()).toBe(false);
+  });
+
+  it("records a restore that finished, by who, and not one it refused", async () => {
+    const record = jest.requireMock("@/lib/audit").auditLog as jest.Mock;
+    record.mockClear();
+
+    const refused = makeRes();
+    await handler(makeReq(""), refused);
+    expect(refused.statusCode).toBe(400);
+    expect(record).not.toHaveBeenCalled();
+
+    const res = makeRes();
+    await handler(makeReq(`${HEADER}CREATE TABLE "Order" (id int);\n${FOOTER}`), res);
+    expect(res.statusCode).toBe(200);
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(record.mock.calls[0].slice(0, 2)).toEqual(["DATABASE_RESTORED", "admin@example.com"]);
   });
 
   it("accepts a complete dump and only then drops the schema", async () => {

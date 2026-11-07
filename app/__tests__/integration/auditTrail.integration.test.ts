@@ -38,7 +38,6 @@ import { appRouter } from "@/server/trpc/routers/_app";
 import orderRoute from "@/pages/api/sales/orders/[id]";
 import refundsRoute from "@/pages/api/sales/orders/[id]/refunds";
 import voidRoute from "@/pages/api/sales/orders/[id]/payments/[paymentId]/void";
-import deleteLineRoute from "@/pages/api/sales/delete-line-item";
 import deleteCustomersRoute from "@/pages/api/customers/delete-all";
 import deleteCategoriesRoute from "@/pages/api/categories/delete-all";
 import deleteCampaignsRoute from "@/pages/api/mailchimp/delete-all";
@@ -147,10 +146,10 @@ async function onlyEntry(event: string) {
   return entries[0];
 }
 
-async function makeOrder() {
+async function makeOrder(status: "ORDER" | "QUOTE" = "ORDER") {
   const customer = await prisma.customer.create({ data: { firstName: "Ada", lastName: "Lane" } });
   return prisma.salesOrder.create({
-    data: { orderno: `SO-${customer.id}`, status: "ORDER", customerId: customer.id },
+    data: { orderno: `SO-${customer.id}`, status, customerId: customer.id },
   });
 }
 
@@ -235,7 +234,7 @@ describe("recording an entry", () => {
   it("stands or falls with the action inside a transaction", async () => {
     await expect(
       prisma.$transaction(async (tx) => {
-        await auditLog("ORDER_DELETED", "pat", { summary: "gone" }, tx);
+        await auditLog("QUOTE_DELETED", "pat", { summary: "gone" }, tx);
         throw new Error("the action failed");
       }),
     ).rejects.toThrow("the action failed");
@@ -250,7 +249,7 @@ describe("recording an entry", () => {
           where: { id: order.id },
           data: { status: "FULFILLED" },
         });
-        await auditLog("ORDER_DELETED", "pat", { summary: "x" }, {
+        await auditLog("QUOTE_DELETED", "pat", { summary: "x" }, {
           auditEntry: { create: () => Promise.reject(new Error("no room")) },
         } as never);
       }),
@@ -269,12 +268,10 @@ describe("recording an entry", () => {
 });
 
 describe("orders and payments", () => {
-  it("records a deleted order, and the entry outlives it and its history", async () => {
-    const order = await makeOrder();
-    await makePayment(order.id, "PENDING", 250);
-    await makePayment(order.id, "PENDING", 50);
+  it("records a deleted quote, and the entry outlives it and its history", async () => {
+    const order = await makeOrder("QUOTE");
     await prisma.orderChangeLog.create({
-      data: { salesOrderId: order.id, changeType: "STATUS_CHANGE", changedBy: "someone" },
+      data: { salesOrderId: order.id, changeType: "LINE_NOTE", changedBy: "someone" },
     });
 
     const res = await call(orderRoute, "boss", {
@@ -285,62 +282,21 @@ describe("orders and payments", () => {
     expect(res.status).toBe(204);
     expect(await prisma.salesOrder.count({ where: { id: order.id } })).toBe(0);
     expect(await prisma.orderChangeLog.count()).toBe(0);
-    const entry = await onlyEntry("ORDER_DELETED");
+    const entry = await onlyEntry("QUOTE_DELETED");
     expect(entry.actor).toBe("boss@example.com");
-    expect(entry.summary).toBe(`Order ${order.orderno} deleted, with 2 payment records`);
-    expect(entry.details).toMatchObject({ paymentRecords: 2, paymentsTotal: 300 });
+    expect(entry.summary).toBe(`Quote ${order.orderno} deleted`);
     // Nothing to open: linking to it would be a dead link.
     expect(entry.targetType).toBeNull();
   });
 
-  it("records nothing when the database won't let the order go, and keeps the order", async () => {
-    // A taken payment can't be deleted (payment_delete_immutability), so this fails
-    // part way through the transaction, after the entry was written.
-    const order = await makeOrder();
-    await makePayment(order.id, "COMPLETED", 250);
-    const res = await call(orderRoute, "boss", {
-      method: "DELETE",
-      query: { id: String(order.id) },
-    });
-    expect(res.status).toBe(500);
-    expect(await prisma.salesOrder.count({ where: { id: order.id } })).toBe(1);
-    expect(await prisma.auditEntry.count()).toBe(0);
-  });
-
   it("records nothing when the delete is refused", async () => {
-    const order = await makeOrder();
+    const order = await makeOrder("QUOTE");
     const res = await call(orderRoute, "till", {
       method: "DELETE",
       query: { id: String(order.id) },
     });
     expect(res.status).toBe(403);
     expect(await prisma.auditEntry.count()).toBe(0);
-  });
-
-  it("puts a removed line in the order's own history", async () => {
-    const order = await makeOrder();
-    const line = await prisma.orderLineItem.create({
-      data: {
-        salesOrderId: order.id,
-        lineNumber: 1,
-        partNo: "SOFA-1",
-        productName: "Sofa",
-        orderedQuantity: 1,
-        netPrice: 100,
-        cost: 50,
-        vatRate: 0,
-        vatAmount: 0,
-      },
-    });
-    const res = await call(deleteLineRoute, "boss", {
-      method: "DELETE",
-      query: { id: String(line.id) },
-    });
-    expect(res.status).toBe(200);
-    const change = await prisma.orderChangeLog.findFirstOrThrow({
-      where: { salesOrderId: order.id, changeType: "LINE_REMOVED" },
-    });
-    expect(change).toMatchObject({ previousValue: "SOFA-1", changedBy: "boss@example.com" });
   });
 
   it("puts a refund in the order's own history, with who and why", async () => {

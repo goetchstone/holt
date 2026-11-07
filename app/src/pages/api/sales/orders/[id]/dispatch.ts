@@ -1,5 +1,7 @@
 // /app/src/pages/api/sales/orders/[id]/dispatch.ts
 
+import { getAppSettings } from "@/lib/appSettings";
+import { saleWithoutPaymentProblem } from "@/lib/sales/cancelOrder";
 import { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
@@ -60,11 +62,20 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
 
   // A handed-over order's dispatch status stays FULFILLED until Undo handover
   // reopens it (GAP-07, lib/fulfilment/undoHandover.ts).
-  const handedOver = handedOverDispatchProblem(
-    await prisma.salesOrder.findUnique({ where: { id: orderId }, select: { deliveredAt: true } }),
-    dispatchStatus,
-  );
+  const current = await prisma.salesOrder.findUnique({
+    where: { id: orderId },
+    select: { deliveredAt: true, status: true },
+  });
+  const handedOver = handedOverDispatchProblem(current, dispatchStatus);
   if (handedOver) return res.status(409).json({ error: handedOver });
+
+  // Handing a quote over is a sale going ahead, so it's the store's call on whether
+  // that can happen with nothing paid.
+  if (dispatchStatus === "FULFILLED" && current?.status === "QUOTE") {
+    const { allowSaleWithoutPayment } = await getAppSettings();
+    const unpaid = await saleWithoutPaymentProblem(orderId, allowSaleWithoutPayment);
+    if (unpaid) return res.status(409).json({ error: unpaid });
+  }
 
   try {
     if (!isTerminalTransition) {
