@@ -78,6 +78,11 @@ before forcing a jump. Use:
   (`"pkg-a>pkg-b>brace-expansion": "2.0.1"`) so only the vulnerable path is
   touched, not every consumer of the shared dependency.
 
+**An override on a package that's also a direct dependency is written `"pkg":
+"$pkg"`**, which follows the direct one. Repeating the version as a literal makes
+every Dependabot update of it fail with `EOVERRIDE`, into a log nobody reads.
+`npm run security:overrides` fails on a literal.
+
 Origin: 2026-07-25 — `brace-expansion` 1.x exports a bare function; 2.x+
 use named exports. `@babel/core`/istanbul (jest's coverage provider) call
 it as a function. A blanket override to 2.x cleared the CVE but broke
