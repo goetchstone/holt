@@ -13,6 +13,11 @@
 import { prisma } from "@/lib/prisma";
 import { ledgerDrift } from "@/lib/inventory/ledger";
 
+// Resetting the database before each test is real work across about 200 tables, and
+// five seconds wasn't always enough on a busy CI runner or a loaded machine: unrelated
+// suites failed on it. A test that really hangs still fails, just later.
+jest.setTimeout(20_000);
+
 afterEach(async () => {
   const drift = await ledgerDrift(prisma);
   if (drift.length > 0) {
