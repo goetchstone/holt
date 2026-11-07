@@ -1,5 +1,14 @@
 // /app/src/pages/api/sales/orders/[id]/line-items/[lineItemId].ts
 
+import type { Prisma } from "@prisma/client";
+import {
+  CancelOrderError,
+  creditOverpayment,
+  overpaidAfterLineChange,
+  refundOverpayment,
+} from "@/lib/sales/cancelOrder";
+import { RefundError, RefundProcessorError } from "@/lib/paymentService";
+import { isRefundDestination } from "@/lib/returns/refundReturn";
 import { dropPoLines, poOutcome, raiseSpecialOrderPos, readLinePos } from "@/lib/sales/salePos";
 import { isPoDecision, poLineChangeProblem, poStanding } from "@/lib/sales/salePosShared";
 import { NextApiRequest, NextApiResponse } from "next";
@@ -54,8 +63,63 @@ export async function handler(
   // PUT: Update line item (cancel, replace, relink, or modify)
   if (req.method === "PUT") {
     try {
-      const { action, reason, replacement, quantity, unitPrice, productId, partNo, poDecision } =
-        req.body;
+      const {
+        action,
+        reason,
+        replacement,
+        quantity,
+        unitPrice,
+        productId,
+        partNo,
+        poDecision,
+        destination,
+      } = req.body;
+
+      // A change that leaves more paid than is owed has to say where the rest goes, as
+      // cancelling the whole sale does (DECISIONS 52). `refused` means it has answered.
+      const settleOverpayment = async (
+        newLineTotal: number,
+        why: string,
+      ): Promise<
+        | { refused: true }
+        | { refused: false; creditIn: (tx: Prisma.TransactionClient) => Promise<void> }
+      > => {
+        const over = await overpaidAfterLineChange(orderId, itemId, newLineTotal);
+        if (!over) return { refused: false, creditIn: async () => {} };
+        if (!isRefundDestination(destination)) {
+          res.status(409).json({
+            error: `This leaves the customer $${over.excess.toFixed(2)} overpaid. Say whether it goes back the way it was paid, or onto their account.`,
+            overpaid: over,
+          });
+          return { refused: true };
+        }
+        if (!access.holds["payment.refund"]) {
+          res.status(403).json({
+            error:
+              "This leaves the customer overpaid, and your role can't give money back. Ask someone who can.",
+          });
+          return { refused: true };
+        }
+        const { customerId, toSettle } = over;
+        const credit = destination === "STORE_CREDIT" && toSettle > 0;
+        if (credit && customerId === null) {
+          res.status(400).json({
+            error:
+              "This order has no customer to hold a credit, so the money has to go back the way it was paid.",
+          });
+          return { refused: true };
+        }
+        await refundOverpayment(orderId, itemId, over, destination, why, changedBy);
+        return {
+          refused: false,
+          creditIn: async (tx) => {
+            if (credit && customerId !== null) {
+              const amount = { customerId, amount: toSettle };
+              await creditOverpayment(tx, orderId, itemId, amount, why, changedBy);
+            }
+          },
+        };
+      };
 
       const order = await prisma.salesOrder.findUnique({ where: { id: orderId } });
       if (!order) return res.status(404).json({ error: "Order not found." });
@@ -90,6 +154,22 @@ export async function handler(
       // shouldn't block recategorization for reporting purposes.
       if (lineItem.lineItemStatus === "CANCELLED" && action !== "relink") {
         return res.status(400).json({ error: "Cannot modify a cancelled line item." });
+      }
+
+      // What's gone to the customer comes back as a return, which puts its stock and its
+      // money right. Cancelling it would refund goods the customer still has (DECISIONS 52).
+      const goneQty = order.deliveredAt
+        ? Number(lineItem.orderedQuantity)
+        : Number(lineItem.fulfilledQty);
+      const takesBackWhatsGone =
+        action === "cancel" ||
+        action === "replace" ||
+        (action === "update" && quantity !== undefined && Number(quantity) < goneQty);
+      if (goneQty > 0 && takesBackWhatsGone) {
+        return res.status(409).json({
+          error:
+            "Some of this line has already gone to the customer. Do a return for that, and lower the quantity for any that hasn't.",
+        });
       }
 
       // Hold a quote line's floor stock for the customer through a day, or
@@ -218,11 +298,15 @@ export async function handler(
           });
         }
 
+        const money = await settleOverpayment(0, reason);
+        if (money.refused) return;
+
         const result = await prisma.$transaction(async (tx) => {
           const updated = await tx.orderLineItem.update({
             where: { id: itemId },
             data: { lineItemStatus: "CANCELLED", cancelReason: reason },
           });
+          await money.creditIn(tx);
 
           for (const po of linePos) {
             const outcome = poOutcome(po, isPoDecision(poDecision) ? poDecision : undefined);
@@ -322,7 +406,14 @@ export async function handler(
           approval: req.body.discountApproval,
         });
 
+        const money = await settleOverpayment(
+          replNetPrice + replVatAmount,
+          reason || "Item replaced",
+        );
+        if (money.refused) return;
+
         const result = await prisma.$transaction(async (tx) => {
+          await money.creditIn(tx);
           // Create the replacement line item
           const newItem = await tx.orderLineItem.create({
             data: {
@@ -462,7 +553,15 @@ export async function handler(
           approval: req.body.discountApproval,
         });
 
+        const money = await settleOverpayment(
+          Number(updates.netPrice ?? lineItem.netPrice) +
+            Number(updates.vatAmount ?? lineItem.vatAmount ?? 0),
+          reason || changes.join(", "),
+        );
+        if (money.refused) return;
+
         const result = await prisma.$transaction(async (tx) => {
+          await money.creditIn(tx);
           if (priceApprover) {
             await logDiscountApproval(tx, {
               orderId,
@@ -527,6 +626,15 @@ export async function handler(
       if (error instanceof DiscountApprovalError) {
         return res.status(error.status).json(error.body);
       }
+      if (error instanceof CancelOrderError) {
+        return res.status(error.status).json({ error: error.message });
+      }
+      if (error instanceof RefundError) return res.status(400).json({ error: error.message });
+      if (error instanceof RefundProcessorError) {
+        return res.status(502).json({
+          error: `The line hasn't changed. ${error.message} Anything already refunded stays refunded, and trying again refunds only what's left.`,
+        });
+      }
       logError("Error updating line item", error);
       return res.status(500).json({ error: "Failed to update line item." });
     }
@@ -584,5 +692,5 @@ export async function handler(
 }
 
 export default requirePermission("sales.write", handler, {
-  also: ["sales.discount", "sales.cancel-acknowledged"],
+  also: ["sales.discount", "sales.cancel-acknowledged", "payment.refund"],
 });

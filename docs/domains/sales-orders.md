@@ -309,7 +309,7 @@ allowed" (`docs/DECISIONS.md` 28).
 
 Source read for this section: `lib/sales/cancelOrder.ts`, `salePos.ts`, `salePosShared.ts`,
 `pages/api/sales/orders/[id]/cancel.ts`, `pages/api/sales/orders/[id].ts`,
-`line-items/[lineItemId].ts` (2026-11-07).
+`line-items/[lineItemId].ts`, `lib/delivery/deliveryFee.ts` (2026-11-07).
 
 **A special order has a PO** from the moment it goes ahead, however it goes ahead: a first payment, a store that
 allows a sale with nothing paid, or a line added later. Floor stock doesn't, nor a cancelled or zero line
@@ -345,6 +345,28 @@ is open.
 
 **Around it:** a cancelled sale can't take a payment or be handed over, and its lines can't change.
 
+**A line change that leaves the customer overpaid (DECISIONS 52).** Cancelling a line, lowering its price or
+quantity, or a cheaper replacement can leave more paid than is now owed. The route answers 409 with `overpaid` and
+changes nothing, and the dialog that made the change asks where the rest goes: back the way it was paid, or as credit
+on the account. That needs `payment.refund`.
+
+- **Only what's over goes back,** never the line's whole price. A $300 deposit on a $1,000 sale with a $500 line
+  cancelled still owes $200, so nothing is asked.
+- **It comes off the newest payment first,** and can split across payments, so the first deposit stays on the sale.
+- **A change that doesn't lower the line asks nothing,** even on a sale already overpaid some other way.
+- **A card goes through its processor before the line changes.** If it fails the line stays as it was, and trying
+  again refunds only what's left. Credit happens in one transaction with the change.
+- **A refund that didn't finish is tried again first,** whichever way the rest goes, as a whole-sale cancel does. Past
+  the processor's retry window it answers 400, and someone checks the processor's dashboard.
+- **Both go in the order's history,** `REFUND_ISSUED` and `CREDIT_ISSUED`, with the line, the reason and who did it.
+- **It waits, with the reason, if the money can't be settled yet:** a payment still going through, an imported payment
+  with no status, a live invoice, or a return tied to the sale. That's the same check a whole-sale cancel makes
+  (`moneyProblem`). When no money moves, none of these stop the change.
+
+**A line that's gone to the customer** can't be cancelled or replaced, and its quantity can't go below what's gone.
+That comes back as a return, which puts its stock and money right. A sale handed over whole counts as all of it gone,
+even if its lines recorded no quantity.
+
 **Deleting.** Only a quote with no payment and no invoice can be deleted, by a manager. An audit entry is what's
 left.
 
@@ -356,12 +378,15 @@ payment promotes a quote whatever the setting, and a sale with nothing to pay ca
 **Not done:**
 
 - **Holt doesn't email the vendor** when a sent PO is cancelled or changed. The screen says to tell them.
-- **Cancelling a line doesn't settle money.** A line cancelled on a fully paid order leaves the customer overpaid,
-  and that's handled by hand today.
+- **Lowering or removing a delivery fee doesn't settle money.** `setDeliveryFee` allows it on an open order, so it
+  can leave the customer overpaid, and that's handled by hand today. It's the one other way a paid sale's total drops:
+  a quote's tax is only re-rated with no money on it.
 - **A single kept line isn't counted as on order**, since its PO still belongs to the sale.
 - **A commission payout isn't corrected** by a cancel, and stays the owner's by hand.
 - **A cash refund from cancelling** isn't tied to a till, the same as a return's refund on its screen today.
 - **A delivery stop on a quote.** `completeStop` doesn't check the no-payment setting.
+- **An invoice doesn't follow a line change when no money moves.** Cancelling a line on a part-paid sale with a live
+  invoice goes ahead, and the invoice keeps its old amounts.
 - **Setting a dispatch status to cancelled** (`dispatch.ts`) still only frees the stock. It doesn't cancel the sale.
 
 ## Invoice tools (GAP-07, since 2026-11-03)

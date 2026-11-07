@@ -416,6 +416,10 @@ describe("cancelling a sale with money on it", () => {
     expect(await statusOf(order.id)).toBe("CANCELLED");
     expect(await getBalance(buyer!.id)).toBe(500);
     expect((await calculateOrderBalance(order.id)).totalPaid).toBe(0);
+    const history = await prisma.orderChangeLog.findFirstOrThrow({
+      where: { salesOrderId: order.id, changeType: "CREDIT_ISSUED" },
+    });
+    expect(history).toMatchObject({ newValue: "500", reason: "Will buy later" });
   });
 
   it("won't leave credit with no customer, and changes nothing", async () => {
@@ -1204,6 +1208,451 @@ describe("changing a line on a special order", () => {
     });
     expect(res.status).toBe(409);
     expect(res.body.error).toContain("has gone to Northfield");
+  });
+});
+
+describe("a line change that leaves the customer overpaid", () => {
+  const change = (orderId: number, lineId: number, body: object, who = "boss") =>
+    call(lineRoute, who, {
+      method: "PUT",
+      query: { id: String(orderId), lineItemId: String(lineId) },
+      body,
+    });
+
+  /** Two lines, $600 and $400, with what's been paid. */
+  async function twoLines(paid: number[]) {
+    const made = await makeOrder({ total: 600 });
+    const second = await prisma.orderLineItem.create({
+      data: {
+        salesOrderId: made.order.id,
+        lineNumber: 2,
+        productId: world.product.id,
+        productName: "Chair",
+        orderedQuantity: 2,
+        netPrice: 400,
+        cost: 100,
+        vatRate: 0,
+        vatAmount: 0,
+      },
+    });
+    for (const amount of paid) await pay(made.order.id, amount);
+    return { ...made, first: made.order.lineItems[0], second };
+  }
+
+  it("asks where the rest goes, naming how much, and changes nothing", async () => {
+    const { order, second } = await twoLines([1000]);
+    const res = await change(order.id, second.id, { action: "cancel", reason: "x" });
+    expect(res.status).toBe(409);
+    expect(res.body.overpaid.excess).toBe(400);
+    const line = await prisma.orderLineItem.findUniqueOrThrow({ where: { id: second.id } });
+    expect(line.lineItemStatus).toBe("ACTIVE");
+  });
+
+  it("asks nothing when the deposit doesn't cover what's left", async () => {
+    const { order, second } = await twoLines([300]);
+    const res = await change(order.id, second.id, { action: "cancel", reason: "x" });
+    expect(res.status).toBe(200);
+    expect(await prisma.payment.count({ where: { isRefund: true } })).toBe(0);
+  });
+
+  it("gives back only what's over, not the line's whole price", async () => {
+    const { order, second } = await twoLines([700]);
+    const res = await change(order.id, second.id, {
+      action: "cancel",
+      reason: "x",
+      destination: "ORIGINAL_PAYMENT",
+    });
+    expect(res.status).toBe(200);
+    const refunds = await prisma.payment.findMany({ where: { isRefund: true } });
+    expect(refunds.map((r) => Number(r.paymentAmount))).toEqual([100]);
+    const balance = await calculateOrderBalance(order.id);
+    expect(balance.balanceDue).toBe(0);
+    const history = await prisma.orderChangeLog.findFirstOrThrow({
+      where: { salesOrderId: order.id, changeType: "REFUND_ISSUED" },
+    });
+    expect(history).toMatchObject({
+      lineItemId: second.id,
+      newValue: "100",
+      reason: "x",
+      changedBy: "boss@example.com",
+    });
+  });
+
+  it("takes it from the newest payment first", async () => {
+    const { order, second } = await twoLines([]);
+    const older = await pay(order.id, 800);
+    const newer = await pay(order.id, 200, { paymentType: "Check", method: "CHECK" });
+    await change(order.id, second.id, {
+      action: "cancel",
+      reason: "x",
+      destination: "ORIGINAL_PAYMENT",
+    });
+    const refunds = await prisma.payment.findMany({
+      where: { isRefund: true },
+      orderBy: { id: "asc" },
+    });
+    expect(refunds.map((r) => [r.originalPaymentId, Number(r.paymentAmount)])).toEqual([
+      [newer.id, 200],
+      [older.id, 200],
+    ]);
+  });
+
+  it("leaves it on the account, with the line, in one go", async () => {
+    const { order, buyer, second } = await twoLines([1000]);
+    const res = await change(order.id, second.id, {
+      action: "cancel",
+      reason: "Changed mind",
+      destination: "STORE_CREDIT",
+    });
+    expect(res.status).toBe(200);
+    expect(await getBalance(buyer!.id)).toBe(400);
+    const history = await prisma.orderChangeLog.findFirstOrThrow({
+      where: { salesOrderId: order.id, changeType: "CREDIT_ISSUED" },
+    });
+    expect(history).toMatchObject({
+      newValue: "400",
+      reason: "Changed mind",
+      changedBy: "boss@example.com",
+    });
+  });
+
+  it("can't leave credit with no customer", async () => {
+    const made = await makeOrder({ customer: false, total: 500 });
+    await pay(made.order.id, 500);
+    const res = await change(made.order.id, made.order.lineItems[0].id, {
+      action: "cancel",
+      reason: "x",
+      destination: "STORE_CREDIT",
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("no customer");
+  });
+
+  it("needs a role that may give money back", async () => {
+    await makeStaff("lead", "MANAGER");
+    await prisma.rolePermission.deleteMany({
+      where: { role: { key: "MANAGER" }, permission: "payment.refund" },
+    });
+    await prisma.role.updateMany({ where: { key: "MANAGER" }, data: { grantsCustomized: true } });
+    invalidateRoleGrantCache();
+    const { order, second } = await twoLines([1000]);
+    const res = await change(
+      order.id,
+      second.id,
+      { action: "cancel", reason: "x", destination: "ORIGINAL_PAYMENT" },
+      "lead",
+    );
+    expect(res.status).toBe(403);
+    expect(await prisma.payment.count({ where: { isRefund: true } })).toBe(0);
+  });
+
+  it("applies to a price going down too", async () => {
+    const { order, second } = await twoLines([1000]);
+    const asked = await change(order.id, second.id, { action: "update", unitPrice: 100 });
+    expect(asked.status).toBe(409);
+    expect(asked.body.overpaid.excess).toBe(200);
+    const res = await change(order.id, second.id, {
+      action: "update",
+      unitPrice: 100,
+      destination: "ORIGINAL_PAYMENT",
+      discountApproval: undefined,
+    });
+    expect(res.status).toBe(200);
+    expect((await calculateOrderBalance(order.id)).balanceDue).toBe(0);
+  });
+
+  it("credits a price going down, in the same change", async () => {
+    const { order, buyer, second } = await twoLines([1000]);
+    const res = await change(order.id, second.id, {
+      action: "update",
+      unitPrice: 100,
+      destination: "STORE_CREDIT",
+    });
+    expect(res.status).toBe(200);
+    expect(await getBalance(buyer!.id)).toBe(200);
+  });
+
+  it("counts the tax a lower price takes off", async () => {
+    const { order, second } = await twoLines([]);
+    await prisma.orderLineItem.update({
+      where: { id: second.id },
+      data: { vatAmount: 28, vatRate: 0.07 },
+    });
+    await pay(order.id, 1028);
+    const asked = await change(order.id, second.id, { action: "update", unitPrice: 100 });
+    expect(asked.body.overpaid.excess).toBe(214);
+  });
+
+  it("applies to a quantity going down too", async () => {
+    const { order, second } = await twoLines([1000]);
+    const asked = await change(order.id, second.id, { action: "update", quantity: 1 });
+    expect(asked.status).toBe(409);
+    expect(asked.body.overpaid.excess).toBe(200);
+  });
+
+  it("applies to a cheaper replacement too", async () => {
+    const { order, second } = await twoLines([1000]);
+    const asked = await change(order.id, second.id, {
+      action: "replace",
+      replacement: { productName: "Stool", unitPrice: 50, quantity: 2 },
+    });
+    expect(asked.status).toBe(409);
+    expect(asked.body.overpaid.excess).toBe(300);
+  });
+
+  it("credits a cheaper replacement, in the same change", async () => {
+    const { order, buyer, second } = await twoLines([1000]);
+    const res = await change(order.id, second.id, {
+      action: "replace",
+      replacement: { productName: "Stool", unitPrice: 50, quantity: 2 },
+      destination: "STORE_CREDIT",
+    });
+    expect(res.status).toBe(200);
+    expect(await getBalance(buyer!.id)).toBe(300);
+  });
+
+  it("asks nothing when the price goes up", async () => {
+    const { order, second } = await twoLines([1000]);
+    const res = await change(order.id, second.id, { action: "update", unitPrice: 300 });
+    expect(res.status).toBe(200);
+  });
+
+  it("counts tax", async () => {
+    const { order, second } = await twoLines([]);
+    await prisma.orderLineItem.update({
+      where: { id: second.id },
+      data: { vatAmount: 28, vatRate: 0.07 },
+    });
+    await pay(order.id, 1028);
+    const asked = await change(order.id, second.id, { action: "cancel", reason: "x" });
+    expect(asked.body.overpaid.excess).toBe(428);
+  });
+
+  it("leaves the line as it was when a card refund fails, and a retry finishes", async () => {
+    const { order, second } = await twoLines([]);
+    await pay(order.id, 1000, {
+      paymentType: "Card",
+      method: "CARD",
+      processorType: "stripe",
+      processorTxnId: "cs_test_1",
+    });
+    const refund = jest
+      .spyOn(stripeProvider, "refund")
+      .mockRejectedValueOnce(new Error("Stripe refund failed: connection reset"))
+      .mockResolvedValueOnce({ refundId: "re_123" });
+    const body = { action: "cancel", reason: "x", destination: "ORIGINAL_PAYMENT" };
+
+    const failed = await change(order.id, second.id, body);
+    expect(failed.status).toBe(502);
+    expect(failed.body.error).toContain("hasn't changed");
+    const line = await prisma.orderLineItem.findUniqueOrThrow({ where: { id: second.id } });
+    expect(line.lineItemStatus).toBe("ACTIVE");
+
+    const retried = await change(order.id, second.id, body);
+    expect(retried.status).toBe(200);
+    expect(refund).toHaveBeenCalledTimes(2);
+    const refunds = await prisma.payment.findMany({ where: { isRefund: true } });
+    expect(refunds.map((r) => [Number(r.paymentAmount), r.status])).toEqual([[400, "COMPLETED"]]);
+  });
+
+  describe("when the money can't be settled yet", () => {
+    const stays = async (lineId: number) => {
+      const line = await prisma.orderLineItem.findUniqueOrThrow({ where: { id: lineId } });
+      expect(line.lineItemStatus).toBe("ACTIVE");
+      expect(await prisma.payment.count({ where: { isRefund: true } })).toBe(0);
+    };
+    const body = { action: "cancel", reason: "x", destination: "ORIGINAL_PAYMENT" };
+    const makeInvoice = (salesOrderId: number, status = "ISSUED") =>
+      prisma.invoice.create({
+        data: {
+          salesOrderId,
+          invoiceNo: "INV-9",
+          invoiceDate: new Date(),
+          taxAmount: 0,
+          status,
+        } as never,
+      });
+
+    it("a live invoice has to be voided first", async () => {
+      const { order, second } = await twoLines([1000]);
+      await makeInvoice(order.id);
+      const res = await change(order.id, second.id, body);
+      expect(res.status).toBe(409);
+      expect(res.body.error).toContain("Void it first");
+      await stays(second.id);
+    });
+
+    it("a voided invoice doesn't stop it", async () => {
+      const { order, second } = await twoLines([1000]);
+      await makeInvoice(order.id, "VOID");
+      const res = await change(order.id, second.id, body);
+      expect(res.status).toBe(200);
+    });
+
+    it("a payment still going through has to finish", async () => {
+      const { order, second } = await twoLines([1000]);
+      await pay(order.id, 50, { status: "PENDING" });
+      const res = await change(order.id, second.id, body);
+      expect(res.status).toBe(409);
+      expect(res.body.error).toContain("hasn't finished");
+      await stays(second.id);
+    });
+
+    it("an imported payment with no status counts as paid, and is refused", async () => {
+      const { order, second } = await twoLines([]);
+      await pay(order.id, 1000, { status: null });
+      const res = await change(order.id, second.id, body);
+      expect(res.status).toBe(409);
+      expect(res.body.error).toContain("no status");
+      await stays(second.id);
+    });
+
+    it("a return tied to the sale stops it", async () => {
+      const { order, buyer, second } = await twoLines([1000]);
+      await prisma.return.create({
+        data: {
+          returnNumber: "RET-1",
+          reason: "CUSTOMER_CHANGED_MIND",
+          status: "INITIATED",
+          salesOrderId: order.id,
+          lineItemId: second.id,
+          customerId: buyer!.id,
+          productId: world.product.id,
+          quantity: 1,
+        } as never,
+      });
+      const res = await change(order.id, second.id, body);
+      expect(res.status).toBe(409);
+      expect(res.body.error).toContain("is tied to this order");
+      await stays(second.id);
+    });
+
+    it("none of it stands in the way when no money moves", async () => {
+      const { order, second } = await twoLines([300]);
+      await makeInvoice(order.id);
+      const res = await change(order.id, second.id, { action: "cancel", reason: "x" });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("a line that's gone to the customer", () => {
+    const refused = (res: Awaited<ReturnType<typeof change>>) => {
+      expect(res.status).toBe(409);
+      expect(res.body.error).toContain("already gone to the customer");
+    };
+
+    it("can't be cancelled or replaced, only returned", async () => {
+      const { order, second } = await twoLines([1000]);
+      await prisma.orderLineItem.update({ where: { id: second.id }, data: { fulfilledQty: 1 } });
+      refused(await change(order.id, second.id, { action: "cancel", reason: "x" }));
+      refused(
+        await change(order.id, second.id, {
+          action: "replace",
+          replacement: { productName: "Stool" },
+        }),
+      );
+      expect(await prisma.payment.count({ where: { isRefund: true } })).toBe(0);
+    });
+
+    it("can lose only what hasn't gone", async () => {
+      const { order, second } = await twoLines([1000]);
+      await prisma.orderLineItem.update({
+        where: { id: second.id },
+        data: { orderedQuantity: 3, netPrice: 600, fulfilledQty: 2 },
+      });
+      refused(await change(order.id, second.id, { action: "update", quantity: 1 }));
+      const res = await change(order.id, second.id, { action: "update", quantity: 2 });
+      expect(res.status).toBe(200);
+    });
+
+    it("counts a sale handed over whole, even with no quantity recorded", async () => {
+      const { order, second } = await twoLines([1000]);
+      await prisma.salesOrder.update({
+        where: { id: order.id },
+        data: { status: "FULFILLED", deliveredAt: new Date() },
+      });
+      refused(await change(order.id, second.id, { action: "cancel", reason: "x" }));
+    });
+  });
+
+  it("says what's wrong when a refund is too old to retry", async () => {
+    const { order, second } = await twoLines([]);
+    await pay(order.id, 1000, {
+      paymentType: "Card",
+      method: "CARD",
+      processorType: "stripe",
+      processorTxnId: "cs_test_1",
+    });
+    jest
+      .spyOn(stripeProvider, "refund")
+      .mockRejectedValueOnce(new Error("Stripe refund failed: connection reset"));
+    const body = { action: "cancel", reason: "x", destination: "ORIGINAL_PAYMENT" };
+    await change(order.id, second.id, body);
+    await prisma.$executeRaw`UPDATE "Payment" SET created = '2020-01-01' WHERE "isRefund" = true`;
+
+    const res = await change(order.id, second.id, body);
+    expect(res.status).toBe(400);
+    const line = await prisma.orderLineItem.findUniqueOrThrow({ where: { id: second.id } });
+    expect(line.lineItemStatus).toBe("ACTIVE");
+  });
+
+  it("still asks when all that's left is a refund that didn't finish", async () => {
+    const { order, second } = await twoLines([]);
+    await pay(order.id, 1000, {
+      paymentType: "Card",
+      method: "CARD",
+      processorType: "stripe",
+      processorTxnId: "cs_test_1",
+    });
+    jest
+      .spyOn(stripeProvider, "refund")
+      .mockRejectedValueOnce(new Error("Stripe refund failed: connection reset"));
+    await change(order.id, second.id, {
+      action: "cancel",
+      reason: "x",
+      destination: "ORIGINAL_PAYMENT",
+    });
+
+    const asked = await change(order.id, second.id, { action: "cancel", reason: "x" });
+    expect(asked.status).toBe(409);
+    expect(asked.body.overpaid).toMatchObject({ excess: 400, toSettle: 0, payments: [] });
+  });
+
+  it("finishes a refund first, and leaves only the rest as credit", async () => {
+    const { order, buyer, second } = await twoLines([]);
+    await pay(order.id, 1000, {
+      paymentType: "Card",
+      method: "CARD",
+      processorType: "stripe",
+      processorTxnId: "cs_test_1",
+    });
+    const refund = jest
+      .spyOn(stripeProvider, "refund")
+      .mockRejectedValueOnce(new Error("Stripe refund failed: connection reset"))
+      .mockResolvedValueOnce({ refundId: "re_123" });
+    const down = await change(order.id, second.id, {
+      action: "update",
+      unitPrice: 150,
+      destination: "ORIGINAL_PAYMENT",
+    });
+    expect(down.status).toBe(502);
+
+    const res = await change(order.id, second.id, {
+      action: "cancel",
+      reason: "x",
+      destination: "STORE_CREDIT",
+    });
+    expect(res.status).toBe(200);
+    expect(refund).toHaveBeenCalledTimes(2);
+    expect(await getBalance(buyer!.id)).toBe(300);
+    expect((await calculateOrderBalance(order.id)).balanceDue).toBe(0);
+  });
+
+  it("asks nothing of a raise, even on a sale already overpaid", async () => {
+    const { order, second } = await twoLines([1100]);
+    const res = await change(order.id, second.id, { action: "update", unitPrice: 210 });
+    expect(res.status).toBe(200);
+    expect(await prisma.payment.count({ where: { isRefund: true } })).toBe(0);
   });
 });
 

@@ -22,6 +22,7 @@ import { handedOverStatusProblem } from "@/lib/fulfilment/undoHandover";
 import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import {
   calculateOrderBalance,
+  computeBalance,
   computeRefundable,
   processRefund,
   refundToStoreCreditTx,
@@ -156,27 +157,8 @@ async function cancelProblem(
   ) {
     return "Part of this order has already gone to the customer. Cancel the lines that haven't, and do a return for the rest.";
   }
-  if (order.payments.some((p) => p.status === "PENDING" && !p.isRefund)) {
-    return "A payment on this order hasn't finished. Wait for it, or void it, then cancel.";
-  }
-  // An imported payment can have no status. It counts toward the balance, but a refund
-  // needs a completed payment, so it can't be settled here and mustn't be skipped.
-  if (order.payments.some((p) => p.status === null)) {
-    return "A payment on this order came from an import with no status, so it can't be settled here.";
-  }
-  if (order.invoices.length > 0) {
-    return `Invoice ${order.invoices[0].invoiceNo} is still live, and revenue and sales tax are booked from it. Void it first.`;
-  }
-  const ret = await db.return.findFirst({
-    where: {
-      status: { not: "CANCELLED" },
-      OR: [{ salesOrderId: order.id }, { exchangeOrderId: order.id }],
-    },
-    select: { returnNumber: true },
-  });
-  if (ret) {
-    return `Return ${ret.returnNumber} is tied to this order, so it can't be cancelled.`;
-  }
+  const money = await moneyProblem(order, db);
+  if (money) return money;
   const moving = await db.inventoryTransfer.count({
     where: { salesOrderId: order.id, status: "IN_TRANSIT" },
   });
@@ -194,6 +176,42 @@ async function cancelProblem(
     select: { id: true },
   });
   if (out) return "This order is out for delivery or a visit is under way. Finish that first.";
+  return null;
+}
+
+/**
+ * Why the money on a sale can't be settled yet, or null. A whole-sale cancel and a line
+ * change that leaves the customer overpaid both ask (rule 42).
+ */
+async function moneyProblem(
+  order: {
+    id: number;
+    invoices: { invoiceNo: string }[];
+    payments: { status: string | null; isRefund: boolean }[];
+  },
+  db: Db,
+): Promise<string | null> {
+  if (order.payments.some((p) => p.status === "PENDING" && !p.isRefund)) {
+    return "A payment on this order hasn't finished. Wait for it, or void it, then try again.";
+  }
+  // An imported payment can have no status. It counts toward the balance, but a refund
+  // needs a completed payment, so it can't be settled here and mustn't be skipped.
+  if (order.payments.some((p) => p.status === null)) {
+    return "A payment on this order came from an import with no status, so it can't be settled here.";
+  }
+  if (order.invoices.length > 0) {
+    return `Invoice ${order.invoices[0].invoiceNo} is still live, and revenue and sales tax are booked from it. Void it first.`;
+  }
+  const ret = await db.return.findFirst({
+    where: {
+      status: { not: "CANCELLED" },
+      OR: [{ salesOrderId: order.id }, { exchangeOrderId: order.id }],
+    },
+    select: { returnNumber: true },
+  });
+  if (ret) {
+    return `Return ${ret.returnNumber} is tied to this order, so its money can't be settled here.`;
+  }
   return null;
 }
 
@@ -446,7 +464,160 @@ async function closeTheSale(
     reason,
     createdBy: actor ?? undefined,
   });
+  await tx.orderChangeLog.create({
+    data: {
+      salesOrderId: orderId,
+      changeType: "CREDIT_ISSUED",
+      newValue: String(left.held),
+      reason,
+      changedBy: actor,
+    },
+  });
   return left.held;
+}
+
+export interface Overpayment {
+  /** All that's owed back: `toSettle`, plus any refund that didn't finish. */
+  excess: number;
+  /** The part the store decides on: back the way it was paid, or credit. */
+  toSettle: number;
+  /** What `toSettle` takes from each payment if it goes back, newest first. */
+  payments: RefundablePayment[];
+  /** Tried again whichever way the rest goes: that money is already spoken for. */
+  refundsToRetry: CancelPlan["refundsToRetry"];
+  /** Credit needs an account to go on. */
+  customerId: number | null;
+}
+
+/**
+ * What lowering one line would leave the customer overpaid, or null. Only what's over: a
+ * $300 deposit on a $1,000 order with a $500 line cancelled still owes $200, so nothing
+ * goes back. A change that doesn't lower the line asks nothing, even on a sale already
+ * overpaid some other way, since this change isn't the reason. Throws CancelOrderError
+ * when there's money to settle and it can't be settled yet.
+ */
+export async function overpaidAfterLineChange(
+  orderId: number,
+  lineItemId: number,
+  newLineTotal: number,
+): Promise<Overpayment | null> {
+  const plan = await readCancelPlan(orderId);
+  const order = await prisma.salesOrder.findUniqueOrThrow({
+    where: { id: orderId },
+    select: {
+      id: true,
+      customerId: true,
+      invoices: { where: { status: { not: "VOID" } }, select: { invoiceNo: true } },
+      payments: { select: { status: true, isRefund: true, paymentAmount: true } },
+      lineItems: {
+        select: {
+          id: true,
+          netPrice: true,
+          orderedQuantity: true,
+          vatAmount: true,
+          lineItemStatus: true,
+        },
+      },
+    },
+  });
+  const line = order.lineItems.filter((l) => l.id === lineItemId);
+  if (newLineTotal >= computeBalance(line, []).totalDue) return null;
+
+  const others = order.lineItems.filter((l) => l.id !== lineItemId);
+  const owed = round2(computeBalance(others, []).totalDue + newLineTotal);
+  // Held leaves out an imported payment with no status, though it counts as paid, so it
+  // counts here and moneyProblem refuses it.
+  const imported = order.payments
+    .filter((p) => p.status === null && !p.isRefund)
+    .reduce((sum, p) => sum + Number(p.paymentAmount), 0);
+  const toSettle = Math.max(round2(plan.held + imported - owed), 0);
+  if (toSettle === 0 && plan.refundsToRetry.length === 0) return null;
+
+  const problem = await moneyProblem(order, prisma);
+  if (problem) throw new CancelOrderError(problem);
+
+  let left = toSettle;
+  const payments: RefundablePayment[] = [];
+  for (const payment of [...plan.payments].reverse()) {
+    if (left <= 0) break;
+    const amount = Math.min(left, payment.amount);
+    payments.push({ ...payment, amount });
+    left = round2(left - amount);
+  }
+  const unfinished = plan.refundsToRetry.reduce((sum, r) => sum + r.amount, 0);
+  return {
+    excess: round2(toSettle + unfinished),
+    toSettle,
+    payments,
+    refundsToRetry: plan.refundsToRetry,
+    customerId: order.customerId,
+  };
+}
+
+/**
+ * Finishes any refund that didn't, then gives the rest back if that's where it goes.
+ * Outside a transaction: a card goes through its processor.
+ */
+export async function refundOverpayment(
+  orderId: number,
+  lineItemId: number,
+  over: Overpayment,
+  destination: RefundDestination,
+  reason: string,
+  actor: string | null,
+): Promise<void> {
+  const log = (amount: number) =>
+    prisma.orderChangeLog.create({
+      data: {
+        salesOrderId: orderId,
+        lineItemId,
+        changeType: "REFUND_ISSUED",
+        newValue: String(amount),
+        reason,
+        changedBy: actor,
+      },
+    });
+  for (const pending of over.refundsToRetry) {
+    await retryProcessorRefund(pending.paymentId);
+    await log(pending.amount);
+  }
+  if (destination !== "ORIGINAL_PAYMENT") return;
+  for (const payment of over.payments) {
+    await processRefund(payment.paymentId, {
+      amount: payment.amount,
+      reason,
+      createdBy: actor ?? undefined,
+    });
+    await log(payment.amount);
+  }
+}
+
+/** Onto the customer's account, in the transaction that changes the line. */
+export async function creditOverpayment(
+  tx: Db,
+  orderId: number,
+  lineItemId: number,
+  credit: { customerId: number; amount: number },
+  reason: string,
+  actor: string | null,
+): Promise<void> {
+  await refundToStoreCreditTx(tx, {
+    customerId: credit.customerId,
+    amount: credit.amount,
+    salesOrderId: orderId,
+    reason,
+    createdBy: actor ?? undefined,
+  });
+  await tx.orderChangeLog.create({
+    data: {
+      salesOrderId: orderId,
+      lineItemId,
+      changeType: "CREDIT_ISSUED",
+      newValue: String(credit.amount),
+      reason,
+      changedBy: actor,
+    },
+  });
 }
 
 /**

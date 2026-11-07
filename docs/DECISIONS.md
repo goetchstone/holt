@@ -1584,6 +1584,32 @@ person decides. A reopen button: the money would have to come back too, and that
 
 → `docs/domains/sales-orders.md`
 
+## 52. A line change that leaves the customer overpaid settles what's over, the way a cancel does (2026-11-07)
+
+**Decided (owner, 2026-11-07):** "Yes, fix that next," on line changes leaving a customer overpaid. It follows
+from 51: a change to a sale isn't finished until the money on it is settled.
+
+- **Only what's over goes back,** worked out from what's paid against what's still owed. The line's price isn't the
+  number: a customer who paid a deposit may still owe more than the line was worth.
+- **The newest payment goes first,** so the first deposit stays on the sale.
+- **The store chooses each time,** back the way it was paid or credit on the account, and it needs `payment.refund`,
+  the same as a whole-sale cancel. Nothing changes until someone says.
+- **The refund goes first, outside the transaction,** since a card can't be taken back if the line then fails. A
+  failed refund leaves the line alone. A line that fails after a refund asks nothing more on the next try.
+- **Only a change that lowers the line asks.** A raise on a sale that's overpaid some other way isn't the reason for
+  it, and shouldn't be held up by it.
+- **Money that can't be settled yet stops it,** using the same check as a whole-sale cancel (rule 42): a payment
+  still going through, an imported payment with no status, a live invoice, a return tied to the sale.
+- **What's gone to the customer is a return,** so that line can't be cancelled or replaced, and its quantity can't go
+  below what's gone. Otherwise this would refund goods the customer still has. It holds with no money involved too,
+  since cancelling a delivered line gives it away.
+
+Rejected: changing the line and leaving the overpayment for someone to notice. That was the behaviour, and nothing on
+the screen said the customer was owed money. Refunding the line's whole price: it gives back money a deposit customer
+still owes.
+
+→ `docs/domains/sales-orders.md`
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was
