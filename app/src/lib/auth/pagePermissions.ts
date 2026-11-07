@@ -324,7 +324,7 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
   "/app/tools/create-project": { permission: "admin.settings" },
   "/app/tools/home-accessory-order": { permission: "admin.settings" },
   "/app/tools/legacy-archive": { permission: "admin.settings" },
-  "/app/tools/query-builder": { permission: "admin.settings" },
+  "/app/tools/query-builder": { permission: "reporting.adhoc" },
   "/app/warehouse": { permission: "warehouse.read" },
   "/app/warehouse/awaiting-delivery": {
     permission: "warehouse.read",
