@@ -364,6 +364,7 @@ payment promotes a quote whatever the setting, and a sale with nothing to pay ca
 - **A commission payout isn't corrected** by a cancel, and stays the owner's by hand.
 - **A cash refund from cancelling** isn't tied to a till, the same as a return's refund on its screen today.
 - **A delivery stop on a quote.** `completeStop` doesn't check the no-payment setting.
+- **Setting a dispatch status to cancelled** (`dispatch.ts`) still only frees the stock. It doesn't cancel the sale.
 
 ## Invoice tools (GAP-07, since 2026-11-03)
 

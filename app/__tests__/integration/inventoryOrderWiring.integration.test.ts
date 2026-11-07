@@ -305,6 +305,8 @@ describe("inventory order wiring (real DB)", () => {
     ]);
     const orderId = (createRes.body as { id: number }).id;
     expect(await availableQuantity(product.id, store.id, prisma)).toBe(3);
+    // The register only offers to go ahead with no payment where the store allows it.
+    expect(createRes.body).toMatchObject({ allowSaleWithoutPayment: false });
 
     await cancelOrder(orderId, { reason: "Changed their mind", actor: "test" });
 
