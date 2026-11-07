@@ -127,6 +127,11 @@ const ITEMS: CardGridItem[] = [
     href: "/app/admin/automations/customer-ar-drift-check",
   },
   {
+    title: "Audit Trail",
+    description: "See who did what: refunds, deletes, price, access and settings changes.",
+    href: "/app/admin/audit",
+  },
+  {
     title: "Login Activity",
     description: "See who's logged in right now and when each staff member last signed in.",
     href: "/app/admin/login-activity",

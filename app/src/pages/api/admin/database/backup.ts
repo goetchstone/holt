@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { spawn } from "child_process";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 
 // Pin the absolute path so a poisoned PATH (writable directory shadowing
@@ -17,7 +18,7 @@ export const config = {
   },
 };
 
-export default requirePermission("admin.data", async (req, res) => {
+export default requirePermission("admin.data", async (req, res, session) => {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
@@ -27,6 +28,12 @@ export default requirePermission("admin.data", async (req, res) => {
   if (!dbUrl) {
     return res.status(500).json({ error: "DATABASE_URL not configured" });
   }
+
+  // Before the stream: it holds every customer and every payment, so taking one is
+  // worth knowing about even if it doesn't finish.
+  await auditLog("DATABASE_BACKUP_DOWNLOADED", auditActor(session), {
+    summary: "Whole database downloaded as a backup",
+  });
 
   const timestamp = new Date()
     .toLocaleString("sv-SE", { timeZone: "America/New_York" })

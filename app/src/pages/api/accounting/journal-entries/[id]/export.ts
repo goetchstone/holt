@@ -2,6 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
@@ -61,6 +62,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
       const body = [header, ...rows].join("\r\n") + "\r\n";
 
+      await auditLog("DATA_EXPORTED", auditActor(session), {
+        summary: `Journal entry ${id} exported`,
+      });
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename="GenJrnl${dateParts}.csv"`);
       return res.status(200).send(body);

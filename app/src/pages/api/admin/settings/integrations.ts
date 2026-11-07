@@ -8,6 +8,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 import { DEFAULT_ORG_ID } from "@/lib/appSettings";
 import { isValidProviderField } from "@/lib/integrationCatalog";
@@ -21,7 +22,7 @@ import { isPracticeCopy, PRACTICE_COPY_NO_CONNECTIONS } from "@/lib/practiceCopy
 export default requirePermission("admin.integrations", async (req, res, session) => {
   if (req.method === "GET") return handleGet(res);
   if (req.method === "PUT") return handlePut(req, res, session);
-  if (req.method === "DELETE") return handleDelete(req, res);
+  if (req.method === "DELETE") return handleDelete(req, res, session);
   res.setHeader("Allow", "GET, PUT, DELETE");
   return res.status(405).json({ error: "Method not allowed" });
 });
@@ -64,12 +65,16 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
     logError("Failed to store integration credential", err, { provider, field });
     return res.status(500).json({ error: "Failed to save credential" });
   }
+  // By name only. The value is a secret and must never reach this table.
+  await auditLog("CREDENTIAL_CHANGED", auditActor(session), {
+    summary: `${provider} ${field} saved`,
+  });
 
   const credentials = await listMaskedCredentials(DEFAULT_ORG_ID);
   return res.json({ credentials });
 }
 
-async function handleDelete(req: NextApiRequest, res: NextApiResponse) {
+async function handleDelete(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { provider, field } = (req.body ?? {}) as { provider?: unknown; field?: unknown };
   if (typeof provider !== "string" || typeof field !== "string") {
     return res.status(400).json({ error: "provider and field are required" });
@@ -81,6 +86,9 @@ async function handleDelete(req: NextApiRequest, res: NextApiResponse) {
     logError("Failed to delete integration credential", err, { provider, field });
     return res.status(500).json({ error: "Failed to delete credential" });
   }
+  await auditLog("CREDENTIAL_CHANGED", auditActor(session), {
+    summary: `${provider} ${field} removed`,
+  });
 
   const credentials = await listMaskedCredentials(DEFAULT_ORG_ID);
   return res.json({ credentials });

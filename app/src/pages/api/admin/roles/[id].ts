@@ -34,6 +34,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { invalidateRoleGrantCache } from "@/lib/auth/permissionResolver";
@@ -65,14 +66,14 @@ class RefusedError extends Error {
   }
 }
 
-export default requirePermission("staff.manage", async (req, res) => {
+export default requirePermission("staff.manage", async (req, res, session) => {
   const id = Number.parseInt(String(req.query.id), 10);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: "Invalid role id" });
   }
   if (req.method === "GET") return handleGet(id, res);
-  if (req.method === "PUT") return handlePut(id, req, res);
-  if (req.method === "DELETE") return handleDelete(id, req, res);
+  if (req.method === "PUT") return handlePut(id, req, res, auditActor(session));
+  if (req.method === "DELETE") return handleDelete(id, req, res, auditActor(session));
   res.setHeader("Allow", "GET, PUT, DELETE");
   return res.status(405).json({ error: "Method not allowed" });
 });
@@ -177,7 +178,7 @@ function rejectImmutableChanges(
   return null;
 }
 
-async function handlePut(id: number, req: NextApiRequest, res: NextApiResponse) {
+async function handlePut(id: number, req: NextApiRequest, res: NextApiResponse, actor: string) {
   const body = (req.body ?? {}) as Record<string, unknown>;
 
   const existing = await prisma.role.findUnique({
@@ -276,6 +277,16 @@ async function handlePut(id: number, req: NextApiRequest, res: NextApiResponse) 
             skipDuplicates: true,
           });
         }
+        await auditLog(
+          "ROLE_CHANGED",
+          actor,
+          {
+            summary: `Role "${existing.name}": ${toAdd.length} permissions added, ${toRemove.length} taken away`,
+            target: { type: "role", id },
+            details: { added: toAdd, removed: toRemove },
+          },
+          tx,
+        );
       }
 
       return tx.role.findUniqueOrThrow({
@@ -311,7 +322,7 @@ function parseReassignTarget(raw: unknown): { ok: true; value: number | null } |
   return { ok: true, value: parsed };
 }
 
-async function handleDelete(id: number, req: NextApiRequest, res: NextApiResponse) {
+async function handleDelete(id: number, req: NextApiRequest, res: NextApiResponse, actor: string) {
   const target = parseReassignTarget(req.query.reassignToRoleId);
   if ("error" in target) return res.status(400).json({ error: target.error });
 
@@ -378,7 +389,16 @@ async function handleDelete(id: number, req: NextApiRequest, res: NextApiRespons
       }
 
       // RolePermission cascades on the FK; only the Role row is deleted here.
-      await tx.role.delete({ where: { id } });
+      const deleted = await tx.role.delete({ where: { id } });
+      await auditLog(
+        "ROLE_CHANGED",
+        actor,
+        {
+          summary: `Role "${deleted.name}" deleted, ${reassigned} staff moved to another role`,
+          details: { roleId: id, reassigned },
+        },
+        tx,
+      );
     });
   } catch (err) {
     if (err instanceof RefusedError) return res.status(err.status).json({ error: err.message });

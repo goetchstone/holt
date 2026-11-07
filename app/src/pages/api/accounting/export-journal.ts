@@ -10,6 +10,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { rowsToCsv } from "@/lib/csv";
 import type { JournalEntryInput } from "@/lib/quickbooksExport";
@@ -25,7 +26,7 @@ function parseDateParam(value: unknown): Date | null {
 
 export default requirePermission(
   "accounting.post",
-  async (req: NextApiRequest, res: NextApiResponse) => {
+  async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "GET") {
       return res.status(405).json({ error: "Method not allowed" });
     }
@@ -90,6 +91,9 @@ export default requirePermission(
       const toStr = req.query.to as string;
       const body = csv || `# No journal entries between ${fromStr} and ${toStr}`;
 
+      await auditLog("DATA_EXPORTED", auditActor(session), {
+        summary: "Journal entries exported",
+      });
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader(
         "Content-Disposition",

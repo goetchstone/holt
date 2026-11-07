@@ -8,6 +8,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 import { isAutomationKey } from "@/lib/automations/catalog";
 import { runAutomationNow } from "@/lib/automations/runner";
@@ -22,7 +23,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   try {
     if (req.method === "PUT") {
       const actor = session.user?.email ?? null;
-      return res.status(200).json(await saveAutomationSetting(prisma, key, req.body, actor));
+      const saved = await saveAutomationSetting(prisma, key, req.body, actor);
+      await auditLog("AUTOMATION_CHANGED", auditActor(session), {
+        summary: `${key}: ${saved.isActive ? "on" : "off"}, ${saved.frequency}`,
+      });
+      return res.status(200).json(saved);
     }
     if (req.method === "POST") {
       if (!isAutomationKey(key)) return res.status(404).json({ error: "No such automation." });

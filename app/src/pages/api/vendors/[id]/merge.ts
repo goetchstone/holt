@@ -9,6 +9,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 import { VendorMergeError, mergeVendor, planVendorMerge } from "@/lib/vendors/mergeVendor";
 
@@ -28,6 +29,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       return res.status(200).json(await planVendorMerge(prisma, fromId, intoId));
     }
     const plan = await mergeVendor(prisma, fromId, intoId, session.user?.email ?? null);
+    await auditLog("VENDORS_MERGED", auditActor(session), {
+      summary: `Vendor ${fromId} merged into vendor ${intoId}`,
+      details: { fromId, intoId },
+    });
     return res.status(200).json(plan);
   } catch (err) {
     if (err instanceof VendorMergeError) {

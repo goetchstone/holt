@@ -42,7 +42,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma as defaultPrisma, TX_TIMEOUT } from "@/lib/prisma";
-import { auditLog } from "@/lib/audit";
 import { logError, logger } from "@/lib/logger";
 import { getImportEntity, IMPORT_ENTITIES } from "@/lib/genericImport";
 import { isRegisteredRunnerKey, listRegisteredRunnerKeys } from "@/lib/imports/runnerRegistry";
@@ -221,15 +220,6 @@ async function recordApply(
   const { result, summary } = outcome;
   const level = result.action === "FAILED" ? "warn" : "info";
   logger[level](`applyPreset ${result.kind}/${result.name}: ${result.action}`, {
-    presetKind: result.kind,
-    presetName: result.name,
-    action: result.action,
-    source: opts.source,
-    dryRun: Boolean(opts.dryRun),
-    changes: result.changes,
-  });
-
-  auditLog("CONFIG_PRESET_APPLY", opts.actor ?? "unattended", {
     presetKind: result.kind,
     presetName: result.name,
     action: result.action,

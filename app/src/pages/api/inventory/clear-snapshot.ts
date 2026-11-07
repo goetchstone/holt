@@ -26,7 +26,7 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
-import { auditLog } from "@/lib/audit";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError, logger } from "@/lib/logger";
 
 const SNAPSHOT_SOURCES = ["LOCAL", "IMPORT"] as const;
@@ -73,9 +73,9 @@ export async function handlePost(
     logger.info("Cleared inventory snapshot", { scope, deleted: count });
     // Destroys the baseline a physical count is judged against, so it belongs
     // in the audit stream alongside generation.
-    auditLog("INVENTORY_SNAPSHOT_CLEAR", session.user?.email || "unknown", {
-      scope,
-      deleted: count,
+    await auditLog("SNAPSHOT_CLEARED", auditActor(session), {
+      summary: `${count} stock snapshot rows cleared (${scope})`,
+      details: { scope, deleted: count },
     });
 
     const label = scope === "ALL" ? "" : `${scope} `;

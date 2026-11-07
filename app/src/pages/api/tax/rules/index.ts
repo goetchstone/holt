@@ -2,8 +2,10 @@
 
 import { getErrorCode } from "@/lib/errorCode";
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 
 function toNumber(v: unknown): number | null {
@@ -11,7 +13,7 @@ function toNumber(v: unknown): number | null {
   return Number(v);
 }
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method === "GET") {
     try {
       const districtId = req.query.districtId
@@ -86,6 +88,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           district: { select: { shortName: true, name: true } },
           group: { select: { name: true } },
         },
+      });
+      await auditLog("TAX_CHANGED", auditActor(session), {
+        summary: `Tax rule ${rule.id} added`,
       });
 
       return res.status(201).json({

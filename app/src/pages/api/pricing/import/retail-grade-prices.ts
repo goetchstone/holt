@@ -11,6 +11,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { auditActor, auditLog } from "@/lib/audit";
 import { upsertCollectionIds } from "@/lib/pricing/upsertCollectionIds";
 import { getErrorMessage } from "@/lib/toastError";
 import type {
@@ -53,7 +54,7 @@ function safeDecimal(val: number | null): number | null {
 
 export default requirePermission(
   "catalog.pricing",
-  async (req: NextApiRequest, res: NextApiResponse) => {
+  async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
@@ -395,6 +396,11 @@ export default requirePermission(
       await prisma.vendor.update({
         where: { id: vendorId },
         data: { pricingModel: "GRADE_BASED" },
+      });
+
+      await auditLog("PRICES_IMPORTED", auditActor(session), {
+        summary: `Price list "${priceListName}" imported`,
+        details: { vendorId, priceListName },
       });
 
       return res.status(200).json({

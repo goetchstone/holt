@@ -10,6 +10,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 import { createTender, listTenders, tenderAccounts, TenderError } from "@/lib/payments/tenders";
 
@@ -72,6 +73,9 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
     const tender = await prisma.$transaction((tx) =>
       createTender(tx, req.body ?? {}, session.user?.email ?? null),
     );
+    await auditLog("TENDER_CHANGED", auditActor(session), {
+      summary: `Payment type ${tender.id} added`,
+    });
     return res.status(201).json(tender);
   } catch (err) {
     if (err instanceof TenderError) return res.status(err.status).json({ error: err.message });

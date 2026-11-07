@@ -1,17 +1,23 @@
 // /app/src/pages/api/inventory/physical-count/[id].ts
 
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id } = req.query;
 
   if (req.method === "DELETE") {
     try {
-      await prisma.physicalInventoryCount.delete({
+      const scan = await prisma.physicalInventoryCount.delete({
         where: { id: Number(id) },
+      });
+      await auditLog("PHYSICAL_COUNT_DELETED", auditActor(session), {
+        summary: `A scan at ${scan.stockLocation} deleted`,
+        details: { scanId: scan.id, stockLocation: scan.stockLocation },
       });
       res.status(204).end(); // Success, no content to return
     } catch (error) {

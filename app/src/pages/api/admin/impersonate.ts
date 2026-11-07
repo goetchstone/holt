@@ -7,6 +7,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logger } from "@/lib/logger";
 
 const COOKIE_NAME = "holt-impersonate";
@@ -48,6 +49,9 @@ export default requirePermission(
       const cookie = [`${COOKIE_NAME}=`, ...attrs, "Max-Age=0"].join("; ");
       res.setHeader("Set-Cookie", cookie);
       logger.info("Admin cleared impersonation", { userId });
+      await auditLog("IMPERSONATION", auditActor(session), {
+        summary: "Stopped viewing the app as another role",
+      });
       return res.json({ impersonating: null });
     }
 
@@ -66,6 +70,9 @@ export default requirePermission(
     res.setHeader("Set-Cookie", cookie);
 
     logger.info("Admin started impersonation", { userId, impersonatingRole: role });
+    await auditLog("IMPERSONATION", auditActor(session), {
+      summary: `Started viewing the app as ${role}`,
+    });
     return res.json({ impersonating: role });
   },
 );

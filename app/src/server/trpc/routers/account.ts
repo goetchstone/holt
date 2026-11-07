@@ -9,6 +9,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { prisma } from "@/lib/prisma";
 import { router, protectedProcedure } from "../trpc";
+import { auditLog } from "@/lib/audit";
 import { hashPassword, hashPin, verifyPassword } from "@/lib/auth/password";
 import { readTagPrintMode, TAG_PRINT_MODES } from "@/lib/labels/tagPrintMode";
 import { PIN_PATTERN } from "@/lib/sales/discountPolicyShared";
@@ -132,6 +133,10 @@ export const accountRouter = router({
       await prisma.staffMember.update({
         where: { id: staff.id },
         data: { pinHash: hashPin(input.pin), pinFailedAttempts: 0, pinLockedUntil: null },
+      });
+      await auditLog("PIN_CHANGED", staff.email ?? staff.displayName, {
+        summary: `${staff.displayName} changed their manager PIN`,
+        target: { type: "staff", id: staff.id },
       });
       return { ok: true };
     }),

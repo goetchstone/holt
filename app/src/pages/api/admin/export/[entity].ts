@@ -6,6 +6,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { getExportEntity } from "@/lib/genericExport";
 import { runGenericExport } from "@/lib/genericExportRunner";
 import { rowsToCsv } from "@/lib/csv";
@@ -13,7 +14,7 @@ import { logError } from "@/lib/logger";
 
 export default requirePermission(
   "admin.data",
-  async (req: NextApiRequest, res: NextApiResponse) => {
+  async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "GET") {
       return res.status(405).json({ error: "Method not allowed" });
     }
@@ -34,6 +35,9 @@ export default requirePermission(
       const date = new Date().toISOString().slice(0, 10);
       const filename = `${entity.key}-${date}.csv`;
 
+      await auditLog("DATA_EXPORTED", auditActor(session), {
+        summary: `${filename} exported`,
+      });
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       return res.status(200).send(body);

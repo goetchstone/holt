@@ -20,7 +20,9 @@
 // sensitive grant (see lib/auth/navPermissions.ts on the Reports item).
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { csvRow } from "@/lib/csvExport";
@@ -152,7 +154,7 @@ function buildFilename(level: Level, startDate: string, endDate: string): string
   return `${base}.csv`;
 }
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).end("Method Not Allowed");
@@ -189,6 +191,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     const filename = buildFilename(level, startDate, endDate);
+    await auditLog("DATA_EXPORTED", auditActor(session), {
+      summary: `${filename} exported: detailed sales`,
+    });
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     return res.status(200).send(csv);

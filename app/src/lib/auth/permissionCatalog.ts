@@ -481,6 +481,13 @@ export const PERMISSIONS: PermissionDef[] = [
     sensitive: true,
   },
   {
+    key: "admin.audit",
+    domain: "admin",
+    label: "See the audit trail",
+    description: "See who did what across the store: refunds, deletes, price and access changes.",
+    sensitive: true,
+  },
+  {
     key: "admin.automations",
     domain: "admin",
     label: "Run scheduled jobs",

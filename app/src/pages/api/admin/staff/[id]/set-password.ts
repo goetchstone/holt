@@ -7,13 +7,14 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth/password";
 import { logError } from "@/lib/logger";
 
 export default requirePermission(
   "staff.manage",
-  async (req: NextApiRequest, res: NextApiResponse) => {
+  async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
@@ -66,6 +67,11 @@ export default requirePermission(
       await prisma.staffMember.update({
         where: { id: staff.id },
         data: { passwordHash, userId },
+      });
+
+      await auditLog("PASSWORD_SET", auditActor(session), {
+        summary: `Password set for ${staff.displayName}`,
+        target: { type: "staff", id: staff.id },
       });
 
       return res.status(200).json({ ok: true });

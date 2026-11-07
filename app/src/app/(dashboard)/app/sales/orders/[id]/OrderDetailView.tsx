@@ -38,6 +38,7 @@ import { OrderFlagChip, OrderFlagsPanel } from "./OrderFlagsPanel";
 import { OrderDisclaimersPanel } from "./OrderDisclaimersPanel";
 import { CustomerMessagesPanel } from "./CustomerMessagesPanel";
 import { UndoHandoverButton } from "./UndoHandoverButton";
+import { orderChangeLabel } from "@/lib/sales/orderChangeLabels";
 
 interface LineItem {
   id: number;
@@ -190,27 +191,6 @@ const DELIVERY_METHOD_LABELS: Record<string, string> = {
   TAKEN: "Taken",
   PICKUP: "Pickup",
   DELIVERY: "Delivery",
-};
-
-const CHANGE_TYPE_LABELS: Record<string, string> = {
-  STATUS_CHANGE: "Status Changed",
-  LINE_ADDED: "Line Added",
-  LINE_CANCELLED: "Line Cancelled",
-  LINE_REPLACED: "Line Replaced",
-  LINE_REMOVED: "Line Removed",
-  PRICE_CHANGE: "Price/Qty Changed",
-  NOTE_ADDED: "Note Added",
-  LINE_NOTE: "Line Note",
-  FLAG_ADDED: "Flagged",
-  FLAG_REMOVED: "Flag Taken Off",
-  DISCLAIMER_ADDED: "Disclaimer Added",
-  DISCLAIMER_REMOVED: "Disclaimer Taken Off",
-  COPIED_FROM: "Copied From",
-  HANDED_OVER: "Handed Over",
-  HANDOVER_UNDONE: "Handover Undone",
-  SALESPERSON_CHANGE: "Salesperson Changed",
-  HOLD_SET: "Held for Customer",
-  HOLD_ENDED: "Hold Taken Off",
 };
 
 const DEPOSIT_MODE_LABELS: Record<DepositMode, string> = {
@@ -872,9 +852,7 @@ export function OrderDetailView({
                     {format(new Date(entry.created), "MMM d, h:mm a")}
                   </div>
                   <div className="flex-1">
-                    <span className="font-medium">
-                      {CHANGE_TYPE_LABELS[entry.changeType] || entry.changeType}
-                    </span>
+                    <span className="font-medium">{orderChangeLabel(entry.changeType)}</span>
                     {entry.previousValue && entry.newValue && (
                       <span className="text-brand-gray">
                         {" "}

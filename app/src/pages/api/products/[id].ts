@@ -2,14 +2,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { readTaxGroupId } from "@/lib/tax/taxGroupInput";
 import { logError } from "@/lib/logger";
 
 // Enough for what a law tag lists, and more than fits on one.
 const LAW_TAG_TEXT_MAX = 1000;
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { id } = req.query;
   const productId = Number.parseInt(id as string);
   if (Number.isNaN(productId)) return res.status(400).json({ error: "Invalid product ID" });
@@ -163,6 +165,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const taxGroup = await readTaxGroupId(prisma, (body as Record<string, unknown>).taxGroupId);
       if ("error" in taxGroup) return res.status(400).json({ error: taxGroup.error });
 
+      const before = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { baseRetail: true, wasPrice: true },
+      });
       const updatedProduct = await prisma.product.update({
         where: { id: productId },
         data: {
@@ -185,6 +191,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         },
       });
 
+      const moved = [
+        priceMove("retail", before?.baseRetail, updatedProduct.baseRetail),
+        priceMove("was", before?.wasPrice, updatedProduct.wasPrice),
+      ].filter(Boolean);
+      if (moved.length > 0) {
+        await auditLog("PRODUCT_PRICE_CHANGED", auditActor(session), {
+          summary: `${updatedProduct.name}: ${moved.join(", ")}`,
+          target: { type: "product", id: productId },
+        });
+      }
+
       return res.status(200).json(updatedProduct);
     } catch (err) {
       logError("Error updating product", err);
@@ -196,3 +213,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 }
 
 export default requirePermission("catalog.write", handler);
+
+/** "retail 100 → 90", or null when it didn't move. */
+function priceMove(name: string, before: unknown, after: unknown): string | null {
+  const from = before === null || before === undefined ? null : Number(before);
+  const to = after === null || after === undefined ? null : Number(after);
+  return from === to ? null : `${name} ${from ?? "none"} → ${to ?? "none"}`;
+}

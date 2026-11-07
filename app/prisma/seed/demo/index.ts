@@ -30,6 +30,7 @@
 
 process.env.TZ = "UTC"; // MUST be first -- see journal.ts's header comment.
 
+import { seedAuditTrail } from "./auditTrail";
 import { assertSafeSeedTarget, maskDatabaseUrl } from "./guard";
 
 const argv = process.argv.slice(2);
@@ -284,6 +285,8 @@ async function main(): Promise<void> {
   // Admin > Automations (GAP-37): each as it starts for a store.
   const { getAutomationSettings } = await import("@/lib/automations/settings");
   await getAutomationSettings(prisma);
+  // Admin > Audit Trail (GAP-29).
+  const auditEntries = await seedAuditTrail(prisma, window.now);
 
   const commissionPayoutsResult = await seedCommissionPayouts(window);
 
@@ -317,6 +320,7 @@ async function main(): Promise<void> {
       `${checklistResult.checklistsCreated} checklists (on ${checklistResult.casesGivenOne} cases)`,
   );
   console.log(`Reorder points: ${reorderResult.points}`);
+  console.log(`Audit entries: ${auditEntries}`);
   console.log(
     `Order tools: ${orderToolsResult.flags} flags (on ${orderToolsResult.flagged} orders), ` +
       `${orderToolsResult.disclaimers} disclaimers given, ${orderToolsResult.notes} line notes`,

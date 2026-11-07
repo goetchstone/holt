@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 import { parseCount } from "@/lib/inventory/qtyInput";
 import { countVariance, reconciliationForClient } from "@/lib/inventory/storeCount";
@@ -87,6 +88,12 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
         finalVariance: finalVariance,
         reconciledByUserId: userId,
       },
+    });
+
+    await auditLog("STOCK_RECONCILED", auditActor(session), {
+      summary: `Product ${product.id} at ${item.location}: ${action.toLowerCase()}, expected ${item.expected}, final ${finalCount}`,
+      target: { type: "product", id: product.id },
+      details: { location: item.location, action, expected: item.expected, finalCount },
     });
 
     res

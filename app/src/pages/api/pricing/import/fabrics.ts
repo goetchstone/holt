@@ -12,7 +12,7 @@ import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { fabricImportSchema, type FabricImportInput } from "@/lib/validation/schemas";
 import { validateBody } from "@/lib/validation/validate";
 import { ValidationError } from "@/lib/apiHandler";
-import { auditLog } from "@/lib/audit";
+import { auditActor, auditLog } from "@/lib/audit";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
@@ -226,10 +226,9 @@ export default requirePermission(
         };
       }, TX_TIMEOUT.LONG);
 
-      auditLog("IMPORT_FABRICS", (session.user as any)?.email || "unknown", {
-        vendorId,
-        fabricCount: fabrics.length,
-        clearExisting: !!clearExisting,
+      await auditLog("PRICES_IMPORTED", auditActor(session), {
+        summary: `${fabrics.length} fabrics imported`,
+        details: { vendorId, fabricCount: fabrics.length, clearExisting: !!clearExisting },
       });
 
       return res.json({

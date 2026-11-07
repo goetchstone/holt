@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 import { fillProfileGaps } from "@/lib/clientProfile";
 
@@ -27,7 +28,7 @@ async function mergeClientProfile(duplicateId: number, masterId: number) {
 
 export default requirePermission(
   "admin.data",
-  async (req: NextApiRequest, res: NextApiResponse) => {
+  async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "POST") {
       return res.status(405).json({ message: "Method not allowed" });
     }
@@ -105,6 +106,11 @@ export default requirePermission(
           duplicateRecordsDeleted++;
         }
       }
+
+      await auditLog("CUSTOMERS_MERGED", auditActor(session), {
+        summary: `${mergedCount} groups of duplicate customers merged, ${duplicateRecordsDeleted} records removed`,
+        details: { groups: mergedCount, removed: duplicateRecordsDeleted },
+      });
 
       res.status(200).json({
         message: `Merge complete. ${mergedCount} groups of duplicates merged. ${duplicateRecordsDeleted} duplicate records deleted.`,

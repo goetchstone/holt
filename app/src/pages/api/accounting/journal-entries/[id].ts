@@ -2,6 +2,7 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/pages/api/auth/[...nextauth]";
@@ -66,6 +67,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       // onto the status codes it already promised.
       if (status) {
         const updated = await transitionJournalEntry(id, status, session.user?.email || null);
+        if (updated.status === "POSTED") {
+          await auditLog("JOURNAL_POSTED", auditActor(session), {
+            summary: `Journal entry ${id} posted`,
+          });
+        }
         return res.status(200).json(updated);
       }
 

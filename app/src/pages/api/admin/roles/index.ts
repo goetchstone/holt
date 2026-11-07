@@ -20,6 +20,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import {
@@ -40,9 +41,9 @@ import {
   validateRoleKey,
 } from "@/lib/auth/roleAdmin";
 
-export default requirePermission("staff.manage", async (req, res) => {
+export default requirePermission("staff.manage", async (req, res, session) => {
   if (req.method === "GET") return handleGet(res);
-  if (req.method === "POST") return handlePost(req, res);
+  if (req.method === "POST") return handlePost(req, res, auditActor(session));
   res.setHeader("Allow", "GET, POST");
   return res.status(405).json({ error: "Method not allowed" });
 });
@@ -109,7 +110,7 @@ async function resolveSeedPermissions(
   return { ok: true, value: parsed.value };
 }
 
-async function handlePost(req: NextApiRequest, res: NextApiResponse) {
+async function handlePost(req: NextApiRequest, res: NextApiResponse, actor: string) {
   const body = (req.body ?? {}) as Record<string, unknown>;
 
   const key = validateRoleKey(body.key);
@@ -161,6 +162,16 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
           skipDuplicates: true,
         });
       }
+      await auditLog(
+        "ROLE_CHANGED",
+        actor,
+        {
+          summary: `Role "${name.value}" created with ${permissions.value.length} permissions`,
+          target: { type: "role", id: role.id },
+          details: { permissions: permissions.value },
+        },
+        tx,
+      );
       return tx.role.findUniqueOrThrow({ where: { id: role.id }, select: ROLE_SELECT });
     });
   } catch (err) {

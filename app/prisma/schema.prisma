@@ -1333,6 +1333,26 @@ model SalesOrderDisclaimer {
   @@index([orderDisclaimerId])
 }
 
+/// GAP-29: who did something sensitive that has no history of its own
+/// (lib/auditCatalog.ts). Written by lib/audit.ts only, and never edited. It holds no
+/// foreign keys, so an entry outlives what it describes, like a deleted order.
+model AuditEntry {
+  id         Int     @id @default(autoincrement())
+  event      String
+  /// The person's email, or "unattended" for a scheduled job.
+  actor      String
+  summary    String
+  targetType String?
+  targetId   String?
+  details    Json?
+
+  created DateTime @default(now())
+
+  @@index([created])
+  @@index([actor, created])
+  @@index([event, created])
+}
+
 /// GAP-37: one of the things Holt does by itself (lib/automations/catalog.ts), as the
 /// store has set it up in Admin > Automations: whether it runs and when. The key decides
 /// what runs; this row only configures it (rule 62). What it last did is here too, so the
@@ -2111,6 +2131,7 @@ model StockMovement {
   @@index([sourceType, sourceId])
   @@index([actionKey])
   @@index([orderHandoverId])
+  @@index([occurredAt])
 }
 
 /// A note about boxes, never a quantity (lib/inventory/boxes.ts). INCOMPLETE:
@@ -4527,6 +4548,7 @@ model OrderChangeLog {
   created       DateTime   @default(now())
 
   @@index([salesOrderId])
+  @@index([created])
 }
 
 // ---------------------------------------------------------------------------

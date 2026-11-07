@@ -2,8 +2,10 @@
 
 import { getErrorCode } from "@/lib/errorCode";
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 
 function toNumber(v: unknown): number | null {
@@ -11,7 +13,7 @@ function toNumber(v: unknown): number | null {
   return Number(v);
 }
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const id = Number.parseInt(req.query.id as string);
   if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
 
@@ -82,6 +84,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           group: { select: { name: true } },
         },
       });
+      await auditLog("TAX_CHANGED", auditActor(session), {
+        summary: `Tax rule ${rule.id} changed`,
+      });
 
       return res.status(200).json({
         ...rule,
@@ -114,6 +119,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
 
       await prisma.taxRule.delete({ where: { id } });
+      await auditLog("TAX_CHANGED", auditActor(session), {
+        summary: `Tax rule ${id} deleted`,
+      });
       return res.status(200).json({ success: true });
     } catch (err: unknown) {
       if (getErrorCode(err) === "P2025") {

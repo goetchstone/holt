@@ -2,8 +2,10 @@
 
 import { getErrorCode } from "@/lib/errorCode";
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import {
   success,
   created,
@@ -40,7 +42,7 @@ async function handleGet(_req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-async function handlePost(req: NextApiRequest, res: NextApiResponse) {
+async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { name, description } = req.body;
   if (!name?.trim()) return badRequest(res, "Name is required");
 
@@ -50,6 +52,9 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse) {
         name: name.trim(),
         description: description?.trim() || null,
       },
+    });
+    await auditLog("TAX_CHANGED", auditActor(session), {
+      summary: `Tax exemption reason ${reason.id} added`,
     });
     return created(res, reason);
   } catch (err: unknown) {

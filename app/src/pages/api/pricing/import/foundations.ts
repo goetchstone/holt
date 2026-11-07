@@ -10,7 +10,7 @@ import { prisma, TX_TIMEOUT } from "@/lib/prisma";
 import { foundationsImportSchema, type FoundationsImportInput } from "@/lib/validation/schemas";
 import { validateBody } from "@/lib/validation/validate";
 import { ValidationError } from "@/lib/apiHandler";
-import { auditLog } from "@/lib/audit";
+import { auditActor, auditLog } from "@/lib/audit";
 
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
@@ -255,10 +255,9 @@ export default requirePermission(
         };
       }, TX_TIMEOUT.LONG);
 
-      auditLog("IMPORT_FOUNDATIONS", (session.user as any)?.email || "unknown", {
-        vendorId,
-        priceListName,
-        productCount: products.length,
+      await auditLog("PRICES_IMPORTED", auditActor(session), {
+        summary: `Price list "${priceListName}" imported`,
+        details: { vendorId, priceListName, productCount: products.length },
       });
 
       return res.status(200).json({ success: true, ...result });

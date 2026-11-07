@@ -104,6 +104,12 @@ Where the product already has a mechanism, use it instead of writing rows
 directly — the journal seed calls `generateSalesJournal`, so its entries are
 produced by the same code production uses and balance for the same reason.
 
+## The audit trail has something in it
+
+`auditTrail.ts` writes one entry for several kinds of action, so Admin › Audit Trail isn't empty. The rest of
+that list comes from histories the seed already fills, like order changes and stock moves
+(`docs/domains/audit.md`).
+
 ## Automations are switched on
 
 A store starts with its automations off. The demo has them on, so they can be tried: a table of

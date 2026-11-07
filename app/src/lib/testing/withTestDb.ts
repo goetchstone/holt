@@ -105,6 +105,7 @@ const ALL_TABLES = [
   "CustomerMessageSetting",
   "AutomationSetting",
   "EmailWording",
+  "AuditEntry",
   "DailyReconciliationLog",
   "DeliveryRun",
   "DeliveryStop",

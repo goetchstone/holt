@@ -553,6 +553,17 @@ export async function voidPendingPayment(
         `Only a pending payment can be voided; payment ${paymentId} is ${(payment.status ?? "without a status").toLowerCase()}.`,
       );
     }
+    if (payment.salesOrderId !== null) {
+      await tx.orderChangeLog.create({
+        data: {
+          salesOrderId: payment.salesOrderId,
+          changeType: "PAYMENT_VOIDED",
+          previousValue: String(payment.paymentAmount),
+          reason: opts.reason ?? null,
+          changedBy: opts.voidedBy ?? null,
+        },
+      });
+    }
     return tx.payment.update({
       where: { id: paymentId },
       data: {

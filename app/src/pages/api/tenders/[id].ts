@@ -8,6 +8,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 import { deleteTender, TenderError, updateTender } from "@/lib/payments/tenders";
 
@@ -19,10 +20,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
   try {
     if (req.method === "PUT") {
       const tender = await prisma.$transaction((tx) => updateTender(tx, id, req.body ?? {}, by));
+      await auditLog("TENDER_CHANGED", auditActor(session), {
+        summary: `Payment type ${id} changed`,
+      });
       return res.status(200).json(tender);
     }
     if (req.method === "DELETE") {
       await prisma.$transaction((tx) => deleteTender(tx, id));
+      await auditLog("TENDER_CHANGED", auditActor(session), {
+        summary: `Payment type ${id} deleted`,
+      });
       return res.status(200).json({ success: true });
     }
   } catch (err) {

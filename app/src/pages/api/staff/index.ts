@@ -6,6 +6,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Prisma } from "@prisma/client";
 import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import {
   DEFAULT_STAFF_ROLE,
   defaultAssignment,
@@ -58,6 +59,10 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
           typeof isDesigner === "boolean" ? isDesigner : assignment.role === DEFAULT_STAFF_ROLE,
       },
       include: { user: { select: { email: true, name: true, image: true } } },
+    });
+    await auditLog("STAFF_CHANGED", auditActor(session), {
+      summary: `${member.displayName} added as ${member.role}`,
+      target: { type: "staff", id: member.id },
     });
     return res.status(201).json(member);
   } catch (err) {

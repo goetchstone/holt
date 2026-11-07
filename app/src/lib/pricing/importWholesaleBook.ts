@@ -1324,17 +1324,20 @@ export async function importWholesaleBook(
         }
       }
 
-      auditLog("IMPORT_WHOLESALE", actor, {
-        vendorId,
-        priceListName,
-        mode: importMode,
-        sourceBook,
-        requested: products.length,
-        imported: result.importedCount,
-        skipped: result.skippedCount,
-        errors: result.errors.length,
-        activeBefore: existingActive,
-        discontinuedAfter,
+      await auditLog("PRICES_IMPORTED", actor, {
+        summary: `Price list "${priceListName}" imported`,
+        details: {
+          vendorId,
+          priceListName,
+          mode: importMode,
+          sourceBook,
+          requested: products.length,
+          imported: result.importedCount,
+          skipped: result.skippedCount,
+          errors: result.errors.length,
+          activeBefore: existingActive,
+          discontinuedAfter,
+        },
       });
 
       return { kind: "ok", ...result };

@@ -8,7 +8,9 @@
 // (list sync), not just "View customers".
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/appSettings";
 import { logError } from "@/lib/logger";
@@ -21,7 +23,7 @@ import {
 
 const SAMPLE = 10;
 
-export async function handler(req: NextApiRequest, res: NextApiResponse) {
+export async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).json({ error: "Method not allowed" });
@@ -30,6 +32,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
     const filter = readEmailListFilter(req.query);
     const rows = await emailList(prisma, filter, (await getAppSettings()).timezone);
     if (req.query.format === "csv") {
+      await auditLog("DATA_EXPORTED", auditActor(session), {
+        summary: `Customer email list exported: ${rows.length} addresses`,
+      });
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader("Content-Disposition", 'attachment; filename="customer-emails.csv"');
       return res.status(200).send(emailListCsv(rows));

@@ -8,6 +8,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, type CallerAccess } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { canViewCost, WITH_COST } from "@/lib/auth/costVisibility";
 import { logError } from "@/lib/logger";
 import {
@@ -29,10 +30,22 @@ export async function handler(
   }
   try {
     if (req.method === "PATCH") {
+      const before = await prisma.productSource.findUnique({
+        where: { id: sourceId },
+        select: { cost: true },
+      });
       const source = await updateProductSource(prisma, productId, sourceId, req.body ?? {}, {
         canSetCost: canViewCost(access),
         by: session.user?.email ?? null,
       });
+      const fromCost = before?.cost == null ? null : Number(before.cost);
+      const toCost = source.cost == null ? null : Number(source.cost);
+      if (fromCost !== toCost) {
+        await auditLog("PRODUCT_COST_CHANGED", auditActor(session), {
+          summary: `Vendor cost ${fromCost ?? "none"} → ${toCost ?? "none"}`,
+          target: { type: "product", id: productId },
+        });
+      }
       return res.status(200).json(source);
     }
     if (req.method === "DELETE") {

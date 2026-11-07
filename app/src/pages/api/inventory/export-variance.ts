@@ -1,7 +1,9 @@
 // /app/src/pages/api/inventory/export-variance.ts
 
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { NextApiRequest, NextApiResponse } from "next";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { AsyncParser } from "@json2csv/node";
 import { Prisma } from "@prisma/client";
@@ -10,7 +12,7 @@ import { toQty } from "@/lib/inventory/quantity";
 
 const APPAREL_DEPARTMENTS = ["Accessories", "Mens Apparel", "Womens Apparel"];
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -97,6 +99,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const csv = await parser.parse(finalReport).promise();
 
     const fileName = `FINAL_${varianceType || "all"}_variances_${location}_${new Date().toISOString().split("T")[0]}.csv`;
+    await auditLog("DATA_EXPORTED", auditActor(session), {
+      summary: `${fileName} exported: stock count variances`,
+    });
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
     res.status(200).send(csv);

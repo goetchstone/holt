@@ -166,7 +166,6 @@ export default requirePermission(
       }
 
       logger.info("Database restore starting", { actor, bytes: size });
-      auditLog("DATABASE_RESTORE", actor, { bytes: size });
 
       // --- 3. Only now is it safe to drop -------------------------------------
       const reset = await runPsql(dbUrl, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;\n");
@@ -199,6 +198,11 @@ export default requirePermission(
       }
 
       logger.info("Database restore completed", { actor, bytes: size });
+      // Written after the restore, so it lands in the restored database and says so.
+      await auditLog("DATABASE_RESTORED", actor, {
+        summary: "Database restored from a backup",
+        details: { bytes: size },
+      });
       return res.status(200).json({ success: true, message: "Database restored successfully" });
     } catch (err: unknown) {
       logError("Database restore error", err, { actor });

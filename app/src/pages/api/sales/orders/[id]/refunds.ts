@@ -55,6 +55,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
       createdBy: session.user?.email || undefined,
     });
 
+    await prisma.orderChangeLog.create({
+      data: {
+        salesOrderId: orderId,
+        changeType: "REFUND_ISSUED",
+        newValue: String(Math.abs(Number(refund.paymentAmount))),
+        reason: reason || null,
+        changedBy: session.user?.email ?? null,
+      },
+    });
+
     const balance = await calculateOrderBalance(orderId);
 
     return res.status(201).json({

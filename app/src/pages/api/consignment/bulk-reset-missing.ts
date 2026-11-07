@@ -2,6 +2,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export default requirePermission(
@@ -15,6 +16,10 @@ export default requirePermission(
         data: { status: "ON_FLOOR", updatedBy: session.user?.email ?? "admin" },
       });
 
+      await auditLog("CONSIGNMENT_RESET", auditActor(session), {
+        summary: `${result.count} missing consignment items put back on the floor`,
+        details: { updated: result.count },
+      });
       return res.json({ updated: result.count });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";

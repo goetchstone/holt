@@ -1523,6 +1523,30 @@ opening and closing, with a live preview.
 Rejected: an HTML template per email (a broken email is the store's to debug, and it would be an injection
 surface); per-email colours (one store, one look). → `docs/domains/email.md`
 
+## 50. One audit trail that reads every history, not one table that copies them (2026-11-06)
+
+**Decided (GAP-29):** the app has to answer "who did this". About 30 sensitive actions recorded nobody, or
+only the last person, and `lib/audit.ts` wrote to a log file nobody in a store can read. So there's one
+screen, Admin › Audit Trail.
+
+- **Each history stays where it is.** Order changes stay in `OrderChangeLog`, gift cards in
+  `GiftCardTransaction` and so on, and `lib/auditFeed.ts` reads them all and merges them. `AuditEntry` holds
+  only what had no history of its own (rule 6).
+- **An order's refunds and voids go in the order's own history**, so they show on the order too.
+- **An entry has no foreign keys**, so it outlives a deleted order, which takes its own history with it.
+- **Inside a transaction, an entry stands or falls with the action.** Outside one, a failed write is logged
+  and doesn't fail what has already happened.
+- **Secrets stay out by construction.** Settings by field name, integration keys by provider and field, gift
+  cards by id. A barcode spends the card, and this is read on a screen.
+- **Who can see it is a permission**, `admin.audit`, starting with the owner and administrators, so a store
+  can change it in Roles.
+
+Rejected: a generic wrapper recording every request to every route. It would cover everything at once, but
+it can't say what changed, a request body can hold a password, and most of what it caught is noise. Copying
+every history into one table: two homes for each fact, and nothing compares them.
+
+Coverage is enforced by `__tests__/auditCoverage.test.ts` (rule 65). → `docs/domains/audit.md`
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

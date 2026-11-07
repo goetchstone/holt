@@ -5,13 +5,14 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requirePermission } from "@/lib/auth/requireAuth";
+import { auditActor } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { returnOrderEditProblem } from "@/lib/returns/bookReturn";
 import { deliveryFeeLineEditProblem } from "@/lib/delivery/deliveryFee";
 
 export default requirePermission(
   "sales.cancel",
-  async (req: NextApiRequest, res: NextApiResponse) => {
+  async (req: NextApiRequest, res: NextApiResponse, session) => {
     if (req.method !== "DELETE") return res.status(405).json({ error: "Method not allowed" });
 
     const lineItemId = Number.parseInt((req.query.id as string) || req.body?.id, 10);
@@ -28,7 +29,18 @@ export default requirePermission(
         (await deliveryFeeLineEditProblem(prisma, line.id));
       if (locked) return res.status(409).json({ error: locked });
 
-      await prisma.orderLineItem.delete({ where: { id: lineItemId } });
+      await prisma.$transaction(async (tx) => {
+        await tx.orderLineItem.delete({ where: { id: lineItemId } });
+        await tx.orderChangeLog.create({
+          data: {
+            salesOrderId: line.salesOrderId,
+            lineItemId,
+            changeType: "LINE_REMOVED",
+            previousValue: line.partNo ?? `Line ${line.lineNumber}`,
+            changedBy: auditActor(session),
+          },
+        });
+      });
 
       return res.json({ deleted: true, lineItemId, orderId: line.salesOrderId });
     } catch (err: unknown) {
