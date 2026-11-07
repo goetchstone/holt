@@ -230,8 +230,14 @@ beforeEach(async () => {
   await prisma.organization.create({
     data: { id: DEFAULT_ORG_ID, name: "Test Org", slug: "test-org" },
   });
+  // Through the status buttons with nothing paid, which a store has to allow.
   await prisma.appSettings.create({
-    data: { organizationId: DEFAULT_ORG_ID, orderNumberPrefix: "TST", timezone: "UTC" },
+    data: {
+      organizationId: DEFAULT_ORG_ID,
+      allowSaleWithoutPayment: true,
+      orderNumberPrefix: "TST",
+      timezone: "UTC",
+    },
   });
   invalidateAppSettingsCache();
   await syncBuiltInRoles({ prisma });

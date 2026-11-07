@@ -85,9 +85,9 @@ export function CancelOrderModal({
   onClose: () => void;
   onCancelled: () => void;
 }>) {
-  const [money, setMoney] = useState<(CancelPlan & { canRefund: boolean; canCallPo: boolean }) | null>(
-    null,
-  );
+  const [money, setMoney] = useState<
+    (CancelPlan & { canRefund: boolean; canCallPo: boolean }) | null
+  >(null);
   const [poDecisions, setPoDecisions] = useState<Record<number, PoDecision>>({});
   const [destination, setDestination] = useState<RefundDestination>("ORIGINAL_PAYMENT");
   const [reason, setReason] = useState("");
@@ -151,7 +151,8 @@ export function CancelOrderModal({
               {notice}
             </p>
           ))}
-          {money.purchaseOrders.length > 0 && !money.canCallPo &&
+          {money.purchaseOrders.length > 0 &&
+            !money.canCallPo &&
             money.purchaseOrders.some((po) => po.standing !== "OPEN") && (
               <p className="text-sm text-red-700">
                 A vendor has acknowledged this {what}&apos;s PO, and your role can&apos;t make that
@@ -182,9 +183,7 @@ export function CancelOrderModal({
                 <span>
                   Back the way it was paid
                   <span className="block text-brand-gray">
-                    {money.payments
-                      .map((p) => `${p.label} ${formatCurrency(p.amount)}`)
-                      .join(", ")}
+                    {money.payments.map((p) => `${p.label} ${formatCurrency(p.amount)}`).join(", ")}
                   </span>
                 </span>
               </label>
