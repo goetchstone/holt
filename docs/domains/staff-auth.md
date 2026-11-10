@@ -294,7 +294,7 @@ When adding a new SUPER_ADMIN-only feature: gate on `["SUPER_ADMIN"]` exactly (n
 | Commission Tiers report (`/app/admin/reports/commission-tiers`) | **Yes**            | No    | No      |
 | Database backup/restore                                         | Yes                | Yes   | No      |
 | Roles & permissions management (`/app/admin/setup/roles`)       | Yes                | Yes   | No      |
-| Query builder                                                   | Yes                | Yes   | No      |
+| Query builder (`reporting.adhoc`, a store can grant it)         | Yes                | Yes   | No      |
 | Change staff roles                                              | **No** (see below) | Yes   | No      |
 | Assign ADMIN role                                               | **No** (see below) | Yes   | No      |
 | Assign SUPER_ADMIN role                                         | **No** (see below) | Yes   | No      |
@@ -453,7 +453,7 @@ Currently restricted:
 - Reports hub: 10 of the 29 cards are (ADMIN/MANAGER), including Pipeline Opportunity; Opportunities is (ADMIN/MARKETING). Tax Summary, Till Reconciliation (ADMIN only). Mailchimp Campaign + Activity (ADMIN/MARKETING only). **Wealth Insights (ADMIN/MARKETING only — not MANAGER).**
 - Admin hub: Import Tools, Gift Cards, System Tools, Data Exports (ADMIN only). Setup, Vendor Pricing, Sales Goals, Monthly Pct, Salesperson Corrections visible to MANAGER.
 - Setup page: Database Backup and Roles (ADMIN only)
-- Tools page: Query Builder (ADMIN only)
+- Tools page: Query Builder (ADMIN). The Reports hub also has a card for whoever holds `reporting.adhoc`
 
 ## Cost Visibility ("View cost")
 
@@ -505,8 +505,8 @@ prevent.
   (`poGapsForCaller` in the server page, `requirePage(["ADMIN"], WITH_COST)`).
 
 Other screens still show cost under their own key and move under this switch
-one change at a time: products, proposals, purchase-order imports, the vendor order tools, the buyer workbench and the
-query builder. The key's description
+one change at a time: products, proposals, purchase-order imports, the vendor order tools and the buyer
+workbench. The query builder moved under it with `reporting.adhoc` (DECISIONS 53). The key's description
 in `permissionCatalog.ts` names exactly what it covers, so the Roles screen
 never claims more than it does. Keep the two in step.
 

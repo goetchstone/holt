@@ -1,7 +1,7 @@
 // /app/src/app/(dashboard)/app/tools/page.tsx
 //
 // Tools hub — App Router port of the legacy tools/index. Any signed-in user
-// (cards self-filter by role via CardGrid; Query Builder is ADMIN-only). Chrome
+// (cards self-filter by role via CardGrid). Chrome
 // from the (dashboard) layout.
 
 import { requirePage } from "@/lib/auth/requirePage";
