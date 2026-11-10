@@ -445,3 +445,21 @@ is a change to *where* it is enforced, not to *what* it says
   consignment item page and the delivery zones page. The last was unusable, and each
   fix there exposed the next. Typed answers shared by route and screen would close it
   (rule 7), which is a build of its own.
+
+### 2026-11-10 — rule 33's own filter counted a replaced line twice
+
+- **Signal:** near miss, found reading report filters while building GAP-34 (#108).
+- **What happened:** rule 33 names `lineItemStatus: { not: "CANCELLED" }`, and 43 files
+  used it, with a tripwire requiring that exact text. Replacing a line leaves the old one
+  REPLACED with its price, so every one of those totals counted a replaced line and its
+  replacement: the order screen, the reports, commission, the books, customer lifetime
+  spend. `COUNTED_LINE_STATUSES` had said since 2026-10-15 that replaced lines are out,
+  and `computeBalance` used it, so the balance was right while the totals beside it were
+  not. No local database had a replaced line yet. Fixed with one shared filter
+  (`COUNTED_LINE_FILTER`, `countedLineSql`), and the tripwire now fails on the old text.
+- **Principle:** 6 (one home per fact: the counted set had a home, but the rule's text and
+  its tripwire were a second, older one) and 2 (an aggregate must declare its population).
+- **Would a rule have caught it?** Only if enforced differently. The tripwire checked the
+  literal the rule printed, so it enforced the copy rather than the fact. **Proposal for the
+  improver:** have rule 33 cite `COUNTED_LINE_FILTER` and `countedLineSql` rather than a
+  literal, so the rule and the code share one spelling.

@@ -155,6 +155,13 @@ export async function handler(
       if (lineItem.lineItemStatus === "CANCELLED" && action !== "relink") {
         return res.status(400).json({ error: "Cannot modify a cancelled line item." });
       }
+      // A replaced line's replacement carries it now. Changing or replacing the old one
+      // again would put the item on the sale twice.
+      if (lineItem.lineItemStatus === "REPLACED" && action !== "relink") {
+        return res
+          .status(400)
+          .json({ error: "This line was replaced. Change its replacement instead." });
+      }
 
       // What's gone to the customer comes back as a return, which puts its stock and its
       // money right. Cancelling it would refund goods the customer still has (DECISIONS 52).

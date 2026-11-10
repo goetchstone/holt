@@ -7,6 +7,7 @@
 // TOTAL, not unit price.
 
 import type { PrismaClient } from "@prisma/client";
+import { countedLineSqlText } from "@/lib/reports/revenueScope";
 
 export interface DormantRow {
   id: number;
@@ -82,7 +83,7 @@ export async function getDormantCustomers(
       LEFT JOIN "Department" d ON d.id = cat."departmentId"
       WHERE so."customerId" IS NOT NULL
         AND so.status IN ('ORDER', 'FULFILLED')
-        AND li."lineItemStatus" != 'CANCELLED'
+        AND ${countedLineSqlText("li")}
         AND d.name NOT IN ('Freight', 'MRC', 'Hardware')
       GROUP BY so."customerId", d.name
     )

@@ -23,6 +23,7 @@ import { STOCKED_SELECT, isStockedProduct } from "@/lib/inventory/stocked";
 import { orderFlagsOf } from "@/lib/sales/orderFlags";
 import { orderDisclaimersOf } from "@/lib/sales/orderDisclaimers";
 import { handedOverStatusProblem } from "@/lib/fulfilment/undoHandover";
+import { isCountedLine } from "@/lib/salesOrderRevenue";
 
 /** Exported for integration tests -- same pattern as create-from-cart.ts:
  *  calls the real Prisma client with a fake req/res + session, bypassing
@@ -224,9 +225,9 @@ export async function handler(req: NextApiRequest, res: NextApiResponse, session
       orderDisclaimersOf(prisma, order.id),
     ]);
 
-    // Cancelled lines are out of every sum (CLAUDE.md rule 33); they are still
-    // listed below, struck through on the order screen.
-    const counted = order.lineItems.filter((item) => item.lineItemStatus !== "CANCELLED");
+    // Cancelled and replaced lines are out of every sum (CLAUDE.md rule 33,
+    // COUNTED_LINE_STATUSES); they are still listed below, struck through on the order screen.
+    const counted = order.lineItems.filter((item) => isCountedLine(item.lineItemStatus));
     const totalTax = counted.reduce((sum, item) => sum + Number(item.vatAmount || 0), 0);
     const totalSales = counted.reduce((sum, item) => sum + Number(item.netPrice), 0);
     const totalAmount = totalSales + totalTax;

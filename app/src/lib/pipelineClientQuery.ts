@@ -6,7 +6,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { COUNTED_LINE_STATUSES } from "@/lib/salesOrderRevenue";
+import { COUNTED_LINE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 import { CLIENT_NOTE_SOURCE, CONTACT_SOURCES } from "@/lib/interactionSources";
 import {
   distinctLocations,
@@ -130,7 +130,7 @@ export async function fetchLastPurchaseByCustomer(
         where: {
           netPrice: { gt: 0 },
           orderedQuantity: { gt: 0 },
-          lineItemStatus: { not: "CANCELLED" },
+          lineItemStatus: COUNTED_LINE_FILTER,
         },
         orderBy: { netPrice: "desc" },
         select: { id: true, productName: true, product: { select: { serviceType: true } } },
@@ -163,7 +163,7 @@ async function fetchBrandsByCustomer(customerIds: number[]): Promise<Map<number,
       salesOrder: { customerId: { in: customerIds }, status: { in: ["ORDER", "FULFILLED"] } },
       netPrice: { gt: 0 },
       orderedQuantity: { gt: 0 },
-      lineItemStatus: { not: "CANCELLED" },
+      lineItemStatus: COUNTED_LINE_FILTER,
       productId: { not: null },
     },
     select: {

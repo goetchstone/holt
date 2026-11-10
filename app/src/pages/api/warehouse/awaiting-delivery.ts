@@ -9,6 +9,7 @@ import { requirePermission } from "@/lib/auth/requireAuth";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { computeBalance } from "@/lib/paymentService";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 interface LinkedPO {
   id: number;
@@ -70,7 +71,7 @@ export default requirePermission(
               vatAmount: true,
               lineItemStatus: true,
             },
-            where: { lineItemStatus: { not: "CANCELLED" } },
+            where: { lineItemStatus: COUNTED_LINE_FILTER },
             orderBy: { lineNumber: "asc" },
           },
           purchaseOrders: {

@@ -80,9 +80,12 @@ const SHARED_LINE_ITEM_HELPERS: ReadonlyArray<{
   },
 ];
 
-const FILTER_REGEX = /lineItemStatus:\s*\{\s*not:\s*["']CANCELLED["']\s*\}/;
-// Raw-SQL guard, either inequality operator (Postgres treats <> and != alike).
-const RAW_SQL_REGEX = /lineItemStatus.*(?:<>|!=)\s*'CANCELLED'/;
+// The shared filter (lib/salesOrderRevenue.ts COUNTED_LINE_FILTER): cancelled AND
+// replaced lines out. Leaving out only CANCELLED counted a replaced line and its
+// replacement both (2026-11-10), so the old literal no longer passes here.
+const FILTER_REGEX = /lineItemStatus:\s*COUNTED_LINE_FILTER/;
+// Raw SQL: the shared predicate from lib/reports/revenueScope.ts.
+const RAW_SQL_REGEX = /countedLineSql(?:Text)?\(/;
 
 function fileExcludesCancelled(file: string): boolean {
   const src = read(file);
@@ -127,7 +130,7 @@ describe("Reports: CANCELLED line item filter (CLAUDE.md rule 33)", () => {
     // there, matching once proves both carry the same shape. (The deleted Pages
     // handlers detailed-sales.ts + detailed-sales/items.ts no longer exist.)
     const lib = readApp("src/lib/reports/detailedSales.ts");
-    const matches = lib.match(/lineItemStatus:\s*\{\s*not:\s*"CANCELLED"\s*\}/g) ?? [];
+    const matches = lib.match(/lineItemStatus:\s*COUNTED_LINE_FILTER/g) ?? [];
     // One occurrence in getDetailedSales, one in getDetailedSalesItems.
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
@@ -152,7 +155,7 @@ describe("Reports: CANCELLED line item filter (CLAUDE.md rule 33)", () => {
       // Assert on files that aggregate SalesOrder line items.
       const aggregatesSalesLines = /salesOrder/i.test(src) && /lineItems/.test(src);
       if (!aggregatesSalesLines) continue;
-      test(`lib/reports/${file} excludes CANCELLED lines`, () => {
+      test(`lib/reports/${file} excludes cancelled and replaced lines`, () => {
         // A file may carry the filter inline (FILTER_REGEX / RAW_SQL_REGEX) OR
         // delegate to buildLineItemWhere, the shared helper pinned to contain
         // the filter by the SHARED_LINE_ITEM_HELPERS test above.
@@ -173,7 +176,63 @@ describe("Reports: CANCELLED line item filter (CLAUDE.md rule 33)", () => {
       // filter. We assert the filter clause is present in the file as a
       // source-text guard; a future refactor that drops it fails this
       // test rather than silently inflating the journal.
-      expect(src).toMatch(/lineItemStatus:\s*\{\s*not:\s*["']CANCELLED["']\s*\}/);
+      expect(src).toMatch(FILTER_REGEX);
     });
+  });
+});
+
+// Rule 65: every place that sums or counts lines, not only the reports listed above.
+// A file that leaves out CANCELLED alone (and so counts REPLACED) fails here unless it's
+// below with the reason it isn't a total. Both directions: an entry whose file no longer
+// does it fails too, so the list can't go stale.
+describe("no line total leaves out only CANCELLED (rule 33)", () => {
+  const NOT_A_TOTAL: Record<string, string> = {
+    "src/pages/api/admin/relink-line-items.ts":
+      "relinks lines to products so they report under the right one; a replaced line reports too",
+    "src/lib/orderLineItemLinker.ts": "the same relinking, for the import path",
+    "src/lib/adapters/legacyPos/runners.ts":
+      "the import's own orphan handling: it never writes REPLACED, and it sums nothing",
+    "src/lib/adapters/legacyPos/sameDayRewriteCleanup.ts":
+      "the import's rewrite cleanup, which compares imported lines and sums nothing",
+    "src/pages/api/sales/orders/[id]/line-items/[lineItemId].ts":
+      "refuses changes to a cancelled line, and to a replaced one just below",
+  };
+  const ONLY_CANCELLED = [
+    /lineItemStatus:\s*\{\s*not:\s*["']CANCELLED["']/,
+    /lineItemStatus"?\s*(?:<>|!=)\s*\\?'CANCELLED/,
+    /lineItemStatus\s*(?:!==|===)\s*["']CANCELLED["']/,
+  ];
+
+  function codeOf(file: string): string {
+    // Comments may describe the old filter; only code counts.
+    return readApp(file)
+      .split("\n")
+      .filter((line) => !/^\s*(?:\/\/|\*|\/\*)/.test(line))
+      .join("\n");
+  }
+
+  function sourceFiles(dir: string): string[] {
+    return fs.readdirSync(path.join(APP_ROOT, dir), { withFileTypes: true }).flatMap((entry) => {
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) return sourceFiles(rel);
+      return /\.tsx?$/.test(entry.name) ? [rel] : [];
+    });
+  }
+
+  const offenders = sourceFiles("src").filter((file) => {
+    const code = codeOf(file);
+    return ONLY_CANCELLED.some((pattern) => pattern.test(code));
+  });
+
+  it("finds none outside the list", () => {
+    expect(offenders.filter((file) => !(file in NOT_A_TOTAL))).toEqual([]);
+  });
+
+  it("keeps no entry whose file stopped doing it", () => {
+    expect(Object.keys(NOT_A_TOTAL).filter((file) => !offenders.includes(file))).toEqual([]);
+  });
+
+  it("gives every entry a reason", () => {
+    for (const reason of Object.values(NOT_A_TOTAL)) expect(reason.length).toBeGreaterThan(20);
   });
 });

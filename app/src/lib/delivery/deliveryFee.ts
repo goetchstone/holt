@@ -30,6 +30,7 @@ import {
   deliveryPieces,
   zoneFee,
 } from "./deliveryFeeShared";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 export class DeliveryFeeError extends Error {
   constructor(
@@ -155,7 +156,7 @@ export async function deliveryFeeLineEditProblem(
 /** The order's pieces going out on the truck (deliveryPieces), from its lines. */
 async function orderPieces(db: PrismaTx, orderId: number, feeLineId: number | null) {
   const lines = await db.orderLineItem.findMany({
-    where: { salesOrderId: orderId, lineItemStatus: { not: "CANCELLED" } },
+    where: { salesOrderId: orderId, lineItemStatus: COUNTED_LINE_FILTER },
     select: { id: true, productId: true, orderedQuantity: true, fulfillment: true },
   });
   return deliveryPieces(
@@ -236,7 +237,7 @@ export async function setDeliveryFee(
 
   // Cancelled lines are out of every sum (CLAUDE.md rule 33).
   const taxed = await tx.orderLineItem.aggregate({
-    where: { salesOrderId: order.id, lineItemStatus: { not: "CANCELLED" } },
+    where: { salesOrderId: order.id, lineItemStatus: COUNTED_LINE_FILTER },
     _sum: { vatAmount: true },
   });
   await tx.salesOrder.update({

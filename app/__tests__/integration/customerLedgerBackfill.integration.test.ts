@@ -387,47 +387,50 @@ describe("customerLedgerBackfill (real DB)", () => {
 
   // ─── 8. CANCELLED line items filter ──────────────────────────────────
 
-  it("excludes CANCELLED line items from the SALE amount", async () => {
-    const customerId = await seedCustomer("Cancelled", "Lines");
+  it.each(["CANCELLED", "REPLACED"] as const)(
+    "excludes %s line items from the SALE amount",
+    async (status) => {
+      const customerId = await seedCustomer("Cancelled", "Lines");
 
-    // Seed an order then mutate one line to CANCELLED. seedOrder
-    // doesn't take that param so we'll patch after.
-    const o = await prisma.salesOrder.create({
-      data: {
-        orderno: "SO-CANCEL",
-        status: "ORDER",
-        customerId,
-        created: new Date("2024-10-04T10:00:00Z"),
-        orderDate: new Date("2024-10-04T10:00:00Z"),
-        lineItems: {
-          create: [
-            {
-              lineNumber: 1,
-              partNo: "ACTIVE-1",
-              netPrice: new Prisma.Decimal(500),
-              cost: new Prisma.Decimal(0),
-              vatAmount: new Prisma.Decimal(31.75),
-              orderedQuantity: new Prisma.Decimal(1),
-              lineItemStatus: "ACTIVE",
-            },
-            {
-              lineNumber: 2,
-              partNo: "CANCELLED-1",
-              netPrice: new Prisma.Decimal(9999),
-              cost: new Prisma.Decimal(0),
-              vatAmount: new Prisma.Decimal(635),
-              orderedQuantity: new Prisma.Decimal(1),
-              lineItemStatus: "CANCELLED",
-              cancelReason: null,
-            },
-          ],
+      // Seed an order then mutate one line to CANCELLED. seedOrder
+      // doesn't take that param so we'll patch after.
+      const o = await prisma.salesOrder.create({
+        data: {
+          orderno: "SO-CANCEL",
+          status: "ORDER",
+          customerId,
+          created: new Date("2024-10-04T10:00:00Z"),
+          orderDate: new Date("2024-10-04T10:00:00Z"),
+          lineItems: {
+            create: [
+              {
+                lineNumber: 1,
+                partNo: "ACTIVE-1",
+                netPrice: new Prisma.Decimal(500),
+                cost: new Prisma.Decimal(0),
+                vatAmount: new Prisma.Decimal(31.75),
+                orderedQuantity: new Prisma.Decimal(1),
+                lineItemStatus: "ACTIVE",
+              },
+              {
+                lineNumber: 2,
+                partNo: "CANCELLED-1",
+                netPrice: new Prisma.Decimal(9999),
+                cost: new Prisma.Decimal(0),
+                vatAmount: new Prisma.Decimal(635),
+                orderedQuantity: new Prisma.Decimal(1),
+                lineItemStatus: status,
+                cancelReason: null,
+              },
+            ],
+          },
         },
-      },
-    });
-    expect(o).toBeDefined();
+      });
+      expect(o).toBeDefined();
 
-    const result = await backfillCustomerLedger(customerId);
-    expect(result.validation.ok).toBe(true);
-    expect(result.finalBalance).toBe(531.75); // active line only
-  });
+      const result = await backfillCustomerLedger(customerId);
+      expect(result.validation.ok).toBe(true);
+      expect(result.finalBalance).toBe(531.75); // active line only
+    },
+  );
 });

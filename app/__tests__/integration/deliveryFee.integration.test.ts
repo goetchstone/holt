@@ -583,6 +583,30 @@ describe("an order records its store", () => {
   });
 });
 
+describe("the pieces a fee is quoted on", () => {
+  it.each(["CANCELLED", "REPLACED"] as const)(
+    "leave out a %s line, which isn't going out",
+    async (status) => {
+      const w = await world();
+      const sale = await ringDelivery(w);
+      await prisma.orderLineItem.create({
+        data: {
+          salesOrderId: sale.body.id,
+          lineNumber: 9,
+          productId: w.sofa.id,
+          productName: "Sofa",
+          orderedQuantity: 3,
+          netPrice: 3000,
+          cost: 0,
+          lineItemStatus: status,
+        },
+      });
+      const res = await asRegister(feeRoute, "GET", { id: String(sale.body.id) });
+      expect(res.body.quote).toMatchObject({ pieces: 2 });
+    },
+  );
+});
+
 describe("the order's totals", () => {
   it("count the fee and leave a cancelled line out (rule 33)", async () => {
     const w = await world();

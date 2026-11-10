@@ -13,6 +13,7 @@
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { productCostSql } from "@/lib/purchasing/landedCost";
+import { countedLineSql } from "@/lib/reports/revenueScope";
 
 // What a unit on hand is worth: its landed cost, else its catalog cost (GAP-02).
 // A constant fragment, never caller input.
@@ -104,7 +105,7 @@ export async function getInventoryHealth(
             -- is what this was -- a quoted-but-never-sold product looked freshly
             -- sold and dropped out of the dead-stock count.
             WHERE so.status IN ('ORDER', 'FULFILLED')
-              AND li."lineItemStatus" <> 'CANCELLED'
+              AND ${countedLineSql("li")}
             GROUP BY li."productId"
           )
           SELECT COALESCE(v.name, 'No Vendor') AS key,
@@ -140,7 +141,7 @@ export async function getInventoryHealth(
             -- is what this was -- a quoted-but-never-sold product looked freshly
             -- sold and dropped out of the dead-stock count.
             WHERE so.status IN ('ORDER', 'FULFILLED')
-              AND li."lineItemStatus" <> 'CANCELLED'
+              AND ${countedLineSql("li")}
             GROUP BY li."productId"
           )
           SELECT COALESCE(d.name, 'Uncategorized') AS key,
