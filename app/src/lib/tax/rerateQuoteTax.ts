@@ -26,6 +26,7 @@ import {
   rateForLineAmount,
   resolveTaxDistrict,
 } from "@/lib/tax/resolveTaxRate";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -40,7 +41,7 @@ export async function rerateQuoteTax(tx: PrismaTx, orderId: number): Promise<voi
       // Cancelled lines are out of every sum (CLAUDE.md rule 33) and keep the
       // rate they had.
       lineItems: {
-        where: { lineItemStatus: { not: "CANCELLED" } },
+        where: { lineItemStatus: COUNTED_LINE_FILTER },
         select: { id: true, netPrice: true, product: { select: LINE_TAX_GROUP_SELECT } },
       },
     },

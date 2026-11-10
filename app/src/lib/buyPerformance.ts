@@ -239,7 +239,7 @@ export interface ComputePerformanceOptions {
  *
  * The sales array is FILTERED + AGGREGATED upstream: caller passes
  * only the OrderLineItem rows where `productId IN <frame mates>` and
- * `lineItemStatus != 'CANCELLED'` (rule 33) and order status isn't
+ * counted lines only (rule 33, COUNTED_LINE_FILTER) and order status isn't
  * CANCELLED.
  */
 export function computePerformance(

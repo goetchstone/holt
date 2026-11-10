@@ -56,6 +56,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isPaymentExcludedFromBalance } from "@/lib/paymentBalance";
+import { isCountedLine } from "@/lib/salesOrderRevenue";
 
 export type CustomerLedgerEntryType =
   | "SALE"
@@ -348,7 +349,8 @@ export function computeSourceBalance(orders: ReadonlyArray<OrderForLedgerSource>
   for (const o of orders) {
     let due = 0;
     for (const li of o.lineItems) {
-      if (li.lineItemStatus === "CANCELLED") continue;
+      // Cancelled and replaced lines aren't owed (COUNTED_LINE_STATUSES, rule 33).
+      if (!isCountedLine(li.lineItemStatus)) continue;
       due += Number(li.netPrice) + Number(li.vatAmount ?? 0);
     }
     let paid = 0;

@@ -9,6 +9,7 @@ import { logError } from "@/lib/logger";
 import { computeTotalPaid } from "@/lib/paymentBalance";
 import { ORDER_FLAGS_SELECT } from "@/lib/sales/orderFlags";
 import { flagRefsOf } from "@/lib/sales/orderFlagsShared";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -81,7 +82,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           },
           // Cancelled lines are out of every sum (CLAUDE.md rule 33).
           // lineItemStatus is never null, so a bare `not` is safe (rule 51).
-          lineItems: { where: { lineItemStatus: { not: "CANCELLED" } } },
+          lineItems: { where: { lineItemStatus: COUNTED_LINE_FILTER } },
           payments: true,
           flags: ORDER_FLAGS_SELECT,
         },

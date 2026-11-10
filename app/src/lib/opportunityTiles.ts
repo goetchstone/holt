@@ -11,6 +11,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 export type TileId =
   | "big-wallets"
@@ -107,7 +108,7 @@ export function buildMissingPiecesWhere(
           orderDate: { gte: windowStart },
           lineItems: {
             some: {
-              lineItemStatus: { not: "CANCELLED" },
+              lineItemStatus: COUNTED_LINE_FILTER,
               product: fromProductFilter,
             },
           },
@@ -118,7 +119,7 @@ export function buildMissingPiecesWhere(
           some: {
             lineItems: {
               some: {
-                lineItemStatus: { not: "CANCELLED" },
+                lineItemStatus: COUNTED_LINE_FILTER,
                 product: toProductFilter,
               },
             },

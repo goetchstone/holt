@@ -177,7 +177,12 @@ async function seedSale(opts: {
   paymentAmount: number;
   paymentType?: string;
   withInvoice?: boolean;
-  cancelledLineExtra?: { netPrice: number; cost: number; vatAmount: number };
+  cancelledLineExtra?: {
+    netPrice: number;
+    cost: number;
+    vatAmount: number;
+    status?: "CANCELLED" | "REPLACED";
+  };
 }) {
   const customer = await prisma.customer.create({
     data: { firstName: "Test", lastName: "Buyer" },
@@ -211,7 +216,7 @@ async function seedSale(opts: {
                   cost: opts.cancelledLineExtra.cost,
                   vatAmount: opts.cancelledLineExtra.vatAmount,
                   orderedQuantity: 1,
-                  lineItemStatus: "CANCELLED" as const,
+                  lineItemStatus: opts.cancelledLineExtra.status ?? "CANCELLED",
                   productId: opts.productId,
                 },
               ]
@@ -343,6 +348,28 @@ describe("generateSalesJournal (real DB)", () => {
     expect(byCode.get("5-5280")?.debit).toBe(400); // not 5400
     expect(byCode.get("1-1380")?.credit).toBe(400); // not 5400
     expect(byCode.get("2-2120")?.credit).toBe(60); // not 660
+    expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
+  });
+
+  it("(B1) excludes a REPLACED line too: its replacement carries the item", async () => {
+    const fx = await seedAccountingFixtures();
+    await seedSale({
+      productId: fx.product.id,
+      netPrice: 1000,
+      cost: 400,
+      vatAmount: 60,
+      paymentAmount: 1060,
+      paymentType: "Cash",
+      withInvoice: true,
+      cancelledLineExtra: { netPrice: 9999, cost: 5000, vatAmount: 600, status: "REPLACED" },
+    });
+
+    const result = await generateSalesJournal(DAY);
+
+    const byCode = new Map(posted(result).lines.map((l) => [l.glAccount?.code, l]));
+    expect(byCode.get("4-4080")?.credit).toBe(1000);
+    expect(byCode.get("5-5280")?.debit).toBe(400);
+    expect(byCode.get("2-2120")?.credit).toBe(60);
     expect(totalDebits(posted(result))).toBe(totalCredits(posted(result)));
   });
 

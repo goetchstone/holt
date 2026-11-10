@@ -12,6 +12,7 @@ import type { NextApiRequest } from "next";
 import type { Session } from "next-auth";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 /**
  * Canonical productNames the POS uses for delivery / freight pass-through
@@ -123,7 +124,7 @@ export function buildLineItemWhere(
   includeDeliveryFreight = false,
 ): Prisma.OrderLineItemWhereInput {
   const where: Prisma.OrderLineItemWhereInput = {
-    lineItemStatus: { not: "CANCELLED" },
+    lineItemStatus: COUNTED_LINE_FILTER,
   };
   if (!includeDeliveryFreight) {
     // NULL productNames are NOT delivery/freight — admit them via the

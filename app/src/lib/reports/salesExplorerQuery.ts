@@ -13,7 +13,8 @@
 // The three reporting.md invariants, applied here:
 //
 //   (a) Cancelled-line rule — every OrderLineItem fetch below carries the
-//       literal `lineItemStatus: { not: "CANCELLED" }` (CLAUDE.md rule 33).
+//       `lineItemStatus: COUNTED_LINE_FILTER` (CLAUDE.md rule 33), which leaves
+//       out cancelled and replaced lines.
 //       LineItemStatus is non-nullable in the current schema (backfilled
 //       2026-05-05, see reporting.md), so this specific `not:` is NOT a
 //       NULL-trap case — but see (b) for the ones that would be.
@@ -31,7 +32,7 @@
 // net out rewrite chains — see lib/salesOrderRevenue.ts.
 
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 import { imputeMissingCost, resolveLineCost } from "@/lib/marginMath";
 import {
   UNCATEGORIZED_DEPARTMENT,
@@ -142,7 +143,7 @@ export async function computeSalesExplorerCells(
   // Invariant (a): cancelled lines must never inflate report totals.
   const liWhere: Prisma.OrderLineItemWhereInput = {
     salesOrderId: { in: orderIds },
-    lineItemStatus: { not: "CANCELLED" },
+    lineItemStatus: COUNTED_LINE_FILTER,
   };
   const productFilter = buildSalesExplorerProductFilter(deptNames, categoryNames, vendorNames);
   if (productFilter) liWhere.product = productFilter;
@@ -230,7 +231,7 @@ export async function computeSalesExplorerStoreOrderCounts(
       lineItems: {
         // Invariant (a): cancelled lines excluded from the qualifying check too.
         where: {
-          lineItemStatus: { not: "CANCELLED" },
+          lineItemStatus: COUNTED_LINE_FILTER,
           ...(productFilter ? { product: productFilter } : {}),
         },
         select: { id: true },

@@ -4,7 +4,14 @@ Sales dashboards, salesperson reports, consignment summaries, tax reports. All r
 
 ## The Cancelled Line Rule
 
-**Every query that sums or counts line item amounts MUST include `lineItemStatus: { not: "CANCELLED" }`.** No exceptions. Cancelled lines from orphan cleanup or manual cancellation inflate totals if not filtered. This is CLAUDE.md rule 33.
+**Every query that sums or counts line item amounts MUST use the shared counted-line filter.** No exceptions. That's `lineItemStatus: COUNTED_LINE_FILTER` in Prisma (`lib/salesOrderRevenue.ts`), `countedLineSql()` in a `Prisma.sql` template, or `countedLineSqlText()` in a query built as text (`lib/reports/revenueScope.ts`). This is CLAUDE.md rule 33.
+
+It keeps ACTIVE and BACKORDERED lines (`COUNTED_LINE_STATUSES`), leaving out cancelled and replaced ones:
+
+- **Cancelled lines,** from orphan cleanup or a cancel, keep their price and inflate totals if counted.
+- **Replaced lines** keep their price too, and their replacement carries the same item.
+
+Until 2026-11-10 the filter was `{ not: "CANCELLED" }`, which counted a replaced line and its replacement both: the order screen's total, Detailed Sales, Gross Margin, commission, the books and a customer's lifetime spend among them (`__tests__/integration/replacedLines.integration.test.ts`). No local database had a replaced line yet, so no recorded figure was wrong. `__tests__/reports.cancelledLineFilter.test.ts` fails on any file in `src/` that leaves out CANCELLED alone, unless it's listed with the reason it isn't a total, such as relinking lines to products.
 
 ## The Nullable-Column NULL Trap
 
@@ -244,15 +251,6 @@ This procedure was applied 2026-04-30 to a user-reported April month-to-date dis
 Covered: `designerDashboardDates.test.ts` (date range logic)
 
 Gaps: No test verifies that report endpoints include the cancelled-line filter. A CI grep check would catch regressions.
-
-## Known Gaps
-
-**A replaced line still counts in most reports (found 2026-11-07, not fixed).** Replacing a line leaves the old one
-with status REPLACED and its price, and adds a new ACTIVE line (`line-items/[lineItemId].ts`). `COUNTED_LINE_STATUSES`
-leaves it out because counting both charges for the item twice, and `computeBalance`, `referrals.ts` and the query
-builder use it. Thirteen files under `lib/reports/` filter only on `lineItemStatus: { not: "CANCELLED" }`, so a
-replaced line and its replacement both count there. This is from reading the filters: no report's total has been
-measured against it yet.
 
 ## Available Reports
 
