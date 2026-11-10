@@ -25,20 +25,20 @@ import {
 } from "../src/lib/salesBySalesperson";
 
 describe("buildLineItemWhere", () => {
-  it("always excludes CANCELLED line items (rule 33)", () => {
+  it("always excludes cancelled and replaced line items (rule 33)", () => {
     // The legacy rows with NULL lineItemStatus are backfilled to
     // ACTIVE in the 20260505_backfill_lineitem_status_nulls migration,
     // so the schema's @default(ACTIVE) and the data agree. No NULL
     // trap remains for this column.
     const where = buildLineItemWhere([]);
-    expect(where.lineItemStatus).toEqual({ not: "CANCELLED" });
+    expect(where.lineItemStatus).toEqual({ in: ["ACTIVE", "BACKORDERED"] });
   });
 
   it("keeps the cancelled-line filter even when includeDeliveryFreight is true", () => {
     // Cancelled-line guard is unconditional. Only delivery + freight
     // are toggleable.
     const where = buildLineItemWhere([], true);
-    expect(where.lineItemStatus).toEqual({ not: "CANCELLED" });
+    expect(where.lineItemStatus).toEqual({ in: ["ACTIVE", "BACKORDERED"] });
   });
 
   it("default: excludes delivery + freight via OR(null, NOT(OR(equals)) (NULL-safe, case-insensitive)", () => {
@@ -152,7 +152,7 @@ describe("buildLineItemWhere", () => {
 
   it("composes department filter with includeDeliveryFreight=true (cancelled-only mode)", () => {
     const where = buildLineItemWhere(["Furniture"], true);
-    expect(where.lineItemStatus).toEqual({ not: "CANCELLED" });
+    expect(where.lineItemStatus).toEqual({ in: ["ACTIVE", "BACKORDERED"] });
     expect(where.AND).toBeUndefined();
     expect(where.product).toEqual({
       department: { name: { in: ["Furniture"] } },

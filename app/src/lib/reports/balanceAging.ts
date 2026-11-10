@@ -16,6 +16,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { PAYMENT_STATUSES_EXCLUDED_FROM_BALANCE } from "@/lib/paymentBalance";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 export interface BalanceRow {
   id: number;
@@ -99,7 +100,7 @@ export async function getBalanceAging(
       salesperson: true,
       customer: { select: { id: true, firstName: true, lastName: true } },
       lineItems: {
-        where: { lineItemStatus: { not: "CANCELLED" } },
+        where: { lineItemStatus: COUNTED_LINE_FILTER },
         select: { netPrice: true, orderedQuantity: true, vatAmount: true },
       },
       payments: {

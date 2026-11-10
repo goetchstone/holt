@@ -44,6 +44,7 @@ import { SettleOverpayment } from "./SettleOverpayment";
 import type { Overpayment } from "@/lib/sales/cancelOrder";
 import type { RefundDestination } from "@/lib/returns/refundReturn";
 import { orderChangeLabel } from "@/lib/sales/orderChangeLabels";
+import { isCountedLine } from "@/lib/salesOrderRevenue";
 
 interface LineItem {
   purchaseOrders: { poNumber: string; status: string; vendor: string }[];
@@ -1147,8 +1148,7 @@ export function OrderDetailView({
             </thead>
             <tbody>
               {orderDetails.lineItems.map((item) => {
-                const isInactive =
-                  item.lineItemStatus === "CANCELLED" || item.lineItemStatus === "REPLACED";
+                const isInactive = !isCountedLine(item.lineItemStatus);
                 const replacedByLineNumber = item.replacedByLineItemId
                   ? orderDetails.lineItems.find((l) => l.id === item.replacedByLineItemId)
                       ?.lineNumber

@@ -7,7 +7,7 @@ import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { AsyncParser } from "@json2csv/node";
 import { logger, logError } from "@/lib/logger";
-import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 async function handler(req: NextApiRequest, res: NextApiResponse, session: Session) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
@@ -37,7 +37,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse, session: Sessi
         externalCustomerCode: true,
         salesperson: true,
         lineItems: {
-          where: { lineItemStatus: { not: "CANCELLED" } },
+          where: { lineItemStatus: COUNTED_LINE_FILTER },
           select: {
             partNo: true,
             productName: true,

@@ -27,7 +27,7 @@ import {
   RESTOCKING_FEE_MAPPING_LABEL,
   DELIVERY_FEE_MAPPING_LABEL,
 } from "./glMapping";
-import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 import { METHOD_DISPLAY } from "@/lib/paymentMethodDisplay";
 import { businessDayRange } from "@/lib/reports/businessDay";
 
@@ -414,7 +414,7 @@ export async function computeDailyReconciliation(opts: {
   // Source-side queries
   const lineItems = await client.orderLineItem.findMany({
     where: {
-      lineItemStatus: { not: "CANCELLED" },
+      lineItemStatus: COUNTED_LINE_FILTER,
       salesOrder: {
         orderDate: { gte: dayStart, lt: dayEndExclusive },
         status: { in: [...SALES_REVENUE_STATUSES] },

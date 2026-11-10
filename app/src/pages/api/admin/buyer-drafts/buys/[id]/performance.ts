@@ -29,7 +29,7 @@ import {
 } from "@/lib/buyPerformance";
 import { deriveSalesWindow, type BuyPoForWindow } from "@/lib/buyPerformanceWindow";
 import { computeBuyLinkCutoff } from "@/lib/buyerDraftBuyLinkCutoff";
-import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 import { toQty } from "@/lib/inventory/quantity";
 
 // Consignment stock has no shared frame stems, so it cannot roll up with
@@ -224,7 +224,7 @@ export default requirePermission(
           : await prisma.orderLineItem.findMany({
               where: {
                 productId: { in: productIdsInScope },
-                lineItemStatus: { not: "CANCELLED" },
+                lineItemStatus: COUNTED_LINE_FILTER,
                 salesOrder:
                   salesWindow.start === null
                     ? { status: { in: [...SOLD_STATUSES] } }

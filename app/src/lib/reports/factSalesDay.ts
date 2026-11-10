@@ -15,7 +15,7 @@
 // A GROUP BY has no such limit and is far cheaper.
 
 import { Prisma, type PrismaClient } from "@prisma/client";
-import { revenueStatusSql } from "@/lib/reports/revenueScope";
+import { revenueStatusSql, countedLineSql } from "@/lib/reports/revenueScope";
 
 export interface FactSalesDayRow {
   date: string;
@@ -50,7 +50,7 @@ export async function getFactSalesDay(prisma: PrismaClient): Promise<FactSalesDa
     LEFT JOIN "Department" d ON d.id = p."departmentId"
     WHERE ${revenueStatusSql()}
       AND so."orderDate" IS NOT NULL
-      AND li."lineItemStatus" != 'CANCELLED'
+      AND ${countedLineSql("li")}
     GROUP BY 1, 2
   `);
 

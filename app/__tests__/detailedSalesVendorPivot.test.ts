@@ -60,7 +60,7 @@ describe("detailed-sales summary lib — vendor pivot extension", () => {
   });
 
   it("rule 33: cancelled lines excluded from rollup", () => {
-    expect(LIB).toMatch(/lineItemStatus:\s*\{\s*not:\s*"CANCELLED"\s*\}/);
+    expect(LIB).toMatch(/lineItemStatus:\s*COUNTED_LINE_FILTER/);
   });
 
   it("vendors filter parsed and applied through product relation", () => {
@@ -98,7 +98,7 @@ describe("detailed-sales drilldown lib — vendor + type narrowing", () => {
     // Two inline occurrences: one in getDetailedSales, one in
     // getDetailedSalesItems. Both must carry the filter so summary +
     // drilldown can never diverge (they once did).
-    const matches = LIB.match(/lineItemStatus:\s*\{\s*not:\s*"CANCELLED"\s*\}/g) ?? [];
+    const matches = LIB.match(/lineItemStatus:\s*COUNTED_LINE_FILTER/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 });

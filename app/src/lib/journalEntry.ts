@@ -16,6 +16,7 @@ import {
 import { countedPaymentWhere } from "@/lib/paymentBalance";
 import { businessDayRange } from "@/lib/reports/businessDay";
 import { getBusinessTimeZone } from "@/lib/appSettings";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 type Decimal = Prisma.Decimal;
 
@@ -889,7 +890,7 @@ const ORDER_FOR_JOURNAL_INCLUDE = {
       // double-count into Sales / COGS / Inventory / Tax. Same bug
       // class as the Detailed Sales discrepancy fixed in PR
       // #125; this is the JE-side closure of that surface.
-      where: { lineItemStatus: { not: "CANCELLED" } },
+      where: { lineItemStatus: COUNTED_LINE_FILTER },
       include: {
         product: {
           include: {

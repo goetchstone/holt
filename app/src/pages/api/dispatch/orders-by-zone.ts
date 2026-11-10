@@ -11,6 +11,7 @@ import { logError } from "@/lib/logger";
 import { computeBalance } from "@/lib/paymentService";
 import { ORDER_FLAGS_SELECT } from "@/lib/sales/orderFlags";
 import { type OrderFlagRef, flagRefsOf } from "@/lib/sales/orderFlagsShared";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 export interface DispatchLineItem {
   id: number;
@@ -87,7 +88,7 @@ export default requireAuthWithRole(
               vatAmount: true,
               lineItemStatus: true,
             },
-            where: { lineItemStatus: { not: "CANCELLED" } },
+            where: { lineItemStatus: COUNTED_LINE_FILTER },
           },
           purchaseOrders: {
             select: { id: true, poNumber: true, status: true, expectedDelivery: true },
