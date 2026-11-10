@@ -11,9 +11,14 @@
 import { useEffect, useState } from "react";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
-import type { ProtectionPlanPays, ProtectionPlanResets } from "@/lib/protectionPlanCommission";
-
-const ENDPOINT = "/api/admin/reports/commission-tiers/tiers";
+import {
+  formFromSetup,
+  setupFromForm,
+  type ProtectionPlanForm,
+  type ProtectionPlanFormBracket,
+  type ProtectionPlanPays,
+  type ProtectionPlanResets,
+} from "@/lib/protectionPlanCommission";
 
 export interface ProtectionPlanRow {
   id: number;
@@ -32,79 +37,32 @@ export interface ProtectionPlanRow {
   };
 }
 
-/** A bracket as typed: a percent is entered as 10 for 10%. */
-interface DraftBracket {
-  key: number;
-  from: string;
-  amount: string;
-}
-
-interface Draft {
-  name: string;
-  categoryId: string;
-  pays: ProtectionPlanPays;
-  resets: ProtectionPlanResets;
-  alsoCountsInMainPlan: boolean;
-  brackets: DraftBracket[];
-}
+/** The form's bracket, with a stable key for React. */
+type DraftBracket = ProtectionPlanFormBracket & { key: number };
+type Draft = Omit<ProtectionPlanForm, "brackets"> & { brackets: DraftBracket[] };
 
 let bracketKey = 0;
 const newKey = () => ++bracketKey;
 
 function draftFrom(plan: ProtectionPlanRow | null): Draft {
-  if (!plan) {
-    return {
-      name: "",
-      categoryId: "",
-      pays: "PERCENT",
-      resets: "YEAR",
-      alsoCountsInMainPlan: false,
-      brackets: [{ key: newKey(), from: "0", amount: "" }],
-    };
-  }
-  const p = plan.protection;
-  return {
-    name: plan.name,
-    categoryId: p.categoryId === null ? "" : String(p.categoryId),
-    pays: p.pays,
-    resets: p.resets,
-    alsoCountsInMainPlan: p.alsoCountsInMainPlan,
-    brackets: p.brackets.map((b) => ({
-      key: newKey(),
-      from: String(b.from),
-      amount: String(p.pays === "PERCENT" ? Math.round(b.amount * 100000) / 1000 : b.amount),
-    })),
-  };
+  const form = plan
+    ? formFromSetup({ ...plan.protection, name: plan.name })
+    : formFromSetup({
+        name: "",
+        categoryId: null,
+        pays: "PERCENT",
+        resets: "YEAR",
+        alsoCountsInMainPlan: false,
+        brackets: [],
+      });
+  const brackets = form.brackets.length > 0 ? form.brackets : [{ from: "0", amount: "" }];
+  return { ...form, brackets: brackets.map((b) => ({ ...b, key: newKey() })) };
 }
 
-/** A typed number, or NaN when blank, so the server says what's missing. */
-function typed(value: string): number {
-  return value.trim() === "" ? Number.NaN : Number(value);
-}
-
-/** What the endpoint takes. A percent typed as 10 is sent as 0.1. */
-function setupFrom(draft: Draft) {
-  return {
-    name: draft.name,
-    description: null,
-    categoryId: draft.categoryId === "" ? null : Number(draft.categoryId),
-    pays: draft.pays,
-    resets: draft.resets,
-    alsoCountsInMainPlan: draft.alsoCountsInMainPlan,
-    brackets: draft.brackets.map((b) => ({
-      from: typed(b.from),
-      amount: draft.pays === "PERCENT" ? typed(b.amount) / 100 : typed(b.amount),
-    })),
-  };
-}
-
-async function send(method: string, body: unknown): Promise<string | null> {
+/** The plans endpoint's answer: null when it worked, else what to show. */
+async function send(request: () => Promise<Response>): Promise<string | null> {
   try {
-    const res = await fetch(ENDPOINT, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const res = await request();
     if (res.ok) return null;
     const data = await res.json().catch(() => ({}));
     return data.error || `The plan wasn't saved (HTTP ${res.status}).`;
@@ -112,6 +70,11 @@ async function send(method: string, body: unknown): Promise<string | null> {
     return getErrorMessage(err, "The plan wasn't saved.");
   }
 }
+
+const asJson = (body: unknown) => ({
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
 
 export function ProtectionPlanPlans({
   plans,
@@ -144,10 +107,10 @@ export function ProtectionPlanPlans({
     setError(null);
   }
 
-  async function run(method: string, body: unknown, after?: () => void) {
+  async function run(request: () => Promise<Response>, after?: () => void) {
     setBusy(true);
     setError(null);
-    const problem = await send(method, body);
+    const problem = await send(request);
     setBusy(false);
     if (problem) {
       setError(problem);
@@ -158,10 +121,25 @@ export function ProtectionPlanPlans({
   }
 
   const save = () => {
-    const setup = setupFrom(draft);
+    const setup = setupFromForm(draft);
+    const done = () => setEditingId(null);
     return editingId === 0
-      ? run("POST", { kind: "PROTECTION_PLAN", ...setup }, () => setEditingId(null))
-      : run("PUT", { planId: editingId, protectionPlan: setup }, () => setEditingId(null));
+      ? run(
+          () =>
+            fetch("/api/admin/reports/commission-tiers/tiers", {
+              method: "POST",
+              ...asJson({ kind: "PROTECTION_PLAN", ...setup }),
+            }),
+          done,
+        )
+      : run(
+          () =>
+            fetch("/api/admin/reports/commission-tiers/tiers", {
+              method: "PUT",
+              ...asJson({ planId: editingId, protectionPlan: setup }),
+            }),
+          done,
+        );
   };
 
   return (
@@ -222,10 +200,22 @@ export function ProtectionPlanPlans({
               plan={plan}
               busy={busy || editingId !== null}
               onEdit={() => begin(plan)}
-              onMakeDefault={() => run("PATCH", { planId: plan.id, action: "setDefault" })}
+              onMakeDefault={() =>
+                run(() =>
+                  fetch("/api/admin/reports/commission-tiers/tiers", {
+                    method: "PATCH",
+                    ...asJson({ planId: plan.id, action: "setDefault" }),
+                  }),
+                )
+              }
               onDelete={() => {
                 if (window.confirm(`Delete plan "${plan.name}"? This cannot be undone.`)) {
-                  void run("DELETE", { planId: plan.id });
+                  void run(() =>
+                    fetch("/api/admin/reports/commission-tiers/tiers", {
+                      method: "DELETE",
+                      ...asJson({ planId: plan.id }),
+                    }),
+                  );
                 }
               }}
             />

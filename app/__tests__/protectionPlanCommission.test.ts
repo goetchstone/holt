@@ -6,6 +6,8 @@
 
 import {
   bracketsToTiers,
+  formFromSetup,
+  setupFromForm,
   parseProtectionPlanSetup,
   ruleShape,
   setupFromRule,
@@ -74,6 +76,37 @@ describe("parseProtectionPlanSetup", () => {
       brackets: [{ from: 0, amount: 25 }],
     });
     expect(parsed.ok).toBe(true);
+  });
+});
+
+describe("the screen's form", () => {
+  it("shows a saved rate as a percent and sends it back as a rate", () => {
+    const form = formFromSetup({ ...valid, pays: "PERCENT", resets: "YEAR" });
+    expect(form.brackets).toEqual([
+      { from: "0", amount: "10" },
+      { from: "5000", amount: "15" },
+    ]);
+    const parsed = parseProtectionPlanSetup(setupFromForm(form));
+    expect(parsed.ok && parsed.setup.brackets).toEqual(valid.brackets);
+  });
+
+  it("keeps an amount per plan as dollars", () => {
+    const form = formFromSetup({
+      ...valid,
+      pays: "PER_PLAN",
+      resets: "YEAR",
+      brackets: [{ from: 0, amount: 25 }],
+    });
+    expect(form.brackets).toEqual([{ from: "0", amount: "25" }]);
+    expect(setupFromForm(form).brackets).toEqual([{ from: 0, amount: 25 }]);
+  });
+
+  it("a blank field is sent so the server can say what's missing", () => {
+    const form = formFromSetup({ ...valid, pays: "PERCENT", resets: "YEAR", categoryId: null });
+    const sent = setupFromForm({ ...form, brackets: [{ from: "0", amount: " " }] });
+    expect(sent.categoryId).toBeNull();
+    const parsed = parseProtectionPlanSetup({ ...sent, categoryId: 4 });
+    expect(!parsed.ok && parsed.error).toContain("rate must be 0 or more");
   });
 });
 

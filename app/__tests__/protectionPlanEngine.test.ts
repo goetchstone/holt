@@ -168,6 +168,11 @@ describe("a protection-plan rule ahead of the main plan", () => {
     // Window [0, $6,000): $1,000 over the goal at 10% = $100, the furniture's share 4/6.
     expect(paidBy(run([ppRule(true), perSale], oneSale), "main")).toBe(66.67);
     expect(paidBy(run([ppRule(false), perSale], oneSale), "main")).toBe(0);
+
+    // RETROACTIVE per sale: the sale reached the 10% band, which re-rates only the furniture.
+    const perSaleRetro = { ...perSale, tierMode: "RETROACTIVE" as const };
+    expect(paidBy(run([ppRule(true), perSaleRetro], oneSale), "main")).toBe(400);
+    expect(paidBy(run([ppRule(false), perSaleRetro], oneSale), "main")).toBe(0);
   });
 
   it("counted rows go only to the next rule that matches them", () => {

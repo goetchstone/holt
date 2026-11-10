@@ -300,6 +300,22 @@ describe("paying protection plans under a plan of their own", () => {
 });
 
 describe("keeping the two kinds apart", () => {
+  it("a protection-plan plan made first is never taken for the main default", async () => {
+    await protectionPlan("Protection 10%");
+    const furniture = await mainPlan("Furniture");
+    const sam = await designer("Sam");
+    await sell(sam.id, furnitureProductId, 1_000);
+    await sell(sam.id, ppProductId, 1_000);
+
+    expect(
+      await prisma.commissionPlan.findUniqueOrThrow({ where: { id: furniture.id } }),
+    ).toMatchObject({ isDefault: true });
+    expect((await resolvePlanTiersForStaff([sam.id])).get(sam.id)?.planName).toBe("Furniture");
+    const draft = await draftFor(sam.id);
+    expect(draft.commissionPlanName).toBe("Furniture");
+    expect(draft.commissionAmount).toBe(130); // $100 for the plan + $1,000 at 3%
+  });
+
   it("each kind has its own default, and the live calculator still finds the main one", async () => {
     const main = await mainPlan();
     const pp = await protectionPlan("Protection 10%");

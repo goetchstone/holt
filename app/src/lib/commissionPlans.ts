@@ -476,8 +476,7 @@ export async function resolvePlanAssignment(
   }
   return {
     ok: false,
-    error:
-      kind === "MAIN" ? "Unknown commission plan" : "Unknown protection-plan commission plan",
+    error: kind === "MAIN" ? "Unknown commission plan" : "Unknown protection-plan commission plan",
   };
 }
 

@@ -146,6 +146,59 @@ export function ruleShape(setup: Pick<ProtectionPlanSetup, "pays" | "resets">): 
   };
 }
 
+/** A bracket as the form holds it: typed text, with a percent entered as 10 for 10%. */
+export interface ProtectionPlanFormBracket {
+  from: string;
+  amount: string;
+}
+
+export interface ProtectionPlanForm {
+  name: string;
+  categoryId: string;
+  pays: ProtectionPlanPays;
+  resets: ProtectionPlanResets;
+  alsoCountsInMainPlan: boolean;
+  brackets: ProtectionPlanFormBracket[];
+}
+
+/** A saved plan as the form shows it: a rate of 0.1 shows as 10. */
+export function formFromSetup(
+  setup: Omit<ProtectionPlanSetup, "categoryId" | "description"> & { categoryId: number | null },
+): ProtectionPlanForm {
+  return {
+    name: setup.name,
+    categoryId: setup.categoryId === null ? "" : String(setup.categoryId),
+    pays: setup.pays,
+    resets: setup.resets,
+    alsoCountsInMainPlan: setup.alsoCountsInMainPlan,
+    brackets: setup.brackets.map((b) => ({
+      from: String(b.from),
+      amount: String(setup.pays === "PERCENT" ? Math.round(b.amount * 100000) / 1000 : b.amount),
+    })),
+  };
+}
+
+/** A typed number, or NaN when blank, so the server says what's missing. */
+function typed(value: string): number {
+  return value.trim() === "" ? Number.NaN : Number(value);
+}
+
+/** What the form sends: a percent typed as 10 goes as 0.1. `parseProtectionPlanSetup` checks it. */
+export function setupFromForm(form: ProtectionPlanForm) {
+  return {
+    name: form.name,
+    description: null,
+    categoryId: form.categoryId === "" ? null : Number(form.categoryId),
+    pays: form.pays,
+    resets: form.resets,
+    alsoCountsInMainPlan: form.alsoCountsInMainPlan,
+    brackets: form.brackets.map((b) => ({
+      from: typed(b.from),
+      amount: form.pays === "PERCENT" ? typed(b.amount) / 100 : typed(b.amount),
+    })),
+  };
+}
+
 /** Read a stored rule back into what the screen edits. */
 export function setupFromRule(rule: {
   basis: string;
