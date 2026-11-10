@@ -213,6 +213,8 @@ export interface PreviewedPayout extends ComputedRulePayout {
   // commit so history records who was paid under which structure.
   commissionPlanId: number | null;
   commissionPlanName: string;
+  /** The protection-plan plan that priced its category's sales, or null (GAP-24). */
+  protectionPlanName: string | null;
 }
 
 /**
@@ -281,6 +283,7 @@ export async function previewPayoutsForPeriod(
       displayName: s.displayName,
       commissionPlanId: resolved.planId,
       commissionPlanName: resolved.planName,
+      protectionPlanName: resolved.protectionPlanName,
     });
   }
 
@@ -436,6 +439,7 @@ export async function commitPayoutsForPeriod(
         ruleEngineVersion: d.ruleEngineVersion,
         commissionPlanId: d.commissionPlanId,
         commissionPlanName: d.commissionPlanName,
+        protectionPlanName: d.protectionPlanName,
         notes: ov?.notes ?? null,
         paidOn: ov?.paidOn ?? null,
         ...lockedFields,

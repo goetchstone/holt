@@ -7,7 +7,9 @@
 //
 //   GET    -> { plans }                      list plans (tiers + assignedCount)
 //   POST   { name, description?, tiers? }    create plan (empty tiers seed from fallback)
+//   POST   { kind: "PROTECTION_PLAN", ...setup }  create a protection-plan plan (GAP-24)
 //   PUT    { planId, tiers }                 replace a plan's tier set
+//   PUT    { planId, protectionPlan: setup }  save a protection-plan plan's setup
 //   PATCH  { planId, action: "setDefault" }  make a plan the default
 //   PATCH  { planId, name?, description?, isActive? }  rename / describe / (de)activate
 //   DELETE { planId }                        delete (refuses when default or assigned)
@@ -20,8 +22,11 @@ import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { getErrorCode } from "@/lib/errorCode";
+import { parseProtectionPlanSetup } from "@/lib/protectionPlanCommission";
 import {
   createPlan,
+  createProtectionPlan,
+  saveProtectionPlan,
   deletePlan,
   listPlans,
   replacePlanTiers,
@@ -39,6 +44,7 @@ interface PostBody {
 interface PutBody {
   planId: number;
   tiers: TierInput[];
+  protectionPlan?: unknown;
 }
 
 interface PatchBody {
@@ -62,6 +68,16 @@ function sessionEmail(session: Session): string | null {
 }
 
 async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Session) {
+  if ((req.body as { kind?: unknown } | undefined)?.kind === "PROTECTION_PLAN") {
+    const parsed = parseProtectionPlanSetup(req.body);
+    if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+    const created = await createProtectionPlan(parsed.setup, sessionEmail(session));
+    await auditLog("COMMISSION_PLAN_CHANGED", auditActor(session), {
+      summary: `Protection-plan commission plan ${created.id} added`,
+      details: { setup: parsed.setup as unknown as Prisma.InputJsonValue },
+    });
+    return res.status(201).json({ id: created.id });
+  }
   const body = (req.body ?? {}) as Partial<PostBody>;
   if (typeof body.name !== "string" || !body.name.trim()) {
     return res.status(400).json({ error: "Plan name is required" });
@@ -82,6 +98,16 @@ async function handlePut(req: NextApiRequest, res: NextApiResponse, session: Ses
   const body = (req.body ?? {}) as Partial<PutBody>;
   const planId = parsePlanId(body.planId);
   if (planId === null) return res.status(400).json({ error: "planId is required" });
+  if (body.protectionPlan !== undefined) {
+    const parsed = parseProtectionPlanSetup(body.protectionPlan);
+    if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+    await saveProtectionPlan(planId, parsed.setup, sessionEmail(session));
+    await auditLog("COMMISSION_PLAN_CHANGED", auditActor(session), {
+      summary: `Protection-plan commission plan ${planId} saved`,
+      details: { setup: parsed.setup as unknown as Prisma.InputJsonValue },
+    });
+    return res.status(200).json({ plans: await listPlans() });
+  }
   if (!Array.isArray(body.tiers) || body.tiers.length === 0) {
     return res.status(400).json({ error: "Body must include non-empty `tiers` array" });
   }

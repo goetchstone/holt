@@ -3840,8 +3840,13 @@ model StaffMember {
 
   // Per-salesperson commission structure. NULL = the default plan (or the
   // legacy tier table / built-in defaults — see lib/commissionPlans.ts).
-  commissionPlanId Int?
-  commissionPlan   CommissionPlan? @relation(fields: [commissionPlanId], references: [id])
+  commissionPlanId           Int?
+  commissionPlan             CommissionPlan? @relation("MainCommissionPlan", fields: [commissionPlanId], references: [id])
+  // The protection-plan commission plan this person is paid under (GAP-24, DECISIONS 56).
+  // NULL means the store's default protection-plan plan, and with none, protection plans pay
+  // under the main plan like any other sale (lib/commissionRules.ts).
+  protectionCommissionPlanId Int?
+  protectionCommissionPlan   CommissionPlan? @relation("ProtectionCommissionPlan", fields: [protectionCommissionPlanId], references: [id])
 
   shifts                 StaffShift[]
   upBoardEntries         UpBoardEntry[]
@@ -5264,10 +5269,19 @@ model CommissionPlan {
   // docs/domains/commission.md "countsWhen — what's actually implemented").
   countsWhen CommissionCountsWhen @default(WRITTEN)
 
-  tiers        CommissionPlanTier[]
-  rules        CommissionPlanRule[]
-  staffMembers StaffMember[]
-  payouts      CommissionPayout[]
+  // MAIN plans price a salesperson's sales. A PROTECTION_PLAN plan prices only the items in
+  // its one rule's category, ahead of the main plan, and is assigned separately (GAP-24,
+  // DECISIONS 56). isDefault is one per kind.
+  kind                 CommissionPlanKind @default(MAIN)
+  // PROTECTION_PLAN only: whether the sales it pays also count, unpaid, toward the
+  // salesperson's main-plan brackets. The store's choice; off by default.
+  alsoCountsInMainPlan Boolean            @default(false)
+
+  tiers               CommissionPlanTier[]
+  rules               CommissionPlanRule[]
+  staffMembers        StaffMember[]        @relation("MainCommissionPlan")
+  protectionPlanStaff StaffMember[]        @relation("ProtectionCommissionPlan")
+  payouts             CommissionPayout[]
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
@@ -5319,6 +5333,11 @@ enum CommissionTierMode {
 // Which SalesOrder event a plan's periods are counted against. See
 // CommissionPlan.countsWhen doc comment for the Stage 1 implementation
 // boundary (only WRITTEN is wired into the engine).
+enum CommissionPlanKind {
+  MAIN
+  PROTECTION_PLAN
+}
+
 enum CommissionCountsWhen {
   WRITTEN // orderDate — today's (only implemented) behavior
   DELIVERED // NOT YET IMPLEMENTED in the Stage 1 engine — stored for forward-compat only
@@ -5452,6 +5471,9 @@ model CommissionPayout {
   commissionPlanId   Int?
   commissionPlan     CommissionPlan? @relation(fields: [commissionPlanId], references: [id])
   commissionPlanName String?
+  // The protection-plan plan that priced part of this payout, if any, frozen by name like
+  // commissionPlanName (GAP-24).
+  protectionPlanName String?
 
   // Lock state. lockedAt=null means Draft; non-null means committed.
   // During rollout SUPER_ADMIN can clear lockedAt → null again
@@ -5947,30 +5969,30 @@ model AppSettings {
   // lowStockAlertedOn is the store day it last went, so it goes once a day.
   /// The choices on a client's profile form, as this store has them (GAP-36,
   /// lib/clientProfile.ts). Null uses the suggested ones.
-  clientProfileChoices Json?
-  lowStockAlertEmails String?
-  lowStockAlertHour   Int?
+  clientProfileChoices     Json?
+  lowStockAlertEmails      String?
+  lowStockAlertHour        Int?
   /// Ten different letters a tag's cost is coded in (lib/labels/costCode.ts); null
   /// means tags print no code.
-  costCipherKey String?
-  lowStockAlertedOn   String?
+  costCipherKey            String?
+  lowStockAlertedOn        String?
   // When the host's scheduler last woke Holt (GAP-37, lib/automations/runner.ts), so
   // Admin > Automations can say if nothing is waking it.
-  automationsWokenAt DateTime?
+  automationsWokenAt       DateTime?
   // How a store's emails look (GAP-37, lib/email/look.ts). Null is the default colour and foot.
-  emailAccentColor String?
-  emailShowLogo    Boolean @default(false)
+  emailAccentColor         String?
+  emailShowLogo            Boolean   @default(false)
   // Whether a sale may go ahead with nothing paid (DECISIONS 51). Off is the strict default.
-  allowSaleWithoutPayment Boolean @default(false)
-  emailFooter      String?
+  allowSaleWithoutPayment  Boolean   @default(false)
+  emailFooter              String?
   // The morning follow-up email (GAP-36, lib/followUpEmail.ts). Off until a store sets an
   // hour. followUpEmailedOn is the store day it last went, so it goes once a day.
-  followUpEmailHour   Int?
-  followUpEmailedOn   String?
+  followUpEmailHour        Int?
+  followUpEmailedOn        String?
   // Who's suggested to reach out to (GAP-36, lib/clientBook.ts). Off until a store sets a
   // lifetime spend, since what counts as a big client is theirs to say. The other two
   // default in the code when empty.
-  outreachMinLifetimeSpend Decimal? @db.Decimal(12, 2)
+  outreachMinLifetimeSpend Decimal?  @db.Decimal(12, 2)
   outreachLapsedMonths     Int?
   outreachQuietDays        Int?
 

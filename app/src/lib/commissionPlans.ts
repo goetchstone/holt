@@ -15,10 +15,17 @@
 // unconfigured deployment reports no commission rather than inheriting a
 // built-in schedule. See loadLegacyOrDefaultTiers below for the full reasoning.
 
-import type { Prisma } from "@prisma/client";
+import type { CommissionPlanKind, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { CommissionTier } from "@/lib/commissionTiers";
 import { LEGACY_MIRROR_RULE_LABEL } from "@/lib/commissionRuleEngine";
+import {
+  bracketsToTiers,
+  ruleShape,
+  setupFromRule,
+  PROTECTION_PLAN_RULE_LABEL,
+  type ProtectionPlanSetup,
+} from "@/lib/protectionPlanCommission";
 
 export interface PlanTier extends CommissionTier {
   sortOrder: number;
@@ -115,8 +122,9 @@ export async function resolvePlanTiersForStaff(
       where: { id: { in: staffIds } },
       select: { id: true, commissionPlanId: true },
     }),
+    // Main plans only: a protection-plan plan has its own default (GAP-24).
     prisma.commissionPlan.findMany({
-      where: { isActive: true },
+      where: { isActive: true, kind: "MAIN" },
       include: { tiers: { orderBy: { sortOrder: "asc" } } },
     }),
     loadLegacyOrDefaultTiers(),
@@ -273,6 +281,11 @@ export async function replacePlanTiers(
   if (error) throw new PlanValidationError(error);
   await prisma.$transaction(async (tx) => {
     const plan = await tx.commissionPlan.findUnique({ where: { id: planId } });
+    // A protection-plan plan prices through its own rule; flat tiers would add a
+    // second, scope-all rule that claims every sale ahead of the main plan.
+    if (plan?.kind === "PROTECTION_PLAN") {
+      throw new PlanValidationError("Edit a protection-plan plan's rates in its own form");
+    }
     if (!plan) throw new PlanValidationError("Plan not found");
     await tx.commissionPlanTier.deleteMany({ where: { planId } });
     for (const [i, t] of tiers.entries()) {
@@ -321,7 +334,7 @@ export async function createPlan(input: {
   if (error) throw new PlanValidationError(error);
 
   return prisma.$transaction(async (tx) => {
-    const existing = await tx.commissionPlan.count();
+    const existing = await tx.commissionPlan.count({ where: { kind: "MAIN" } });
     const plan = await tx.commissionPlan.create({
       data: {
         name,
@@ -347,12 +360,133 @@ export async function createPlan(input: {
   });
 }
 
-/** Make a plan the default (exactly one default at a time). */
+/**
+ * A protection-plan plan (GAP-24): one rule for its category, priced by the store's
+ * brackets. The first of its kind becomes that kind's default, as the first main plan does.
+ */
+export async function createProtectionPlan(
+  setup: ProtectionPlanSetup,
+  createdBy?: string | null,
+): Promise<{ id: number }> {
+  await requireCategory(setup.categoryId);
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.commissionPlan.count({ where: { kind: "PROTECTION_PLAN" } });
+    const plan = await tx.commissionPlan.create({
+      data: {
+        name: setup.name,
+        description: setup.description,
+        kind: "PROTECTION_PLAN",
+        alsoCountsInMainPlan: setup.alsoCountsInMainPlan,
+        isDefault: existing === 0,
+        createdBy: createdBy ?? null,
+      },
+    });
+    await writeProtectionRule(tx, plan.id, setup, createdBy ?? null);
+    return { id: plan.id };
+  });
+}
+
+/** Save a protection-plan plan's setup. Its rule is updated in place, keeping its YTD carry. */
+export async function saveProtectionPlan(
+  planId: number,
+  setup: ProtectionPlanSetup,
+  updatedBy?: string | null,
+): Promise<void> {
+  await requireCategory(setup.categoryId);
+  await prisma.$transaction(async (tx) => {
+    const plan = await tx.commissionPlan.findUnique({ where: { id: planId } });
+    if (!plan) throw new PlanValidationError("Plan not found");
+    if (plan.kind !== "PROTECTION_PLAN") {
+      throw new PlanValidationError("That plan isn't a protection-plan plan");
+    }
+    await tx.commissionPlan.update({
+      where: { id: planId },
+      data: {
+        name: setup.name,
+        description: setup.description,
+        alsoCountsInMainPlan: setup.alsoCountsInMainPlan,
+        updatedBy: updatedBy ?? null,
+      },
+    });
+    await writeProtectionRule(tx, planId, setup, updatedBy ?? null);
+  });
+}
+
+async function requireCategory(categoryId: number): Promise<void> {
+  const category = await prisma.category.findUnique({
+    where: { id: categoryId },
+    select: { id: true },
+  });
+  if (!category) throw new PlanValidationError("Choose the category your protection plans are in");
+}
+
+/**
+ * The plan's one rule, found or created, then its tiers replaced. Keeping the rule's id
+ * keeps its ruleKey (`id:<n>`), which is what carries its YTD position from one locked
+ * pay period to the next (see syncLegacyMirrorRule below for the same reason).
+ */
+async function writeProtectionRule(
+  tx: Prisma.TransactionClient,
+  planId: number,
+  setup: ProtectionPlanSetup,
+  actor: string | null,
+): Promise<void> {
+  const fields = {
+    label: PROTECTION_PLAN_RULE_LABEL,
+    categoryId: setup.categoryId,
+    ...ruleShape(setup),
+    tierMode: "MARGINAL" as const,
+    isActive: true,
+    updatedBy: actor,
+  };
+  const existing = await tx.commissionPlanRule.findFirst({
+    where: { planId },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true },
+  });
+  const ruleId = existing
+    ? (await tx.commissionPlanRule.update({ where: { id: existing.id }, data: fields })).id
+    : (
+        await tx.commissionPlanRule.create({
+          data: { ...fields, planId, sortOrder: 0, createdBy: actor },
+        })
+      ).id;
+  await tx.commissionRuleTier.deleteMany({ where: { ruleId } });
+  for (const t of bracketsToTiers(setup)) {
+    await tx.commissionRuleTier.create({ data: { ruleId, ...t } });
+  }
+}
+
+/**
+ * A staff member's plan assignment, checked: null clears it, a number must be an
+ * existing plan of the slot's kind -- a protection-plan plan can't be someone's main
+ * plan, or the reverse (GAP-24). One check for adding and editing a staff member.
+ */
+export async function resolvePlanAssignment(
+  value: unknown,
+  kind: CommissionPlanKind,
+): Promise<{ ok: true; value: number | null } | { ok: false; error: string }> {
+  if (value === null) return { ok: true, value: null };
+  if (typeof value === "number" && Number.isInteger(value)) {
+    const plan = await prisma.commissionPlan.findUnique({
+      where: { id: value },
+      select: { kind: true },
+    });
+    if (plan?.kind === kind) return { ok: true, value };
+  }
+  return {
+    ok: false,
+    error:
+      kind === "MAIN" ? "Unknown commission plan" : "Unknown protection-plan commission plan",
+  };
+}
+
+/** Make a plan the default of its kind (exactly one default per kind). */
 export async function setDefaultPlan(planId: number): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const plan = await tx.commissionPlan.findUnique({ where: { id: planId } });
     if (!plan) throw new PlanValidationError("Plan not found");
-    await tx.commissionPlan.updateMany({ data: { isDefault: false } });
+    await tx.commissionPlan.updateMany({ where: { kind: plan.kind }, data: { isDefault: false } });
     await tx.commissionPlan.update({ where: { id: planId }, data: { isDefault: true } });
   });
 }
@@ -364,7 +498,9 @@ export async function setDefaultPlan(planId: number): Promise<void> {
  */
 export async function deletePlan(planId: number): Promise<void> {
   const [assigned, plan] = await Promise.all([
-    prisma.staffMember.count({ where: { commissionPlanId: planId } }),
+    prisma.staffMember.count({
+      where: { OR: [{ commissionPlanId: planId }, { protectionCommissionPlanId: planId }] },
+    }),
     prisma.commissionPlan.findUnique({ where: { id: planId } }),
   ]);
   if (!plan) throw new PlanValidationError("Plan not found");
@@ -382,7 +518,16 @@ export async function listPlans() {
   const plans = await prisma.commissionPlan.findMany({
     include: {
       tiers: { orderBy: { sortOrder: "asc" } },
-      _count: { select: { staffMembers: true } },
+      rules: {
+        where: { plan: { kind: "PROTECTION_PLAN" } },
+        orderBy: { sortOrder: "asc" },
+        take: 1,
+        include: {
+          category: { select: { id: true, name: true } },
+          tiers: { orderBy: { sortOrder: "asc" } },
+        },
+      },
+      _count: { select: { staffMembers: true, protectionPlanStaff: true } },
     },
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
   });
@@ -390,9 +535,11 @@ export async function listPlans() {
     id: p.id,
     name: p.name,
     description: p.description,
+    kind: p.kind,
     isDefault: p.isDefault,
     isActive: p.isActive,
-    assignedCount: p._count.staffMembers,
+    assignedCount: p._count.staffMembers + p._count.protectionPlanStaff,
+    protection: protectionView(p.kind, p.alsoCountsInMainPlan, p.rules[0]),
     tiers: p.tiers.map((t) => ({
       label: t.label,
       minYtdSales: Number(t.minYtdSales),
@@ -401,4 +548,41 @@ export async function listPlans() {
       sortOrder: t.sortOrder,
     })),
   }));
+}
+
+type StoredProtectionRule = {
+  basis: string;
+  accumulator: string;
+  category: { id: number; name: string } | null;
+  tiers: Array<{
+    minAmount: DecimalLike;
+    rate: DecimalLike | null;
+    perUnitAmount: DecimalLike | null;
+  }>;
+};
+
+/** What the commission screen edits for a protection-plan plan; null for a main plan. */
+function protectionView(
+  kind: string,
+  alsoCountsInMainPlan: boolean,
+  rule: StoredProtectionRule | undefined,
+) {
+  if (kind !== "PROTECTION_PLAN") return null;
+  const setup = rule
+    ? setupFromRule({
+        basis: rule.basis,
+        accumulator: rule.accumulator,
+        tiers: rule.tiers.map((t) => ({
+          minAmount: Number(t.minAmount),
+          rate: t.rate === null ? null : Number(t.rate),
+          perUnitAmount: t.perUnitAmount === null ? null : Number(t.perUnitAmount),
+        })),
+      })
+    : { pays: "PERCENT" as const, resets: "YEAR" as const, brackets: [] };
+  return {
+    ...setup,
+    categoryId: rule?.category?.id ?? null,
+    categoryName: rule?.category?.name ?? null,
+    alsoCountsInMainPlan,
+  };
 }

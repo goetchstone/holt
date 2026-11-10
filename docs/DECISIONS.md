@@ -1656,6 +1656,33 @@ Rejected:
 
 → `docs/domains/help.md`
 
+## 56. Protection plans get a commission plan of their own, and counting them toward the main brackets is the store's choice (2026-11-11)
+
+**Decided:** GAP-24. The owner: "I think we need to be able to build a plan for the protection plans as a separate
+thing, I know some places do this" (2026-11-10). Asked whether those sales should still count toward a salesperson's
+main brackets, the owner said "this needs to be a configuration". Asked who a plan is for, they chose per salesperson.
+
+- **Protection plans stay items.** A store puts them in a category, and the plan names that category.
+- **A plan of a second kind,** `CommissionPlan.kind = PROTECTION_PLAN`, with one rule for its category. It pays a
+  percent of the price or an amount per plan, with optional brackets. Each salesperson can be put on one, and one is
+  the default, as with main plans.
+- **It goes ahead of the main plan.** The engine's first-match-wins hands it its category's sales. With none set up,
+  protection plans pay under the main plan as before.
+- **"Also count toward the main brackets" is a setting on the plan, off by default.** When on, those sales move the
+  main plan's position without being paid by it. In a pay period that crosses a bracket, the main plan pays its own
+  share of the window, so the order things were sold in doesn't change the pay.
+
+Rejected:
+
+- **One commission rate per category inside each main plan,** the first proposal. The owner wanted a plan
+  of its own, assignable on its own.
+- **Paying counted sales in the order they were sold.** It needs every row walked by date, and a return that lands
+  after a lock has no clear place in that order. The share gives one answer whatever the order.
+- **A store-wide "protection plan category" setting.** The plan already names its category. A second home for the
+  same fact could disagree with it.
+
+→ `docs/domains/commission.md` "Protection-plan plans"
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

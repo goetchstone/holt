@@ -30,9 +30,12 @@ import {
 } from "@/lib/payPeriod";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import { PROTECTION_PLAN_RULE_LABEL } from "@/lib/protectionPlanCommission";
 
 interface BreakdownEntry {
   tierLabel: string;
+  /** The rule the slice came from; absent on rows from before the rule engine. */
+  ruleLabel?: string;
   // Stage 1 rule engine: a UNITS-basis tier pays a flat perUnitAmount
   // instead of a rate, so `rate` is nullable (and a RETROACTIVE tier can
   // legitimately have neither, when drift dropped the basis below every
@@ -67,6 +70,7 @@ interface PreviewedPayout {
   tierBreakdown: TierBreakdownField;
   commissionAmount: number;
   commissionPlanName: string;
+  protectionPlanName: string | null;
 }
 
 /** Shape of one conflicting payout returned by the preview / 409 commit. */
@@ -101,11 +105,18 @@ interface StoredPayout {
   tierBreakdown: TierBreakdownField;
   commissionAmount: string | number;
   commissionPlanName: string | null;
+  protectionPlanName: string | null;
   lockedAt: string | null;
   lockedBy: string | null;
   paidOn: string | null;
   notes: string | null;
   edits?: StoredEdit[];
+}
+
+/** The plan a payout was priced under, with its protection-plan plan if one priced part of it. */
+function planLabel(main: string | null, protection: string | null): string {
+  if (!protection) return main ?? "—";
+  return `${main ?? "—"} + ${protection}`;
 }
 
 /** Prisma Decimal fields arrive as strings over JSON — coerce for display. */
@@ -622,7 +633,9 @@ function PreviewPanel({
                     <Fragment key={r.staffMemberId}>
                       <tr className="border-t border-brand-stripe">
                         <td className="p-2">{r.displayName}</td>
-                        <td className="p-2 text-brand-gray">{r.commissionPlanName}</td>
+                        <td className="p-2 text-brand-gray">
+                          {planLabel(r.commissionPlanName, r.protectionPlanName)}
+                        </td>
                         <td className="p-2 text-right tabular-nums">
                           {money(r.periodSalesAmount)}
                         </td>
@@ -794,7 +807,9 @@ function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) 
                 </h4>
                 <p className="mb-2 text-xs text-brand-gray">
                   Plan:{" "}
-                  <span className="font-medium text-brand-navy">{p.commissionPlanName ?? "—"}</span>
+                  <span className="font-medium text-brand-navy">
+                    {planLabel(p.commissionPlanName, p.protectionPlanName)}
+                  </span>
                 </p>
                 <table className="min-w-full text-xs">
                   <thead>
@@ -808,7 +823,11 @@ function PayoutRow({ p, expanded, onToggle, onEdit }: Readonly<PayoutRowProps>) 
                   <tbody>
                     {breakdownEntries(p.tierBreakdown).map((b, i) => (
                       <tr key={`${b.tierLabel}-${i}`}>
-                        <td className="py-1">{b.tierLabel}</td>
+                        <td className="py-1">
+                          {b.ruleLabel === PROTECTION_PLAN_RULE_LABEL
+                            ? `${PROTECTION_PLAN_RULE_LABEL}: ${b.tierLabel}`
+                            : b.tierLabel}
+                        </td>
                         <td className="py-1 text-right">
                           {b.rate != null
                             ? `${(b.rate * 100).toFixed(1)}%`
