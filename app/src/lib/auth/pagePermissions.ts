@@ -143,6 +143,8 @@ export const PAGE_ACCESS: Record<string, PageAccess> = {
     widensFrom: "MANAGER,ADMIN,WAREHOUSE",
   },
   "/app/dispatch/run/[id]": { permission: "warehouse.read", widensFrom: "MANAGER,ADMIN,WAREHOUSE" },
+  "/app/help": { permission: "staff.self" },
+  "/app/help/[slug]": { permission: "staff.self" },
   "/app/helpdesk": { permission: "service.read" },
   "/app/helpdesk/[id]": { permission: "service.read", widensFrom: "ADMIN,MANAGER" },
   "/app/interactions": { permission: "customer.read" },

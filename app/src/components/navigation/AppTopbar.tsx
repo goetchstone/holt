@@ -3,13 +3,15 @@
 // /app/src/components/navigation/AppTopbar.tsx
 //
 // Slim top bar inside the sidebar shell: a hamburger to open the sidebar drawer
-// on small screens, and the user/sign-out control on the right. Page titles are
+// on small screens, help for the screen (GAP-30), and the user/sign-out control on the
+// right. Page titles are
 // rendered by each page via the PageHeader primitive, not here.
 
 import { Menu } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { signOutTo } from "@/lib/auth/endSession";
 import { Button } from "@/components/ui/button";
+import { HelpButton } from "@/components/help/HelpButton";
 
 export function AppTopbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { data: session } = useSession();
@@ -33,6 +35,7 @@ export function AppTopbar({ onMenuClick }: { onMenuClick: () => void }) {
 
       {session?.user ? (
         <div className="flex items-center gap-3">
+          <HelpButton />
           <span className="hidden text-sm text-brand-gray sm:inline">{session.user.email}</span>
           <Button type="button" variant="secondary" onClick={handleSignOut}>
             Sign out

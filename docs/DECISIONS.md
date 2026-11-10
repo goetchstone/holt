@@ -1634,6 +1634,28 @@ month in the store's time. Saved reports and charts: not asked for yet.
 
 → `docs/domains/tools.md`
 
+## 54. Help lives in the repo as Markdown and is read inside the app only (2026-11-10)
+
+**Decided:** GAP-30. The owner leaned toward help embedded in the product (2026-10-28), and chose "inside the app
+only" over also publishing it on every store's site or on the demo (2026-11-10).
+
+- **Articles are Markdown files in the repo,** so each release's help matches its screens and is reviewed with them.
+  A list in code says which screens each one explains.
+- **A "?" on every screen** opens that screen's article in a side panel, and a Help page lists them all with search.
+- **Anyone signed in can read it.** It needs `staff.self`, which every role holds, and it's never public.
+- **Every screen without an article is listed,** and the list can only shrink (rule 65). 254 screens start on it.
+- **`marked` renders the Markdown, and `sanitize-html` cleans it.** The words are ours, but a link or tag in an article
+  still shouldn't be able to run anything in a signed-in session.
+
+Rejected:
+
+- **Help in the CMS,** which a store edits per deployment, so the same screen could get different instructions.
+- **A hand-written Markdown subset,** which is a parser to maintain.
+- **Bundling the articles into the build,** which needs a loader or a generated file. A copy in the Dockerfile is
+  simpler, and a local image build checked it.
+
+→ `docs/domains/help.md`
+
 ## 55. Drop ship is a PO addressed to the customer, and receiving it is the handover (2026-11-10)
 
 **Decided (owner):** "as easy as putting that on the po if the vendor allows for it, again not anything huge"
