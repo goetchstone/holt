@@ -259,7 +259,7 @@ export const PERMISSIONS: PermissionDef[] = [
     domain: "catalog",
     label: "View cost",
     description:
-      "See what the store pays. Today this covers inventory valued at cost (the Inventory hub's on-hand totals and Summary Details, and the Inventory Health report), purchase-order cost (the purchase order list and detail, receiving records, the inbound dashboard and Open PO Gaps), cost and margin in Open Orders, Sales by Salesperson (with its export), the Designer Dashboard, Gross Margin, Top & Bottom Sellers (ranked by revenue or units only without it), Sales Explorer, PO Sell-Through and the Buyers Report (with its export), and consignment: each rug's cost (the consignment list and item page, the count and return scanners, receiving gaps and returns history, which keep their tag prices, fixed multiples of cost) and what is owed and paid to consignors (payment batches, PO Management, unpaid sales, credits owed and the Consignment Summary report, where a batch can still be created and credits applied): without it those screens show quantities, sales, retail values and tag prices only. Cost elsewhere still follows each screen's own key until it moves under this switch: products, proposals, purchase-order imports, the vendor order tools, the buyer workbench and the query builder. By design, \"Destructive data operations\" (backups, full data exports and the import tools, such as the consignment rebuild's outstanding total) include cost as complete copies of the data, journal entries keep cost of goods sold under View accounting, and an uploaded file still shows its own costs in the import preview.",
+      "See what the store pays. Today this covers inventory valued at cost (the Inventory hub's on-hand totals and Summary Details, and the Inventory Health report), purchase-order cost (the purchase order list and detail, receiving records, the inbound dashboard and Open PO Gaps), cost and margin in Open Orders, Sales by Salesperson (with its export), the Designer Dashboard, Gross Margin, Top & Bottom Sellers (ranked by revenue or units only without it), Sales Explorer, PO Sell-Through and the Buyers Report (with its export), and consignment: each rug's cost (the consignment list and item page, the count and return scanners, receiving gaps and returns history, which keep their tag prices, fixed multiples of cost) and what is owed and paid to consignors (payment batches, PO Management, unpaid sales, credits owed and the Consignment Summary report, where a batch can still be created and credits applied): without it those screens show quantities, sales, retail values and tag prices only. It also covers the query builder's cost columns and totals, which are left out without it. Cost elsewhere still follows each screen's own key until it moves under this switch: products, proposals, purchase-order imports, the vendor order tools and the buyer workbench. By design, \"Destructive data operations\" (backups, full data exports and the import tools, such as the consignment rebuild's outstanding total) include cost as complete copies of the data, journal entries keep cost of goods sold under View accounting, and an uploaded file still shows its own costs in the import preview.",
   },
 
   // --- Inventory ---------------------------------------------------------
@@ -398,6 +398,14 @@ export const PERMISSIONS: PermissionDef[] = [
     domain: "reporting",
     label: "Export data",
     description: "Download report data and customer lists.",
+    sensitive: true,
+  },
+  {
+    key: "reporting.adhoc",
+    domain: "reporting",
+    label: "Build your own reports",
+    description:
+      "Use the query builder to list and total sales, purchasing, products, customers, consignment, service cases and transfers. It shows customer names and contact details. Cost also needs View cost, and downloading also needs Export data.",
     sensitive: true,
   },
 

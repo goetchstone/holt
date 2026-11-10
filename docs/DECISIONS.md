@@ -1610,6 +1610,30 @@ still owes.
 
 → `docs/domains/sales-orders.md`
 
+## 53. Ad-hoc reports open by a key, read only what's listed, and say who counts in every total (2026-11-07)
+
+**Decided:** GAP-34 asks for reporting beyond administrators, on service cases and transfers, with grouping, totals
+and a pivot. The owner's standing rulings decide the default: who may do what is the store's call, and it ships
+strict.
+
+- **One key, `reporting.adhoc`,** that owners and administrators start with and a store grants in Roles. Managers don't
+  start with it, because it shows every customer's contact details.
+- **The server selects only what's listed.** It used to read every column of a model and rely on the screen not
+  asking. Opening it to more roles needed this first. Cost follows View cost, and export follows Export data and goes
+  in the audit trail.
+- **Every entity states who counts in its totals, and the screen shows it.** Totals over lines leave out quotes,
+  cancelled orders, cancelled and replaced lines and zero quantities, and keep returned orders. The list of rows still
+  shows everything, since that's a different question.
+- **Sales orders and POs total only a count.** A sale's money comes from its lines, so there's one way to get it.
+- **Rows are read and added up in JS, up to 100,000, and past that it refuses.** A group can then reach through a
+  relation and a month can follow the store's time. A total over part of the rows would read as a total over all of
+  them, so it never does that.
+
+Rejected: raw SQL, which the tool has never allowed. Prisma's `groupBy`, which can't group through a relation or by a
+month in the store's time. Saved reports and charts: not asked for yet.
+
+→ `docs/domains/tools.md`
+
 ## Adding an entry
 
 When a decision is argued and settled — especially when an alternative was

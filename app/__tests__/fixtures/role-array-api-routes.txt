@@ -90,5 +90,4 @@ src/pages/api/tickets/[id]/attachments.ts  roles=[SUPER_ADMIN,ADMIN,MANAGER,DESI
 src/pages/api/tickets/[id]/messages.ts  roles=[SUPER_ADMIN,ADMIN,MANAGER]  proposed=service.read  widens: +DESIGNER,INSTALLER,WAREHOUSE
 src/pages/api/tills/[id]/close.ts  roles=[REGISTER,MANAGER,ADMIN]  proposed=(none)  no domain rule
 src/pages/api/tills/[id]/reconcile.ts  roles=[MANAGER,ADMIN]  proposed=(none)  no domain rule
-src/pages/api/tools/query-builder.ts  roles=[ADMIN]  proposed=(none)  no domain rule
 src/pages/api/vendors/[id]/contacts/index.ts  roles=[DESIGNER,MANAGER,ADMIN,WAREHOUSE]  proposed=catalog.write   tightens: -DESIGNER,WAREHOUSE
