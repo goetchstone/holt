@@ -88,9 +88,9 @@ async function world({ dropShips = true } = {}) {
     data: {
       customerId: customer.id,
       address1: "1 Elm St",
-      city: "Fairfield",
-      state: "CT",
-      zip: "06824",
+      city: "Elmhurst Ridge",
+      state: "MI",
+      zip: "49101",
     },
   });
   return { vendor, store, sofa, chair, session, customer, address };
@@ -240,9 +240,9 @@ describe("shipping a sale's PO to the customer", () => {
       data: {
         customerId: w.customer.id,
         address1: "9 Lake Rd",
-        city: "Westport",
-        state: "CT",
-        zip: "06880",
+        city: "Lakeside Bend",
+        state: "MI",
+        zip: "49102",
       },
     });
     await prisma.salesOrder.update({
@@ -313,7 +313,7 @@ describe("shipping a sale's PO to the customer", () => {
     const { po } = await saleWithPo(w);
     expect((await loadPoForEditor(po.id, true))?.dropShip).toEqual({
       on: false,
-      offer: "Ada Lane, 1 Elm St, Fairfield, CT 06824",
+      offer: "Ada Lane, 1 Elm St, Elmhurst Ridge, MI 49101",
       problem: null,
     });
     await prisma.customerAddress.delete({ where: { id: w.address.id } });
@@ -336,7 +336,7 @@ describe("what the vendor is sent", () => {
     await purchaseOrderDocument(po.id, true);
     expect(spy.mock.calls[0][0].shipTo).toEqual({
       name: "Ada Lane (drop ship)",
-      lines: ["1 Elm St", "Fairfield, CT 06824", "555-0100"],
+      lines: ["1 Elm St", "Elmhurst Ridge, MI 49101", "555-0100"],
     });
   });
 
