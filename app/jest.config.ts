@@ -17,10 +17,16 @@ const sharedTransform = {
     "ts-jest",
     { tsconfig: { allowJs: true, module: "commonjs", moduleResolution: "node" } },
   ],
+  // marked@18 is ESM-only too, and the same reasoning holds: the help center's
+  // tests prove the REAL renderer's output is sanitized (lib/help/articles.ts).
+  "^.+/node_modules/marked/.+\\.js$": [
+    "ts-jest",
+    { tsconfig: { allowJs: true, module: "commonjs", moduleResolution: "node" } },
+  ],
 };
 
 // node_modules packages Jest must transform rather than load as-is.
-const ESM_TRANSFORMED = ["@rgrove/parse-xml"];
+const ESM_TRANSFORMED = ["@rgrove/parse-xml", "marked"];
 
 const sharedProject = {
   maxWorkers: 1,

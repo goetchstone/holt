@@ -102,6 +102,9 @@ COPY --from=builder --chown=node:node /app/package.json ./package.json
 COPY --from=builder --chown=node:node /app/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/.next ./.next
 COPY --from=builder --chown=node:node /app/prisma ./prisma
+# Help articles (GAP-30): read from disk at runtime by lib/help/articles.ts, so nothing
+# imports them and they have to be copied like prisma/.
+COPY --from=builder --chown=node:node /app/help ./help
 # Prisma 7 reads the datasource URL from prisma.config.ts, not schema.prisma.
 # Without this file the entrypoint's `prisma migrate deploy` fails with
 # "datasource.url property is required" and the container never starts.
