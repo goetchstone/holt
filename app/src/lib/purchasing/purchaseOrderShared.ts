@@ -19,15 +19,19 @@ export interface PoLineInput {
 
 /** What the editor saves: everything about a PO but its vendor. */
 export interface PoDraftInput {
-  shipToLocationId: number;
+  /** The store or warehouse the vendor delivers to; null when it goes to the customer. */
+  shipToLocationId: number | null;
+  /** Ship straight to the customer (GAP-20). The server works out the address. */
+  dropShip: boolean;
   /** YYYY-MM-DD, or null when the vendor hasn't given one. */
   expectedDelivery: string | null;
   notes: string | null;
   lines: PoLineInput[];
 }
 
-export interface NewPoInput extends PoDraftInput {
+export interface NewPoInput extends Omit<PoDraftInput, "shipToLocationId" | "dropShip"> {
   vendorId: number;
+  shipToLocationId: number;
 }
 
 export const MAX_PO_NOTES = 2000;
@@ -119,7 +123,9 @@ function parseDate(raw: unknown): Parsed<string | null> {
 /** Read the editor's body: ship-to, expected date, notes and at least one line. */
 export function parsePoDraft(body: unknown): Parsed<PoDraftInput> {
   const b = (body ?? {}) as Record<string, unknown>;
-  if (!isId(b.shipToLocationId)) {
+  const dropShip = b.dropShip === true;
+  const shipToLocationId = isId(b.shipToLocationId) ? b.shipToLocationId : null;
+  if (!dropShip && shipToLocationId === null) {
     return { ok: false, problem: "Choose where the vendor delivers." };
   }
   const date = parseDate(b.expectedDelivery);
@@ -143,7 +149,8 @@ export function parsePoDraft(body: unknown): Parsed<PoDraftInput> {
   return {
     ok: true,
     value: {
-      shipToLocationId: b.shipToLocationId,
+      shipToLocationId: dropShip ? null : shipToLocationId,
+      dropShip,
       expectedDelivery: date.value,
       notes: notes || null,
       lines,
@@ -157,7 +164,14 @@ export function parseNewPo(body: unknown): Parsed<NewPoInput> {
   if (!isId(vendorId)) return { ok: false, problem: "Choose a vendor." };
   const draft = parsePoDraft(body);
   if (!draft.ok) return draft;
-  return { ok: true, value: { ...draft.value, vendorId } };
+  const { dropShip, shipToLocationId, ...rest } = draft.value;
+  if (dropShip || shipToLocationId === null) {
+    return {
+      ok: false,
+      problem: "A new PO goes to a store. To ship to a customer, use the PO raised for their sale.",
+    };
+  }
+  return { ok: true, value: { ...rest, vendorId, shipToLocationId } };
 }
 
 /** A line's cost: quantity times unit cost, to the cent. */

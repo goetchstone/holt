@@ -147,6 +147,10 @@ model Vendor {
 
   allowTradeDiscount Boolean @default(true)
 
+  /// Ships a special order straight to the customer when asked (GAP-20, DECISIONS 55):
+  /// its POs can then name the customer's address as ship-to.
+  dropShips Boolean @default(false)
+
   consignmentItems         ConsignmentItem[]
   consignmentReceipts      ConsignmentReceipt[]
   consignmentPayments      ConsignmentPaymentBatch[]
@@ -1488,6 +1492,7 @@ model CustomerAddress {
   customer   Customer @relation(fields: [customerId], references: [id])
 
   deliveryOrders      SalesOrder[]         @relation("DeliveryAddress")
+  dropShipOrders      PurchaseOrder[]      @relation("PurchaseOrderDropShip")
   returnPickups       Return[]
   serviceAppointments ServiceAppointment[]
 
@@ -2408,6 +2413,12 @@ model PurchaseOrder {
   // imported POs, which never named one.
   shipToLocationId        Int?
   shipTo                  StoreLocation?      @relation("PurchaseOrderShipTo", fields: [shipToLocationId], references: [id])
+  // Drop ship (GAP-20, DECISIONS 55): the vendor delivers to this customer address
+  // instead of a store. Never set with shipToLocationId. Receiving such a PO puts
+  // nothing into stock and hands the sale's lines over (lib/purchasing/dropShip.ts).
+  // Restrict: an address a PO ships to can't be deleted out from under it.
+  dropShipAddressId       Int?
+  dropShipAddress         CustomerAddress?    @relation("PurchaseOrderDropShip", fields: [dropShipAddressId], references: [id], onDelete: Restrict)
   // Stamped by the legacy-POS inbound-items import (a full snapshot of open
   // POs): a PO absent from the latest export was received/cancelled upstream,
   // so inbound dashboards filter to MAX(lastSeenInInboundExport).

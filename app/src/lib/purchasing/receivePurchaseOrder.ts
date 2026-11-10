@@ -30,6 +30,7 @@ import { nativeReceiptStatus } from "@/lib/purchasing/receiptStatus";
 import { INCOMPLETE_SET_CONDITION } from "@/lib/purchasing/receiptConditions";
 import { averageInReceipt, poLandedUnitCosts } from "@/lib/purchasing/landedCost";
 import { notStocked } from "@/lib/inventory/stocked";
+import { deliverDropShipped } from "@/lib/fulfilment/handover";
 
 type Tx = Prisma.TransactionClient;
 
@@ -67,6 +68,8 @@ export interface ReceiveResult {
   incompleteNotes: number[];
   /** Why each line received as a record only put nothing into stock. */
   notStocked: string[];
+  /** A drop-shipped receipt's sale, and whether that was its handover (GAP-20). */
+  handedOver: { salesOrderId: number; complete: boolean } | null;
 }
 
 export async function receivePurchaseOrder(
@@ -93,6 +96,9 @@ export async function receivePurchaseOrder(
   });
   if (!po) throw new ReceiveError("Purchase order not found.", 404);
   if (po.status === "CANCELLED") throw new ReceiveError("Cannot receive against a cancelled PO.");
+  // Drop ship (GAP-20, DECISIONS 55): the vendor took it to the customer. It's recorded
+  // without stocking anything, then those lines are handed over.
+  const dropShipped = po.dropShipAddressId !== null;
 
   const poItemIds = new Set(po.lineItems.map((li) => li.id));
   for (const item of args.items) {
@@ -188,7 +194,11 @@ export async function receivePurchaseOrder(
     const poItem = po.lineItems.find((li) => li.id === item.purchaseOrderItemId);
     if (!poItem) continue;
 
-    const recordOnly = poItem.product ? unstocked.get(poItem.product.id) : undefined;
+    const recordOnly = dropShipped
+      ? DROP_SHIPPED_NOTE
+      : poItem.product
+        ? unstocked.get(poItem.product.id)
+        : undefined;
     if (recordOnly) {
       if ((item.incompleteSets ?? []).length > 0) throw new ReceiveError(recordOnly);
       await record(item, item.quantityReceived, item.condition || null, null, false);
@@ -244,6 +254,8 @@ export async function receivePurchaseOrder(
     }
   }
 
+  const handedOver = dropShipped ? await handOverDropShipped(tx, po, args) : null;
+
   const updatedItems = await tx.purchaseOrderItem.findMany({
     where: { purchaseOrderId: args.poId },
     include: { receivingRecords: { select: { quantityReceived: true } } },
@@ -262,5 +274,39 @@ export async function receivePurchaseOrder(
     });
   }
 
-  return { receivingRecords, newStatus, printItems, incompleteNotes, notStocked: notStockedLines };
+  return {
+    receivingRecords,
+    newStatus,
+    printItems,
+    incompleteNotes,
+    notStocked: [...new Set(notStockedLines)],
+    handedOver,
+  };
+}
+
+const DROP_SHIPPED_NOTE =
+  "The vendor shipped it straight to the customer, so nothing goes into stock.";
+
+/** The sale lines this receipt delivered, through the handover (lib/fulfilment/handover.ts). */
+async function handOverDropShipped(
+  tx: Tx,
+  po: { salesOrderId: number | null; lineItems: { id: number; orderLineItemId: number | null }[] },
+  args: { items: ReceiveItem[]; actor: string | null },
+): Promise<{ salesOrderId: number; complete: boolean } | null> {
+  const lines = args.items.flatMap((item) => {
+    const lineId = po.lineItems.find((li) => li.id === item.purchaseOrderItemId)?.orderLineItemId;
+    return lineId ? [{ orderLineItemId: lineId, quantity: Number(item.quantityReceived) }] : [];
+  });
+  if (lines.length === 0) return null;
+  const owner = await tx.orderLineItem.findUniqueOrThrow({
+    where: { id: lines[0].orderLineItemId },
+    select: { salesOrderId: true },
+  });
+  const result = await deliverDropShipped(tx, {
+    salesOrderId: owner.salesOrderId,
+    at: new Date(),
+    actor: args.actor,
+    lines,
+  });
+  return result.changed ? { salesOrderId: owner.salesOrderId, complete: result.complete } : null;
 }

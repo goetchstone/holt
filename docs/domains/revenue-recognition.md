@@ -52,6 +52,7 @@ left the building.
 | `DELIVERY` | the delivery stop completes |
 | `PICKUP` | the customer collects |
 | `TAKEN` | at the till — cash-and-carry, delivered immediately |
+| `DROP_SHIP` | the drop-shipped PO is received: the vendor delivered it (GAP-20, `deliverDropShipped`). Recorded on `OrderHandover.method` only; the sale keeps its own `deliveryMethod` |
 
 ---
 
@@ -223,6 +224,11 @@ not because any of it is outstanding. Each step now names what implements it.
 
 Handover covers pickup as well as delivery (`handoverMethodFor()`) — the policy
 was explicit that a pickup is the same event.
+
+**Checked 2026-11-10, while adding drop ship:** `markHandedOver()` creates no invoice. Invoices come from the billing
+screens (`server/trpc/routers/billing.ts`, `lib/billing/invoiceService.ts`), and the journal recognises an order on
+its invoice's date (`lib/journalEntry.ts`). So step 3's "delivery generates the invoice" doesn't match the source as
+it stands. Not changed here; logged in `ROADMAP.md`.
 
 Each step is independently shippable and verifiable. Ordered so nothing is
 briefly broken.

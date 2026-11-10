@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireAuthWithRole } from "@/lib/auth/requireAuth";
 import { logError } from "@/lib/logger";
+import { addressInUseProblem } from "@/lib/purchasing/dropShip";
 
 // Address management touches PII and the delivery flow -- restrict to
 // staff roles that legitimately need to edit customer data. Designers
@@ -86,6 +87,9 @@ export default requireAuthWithRole(
         if (!existing || existing.customerId !== customerId) {
           return res.status(404).json({ error: "Address not found for this customer." });
         }
+        // A vendor is drop shipping to it (GAP-20).
+        const inUse = await addressInUseProblem(prisma, addressId);
+        if (inUse) return res.status(409).json({ error: inUse });
         await prisma.customerAddress.delete({
           where: { id: addressId },
         });

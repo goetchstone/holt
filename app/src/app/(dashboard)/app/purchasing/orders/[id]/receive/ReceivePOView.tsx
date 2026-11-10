@@ -40,6 +40,8 @@ interface POData {
   vendor: { id: number; name: string };
   /** Where the PO said to deliver; the screen starts on that store. */
   shipTo: { id: number; name: string } | null;
+  /** Drop ship (GAP-20): the customer it went to, when the vendor delivered it there. */
+  dropShipTo: string | null;
   status: string;
   lineItems: LineItem[];
 }
@@ -266,6 +268,12 @@ export function ReceivePOView({ id }: { id: string }) {
             Back
           </Button>
         </div>
+        {po.dropShipTo && (
+          <p className="mt-2 rounded bg-brand-linen px-3 py-2 text-sm text-brand-black">
+            Drop shipped to {po.dropShipTo}. Receiving it puts nothing into stock: it records that
+            the customer has it, and hands those lines of the sale over.
+          </p>
+        )}
       </div>
 
       {/* Config bar: receiving location, and how this person prints tags */}

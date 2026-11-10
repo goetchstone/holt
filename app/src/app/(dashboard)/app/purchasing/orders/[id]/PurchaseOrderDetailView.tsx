@@ -68,6 +68,8 @@ interface PODetails {
   vendor: { id: number; name: string };
   vendorEmail: string | null;
   shipTo: { id: number; name: string } | null;
+  /** Drop ship (GAP-20): the customer, when the vendor delivers to them. */
+  dropShipTo: string | null;
   isReturn: boolean;
   /** Why the lines can't be changed, or null when they can. */
   editProblem: string | null;
@@ -441,6 +443,11 @@ export function PurchaseOrderDetailView({
             {po.shipTo && (
               <p>
                 <strong>Ship To:</strong> {po.shipTo.name}
+              </p>
+            )}
+            {po.dropShipTo && (
+              <p>
+                <strong>Drop ship to:</strong> {po.dropShipTo}
               </p>
             )}
             {po.notes && (

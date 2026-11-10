@@ -16,6 +16,8 @@ import { prisma } from "@/lib/prisma";
 import { createNumberedPurchaseOrder } from "@/lib/purchasing/poNumber";
 import { expectedArrival } from "@/lib/vendorLeadTime";
 import { buyingTerms, type BuyingTerms } from "@/lib/purchasing/productSourcesShared";
+import { dropShipTarget } from "@/lib/purchasing/dropShip";
+import { resyncOrderAllocation } from "@/lib/inventory/orderInventorySync";
 import {
   poEditProblem,
   type NewPoInput,
@@ -208,6 +210,8 @@ export async function editPurchaseOrder(
     select: {
       status: true,
       isReturn: true,
+      salesOrderId: true,
+      dropShipAddressId: true,
       vendor: { select: { id: true, name: true } },
       _count: { select: { receivingRecords: true } },
       lineItems: {
@@ -217,6 +221,7 @@ export async function editPurchaseOrder(
           orderedQuantity: true,
           unitCost: true,
           orderLineItemId: true,
+          orderLineItem: { select: { salesOrderId: true } },
         },
       },
     },
@@ -228,7 +233,20 @@ export async function editPurchaseOrder(
     receivedCount: po._count.receivingRecords,
   });
   if (problem) throw new PurchaseOrderError(problem, 409);
-  await activeShipTo(prisma, input.shipToLocationId);
+  // Drop ship (GAP-20): the customer's address, as dropShipTarget finds it, or a store.
+  let dropShipAddressId: number | null = null;
+  if (input.dropShip) {
+    const check = await dropShipTarget(prisma, poId);
+    if (!check.ok) throw new PurchaseOrderError(check.problem, 409);
+    dropShipAddressId = check.target.addressId;
+  } else {
+    await activeShipTo(prisma, input.shipToLocationId as number);
+  }
+  // The sales whose lines this PO carries: their stock changes when drop ship does.
+  const sales = new Set(
+    po.lineItems.flatMap((l) => (l.orderLineItem ? [l.orderLineItem.salesOrderId] : [])),
+  );
+  if (po.salesOrderId !== null) sales.add(po.salesOrderId);
 
   const existing = po.lineItems.map((l) => ({
     ...l,
@@ -261,12 +279,24 @@ export async function editPurchaseOrder(
     await tx.purchaseOrder.update({
       where: { id: poId },
       data: {
-        shipToLocationId: input.shipToLocationId,
+        shipToLocationId: dropShipAddressId === null ? input.shipToLocationId : null,
+        dropShipAddressId,
         expectedDelivery: asDate(input.expectedDelivery),
         notes: input.notes,
         updatedBy: ctx.actor,
       },
     });
+    // A drop-shipped line holds no store stock; one that stops being drop shipped
+    // takes its place in line again (lib/inventory/orderInventorySync.ts).
+    if ((po.dropShipAddressId === null) !== (dropShipAddressId === null)) {
+      for (const salesOrderId of sales) {
+        const sale = await tx.salesOrder.findUniqueOrThrow({
+          where: { id: salesOrderId },
+          select: { storeLocation: true },
+        });
+        await resyncOrderAllocation(salesOrderId, sale.storeLocation, tx);
+      }
+    }
   });
 }
 
@@ -361,6 +391,15 @@ export interface PoEditorState {
   poNumber: string;
   vendor: { id: number; name: string };
   shipToLocationId: number | null;
+  /** Drop ship (GAP-20): offered only for a vendor set to drop ship. */
+  dropShip: {
+    /** It ships to the customer now. */
+    on: boolean;
+    /** Who and where it would go, when it can. */
+    offer: string | null;
+    /** Why it can't, when the vendor drop ships but this PO can't. */
+    problem: string | null;
+  } | null;
   /** YYYY-MM-DD, or null. */
   expectedDelivery: string | null;
   notes: string | null;
@@ -392,9 +431,10 @@ export async function loadPoForEditor(
       status: true,
       isReturn: true,
       shipToLocationId: true,
+      dropShipAddressId: true,
       expectedDelivery: true,
       notes: true,
-      vendor: { select: { id: true, name: true } },
+      vendor: { select: { id: true, name: true, dropShips: true } },
       _count: { select: { receivingRecords: true } },
       lineItems: {
         orderBy: { id: "asc" },
@@ -412,11 +452,19 @@ export async function loadPoForEditor(
     },
   });
   if (!po) return null;
+  const check = po.vendor.dropShips ? await dropShipTarget(prisma, po.id) : null;
   return {
     id: po.id,
     poNumber: po.poNumber,
-    vendor: po.vendor,
+    vendor: { id: po.vendor.id, name: po.vendor.name },
     shipToLocationId: po.shipToLocationId,
+    dropShip: check
+      ? {
+          on: po.dropShipAddressId !== null,
+          offer: check.ok ? check.target.label : null,
+          problem: check.ok ? null : check.problem,
+        }
+      : null,
     expectedDelivery: po.expectedDelivery?.toISOString().slice(0, 10) ?? null,
     notes: po.notes,
     editProblem: poEditProblem({

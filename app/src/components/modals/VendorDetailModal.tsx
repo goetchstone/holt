@@ -55,7 +55,10 @@ export default function VendorDetailModal({
   const handleSave = async () => {
     // Only what this form edits. Sending the whole vendor back also re-sent its
     // pricing defaults, which this form neither shows nor owns.
-    const body: Record<string, unknown> = { leadTimeDays: form.leadTimeDays ?? null };
+    const body: Record<string, unknown> = {
+      leadTimeDays: form.leadTimeDays ?? null,
+      dropShips: form.dropShips === true,
+    };
     for (const field of VENDOR_DETAIL_FIELDS) body[field] = form[field] ?? null;
     const res = await fetch(`/api/vendors/${vendor.id}`, {
       method: "PATCH",
@@ -190,6 +193,15 @@ export default function VendorDetailModal({
               className="w-24 border border-brand-gray rounded-lg px-3 py-2 text-brand-black font-serif"
             />
             <span>days</span>
+          </label>
+          <label className="flex items-center gap-3 text-sm text-brand-gray">
+            <input
+              type="checkbox"
+              disabled={!editing}
+              checked={form.dropShips === true}
+              onChange={(e) => setForm({ ...form, dropShips: e.target.checked })}
+            />
+            <span>Ships special orders straight to the customer (drop ship)</span>
           </label>
         </div>
         <p className="mt-2 text-xs text-brand-gray">
