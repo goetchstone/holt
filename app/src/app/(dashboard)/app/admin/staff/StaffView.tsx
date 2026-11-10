@@ -38,11 +38,14 @@ interface StaffMember {
   user: { email: string; name: string | null; image: string | null } | null;
   commissionPlanId: number | null;
   commissionPlan: { id: number; name: string } | null;
+  protectionCommissionPlanId: number | null;
+  protectionCommissionPlan: { id: number; name: string } | null;
 }
 
 interface CommissionPlanOption {
   id: number;
   name: string;
+  kind: "MAIN" | "PROTECTION_PLAN";
 }
 
 interface FormData {
@@ -53,6 +56,7 @@ interface FormData {
   defaultStore: string;
   isDesigner: boolean;
   commissionPlanId: number | null;
+  protectionCommissionPlanId: number | null;
 }
 
 interface StoreGroup {
@@ -67,6 +71,7 @@ const emptyForm: FormData = {
   defaultStore: "",
   isDesigner: true,
   commissionPlanId: null,
+  protectionCommissionPlanId: null,
 };
 
 function titleCaseRole(role: string): string {
@@ -134,6 +139,14 @@ function StaffRow({
             title="Assigned commission plan"
           >
             {member.commissionPlan.name}
+          </span>
+        )}
+        {member.protectionCommissionPlan && (
+          <span
+            className="ml-1.5 text-[10px] font-sans uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-brand-gold/15 text-brand-gold"
+            title="Assigned protection-plan commission plan"
+          >
+            {member.protectionCommissionPlan.name}
           </span>
         )}
       </td>
@@ -496,14 +509,56 @@ function StaffFormModal({
                 className="w-full border border-brand-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm bg-white appearance-none"
               >
                 <option value="">Default</option>
-                {commissionPlans.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
+                {commissionPlans
+                  .filter((p) => p.kind === "MAIN")
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
               </select>
               <p className="text-xs text-brand-gray mt-1">
                 &ldquo;Default&rdquo; follows the default plan (or the standard tiers)
+              </p>
+            </div>
+          )}
+
+          {commissionPlans?.some((p) => p.kind === "PROTECTION_PLAN") && (
+            <div>
+              <label
+                htmlFor="staff-protection-plan"
+                className="block text-sm font-semibold text-brand-blue mb-1"
+              >
+                Protection-plan commission plan
+              </label>
+              <select
+                id="staff-protection-plan"
+                value={
+                  form.protectionCommissionPlanId === null
+                    ? ""
+                    : String(form.protectionCommissionPlanId)
+                }
+                onChange={(e) =>
+                  onChange({
+                    ...form,
+                    protectionCommissionPlanId:
+                      e.target.value === "" ? null : Number(e.target.value),
+                  })
+                }
+                className="w-full border border-brand-gray rounded-lg px-3 py-3 text-base sm:py-2 sm:text-sm bg-white appearance-none"
+              >
+                <option value="">Default</option>
+                {commissionPlans
+                  .filter((p) => p.kind === "PROTECTION_PLAN")
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-xs text-brand-gray mt-1">
+                Pays this person&rsquo;s protection-plan sales. &ldquo;Default&rdquo; follows the
+                default protection-plan plan.
               </p>
             </div>
           )}
@@ -640,7 +695,7 @@ export function StaffView() {
         const data = await res.json();
         if (!cancelled && Array.isArray(data.plans)) {
           setCommissionPlans(
-            data.plans.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })),
+            data.plans.map((p: CommissionPlanOption) => ({ id: p.id, name: p.name, kind: p.kind })),
           );
         }
       } catch {
@@ -722,6 +777,7 @@ export function StaffView() {
       defaultStore: member.defaultStore || "",
       isDesigner: member.isDesigner,
       commissionPlanId: member.commissionPlanId ?? null,
+      protectionCommissionPlanId: member.protectionCommissionPlanId ?? null,
     });
     setShowForm(true);
   };
@@ -745,6 +801,7 @@ export function StaffView() {
           defaultStore: form.defaultStore || null,
           isDesigner: form.isDesigner,
           commissionPlanId: form.commissionPlanId,
+          protectionCommissionPlanId: form.protectionCommissionPlanId,
         }),
       });
       if (!res.ok) {

@@ -4,6 +4,7 @@
 // DELETE /api/staff/[id] — soft-delete (set isActive: false)
 
 import type { NextApiRequest, NextApiResponse } from "next";
+import { resolvePlanAssignment } from "@/lib/commissionPlans";
 import { requirePermission } from "@/lib/auth/requireAuth";
 import { auditActor, auditLog } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
@@ -15,23 +16,6 @@ import {
 } from "@/lib/auth/adminLockout";
 import { resolveRoleAssignment, type RoleAssignment } from "@/lib/auth/roleAssignment";
 import { logger } from "@/lib/logger";
-
-// Validate a commissionPlanId patch value: null clears the assignment, a
-// number must reference an existing CommissionPlan. Returns ok:false on
-// anything else (wrong type, unknown id).
-async function resolveCommissionPlanPatch(
-  commissionPlanId: unknown,
-): Promise<{ ok: true; value: number | null } | { ok: false }> {
-  if (commissionPlanId === null) return { ok: true, value: null };
-  if (typeof commissionPlanId === "number" && Number.isInteger(commissionPlanId)) {
-    const plan = await prisma.commissionPlan.findUnique({
-      where: { id: commissionPlanId },
-      select: { id: true },
-    });
-    if (plan) return { ok: true, value: commissionPlanId };
-  }
-  return { ok: false };
-}
 
 // Staff records (including soft-delete via DELETE) are admin-only. Previously
 // only the role-change branch inside PATCH checked anything -- GET, PATCH of
@@ -60,6 +44,7 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
       isActive,
       isDesigner,
       commissionPlanId,
+      protectionCommissionPlanId,
     } = req.body;
 
     // A role change goes through the one assignment rule (lib/auth/roleAssignment.ts):
@@ -105,9 +90,14 @@ export default requirePermission("staff.manage", async (req: NextApiRequest, res
     if (isActive !== undefined) data.isActive = isActive;
     if (isDesigner !== undefined) data.isDesigner = isDesigner;
     if (commissionPlanId !== undefined) {
-      const planPatch = await resolveCommissionPlanPatch(commissionPlanId);
-      if (!planPatch.ok) return res.status(400).json({ error: "Unknown commission plan" });
+      const planPatch = await resolvePlanAssignment(commissionPlanId, "MAIN");
+      if (!planPatch.ok) return res.status(400).json({ error: planPatch.error });
       data.commissionPlanId = planPatch.value;
+    }
+    if (protectionCommissionPlanId !== undefined) {
+      const planPatch = await resolvePlanAssignment(protectionCommissionPlanId, "PROTECTION_PLAN");
+      if (!planPatch.ok) return res.status(400).json({ error: planPatch.error });
+      data.protectionCommissionPlanId = planPatch.value;
     }
 
     // Auto-link: if email is set/changed, link this staff record to a matching

@@ -404,8 +404,9 @@ Stated plainly, per the owner's request, rather than left implicit:
   who wants commission counted on delivery or payment-in-full needs a later
   stage that defines what those events mean in this schema and threads a
   new sale-row date source through `loadDesignerSaleRows`.
-- **No rule-editor UI.** Stage 1 is API/engine/migration only. Rules are
-  configured today via direct DB writes (or the auto-sync from the
+- **No general rule-editor UI.** Stage 1 is API/engine/migration only. The one
+  exception is a protection-plan plan (below), whose form writes exactly one
+  category-scoped rule. Other rules are configured today via direct DB writes (or the auto-sync from the
   pre-existing flat-tier editor, which can only ever produce a single
   scope-all rule). A plan with genuinely distinct multi-dimensional rules
   (department-specific rates, a MARGIN-basis rule alongside a REVENUE-basis
@@ -790,6 +791,85 @@ sale), and more than two people on one sale.
 one 70/30 sale through every surface above, both sides; the setting; the
 register's and the order's writes, the lock), and `__tests__/marginMath.test.ts`
 (`applyShare`).
+
+## Protection-plan plans (GAP-24, since 2026-11-11)
+
+Owner, 2026-11-10: _"I think we need to be able to build a plan for the
+protection plans as a separate thing, I know some places do this."_ Protection
+plans stay ordinary items. A store puts them in a category and builds a
+commission plan of their own for that category (DECISIONS 56).
+
+**What a store sets up** (Commission › Live Calculator, under the main plans):
+
+- the category its protection plans are in;
+- whether the plan pays **a percent of the price** (a REVENUE rule) or **an
+  amount for each plan sold** (a UNITS rule with a per-unit amount);
+- one rate, or brackets that start higher as more is sold, starting over each
+  January (YTD) or each pay period (PERIOD);
+- **whether these sales also count toward each salesperson's main-plan
+  brackets.** The owner: _"this needs to be a configuration"_. It's off by
+  default, so a protection plan counts only toward its own plan.
+
+The form's contract is `lib/protectionPlanCommission.ts`, which the screen and
+`/api/admin/reports/commission-tiers/tiers` both import. A plan is a
+`CommissionPlan` with `kind: PROTECTION_PLAN` and one `CommissionPlanRule`
+scoped to the category (label "Protection plans", MARGINAL). Saving it updates
+that rule in place, keeping its id and so its YTD carry, and replaces its
+tiers. It never has `CommissionPlanTier` rows, and the flat tier editor refuses
+it (`replacePlanTiers`), because a flat tier set would add a scope-all rule that
+claims every sale.
+
+**Who it pays.** Like the main plans: `StaffMember.protectionCommissionPlanId`,
+NULL meaning the store's default protection-plan plan. `isDefault` is one per
+kind, so `setDefaultPlan` clears only its own kind's default and the first plan
+of each kind becomes its default. Admin › Staff has a second dropdown once a
+protection-plan plan exists, and both staff routes (adding and editing) check
+the plan's kind through `resolvePlanAssignment`. Adding a staff member used to
+drop the plan picked on the form; it now keeps both.
+
+**How it pays** (`lib/commissionRules.ts:resolvePlanRulesForStaff`, the one
+function every payout path uses: preview, commit, drift, the pay-period
+statement, and handover undo). The person's protection-plan rules go ahead of
+their main plan's, renumbered, so first-match-wins hands the category's sales
+to the protection-plan rule and everything else to the main plan. With no
+protection-plan plan, nothing changes: protection plans pay under the main plan
+like any other sale. A protection-plan rule with no scope at all is left out
+rather than claiming every sale. The plan follows the main plan's `countsWhen`.
+
+**Counting toward the main brackets** (`alsoCountsInMainPlan` →
+`CommissionRuleDef.alsoCountsTowardNextRule`). The engine also hands each row
+the protection-plan rule claims to the next rule that matches it, as a counted
+row. That moves the main rule's position, so its brackets are read where
+everything sold reached, and its YTD carry includes them. The main rule pays
+only its own share of the window:
+
+- MARGINAL / THRESHOLD: the window's commission times its own rows' share of
+  the window. In a window that crosses a bracket, a protection-plan dollar and a
+  furniture dollar earn the same average rate, whatever order they sold in.
+  With no counted rows in the window, the share is 1 and the math is unchanged.
+- RETROACTIVE: the band the position reached, re-rating only the rule's own
+  basis.
+- PER_TRANSACTION: the same share, per sale.
+
+A furniture return in the window is never paid out of protection-plan sales:
+the share is clamped to 0..1.
+
+**On a payout.** `CommissionPayout.protectionPlanName` freezes the plan's name
+beside `commissionPlanName`. The payouts table shows "Main + Protection-plan
+plan", and the breakdown names its slices "Protection plans: …".
+
+**Not done:**
+
+- **The Live Calculator ignores it.** It prices every sale with the main plan's
+  flat tiers (`resolvePlanTiersForStaff`), as it already did for any plan with
+  hand-built rules. Draft Payouts are what pay.
+- **No opting one person out** while a default protection-plan plan exists, the
+  same as main plans.
+
+**Tests:** `__tests__/protectionPlanEngine.test.ts` (the engine, each tier mode,
+the flag off and on), `__tests__/protectionPlanCommission.test.ts` (the form's
+contract), and `__tests__/integration/protectionPlanCommission.integration.test.ts`
+(the real endpoint, staff routes and payout generator).
 
 ## Known gaps
 

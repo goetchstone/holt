@@ -3851,8 +3851,13 @@ model StaffMember {
 
   // Per-salesperson commission structure. NULL = the default plan (or the
   // legacy tier table / built-in defaults — see lib/commissionPlans.ts).
-  commissionPlanId Int?
-  commissionPlan   CommissionPlan? @relation(fields: [commissionPlanId], references: [id])
+  commissionPlanId           Int?
+  commissionPlan             CommissionPlan? @relation("MainCommissionPlan", fields: [commissionPlanId], references: [id])
+  // The protection-plan commission plan this person is paid under (GAP-24, DECISIONS 56).
+  // NULL means the store's default protection-plan plan, and with none, protection plans pay
+  // under the main plan like any other sale (lib/commissionRules.ts).
+  protectionCommissionPlanId Int?
+  protectionCommissionPlan   CommissionPlan? @relation("ProtectionCommissionPlan", fields: [protectionCommissionPlanId], references: [id])
 
   shifts                 StaffShift[]
   upBoardEntries         UpBoardEntry[]
@@ -5275,10 +5280,19 @@ model CommissionPlan {
   // docs/domains/commission.md "countsWhen — what's actually implemented").
   countsWhen CommissionCountsWhen @default(WRITTEN)
 
-  tiers        CommissionPlanTier[]
-  rules        CommissionPlanRule[]
-  staffMembers StaffMember[]
-  payouts      CommissionPayout[]
+  // MAIN plans price a salesperson's sales. A PROTECTION_PLAN plan prices only the items in
+  // its one rule's category, ahead of the main plan, and is assigned separately (GAP-24,
+  // DECISIONS 56). isDefault is one per kind.
+  kind                 CommissionPlanKind @default(MAIN)
+  // PROTECTION_PLAN only: whether the sales it pays also count, unpaid, toward the
+  // salesperson's main-plan brackets. The store's choice; off by default.
+  alsoCountsInMainPlan Boolean            @default(false)
+
+  tiers               CommissionPlanTier[]
+  rules               CommissionPlanRule[]
+  staffMembers        StaffMember[]        @relation("MainCommissionPlan")
+  protectionPlanStaff StaffMember[]        @relation("ProtectionCommissionPlan")
+  payouts             CommissionPayout[]
 
   created   DateTime  @default(now())
   updated   DateTime? @updatedAt
@@ -5330,6 +5344,11 @@ enum CommissionTierMode {
 // Which SalesOrder event a plan's periods are counted against. See
 // CommissionPlan.countsWhen doc comment for the Stage 1 implementation
 // boundary (only WRITTEN is wired into the engine).
+enum CommissionPlanKind {
+  MAIN
+  PROTECTION_PLAN
+}
+
 enum CommissionCountsWhen {
   WRITTEN // orderDate — today's (only implemented) behavior
   DELIVERED // NOT YET IMPLEMENTED in the Stage 1 engine — stored for forward-compat only
@@ -5463,6 +5482,9 @@ model CommissionPayout {
   commissionPlanId   Int?
   commissionPlan     CommissionPlan? @relation(fields: [commissionPlanId], references: [id])
   commissionPlanName String?
+  // The protection-plan plan that priced part of this payout, if any, frozen by name like
+  // commissionPlanName (GAP-24).
+  protectionPlanName String?
 
   // Lock state. lockedAt=null means Draft; non-null means committed.
   // During rollout SUPER_ADMIN can clear lockedAt → null again

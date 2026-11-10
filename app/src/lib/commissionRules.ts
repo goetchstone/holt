@@ -24,6 +24,12 @@
 //
 // Steps 4+5 are exactly loadLegacyOrDefaultTiers' behavior, generalized: it
 // used to end in DEFAULT_COMMISSION_TIERS and now ends in an empty set.
+//
+// Protection plans (GAP-24, DECISIONS 56). A PROTECTION_PLAN plan is resolved
+// the same way on its own track: the person's assigned one, else that kind's
+// default, else none. Its rules go AHEAD of the main plan's, so first-match-
+// wins hands its category's sales to it and everything else to the main plan.
+// With none, protection plans pay under the main plan like any other sale.
 
 import { prisma } from "@/lib/prisma";
 import type { CommissionCountsWhen } from "@prisma/client";
@@ -41,8 +47,41 @@ export interface ResolvedPlanRules {
   /** NULL when resolved from the legacy table or built-in defaults. */
   planId: number | null;
   planName: string;
+  /** The protection-plan plan whose rules lead `rules`, or null. */
+  protectionPlanName: string | null;
+  /** The main plan's: a protection-plan plan follows the main plan's choice. */
   countsWhen: CommissionCountsWhen;
   rules: CommissionRuleDef[];
+}
+
+/**
+ * A protection-plan plan's rule must name what it covers. One with no scope at
+ * all would claim every sale ahead of the main plan, so it is left out: fail
+ * closed, and the plans endpoint refuses to save one.
+ */
+export function hasScope(r: {
+  departmentId: number | null;
+  categoryId: number | null;
+  vendorId: number | null;
+  storeLocationId: number | null;
+  productTypeId: number | null;
+}): boolean {
+  return [r.departmentId, r.categoryId, r.vendorId, r.storeLocationId, r.productTypeId].some(
+    (v) => v !== null,
+  );
+}
+
+/** The person's protection-plan rules, then their main plan's, in that order. */
+function withProtectionPlan(
+  main: ResolvedPlanRules,
+  protection: { name: string; rules: CommissionRuleDef[] } | null,
+): ResolvedPlanRules {
+  if (!protection || protection.rules.length === 0) return main;
+  return {
+    ...main,
+    protectionPlanName: protection.name,
+    rules: [...protection.rules, ...main.rules].map((r, i) => ({ ...r, sortOrder: i })),
+  };
 }
 
 interface DecimalLike {
@@ -206,7 +245,7 @@ export async function resolvePlanRulesForStaff(
   const [staff, plans, fallback] = await Promise.all([
     prisma.staffMember.findMany({
       where: { id: { in: staffIds } },
-      select: { id: true, commissionPlanId: true },
+      select: { id: true, commissionPlanId: true, protectionCommissionPlanId: true },
     }),
     prisma.commissionPlan.findMany({
       where: { isActive: true },
@@ -224,8 +263,21 @@ export async function resolvePlanRulesForStaff(
   const allRuleRows = plans.flatMap((p) => p.rules) as unknown as DbRuleRow[];
   const names = await loadNameMaps(allRuleRows);
 
-  const byPlanId = new Map(plans.map((p) => [p.id, p]));
-  const defaultPlan = plans.find((p) => p.isDefault) ?? null;
+  const mainPlans = plans.filter((p) => p.kind === "MAIN");
+  const protectionPlans = plans.filter((p) => p.kind === "PROTECTION_PLAN");
+  const byPlanId = new Map(mainPlans.map((p) => [p.id, p]));
+  const defaultPlan = mainPlans.find((p) => p.isDefault) ?? null;
+  const protectionById = new Map(protectionPlans.map((p) => [p.id, p]));
+  const defaultProtection = protectionPlans.find((p) => p.isDefault) ?? null;
+  const protectionRules = (plan: NonNullable<typeof defaultProtection>) => ({
+    name: plan.name,
+    rules: (plan.rules as unknown as DbRuleRow[])
+      .filter((r) => r.isActive && hasScope(r))
+      .map((r) => ({
+        ...dbRuleToDef(r, names),
+        alsoCountsTowardNextRule: plan.alsoCountsInMainPlan,
+      })),
+  });
   const legacyFallbackRules: CommissionRuleDef[] = [
     deriveRuleFromLegacyTiers(fallback.tiers.map(tierInputToLegacyRow)),
   ];
@@ -255,6 +307,7 @@ export async function resolvePlanRulesForStaff(
     return {
       planId: plan.id,
       planName: plan.name,
+      protectionPlanName: null,
       countsWhen: plan.countsWhen,
       rules,
     };
@@ -263,19 +316,23 @@ export async function resolvePlanRulesForStaff(
   const legacyFallback: ResolvedPlanRules = {
     planId: null,
     planName: fallback.planName,
+    protectionPlanName: null,
     countsWhen: "WRITTEN" as CommissionCountsWhen,
     rules: legacyFallbackRules,
   };
 
   for (const s of staff) {
     const assigned = s.commissionPlanId !== null ? byPlanId.get(s.commissionPlanId) : undefined;
-    if (assigned) {
-      out.set(s.id, toResolved(assigned));
-    } else if (defaultPlan) {
-      out.set(s.id, toResolved(defaultPlan));
-    } else {
-      out.set(s.id, legacyFallback);
-    }
+    let main: ResolvedPlanRules;
+    if (assigned) main = toResolved(assigned);
+    else if (defaultPlan) main = toResolved(defaultPlan);
+    else main = legacyFallback;
+
+    const protection =
+      (s.protectionCommissionPlanId !== null
+        ? protectionById.get(s.protectionCommissionPlanId)
+        : undefined) ?? defaultProtection;
+    out.set(s.id, withProtectionPlan(main, protection ? protectionRules(protection) : null));
   }
   return out;
 }

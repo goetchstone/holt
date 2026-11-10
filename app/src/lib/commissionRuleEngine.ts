@@ -27,6 +27,11 @@
 //     rows, using `priorState` (frozen carry-forward from the most recent
 //     LOCKED payout, keyed per rule) for cross-period continuity. The
 //     top-level payout commission is the sum across rules.
+//   - One exception to "at most one rule" (GAP-24, DECISIONS 56): a rule
+//     marked `alsoCountsTowardNextRule` pays the rows it claims AND lets them
+//     count, unpaid, toward the position of the next rule that matches them.
+//     That is how a protection-plan plan's sales can still move a salesperson
+//     up their main plan's brackets when the store chooses so.
 
 // ---------------------------------------------------------------------------
 // Types
@@ -79,6 +84,14 @@ export interface CommissionRuleDef {
   accumulator: RuleAccumulator;
   tierMode: RuleTierMode;
   tiers: readonly RuleTierDef[];
+  /**
+   * GAP-24 (DECISIONS 56). The rows this rule claims also count toward the
+   * NEXT active rule (in sort order) whose scope matches them, moving that
+   * rule's position without being paid by it. Set on a protection-plan
+   * plan's rule when the store chose "also count toward the main plan's
+   * brackets". Absent or false: today's first-match-wins, nothing else.
+   */
+  alsoCountsTowardNextRule?: boolean;
 }
 
 /** One line's contribution, pre-resolved by the caller (Prisma + the shared
@@ -267,7 +280,16 @@ function sortActiveRules(rules: readonly CommissionRuleDef[]): CommissionRuleDef
 
 interface BucketResult {
   byRuleKey: Map<string, CommissionSaleRow[]>;
+  /** Rows another rule pays that count, unpaid, toward this rule's position
+   *  (`alsoCountsTowardNextRule`). Keyed by the rule they count toward. */
+  countedByRuleKey: Map<string, CommissionSaleRow[]>;
   unmatched: CommissionSaleRow[];
+}
+
+function pushTo(map: Map<string, CommissionSaleRow[]>, key: string, row: CommissionSaleRow): void {
+  const bucket = map.get(key);
+  if (bucket) bucket.push(row);
+  else map.set(key, [row]);
 }
 
 function bucketRowsByRule(
@@ -275,18 +297,22 @@ function bucketRowsByRule(
   sortedActiveRules: readonly CommissionRuleDef[],
 ): BucketResult {
   const byRuleKey = new Map<string, CommissionSaleRow[]>();
+  const countedByRuleKey = new Map<string, CommissionSaleRow[]>();
   const unmatched: CommissionSaleRow[] = [];
   for (const row of rows) {
-    const rule = matchRule(row, sortedActiveRules);
-    if (!rule) {
+    const index = sortedActiveRules.findIndex((r) => scopeMatches(r.scope, row));
+    if (index === -1) {
       unmatched.push(row);
       continue;
     }
-    const bucket = byRuleKey.get(rule.ruleKey);
-    if (bucket) bucket.push(row);
-    else byRuleKey.set(rule.ruleKey, [row]);
+    const rule = sortedActiveRules[index];
+    pushTo(byRuleKey, rule.ruleKey, row);
+    if (rule.alsoCountsTowardNextRule) {
+      const next = sortedActiveRules.slice(index + 1).find((r) => scopeMatches(r.scope, row));
+      if (next) pushTo(countedByRuleKey, next.ruleKey, row);
+    }
   }
-  return { byRuleKey, unmatched };
+  return { byRuleKey, countedByRuleKey, unmatched };
 }
 
 function basisValue(row: CommissionSaleRow, basis: RuleBasis): number {
@@ -447,6 +473,36 @@ interface WindowLabel {
   end: string;
 }
 
+/** The rate or per-unit amount of the band containing `x`; 0 below every band. */
+function tierMultiplierAt(tiers: readonly RuleTierDef[], x: number): number {
+  const t = tierContaining(tiers, x);
+  return t ? tierMultiplier(t) : 0;
+}
+
+type TierSlice = ReturnType<typeof marginalOverlapSum>["entries"][number];
+
+/**
+ * MARGINAL / THRESHOLD with counted rows: each band's slice of the window is
+ * paid at `share`, the rule's own rows' part of everything in the window. In a
+ * window that crosses a band, a counted dollar and a paid dollar earn the
+ * window's same average rate, whatever order they were sold in.
+ */
+function scaleSlices(
+  slices: readonly TierSlice[],
+  share: number,
+): { total: number; entries: TierSlice[] } {
+  let total = 0;
+  const entries: TierSlice[] = [];
+  for (const e of slices) {
+    const sliceAmount = round2(e.sliceAmount * share);
+    if (sliceAmount === 0) continue;
+    const sliceCommission = round2(e.sliceAmount * share * tierMultiplier(e.tier));
+    total = round2(total + sliceCommission);
+    entries.push({ tier: e.tier, sliceAmount, sliceCommission });
+  }
+  return { total, entries };
+}
+
 interface RuleMeta {
   ruleId: number | null;
   ruleKey: string;
@@ -476,12 +532,26 @@ interface RuleMeta {
  * distinction stays visible to a reader even though the arithmetic is
  * shared.
  */
+/**
+ * What of a rule's window it actually pays, when rows another rule pays also
+ * count toward its position (`alsoCountsTowardNextRule`, GAP-24). The tiers
+ * are read at the position everything reached; the commission is paid on this
+ * rule's own share. See `paidPart`.
+ */
+interface PaidPart {
+  /** 0..1: this rule's own rows' share of the window's basis. */
+  share: number;
+  /** This rule's own accumulated basis at the window's end (RETROACTIVE). */
+  basisAtEnd: number;
+}
+
 function applyTierMode(
   rule: CommissionRuleDef,
   basisAtStart: number,
   basisAtEnd: number,
   priorRecognized: number,
   window: WindowLabel,
+  paid?: PaidPart,
 ): { commission: number; entries: RuleBreakdownEntry[] } {
   const meta: RuleMeta = {
     ruleId: rule.id,
@@ -494,7 +564,9 @@ function applyTierMode(
   };
 
   if (rule.tierMode === "MARGINAL" || rule.tierMode === "THRESHOLD") {
-    const { total, entries: rawEntries } = marginalOverlapSum(rule.tiers, basisAtStart, basisAtEnd);
+    const overlap = marginalOverlapSum(rule.tiers, basisAtStart, basisAtEnd);
+    const { total, entries: rawEntries } =
+      paid && paid.share !== 1 ? scaleSlices(overlap.entries, paid.share) : overlap;
     const entries: RuleBreakdownEntry[] = rawEntries.map((e) => ({
       ...meta,
       tierLabel: e.tier.label,
@@ -506,8 +578,12 @@ function applyTierMode(
     return { commission: total, entries };
   }
 
-  // RETROACTIVE
-  const owedAtEnd = retroactiveOwedAt(rule.tiers, basisAtEnd);
+  // RETROACTIVE. With counted rows, the band is the one everything reached and
+  // it re-rates only this rule's own basis.
+  const owedBase = paid ? paid.basisAtEnd : basisAtEnd;
+  const owedAtEnd = paid
+    ? round2(tierMultiplierAt(rule.tiers, basisAtEnd) * sanitize(owedBase))
+    : retroactiveOwedAt(rule.tiers, basisAtEnd);
   const priorRecognizedSafe = round2(sanitize(priorRecognized));
   const commission = Math.max(0, round2(owedAtEnd - priorRecognizedSafe));
   const cumulativeRecognizedAfter = round2(priorRecognizedSafe + commission);
@@ -525,7 +601,7 @@ function applyTierMode(
     tierLabel: containing?.label ?? "Below goal — not yet qualified",
     rate: containing?.rate ?? null,
     perUnitAmount: containing?.perUnitAmount ?? null,
-    sliceAmount: round2(sanitize(basisAtEnd)),
+    sliceAmount: round2(sanitize(owedBase)),
     sliceCommission: commission,
     priorRecognized: priorRecognizedSafe,
     cumulativeRecognizedAfter,
@@ -544,21 +620,84 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-function computeRuleForYtdOrPeriod(
+interface WindowCtx {
+  periodStart: Date;
+  periodEndExclusive: Date;
+}
+
+/** Live basis at the window's start and end over `rows`: YTD from Jan 1, PERIOD within it. */
+function liveWindow(
   rule: CommissionRuleDef,
   rows: readonly CommissionSaleRow[],
+  ctx: WindowCtx,
+): { start: number; end: number } {
+  if (rule.accumulator === "YTD") {
+    return {
+      start: round2(
+        sumBasis(
+          rows.filter((r) => r.occurredAt < ctx.periodStart),
+          rule.basis,
+        ),
+      ),
+      end: round2(
+        sumBasis(
+          rows.filter((r) => r.occurredAt < ctx.periodEndExclusive),
+          rule.basis,
+        ),
+      ),
+    };
+  }
+  const inPeriod = rows.filter(
+    (r) => r.occurredAt >= ctx.periodStart && r.occurredAt < ctx.periodEndExclusive,
+  );
+  return { start: 0, end: round2(sumBasis(inPeriod, rule.basis)) };
+}
+
+/**
+ * The share of a rule's window it pays when `counted` rows (paid by another
+ * rule) moved its position. Measured live on both sides, so a return that
+ * lands after a lock still splits by whose row it was. A window with no
+ * counted basis in it pays in full, exactly as without the flag.
+ */
+function paidPart(
+  rule: CommissionRuleDef,
+  rows: readonly CommissionSaleRow[],
+  counted: readonly CommissionSaleRow[],
+  ctx: WindowCtx,
+): PaidPart {
+  const own = liveWindow(rule, rows, ctx);
+  const other = liveWindow(rule, counted, ctx);
+  const ownIn = round2(own.end - own.start);
+  const otherIn = round2(other.end - other.start);
+  return { share: otherIn === 0 ? 1 : shareOf(ownIn, otherIn), basisAtEnd: own.end };
+}
+
+/** A rule's own part of a window that counted rows share, from 0 to 1. */
+function shareOf(own: number, counted: number): number {
+  const total = own + counted;
+  if (total <= 0) return 0;
+  return Math.min(1, Math.max(0, own / total));
+}
+
+function computeRuleForYtdOrPeriod(
+  rule: CommissionRuleDef,
+  ownRows: readonly CommissionSaleRow[],
   ctx: {
     periodStart: Date;
     periodEndExclusive: Date;
     yearStart: Date;
     priorEntry: RulePriorState | undefined;
   },
+  counted: readonly CommissionSaleRow[] = [],
 ): {
   commission: number;
   entries: RuleBreakdownEntry[];
   nextBasisAtEnd: number;
   nextCumulativeRecognized: number;
 } {
+  // The position counts every row that moves it; the pay is worked out from
+  // the rule's own rows (`paidPart`). Without counted rows the two are one.
+  const rows = counted.length > 0 ? [...ownRows, ...counted] : ownRows;
   let basisAtStart: number;
   let basisAtEnd: number;
   let priorRecognized: number;
@@ -602,10 +741,15 @@ function computeRuleForYtdOrPeriod(
   }
 
   const periodEndInclusive = new Date(ctx.periodEndExclusive.getTime() - 1);
-  const { commission, entries } = applyTierMode(rule, basisAtStart, basisAtEnd, priorRecognized, {
-    start: isoDate(windowStart),
-    end: isoDate(periodEndInclusive),
-  });
+  const paid = counted.length > 0 ? paidPart(rule, ownRows, counted, ctx) : undefined;
+  const { commission, entries } = applyTierMode(
+    rule,
+    basisAtStart,
+    basisAtEnd,
+    priorRecognized,
+    { start: isoDate(windowStart), end: isoDate(periodEndInclusive) },
+    paid,
+  );
 
   // nextCumulativeRecognized: for RETROACTIVE this is priorRecognized +
   // whatever was newly recognized this period (read back off the single
@@ -625,19 +769,52 @@ function computeRuleForYtdOrPeriod(
   };
 }
 
+/**
+ * One transaction's commission and the tier slices it came from. Its window is
+ * [0, own + counted); with counted rows in it, only its own share is paid.
+ */
+function transactionSlices(
+  rule: CommissionRuleDef,
+  txn: { own: number; counted: number },
+): {
+  owed: number;
+  slices: Array<{ tier: RuleTierDef | null; sliceAmount: number; sliceCommission: number }>;
+} {
+  const total = txn.own + txn.counted;
+  if (rule.tierMode === "RETROACTIVE") {
+    const owed =
+      txn.counted === 0
+        ? retroactiveOwedAt(rule.tiers, total)
+        : round2(tierMultiplierAt(rule.tiers, total) * sanitize(txn.own));
+    const tier = tierContaining(rule.tiers, total);
+    return { owed, slices: [{ tier, sliceAmount: round2(txn.own), sliceCommission: owed }] };
+  }
+  // MARGINAL / THRESHOLD
+  const raw = marginalOverlapSum(rule.tiers, 0, total);
+  const share = txn.counted === 0 ? 1 : shareOf(txn.own, txn.counted);
+  const { total: owed, entries } = share === 1 ? raw : scaleSlices(raw.entries, share);
+  return { owed, slices: entries };
+}
+
 function computeRuleForPerTransaction(
   rule: CommissionRuleDef,
   rows: readonly CommissionSaleRow[],
   ctx: { periodStart: Date; periodEndExclusive: Date },
+  counted: readonly CommissionSaleRow[] = [],
 ): { commission: number; entries: RuleBreakdownEntry[] } {
-  const periodRows = rows.filter(
-    (r) => r.occurredAt >= ctx.periodStart && r.occurredAt < ctx.periodEndExclusive,
-  );
-  const byTxn = new Map<string, number>();
-  for (const row of periodRows) {
+  const inPeriod = (r: CommissionSaleRow) =>
+    r.occurredAt >= ctx.periodStart && r.occurredAt < ctx.periodEndExclusive;
+  // Each transaction's own basis, and what counted rows (paid by another rule)
+  // add to its position.
+  const byTxn = new Map<string, { own: number; counted: number }>();
+  const add = (row: CommissionSaleRow, part: "own" | "counted") => {
     const key = String(row.transactionId);
-    byTxn.set(key, (byTxn.get(key) ?? 0) + basisValue(row, rule.basis));
-  }
+    const t = byTxn.get(key) ?? { own: 0, counted: 0 };
+    t[part] += basisValue(row, rule.basis);
+    byTxn.set(key, t);
+  };
+  for (const row of rows.filter(inPeriod)) add(row, "own");
+  for (const row of counted.filter(inPeriod)) add(row, "counted");
 
   const meta: RuleMeta = {
     ruleId: rule.id,
@@ -657,38 +834,18 @@ function computeRuleForPerTransaction(
   >();
   let commission = 0;
 
-  for (const txnTotal of byTxn.values()) {
-    if (rule.tierMode === "RETROACTIVE") {
-      const owed = retroactiveOwedAt(rule.tiers, txnTotal);
-      if (owed === 0) continue;
-      commission = round2(commission + owed);
-      const containing = tierContaining(rule.tiers, txnTotal);
-      const key = containing?.label ?? "unqualified";
+  for (const txn of byTxn.values()) {
+    const { owed, slices } = transactionSlices(rule, txn);
+    if (owed === 0) continue;
+    commission = round2(commission + owed);
+    for (const e of slices) {
+      const key = e.tier?.label ?? "unqualified";
       const existing = byTierLabel.get(key);
       if (existing) {
-        existing.sliceAmount = round2(existing.sliceAmount + txnTotal);
-        existing.sliceCommission = round2(existing.sliceCommission + owed);
+        existing.sliceAmount = round2(existing.sliceAmount + e.sliceAmount);
+        existing.sliceCommission = round2(existing.sliceCommission + e.sliceCommission);
       } else {
-        byTierLabel.set(key, {
-          tier: containing,
-          sliceAmount: round2(txnTotal),
-          sliceCommission: owed,
-        });
-      }
-    } else {
-      // MARGINAL / THRESHOLD: each transaction is its own [0, total) window.
-      const { total, entries } = marginalOverlapSum(rule.tiers, 0, txnTotal);
-      if (total === 0) continue;
-      commission = round2(commission + total);
-      for (const e of entries) {
-        const key = e.tier.label;
-        const existing = byTierLabel.get(key);
-        if (existing) {
-          existing.sliceAmount = round2(existing.sliceAmount + e.sliceAmount);
-          existing.sliceCommission = round2(existing.sliceCommission + e.sliceCommission);
-        } else {
-          byTierLabel.set(key, e);
-        }
+        byTierLabel.set(key, { ...e });
       }
     }
   }
@@ -715,7 +872,7 @@ function computeRuleForPerTransaction(
  */
 export function computeRuleEnginePayout(input: EngineInput): EnginePayoutResult {
   const sorted = sortActiveRules(input.rules);
-  const { byRuleKey, unmatched } = bucketRowsByRule(input.saleRows, sorted);
+  const { byRuleKey, countedByRuleKey, unmatched } = bucketRowsByRule(input.saleRows, sorted);
   const priorByKey = new Map(input.priorState.map((p) => [p.ruleKey, p]));
 
   let commissionAmount = 0;
@@ -724,11 +881,14 @@ export function computeRuleEnginePayout(input: EngineInput): EnginePayoutResult 
 
   for (const rule of sorted) {
     const rows = byRuleKey.get(rule.ruleKey) ?? [];
+    const counted = countedByRuleKey.get(rule.ruleKey) ?? [];
     if (rule.accumulator === "PER_TRANSACTION") {
-      const { commission, entries } = computeRuleForPerTransaction(rule, rows, {
-        periodStart: input.periodStart,
-        periodEndExclusive: input.periodEndExclusive,
-      });
+      const { commission, entries } = computeRuleForPerTransaction(
+        rule,
+        rows,
+        { periodStart: input.periodStart, periodEndExclusive: input.periodEndExclusive },
+        counted,
+      );
       commissionAmount = round2(commissionAmount + commission);
       breakdown.push(...entries);
       nextState.push({ ruleKey: rule.ruleKey, basisAtEnd: 0, cumulativeRecognizedCommission: 0 });
@@ -736,12 +896,17 @@ export function computeRuleEnginePayout(input: EngineInput): EnginePayoutResult 
     }
 
     const priorEntry = priorByKey.get(rule.ruleKey);
-    const result = computeRuleForYtdOrPeriod(rule, rows, {
-      periodStart: input.periodStart,
-      periodEndExclusive: input.periodEndExclusive,
-      yearStart: input.yearStart,
-      priorEntry,
-    });
+    const result = computeRuleForYtdOrPeriod(
+      rule,
+      rows,
+      {
+        periodStart: input.periodStart,
+        periodEndExclusive: input.periodEndExclusive,
+        yearStart: input.yearStart,
+        priorEntry,
+      },
+      counted,
+    );
     commissionAmount = round2(commissionAmount + result.commission);
     breakdown.push(...result.entries);
     nextState.push({

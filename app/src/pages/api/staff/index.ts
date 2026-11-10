@@ -13,6 +13,7 @@ import {
   resolveRoleAssignment,
 } from "@/lib/auth/roleAssignment";
 import { prisma } from "@/lib/prisma";
+import { resolvePlanAssignment } from "@/lib/commissionPlans";
 
 async function handleGet(req: NextApiRequest, res: NextApiResponse) {
   const where: Prisma.StaffMemberWhereInput = {};
@@ -24,6 +25,7 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
     include: {
       user: { select: { email: true, name: true, image: true } },
       commissionPlan: { select: { id: true, name: true } },
+      protectionCommissionPlan: { select: { id: true, name: true } },
       roleRef: { select: { id: true, key: true, name: true } },
     },
   });
@@ -33,6 +35,18 @@ async function handleGet(req: NextApiRequest, res: NextApiResponse) {
 async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Session) {
   const { displayName, email, role, roleId, defaultStore, isDesigner } = req.body;
   if (!displayName) return res.status(400).json({ error: "displayName required" });
+  // The plans picked on the form (GAP-24). These used to be dropped on create.
+  const plans: { commissionPlanId?: number | null; protectionCommissionPlanId?: number | null } =
+    {};
+  for (const [field, kind] of [
+    ["commissionPlanId", "MAIN"],
+    ["protectionCommissionPlanId", "PROTECTION_PLAN"],
+  ] as const) {
+    if (req.body[field] === undefined) continue;
+    const checked = await resolvePlanAssignment(req.body[field], kind);
+    if (!checked.ok) return res.status(400).json({ error: checked.error });
+    plans[field] = checked.value;
+  }
 
   // Anyone with staff.manage may create a staff member; they get the default
   // role. Any other role is an assignment, and only an admin assigns roles
@@ -54,6 +68,7 @@ async function handlePost(req: NextApiRequest, res: NextApiResponse, session: Se
         role: assignment.role,
         roleId: assignment.roleId,
         defaultStore: defaultStore || null,
+        ...plans,
         // Default the report-visibility flag from the role unless set explicitly.
         isDesigner:
           typeof isDesigner === "boolean" ? isDesigner : assignment.role === DEFAULT_STAFF_ROLE,

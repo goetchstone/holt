@@ -21,6 +21,7 @@ import { PayoutsTab } from "@/components/commission/PayoutsTab";
 import type { CommissionTab } from "./tabs";
 import { useMoneyFormatter } from "@/components/branding/BrandingProvider";
 import { getErrorMessage } from "@/lib/toastError";
+import { ProtectionPlanPlans, type ProtectionPlanRow } from "./ProtectionPlanPlans";
 
 type Tab = CommissionTab;
 
@@ -65,10 +66,12 @@ interface Plan {
   id: number;
   name: string;
   description: string | null;
+  kind: "MAIN" | "PROTECTION_PLAN";
   isDefault: boolean;
   isActive: boolean;
   assignedCount: number;
   tiers: PlanTierRow[];
+  protection: ProtectionPlanRow["protection"] | null;
 }
 
 /**
@@ -242,7 +245,12 @@ function deleteBlockedReason(plan: Plan): string | null {
 }
 
 function PlansManager({ onPlansChanged }: Readonly<{ onPlansChanged: () => void }>) {
-  const [plans, setPlans] = useState<Plan[]>([]);
+  const [allPlans, setAllPlans] = useState<Plan[]>([]);
+  // Protection-plan plans have their own section below (GAP-24).
+  const plans = allPlans.filter((p) => p.kind === "MAIN");
+  const protectionPlans = allPlans.flatMap((p) =>
+    p.kind === "PROTECTION_PLAN" && p.protection ? [{ ...p, protection: p.protection }] : [],
+  );
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -260,8 +268,8 @@ function PlansManager({ onPlansChanged }: Readonly<{ onPlansChanged: () => void 
     setLoadingPlans(true);
     fetch("/api/admin/reports/commission-tiers/tiers")
       .then((r) => r.json())
-      .then((d) => setPlans(d.plans ?? []))
-      .catch(() => setPlans([]))
+      .then((d) => setAllPlans(d.plans ?? []))
+      .catch(() => setAllPlans([]))
       .finally(() => setLoadingPlans(false));
   }, []);
 
@@ -507,6 +515,15 @@ function PlansManager({ onPlansChanged }: Readonly<{ onPlansChanged: () => void 
         subsequent sales earn the higher rate going forward. Staff without an assigned plan use the
         default plan.
       </p>
+      <div className="mt-6">
+        <ProtectionPlanPlans
+          plans={protectionPlans}
+          onChanged={() => {
+            loadPlans();
+            onPlansChanged();
+          }}
+        />
+      </div>
     </section>
   );
 }
