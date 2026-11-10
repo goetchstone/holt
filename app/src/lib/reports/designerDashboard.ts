@@ -20,7 +20,7 @@ import type { PrismaClient } from "@prisma/client";
 import { buildLineItemWhere } from "@/lib/salesBySalesperson";
 import { getDateRanges, type PeriodRange } from "@/lib/reports/dateRanges";
 import { getBusinessTimeZone } from "@/lib/appSettings";
-import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 import { type SplitOrder, creditShare } from "@/lib/commissionSplit";
 import {
   groupForDepartment,
@@ -438,7 +438,7 @@ export async function getDesignerDashboard(
       lineItems: {
         some: {
           partNo: { in: ["DC250", "DC-250", "DC 250"] },
-          lineItemStatus: { not: "CANCELLED" },
+          lineItemStatus: COUNTED_LINE_FILTER,
         },
       },
     },

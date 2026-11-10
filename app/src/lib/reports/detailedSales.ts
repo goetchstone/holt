@@ -8,7 +8,7 @@
 // these functions directly during the migration.
 //
 // The two functions MUST keep an identical line-item filter shape — both carry
-// the literal `lineItemStatus: { not: "CANCELLED" }` (CLAUDE.md rule 33). They
+// `lineItemStatus: COUNTED_LINE_FILTER` (CLAUDE.md rule 33: cancelled and replaced lines out). They
 // live in one file so the summary and drilldown can never diverge: a past
 // single-store discrepancy came from the two REST handlers drifting
 // apart. Revenue statuses include RETURNED so negative return lines net out
@@ -19,7 +19,8 @@ import type { PrismaClient } from "@prisma/client";
 // `Prisma` is imported as a VALUE (not type-only): the Uncategorized drilldown
 // branch uses `Prisma.sql` / `Prisma.empty` to build a parameterized raw query.
 import { Prisma } from "@prisma/client";
-import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { countedLineSql } from "@/lib/reports/revenueScope";
 
 // ----------------------------------------------------------------------------
 // Summary (formerly detailed-sales.ts)
@@ -95,7 +96,7 @@ export async function getDetailedSales(
   // Department + vendor filters layer on the same product join.
   const liWhere: Prisma.OrderLineItemWhereInput = {
     salesOrderId: { in: orderIdSet },
-    lineItemStatus: { not: "CANCELLED" },
+    lineItemStatus: COUNTED_LINE_FILTER,
   };
   if (departmentNames.length > 0 || vendorNames.length > 0) {
     const productFilter: Prisma.ProductWhereInput = {};
@@ -276,7 +277,7 @@ export async function getDetailedSalesItems(
 
   const liWhere: Prisma.OrderLineItemWhereInput = {
     salesOrder: orderWhere,
-    lineItemStatus: { not: "CANCELLED" },
+    lineItemStatus: COUNTED_LINE_FILTER,
   };
 
   if (department === UNCATEGORIZED) {
@@ -321,7 +322,7 @@ export async function getDetailedSalesItems(
         JOIN "SalesOrder" so ON so.id = li."salesOrderId"
         JOIN "Product" p ON p.id = li."productId"
         WHERE so.status IN ('ORDER', 'FULFILLED', 'RETURNED')
-          AND (li."lineItemStatus" IS NULL OR li."lineItemStatus" <> 'CANCELLED')
+          AND ${countedLineSql("li")}
           AND p."departmentId" IS NULL
           ${store ? Prisma.sql`AND so."storeLocation" = ${store}` : Prisma.empty}
           ${startDate ? Prisma.sql`AND so."orderDate" >= ${new Date(`${startDate}T00:00:00.000Z`)}` : Prisma.empty}

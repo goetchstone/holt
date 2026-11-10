@@ -8,7 +8,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { visitorsByStoreLocation } from "@/lib/storeTraffic";
-import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { SALES_REVENUE_STATUSES, COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 interface StorePeriodData {
   netSales: number;
@@ -66,7 +66,7 @@ async function sumByStore(
       storeLocation: true,
       lineItems: {
         where: {
-          lineItemStatus: { not: "CANCELLED" },
+          lineItemStatus: COUNTED_LINE_FILTER,
           ...(departmentId ? { product: { departmentId } } : {}),
         },
         select: { netPrice: true },

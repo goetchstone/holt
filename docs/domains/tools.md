@@ -96,7 +96,7 @@ Group by one thing, optionally go across by a second (the pivot), and total a co
 | Receiving Records | Every receipt | Count, quantity, line cost |
 | Products, Customers, Service Cases | Every row | Count only |
 
-**Replaced lines are out** where the rest of the reports only exclude CANCELLED, because the replacement carries the amount (`COUNTED_LINE_STATUSES`). See "Known gaps" in `reporting.md`.
+**Replaced lines are out,** as in every other total, because the replacement carries the amount (`COUNTED_LINE_STATUSES`, the cancelled-line rule in `reporting.md`).
 
 **It reads rows and adds them in JS,** so a group can reach through relations and a month can follow the store's time. Past 100,000 rows it refuses and says to narrow it, rather than total part of them.
 

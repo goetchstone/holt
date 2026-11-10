@@ -57,3 +57,13 @@ export type CountedLineStatus = (typeof COUNTED_LINE_STATUSES)[number];
 export function isCountedLine(status: string): boolean {
   return (COUNTED_LINE_STATUSES as readonly string[]).includes(status);
 }
+
+/**
+ * The same as a Prisma filter, for every sum and count over lines (rule 33):
+ * `where: { lineItemStatus: COUNTED_LINE_FILTER }`. Leaving out only CANCELLED counts a
+ * replaced line and its replacement both. Raw SQL uses countedLineSql in
+ * lib/reports/revenueScope.ts.
+ */
+export const COUNTED_LINE_FILTER: { in: CountedLineStatus[] } = {
+  in: [...COUNTED_LINE_STATUSES],
+};

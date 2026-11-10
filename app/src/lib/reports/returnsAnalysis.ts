@@ -9,6 +9,7 @@
 // OrderLineItem rows (SalesOrder.lineItems) excluded; netPrice is a LINE total.
 
 import type { PrismaClient } from "@prisma/client";
+import { countedLineSql } from "@/lib/reports/revenueScope";
 
 export const RETURNS_PIVOTS = ["department", "vendor"] as const;
 export type ReturnsPivot = (typeof RETURNS_PIVOTS)[number];
@@ -82,7 +83,7 @@ export async function getReturnsAnalysis(
           LEFT JOIN "Vendor" v ON v.id = p."vendorId"
           WHERE so."orderDate" >= ${startDate}::date
             AND so."orderDate" < (${endDate}::date + INTERVAL '1 day')
-            AND li."lineItemStatus" <> 'CANCELLED'
+            AND ${countedLineSql("li")}
           GROUP BY 1
         `
       : await prisma.$queryRaw<ReturnsRawGroupRow[]>`
@@ -96,7 +97,7 @@ export async function getReturnsAnalysis(
           LEFT JOIN "Department" d ON d.id = p."departmentId"
           WHERE so."orderDate" >= ${startDate}::date
             AND so."orderDate" < (${endDate}::date + INTERVAL '1 day')
-            AND li."lineItemStatus" <> 'CANCELLED'
+            AND ${countedLineSql("li")}
           GROUP BY 1
         `;
 
@@ -110,7 +111,7 @@ export async function getReturnsAnalysis(
     JOIN "Product" p ON p.id = li."productId"
     WHERE so."orderDate" >= ${startDate}::date
       AND so."orderDate" < (${endDate}::date + INTERVAL '1 day')
-      AND li."lineItemStatus" <> 'CANCELLED'
+      AND ${countedLineSql("li")}
       AND so.status = 'RETURNED'
     GROUP BY p.id, p."productNumber", p.name
     HAVING SUM(li."netPrice") < 0

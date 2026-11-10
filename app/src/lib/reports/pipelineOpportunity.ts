@@ -9,9 +9,8 @@
 //
 // Load-bearing invariants copied as-is:
 //   - netPrice is the LINE TOTAL, not a unit price — never multiplied by qty.
-//   - Cancelled lines are excluded (rule 33): the list SQL filters
-//     `li."lineItemStatus" != 'CANCELLED'`; the detail filters
-//     `lineItemStatus: { not: "CANCELLED" }`.
+//   - Cancelled and replaced lines are excluded (rule 33): the list SQL uses
+//     countedLineSqlText; the detail filters `lineItemStatus: COUNTED_LINE_FILTER`.
 //   - The detail computes a lead score from Windfall life-event signals. Both
 //     endpoints are MANAGER/ADMIN only, so lead tier + score ride along on every
 //     quote row. The legacy handler had no role-conditional wealth omission, so
@@ -20,6 +19,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { isNoteSource } from "@/lib/interactionSources";
 import { calculateLeadScore, type LeadTier } from "@/lib/leadScore";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
+import { countedLineSqlText } from "@/lib/reports/revenueScope";
 
 export interface PipelineRow {
   salesperson: string;
@@ -163,7 +164,7 @@ export async function getPipelineOpportunity(
     JOIN "OrderLineItem" li ON li."salesOrderId" = so.id
     LEFT JOIN "StaffMember" sm ON sm."displayName" = so.salesperson
     WHERE so.status IN ('QUOTE', 'ORDER', 'FULFILLED')
-      AND li."lineItemStatus" != 'CANCELLED'
+      AND ${countedLineSqlText("li")}
       AND COALESCE(so."quoteDate", so."orderDate") >= NOW() - INTERVAL '12 months'
       ${activeClause}
       ${archivedClause}
@@ -282,7 +283,7 @@ export async function getPipelineDetail(
         },
       },
       lineItems: {
-        where: { lineItemStatus: { not: "CANCELLED" } },
+        where: { lineItemStatus: COUNTED_LINE_FILTER },
         select: {
           id: true,
           productName: true,

@@ -7,6 +7,7 @@
 // TOTAL, not unit price.
 
 import type { PrismaClient } from "@prisma/client";
+import { COUNTED_LINE_FILTER } from "@/lib/salesOrderRevenue";
 
 export interface StaleQuoteRow {
   id: number;
@@ -64,7 +65,7 @@ export async function getStaleQuotes(
       salesperson: true,
       customer: { select: { firstName: true, lastName: true } },
       lineItems: {
-        where: { lineItemStatus: { not: "CANCELLED" } },
+        where: { lineItemStatus: COUNTED_LINE_FILTER },
         select: { netPrice: true, orderedQuantity: true },
       },
     },

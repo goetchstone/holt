@@ -4,6 +4,7 @@ import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayStamp } from "@/lib/reports/businessDay";
 import { prisma } from "@/lib/prisma";
 import type { ServiceAppointmentStatus, ServiceAppointmentType } from "@prisma/client";
+import { isCountedLine } from "@/lib/salesOrderRevenue";
 
 const VALID_TRANSITIONS: Record<ServiceAppointmentStatus, ServiceAppointmentStatus[]> = {
   PENDING: ["SCHEDULED", "CANCELLED"],
@@ -68,8 +69,9 @@ export async function syncServiceAppointments(salesOrderId: number, tx?: any): P
   for (const li of lineItems) {
     const serviceType: ServiceAppointmentType | null = li.product?.serviceType ?? null;
 
-    if (li.lineItemStatus === "CANCELLED") {
-      // Cancel any non-terminal appointments for cancelled line items
+    if (!isCountedLine(li.lineItemStatus)) {
+      // Cancel any non-terminal appointments for a cancelled or replaced line: a
+      // replacement gets its own.
       const activeAppointments = li.serviceAppointments.filter(
         (a: { status: ServiceAppointmentStatus }) => !isTerminalState(a.status),
       );

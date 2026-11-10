@@ -12,6 +12,7 @@ import { getBusinessTimeZone } from "@/lib/appSettings";
 import { businessDayKey } from "@/lib/reports/businessDay";
 import { LabelSetupError } from "./productTag";
 import { renderTemplate } from "./renderTemplate";
+import { isCountedLine } from "@/lib/salesOrderRevenue";
 
 /** Orders that have sold. A returned order's goods aren't on hold for anyone. */
 const SOLD_STATUSES: readonly string[] = ["ORDER", "FULFILLED"];
@@ -34,7 +35,7 @@ export interface SoldTagOrder {
 /** Why this line can't have a sold tag, or null. Pure. */
 export function soldTagProblem(status: string, line: SoldTagLine): string | null {
   if (!SOLD_STATUSES.includes(status)) return "Only a sold order's lines can have a sold tag.";
-  if (line.lineItemStatus === "CANCELLED" || line.lineItemStatus === "REPLACED") {
+  if (line.lineItemStatus !== null && !isCountedLine(line.lineItemStatus)) {
     return "This line is no longer on the order.";
   }
   if (!(Number(line.orderedQuantity) > 0)) return "This line has nothing on it to tag.";

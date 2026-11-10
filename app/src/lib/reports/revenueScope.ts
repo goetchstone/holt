@@ -21,18 +21,25 @@
 // these call sites clean under the "no `${}` inside `$queryRaw`" rule.
 
 import { Prisma } from "@prisma/client";
-import { SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
+import { COUNTED_LINE_STATUSES, SALES_REVENUE_STATUSES } from "@/lib/salesOrderRevenue";
 
 /** Aliases are developer-supplied identifiers, never user input. Validated
  *  anyway, because this is the one value that reaches `Prisma.raw`. */
 const SAFE_ALIAS = /^[a-z][a-z0-9_]{0,15}$/i;
+
+function safeAlias(alias: string, caller: string): string {
+  if (!SAFE_ALIAS.test(alias)) {
+    throw new Error(`${caller}: unsafe table alias ${JSON.stringify(alias)}`);
+  }
+  return alias;
+}
 
 /**
  * A `SalesOrder.status` predicate limiting a raw query to revenue-bearing
  * orders, for use inside a `Prisma.sql` template:
  *
  *   WHERE ${revenueStatusSql()}
- *     AND li."lineItemStatus" <> 'CANCELLED'
+ *     AND ${countedLineSql()}
  *
  * `alias` is the SalesOrder table alias in the surrounding query (`so` in
  * every current call site).
@@ -46,10 +53,28 @@ const SAFE_ALIAS = /^[a-z][a-z0-9_]{0,15}$/i;
  * SOME status predicate, not this specific one.
  */
 export function revenueStatusSql(alias = "so"): Prisma.Sql {
-  if (!SAFE_ALIAS.test(alias)) {
-    throw new Error(`revenueStatusSql: unsafe table alias ${JSON.stringify(alias)}`);
-  }
-  return Prisma.sql`${Prisma.raw(`"${alias}"`)}."status"::text IN (${Prisma.join([
-    ...SALES_REVENUE_STATUSES,
-  ])})`;
+  return Prisma.sql`${Prisma.raw(`"${safeAlias(alias, "revenueStatusSql")}"`)}."status"::text IN (${Prisma.join(
+    [...SALES_REVENUE_STATUSES],
+  )})`;
+}
+
+/**
+ * An `OrderLineItem.lineItemStatus` predicate for every sum and count over lines (rule 33):
+ * COUNTED_LINE_STATUSES, so cancelled and replaced lines are out. Leaving out only CANCELLED
+ * counts a replaced line and its replacement both. For a `Prisma.sql` template; `alias` is
+ * the line table's alias in the surrounding query.
+ */
+export function countedLineSql(alias = "li"): Prisma.Sql {
+  return Prisma.sql`${Prisma.raw(`"${safeAlias(alias, "countedLineSql")}"`)}."lineItemStatus"::text IN (${Prisma.join(
+    [...COUNTED_LINE_STATUSES],
+  )})`;
+}
+
+/**
+ * The same predicate spelled out, for a query built as a string ($queryRawUnsafe). The
+ * statuses are the constant's own, never input.
+ */
+export function countedLineSqlText(alias = "li"): string {
+  const statuses = COUNTED_LINE_STATUSES.map((status) => `'${status}'`).join(", ");
+  return `"${safeAlias(alias, "countedLineSqlText")}"."lineItemStatus"::text IN (${statuses})`;
 }

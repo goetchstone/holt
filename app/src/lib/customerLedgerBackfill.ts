@@ -95,6 +95,7 @@ import {
   validateAgainstSource,
   type LedgerValidation,
 } from "@/lib/customerLedger";
+import { isCountedLine } from "@/lib/salesOrderRevenue";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -149,7 +150,7 @@ const BACKFILL_CREATED_BY = "ledger-backfill-2026-05-07";
  */
 /**
  * Compute the SALE amount for an order = sum of (netPrice + vatAmount)
- * over its non-CANCELLED line items. Skips wholly-cancelled orders
+ * over its counted line items (not cancelled or replaced, COUNTED_LINE_STATUSES). Skips wholly-cancelled orders
  * (status='CANCELLED'). Returns 0 if there's no active line; the
  * caller then skips the SALE event entirely.
  */
@@ -157,7 +158,7 @@ function computeSaleAmount(order: OrderRow): number {
   if (order.status === "CANCELLED") return 0;
   let saleAmount = 0;
   for (const li of order.lineItems) {
-    if (li.lineItemStatus === "CANCELLED") continue;
+    if (!isCountedLine(li.lineItemStatus)) continue;
     saleAmount += Number(li.netPrice) + Number(li.vatAmount ?? 0);
   }
   return round2(saleAmount);
